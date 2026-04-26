@@ -2,8 +2,11 @@ name: CI
 
 on:
   push:
-    branches-ignore:
-      - main
+    branches:
+      - "feature/**"
+      - "fix/**"
+      - "chore/**"
+      - "refactor/**"
   pull_request:
     branches:
       - develop

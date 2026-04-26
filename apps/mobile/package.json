@@ -1,0 +1,31 @@
+{
+  "name": "@psico/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "main": "expo-router/entry",
+  "scripts": {
+    "build": "expo export",
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "lint": "eslint app/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@psico/types": "workspace:*",
+    "@expo/metro-runtime": "~3.2.1",
+    "expo": "~52.0.0",
+    "expo-router": "~3.5.0",
+    "expo-status-bar": "~1.12.1",
+    "react": "18.3.1",
+    "react-native": "0.76.1"
+  },
+  "devDependencies": {
+    "@psico/eslint-config": "workspace:*",
+    "@psico/typescript-config": "workspace:*",
+    "@babel/core": "^7.24.5",
+    "@types/react": "~18.3.3",
+    "typescript": "^5.4.5"
+  }
+}

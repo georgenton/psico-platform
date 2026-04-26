@@ -1,0 +1,2 @@
+# TODO senior: replace with turbo test --filter=...[HEAD] to run only affected tests
+pnpm test

@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Psico Platform",
+    "slug": "psico-platform",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "psico",
+    "platforms": ["ios", "android"],
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.psico.platform",
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.psico.platform",
+      "supportsTablet": true
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

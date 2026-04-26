@@ -82,6 +82,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # baseBranch: develop is set in .changeset/config.json so the action
+      # detects changesets relative to develop, not main.
       - name: Create release PR or publish packages
         uses: changesets/action@v1
         with:

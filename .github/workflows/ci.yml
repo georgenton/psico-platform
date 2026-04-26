@@ -2,8 +2,11 @@ name: CI
 
 on:
   push:
-    branches-ignore:
-      - main
+    branches:
+      - "feature/**"
+      - "fix/**"
+      - "chore/**"
+      - "refactor/**"
   pull_request:
     branches:
       - develop
@@ -72,6 +75,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm --filter @psico/api exec prisma generate
+
       - name: Typecheck (affected)
         run: pnpm turbo run typecheck --affected
         env:
@@ -104,8 +110,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm --filter @psico/api exec prisma generate
+
       - name: Test (affected, unit only — no DB in CI)
-        run: pnpm turbo run test --affected -- --passWithNoTests
+        run: pnpm turbo run test --affected
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
@@ -137,8 +146,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build (affected)
-        run: pnpm turbo run build --affected
+      - name: Generate Prisma client
+        run: pnpm --filter @psico/api exec prisma generate
+
+      - name: Build (affected, excludes mobile — built via EAS)
+        run: pnpm turbo run build --affected --filter=!@psico/mobile
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}

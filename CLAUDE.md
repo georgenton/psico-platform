@@ -61,10 +61,10 @@ Cross-workspace code (shared types, ESLint/TypeScript configs, UI primitives, et
 
 ## Deployment
 
-| Target | Platform | Notes |
-|--------|----------|-------|
-| `apps/api` | Railway | PostgreSQL and Redis also provisioned on Railway |
-| `apps/web` | Vercel | Connected to the `main` branch |
+| Target     | Platform | Notes                                            |
+| ---------- | -------- | ------------------------------------------------ |
+| `apps/api` | Railway  | PostgreSQL and Redis also provisioned on Railway |
+| `apps/web` | Vercel   | Connected to the `main` branch                   |
 
 ## Quality stack
 
@@ -86,14 +86,14 @@ Each module exposes its public surface through a `index.ts` barrel export.
 
 ## External integrations
 
-| Integration | Purpose | Module |
-|-------------|---------|--------|
-| **Stripe** | Subscriptions and webhooks | `SubscriptionModule` |
-| **Claude API + pgvector** | AI companion with RAG over book content | `AIModule` |
-| **Resend** | Transactional email | `NotificationsModule` |
-| **Expo Notifications + FCM** | Push notifications | `NotificationsModule` |
-| **PostHog** | Product analytics | `AnalyticsModule` |
-| **Cloudflare R2 / AWS S3** | Storage for PDFs, audio, and video | (shared infra) |
+| Integration                  | Purpose                                 | Module                |
+| ---------------------------- | --------------------------------------- | --------------------- |
+| **Stripe**                   | Subscriptions and webhooks              | `SubscriptionModule`  |
+| **Claude API + pgvector**    | AI companion with RAG over book content | `AIModule`            |
+| **Resend**                   | Transactional email                     | `NotificationsModule` |
+| **Expo Notifications + FCM** | Push notifications                      | `NotificationsModule` |
+| **PostHog**                  | Product analytics                       | `AnalyticsModule`     |
+| **Cloudflare R2 / AWS S3**   | Storage for PDFs, audio, and video      | (shared infra)        |
 
 ## Code conventions
 
@@ -108,7 +108,7 @@ Each module exposes its public surface through a `index.ts` barrel export.
 
 - **Target market**: Ecuador (validation) → LATAM (scale).
 - **Monetisation**: Freemium → Pro $7/mo → Annual $59 → B2B $120+/mo.
-- **Anchor books**: *Emociones en Construcción* and *Familias Ensambladas*.
+- **Anchor books**: _Emociones en Construcción_ and _Familias Ensambladas_.
 - **Roadmap**: M1–3 web + validation → M4–6 mobile app + AI → M7–9 B2B → M10+ LATAM.
 
 ## Mentor mode
@@ -120,3 +120,74 @@ This project doubles as a software architecture mentorship. When generating code
 3. State exactly which commands to run to verify the result.
 4. Mark technical debt inline with `// TODO senior: <description>`.
 5. Close every session with a **"Resumen para Notion"** block summarising what was built and what comes next.
+
+## Session log
+
+### Sesión 1 — 2026-04-24 ✅ COMPLETADA
+
+**Commit:** `chore: scaffold monorepo turborepo with all workspaces`
+
+**Lo que se construyó:**
+
+- Monorepo Turborepo v2 + pnpm workspaces con 11 workspaces
+- 3 capas: config/ · packages/ · apps/
+- Bootstrap mínimo: NestJS · Next.js 14 · Expo Router
+- ESLint + Prettier + Husky + Commitlint + lint-staged operativos
+- Changesets configurado
+- ADR 0001 documentado
+- pnpm install sin errores · build @psico/types exitoso
+
+**Deuda técnica pendiente:**
+
+- Corregir orden de condiciones en exports de packages (warning "types")
+- Expandir @psico/types con tipos de dominio reales
+- Restringir CORS a dominios de producción en main.ts
+
+---
+
+### Sesión 2 — EN PROGRESO
+
+**Rama:** `feature/auth-module`
+
+**Objetivo de esta sesión:**
+Implementar la capa de datos y autenticación completa.
+
+**Tareas en orden:**
+
+1. Crear rama `feature/auth-module` desde `main`
+2. Corregir warning de exports en todos los packages
+3. Prisma schema inicial: modelos User · Session · RefreshToken
+4. Primera migración de base de datos
+5. Variables de entorno con `@nestjs/config` + validación con Zod
+6. AuthModule completo: registro · login · refresh token · logout
+7. JWT strategy + guards reutilizables
+8. Endpoints: POST /auth/register · POST /auth/login · POST /auth/refresh · POST /auth/logout
+9. Tests unitarios del AuthService con Vitest
+10. ADR 0002: decisión de JWT + refresh tokens vs sesiones
+11. Changeset: minor para @psico/types (nuevos tipos User)
+
+**Comandos de verificación al terminar:**
+
+```bash
+pnpm --filter @psico/api prisma migrate dev
+pnpm --filter @psico/api dev
+pnpm --filter @psico/api test
+```
+
+---
+
+### Sesión 3 — PENDIENTE
+
+ContentModule: modelos Book · Chapter · Audio · Exercise + endpoints CRUD + upload a R2/S3
+
+### Sesión 4 — PENDIENTE
+
+SubscriptionModule: Stripe · planes · webhooks · guards de acceso por plan
+
+### Sesión 5 — PENDIENTE
+
+Web app: landing page · auth pages · dashboard básico con Next.js 14
+
+### Sesión 6 — PENDIENTE
+
+AIModule: RAG sobre contenido de libros · pgvector · Claude API companion

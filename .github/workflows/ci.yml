@@ -149,8 +149,8 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @psico/api exec prisma generate
 
-      - name: Build (affected)
-        run: pnpm turbo run build --affected
+      - name: Build (affected, excludes mobile — built via EAS)
+        run: pnpm turbo run build --affected --filter=!@psico/mobile
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}

@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: psico-postgres
+    environment:
+      POSTGRES_USER: psico
+      POSTGRES_PASSWORD: psico123
+      POSTGRES_DB: psico_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - psico-postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U psico -d psico_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  psico-postgres-data:

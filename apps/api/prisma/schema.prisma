@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  USER
+  PSYCHOLOGIST
+  ADMIN
+}
+
+enum Plan {
+  FREE
+  PRO
+  ANNUAL
+  B2B
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String
+  avatarUrl     String?
+  role          Role     @default(USER)
+  plan          Plan     @default(FREE)
+  isActive      Boolean  @default(true)
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  profile       Profile?
+  refreshTokens RefreshToken[]
+
+  @@index([email])
+}
+
+model Profile {
+  id                String  @id @default(cuid())
+  userId            String  @unique
+  bio               String?
+  country           String? // ISO 3166-1 alpha-2 (e.g. "EC", "MX")
+  timezone          String? // IANA tz name (e.g. "America/Guayaquil")
+  preferredLanguage String? // BCP 47 tag (e.g. "es", "en")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  // TODO senior: token stores SHA-256 hash — never the raw token
+  token     String    @unique
+  userId    String
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}

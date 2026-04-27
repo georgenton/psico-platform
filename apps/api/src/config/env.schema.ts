@@ -12,6 +12,13 @@ export const envSchema = z.object({
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),
+
+  // Cloudflare R2 (S3-compatible object storage)
+  R2_ACCOUNT_ID: z.string().min(1, "R2_ACCOUNT_ID is required"),
+  R2_ACCESS_KEY_ID: z.string().min(1, "R2_ACCESS_KEY_ID is required"),
+  R2_SECRET_ACCESS_KEY: z.string().min(1, "R2_SECRET_ACCESS_KEY is required"),
+  R2_BUCKET_NAME: z.string().min(1, "R2_BUCKET_NAME is required"),
+  R2_PUBLIC_URL: z.string().url("R2_PUBLIC_URL must be a valid URL"),
 });
 
 export type Env = z.infer<typeof envSchema>;

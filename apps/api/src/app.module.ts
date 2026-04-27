@@ -3,6 +3,8 @@ import { ConfigModule } from "@nestjs/config";
 import { validate } from "./config";
 import { PrismaModule } from "./prisma";
 import { AuthModule } from "./auth";
+import { StorageModule } from "./storage";
+import { ContentModule } from "./content";
 
 @Module({
   imports: [
@@ -11,9 +13,11 @@ import { AuthModule } from "./auth";
       validate,
     }),
     PrismaModule,
+    StorageModule,
     AuthModule,
+    ContentModule,
     // TODO senior: register feature modules here as they are created
-    // ContentModule, SubscriptionModule, UsersModule, etc.
+    // SubscriptionModule, UsersModule, AIModule, etc.
   ],
 })
 export class AppModule {}

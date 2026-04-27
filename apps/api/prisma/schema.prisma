@@ -21,6 +21,13 @@ enum Plan {
   B2B
 }
 
+enum ExerciseType {
+  REFLECTION
+  QUIZ
+  BREATHING
+  JOURNALING
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -38,6 +45,7 @@ model User {
 
   profile       Profile?
   refreshTokens RefreshToken[]
+  progress      UserProgress[]
 
   @@index([email])
 }
@@ -68,4 +76,82 @@ model RefreshToken {
 
   @@index([userId])
   @@index([token])
+}
+
+model Book {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  title         String
+  description   String?
+  coverUrl      String?
+  // TODO senior: totalChapters is a denormalized count — keep in sync on every Chapter create/delete
+  totalChapters Int      @default(0)
+  isPublished   Boolean  @default(false)
+  plan          Plan     @default(FREE)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  chapters Chapter[]
+}
+
+model Chapter {
+  id              String   @id @default(cuid())
+  bookId          String
+  order           Int
+  title           String
+  description     String?
+  durationMinutes Int?
+  isPublished     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  book      Book           @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  audios    Audio[]
+  exercises Exercise[]
+  progress  UserProgress[]
+
+  @@unique([bookId, order])
+  @@index([bookId])
+}
+
+model Audio {
+  id              String   @id @default(cuid())
+  chapterId       String
+  title           String
+  fileUrl         String
+  durationSeconds Int
+  transcription   String?
+  createdAt       DateTime @default(now())
+
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([chapterId])
+}
+
+model Exercise {
+  id        String       @id @default(cuid())
+  chapterId String
+  order     Int
+  title     String
+  type      ExerciseType
+  content   Json
+  createdAt DateTime     @default(now())
+
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([chapterId])
+}
+
+model UserProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  chapterId   String
+  completedAt DateTime @default(now())
+  score       Float?
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+  @@index([userId])
 }

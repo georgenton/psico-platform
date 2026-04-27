@@ -167,13 +167,28 @@ tokens, Prisma schema and env validation`
 
 ---
 
-### Sesión 3 — PENDIENTE
+### Sesión 3 — 2026-04-27 ✅ COMPLETADA
 
-ContentModule: modelos Book · Chapter · Audio · Exercise + endpoints CRUD + upload a R2/S3
+**Rama:** `feature/content-module`  
+**PR:** #2 — squash mergeado a develop  
+**Tests:** 19/19 pasando
+
+**Lo que se construyó:**
+
+- ADR 0003: slugs en URLs + Cloudflare R2
+- Schema Prisma: Book · Chapter · Audio · Exercise · UserProgress
+- @psico/types v0.2.0 — 8 tipos nuevos
+- StorageModule @Global() portable a AWS S3
+- ContentModule: books · chapters · progress
+- PlanGuard + RolesGuard + @CurrentUser()
+- Seed idempotente con 2 libros ancla
+- 19/19 tests pasando
 
 ### Sesión 4 — PENDIENTE
 
-SubscriptionModule: Stripe · planes · webhooks · guards de acceso por plan
+**Rama:** `feature/subscription-module`
+Stripe · planes · webhooks · billing portal ·
+integración con Plan enum existente
 
 ### Sesión 5 — PENDIENTE
 

@@ -1,8 +1,25 @@
 import { Module } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import { validate } from "./config";
+import { PrismaModule } from "./prisma";
+import { AuthModule } from "./auth";
+import { StorageModule } from "./storage";
+import { ContentModule } from "./content";
+import { SubscriptionModule } from "./subscription";
 
 @Module({
-  imports: [],
-  // TODO senior: register feature modules here as they are created
-  // AuthModule, ContentModule, SubscriptionModule, UsersModule, etc.
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate,
+    }),
+    PrismaModule,
+    StorageModule,
+    AuthModule,
+    ContentModule,
+    SubscriptionModule,
+    // TODO senior: register feature modules here as they are created
+    // UsersModule, AIModule, NotificationsModule, etc.
+  ],
 })
 export class AppModule {}

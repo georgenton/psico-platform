@@ -16,6 +16,7 @@
     "strict": true,
     "strictPropertyInitialization": false,
     "skipLibCheck": true,
+    "types": ["node", "multer"],
     "incremental": true,
     "sourceMap": true
   },

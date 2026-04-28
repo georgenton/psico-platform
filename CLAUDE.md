@@ -145,44 +145,50 @@ This project doubles as a software architecture mentorship. When generating code
 
 ---
 
-### Sesión 2 — EN PROGRESO
+### Sesión 2 — 2026-04-26 ✅ COMPLETADA
 
 **Rama:** `feature/auth-module`
+**Commit:** `feat(api): implement AuthModule with JWT refresh 
+tokens, Prisma schema and env validation`
 
-**Objetivo de esta sesión:**
-Implementar la capa de datos y autenticación completa.
+**Lo que se construyó:**
 
-**Tareas en orden:**
+- ConfigModule + validación Zod al startup
+- PrismaService adaptado a Prisma 7
+- AuthModule completo: register · login · refresh · logout
+- JwtStrategy + JwtAuthGuard reutilizables
+- 12 tests unitarios 12/12 pasando
+- @psico/types v0.1.0 con changeset
 
-1. Crear rama `feature/auth-module` desde `main`
-2. Corregir warning de exports en todos los packages
-3. Prisma schema inicial: modelos User · Session · RefreshToken
-4. Primera migración de base de datos
-5. Variables de entorno con `@nestjs/config` + validación con Zod
-6. AuthModule completo: registro · login · refresh token · logout
-7. JWT strategy + guards reutilizables
-8. Endpoints: POST /auth/register · POST /auth/login · POST /auth/refresh · POST /auth/logout
-9. Tests unitarios del AuthService con Vitest
-10. ADR 0002: decisión de JWT + refresh tokens vs sesiones
-11. Changeset: minor para @psico/types (nuevos tipos User)
+**Deuda técnica:**
 
-**Comandos de verificación al terminar:**
-
-```bash
-pnpm --filter @psico/api prisma migrate dev
-pnpm --filter @psico/api dev
-pnpm --filter @psico/api test
-```
+- Tipado PrismaClient en transacciones
+- pnpm test --filter=[HEAD] en pre-push
 
 ---
 
-### Sesión 3 — PENDIENTE
+### Sesión 3 — 2026-04-27 ✅ COMPLETADA
 
-ContentModule: modelos Book · Chapter · Audio · Exercise + endpoints CRUD + upload a R2/S3
+**Rama:** `feature/content-module`  
+**PR:** #2 — squash mergeado a develop  
+**Tests:** 19/19 pasando
+
+**Lo que se construyó:**
+
+- ADR 0003: slugs en URLs + Cloudflare R2
+- Schema Prisma: Book · Chapter · Audio · Exercise · UserProgress
+- @psico/types v0.2.0 — 8 tipos nuevos
+- StorageModule @Global() portable a AWS S3
+- ContentModule: books · chapters · progress
+- PlanGuard + RolesGuard + @CurrentUser()
+- Seed idempotente con 2 libros ancla
+- 19/19 tests pasando
 
 ### Sesión 4 — PENDIENTE
 
-SubscriptionModule: Stripe · planes · webhooks · guards de acceso por plan
+**Rama:** `feature/subscription-module`
+Stripe · planes · webhooks · billing portal ·
+integración con Plan enum existente
 
 ### Sesión 5 — PENDIENTE
 

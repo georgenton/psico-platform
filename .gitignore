@@ -60,6 +60,5 @@ coverage/
 # TypeScript
 *.tsbuildinfo
 
-# Changesets
-.changeset/*.md
-!.changeset/config.json
+# Changesets — .md files must be tracked so `pnpm changeset version` can consume them
+!.changeset/*.md

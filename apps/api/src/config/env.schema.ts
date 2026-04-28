@@ -19,6 +19,17 @@ export const envSchema = z.object({
   R2_SECRET_ACCESS_KEY: z.string().min(1, "R2_SECRET_ACCESS_KEY is required"),
   R2_BUCKET_NAME: z.string().min(1, "R2_BUCKET_NAME is required"),
   R2_PUBLIC_URL: z.string().url("R2_PUBLIC_URL must be a valid URL"),
+
+  // Stripe billing
+  STRIPE_SECRET_KEY: z.string().min(1, "STRIPE_SECRET_KEY is required"),
+  STRIPE_WEBHOOK_SECRET: z.string().min(1, "STRIPE_WEBHOOK_SECRET is required"),
+  STRIPE_PRO_MONTHLY_PRICE_ID: z
+    .string()
+    .min(1, "STRIPE_PRO_MONTHLY_PRICE_ID is required"),
+  STRIPE_PRO_YEARLY_PRICE_ID: z
+    .string()
+    .min(1, "STRIPE_PRO_YEARLY_PRICE_ID is required"),
+  STRIPE_B2B_PRICE_ID: z.string().min(1, "STRIPE_B2B_PRICE_ID is required"),
 });
 
 export type Env = z.infer<typeof envSchema>;

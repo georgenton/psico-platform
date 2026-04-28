@@ -123,3 +123,52 @@ export interface ChapterWithContent extends Chapter {
   audios: Audio[];
   exercises: Exercise[];
 }
+
+// ─── Subscription enums ───────────────────────────────────────────────────────
+
+export type SubscriptionStatus =
+  | "ACTIVE"
+  | "TRIALING"
+  | "PAST_DUE"
+  | "CANCELED"
+  | "INCOMPLETE";
+
+export type BillingInterval = "PRO_MONTHLY" | "PRO_YEARLY" | "B2B";
+
+// ─── Subscription domain types ────────────────────────────────────────────────
+
+export interface Subscription {
+  id: string;
+  userId: string;
+  plan: UserPlan;
+  status: SubscriptionStatus;
+  currentPeriodStart: Date;
+  currentPeriodEnd: Date;
+  cancelAtPeriodEnd: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ─── Subscription API shapes ──────────────────────────────────────────────────
+
+export interface PlanPrice {
+  monthly?: number;
+  yearly?: number;
+  currency: string;
+}
+
+export interface PlanInfo {
+  plan: UserPlan;
+  name: string;
+  prices: PlanPrice;
+  description: string;
+  features: string[];
+}
+
+export interface CheckoutSessionResponse {
+  url: string;
+}
+
+export interface PortalSessionResponse {
+  url: string;
+}

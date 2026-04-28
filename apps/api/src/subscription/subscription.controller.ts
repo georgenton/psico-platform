@@ -14,7 +14,6 @@ import { JwtAuthGuard } from "../auth";
 import { CurrentUser } from "../content/guards/current-user.decorator";
 import type { AuthenticatedUser } from "../auth";
 import type { CreateCheckoutSessionDto } from "./dto/checkout-session.dto";
-import { BillingPlan } from "./dto/checkout-session.dto";
 import type { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
 import type { SubscriptionService } from "./subscription.service";
 

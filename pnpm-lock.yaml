@@ -103,6 +103,9 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
+      stripe:
+        specifier: ^22.1.0
+        version: 22.1.0(@types/node@20.19.39)
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -11952,6 +11955,18 @@ packages:
         integrity: sha512-631UJ6O00eNGfMiWG78ck80dfBab8X6IVFB51jZK5Icd7XAs60Z5y7QdSd/wGIklnWvRbUNloVzhOKKmutxQ6Q==,
       }
 
+  stripe@22.1.0:
+    resolution:
+      {
+        integrity: sha512-w/xHyJGxXWnLPbNHG13sz/fae0MrFGC80Oz7YbICQymbfpqfEcsoG+6yG+9BWb81PWc4rrkeSO4wmTcmefmbLw==,
+      }
+    engines: { node: ">=18" }
+    peerDependencies:
+      "@types/node": ">=18"
+    peerDependenciesMeta:
+      "@types/node":
+        optional: true
+
   strnum@2.2.3:
     resolution:
       {
@@ -21624,6 +21639,10 @@ snapshots:
   strip-literal@2.1.1:
     dependencies:
       js-tokens: 9.0.1
+
+  stripe@22.1.0(@types/node@20.19.39):
+    optionalDependencies:
+      "@types/node": 20.19.39
 
   strnum@2.2.3: {}
 

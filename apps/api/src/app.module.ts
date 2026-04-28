@@ -5,6 +5,7 @@ import { PrismaModule } from "./prisma";
 import { AuthModule } from "./auth";
 import { StorageModule } from "./storage";
 import { ContentModule } from "./content";
+import { SubscriptionModule } from "./subscription";
 
 @Module({
   imports: [
@@ -16,8 +17,9 @@ import { ContentModule } from "./content";
     StorageModule,
     AuthModule,
     ContentModule,
+    SubscriptionModule,
     // TODO senior: register feature modules here as they are created
-    // SubscriptionModule, UsersModule, AIModule, etc.
+    // UsersModule, AIModule, NotificationsModule, etc.
   ],
 })
 export class AppModule {}

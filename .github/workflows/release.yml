@@ -52,7 +52,7 @@ jobs:
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
       - name: Test (unit only — no DB in CI)
-        run: pnpm turbo run test -- --passWithNoTests
+        run: pnpm turbo run test
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}

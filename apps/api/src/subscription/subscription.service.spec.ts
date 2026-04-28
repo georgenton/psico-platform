@@ -4,6 +4,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BillingPlan } from "./dto/checkout-session.dto";
 import { SubscriptionService } from "./subscription.service";
 
+// ─── @prisma/client mock ──────────────────────────────────────────────────────
+// Prevents loading the generated binary (.prisma/client/default) which doesn't
+// exist in CI contexts where prisma generate hasn't run (e.g. Changesets job).
+
+vi.mock("@prisma/client", () => ({
+  Plan: { FREE: "FREE", PRO: "PRO", ANNUAL: "ANNUAL", B2B: "B2B" },
+  SubscriptionStatus: {
+    ACTIVE: "ACTIVE",
+    TRIALING: "TRIALING",
+    PAST_DUE: "PAST_DUE",
+    CANCELED: "CANCELED",
+    INCOMPLETE: "INCOMPLETE",
+  },
+}));
+
 // ─── Stripe mock ──────────────────────────────────────────────────────────────
 // We mock the stripe module to avoid real HTTP calls and API key requirements.
 

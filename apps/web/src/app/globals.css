@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+/* ── Design system tokens ── */
+@theme {
+  /* Primary: Lavender/Purple — calming, trust, psychology */
+  --color-lavender-50: #f7f5ff;
+  --color-lavender-100: #eeebff;
+  --color-lavender-200: #ddd8ff;
+  --color-lavender-300: #c3baff;
+  --color-lavender-400: #a697ff;
+  --color-lavender-500: #8b71f5;
+  --color-lavender-600: #7558e0;
+  --color-lavender-700: #5e42c0;
+  --color-lavender-800: #4d36a0;
+  --color-lavender-900: #3c2a80;
+  --color-lavender-950: #25185c;
+
+  /* Accent: Sage Green — growth, calm action, nature */
+  --color-sage-50: #f3f7f1;
+  --color-sage-100: #e4efe0;
+  --color-sage-200: #c8dfc3;
+  --color-sage-300: #a5c99e;
+  --color-sage-400: #7fae76;
+  --color-sage-500: #5e9254;
+  --color-sage-600: #4a7742;
+  --color-sage-700: #3a5e34;
+  --color-sage-800: #2e4d29;
+  --color-sage-900: #273f23;
+  --color-sage-950: #132211;
+
+  /* Neutral: warm off-whites and warm grays */
+  --color-warm-50: #fafaf8;
+  --color-warm-100: #f5f4f1;
+  --color-warm-200: #eceae5;
+  --color-warm-300: #d9d5ce;
+  --color-warm-400: #b8b3aa;
+  --color-warm-500: #928d84;
+  --color-warm-600: #706b62;
+  --color-warm-700: #574f45;
+  --color-warm-800: #3d3730;
+  --color-warm-900: #2a2420;
+
+  /* Typography */
+  --font-family-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-family-mono: var(--font-geist-mono), monospace;
+
+  /* Shadows */
+  --shadow-soft: 0 2px 16px 0 rgb(139 113 245 / 0.08);
+  --shadow-card: 0 1px 4px 0 rgb(42 36 32 / 0.06),
+    0 4px 24px 0 rgb(42 36 32 / 0.04);
+
+  /* Border radius */
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+}
+
+/* ── Base styles ── */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-warm-50);
+    color: var(--color-warm-700);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    color: var(--color-warm-800);
+    font-weight: 600;
+  }
+
+  a {
+    transition: color 0.15s ease;
+  }
+}
+
+/* ── Shared button components ── */
+@layer components {
+  .btn-sage {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    padding: 0.625rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: white;
+    background-color: var(--color-sage-400);
+    transition: background-color 0.15s ease;
+    text-decoration: none;
+    &:hover {
+      background-color: var(--color-sage-500);
+    }
+  }
+
+  .btn-outline-lavender {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    padding: 0.625rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-lavender-600);
+    border: 1.5px solid var(--color-lavender-300);
+    background-color: transparent;
+    transition: all 0.15s ease;
+    text-decoration: none;
+    &:hover {
+      background-color: var(--color-lavender-50);
+      border-color: var(--color-lavender-400);
+    }
+  }
+}
+
+/* ── Utility: text-balance ── */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

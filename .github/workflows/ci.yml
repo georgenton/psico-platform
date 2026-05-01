@@ -7,6 +7,8 @@ on:
       - "fix/**"
       - "chore/**"
       - "refactor/**"
+      - "release/**"
+      - "changeset-release/**"
   pull_request:
     branches:
       - develop

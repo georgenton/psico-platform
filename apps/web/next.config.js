@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // TODO senior: add transpilePackages for workspace packages if needed
-  // transpilePackages: ['@psico/ui'],
+  transpilePackages: ["@psico/ui", "@psico/types"],
 };
 
 module.exports = nextConfig;

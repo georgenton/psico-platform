@@ -6,6 +6,7 @@ import { AuthModule } from "./auth";
 import { StorageModule } from "./storage";
 import { ContentModule } from "./content";
 import { SubscriptionModule } from "./subscription";
+import { HealthModule } from "./health";
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { SubscriptionModule } from "./subscription";
     AuthModule,
     ContentModule,
     SubscriptionModule,
+    HealthModule,
     // TODO senior: register feature modules here as they are created
     // UsersModule, AIModule, NotificationsModule, etc.
   ],

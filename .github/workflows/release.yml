@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm --filter @psico/api exec prisma generate
+
       - name: Lint
         run: pnpm turbo run lint
         env:
@@ -49,13 +52,13 @@ jobs:
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
       - name: Test (unit only — no DB in CI)
-        run: pnpm turbo run test -- --passWithNoTests
+        run: pnpm turbo run test
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
       - name: Build
-        run: pnpm turbo run build
+        run: pnpm turbo run build --filter=!@psico/mobile
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}

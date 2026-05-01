@@ -9,11 +9,13 @@ on:
       - "refactor/**"
       - "release/**"
       - "changeset-release/**"
+      - "sync/**"
   pull_request:
     branches:
       - develop
       - main
       - "changeset-release/**"
+      - "sync/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

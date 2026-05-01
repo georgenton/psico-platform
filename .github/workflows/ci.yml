@@ -11,6 +11,7 @@ on:
     branches:
       - develop
       - main
+      - "changeset-release/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -42,6 +43,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @psico/api exec prisma generate
 
       - name: Lint (affected)
         run: pnpm turbo run lint --affected

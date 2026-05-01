@@ -197,3 +197,32 @@ Web app: landing page · auth pages · dashboard básico con Next.js 14
 ### Sesión 6 — PENDIENTE
 
 AIModule: RAG sobre contenido de libros · pgvector · Claude API companion
+
+### Sesión 6B — PENDIENTE (post-deploy)
+
+**Rama:** `feature/payment-pool`
+
+**Objetivo:** Refactorizar SubscriptionModule hacia arquitectura
+multi-pasarela con patrón Strategy.
+
+**Tareas:**
+
+1. Crear IPaymentProvider interface con métodos:
+   createCheckout() · createPortal() · handleWebhook()
+2. Migrar lógica actual de Stripe → StripeProvider
+3. Implementar PayphoneProvider para mercado ecuatoriano
+4. PaymentService selecciona provider según:
+   - país del usuario
+   - método elegido en el checkout
+5. ADR 0005: decisión de PaymentPool + patrón Strategy
+6. Tests para cada provider con mocks
+
+**Providers fase 1:**
+
+- StripeProvider — internacional / tarjetas globales
+- PayphoneProvider — Ecuador / billetera local
+
+**Providers fase 2 (cuando haya volumen):**
+
+- KushkiProvider — Ecuador + LATAM
+- PlaceToPayProvider — alternativa local

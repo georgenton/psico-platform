@@ -13,3 +13,5 @@ cmds = ["pnpm turbo run build --filter=@psico/api"]
 
 [start]
 cmd = "pnpm --filter @psico/api start:prod"
+
+# force rebuild Fri May  1 19:47:08 -05 2026

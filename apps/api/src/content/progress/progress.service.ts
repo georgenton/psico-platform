@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import type { PrismaService } from "../../prisma";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { PrismaService } from "../../prisma";
 import type { MarkProgressDto } from "../dto/mark-progress.dto";
 
 @Injectable()

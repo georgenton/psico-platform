@@ -3,7 +3,8 @@ import {
   NotFoundException,
   ConflictException,
 } from "@nestjs/common";
-import type { PrismaService } from "../../prisma";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { PrismaService } from "../../prisma";
 import type { CreateBookDto } from "../dto/create-book.dto";
 import type { UpdateBookDto } from "../dto/update-book.dto";
 

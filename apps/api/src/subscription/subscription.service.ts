@@ -4,11 +4,13 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import type { ConfigService } from "@nestjs/config";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ConfigService } from "@nestjs/config";
 import { Plan, SubscriptionStatus } from "@prisma/client";
 import Stripe from "stripe";
 import type { Env } from "../config";
-import type { PrismaService } from "../prisma";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { PrismaService } from "../prisma";
 import type { BillingPlan } from "./dto/checkout-session.dto";
 import type { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
 

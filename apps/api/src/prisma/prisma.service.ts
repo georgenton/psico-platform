@@ -1,6 +1,7 @@
 import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { Injectable } from "@nestjs/common";
-import type { ConfigService } from "@nestjs/config";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ConfigService } from "@nestjs/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";

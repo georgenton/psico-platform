@@ -8,7 +8,12 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import type { Request } from "express";
+<<<<<<< HEAD
 import type { AuthService } from "./auth.service";
+=======
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { AuthService } from "./auth.service";
+>>>>>>> origin/main
 import type { RegisterDto } from "./dto/register.dto";
 import type { LoginDto } from "./dto/login.dto";
 import type { RefreshDto } from "./dto/refresh.dto";

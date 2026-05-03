@@ -1,6 +1,11 @@
 import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import { Injectable, ForbiddenException } from "@nestjs/common";
+<<<<<<< HEAD
 import type { Reflector } from "@nestjs/core";
+=======
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { Reflector } from "@nestjs/core";
+>>>>>>> origin/main
 import { REQUIRED_PLAN_KEY } from "./required-plan.decorator";
 import type { AuthenticatedUser } from "../../auth";
 

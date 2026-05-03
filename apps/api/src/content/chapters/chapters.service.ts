@@ -4,8 +4,15 @@ import {
   ForbiddenException,
   ConflictException,
 } from "@nestjs/common";
+<<<<<<< HEAD
 import type { PrismaService } from "../../prisma";
 import type { StorageService } from "../../storage";
+=======
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { PrismaService } from "../../prisma";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { StorageService } from "../../storage";
+>>>>>>> origin/main
 import type { CreateChapterDto } from "../dto/create-chapter.dto";
 import type { UploadAudioDto } from "../dto/upload-audio.dto";
 

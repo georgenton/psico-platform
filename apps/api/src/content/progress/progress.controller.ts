@@ -8,17 +8,8 @@ import {
   HttpCode,
   HttpStatus,
 } from "@nestjs/common";
-<<<<<<< HEAD
-<<<<<<< HEAD
-import type { ProgressService } from "./progress.service";
-=======
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ProgressService } from "./progress.service";
->>>>>>> origin/main
-=======
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { ProgressService } from "./progress.service";
->>>>>>> origin/main
 import type { AuthenticatedUser } from "../../auth";
 import { JwtAuthGuard } from "../../auth";
 import { CurrentUser } from "../guards/current-user.decorator";

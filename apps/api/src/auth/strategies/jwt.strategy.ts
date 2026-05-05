@@ -1,15 +1,6 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
-<<<<<<< HEAD
-<<<<<<< HEAD
-import type { ConfigService } from "@nestjs/config";
-=======
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";
->>>>>>> origin/main
-=======
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { ConfigService } from "@nestjs/config";
->>>>>>> origin/main
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
 import type { Env } from "../../config";

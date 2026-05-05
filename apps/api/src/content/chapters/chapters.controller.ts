@@ -10,17 +10,8 @@ import {
   UploadedFile,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-<<<<<<< HEAD
-<<<<<<< HEAD
-import type { ChaptersService } from "./chapters.service";
-=======
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ChaptersService } from "./chapters.service";
->>>>>>> origin/main
-=======
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { ChaptersService } from "./chapters.service";
->>>>>>> origin/main
 import type { AuthenticatedUser } from "../../auth";
 import { JwtAuthGuard } from "../../auth";
 import { PlanGuard } from "../guards/plan.guard";

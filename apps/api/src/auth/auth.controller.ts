@@ -8,17 +8,6 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import type { Request } from "express";
-<<<<<<< HEAD
-<<<<<<< HEAD
-import type { AuthService } from "./auth.service";
-=======
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { AuthService } from "./auth.service";
->>>>>>> origin/main
-import type { RegisterDto } from "./dto/register.dto";
-import type { LoginDto } from "./dto/login.dto";
-import type { RefreshDto } from "./dto/refresh.dto";
-=======
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { AuthService } from "./auth.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -27,7 +16,6 @@ import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { RefreshDto } from "./dto/refresh.dto";
->>>>>>> origin/main
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import type { AuthenticatedUser } from "./strategies/jwt.strategy";
 

@@ -4,12 +4,15 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 <<<<<<< HEAD
+<<<<<<< HEAD
 import type { ConfigService } from "@nestjs/config";
 import type { JwtService } from "@nestjs/jwt";
 import { createHash, randomBytes } from "crypto";
 import * as bcrypt from "bcryptjs";
 import type { PrismaService } from "../prisma";
 =======
+=======
+>>>>>>> origin/main
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -18,6 +21,9 @@ import { createHash, randomBytes } from "crypto";
 import * as bcrypt from "bcryptjs";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+<<<<<<< HEAD
+>>>>>>> origin/main
+=======
 >>>>>>> origin/main
 import type { Env } from "../config";
 import type { RegisterDto } from "./dto/register.dto";

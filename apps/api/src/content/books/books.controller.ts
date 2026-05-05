@@ -10,7 +10,12 @@ import {
   HttpStatus,
 } from "@nestjs/common";
 <<<<<<< HEAD
+<<<<<<< HEAD
 import type { BooksService } from "./books.service";
+=======
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { BooksService } from "./books.service";
+>>>>>>> origin/main
 =======
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { BooksService } from "./books.service";

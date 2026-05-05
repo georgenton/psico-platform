@@ -16,7 +16,12 @@ import type { AuthenticatedUser } from "../auth";
 import type { CreateCheckoutSessionDto } from "./dto/checkout-session.dto";
 import type { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
 <<<<<<< HEAD
+<<<<<<< HEAD
 import type { SubscriptionService } from "./subscription.service";
+=======
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { SubscriptionService } from "./subscription.service";
+>>>>>>> origin/main
 =======
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { SubscriptionService } from "./subscription.service";

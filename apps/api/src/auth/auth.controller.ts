@@ -10,9 +10,12 @@ import {
 import type { Request } from "express";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { AuthService } from "./auth.service";
-import type { RegisterDto } from "./dto/register.dto";
-import type { LoginDto } from "./dto/login.dto";
-import type { RefreshDto } from "./dto/refresh.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { RegisterDto } from "./dto/register.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { LoginDto } from "./dto/login.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { RefreshDto } from "./dto/refresh.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import type { AuthenticatedUser } from "./strategies/jwt.strategy";
 

@@ -20,6 +20,9 @@ export const envSchema = z.object({
   R2_BUCKET_NAME: z.string().min(1, "R2_BUCKET_NAME is required"),
   R2_PUBLIC_URL: z.string().url("R2_PUBLIC_URL must be a valid URL"),
 
+  // Payment gateway selection (Phase 1: stripe | Phase 2: payphone)
+  DEFAULT_PAYMENT_PROVIDER: z.enum(["stripe", "payphone"]).default("stripe"),
+
   // Stripe billing
   STRIPE_SECRET_KEY: z.string().min(1, "STRIPE_SECRET_KEY is required"),
   STRIPE_WEBHOOK_SECRET: z.string().min(1, "STRIPE_WEBHOOK_SECRET is required"),

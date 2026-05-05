@@ -198,29 +198,23 @@ Web app: landing page · auth pages · dashboard básico con Next.js 14
 
 AIModule: RAG sobre contenido de libros · pgvector · Claude API companion
 
-### Sesión 6B — PENDIENTE (post-deploy)
+### Sesión 6B — 2026-05-05 ✅ COMPLETADA
 
-**Rama:** `feature/payment-pool`
+**Rama:** `feature/payment-pool`  
+**Commit:** `feat(api): payment pool — refactor subscription module to multi-gateway strategy pattern`  
+**Tests:** 67/67 pasando
 
-**Objetivo:** Refactorizar SubscriptionModule hacia arquitectura
-multi-pasarela con patrón Strategy.
+**Lo que se construyó:**
 
-**Tareas:**
-
-1. Crear IPaymentProvider interface con métodos:
-   createCheckout() · createPortal() · handleWebhook()
-2. Migrar lógica actual de Stripe → StripeProvider
-3. Implementar PayphoneProvider para mercado ecuatoriano
-4. PaymentService selecciona provider según:
-   - país del usuario
-   - método elegido en el checkout
-5. ADR 0005: decisión de PaymentPool + patrón Strategy
-6. Tests para cada provider con mocks
-
-**Providers fase 1:**
-
-- StripeProvider — internacional / tarjetas globales
-- PayphoneProvider — Ecuador / billetera local
+- Paso 0: Resolvió conflictos de merge en 13 archivos (import type → eslint-disable)
+- `IPaymentProvider` interface con métodos core + opcionales (`getWebhookEventType?`, `supportsRecurring?`)
+- `StripeProvider` — lógica Stripe migrada desde SubscriptionService, 25 tests
+- `PayphoneProvider` — stub Ecuador con documentación de endpoints reales, 6 tests
+- `PaymentService` — selector de provider vía `DEFAULT_PAYMENT_PROVIDER` env var, 7 tests
+- `SubscriptionService` — orquestador puro (delega pagos, retiene `getPlans` y `getMySubscription`), 14 tests
+- Tokens DI nombrados: `STRIPE_PROVIDER` · `PAYPHONE_PROVIDER`
+- `DEFAULT_PAYMENT_PROVIDER` agregado al env schema (default: `"stripe"`)
+- ADR 0005: decisión PaymentPool + roadmap Fase 2
 
 **Providers fase 2 (cuando haya volumen):**
 

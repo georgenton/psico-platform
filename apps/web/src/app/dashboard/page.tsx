@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { Book, Subscription } from "@psico/types";
 
+<<<<<<< HEAD
 import { ApiError } from "@/lib/api";
+=======
+import { apiFetch, ApiError } from "@/lib/api";
+>>>>>>> origin/main
 import { serverFetch, getSessionUser } from "@/lib/api.server";
 
 export const metadata: Metadata = { title: "Inicio" };
@@ -122,7 +126,15 @@ export default async function DashboardPage() {
   const user = getSessionUser();
 
   const [books, subscription] = await Promise.all([
+<<<<<<< HEAD
     serverFetch<Book[]>("/content/books"),
+=======
+    // /content/books is public — no JWT needed
+    apiFetch<Book[]>("/content/books").catch((err: unknown) => {
+      console.error("[DashboardPage] Failed to fetch books:", err);
+      return [] as Book[];
+    }),
+>>>>>>> origin/main
     serverFetch<Subscription>("/subscriptions/me").catch((err: unknown) => {
       // FREE users may not have a subscription record yet
       if (

@@ -1,6 +1,11 @@
 import { Injectable } from "@nestjs/common";
 <<<<<<< HEAD
+<<<<<<< HEAD
 import type { ConfigService } from "@nestjs/config";
+=======
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ConfigService } from "@nestjs/config";
+>>>>>>> origin/main
 =======
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";

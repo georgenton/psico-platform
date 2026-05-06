@@ -1,12 +1,11 @@
-import { StyleSheet, Text, View } from "react-native";
-import { StatusBar } from "expo-status-bar";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { Colors } from "@/theme";
 
-export default function HomeScreen() {
+// Transient screen while AuthGate decides the initial route.
+export default function Index() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Psico Platform</Text>
-      <Text style={styles.subtitle}>Psychoeducation SaaS</Text>
-      <StatusBar style="auto" />
+      <ActivityIndicator size="large" color={Colors.lavender[500]} />
     </View>
   );
 }
@@ -16,15 +15,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#666",
-    marginTop: 8,
+    backgroundColor: Colors.warm[50],
   },
 });

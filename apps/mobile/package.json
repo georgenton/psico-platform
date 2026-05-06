@@ -13,18 +13,21 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@psico/types": "workspace:*",
     "@expo/metro-runtime": "~3.2.1",
+    "@expo/vector-icons": "~14.0.4",
+    "@psico/api-client": "workspace:*",
+    "@psico/types": "workspace:*",
     "expo": "~52.0.0",
     "expo-router": "~3.5.0",
+    "expo-secure-store": "~14.0.1",
     "expo-status-bar": "~1.12.1",
     "react": "18.3.1",
     "react-native": "0.76.1"
   },
   "devDependencies": {
+    "@babel/core": "^7.24.5",
     "@psico/eslint-config": "workspace:*",
     "@psico/typescript-config": "workspace:*",
-    "@babel/core": "^7.24.5",
     "@types/react": "~18.3.3",
     "typescript": "^5.4.5"
   }

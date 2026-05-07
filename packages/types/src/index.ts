@@ -172,3 +172,65 @@ export interface CheckoutSessionResponse {
 export interface PortalSessionResponse {
   url: string;
 }
+
+// ─── AI / RAG types ───────────────────────────────────────────────────────────
+
+export type MessageRole = "USER" | "ASSISTANT";
+
+export interface ContentChunk {
+  id: string;
+  bookId: string;
+  chapterId: string | null;
+  content: string;
+  chunkHash: string;
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Conversation {
+  id: string;
+  userId: string;
+  title: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ConversationMessage {
+  id: string;
+  conversationId: string;
+  role: MessageRole;
+  content: string;
+  inputTokens: number;
+  outputTokens: number;
+  createdAt: Date;
+}
+
+// ─── AI API shapes ────────────────────────────────────────────────────────────
+
+export interface ChatRequest {
+  message: string;
+  conversationId?: string;
+}
+
+export interface ChatUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface ChatResponse {
+  reply: string;
+  conversationId: string;
+  usage: ChatUsage;
+}
+
+export interface ConversationSummary extends Pick<
+  Conversation,
+  "id" | "title" | "createdAt" | "updatedAt"
+> {
+  messageCount: number;
+}
+
+export interface IngestResponse {
+  chunksUpserted: number;
+}

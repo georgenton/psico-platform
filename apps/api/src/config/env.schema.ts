@@ -23,6 +23,11 @@ export const envSchema = z.object({
   // Payment gateway selection (Phase 1: stripe | Phase 2: payphone)
   DEFAULT_PAYMENT_PROVIDER: z.enum(["stripe", "payphone"]).default("stripe"),
 
+  // AI companion
+  ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"),
+  VOYAGE_API_KEY: z.string().min(1, "VOYAGE_API_KEY is required"),
+  AI_MAX_CONTEXT_CHUNKS: z.coerce.number().int().positive().default(5),
+
   // Stripe billing
   STRIPE_SECRET_KEY: z.string().min(1, "STRIPE_SECRET_KEY is required"),
   STRIPE_WEBHOOK_SECRET: z.string().min(1, "STRIPE_WEBHOOK_SECRET is required"),

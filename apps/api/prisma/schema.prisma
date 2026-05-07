@@ -1,9 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  extensions = [pgvector(map: "vector")]
 }
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
@@ -57,6 +59,7 @@ model User {
   refreshTokens RefreshToken[]
   progress      UserProgress[]
   subscription  Subscription?
+  conversations Conversation[]
 
   @@index([email])
 }
@@ -194,4 +197,55 @@ model StripeEvent {
   createdAt     DateTime @default(now())
 
   @@index([stripeEventId])
+}
+
+// ─── AI / RAG models ──────────────────────────────────────────────────────────
+
+model ContentChunk {
+  id        String                      @id @default(cuid())
+  bookId    String
+  chapterId String?
+  content   String
+  // SHA-256 of content — used for idempotent upsert during ingest
+  chunkHash String                      @unique
+  metadata  Json
+  // voyage-3 produces 1024-dimensional embeddings
+  embedding Unsupported("vector(1024)")?
+  createdAt DateTime                    @default(now())
+  updatedAt DateTime                    @updatedAt
+
+  @@index([bookId])
+  @@index([chapterId])
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages ConversationMessage[]
+
+  @@index([userId])
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+model ConversationMessage {
+  id             String      @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  content        String
+  inputTokens    Int         @default(0)
+  outputTokens   Int         @default(0)
+  createdAt      DateTime    @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
 }

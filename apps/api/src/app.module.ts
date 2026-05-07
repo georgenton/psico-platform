@@ -7,6 +7,7 @@ import { StorageModule } from "./storage";
 import { ContentModule } from "./content";
 import { SubscriptionModule } from "./subscription";
 import { HealthModule } from "./health";
+import { AIModule } from "./ai";
 
 @Module({
   imports: [
@@ -20,8 +21,9 @@ import { HealthModule } from "./health";
     ContentModule,
     SubscriptionModule,
     HealthModule,
-    // TODO senior: register feature modules here as they are created
-    // UsersModule, AIModule, NotificationsModule, etc.
+    AIModule,
+    // TODO senior: register remaining feature modules here
+    // UsersModule, NotificationsModule, AnalyticsModule, ProgressModule
   ],
 })
 export class AppModule {}

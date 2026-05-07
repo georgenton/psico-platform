@@ -43,6 +43,9 @@ importers:
 
   apps/api:
     dependencies:
+      "@anthropic-ai/sdk":
+        specifier: ^0.95.1
+        version: 0.95.1(zod@4.3.6)
       "@aws-sdk/client-s3":
         specifier: ^3.1037.0
         version: 3.1037.0
@@ -106,6 +109,9 @@ importers:
       stripe:
         specifier: ^22.1.0
         version: 22.1.0(@types/node@20.19.39)
+      voyageai:
+        specifier: ^0.2.1
+        version: 0.2.1
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -435,6 +441,18 @@ packages:
         npm: ^6.11.0 || ^7.5.6 || >=8.0.0,
         yarn: ">= 1.13.0",
       }
+
+  "@anthropic-ai/sdk@0.95.1":
+    resolution:
+      {
+        integrity: sha512-OO9AF7hmAoU492c/mD7Q2cPqI2WNAj7rAPHlawgBeUgpwiboLRiDs+grsErGWeHHP9ZRWfzq2OVrODTt8aITVg==,
+      }
+    hasBin: true
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
 
   "@aws-crypto/crc32@5.2.0":
     resolution:
@@ -4414,6 +4432,12 @@ packages:
       }
     engines: { node: ">=18.0.0" }
 
+  "@stablelib/base64@1.0.1":
+    resolution:
+      {
+        integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==,
+      }
+
   "@standard-schema/spec@1.1.0":
     resolution:
       {
@@ -7705,6 +7729,12 @@ packages:
         integrity: sha512-W+KJc2dmILlPplD/H4K9l9LcAHAfPtP6BY84uVLXQ6Evcz9Lcg33Y2z1IVblT6xdY54PXYVHEv+0Wpq8Io6zkA==,
       }
 
+  fast-sha256@1.3.0:
+    resolution:
+      {
+        integrity: sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ==,
+      }
+
   fast-uri@3.1.0:
     resolution:
       {
@@ -9162,6 +9192,13 @@ packages:
       {
         integrity: sha512-xyFwyhro/JEof6Ghe2iz2NcXoj2sloNsWr/XsERDK/oiPCfaNhl5ONfp+jQdAZRQQ0IJWNzH9zIZF7li91kh2w==,
       }
+
+  json-schema-to-ts@3.1.1:
+    resolution:
+      {
+        integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==,
+      }
+    engines: { node: ">=16" }
 
   json-schema-traverse@0.4.1:
     resolution:
@@ -12089,6 +12126,12 @@ packages:
       }
     engines: { node: ">=6" }
 
+  standardwebhooks@1.0.0:
+    resolution:
+      {
+        integrity: sha512-BbHGOQK9olHPMvQNHWul6MYlrRTAOKn03rOe4A8O3CLWhNf4YHBqq2HJKKC+sfqpxiBY52pNeesD6jIiLDz8jg==,
+      }
+
   statuses@1.5.0:
     resolution:
       {
@@ -12629,6 +12672,12 @@ packages:
       }
     hasBin: true
 
+  ts-algebra@2.0.0:
+    resolution:
+      {
+        integrity: sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==,
+      }
+
   ts-api-utils@1.4.3:
     resolution:
       {
@@ -13149,6 +13198,21 @@ packages:
         integrity: sha512-gQpnTgkubC6hQgdIcRdYGDSDc+SaujOdyesZQMv6JlfQee/9Mp0Qhnys6WxDWvQnL5WZdT7o2Ul187aSt0Rq+w==,
       }
 
+  voyageai@0.2.1:
+    resolution:
+      {
+        integrity: sha512-ym7Dk6p8Si6lR9wDh58EzxwT0ziD/pqXjzzzceOSySO3Ic3uosHZLOTAsb3Gq+1OaKdEMnni/p8TohKUNvLTkg==,
+      }
+    engines: { node: ">=18.0.0" }
+    peerDependencies:
+      "@huggingface/transformers": ^3.8.0
+      onnxruntime-node: ">=1.17.0"
+    peerDependenciesMeta:
+      "@huggingface/transformers":
+        optional: true
+      onnxruntime-node:
+        optional: true
+
   walker@1.0.8:
     resolution:
       {
@@ -13553,6 +13617,13 @@ snapshots:
       rxjs: 7.8.1
     transitivePeerDependencies:
       - chokidar
+
+  "@anthropic-ai/sdk@0.95.1(zod@4.3.6)":
+    dependencies:
+      json-schema-to-ts: 3.1.1
+      standardwebhooks: 1.0.0
+    optionalDependencies:
+      zod: 4.3.6
 
   "@aws-crypto/crc32@5.2.0":
     dependencies:
@@ -17049,6 +17120,8 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  "@stablelib/base64@1.0.1": {}
+
   "@standard-schema/spec@1.1.0": {}
 
   "@swc/counter@0.1.3": {}
@@ -19317,6 +19390,8 @@ snapshots:
 
   fast-safe-stringify@2.1.1: {}
 
+  fast-sha256@1.3.0: {}
+
   fast-uri@3.1.0: {}
 
   fast-xml-builder@1.1.5:
@@ -20228,6 +20303,11 @@ snapshots:
   json-parse-better-errors@1.0.2: {}
 
   json-parse-even-better-errors@2.3.1: {}
+
+  json-schema-to-ts@3.1.1:
+    dependencies:
+      "@babel/runtime": 7.29.2
+      ts-algebra: 2.0.0
 
   json-schema-traverse@0.4.1: {}
 
@@ -22002,6 +22082,11 @@ snapshots:
     dependencies:
       type-fest: 0.7.1
 
+  standardwebhooks@1.0.0:
+    dependencies:
+      "@stablelib/base64": 1.0.1
+      fast-sha256: 1.3.0
+
   statuses@1.5.0: {}
 
   statuses@2.0.2: {}
@@ -22306,6 +22391,8 @@ snapshots:
   tr46@0.0.3: {}
 
   tree-kill@1.2.2: {}
+
+  ts-algebra@2.0.0: {}
 
   ts-api-utils@1.4.3(typescript@5.9.3):
     dependencies:
@@ -22642,6 +22729,12 @@ snapshots:
       - terser
 
   vlq@1.0.1: {}
+
+  voyageai@0.2.1:
+    dependencies:
+      node-fetch: 2.7.0
+    transitivePeerDependencies:
+      - encoding
 
   walker@1.0.8:
     dependencies:

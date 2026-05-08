@@ -1,5 +1,13 @@
 # @psico/api-client
 
+## 0.0.7
+
+### Patch Changes
+
+- Updated dependencies [125d222]
+- Updated dependencies [125d222]
+  - @psico/types@0.8.0
+
 ## 0.0.6
 
 ### Patch Changes

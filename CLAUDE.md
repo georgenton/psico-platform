@@ -184,19 +184,11 @@ tokens, Prisma schema and env validation`
 - Seed idempotente con 2 libros ancla
 - 19/19 tests pasando
 
-### Sesión 4 — PENDIENTE
+### Sesión 4 ✅ COMPLETADA — SubscriptionModule + Stripe + webhooks + 34 tests
 
-**Rama:** `feature/subscription-module`
-Stripe · planes · webhooks · billing portal ·
-integración con Plan enum existente
+### Sesión 5 ✅ COMPLETADA — Web app Next.js 14 (landing + auth + dashboard)
 
-### Sesión 5 — PENDIENTE
-
-Web app: landing page · auth pages · dashboard básico con Next.js 14
-
-### Sesión 6 — PENDIENTE
-
-AIModule: RAG sobre contenido de libros · pgvector · Claude API companion
+### Sesión 6 ✅ COMPLETADA — Deploy Railway + Vercel (producción activa)
 
 ### Sesión 6B — 2026-05-05 ✅ COMPLETADA
 
@@ -220,3 +212,19 @@ AIModule: RAG sobre contenido de libros · pgvector · Claude API companion
 
 - KushkiProvider — Ecuador + LATAM
 - PlaceToPayProvider — alternativa local
+
+### Sesión 7 ✅ COMPLETADA — Mobile app React Native + Expo Router (87 tests)
+
+### Sesión 8 ✅ COMPLETADA — AIModule Claude API + pgvector + RAG (87 tests)
+
+---
+
+### Estado de producción — 2026-05-08
+
+- API: https://psico-platform-production.up.railway.app
+- Web: https://psico-platform-web.vercel.app
+- Tests: 87/87 pasando
+- Módulos activos en producción: Auth · Content · Subscription · AI
+- AIModule: pgvector tablas creadas, pendiente ingest de libros ancla
+- Fix definitivo: ESLint override para consistent-type-imports en archivos NestJS (services, controllers, guards, modules)
+- Próximo paso: ejecutar POST /ai/ingest/:bookId con token ADMIN para poblar embeddings de "Emociones en Construcción" y "Familias Ensambladas"

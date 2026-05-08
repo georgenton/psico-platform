@@ -3,7 +3,12 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma";
 import type { BillingPlan } from "./dto/checkout-session.dto";
 import type { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
+<<<<<<< HEAD
 import type { PaymentService } from "./payment.service";
+=======
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { PaymentService } from "./payment.service";
+>>>>>>> origin/main
 import type {
   CheckoutSessionResult,
   PortalSessionResult,

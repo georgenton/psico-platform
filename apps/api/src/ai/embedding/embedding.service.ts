@@ -1,5 +1,10 @@
 import { Injectable, Logger } from "@nestjs/common";
+<<<<<<< HEAD
 import type { ConfigService } from "@nestjs/config";
+=======
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ConfigService } from "@nestjs/config";
+>>>>>>> origin/main
 import { VoyageAIClient } from "voyageai";
 import type { Env } from "../../config";
 

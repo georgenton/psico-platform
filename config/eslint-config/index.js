@@ -19,4 +19,19 @@ module.exports = {
     node: true,
     es2022: true,
   },
+  overrides: [
+    {
+      // NestJS DI uses value imports — type-only imports break the IoC container
+      files: [
+        "apps/api/src/**/*.service.ts",
+        "apps/api/src/**/*.controller.ts",
+        "apps/api/src/**/*.strategy.ts",
+        "apps/api/src/**/*.guard.ts",
+        "apps/api/src/**/*.module.ts",
+      ],
+      rules: {
+        "@typescript-eslint/consistent-type-imports": "off",
+      },
+    },
+  ],
 };

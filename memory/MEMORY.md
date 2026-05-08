@@ -3,6 +3,7 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 - [Session 7 — Mobile app](project_session7.md) — Auth flow, tabs, books lock, Stripe checkout, SecureStore, 10/10 typecheck
 =======
 >>>>>>> origin/main
@@ -11,6 +12,8 @@
 =======
 >>>>>>> origin/main
 =======
+=======
+>>>>>>> origin/main
   <<<<<<< HEAD
   <<<<<<< HEAD
   <<<<<<< HEAD
@@ -20,4 +23,7 @@
   > > > > > > > # origin/main
   > > > > > > >
   > > > > > > > origin/main
+<<<<<<< HEAD
+>>>>>>> origin/main
+=======
 >>>>>>> origin/main

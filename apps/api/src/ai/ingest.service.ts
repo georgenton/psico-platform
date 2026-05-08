@@ -4,10 +4,15 @@ import {
   NotFoundException,
   BadRequestException,
 } from "@nestjs/common";
-import type { PrismaService } from "../prisma";
-import type { EmbeddingService } from "./embedding/embedding.service";
-import type { VectorStoreService } from "./vector-store/vector-store.service";
-import { type ChunkInput } from "./vector-store/vector-store.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { PrismaService } from "../prisma";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { EmbeddingService } from "./embedding/embedding.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import {
+  VectorStoreService,
+  type ChunkInput,
+} from "./vector-store/vector-store.service";
 
 // Chunk size/overlap in words — a rough but fast approximation of tokens
 const CHUNK_WORDS = 500;

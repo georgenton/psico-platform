@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { createHash } from "crypto";
-import type { PrismaService } from "../../prisma";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { PrismaService } from "../../prisma";
 
 export interface ChunkInput {
   bookId: string;

@@ -1,10 +1,14 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
-import type { ConfigService } from "@nestjs/config";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ConfigService } from "@nestjs/config";
 import Anthropic from "@anthropic-ai/sdk";
 import type { Env } from "../config";
-import type { PrismaService } from "../prisma";
-import type { EmbeddingService } from "./embedding/embedding.service";
-import type { VectorStoreService } from "./vector-store/vector-store.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { PrismaService } from "../prisma";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { EmbeddingService } from "./embedding/embedding.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { VectorStoreService } from "./vector-store/vector-store.service";
 
 export interface ChatResult {
   reply: string;

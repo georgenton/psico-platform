@@ -6,8 +6,10 @@ import { PlanGuard } from "../content/guards/plan.guard";
 import { RequiredPlan } from "../content/guards/required-plan.decorator";
 import { RolesGuard } from "../content/guards/roles.guard";
 import { RequiredRole } from "../content/guards/required-role.decorator";
-import type { AIService } from "./ai.service";
-import type { IngestService } from "./ingest.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { AIService } from "./ai.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { IngestService } from "./ingest.service";
 import type { ChatRequestDto } from "./dto/chat-request.dto";
 
 @Controller("ai")

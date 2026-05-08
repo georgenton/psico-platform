@@ -172,6 +172,8 @@ tokens, Prisma schema and env validation`
 **Rama:** `feature/content-module`  
 **PR:** #2 — squash mergeado a develop  
 **Tests:** 19/19 pasando
+<<<<<<< HEAD
+=======
 
 **Lo que se construyó:**
 
@@ -183,6 +185,24 @@ tokens, Prisma schema and env validation`
 - PlanGuard + RolesGuard + @CurrentUser()
 - Seed idempotente con 2 libros ancla
 - 19/19 tests pasando
+>>>>>>> origin/main
+
+**Lo que se construyó:**
+
+<<<<<<< HEAD
+- ADR 0003: slugs en URLs + Cloudflare R2
+- Schema Prisma: Book · Chapter · Audio · Exercise · UserProgress
+- @psico/types v0.2.0 — 8 tipos nuevos
+- StorageModule @Global() portable a AWS S3
+- ContentModule: books · chapters · progress
+- PlanGuard + RolesGuard + @CurrentUser()
+- Seed idempotente con 2 libros ancla
+- 19/19 tests pasando
+=======
+**Rama:** `feature/subscription-module`
+Stripe · planes · webhooks · billing portal ·
+integración con Plan enum existente
+>>>>>>> origin/main
 
 ### Sesión 4 ✅ COMPLETADA — SubscriptionModule + Stripe + webhooks + 34 tests
 
@@ -190,6 +210,11 @@ tokens, Prisma schema and env validation`
 
 ### Sesión 6 ✅ COMPLETADA — Deploy Railway + Vercel (producción activa)
 
+<<<<<<< HEAD
+=======
+AIModule: RAG sobre contenido de libros · pgvector · Claude API companion
+
+>>>>>>> origin/main
 ### Sesión 6B — 2026-05-05 ✅ COMPLETADA
 
 **Rama:** `feature/payment-pool`  
@@ -212,6 +237,7 @@ tokens, Prisma schema and env validation`
 
 - KushkiProvider — Ecuador + LATAM
 - PlaceToPayProvider — alternativa local
+<<<<<<< HEAD
 
 ### Sesión 7 ✅ COMPLETADA — Mobile app React Native + Expo Router (87 tests)
 
@@ -228,3 +254,5 @@ tokens, Prisma schema and env validation`
 - AIModule: pgvector tablas creadas, pendiente ingest de libros ancla
 - Fix definitivo: ESLint override para consistent-type-imports en archivos NestJS (services, controllers, guards, modules)
 - Próximo paso: ejecutar POST /ai/ingest/:bookId con token ADMIN para poblar embeddings de "Emociones en Construcción" y "Familias Ensambladas"
+=======
+>>>>>>> origin/main

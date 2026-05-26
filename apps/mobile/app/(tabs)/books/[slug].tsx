@@ -9,8 +9,8 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { contentApi } from "@psico/api-client";
-import type { BookWithChapters, UserPlan } from "@psico/types";
+import { booksApi } from "@psico/api-client";
+import type { BookDetailResponse, UserPlan } from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { Colors, Radius, Spacing } from "@/theme";
 
@@ -21,26 +21,21 @@ const PLAN_RANK: Record<UserPlan, number> = {
   B2B: 3,
 };
 
-const PLAN_LABEL: Record<UserPlan, string> = {
-  FREE: "Gratuito",
-  PRO: "Pro",
-  ANNUAL: "Pro Anual",
-  B2B: "Empresarial",
-};
-
 export default function BookDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { user } = useAuth();
   const router = useRouter();
-  const [book, setBook] = useState<BookWithChapters | null>(null);
+  const [detail, setDetail] = useState<BookDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!slug) return;
-    contentApi
-      .getBook(slug)
-      .then(setBook)
+    // The route param is still named `slug` for backward compat with the
+    // current navigation links. The endpoint accepts either id or slug.
+    booksApi
+      .getDetail(slug)
+      .then(setDetail)
       .catch(() => setError("No se pudo cargar el libro."))
       .finally(() => setLoading(false));
   }, [slug]);
@@ -55,7 +50,7 @@ export default function BookDetailScreen() {
     );
   }
 
-  if (error || !book) {
+  if (error || !detail) {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>{error ?? "Libro no encontrado."}</Text>
@@ -63,7 +58,8 @@ export default function BookDetailScreen() {
     );
   }
 
-  const isLocked = PLAN_RANK[book.plan] > PLAN_RANK[user.plan];
+  const book = detail.book;
+  const isLocked = (book.tierRequired === "pro" ? 1 : 0) > PLAN_RANK[user.plan];
 
   return (
     <ScrollView
@@ -82,7 +78,7 @@ export default function BookDetailScreen() {
 
       {/* Book info */}
       <View style={styles.content}>
-        {book.plan !== "FREE" ? (
+        {book.tierRequired === "pro" ? (
           <View style={styles.planBadgeRow}>
             <Ionicons
               name={isLocked ? "lock-closed" : "checkmark-circle"}
@@ -95,9 +91,7 @@ export default function BookDetailScreen() {
                 { color: isLocked ? Colors.lavender[500] : Colors.sage[500] },
               ]}
             >
-              {isLocked
-                ? `Requiere plan ${PLAN_LABEL[book.plan]}`
-                : `Plan ${PLAN_LABEL[book.plan]}`}
+              {isLocked ? "Requiere plan Pro" : "Plan Pro"}
             </Text>
           </View>
         ) : null}
@@ -111,22 +105,22 @@ export default function BookDetailScreen() {
         <View style={styles.statsRow}>
           <View style={styles.stat}>
             <Ionicons name="list" size={16} color={Colors.warm[500]} />
-            <Text style={styles.statText}>{book.totalChapters} capítulos</Text>
+            <Text style={styles.statText}>{book.chapters} capítulos</Text>
           </View>
         </View>
 
         {/* Chapter list */}
         <Text style={styles.sectionTitle}>Capítulos</Text>
 
-        {book.chapters.length === 0 ? (
+        {detail.chaptersList.length === 0 ? (
           <Text style={styles.emptyText}>
             No hay capítulos disponibles aún.
           </Text>
         ) : (
-          book.chapters.map((chapter, idx) => (
-            <View key={chapter.id} style={styles.chapterRow}>
+          detail.chaptersList.map((chapter) => (
+            <View key={chapter.n} style={styles.chapterRow}>
               <View style={styles.chapterNumber}>
-                <Text style={styles.chapterNumberText}>{idx + 1}</Text>
+                <Text style={styles.chapterNumberText}>{chapter.n}</Text>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.chapterTitle}>{chapter.title}</Text>
@@ -136,7 +130,7 @@ export default function BookDetailScreen() {
                   </Text>
                 ) : null}
               </View>
-              {isLocked ? (
+              {isLocked || chapter.lockedByTier ? (
                 <Ionicons
                   name="lock-closed"
                   size={14}
@@ -158,7 +152,7 @@ export default function BookDetailScreen() {
           <View style={styles.upgradeCta}>
             <Ionicons name="star" size={28} color={Colors.lavender[500]} />
             <Text style={styles.upgradeTitle}>
-              Desbloquea este libro con plan {PLAN_LABEL[book.plan]}
+              Desbloquea este libro con plan Pro
             </Text>
             <Text style={styles.upgradeSubtitle}>
               Accede a todos los capítulos, audios y ejercicios.

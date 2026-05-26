@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { Book, Subscription } from "@psico/types";
+import type {
+  BookListItem,
+  BookListResponse,
+  Subscription,
+} from "@psico/types";
 
 import { apiFetch, ApiError } from "@/lib/api";
 import { serverFetch, getSessionUser } from "@/lib/api.server";
@@ -20,7 +24,7 @@ function BookCard({
   index,
   locked,
 }: {
-  book: Book;
+  book: BookListItem;
   index: number;
   locked: boolean;
 }) {
@@ -59,11 +63,9 @@ function BookCard({
           className="mb-4 flex-1 text-xs leading-relaxed"
           style={{ color: "var(--color-warm-500)" }}
         >
-          {book.description ?? "Contenido psicoeducativo para tu bienestar."}
+          {book.subtitle ?? "Contenido psicoeducativo para tu bienestar."}
         </p>
 
-        {/* TODO senior: replace hardcoded 0% with real progress from
-            GET /content/progress once that endpoint is wired to this page */}
         <div className="mb-3">
           <div className="mb-1 flex items-center justify-between text-xs">
             <span style={{ color: "var(--color-warm-500)" }}>Progreso</span>
@@ -71,7 +73,7 @@ function BookCard({
               className="font-medium"
               style={{ color: "var(--color-lavender-600)" }}
             >
-              0%
+              {book.userProgress?.progressPct ?? 0}%
             </span>
           </div>
           <div
@@ -81,7 +83,7 @@ function BookCard({
             <div
               className="h-full rounded-full"
               style={{
-                width: "0%",
+                width: `${book.userProgress?.progressPct ?? 0}%`,
                 background: "var(--color-lavender-400)",
               }}
             />
@@ -121,11 +123,17 @@ function BookCard({
 export default async function DashboardPage() {
   const user = getSessionUser();
 
-  const [books, subscription] = await Promise.all([
-    // /content/books is public — no JWT needed
-    apiFetch<Book[]>("/content/books").catch((err: unknown) => {
+  const [booksList, subscription] = await Promise.all([
+    // /books is publicly readable (catalog preview). userProgress/isFavorite/
+    // isBookmarked default to null/false without a JWT.
+    apiFetch<BookListResponse>("/books").catch((err: unknown) => {
       console.error("[DashboardPage] Failed to fetch books:", err);
-      return [] as Book[];
+      return {
+        books: [],
+        pagination: { page: 1, perPage: 24, total: 0 },
+        categories: [],
+        authors: [],
+      } as BookListResponse;
     }),
     serverFetch<Subscription>("/subscriptions/me").catch((err: unknown) => {
       // FREE users may not have a subscription record yet
@@ -141,6 +149,7 @@ export default async function DashboardPage() {
 
   const userPlan = subscription?.plan ?? user?.plan ?? "FREE";
   const isFreePlan = userPlan === "FREE";
+  const books = booksList.books;
 
   const firstName = user?.email?.split("@")[0] ?? "Usuario";
 
@@ -204,8 +213,10 @@ export default async function DashboardPage() {
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {books.map((book, i) => {
-              // A book is locked if it requires PRO/ANNUAL and user is FREE
-              const locked = book.plan !== "FREE" && isFreePlan;
+              // BookListItem exposes tierRequired ("free" | "pro") translated
+              // from Plan. A book is locked if it requires pro AND the user
+              // is on the FREE plan.
+              const locked = book.tierRequired === "pro" && isFreePlan;
               return (
                 <BookCard key={book.id} book={book} index={i} locked={locked} />
               );

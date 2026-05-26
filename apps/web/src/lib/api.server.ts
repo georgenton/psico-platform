@@ -90,7 +90,7 @@ async function attemptRefresh(refreshToken: string): Promise<string | null> {
 
 // ── Server-side fetch wrapper ──────────────────────────────────────────────
 //
-// Usage:  const books = await serverFetch<Book[]>('/content/books')
+// Usage:  const books = await serverFetch<BookListResponse>('/books')
 //
 // Automatic behaviour:
 //   1. Attaches the stored access token to every request.

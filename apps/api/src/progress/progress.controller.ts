@@ -1,24 +1,29 @@
 import {
+  Body,
   Controller,
   Get,
-  Post,
-  Param,
-  Body,
-  UseGuards,
   HttpCode,
   HttpStatus,
+  Param,
+  Post,
+  UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ProgressService } from "./progress.service";
-import type { AuthenticatedUser } from "../../auth";
-import { JwtAuthGuard } from "../../auth";
-import { CurrentUser } from "../guards/current-user.decorator";
-import type { MarkProgressDto } from "../dto/mark-progress.dto";
+import type { AuthenticatedUser } from "../auth";
+import { JwtAuthGuard } from "../auth";
+import { CurrentUser } from "../shared";
+import type { MarkProgressDto } from "./dto/mark-progress.dto";
 
-@ApiTags("Content · Progress")
+/**
+ * ProgressController — S5 rename from /content/progress to /progress.
+ * The path simplification matches the broader URL rebrand: every module
+ * lives at /<module>/* rather than /content/<sub>/*.
+ */
+@ApiTags("Progress")
 @ApiBearerAuth("bearer")
-@Controller("content/progress")
+@Controller("progress")
 @UseGuards(JwtAuthGuard)
 export class ProgressController {
   constructor(private readonly progressService: ProgressService) {}

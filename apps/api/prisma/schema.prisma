@@ -103,6 +103,10 @@ model User {
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
   onboardingState         OnboardingState?
+  bookFavorites           BookFavorite[]
+  bookBookmarks           BookBookmark[]
+  bookReviews             BookReview[]
+  dismissedPrompts        DismissedReflectionPrompt[]
 
   @@unique([authProvider, providerId])
   @@index([email])
@@ -290,20 +294,181 @@ model AuthEvent {
   @@index([ipAddress, createdAt(sort: Desc)])
 }
 
-model Book {
+// ─── Book catalog (Sprint S5) ────────────────────────────────────────────────
+//
+// BookAuthor + BookCategory live as tables (not enums) because:
+//   1. Editor de autor (B2B, Sprint S19) needs to write to BookAuthor at
+//      runtime. An enum would require a migration on each new author.
+//   2. Categorías are described as an open set in 03-biblioteca.md
+//      ("ansiedad | vinculos | duelo | …"). Curated by content team.
+//   3. Both can be ordered, translated, or marked inactive in the future
+//      without schema churn.
+//
+// Book.cover is the design token (cool|warm|mixed). The real artwork URL
+// lives in coverArtUrl. The front falls back to the gradient token when
+// coverArtUrl is null — see 03-biblioteca.md §states.
+
+model BookAuthor {
   id            String   @id @default(cuid())
   slug          String   @unique
-  title         String
-  description   String?
-  coverUrl      String?
-  // TODO senior: totalChapters is a denormalized count — keep in sync on every Chapter create/delete
-  totalChapters Int      @default(0)
-  isPublished   Boolean  @default(false)
-  plan          Plan     @default(FREE)
+  name          String
+  // Professional title shown on book detail ("Dra. en Psicología Clínica")
+  title         String?
+  bio           String?
+  avatarUrl     String?
+  // Visible only when verified (banco de psicólogos colegiados). Detail UI
+  // hides it when null.
+  licenseNumber String?
+  // Cover token used when avatar is missing.
+  cover         String   @default("cool")
+  isVerified    Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  chapters Chapter[]
+  books Book[]
+}
+
+model BookCategory {
+  id        String   @id @default(cuid())
+  // Stable token for URLs/filters: "ansiedad", "vinculos", "duelo".
+  slug      String   @unique
+  label     String
+  // Display order in filter sidebar.
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  books Book[]
+}
+
+model Book {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  title           String
+  // Shorter subtitle line shown next to title (optional).
+  subtitle        String?
+  // Short description on cards (1-2 sentences).
+  description     String?
+  // Long-form summary (markdown) for detail page.
+  summary         String?
+  // Design token (cool|warm|mixed). The frontend renders this as a gradient
+  // when coverArtUrl is null. Stored as string for flexibility — we may add
+  // new tokens without a migration.
+  cover           String   @default("cool")
+  // Legacy field — kept for backward compat with seeded data and the existing
+  // ContentModule URL exposure. New artwork goes to coverArtUrl.
+  coverUrl        String?
+  coverArtUrl     String?
+  // Total page count (nullable for audio-only or chapter-only books).
+  pages           Int?
+  // Sum of chapter durations. Denormalized for list/detail performance.
+  // Recomputed on chapter create/delete via service.
+  durationMinutes Int      @default(0)
+  // Language tag (BCP 47): "es", "en". Defaults to Spanish for our market.
+  language        String   @default("es")
+  // TODO senior: totalChapters is a denormalized count — keep in sync on every Chapter create/delete
+  totalChapters   Int      @default(0)
+  isPublished     Boolean  @default(false)
+  plan            Plan     @default(FREE)
+  // Optional FK to author/category. Nullable so we can seed books before
+  // wiring catalog (avoids chicken-and-egg in migration). Service requires it
+  // on publish.
+  authorId        String?
+  categoryId      String?
+  publishedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  chapters  Chapter[]
+  author    BookAuthor?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  category  BookCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  favorites BookFavorite[]
+  bookmarks BookBookmark[]
+  reviews   BookReview[]
+
+  @@index([authorId])
+  @@index([categoryId])
+  @@index([isPublished, publishedAt(sort: Desc)])
+}
+
+// User-scoped catalog state. Both are toggleable; both delete on user delete.
+model BookFavorite {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+}
+
+model BookBookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+}
+
+// One review per user per book. UI only allows submission when the user has
+// completed the book (`UserProgress.completedAt != null` for every chapter).
+// The service enforces this — no DB-level constraint.
+model BookReview {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  rating    Int      // 1..5, validated in DTO
+  text      String   // Markdown allowed; sanitized in UI
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([bookId, createdAt(sort: Desc)])
+  @@index([userId])
+}
+
+// Reflection prompts (Home dashboard). Curated by content team; rotated daily.
+// `audience` is a coarse filter — "all" or a tier token. The service can also
+// filter by mood/streak if needed in the future.
+model ReflectionPrompt {
+  id        String   @id @default(cuid())
+  text      String
+  audience  String   @default("all")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  dismissals DismissedReflectionPrompt[]
+
+  @@index([isActive])
+}
+
+// Per-user dismissals (POST /reflection-prompts/:id/dismiss). The Home
+// service excludes any prompt the user dismissed in the last 7 days.
+model DismissedReflectionPrompt {
+  id          String   @id @default(cuid())
+  userId      String
+  promptId    String
+  dismissedAt DateTime @default(now())
+
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt ReflectionPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, promptId])
+  @@index([userId, dismissedAt(sort: Desc)])
 }
 
 model Chapter {

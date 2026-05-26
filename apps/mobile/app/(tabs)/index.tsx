@@ -10,8 +10,8 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { contentApi } from "@psico/api-client";
-import type { Book } from "@psico/types";
+import { booksApi } from "@psico/api-client";
+import type { BookListItem } from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { Colors, Radius, Spacing } from "@/theme";
 import type { UserPlan } from "@psico/types";
@@ -47,13 +47,15 @@ function greeting(): string {
 export default function HomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const [books, setBooks] = useState<Book[]>([]);
+  const [books, setBooks] = useState<BookListItem[]>([]);
   const [loadingBooks, setLoadingBooks] = useState(true);
 
   useEffect(() => {
-    contentApi
-      .getBooks()
-      .then((data) => setBooks(data.slice(0, 4)))
+    // Sprint S5: /content/books renamed to /books, response is now
+    // BookListResponse with a `.books` array.
+    booksApi
+      .list({ perPage: 4 })
+      .then((data) => setBooks(data.books))
       .catch(() => {})
       .finally(() => setLoadingBooks(false));
   }, []);
@@ -131,7 +133,10 @@ export default function HomeScreen() {
               paddingRight: Spacing.md,
             }}
             renderItem={({ item }) => {
-              const locked = PLAN_RANK[item.plan] > userPlanRank;
+              // BookListItem exposes tierRequired ("free"|"pro"). Compare
+              // against the user's plan rank to decide the lock.
+              const locked =
+                (item.tierRequired === "pro" ? 1 : 0) > userPlanRank;
               return (
                 <Pressable
                   style={styles.bookCard}
@@ -163,11 +168,11 @@ export default function HomeScreen() {
                   </Text>
                   {locked ? (
                     <Text style={styles.bookPlanBadge}>
-                      {PLAN_LABEL[item.plan]}
+                      {item.tierRequired === "pro" ? "Pro" : "Gratuito"}
                     </Text>
                   ) : (
                     <Text style={styles.bookChapters}>
-                      {item.totalChapters} capítulos
+                      {item.chapters} capítulos
                     </Text>
                   )}
                 </Pressable>

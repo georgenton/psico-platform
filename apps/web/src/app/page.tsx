@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import type { Book, PlanInfo } from "@psico/types";
+import type { BookListItem, PlanInfo } from "@psico/types";
 
 import { booksApi, subscriptionsApi } from "@/lib/api";
 import { Navbar } from "@/components/landing/Navbar";
@@ -22,32 +22,54 @@ export const revalidate = 3600;
 
 // ── Fallback data — se usa cuando la API no está disponible ────────────────
 
-const FALLBACK_BOOKS: Book[] = [
+// FALLBACK_BOOKS uses the BookListItem shape so the landing renders the same
+// hero cards even when the API is unreachable during ISR regeneration.
+const FALLBACK_BOOKS: BookListItem[] = [
   {
     id: "fallback-1",
     slug: "emociones-en-construccion",
     title: "Emociones en Construcción",
-    description:
+    subtitle:
       "Aprende a identificar, comprender y gestionar tus emociones con herramientas basadas en psicología cognitiva.",
-    coverUrl: null,
-    totalChapters: 12,
-    isPublished: true,
-    plan: "FREE",
-    createdAt: new Date("2025-01-01"),
-    updatedAt: new Date("2025-01-01"),
+    authorId: null,
+    authorName: "Marina Quintana",
+    cover: "warm",
+    coverArtUrl: null,
+    categoryId: null,
+    categorySlug: null,
+    chapters: 12,
+    pages: 96,
+    durationMinutes: 0,
+    publishedOn: new Date("2025-01-01"),
+    rating: 0,
+    reviewCount: 0,
+    tierRequired: "free",
+    isFavorite: false,
+    isBookmarked: false,
+    userProgress: null,
   },
   {
     id: "fallback-2",
     slug: "familias-ensambladas",
     title: "Familias Ensambladas",
-    description:
+    subtitle:
       "Guía para navegar las dinámicas de las familias reconstruidas con empatía y comunicación efectiva.",
-    coverUrl: null,
-    totalChapters: 10,
-    isPublished: true,
-    plan: "PRO",
-    createdAt: new Date("2025-01-01"),
-    updatedAt: new Date("2025-01-01"),
+    authorId: null,
+    authorName: "Marina Quintana",
+    cover: "cool",
+    coverArtUrl: null,
+    categoryId: null,
+    categorySlug: null,
+    chapters: 10,
+    pages: 140,
+    durationMinutes: 0,
+    publishedOn: new Date("2025-01-01"),
+    rating: 0,
+    reviewCount: 0,
+    tierRequired: "pro",
+    isFavorite: false,
+    isBookmarked: false,
+    userProgress: null,
   },
 ];
 
@@ -93,8 +115,17 @@ const FALLBACK_PLANS: PlanInfo[] = [
 // ── Page ──────────────────────────────────────────────────────────────────
 
 export default async function HomePage() {
-  const [books, plans] = await Promise.all([
-    booksApi.findAll().catch((): Book[] => FALLBACK_BOOKS),
+  const [booksList, plans] = await Promise.all([
+    booksApi.findAll().catch(() => ({
+      books: FALLBACK_BOOKS,
+      pagination: {
+        page: 1,
+        perPage: FALLBACK_BOOKS.length,
+        total: FALLBACK_BOOKS.length,
+      },
+      categories: [],
+      authors: [],
+    })),
     subscriptionsApi.getPlans().catch((): PlanInfo[] => FALLBACK_PLANS),
   ]);
 
@@ -104,7 +135,7 @@ export default async function HomePage() {
       <main>
         <HeroSection />
         <HowItWorksSection />
-        <BooksSection books={books} />
+        <BooksSection books={booksList.books} />
         <PricingSection plans={plans} />
         <CtaSection />
       </main>

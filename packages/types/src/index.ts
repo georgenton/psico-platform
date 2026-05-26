@@ -458,3 +458,275 @@ export interface OnboardingCompleteResponse {
 export interface OnboardingTourCompleteRequest {
   stepsCompleted: number;
 }
+
+// ─── Books catalog (Sprint S5) ───────────────────────────────────────────────
+
+/** Visual gradient token rendered when no real cover artwork exists. */
+export type CoverToken = "cool" | "warm" | "mixed";
+
+/** Sort order accepted by GET /books?sort=. */
+export type BookListSort = "recent" | "alpha" | "marina";
+
+/** View tab accepted by GET /books?view=. */
+export type BookListView = "catalogo" | "mis" | "recos";
+
+export interface BookCategory {
+  id: string;
+  slug: string;
+  label: string;
+  count: number;
+}
+
+export interface BookAuthorSummary {
+  id: string;
+  slug: string;
+  name: string;
+  initials: string;
+  avatarUrl: string | null;
+  cover: CoverToken;
+  bookCount: number;
+}
+
+export interface BookAuthorDetail extends BookAuthorSummary {
+  title: string | null;
+  bio: string | null;
+  licenseNumber: string | null;
+  isVerified: boolean;
+}
+
+export interface BookUserProgressSummary {
+  startedAt: Date;
+  lastChapterRead: number;
+  progressPct: number;
+  completedAt: Date | null;
+}
+
+/** Item shape returned by GET /books list and recos. Optimized for grid cards. */
+export interface BookListItem {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  authorId: string | null;
+  authorName: string | null;
+  cover: CoverToken;
+  coverArtUrl: string | null;
+  categoryId: string | null;
+  categorySlug: string | null;
+  chapters: number;
+  pages: number | null;
+  durationMinutes: number;
+  publishedOn: Date | null;
+  rating: number;
+  reviewCount: number;
+  tierRequired: UserTier;
+  isFavorite: boolean;
+  isBookmarked: boolean;
+  userProgress: BookUserProgressSummary | null;
+}
+
+export interface Pagination {
+  page: number;
+  perPage: number;
+  total: number;
+}
+
+export interface BookListResponse {
+  books: BookListItem[];
+  pagination: Pagination;
+  categories: BookCategory[];
+  authors: BookAuthorSummary[];
+}
+
+export interface BookRecosResponse {
+  recos: BookListItem[];
+}
+
+export interface BookCategoriesResponse {
+  categories: BookCategory[];
+}
+
+export interface BookAuthorsResponse {
+  authors: BookAuthorSummary[];
+}
+
+export interface BookToggleResponse {
+  /** Final state after the toggle (true = now favorited/bookmarked). */
+  active: boolean;
+}
+
+// ─── Book detail (Sprint S5) ─────────────────────────────────────────────────
+
+export interface BookDetail {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  cover: CoverToken;
+  coverArtUrl: string | null;
+  summary: string | null;
+  description: string | null;
+  chapters: number;
+  pages: number | null;
+  durationMinutes: number;
+  categoryId: string | null;
+  categoryLabel: string | null;
+  tierRequired: UserTier;
+  publishedOn: Date | null;
+  language: string;
+  audioAvailable: boolean;
+  exercisesAvailable: boolean;
+}
+
+export interface ChapterListItem {
+  n: number;
+  title: string;
+  durationMinutes: number | null;
+  lockedByTier: boolean;
+  userProgress: {
+    status: "not-started" | "started" | "completed";
+    progressPct: number;
+  };
+}
+
+export interface BookRatingBreakdown {
+  5: number;
+  4: number;
+  3: number;
+  2: number;
+  1: number;
+}
+
+export interface BookRating {
+  avg: number;
+  count: number;
+  breakdown: BookRatingBreakdown;
+}
+
+export interface BookReviewSummary {
+  id: string;
+  userInitials: string;
+  userCity: string | null;
+  rating: number;
+  text: string;
+  createdAt: Date;
+}
+
+export interface BookDetailResponse {
+  book: BookDetail;
+  author: BookAuthorDetail | null;
+  chaptersList: ChapterListItem[];
+  rating: BookRating;
+  reviews: BookReviewSummary[];
+  userProgress: BookUserProgressSummary | null;
+  isFavorite: boolean;
+  isBookmarked: boolean;
+}
+
+export interface BookReviewsResponse {
+  reviews: BookReviewSummary[];
+  pagination: Pagination;
+}
+
+export interface CreateBookReviewRequest {
+  rating: number;
+  text: string;
+}
+
+export interface CreateBookReviewResponse {
+  ok: true;
+  review: BookReviewSummary;
+}
+
+export interface StartBookResponse {
+  ok: true;
+  userProgress: BookUserProgressSummary;
+}
+
+// ─── Home dashboard (Sprint S5) ──────────────────────────────────────────────
+
+export type RecoKind = "book" | "audio" | "exercise" | "carta";
+export type ShortcutId = "diario" | "eco" | "biblioteca" | "terapia";
+
+export interface HomeUser {
+  firstName: string;
+  city: string | null;
+  tier: UserTier;
+  streakDays: number;
+  mood: string | null;
+}
+
+export interface HomeGreeting {
+  text: string;
+  subtitle: string | null;
+}
+
+export interface HomeContinueBook {
+  bookId: string;
+  title: string;
+  author: string;
+  cover: CoverToken;
+  chapterN: number;
+  chapterTitle: string;
+  progressPct: number;
+  lastReadAt: Date;
+}
+
+export interface HomeEcoMoment {
+  prompt: string;
+  lastActiveAt: Date | null;
+  pendingMessages: number;
+}
+
+export interface HomeReco {
+  id: string;
+  kind: RecoKind;
+  title: string;
+  byline: string;
+  cover: CoverToken;
+  reason: string;
+  lockedByTier: boolean;
+}
+
+export interface HomeStats {
+  minutesThisWeek: number;
+  entriesThisWeek: number;
+  streakDays: number;
+  weeklyGoalPct: number;
+}
+
+export interface HomeReflectionPrompt {
+  id: string;
+  text: string;
+}
+
+export interface HomeShortcut {
+  id: ShortcutId;
+  label: string;
+  badge: number | null;
+}
+
+export interface HomeResponse {
+  user: HomeUser;
+  greeting: HomeGreeting;
+  continueBook: HomeContinueBook | null;
+  ecoMoment: HomeEcoMoment | null;
+  recos: HomeReco[];
+  stats: HomeStats;
+  reflectionPrompt: HomeReflectionPrompt | null;
+  shortcuts: HomeShortcut[];
+}
+
+export interface UpdateUserMoodRequest {
+  moodId: string;
+}
+
+export interface UpdateUserMoodResponse {
+  ok: true;
+  mood: string;
+  swatch: string;
+}
+
+export interface DismissReflectionPromptResponse {
+  ok: true;
+}

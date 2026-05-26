@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
 } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { BooksService } from "./books.service";
 import { JwtAuthGuard } from "../../auth";
@@ -17,6 +18,7 @@ import { RequiredRole } from "../guards/required-role.decorator";
 import type { CreateBookDto } from "../dto/create-book.dto";
 import type { UpdateBookDto } from "../dto/update-book.dto";
 
+@ApiTags("Content · Books")
 @Controller("content/books")
 export class BooksController {
   constructor(private readonly booksService: BooksService) {}

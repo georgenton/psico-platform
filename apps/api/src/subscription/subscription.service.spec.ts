@@ -4,6 +4,10 @@ import { BillingPlan } from "./dto/checkout-session.dto";
 import { SubscriptionService } from "./subscription.service";
 
 vi.mock("@prisma/client", () => ({
+  // Stub PrismaClient class — PrismaService extends it but in unit tests we
+  // never instantiate. SWC (vitest transformer post Sprint S1) eagerly
+  // evaluates this import; without a class export the module fails to load.
+  PrismaClient: class {},
   Plan: { FREE: "FREE", PRO: "PRO", ANNUAL: "ANNUAL", B2B: "B2B" },
   SubscriptionStatus: {
     ACTIVE: "ACTIVE",

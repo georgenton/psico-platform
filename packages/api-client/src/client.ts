@@ -21,7 +21,12 @@ class PsicoApiClient {
   private refreshing: Promise<void> | null = null;
 
   configure(baseUrl: string, store: TokenStore): void {
-    this.baseUrl = baseUrl.replace(/\/$/, "");
+    // baseUrl from env is the API root (e.g. "https://api.example.com").
+    // The /api segment is appended here so feature clients (auth, content, …)
+    // can declare clean paths like "/auth/login". Mirrors web/src/lib/api.ts.
+    // Sprint 0.A · ADR 0006.
+    const root = baseUrl.replace(/\/$/, "");
+    this.baseUrl = `${root}/api`;
     this.store = store;
   }
 

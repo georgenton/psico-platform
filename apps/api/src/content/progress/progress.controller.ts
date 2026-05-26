@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
 } from "@nestjs/common";
+import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ProgressService } from "./progress.service";
 import type { AuthenticatedUser } from "../../auth";
@@ -15,6 +16,8 @@ import { JwtAuthGuard } from "../../auth";
 import { CurrentUser } from "../guards/current-user.decorator";
 import type { MarkProgressDto } from "../dto/mark-progress.dto";
 
+@ApiTags("Content · Progress")
+@ApiBearerAuth("bearer")
 @Controller("content/progress")
 @UseGuards(JwtAuthGuard)
 export class ProgressController {

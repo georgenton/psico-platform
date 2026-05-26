@@ -9,7 +9,11 @@ import type {
   Subscription,
 } from "@psico/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333";
+// API base URL. Routes are mounted under /api/* after Sprint 0.A (ADR 0006).
+// NEXT_PUBLIC_API_URL points to the API root (e.g. "https://api.example.com");
+// the "/api" segment is appended by this client so paths in apiFetch stay clean.
+const API_ROOT = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_BASE = `${API_ROOT.replace(/\/$/, "")}/api`;
 
 // ── Error type ─────────────────────────────────────────────────────────────
 

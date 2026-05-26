@@ -234,3 +234,227 @@ export interface ConversationSummary extends Pick<
 export interface IngestResponse {
   chunksUpserted: number;
 }
+
+// ─── User · Perfil bundle ─────────────────────────────────────────────────────
+
+export type VoicePreference = "marina" | "tomas" | "none";
+export type BestTime = "morning" | "noon" | "evening" | "any";
+export type ThemePreference = "system" | "light" | "dark";
+export type ReaderFont = "serif" | "sans";
+export type ReaderTheme = "system" | "light" | "sepia" | "dark";
+export type Language = "es-419" | "es-ES";
+export type UserTier = "free" | "pro";
+
+export interface UserProfileSummary {
+  id: string;
+  firstName: string;
+  email: string;
+  city: string | null;
+  country: string | null;
+  tier: UserTier;
+  joinedAt: Date;
+  initials: string;
+  avatarUrl: string | null;
+  mood: string | null;
+}
+
+export interface UserStats {
+  daysActive: number;
+  booksCompleted: number;
+  chaptersRead: number;
+  diaryEntries: number;
+  minutesTotal: number;
+  currentStreakDays: number;
+  longestStreakDays: number;
+}
+
+export interface AchievementProgress {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+  progressCurrent: number;
+  progressTarget: number;
+  unlockedAt: Date | null;
+}
+
+export interface UserPreferences {
+  voicePreference: VoicePreference;
+  moodPrompts: boolean;
+  bestTime: BestTime;
+  weeklyGoalMinutes: number;
+  theme: ThemePreference;
+  language: Language;
+}
+
+export interface UserReaderPreferences {
+  font: ReaderFont;
+  fontSize: number;
+  theme: ReaderTheme;
+  lineHeight: number;
+}
+
+export interface UserNotificationSettings {
+  dailyReminder: boolean;
+  reminderTime: string; // HH:MM
+  streakReminders: boolean;
+  ecoReplies: boolean;
+  terapiaReminders: boolean;
+  weeklyReport: boolean;
+}
+
+export interface UserPrivacySettings {
+  shareDiaryWithTherapist: boolean;
+  anonymizedAnalytics: boolean;
+  marketingEmail: boolean;
+  dataExportRequested: Date | null;
+  accountDeleteRequested: Date | null;
+}
+
+export interface UserMeResponse {
+  user: UserProfileSummary;
+  stats: UserStats;
+  achievements: AchievementProgress[];
+  preferences: UserPreferences;
+  readerPreferences: UserReaderPreferences;
+  notifications: UserNotificationSettings;
+  privacy: UserPrivacySettings;
+}
+
+// ─── User · request payloads ──────────────────────────────────────────────────
+
+export interface UpdateProfileRequest {
+  firstName?: string;
+  city?: string | null;
+  country?: string | null;
+  avatarUrl?: string | null;
+}
+
+export type UpdatePreferencesRequest = Partial<UserPreferences>;
+export type UpdateReaderPreferencesRequest = Partial<UserReaderPreferences>;
+export type UpdateNotificationsRequest = Partial<UserNotificationSettings>;
+
+export type UpdatePrivacyRequest = Partial<
+  Pick<
+    UserPrivacySettings,
+    "shareDiaryWithTherapist" | "anonymizedAnalytics" | "marketingEmail"
+  >
+>;
+
+export interface UpdateMoodRequest {
+  mood: string;
+}
+
+export interface EmailChangeRequestPayload {
+  newEmail: string;
+}
+
+export interface EmailChangeRequestResponse {
+  ok: true;
+  verificationSentTo: string;
+}
+
+export interface PasswordChangeRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface DataExportRequestResponse {
+  ok: true;
+  expectedAt: Date;
+}
+
+export interface DeleteAccountRequest {
+  password: string;
+  reason?: string;
+}
+
+export interface DeleteAccountResponse {
+  ok: true;
+  deleteAt: Date;
+}
+
+export interface AvatarUploadResponse {
+  avatarUrl: string;
+}
+
+// ─── Onboarding ──────────────────────────────────────────────────────────────
+
+export interface OnboardingIntro {
+  title: string;
+  subtitle: string;
+  body: string;
+  signature: string;
+  avatarUrl: string | null;
+}
+
+export interface OnboardingMotivo {
+  id: string;
+  label: string;
+  icon: string;
+}
+
+export interface OnboardingMood {
+  id: string;
+  label: string;
+  swatch: string;
+}
+
+export interface OnboardingTourStep {
+  target: string;
+  title: string;
+  body: string;
+  order: number;
+}
+
+export type OnboardingVoicePreference = "marina" | "tomas" | "none";
+
+export interface OnboardingStep1Request {
+  motivosIds: string[];
+}
+
+export interface OnboardingStep2Request {
+  moodId: string;
+}
+
+export interface OnboardingStep3Request {
+  firstName: string;
+  voicePreference: OnboardingVoicePreference;
+}
+
+export interface OnboardingStepResponse {
+  ok: true;
+  next: string;
+}
+
+/**
+ * Book recommendation returned by GET /api/onboarding/recommendation.
+ * Same shape used for the primary `recommendation` and each `alternative`.
+ */
+export interface OnboardingBookRecommendation {
+  bookId: string;
+  title: string;
+  author: string;
+  cover: "cool" | "warm" | "mixed";
+  chapter1Preview: string;
+  why: string;
+}
+
+export interface OnboardingRecommendationResponse {
+  recommendation: OnboardingBookRecommendation;
+  alternatives: OnboardingBookRecommendation[];
+}
+
+export interface OnboardingCompleteRequest {
+  /** What the user picked. null = "terminar" without starting a book. */
+  chosenBookId: string | null;
+}
+
+export interface OnboardingCompleteResponse {
+  ok: true;
+  redirectTo: string;
+}
+
+export interface OnboardingTourCompleteRequest {
+  stepsCompleted: number;
+}

@@ -9,6 +9,7 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import type { Request } from "express";
 import { JwtAuthGuard } from "../auth";
 import { CurrentUser } from "../content/guards/current-user.decorator";
@@ -18,6 +19,7 @@ import type { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { SubscriptionService } from "./subscription.service";
 
+@ApiTags("Subscription")
 @Controller("subscriptions")
 export class SubscriptionController {
   constructor(private readonly subscriptionService: SubscriptionService) {}

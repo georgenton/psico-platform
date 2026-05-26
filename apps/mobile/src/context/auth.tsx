@@ -12,7 +12,11 @@ import { apiClient, authApi } from "@psico/api-client";
 import type { AuthUser } from "@psico/types";
 import { tokenStore } from "../store/secure-store";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
+const API_ROOT = process.env.EXPO_PUBLIC_API_URL ?? "";
+// Cold-start refresh hits the raw fetch (not apiClient — see below comment),
+// so it must compose the /api prefix itself. ADR 0006 — Sprint 0.A.
+const API_URL = API_ROOT.replace(/\/$/, "");
+const API_BASE = `${API_URL}/api`;
 
 type TokenPair = { accessToken: string; refreshToken: string };
 
@@ -74,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           : null;
 
         try {
-          const res = await fetch(`${API_URL}/auth/refresh`, {
+          const res = await fetch(`${API_BASE}/auth/refresh`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refreshToken: stored.refreshToken }),

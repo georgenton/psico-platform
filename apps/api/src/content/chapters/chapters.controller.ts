@@ -9,6 +9,7 @@ import {
   UseInterceptors,
   UploadedFile,
 } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import { FileInterceptor } from "@nestjs/platform-express";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ChaptersService } from "./chapters.service";
@@ -21,6 +22,7 @@ import { CurrentUser } from "../guards/current-user.decorator";
 import type { CreateChapterDto } from "../dto/create-chapter.dto";
 import type { UploadAudioDto } from "../dto/upload-audio.dto";
 
+@ApiTags("Content · Chapters")
 @Controller("content/books")
 export class ChaptersController {
   constructor(private readonly chaptersService: ChaptersService) {}

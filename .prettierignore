@@ -1,0 +1,19 @@
+# Auto-generated files — formatted by their generators, never by prettier.
+# Without this entry, lint-staged reformats them on commit and breaks the
+# `pnpm --filter @psico/api-client generate:check` CI step (drift detected).
+
+# OpenAPI spec emitted by `apps/api/src/main.ts` on every dev boot.
+apps/api/openapi.json
+
+# Client types emitted by `packages/api-client/scripts/generate.mjs`.
+packages/api-client/src/generated.ts
+
+# pnpm lockfile — managed by pnpm itself.
+pnpm-lock.yaml
+
+# Standard build artifacts (defensive — most of these are also gitignored).
+**/dist/
+**/build/
+**/.next/
+**/.turbo/
+**/coverage/

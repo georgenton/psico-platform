@@ -1,5 +1,19 @@
 # @psico/types
 
+## 0.8.0
+
+### Minor Changes
+
+- 125d222: Add AI module types: ContentChunk, Conversation, ConversationMessage, ChatRequest, ChatResponse, IngestResponse
+- 125d222: feat(types): add Subscription, SubscriptionStatus, PlanInfo and billing types (v0.3.0)
+
+  New exports:
+  - `SubscriptionStatus` — union type for subscription lifecycle states
+  - `BillingInterval` — PRO_MONTHLY | PRO_YEARLY | B2B
+  - `Subscription` — subscription domain entity
+  - `PlanInfo` / `PlanPrice` — plan catalog response shapes
+  - `CheckoutSessionResponse` / `PortalSessionResponse` — Stripe session URL responses
+
 ## 0.7.0
 
 ### Minor Changes

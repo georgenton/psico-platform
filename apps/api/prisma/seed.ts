@@ -138,6 +138,61 @@ async function main() {
   });
 
   console.log(`✅  PRO   "${book2.title}"  slug: ${book2.slug}  (3 capítulos)`);
+
+  // ─── Onboarding catalogs (Sprint S4) ─────────────────────────────────────
+  //
+  // Idempotent: each row upserted by stable id. Editing copy is a SQL UPDATE
+  // (or re-run seed). Disabling a row → set isActive=false; old user picks
+  // remain referencable but the row no longer shows up in /motivos /moods.
+
+  console.log("\n🧭 Onboarding catalogs…");
+
+  const motivos = [
+    { id: "ansiedad", label: "Ansiedad", icon: "wind", order: 1 },
+    { id: "tristeza", label: "Tristeza", icon: "cloud-rain", order: 2 },
+    {
+      id: "relaciones",
+      label: "Mis relaciones",
+      icon: "heart-handshake",
+      order: 3,
+    },
+    { id: "vinculos", label: "Vínculos familiares", icon: "users", order: 4 },
+    { id: "trabajo", label: "Trabajo y burnout", icon: "briefcase", order: 5 },
+    { id: "duelo", label: "Estoy en un duelo", icon: "heart-crack", order: 6 },
+    { id: "explorar", label: "Solo explorando", icon: "compass", order: 7 },
+  ];
+  for (const m of motivos) {
+    await prisma.onboardingMotivo.upsert({
+      where: { id: m.id },
+      create: { ...m, isActive: true },
+      update: { label: m.label, icon: m.icon, order: m.order, isActive: true },
+    });
+  }
+  console.log(`✅  Motivos catalog: ${motivos.length} entries`);
+
+  const moods = [
+    { id: "calma", label: "Calma", swatch: "#A8C7E4", order: 1 },
+    { id: "foco", label: "Foco", swatch: "#7C5BC4", order: 2 },
+    { id: "energia", label: "Energía", swatch: "#F2A65A", order: 3 },
+    { id: "reflexion", label: "Reflexión", swatch: "#8C9F7E", order: 4 },
+    { id: "alegria", label: "Alegría", swatch: "#F5C76B", order: 5 },
+    { id: "ansiedad", label: "Ansiedad", swatch: "#C97B7B", order: 6 },
+    { id: "tristeza", label: "Tristeza", swatch: "#6B7E8E", order: 7 },
+  ];
+  for (const mo of moods) {
+    await prisma.onboardingMood.upsert({
+      where: { id: mo.id },
+      create: { ...mo, isActive: true },
+      update: {
+        label: mo.label,
+        swatch: mo.swatch,
+        order: mo.order,
+        isActive: true,
+      },
+    });
+  }
+  console.log(`✅  Moods catalog:   ${moods.length} entries`);
+
   console.log("\n🌱 Seed completado.");
 }
 

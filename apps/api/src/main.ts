@@ -1,28 +1,131 @@
 import "reflect-metadata";
+import { writeFileSync } from "fs";
+import { join } from "path";
 import { NestFactory } from "@nestjs/core";
-import { ValidationPipe } from "@nestjs/common";
+import { RequestMethod, ValidationPipe, VersioningType } from "@nestjs/common";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
+import { HttpExceptionFilter } from "./shared";
 
 async function bootstrap(): Promise<void> {
-  // rawBody: true enables req.rawBody for Stripe webhook signature verification
+  // rawBody: true enables req.rawBody for Stripe webhook signature verification.
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
+  // ── 1. Global API prefix ──────────────────────────────────────────────────
+  // Every route lands under /api/* per ADR 0006.
+  //
+  // Exclusions:
+  //  - /health stays at the root so external uptime checkers (Railway, Better
+  //    Uptime, UptimeRobot) can keep their configured URL stable.
+  //  - The Stripe webhook is also exposed at the root path it has today
+  //    (/subscriptions/webhook) so we don't have to coordinate a Stripe
+  //    Dashboard change in the same deploy. Sprint S11 moves it to
+  //    /api/billing/webhook with double exposure.
+  app.setGlobalPrefix("api", {
+    exclude: [
+      { path: "health", method: RequestMethod.ALL },
+      { path: "subscriptions/webhook", method: RequestMethod.ALL },
+    ],
+  });
+
+  // ── 2. URI versioning ─────────────────────────────────────────────────────
+  // Routes without an explicit @Version() are version-neutral (live at
+  // /api/<path>). When we ship a breaking change to a single route, we
+  // declare @Version("2") on the new handler — Nest exposes it at
+  // /api/v2/<path>, leaving /api/<path> pointing to the unversioned handler.
+  //
+  // We deliberately do NOT default to "1" because that would force every
+  // existing route to /api/v1/<path>, which contradicts the design's
+  // convention that "all endpoints live under /api/*" (no version segment).
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: undefined,
+  });
+
+  // ── 3. Validation, error envelope, CORS ───────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
+  app.useGlobalFilters(new HttpExceptionFilter());
 
   app.enableCors({
     // TODO senior: restrict to production domains when deploying
     origin: process.env.ALLOWED_ORIGINS?.split(",") ?? "*",
+    credentials: true,
   });
 
+  // ── 4. OpenAPI / Swagger ──────────────────────────────────────────────────
+  // Document built from @ApiTags / @ApiOperation / @ApiResponse decorators on
+  // controllers. UI served at /api/docs in non-production environments only.
+  // The JSON spec is written to disk on every boot so the CI job
+  // `openapi-typescript` can regenerate the @psico/api-client package.
+  if (process.env.NODE_ENV !== "production") {
+    const config = new DocumentBuilder()
+      .setTitle("Psico Platform API")
+      .setDescription(
+        "REST API for Psico Platform (psychoeducation SaaS). " +
+          "Design source of truth: docs/design/handoff/. " +
+          "Implementation plan: IMPLEMENTATION_PLAN_v2.md.",
+      )
+      .setVersion("0.x-alpha")
+      .addBearerAuth(
+        {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+          description: "JWT access token returned by /api/auth/login",
+        },
+        "bearer",
+      )
+      .addTag("Auth", "Registration, login, refresh, OAuth")
+      .addTag(
+        "Users",
+        "Profile, preferences, notifications, privacy, account lifecycle",
+      )
+      .addTag("Content · Books", "Catalog, reviews, favorites, bookmarks")
+      .addTag("Content · Chapters", "Per-chapter reading")
+      .addTag("Content · Progress", "Progress tracking")
+      .addTag("AI · Eco", "Conversational AI companion")
+      .addTag("Subscription", "Stripe checkout and billing")
+      .addTag("Health", "Liveness")
+      .build();
+
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup("api/docs", app, document, {
+      swaggerOptions: { persistAuthorization: true },
+      customSiteTitle: "Psico API · Swagger",
+    });
+
+    // Persist the OpenAPI spec for the CI client-codegen job.
+    // Path is relative to the running process — works for both `nest start`
+    // (cwd=apps/api) and `node dist/main` deployments.
+    try {
+      writeFileSync(
+        join(process.cwd(), "openapi.json"),
+        JSON.stringify(document, null, 2),
+      );
+    } catch (err) {
+      // Non-fatal: dev experience continues even if disk is read-only.
+      console.warn(
+        "[bootstrap] Failed to persist openapi.json:",
+        (err as Error).message,
+      );
+    }
+  }
+
+  // ── 5. Listen ─────────────────────────────────────────────────────────────
   const port = process.env.PORT ?? 3001;
   await app.listen(port);
   console.log(`API running on http://localhost:${port}`);
+  console.log(`  Routes mounted under /api/*`);
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`  Swagger UI: http://localhost:${port}/api/docs`);
+  }
 }
 
 bootstrap();

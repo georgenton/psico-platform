@@ -5,6 +5,8 @@ import { BillingPlan } from "../../dto/checkout-session.dto";
 import { StripeProvider } from "./stripe.provider";
 
 vi.mock("@prisma/client", () => ({
+  // Stub PrismaClient class — see subscription.service.spec.ts comment.
+  PrismaClient: class {},
   Plan: { FREE: "FREE", PRO: "PRO", ANNUAL: "ANNUAL", B2B: "B2B" },
   SubscriptionStatus: {
     ACTIVE: "ACTIVE",

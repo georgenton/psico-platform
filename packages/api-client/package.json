@@ -17,7 +17,9 @@
     "build": "tsup src/index.ts --format cjs,esm --dts --clean",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "lint": "eslint src/",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "generate": "node scripts/generate.mjs",
+    "generate:check": "node scripts/generate.mjs --check"
   },
   "dependencies": {
     "@psico/types": "workspace:*"
@@ -25,6 +27,7 @@
   "devDependencies": {
     "@psico/eslint-config": "workspace:*",
     "@psico/typescript-config": "workspace:*",
+    "openapi-typescript": "^7.13.0",
     "tsup": "^8.1.0",
     "typescript": "^5.4.5"
   }

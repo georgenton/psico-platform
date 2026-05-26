@@ -1,0 +1,100 @@
+/**
+ * Canonical names of every BullMQ queue in the platform.
+ *
+ * Why a `const` over a TS enum:
+ *  - BullMQ uses string queue names everywhere (Redis keys, decorators).
+ *  - Easier to grep + autocomplete + serialize.
+ *  - One source of truth for both producer (API) and consumer (worker).
+ *
+ * Naming convention: `kebab-case`, namespaced by concern.
+ *
+ * Each queue documented with:
+ *  - WHO produces (which service)
+ *  - WHO consumes (worker processor file)
+ *  - Retry policy (specified at enqueue time in JobsService)
+ */
+export const QueueName = {
+  /**
+   * Outbound transactional email (Resend).
+   *
+   * Producer: `JobsService.enqueueEmail` (called from any feature service
+   * that needs to send an email asynchronously — e.g. UsersService for
+   * email-change-request).
+   *
+   * Consumer: `apps/api/src/jobs/processors/email.processor.ts`
+   *
+   * Retry: 3 attempts, exponential backoff (1s / 5s / 25s).
+   */
+  EMAIL: "email",
+
+  /**
+   * User data export. Generates a JSON dump of the user's profile, progress,
+   * subscription, and (future) diary/eco/etc. Uploads to R2. Sends signed URL
+   * via email. Marks `DataExportRequest.status = "READY"`.
+   *
+   * Producer: `JobsService.enqueueDataExport` (UsersService.requestDataExport)
+   * Consumer: `apps/api/src/jobs/processors/data-export.processor.ts`
+   *
+   * Retry: 2 attempts. ZIP generation is deterministic; failing twice in
+   * a row signals a real problem (R2 down, DB corruption) — bail.
+   */
+  DATA_EXPORT: "data-export",
+
+  /**
+   * Account deletion finalisation. Runs `prisma.user.delete()` 30 days
+   * after the user requested deletion (unless they cancel meanwhile).
+   * Prisma cascades through every owned table.
+   *
+   * Producer: `JobsService.enqueueAccountDeletion` (UsersService.requestDelete)
+   * Consumer: `apps/api/src/jobs/processors/account-deletion.processor.ts`
+   *
+   * Retry: 5 attempts with longer backoff (1min / 5min / 25min / ...).
+   * If the job is enqueued and the user cancels later, the worker checks
+   * `User.deleteRequestedAt` at execution time and no-ops if cleared.
+   */
+  ACCOUNT_DELETION: "account-deletion",
+} as const;
+
+export type QueueName = (typeof QueueName)[keyof typeof QueueName];
+
+// ─── Job payloads ────────────────────────────────────────────────────────────
+//
+// Every queue has a typed payload — producers can't accidentally enqueue the
+// wrong shape, and consumers get autocomplete. The discriminator `kind` is
+// inside the payload so a queue can grow to handle multiple sub-jobs without
+// renaming.
+
+export interface EmailJobPayload {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  tag?: string;
+}
+
+export interface DataExportJobPayload {
+  /** The DataExportRequest row id — the worker updates its status. */
+  requestId: string;
+  /** The user the export is for. */
+  userId: string;
+}
+
+export interface AccountDeletionJobPayload {
+  /** User to finalise deletion for. */
+  userId: string;
+  /** When the deletion was originally requested (for audit, NOT for scheduling). */
+  requestedAt: string; // ISO date
+}
+
+/**
+ * Job names within each queue. Currently each queue has one default job
+ * (so the name is essentially the queue name) but the type system keeps
+ * this open for future expansion.
+ */
+export const JobName = {
+  SEND_EMAIL: "send-email",
+  RUN_DATA_EXPORT: "run-data-export",
+  FINALIZE_ACCOUNT_DELETION: "finalize-account-deletion",
+} as const;
+
+export type JobName = (typeof JobName)[keyof typeof JobName];

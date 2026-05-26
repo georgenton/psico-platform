@@ -1,0 +1,33 @@
+import type { CanActivate, ExecutionContext } from "@nestjs/common";
+import { Injectable, ForbiddenException } from "@nestjs/common";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { Reflector } from "@nestjs/core";
+import { REQUIRED_ROLE_KEY } from "../decorators/required-role.decorator";
+import type { AuthenticatedUser } from "../../auth";
+
+@Injectable()
+export class RolesGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const required = this.reflector.getAllAndOverride<string | undefined>(
+      REQUIRED_ROLE_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    // No @RequiredRole() declared — guard is a no-op.
+    if (!required) return true;
+
+    const { role } = context
+      .switchToHttp()
+      .getRequest<{ user: AuthenticatedUser }>().user;
+
+    if (role !== required) {
+      throw new ForbiddenException(
+        `Acceso restringido a rol ${required.toLowerCase()}`,
+      );
+    }
+
+    return true;
+  }
+}

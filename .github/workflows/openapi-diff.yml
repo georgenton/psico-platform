@@ -1,0 +1,82 @@
+name: openapi-diff
+
+# Bloquea PRs cuando los DTOs del back cambian sin regenerar `@psico/api-client`.
+#
+# Flujo:
+#  1. Boot el back con env stub para emitir `apps/api/openapi.json`.
+#  2. Corre el generador en modo --check (no escribe, falla si hay diff).
+#
+# Si CI falla aquí, el dev hace `pnpm --filter @psico/api-client generate` y
+# commitea `packages/api-client/src/generated.ts`. Esa única acción mantiene
+# el contrato sincronizado.
+
+on:
+  pull_request:
+    paths:
+      - "apps/api/**"
+      - "packages/api-client/**"
+      - "packages/types/**"
+      - ".github/workflows/openapi-diff.yml"
+
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Env stubs for the API to boot. Real values come from Railway in prod.
+      DATABASE_URL: postgresql://x:x@localhost:5432/x
+      JWT_SECRET: ci-secret-must-be-at-least-32-chars!!
+      R2_ACCOUNT_ID: x
+      R2_ACCESS_KEY_ID: x
+      R2_SECRET_ACCESS_KEY: x
+      R2_BUCKET_NAME: x
+      R2_PUBLIC_URL: https://x.example.com
+      ANTHROPIC_API_KEY: x
+      VOYAGE_API_KEY: x
+      STRIPE_SECRET_KEY: x
+      STRIPE_WEBHOOK_SECRET: x
+      STRIPE_PRO_MONTHLY_PRICE_ID: x
+      STRIPE_PRO_YEARLY_PRICE_ID: x
+      STRIPE_B2B_PRICE_ID: x
+      NODE_ENV: development
+      PORT: 3001
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm version is read from "packageManager" in root package.json
+      # (pnpm@10.33.2). Don't pass `version:` here — it conflicts.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build types package
+        run: pnpm --filter @psico/types build
+
+      - name: Build API
+        run: pnpm --filter @psico/api build
+
+      - name: Boot API briefly to emit openapi.json
+        working-directory: apps/api
+        run: |
+          node dist/main &
+          PID=$!
+          # Wait for the file to be written. Cap at 30s.
+          for i in {1..30}; do
+            if [ -f openapi.json ]; then
+              echo "openapi.json emitted after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          kill $PID 2>/dev/null || true
+          test -f openapi.json || (echo "openapi.json never appeared" && exit 1)
+
+      - name: Verify generated client is up to date
+        run: pnpm --filter @psico/api-client generate:check

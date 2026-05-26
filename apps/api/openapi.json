@@ -1,0 +1,1248 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Register a new account (email + password)",
+        "tags": ["Auth"]
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Login with email + password",
+        "tags": ["Auth"]
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "description": "The presented refresh token is invalidated; a new pair is issued.",
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Rotate refresh token, get new access token",
+        "tags": ["Auth"]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revoke the presented refresh token",
+        "tags": ["Auth"]
+      }
+    },
+    "/api/auth/forgot-password": {
+      "post": {
+        "operationId": "AuthController_forgotPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Request a password reset email (no-leak, always 200)",
+        "tags": ["Auth"]
+      }
+    },
+    "/api/auth/reset-password": {
+      "post": {
+        "operationId": "AuthController_resetPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Reset password using a token from email",
+        "tags": ["Auth"]
+      }
+    },
+    "/api/auth/verify-email": {
+      "post": {
+        "operationId": "AuthController_verifyEmail",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyEmailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Verify email using a token from registration email",
+        "tags": ["Auth"]
+      }
+    },
+    "/api/auth/oauth/google": {
+      "post": {
+        "description": "Verifies the token against Google's public keys, then issues our own access + refresh pair.",
+        "operationId": "AuthController_oauthGoogle",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthGoogleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Sign in / register with a Google ID token",
+        "tags": ["Auth"]
+      }
+    },
+    "/api/content/books": {
+      "get": {
+        "operationId": "BooksController_findAllPublished",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Content · Books"]
+      },
+      "post": {
+        "operationId": "BooksController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["Content · Books"]
+      }
+    },
+    "/api/content/books/{slug}": {
+      "get": {
+        "operationId": "BooksController_findBySlug",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Content · Books"]
+      },
+      "patch": {
+        "operationId": "BooksController_update",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Content · Books"]
+      }
+    },
+    "/api/content/books/{slug}/chapters/{order}": {
+      "get": {
+        "operationId": "ChaptersController_findOne",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Content · Chapters"]
+      }
+    },
+    "/api/content/books/{slug}/chapters": {
+      "post": {
+        "operationId": "ChaptersController_createChapter",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["Content · Chapters"]
+      }
+    },
+    "/api/content/books/{slug}/chapters/{order}/audio": {
+      "post": {
+        "operationId": "ChaptersController_uploadAudio",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["Content · Chapters"]
+      }
+    },
+    "/api/content/progress/{chapterId}": {
+      "post": {
+        "operationId": "ProgressController_markCompleted",
+        "parameters": [
+          {
+            "name": "chapterId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["Content · Progress"]
+      }
+    },
+    "/api/content/progress": {
+      "get": {
+        "operationId": "ProgressController_getUserProgress",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["Content · Progress"]
+      }
+    },
+    "/api/subscriptions/plans": {
+      "get": {
+        "operationId": "SubscriptionController_getPlans",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Subscription"]
+      }
+    },
+    "/api/subscriptions/me": {
+      "get": {
+        "operationId": "SubscriptionController_getMySubscription",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Subscription"]
+      }
+    },
+    "/api/subscriptions/checkout": {
+      "post": {
+        "operationId": "SubscriptionController_createCheckoutSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["Subscription"]
+      }
+    },
+    "/api/subscriptions/portal": {
+      "post": {
+        "operationId": "SubscriptionController_createPortalSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["Subscription"]
+      }
+    },
+    "/subscriptions/webhook": {
+      "post": {
+        "operationId": "SubscriptionController_handleWebhook",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Subscription"]
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Returns 200 with a timestamp. Exposed at /health (not /api/health) so external uptime monitors can keep a stable URL. Opted out of rate limiting via @SkipThrottle().",
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Liveness check",
+        "tags": ["Health"]
+      }
+    },
+    "/api/ai/chat": {
+      "post": {
+        "operationId": "AIController_chat",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["AI · Eco"]
+      }
+    },
+    "/api/ai/conversations": {
+      "get": {
+        "operationId": "AIController_getConversations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["AI · Eco"]
+      }
+    },
+    "/api/ai/conversations/{id}/messages": {
+      "get": {
+        "operationId": "AIController_getMessages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["AI · Eco"]
+      }
+    },
+    "/api/ai/ingest/{bookId}": {
+      "post": {
+        "operationId": "AIController_ingestBook",
+        "parameters": [
+          {
+            "name": "bookId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["AI · Eco"]
+      }
+    },
+    "/api/user/me": {
+      "get": {
+        "operationId": "UsersController_getMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["Users"]
+      }
+    },
+    "/api/user/profile": {
+      "patch": {
+        "operationId": "UsersController_updateProfile",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["Users"]
+      }
+    },
+    "/api/user/avatar": {
+      "post": {
+        "operationId": "UsersController_uploadAvatar",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["Users"]
+      }
+    },
+    "/api/user/preferences": {
+      "patch": {
+        "operationId": "UsersController_updatePreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["Users"]
+      }
+    },
+    "/api/user/reader-preferences": {
+      "patch": {
+        "operationId": "UsersController_updateReaderPreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["Users"]
+      }
+    },
+    "/api/user/notifications": {
+      "patch": {
+        "operationId": "UsersController_updateNotifications",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["Users"]
+      }
+    },
+    "/api/user/privacy": {
+      "patch": {
+        "operationId": "UsersController_updatePrivacy",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["Users"]
+      }
+    },
+    "/api/user/mood": {
+      "patch": {
+        "operationId": "UsersController_updateMood",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["Users"]
+      }
+    },
+    "/api/user/email-change-request": {
+      "post": {
+        "operationId": "UsersController_requestEmailChange",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["Users"]
+      }
+    },
+    "/api/user/password-change": {
+      "post": {
+        "operationId": "UsersController_changePassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["Users"]
+      }
+    },
+    "/api/user/data-export": {
+      "post": {
+        "operationId": "UsersController_requestDataExport",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["Users"]
+      }
+    },
+    "/api/user/delete-request": {
+      "post": {
+        "operationId": "UsersController_requestDelete",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["Users"]
+      }
+    },
+    "/api/onboarding/intro": {
+      "get": {
+        "operationId": "OnboardingController_getIntro",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Step 0 · Marina's intro copy",
+        "tags": ["Onboarding"]
+      }
+    },
+    "/api/onboarding/skip": {
+      "post": {
+        "operationId": "OnboardingController_skip",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Skip onboarding entirely; mark state as skipped",
+        "tags": ["Onboarding"]
+      }
+    },
+    "/api/onboarding/motivos": {
+      "get": {
+        "operationId": "OnboardingController_getMotivos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Step 1 · Catalog of motivos (reasons to be here)",
+        "tags": ["Onboarding"]
+      }
+    },
+    "/api/onboarding/step1": {
+      "post": {
+        "operationId": "OnboardingController_step1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Step 1 · Save chosen motivos",
+        "tags": ["Onboarding"]
+      }
+    },
+    "/api/onboarding/moods": {
+      "get": {
+        "operationId": "OnboardingController_getMoods",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Step 2 · Catalog of moods",
+        "tags": ["Onboarding"]
+      }
+    },
+    "/api/onboarding/step2": {
+      "post": {
+        "operationId": "OnboardingController_step2",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Step 2 · Save initial mood (also sets User.mood)",
+        "tags": ["Onboarding"]
+      }
+    },
+    "/api/onboarding/step3": {
+      "post": {
+        "description": "Writes firstName to User and voicePreference to UserPreferences. OnboardingState captures an immutable audit of the original picks.",
+        "operationId": "OnboardingController_step3",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Step 3 · Save firstName + voicePreference",
+        "tags": ["Onboarding"]
+      }
+    },
+    "/api/onboarding/recommendation": {
+      "get": {
+        "operationId": "OnboardingController_recommendation",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Step 4 · Book recommendation based on chosen motivos",
+        "tags": ["Onboarding"]
+      }
+    },
+    "/api/onboarding/complete": {
+      "post": {
+        "operationId": "OnboardingController_complete",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mark onboarding complete; record chosen book (if any)",
+        "tags": ["Onboarding"]
+      }
+    },
+    "/api/onboarding/tour": {
+      "get": {
+        "operationId": "OnboardingController_getTour",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "UI tour steps (post-onboarding overlay)",
+        "tags": ["Onboarding"]
+      }
+    },
+    "/api/onboarding/tour/complete": {
+      "post": {
+        "operationId": "OnboardingController_completeTour",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mark UI tour as completed",
+        "tags": ["Onboarding"]
+      }
+    }
+  },
+  "info": {
+    "title": "Psico Platform API",
+    "description": "REST API for Psico Platform (psychoeducation SaaS). Design source of truth: docs/design/handoff/. Implementation plan: IMPLEMENTATION_PLAN_v2.md.",
+    "version": "0.x-alpha",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Registration, login, refresh, OAuth"
+    },
+    {
+      "name": "Users",
+      "description": "Profile, preferences, notifications, privacy, account lifecycle"
+    },
+    {
+      "name": "Content · Books",
+      "description": "Catalog, reviews, favorites, bookmarks"
+    },
+    {
+      "name": "Content · Chapters",
+      "description": "Per-chapter reading"
+    },
+    {
+      "name": "Content · Progress",
+      "description": "Progress tracking"
+    },
+    {
+      "name": "AI · Eco",
+      "description": "Conversational AI companion"
+    },
+    {
+      "name": "Subscription",
+      "description": "Stripe checkout and billing"
+    },
+    {
+      "name": "Health",
+      "description": "Liveness"
+    }
+  ],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http",
+        "description": "JWT access token returned by /api/auth/login"
+      }
+    },
+    "schemas": {
+      "RegisterDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RefreshDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ForgotPasswordDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ResetPasswordDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "VerifyEmailDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "OAuthGoogleDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "Function": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  }
+}

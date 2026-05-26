@@ -38,30 +38,75 @@ enum SubscriptionStatus {
   INCOMPLETE
 }
 
+// LOCAL: classic email + password (passwordHash required)
+// GOOGLE: signed in with Google ID token (passwordHash null; providerId = Google `sub` claim)
+// Future: APPLE (deferred, design says wait until we have an Apple Developer account)
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
-  passwordHash  String
+  // passwordHash is optional because OAuth users (authProvider != LOCAL) have
+  // no password — they authenticate through their identity provider. The
+  // service layer enforces "LOCAL → must have hash, GOOGLE → must NOT".
+  passwordHash  String?
   name          String
+  // firstName is nullable initially; backfilled from `name` by data migration before the field is made required
+  firstName     String?
+  city          String?
   avatarUrl     String?
   role          Role     @default(USER)
   plan          Plan     @default(FREE)
   isActive      Boolean  @default(true)
   emailVerified Boolean  @default(false)
+  // How this account authenticates. LOCAL is the default for backward compat.
+  authProvider  AuthProvider @default(LOCAL)
+  // Provider-specific user id (Google's `sub` claim). Indexed for lookup
+  // during OAuth login. Composite uniqueness with authProvider prevents
+  // a Google `sub` and Apple `sub` from colliding when both are added.
+  providerId    String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  // Mood — current self-reported mood (token string, e.g. "calm", "anxious", "sad")
+  mood          String?
+  moodUpdatedAt DateTime?
+
+  // Streaks — denormalized counters updated by ProgressService / DiarioService on activity
+  currentStreakDays Int       @default(0)
+  longestStreakDays Int       @default(0)
+  streakLastDay     DateTime?
+
+  // Soft delete with cooldown — finalized by background worker after 30 days
+  deleteRequestedAt DateTime?
+
   stripeCustomerId String? @unique
 
-  profile       Profile?
-  refreshTokens RefreshToken[]
-  progress      UserProgress[]
-  subscription  Subscription?
-  conversations Conversation[]
+  profile                 Profile?
+  refreshTokens           RefreshToken[]
+  progress                UserProgress[]
+  subscription            Subscription?
+  conversations           Conversation[]
+  preferences             UserPreferences?
+  readerPreferences       ReaderPreferences?
+  notificationSettings    NotificationSettings?
+  privacySettings         PrivacySettings?
+  achievements            UserAchievement[]
+  emailChangeRequests     EmailChangeRequest[]
+  dataExportRequests      DataExportRequest[]
+  authEvents              AuthEvent[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  onboardingState         OnboardingState?
 
+  @@unique([authProvider, providerId])
   @@index([email])
+  @@index([providerId])
 }
 
 model Profile {
@@ -90,6 +135,159 @@ model RefreshToken {
 
   @@index([userId])
   @@index([token])
+}
+
+// ─── Auth · password reset & email verification ──────────────────────────────
+//
+// Token storage strategy (mirrors AuthService.recordEvent's swallow-on-error
+// pattern): we hash the one-time secret with SHA-256 before persistence. The
+// raw token only exists in the email body. If the DB is compromised, an
+// attacker still cannot reuse the tokens.
+//
+// `consumedAt` keeps the row after use for two reasons:
+//   1. Audit — we can answer "did this user reset their password yesterday?"
+//   2. Replay protection — a second call with the same token returns 410 Gone.
+//
+// Old rows (consumedAt + 30 days, or expiresAt + 7 days for unused tokens) can
+// be GC'd by a future scheduled job. Not urgent.
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model EmailVerificationToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── Onboarding · catalogs (seeded) ──────────────────────────────────────────
+//
+// Why tables and not TypeScript enums:
+//  - OnboardingState references motivosIds + moodId. Tables give us referential
+//    integrity (FK-able when we want to enforce) and i18n-friendly label storage.
+//  - Editing the catalog = SQL UPDATE, no deploy needed.
+//
+// Seed populates a sensible default set. Updating in prod is a migration.
+
+model OnboardingMotivo {
+  id       String  @id // "ansiedad", "tristeza", "relaciones", ... — stable slug
+  label    String
+  icon     String  // lucide-style token, e.g. "heart-pulse"
+  order    Int     @default(0)
+  isActive Boolean @default(true)
+
+  @@index([isActive, order])
+}
+
+model OnboardingMood {
+  id       String  @id // "calma", "foco", "energia", ...
+  label    String
+  swatch   String  // hex color (e.g. "#A8C7E4") — drives the UI swatch
+  order    Int     @default(0)
+  isActive Boolean @default(true)
+
+  @@index([isActive, order])
+}
+
+// ─── Onboarding · per-user state ─────────────────────────────────────────────
+//
+// 1:1 with User. Created lazily on first onboarding endpoint hit (intro / step1).
+// Tracks WHAT the user picked during onboarding (audit + later analytics for
+// Pulso). The user's long-term state (firstName, mood, voicePreference) lives
+// in User / UserPreferences — onboarding writes there too, but THIS table is
+// the historical record of the original picks.
+
+model OnboardingState {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  // Step 1: chosen motivos. Stored as plain string[] for simplicity; the API
+  // validates they exist in OnboardingMotivo at write time.
+  motivosIds String[] @default([])
+
+  // Step 2: initial mood pick. Distinct from User.mood (current mood, which
+  // gets re-set every time the user changes it from Inicio).
+  initialMoodId String?
+
+  // Step 3: voice preference chosen at onboarding. Also written to
+  // UserPreferences.voicePreference at the same time so the rest of the
+  // app reads it from there. Stored here separately as immutable audit.
+  initialVoicePreference String? // "marina" | "tomas" | "none"
+
+  // Step 4: what we showed as the primary recommendation + what they picked.
+  recommendedBookId String?
+  chosenBookId      String?
+
+  // Lifecycle
+  startedAt             DateTime  @default(now())
+  step1CompletedAt      DateTime?
+  step2CompletedAt      DateTime?
+  step3CompletedAt      DateTime?
+  onboardingCompletedAt DateTime?
+  onboardingSkippedAt   DateTime?
+
+  // Tour (separate flow, optional, runs after onboarding completes)
+  tourCompletedAt    DateTime?
+  tourStepsCompleted Int       @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Auth audit log ──────────────────────────────────────────────────────────
+//
+// Append-only log of every auth event (register, login, refresh, logout, plus
+// failures). Captured synchronously in AuthService so the trail is guaranteed.
+//
+// Why we instrument now even without dashboards:
+//   - Sprint S25 (Pulso · Funnel) materializes signup/login funnels from here.
+//   - Security alerts (Sprint future): "N failed logins from same IP in 5min"
+//     becomes a Redis aggregation over this stream.
+//   - GDPR/data-export (Sprint S3 worker): user can download their auth history.
+//
+// userId is nullable because some events (LOGIN_FAIL on non-existent email)
+// have no user to attach to. We still record the attempt with the supplied
+// email so brute-force enumeration is detectable.
+
+model AuthEvent {
+  id        String   @id @default(cuid())
+  // Free-form discriminator. Document the canonical set in apps/api/src/auth/auth-event.type.ts.
+  // Examples: REGISTER · LOGIN_OK · LOGIN_FAIL · REFRESH · REFRESH_REUSED · LOGOUT
+  type      String
+  userId    String?
+  email     String?
+  ipAddress String?
+  userAgent String?
+  // Structured context (reason for failure, oauth provider, etc.). Always small.
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Per-user history (Pulso, data export)
+  @@index([userId, createdAt(sort: Desc)])
+  // Type filters (alerts: "all LOGIN_FAIL in last hour")
+  @@index([type, createdAt(sort: Desc)])
+  // IP-based abuse detection
+  @@index([ipAddress, createdAt(sort: Desc)])
 }
 
 model Book {
@@ -248,4 +446,130 @@ model ConversationMessage {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
+}
+
+// ─── User · preferences, notifications, privacy ───────────────────────────────
+
+model UserPreferences {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  // "marina" | "tomas" | "none"
+  voicePreference   String   @default("none")
+  moodPrompts       Boolean  @default(true)
+  // "morning" | "noon" | "evening" | "any"
+  bestTime          String   @default("any")
+  weeklyGoalMinutes Int      @default(60)
+  // "system" | "light" | "dark"
+  theme             String   @default("system")
+  // BCP 47: "es-419" | "es-ES"
+  language          String   @default("es-419")
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ReaderPreferences {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  // "serif" | "sans"
+  font       String   @default("serif")
+  fontSize   Int      @default(18)
+  // "system" | "light" | "sepia" | "dark"
+  theme      String   @default("system")
+  lineHeight Float    @default(1.6)
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NotificationSettings {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  dailyReminder    Boolean  @default(true)
+  // HH:MM (local user time, interpreted with Profile.timezone)
+  reminderTime     String   @default("20:00")
+  streakReminders  Boolean  @default(true)
+  ecoReplies       Boolean  @default(true)
+  terapiaReminders Boolean  @default(true)
+  weeklyReport     Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PrivacySettings {
+  id                       String    @id @default(cuid())
+  userId                   String    @unique
+  shareDiaryWithTherapist  Boolean   @default(false)
+  anonymizedAnalytics      Boolean   @default(true)
+  marketingEmail           Boolean   @default(false)
+  // Mirrors of DataExportRequest / User.deleteRequestedAt so the FE has them in one read
+  dataExportRequestedAt    DateTime?
+  accountDeleteRequestedAt DateTime?
+  updatedAt                DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Achievements ─────────────────────────────────────────────────────────────
+
+model Achievement {
+  // Stable string id (e.g. "first-chapter", "7-day-streak") — seeded
+  id             String   @id
+  label          String
+  description    String
+  // Lucide-style token (e.g. "book-open", "flame")
+  icon           String
+  progressTarget Int
+  category       String?
+  createdAt      DateTime @default(now())
+
+  userAchievements UserAchievement[]
+}
+
+model UserAchievement {
+  id              String    @id @default(cuid())
+  userId          String
+  achievementId   String
+  progressCurrent Int       @default(0)
+  unlockedAt      DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+}
+
+// ─── Account lifecycle requests ───────────────────────────────────────────────
+
+model EmailChangeRequest {
+  id         String    @id @default(cuid())
+  userId     String
+  newEmail   String
+  // SHA-256 hash of the one-time verification token — never store the raw token
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model DataExportRequest {
+  id          String    @id @default(cuid())
+  userId      String
+  // "PENDING" | "PROCESSING" | "READY" | "FAILED"
+  status      String    @default("PENDING")
+  fileUrl     String?
+  expectedAt  DateTime
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

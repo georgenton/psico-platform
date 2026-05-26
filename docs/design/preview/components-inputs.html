@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8" /><title>Inputs</title><link rel="stylesheet" href="_card.css" /></head>
+<body>
+<div class="card-frame">
+  <div class="row" style="justify-content: space-between; align-items: baseline;">
+    <p class="label">Form · inputs</p>
+    <p class="label" style="color: var(--fg-muted); letter-spacing: 0; text-transform: none; font-weight: 500; font-size: 11px;">default · focus · password meter</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+    <div>
+      <label style="font: 500 13px var(--font-sans); color:#574f45; display:block; margin-bottom: 6px;">Email</label>
+      <div style="position:relative;">
+        <input value="ana@correo.com" style="width:100%; box-sizing:border-box; background:#ffffff; border:1.5px solid #d9d5ce; border-radius:12px; padding:11px 16px 11px 40px; font:14px var(--font-sans); color:#3d3730; outline:none;" />
+        <span style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:#928d84; font-size:14px;">✉</span>
+      </div>
+      <div style="font: 11px var(--font-sans); color:#928d84; margin-top:6px;">Te enviaremos un enlace para confirmar.</div>
+    </div>
+
+    <div>
+      <label style="font: 500 13px var(--font-sans); color:#574f45; display:block; margin-bottom: 6px;">Contraseña</label>
+      <div style="position:relative; box-shadow: 0 0 0 3px rgba(94,66,192,0.14); border-radius:13px;">
+        <input value="••••••••••••" type="password" style="width:100%; box-sizing:border-box; background:#ffffff; border:1.5px solid #5e42c0; border-radius:12px; padding:11px 44px 11px 40px; font:14px var(--font-sans); color:#3d3730; outline:none;" />
+        <span style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:#5e42c0; font-size:14px;">🔒</span>
+        <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); font: 600 11px var(--font-sans); color:#5e42c0; cursor:pointer; user-select:none;">Mostrar</span>
+      </div>
+      <!-- Strength meter -->
+      <div style="display:flex; gap:4px; margin-top:8px; align-items:center;">
+        <span style="flex:1; height:4px; border-radius:2px; background:#5aa092;"></span>
+        <span style="flex:1; height:4px; border-radius:2px; background:#5aa092;"></span>
+        <span style="flex:1; height:4px; border-radius:2px; background:#5aa092;"></span>
+        <span style="flex:1; height:4px; border-radius:2px; background:#eceae5;"></span>
+        <span style="font: 600 11px var(--font-sans); color:#3d8475; margin-left:6px;">Fuerte</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error state for symmetry -->
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+    <div></div>
+    <div>
+      <label style="font: 500 13px var(--font-sans); color:#574f45; display:block; margin-bottom: 6px;">Confirmar contraseña</label>
+      <input value="••••••" type="password" style="width:100%; box-sizing:border-box; background:#FEF2F2; border:1.5px solid #DC2626; border-radius:12px; padding:11px 16px; font:14px var(--font-sans); color:#3d3730; outline:none;" />
+      <div style="font: 500 11px var(--font-sans); color:#B91C1C; margin-top:6px;">Las contraseñas no coinciden.</div>
+    </div>
+  </div>
+
+  <div class="row mono tertiary" style="font-size: 11px;">
+    <span>idle border 1.5px warm-300 #d9d5ce</span><span>·</span><span>focus border 1.5px lavender-700 + 3px ring rgba(94,66,192,0.14)</span><span>·</span><span>error border red-600 + bg red-50</span><span>·</span><span>radius 12</span>
+  </div>
+
+  <p style="font: 11px/1.5 var(--font-sans); color: var(--fg-muted); margin: 0; padding: 8px 0 0; border-top: 1px dashed var(--bg-divider);">
+    <strong style="color: var(--fg-body);">Password border, upgraded.</strong> Idle inputs now sit on a soft warm-300 border (better contrast on warm-50 page than warm-200 was). On focus the password input shifts to a 1.5px lavender-700 border + a 3px lavender ring at 14% — accessible focus state without feeling alarmed. Strength meter ties into eucalyptus for "fuerte". Error state mirrors the system error tokens.
+  </p>
+</div>
+</body></html>

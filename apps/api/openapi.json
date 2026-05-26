@@ -21,7 +21,9 @@
           }
         },
         "summary": "Register a new account (email + password)",
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/login": {
@@ -44,7 +46,9 @@
           }
         },
         "summary": "Login with email + password",
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/refresh": {
@@ -68,7 +72,9 @@
           }
         },
         "summary": "Rotate refresh token, get new access token",
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/logout": {
@@ -96,7 +102,9 @@
           }
         ],
         "summary": "Revoke the presented refresh token",
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/forgot-password": {
@@ -119,7 +127,9 @@
           }
         },
         "summary": "Request a password reset email (no-leak, always 200)",
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/reset-password": {
@@ -142,7 +152,9 @@
           }
         },
         "summary": "Reset password using a token from email",
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/verify-email": {
@@ -165,7 +177,9 @@
           }
         },
         "summary": "Verify email using a token from registration email",
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/oauth/google": {
@@ -189,19 +203,23 @@
           }
         },
         "summary": "Sign in / register with a Google ID token",
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
-    "/api/content/books": {
+    "/api/books": {
       "get": {
-        "operationId": "BooksController_findAllPublished",
+        "operationId": "BooksController_list",
         "parameters": [],
         "responses": {
           "200": {
             "description": ""
           }
         },
-        "tags": ["Content · Books"]
+        "tags": [
+          "Books"
+        ]
       },
       "post": {
         "operationId": "BooksController_create",
@@ -221,15 +239,69 @@
             "description": ""
           }
         },
-        "tags": ["Content · Books"]
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Books"
+        ]
       }
     },
-    "/api/content/books/{slug}": {
+    "/api/books/recos": {
       "get": {
-        "operationId": "BooksController_findBySlug",
+        "operationId": "BooksController_getRecos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Books"
+        ]
+      }
+    },
+    "/api/books/categories": {
+      "get": {
+        "operationId": "BooksController_getCategories",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Books"
+        ]
+      }
+    },
+    "/api/books/authors": {
+      "get": {
+        "operationId": "BooksController_getAuthors",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Books"
+        ]
+      }
+    },
+    "/api/books/{idOrSlug}": {
+      "get": {
+        "operationId": "BooksController_getDetail",
         "parameters": [
           {
-            "name": "slug",
+            "name": "idOrSlug",
             "required": true,
             "in": "path",
             "schema": {
@@ -242,8 +314,155 @@
             "description": ""
           }
         },
-        "tags": ["Content · Books"]
+        "tags": [
+          "Books"
+        ]
+      }
+    },
+    "/api/books/{idOrSlug}/reviews": {
+      "get": {
+        "operationId": "BooksController_listReviews",
+        "parameters": [
+          {
+            "name": "idOrSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Books"
+        ]
       },
+      "post": {
+        "operationId": "BooksController_createReview",
+        "parameters": [
+          {
+            "name": "idOrSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Books"
+        ]
+      }
+    },
+    "/api/books/{idOrSlug}/favorite": {
+      "post": {
+        "operationId": "BooksController_toggleFavorite",
+        "parameters": [
+          {
+            "name": "idOrSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Books"
+        ]
+      }
+    },
+    "/api/books/{idOrSlug}/bookmark": {
+      "post": {
+        "operationId": "BooksController_toggleBookmark",
+        "parameters": [
+          {
+            "name": "idOrSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Books"
+        ]
+      }
+    },
+    "/api/books/{idOrSlug}/start": {
+      "post": {
+        "operationId": "BooksController_startBook",
+        "parameters": [
+          {
+            "name": "idOrSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Books"
+        ]
+      }
+    },
+    "/api/books/{slug}": {
       "patch": {
         "operationId": "BooksController_update",
         "parameters": [
@@ -271,10 +490,17 @@
             "description": ""
           }
         },
-        "tags": ["Content · Books"]
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Books"
+        ]
       }
     },
-    "/api/content/books/{slug}/chapters/{order}": {
+    "/api/books/{slug}/chapters/{order}": {
       "get": {
         "operationId": "ChaptersController_findOne",
         "parameters": [
@@ -300,10 +526,17 @@
             "description": ""
           }
         },
-        "tags": ["Content · Chapters"]
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chapters"
+        ]
       }
     },
-    "/api/content/books/{slug}/chapters": {
+    "/api/books/{slug}/chapters": {
       "post": {
         "operationId": "ChaptersController_createChapter",
         "parameters": [
@@ -331,10 +564,17 @@
             "description": ""
           }
         },
-        "tags": ["Content · Chapters"]
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chapters"
+        ]
       }
     },
-    "/api/content/books/{slug}/chapters/{order}/audio": {
+    "/api/books/{slug}/chapters/{order}/audio": {
       "post": {
         "operationId": "ChaptersController_uploadAudio",
         "parameters": [
@@ -370,10 +610,17 @@
             "description": ""
           }
         },
-        "tags": ["Content · Chapters"]
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chapters"
+        ]
       }
     },
-    "/api/content/progress/{chapterId}": {
+    "/api/progress/{chapterId}": {
       "post": {
         "operationId": "ProgressController_markCompleted",
         "parameters": [
@@ -406,10 +653,12 @@
             "bearer": []
           }
         ],
-        "tags": ["Content · Progress"]
+        "tags": [
+          "Progress"
+        ]
       }
     },
-    "/api/content/progress": {
+    "/api/progress": {
       "get": {
         "operationId": "ProgressController_getUserProgress",
         "parameters": [],
@@ -423,133 +672,14 @@
             "bearer": []
           }
         ],
-        "tags": ["Content · Progress"]
+        "tags": [
+          "Progress"
+        ]
       }
     },
-    "/api/subscriptions/plans": {
+    "/api/home": {
       "get": {
-        "operationId": "SubscriptionController_getPlans",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": ["Subscription"]
-      }
-    },
-    "/api/subscriptions/me": {
-      "get": {
-        "operationId": "SubscriptionController_getMySubscription",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": ["Subscription"]
-      }
-    },
-    "/api/subscriptions/checkout": {
-      "post": {
-        "operationId": "SubscriptionController_createCheckoutSession",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Function"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": ["Subscription"]
-      }
-    },
-    "/api/subscriptions/portal": {
-      "post": {
-        "operationId": "SubscriptionController_createPortalSession",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Function"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": ["Subscription"]
-      }
-    },
-    "/subscriptions/webhook": {
-      "post": {
-        "operationId": "SubscriptionController_handleWebhook",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": ["Subscription"]
-      }
-    },
-    "/health": {
-      "get": {
-        "description": "Returns 200 with a timestamp. Exposed at /health (not /api/health) so external uptime monitors can keep a stable URL. Opted out of rate limiting via @SkipThrottle().",
-        "operationId": "HealthController_check",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Liveness check",
-        "tags": ["Health"]
-      }
-    },
-    "/api/ai/chat": {
-      "post": {
-        "operationId": "AIController_chat",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Function"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": ["AI · Eco"]
-      }
-    },
-    "/api/ai/conversations": {
-      "get": {
-        "operationId": "AIController_getConversations",
+        "operationId": "HomeController_getHome",
         "parameters": [],
         "responses": {
           "200": {
@@ -561,228 +691,9 @@
             "bearer": []
           }
         ],
-        "tags": ["AI · Eco"]
-      }
-    },
-    "/api/ai/conversations/{id}/messages": {
-      "get": {
-        "operationId": "AIController_getMessages",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": ["AI · Eco"]
-      }
-    },
-    "/api/ai/ingest/{bookId}": {
-      "post": {
-        "operationId": "AIController_ingestBook",
-        "parameters": [
-          {
-            "name": "bookId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": ["AI · Eco"]
-      }
-    },
-    "/api/user/me": {
-      "get": {
-        "operationId": "UsersController_getMe",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": ["Users"]
-      }
-    },
-    "/api/user/profile": {
-      "patch": {
-        "operationId": "UsersController_updateProfile",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Function"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": ["Users"]
-      }
-    },
-    "/api/user/avatar": {
-      "post": {
-        "operationId": "UsersController_uploadAvatar",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": ["Users"]
-      }
-    },
-    "/api/user/preferences": {
-      "patch": {
-        "operationId": "UsersController_updatePreferences",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Function"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": ["Users"]
-      }
-    },
-    "/api/user/reader-preferences": {
-      "patch": {
-        "operationId": "UsersController_updateReaderPreferences",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Function"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": ["Users"]
-      }
-    },
-    "/api/user/notifications": {
-      "patch": {
-        "operationId": "UsersController_updateNotifications",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Function"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": ["Users"]
-      }
-    },
-    "/api/user/privacy": {
-      "patch": {
-        "operationId": "UsersController_updatePrivacy",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Function"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": ["Users"]
+        "tags": [
+          "Home"
+        ]
       }
     },
     "/api/user/mood": {
@@ -809,7 +720,430 @@
             "bearer": []
           }
         ],
-        "tags": ["Users"]
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/reflection-prompts/{id}/dismiss": {
+      "post": {
+        "operationId": "HomeController_dismissPrompt",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Home"
+        ]
+      }
+    },
+    "/api/subscriptions/plans": {
+      "get": {
+        "operationId": "SubscriptionController_getPlans",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Subscription"
+        ]
+      }
+    },
+    "/api/subscriptions/me": {
+      "get": {
+        "operationId": "SubscriptionController_getMySubscription",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Subscription"
+        ]
+      }
+    },
+    "/api/subscriptions/checkout": {
+      "post": {
+        "operationId": "SubscriptionController_createCheckoutSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Subscription"
+        ]
+      }
+    },
+    "/api/subscriptions/portal": {
+      "post": {
+        "operationId": "SubscriptionController_createPortalSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Subscription"
+        ]
+      }
+    },
+    "/subscriptions/webhook": {
+      "post": {
+        "operationId": "SubscriptionController_handleWebhook",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Subscription"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Returns 200 with a timestamp. Exposed at /health (not /api/health) so external uptime monitors can keep a stable URL. Opted out of rate limiting via @SkipThrottle().",
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Liveness check",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/ai/chat": {
+      "post": {
+        "operationId": "AIController_chat",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "AI · Eco"
+        ]
+      }
+    },
+    "/api/ai/conversations": {
+      "get": {
+        "operationId": "AIController_getConversations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "AI · Eco"
+        ]
+      }
+    },
+    "/api/ai/conversations/{id}/messages": {
+      "get": {
+        "operationId": "AIController_getMessages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "AI · Eco"
+        ]
+      }
+    },
+    "/api/ai/ingest/{bookId}": {
+      "post": {
+        "operationId": "AIController_ingestBook",
+        "parameters": [
+          {
+            "name": "bookId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "AI · Eco"
+        ]
+      }
+    },
+    "/api/user/me": {
+      "get": {
+        "operationId": "UsersController_getMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/user/profile": {
+      "patch": {
+        "operationId": "UsersController_updateProfile",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/user/avatar": {
+      "post": {
+        "operationId": "UsersController_uploadAvatar",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/user/preferences": {
+      "patch": {
+        "operationId": "UsersController_updatePreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/user/reader-preferences": {
+      "patch": {
+        "operationId": "UsersController_updateReaderPreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/user/notifications": {
+      "patch": {
+        "operationId": "UsersController_updateNotifications",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/user/privacy": {
+      "patch": {
+        "operationId": "UsersController_updatePrivacy",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
       }
     },
     "/api/user/email-change-request": {
@@ -836,7 +1170,9 @@
             "bearer": []
           }
         ],
-        "tags": ["Users"]
+        "tags": [
+          "Users"
+        ]
       }
     },
     "/api/user/password-change": {
@@ -863,7 +1199,9 @@
             "bearer": []
           }
         ],
-        "tags": ["Users"]
+        "tags": [
+          "Users"
+        ]
       }
     },
     "/api/user/data-export": {
@@ -880,7 +1218,9 @@
             "bearer": []
           }
         ],
-        "tags": ["Users"]
+        "tags": [
+          "Users"
+        ]
       }
     },
     "/api/user/delete-request": {
@@ -907,7 +1247,9 @@
             "bearer": []
           }
         ],
-        "tags": ["Users"]
+        "tags": [
+          "Users"
+        ]
       }
     },
     "/api/onboarding/intro": {
@@ -925,7 +1267,9 @@
           }
         ],
         "summary": "Step 0 · Marina's intro copy",
-        "tags": ["Onboarding"]
+        "tags": [
+          "Onboarding"
+        ]
       }
     },
     "/api/onboarding/skip": {
@@ -943,7 +1287,9 @@
           }
         ],
         "summary": "Skip onboarding entirely; mark state as skipped",
-        "tags": ["Onboarding"]
+        "tags": [
+          "Onboarding"
+        ]
       }
     },
     "/api/onboarding/motivos": {
@@ -961,7 +1307,9 @@
           }
         ],
         "summary": "Step 1 · Catalog of motivos (reasons to be here)",
-        "tags": ["Onboarding"]
+        "tags": [
+          "Onboarding"
+        ]
       }
     },
     "/api/onboarding/step1": {
@@ -989,7 +1337,9 @@
           }
         ],
         "summary": "Step 1 · Save chosen motivos",
-        "tags": ["Onboarding"]
+        "tags": [
+          "Onboarding"
+        ]
       }
     },
     "/api/onboarding/moods": {
@@ -1007,7 +1357,9 @@
           }
         ],
         "summary": "Step 2 · Catalog of moods",
-        "tags": ["Onboarding"]
+        "tags": [
+          "Onboarding"
+        ]
       }
     },
     "/api/onboarding/step2": {
@@ -1035,7 +1387,9 @@
           }
         ],
         "summary": "Step 2 · Save initial mood (also sets User.mood)",
-        "tags": ["Onboarding"]
+        "tags": [
+          "Onboarding"
+        ]
       }
     },
     "/api/onboarding/step3": {
@@ -1064,7 +1418,9 @@
           }
         ],
         "summary": "Step 3 · Save firstName + voicePreference",
-        "tags": ["Onboarding"]
+        "tags": [
+          "Onboarding"
+        ]
       }
     },
     "/api/onboarding/recommendation": {
@@ -1082,7 +1438,9 @@
           }
         ],
         "summary": "Step 4 · Book recommendation based on chosen motivos",
-        "tags": ["Onboarding"]
+        "tags": [
+          "Onboarding"
+        ]
       }
     },
     "/api/onboarding/complete": {
@@ -1110,7 +1468,9 @@
           }
         ],
         "summary": "Mark onboarding complete; record chosen book (if any)",
-        "tags": ["Onboarding"]
+        "tags": [
+          "Onboarding"
+        ]
       }
     },
     "/api/onboarding/tour": {
@@ -1128,7 +1488,9 @@
           }
         ],
         "summary": "UI tour steps (post-onboarding overlay)",
-        "tags": ["Onboarding"]
+        "tags": [
+          "Onboarding"
+        ]
       }
     },
     "/api/onboarding/tour/complete": {
@@ -1156,7 +1518,9 @@
           }
         ],
         "summary": "Mark UI tour as completed",
-        "tags": ["Onboarding"]
+        "tags": [
+          "Onboarding"
+        ]
       }
     }
   },

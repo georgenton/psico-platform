@@ -582,23 +582,67 @@ tokens, Prisma schema and env validation`
 
 ---
 
-### Próximo paso — Sesión 17
+### Sesión 17 — 2026-05-26 ✅ COMPLETADA — Sprint S5
 
-**Sprint S5 — HomeModule + expansión de BooksModule**
+**Rama sugerida:** `feature/sprint-s5-home-books`
+**Tests:** 234/234 pasando (217 → 234, +17: 16 BooksService + 1 net HomeService)
+**ADRs producidos:** ninguno (sprint orientado a feature)
+**Bitácora:** [docs/informes/sprint-s5.md](docs/informes/sprint-s5.md) (con 4 diagramas Mermaid)
+
+**Decisiones del usuario aplicadas:**
+1. Rename directo (sin alias deprecated) — no hay consumers en producción.
+2. `BookAuthor` como tabla nueva (preparado para Editor de autor B2B en S19).
+3. `BookCategory` también tabla por mismo razonamiento.
+
+**Lo que se construyó:**
+
+- **13 endpoints nuevos:** 10 BooksModule (`list, recos, categories, authors, detail, listReviews, createReview, toggleFavorite, toggleBookmark, startBook`) + 3 HomeModule (`getHome, updateMood, dismissPrompt`).
+- **6 modelos Prisma nuevos:** `BookAuthor`, `BookCategory`, `BookFavorite`, `BookBookmark`, `BookReview`, `ReflectionPrompt`, `DismissedReflectionPrompt`. Book extendido con 9 columnas (subtitle, summary, cover, coverArtUrl, pages, durationMinutes, language, authorId, categoryId, publishedAt).
+- **`@psico/types` extendido con +50 tipos nuevos** (catálogo, detalle, home, enums).
+- **Rebrand completo:** `apps/api/src/content/` eliminado. Top-level modules: `books/`, `chapters/`, `progress/`, `home/`. Routes `/content/*` → `/books|chapters|progress|home`.
+- **Cliente frontend rebrand:** nuevo `booksApi` con 10 métodos; `contentApi` queda `@deprecated`. Web (landing + dashboard) y mobile (home + biblioteca + detail) migrados a la nueva shape.
+- **Pipeline OpenAPI:** `generated.ts` regenerado de 30.8 KB → 53.0 KB.
+- **Seed:** 7 categorías + 1 author Marina Quintana verificada + 7 reflection prompts + libros wired a author/category/cover/pages/durationMinutes.
+- **READMEs del módulo Books y Home.**
+
+**Bugs corregidos durante S5 (4, cf. bitácora §4):**
+1. Conditional Prisma include produce union; helper cast localizado en books.service.ts:175.
+2. Vitest mock `.findUnique().then(...)` undefined porque Promise.all hace 3 llamadas concurrentes; fix: `mockResolvedValue` rico.
+3. Tests viejos llamaban a métodos eliminados (findAllPublished/findBySlug); rewrite total con 16 tests nuevos.
+4. Web landing FALLBACK_BOOKS shape incompat; convertido a `BookListItem[]` envuelto en `BookListResponse`.
+
+**Smoke test:**
+- 51 rutas mapeadas bajo `/api/*` (10 Books + 3 Chapters + 2 Progress + 3 Home + el resto existente).
+- `pnpm --filter @psico/api-client generate:check` → OK.
+- Web typecheck + lint, Mobile typecheck + lint, API test + typecheck + lint → todos verdes.
+
+**Deuda técnica abierta:**
+- Migraciones S5 (`20260526180000_s5_books_*`) acumuladas — pendiente de aplicar en Railway.
+- Seed S5 no ejecutado en Railway.
+- `stats.diaryEntries`/`minutesTotal` siguen en 0 hasta DiaryModule (S6).
+- `ecoMoment.pendingMessages` siempre 0 hasta AIModule conversacional (S10).
+- Recos = stub "más recientes"; PatternsModule (S11) lo reemplaza.
+- `UserProgress` no separa started vs completed; S6 refactoriza.
+- Sin `DELETE` para chapters/reviews. Cuando exista, sincronizar `book.totalChapters` y `book.durationMinutes`.
+- Frontend S5-front (skeleton states + favorites UI + reviews modal) pendiente, diferido por decisión hasta cierre Phase 1.
+
+---
+
+### Próximo paso — Sesión 18
+
+**Sprint S6 — DiaryModule con E2E encryption**
 
 ```bash
-git checkout -b feature/sprint-s5-home-books
-# HomeModule: GET /api/home agregador (libros + plan + diario prompt + último Eco thread)
-# BooksModule expandido: rebrand /content/books → /books con alias
-# 6 endpoints nuevos en books: recos, categories, authors, favorites toggle, bookmarks toggle, reviews
-# 3 modelos nuevos: BookFavorite, BookBookmark, BookReview, BookAuthor
-# README del módulo Books
-# Bitácora S5
+git checkout -b feature/sprint-s6-diary-e2e
+# ADR 0007 ya escrito (Sprint S1) — implementación
+# Cliente-side crypto: Argon2id + XChaCha20-Poly1305 + ECDH X25519 + HKDF
+# Backend recibe textCiphertext + textNonce, nunca texto plano
+# share-with-therapist con re-encrypt efímero
+# stats.diaryEntries y stats.minutesTotal se llenan
 ```
 
-**Decisiones bloqueantes antes de S5:**
-1. ¿Mantener `/content/books` como alias deprecated 90 días o renombrar directo? Default: mantener alias (consistente con Plan v2 §6 S5).
-2. ¿`BookAuthor` como tabla nueva o solo string column? Default: tabla nueva (preparado para Author module B2B en S19).
+**Decisión bloqueante antes de S6:**
+1. ¿Hacemos el web companion sprint (S5-front) primero, o continuamos backend → frontend en paralelo al final de Fase 1?
 
 ---
 

@@ -5,11 +5,11 @@ import {
   ConflictException,
 } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { PrismaService } from "../../prisma";
+import { PrismaService } from "../prisma";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { StorageService } from "../../storage";
-import type { CreateChapterDto } from "../dto/create-chapter.dto";
-import type { UploadAudioDto } from "../dto/upload-audio.dto";
+import { StorageService } from "../storage";
+import type { CreateChapterDto } from "./dto/create-chapter.dto";
+import type { UploadAudioDto } from "./dto/upload-audio.dto";
 
 const PLAN_RANK: Record<string, number> = {
   FREE: 0,
@@ -59,7 +59,7 @@ export class ChaptersService {
   async create(slug: string, dto: CreateChapterDto) {
     const book = await this.prisma.book.findUnique({
       where: { slug },
-      select: { id: true, totalChapters: true },
+      select: { id: true },
     });
     if (!book) throw new NotFoundException(`Book '${slug}' not found`);
 
@@ -83,9 +83,16 @@ export class ChaptersService {
           durationMinutes: dto.durationMinutes ?? null,
         },
       });
+      // Keep book-level denorms in sync. durationMinutes on Book is the sum
+      // across chapters; we increment on create (S5) and would decrement on
+      // delete (a chapter delete endpoint doesn't exist yet — when it lands,
+      // recompute or decrement here).
       await tx.book.update({
         where: { id: book.id },
-        data: { totalChapters: book.totalChapters + 1 },
+        data: {
+          totalChapters: { increment: 1 },
+          durationMinutes: { increment: dto.durationMinutes ?? 0 },
+        },
       });
       return chapter;
     });

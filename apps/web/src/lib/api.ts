@@ -1,8 +1,8 @@
 import type {
   AuthResponse,
   BillingInterval,
-  Book,
-  BookWithChapters,
+  BookDetailResponse,
+  BookListResponse,
   CheckoutSessionResponse,
   PlanInfo,
   PortalSessionResponse,
@@ -114,12 +114,16 @@ export const authApi = {
 };
 
 // ── Books ──────────────────────────────────────────────────────────────────
+//
+// Sprint S5: `/content/*` routes were renamed to `/books`. Response shape is
+// also richer (BookListResponse / BookDetailResponse) — see 03-biblioteca.md
+// and 04-detalle.md for the contract.
 
 export const booksApi = {
-  findAll: (token?: string) => apiFetch<Book[]>("/content/books", { token }),
+  findAll: (token?: string) => apiFetch<BookListResponse>("/books", { token }),
 
-  findBySlug: (slug: string, token?: string) =>
-    apiFetch<BookWithChapters>(`/content/books/${slug}`, { token }),
+  findBySlug: (idOrSlug: string, token?: string) =>
+    apiFetch<BookDetailResponse>(`/books/${idOrSlug}`, { token }),
 };
 
 // ── Subscriptions ──────────────────────────────────────────────────────────

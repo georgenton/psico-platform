@@ -9,8 +9,8 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { contentApi } from "@psico/api-client";
-import type { Book, UserPlan } from "@psico/types";
+import { booksApi } from "@psico/api-client";
+import type { BookListItem, UserPlan } from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { Colors, Radius, Spacing } from "@/theme";
 
@@ -19,13 +19,6 @@ const PLAN_RANK: Record<UserPlan, number> = {
   PRO: 1,
   ANNUAL: 2,
   B2B: 3,
-};
-
-const PLAN_LOCK_TEXT: Record<UserPlan, string> = {
-  FREE: "",
-  PRO: "Requiere plan Pro",
-  ANNUAL: "Requiere plan Pro Anual",
-  B2B: "Requiere plan Empresarial",
 };
 
 const COVER_COLORS = [
@@ -38,14 +31,14 @@ const COVER_COLORS = [
 export default function BooksScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const [books, setBooks] = useState<Book[]>([]);
+  const [books, setBooks] = useState<BookListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    contentApi
-      .getBooks()
-      .then(setBooks)
+    booksApi
+      .list()
+      .then((data) => setBooks(data.books))
       .catch(() => setError("No se pudo cargar la biblioteca."))
       .finally(() => setLoading(false));
   }, []);
@@ -71,9 +64,9 @@ export default function BooksScreen() {
           onPress={() => {
             setError(null);
             setLoading(true);
-            contentApi
-              .getBooks()
-              .then(setBooks)
+            booksApi
+              .list()
+              .then((data) => setBooks(data.books))
               .catch(() => setError("No se pudo cargar la biblioteca."))
               .finally(() => setLoading(false));
           }}
@@ -85,7 +78,7 @@ export default function BooksScreen() {
   }
 
   return (
-    <FlatList<Book>
+    <FlatList<BookListItem>
       data={books}
       keyExtractor={(item) => item.id}
       numColumns={2}
@@ -93,7 +86,9 @@ export default function BooksScreen() {
       columnWrapperStyle={styles.row}
       showsVerticalScrollIndicator={false}
       renderItem={({ item, index }) => {
-        const locked = PLAN_RANK[item.plan] > userPlanRank;
+        // BookListItem exposes tierRequired ("free"|"pro"). For the gating
+        // we compare it to the user's plan rank (which is a UserPlan).
+        const locked = (item.tierRequired === "pro" ? 1 : 0) > userPlanRank;
         const coverColor = COVER_COLORS[index % COVER_COLORS.length];
 
         return (
@@ -114,9 +109,7 @@ export default function BooksScreen() {
               {locked ? (
                 <View style={styles.lockOverlay}>
                   <Ionicons name="lock-closed" size={28} color={Colors.white} />
-                  <Text style={styles.lockText}>
-                    {PLAN_LOCK_TEXT[item.plan]}
-                  </Text>
+                  <Text style={styles.lockText}>Requiere plan Pro</Text>
                 </View>
               ) : null}
             </View>
@@ -126,9 +119,7 @@ export default function BooksScreen() {
               <Text style={styles.bookTitle} numberOfLines={2}>
                 {item.title}
               </Text>
-              <Text style={styles.bookMeta}>
-                {item.totalChapters} capítulos
-              </Text>
+              <Text style={styles.bookMeta}>{item.chapters} capítulos</Text>
               {locked ? (
                 <View style={styles.planTag}>
                   <Ionicons
@@ -136,9 +127,7 @@ export default function BooksScreen() {
                     size={10}
                     color={Colors.lavender[500]}
                   />
-                  <Text style={styles.planTagText}>
-                    {PLAN_LOCK_TEXT[item.plan]}
-                  </Text>
+                  <Text style={styles.planTagText}>Requiere plan Pro</Text>
                 </View>
               ) : null}
             </View>

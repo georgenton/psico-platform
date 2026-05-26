@@ -1,0 +1,320 @@
+/* wallpapers/wallpapers.css — Set compartible + identidad */
+@import url("../colors_and_type.css");
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--color-warm-100); }
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; color: var(--fg-body); }
+
+.stage {
+  min-height: 100vh;
+  padding: 32px 32px 64px;
+  background: linear-gradient(180deg, #eceae5 0%, #f5f4f1 100%);
+}
+
+/* Header */
+.stage-head { max-width: 1280px; margin: 0 auto 32px; }
+.stage-eyebrow {
+  font: 600 11px/1 var(--font-mono);
+  color: var(--color-lavender-700);
+  text-transform: uppercase; letter-spacing: 0.12em;
+}
+.stage-title {
+  font-size: 32px; font-weight: 700; color: var(--color-warm-900);
+  letter-spacing: -0.02em; margin: 8px 0 10px; line-height: 1.1;
+}
+.stage-sub {
+  font-size: 15px; color: var(--color-warm-600);
+  line-height: 1.55; max-width: 64ch;
+}
+
+/* Hero row: featured wallpaper + meta */
+.hero {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 48px;
+  max-width: 1280px; margin: 0 auto 40px;
+  align-items: center;
+}
+.hero-meta { max-width: 480px; }
+.hero-meta h2 {
+  font-size: 22px; font-weight: 700; color: var(--color-warm-900);
+  letter-spacing: -0.01em; margin: 0 0 12px;
+}
+.hero-meta p {
+  font-size: 14.5px; color: var(--color-warm-700);
+  line-height: 1.6; margin: 0 0 18px;
+}
+.hero-meta .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+.hero-meta .tag {
+  font: 500 11.5px/1 var(--font-mono);
+  padding: 6px 10px; border-radius: 999px;
+  background: #fff; border: 1.5px solid var(--color-warm-200);
+  color: var(--color-warm-700);
+}
+.hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn-primary, .btn-secondary, .btn-ghost {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-radius: 12px;
+  font-size: 14px; font-weight: 600;
+  border: 0; cursor: pointer;
+  font-family: inherit;
+}
+.btn-primary { background: var(--color-sage-400); color: #fff; }
+.btn-secondary { background: var(--color-lavender-100); color: var(--color-lavender-700); }
+.btn-ghost {
+  background: transparent; color: var(--color-warm-700);
+  border: 1.5px solid var(--color-warm-300);
+}
+
+/* Section */
+.section { max-width: 1280px; margin: 0 auto 40px; }
+.section-h {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 18px;
+}
+.section-h h3 { font-size: 18px; font-weight: 600; color: var(--color-warm-900); letter-spacing: -0.01em; margin: 0; }
+.section-h .meta { font: 500 12px/1 var(--font-mono); color: var(--color-warm-500); }
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 22px;
+}
+
+/* ── Wallpaper card (mini iPhone lock screen) ─────────────────── */
+.wp-card {
+  display: flex; flex-direction: column; gap: 12px;
+  align-items: center;
+}
+.wp-frame {
+  width: 220px; height: 470px; border-radius: 38px;
+  position: relative; overflow: hidden;
+  box-shadow:
+    0 30px 60px rgba(42,36,32,0.18),
+    0 0 0 8px #2a2420,
+    0 0 0 9px rgba(255,255,255,0.5);
+}
+.wp-frame::before {
+  /* dynamic island */
+  content: "";
+  position: absolute; top: 9px; left: 50%; transform: translateX(-50%);
+  width: 90px; height: 26px; border-radius: 999px;
+  background: #000; z-index: 5;
+}
+.wp-bg {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+}
+.wp-status {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 22px 0;
+  font: 600 12px/1 -apple-system, system-ui;
+  z-index: 6; position: relative;
+}
+.wp-time {
+  text-align: center;
+  font-family: -apple-system, "SF Pro Display", system-ui;
+  font-weight: 200; font-size: 70px; line-height: 1;
+  letter-spacing: -0.03em;
+  margin-top: 8px;
+}
+.wp-date {
+  text-align: center;
+  font-family: -apple-system, "SF Pro Display", system-ui;
+  font-weight: 600; font-size: 14px; line-height: 1.2;
+  margin-top: 8px; opacity: 0.85;
+}
+.wp-quote {
+  flex: 1;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 0 24px 24px;
+  text-align: center;
+}
+.wp-quote-inner {
+  font-family: "Newsreader", Georgia, serif;
+  font-size: 16px; line-height: 1.35;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+  text-wrap: balance;
+}
+.wp-quote-em { font-style: italic; font-weight: 500; }
+.wp-attr {
+  text-align: center;
+  font: 500 9px/1.4 var(--font-mono);
+  text-transform: uppercase; letter-spacing: 0.18em;
+  padding-bottom: 22px;
+  opacity: 0.6;
+}
+.wp-flashlight, .wp-camera {
+  position: absolute; bottom: 22px;
+  width: 28px; height: 28px; border-radius: 999px;
+  background: rgba(0,0,0,0.32);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; z-index: 7;
+  font-size: 12px;
+}
+.wp-flashlight { left: 20px; }
+.wp-camera { right: 20px; }
+
+/* Variants */
+.wp-on-dark { color: #fff; }
+.wp-on-light { color: var(--color-warm-900); }
+
+.wp-noise::after {
+  content: ""; position: absolute; inset: 0;
+  background-image:
+    radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+    radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px);
+  background-size: 3px 3px, 4px 4px; background-position: 0 0, 1px 1px;
+  pointer-events: none; mix-blend-mode: overlay;
+}
+
+/* Backgrounds */
+.bg-lav-warm  { background: linear-gradient(160deg, #25185c 0%, #5e42c0 55%, #c3baff 100%); }
+.bg-sage      { background: linear-gradient(165deg, #132211 0%, #3a5e34 50%, #a5c99e 100%); }
+.bg-warm-pap  { background: linear-gradient(170deg, #fafaf8 0%, #ddd8ff 65%, #c3baff 100%); }
+.bg-warm-dawn { background: linear-gradient(170deg, #f5f4f1 0%, #e4efe0 60%, #a5c99e 100%); }
+.bg-deep-night{ background: linear-gradient(180deg, #25185c 0%, #3c2a80 60%, #5e42c0 100%); }
+.bg-glow-vio  { background: radial-gradient(120% 80% at 50% 100%, #8b71f5 0%, #5e42c0 40%, #25185c 100%); }
+.bg-mood-cal  { background: radial-gradient(120% 100% at 30% 20%, #c8dfc3 0%, #7fae76 60%, #3a5e34 100%); }
+.bg-id-lav    { background: var(--color-lavender-700); }
+.bg-mantra-w  { background: radial-gradient(120% 90% at 50% 40%, #fff 0%, #f5f4f1 60%, #eceae5 100%); }
+
+/* Cover wallpaper (book cover blowup) */
+.wp-cover-block {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 0;
+}
+.wp-cover-strap {
+  flex: 1;
+  background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.55) 100%);
+  padding: 22px;
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.wp-cover-title {
+  font-family: "Newsreader", Georgia, serif;
+  font-size: 26px; font-weight: 600; line-height: 1.05;
+  letter-spacing: -0.02em; color: #fff;
+}
+.wp-cover-sub { font: 500 11px/1.3 var(--font-mono); color: rgba(255,255,255,0.78); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.12em; }
+
+/* Streak / personal wallpaper */
+.wp-streak {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 24px; text-align: center; color: #fff;
+}
+.wp-streak-glyph { font-size: 56px; margin-bottom: 12px; filter: drop-shadow(0 8px 24px rgba(255,255,255,0.25)); }
+.wp-streak-num {
+  font-family: -apple-system, "SF Pro Display", system-ui;
+  font-size: 96px; font-weight: 200; line-height: 0.9;
+  letter-spacing: -0.04em;
+}
+.wp-streak-cap {
+  font: 600 12px/1.4 var(--font-mono);
+  text-transform: uppercase; letter-spacing: 0.18em;
+  margin-top: 14px; opacity: 0.85;
+}
+.wp-streak-line {
+  font-family: "Newsreader", Georgia, serif;
+  font-style: italic; font-size: 14px; line-height: 1.4;
+  margin-top: 18px; opacity: 0.9; max-width: 200px;
+}
+
+/* Identity wallpaper (just wordmark) */
+.wp-id {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: #fff; padding: 24px; text-align: center;
+}
+.wp-id-mark {
+  font-size: 22px; font-weight: 700; letter-spacing: -0.01em;
+}
+.wp-id-tag {
+  font-family: "Newsreader", Georgia, serif;
+  font-style: italic; font-size: 14px; opacity: 0.78;
+  margin-top: 12px;
+}
+
+/* Mantra wallpaper (light, large text) */
+.wp-mantra {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 28px; text-align: center;
+}
+.wp-mantra-inner {
+  font-family: "Newsreader", Georgia, serif;
+  font-size: 28px; font-weight: 500; line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-warm-900);
+  text-wrap: balance;
+}
+.wp-mantra-inner em { font-style: italic; color: var(--color-lavender-700); }
+
+/* Caption under each tile */
+.wp-cap {
+  text-align: center;
+  max-width: 220px;
+}
+.wp-cap-title { font-size: 13px; font-weight: 600; color: var(--color-warm-900); letter-spacing: -0.005em; }
+.wp-cap-meta { font: 500 11px/1.4 var(--font-mono); color: var(--color-warm-500); margin-top: 4px; }
+
+.wp-actions {
+  display: flex; gap: 6px; justify-content: center; margin-top: 4px;
+}
+.wp-icon-btn {
+  width: 28px; height: 28px; border-radius: 999px;
+  background: #fff; border: 1px solid var(--color-warm-200);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; color: var(--color-warm-700);
+}
+
+/* ── Generator block (the why) ─────────────────────────────────── */
+.generator {
+  max-width: 1280px; margin: 0 auto;
+  background: #fff; border-radius: 28px;
+  box-shadow: var(--shadow-card);
+  padding: 32px;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 32px;
+  align-items: center;
+}
+.generator h3 {
+  font-size: 22px; font-weight: 700; color: var(--color-warm-900);
+  letter-spacing: -0.01em; margin: 0 0 12px;
+}
+.generator p { font-size: 14.5px; color: var(--color-warm-700); line-height: 1.6; margin: 0 0 18px; }
+.gen-source {
+  background: var(--color-warm-50);
+  border-radius: 14px; padding: 14px 16px;
+  font-family: "Newsreader", Georgia, serif; font-size: 14px;
+  color: var(--color-warm-800); line-height: 1.5;
+  border-left: 3px solid var(--color-lavender-500);
+  margin-bottom: 16px;
+}
+.gen-controls { display: flex; flex-direction: column; gap: 10px; }
+.gen-radio {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 12px;
+  border: 1.5px solid var(--color-warm-200);
+  background: var(--color-warm-50);
+  font-size: 13px; color: var(--color-warm-800);
+}
+.gen-radio.on { background: var(--color-lavender-50); border-color: var(--color-lavender-300); color: var(--color-lavender-700); font-weight: 600; }
+.gen-radio-dot { width: 10px; height: 10px; border-radius: 999px; background: var(--color-warm-300); }
+.gen-radio.on .gen-radio-dot { background: var(--color-lavender-600); box-shadow: 0 0 0 3px var(--color-lavender-200); }
+.gen-cta { margin-top: 8px; }
+
+.gen-preview { display: flex; justify-content: center; }
+
+/* Footer */
+.foot {
+  max-width: 1280px; margin: 32px auto 0;
+  padding: 24px; border-top: 1px solid var(--color-warm-200);
+  text-align: center;
+  font: 500 12px/1.7 var(--font-mono); color: var(--color-warm-500);
+}
+.foot b { color: var(--color-warm-800); font-weight: 600; }

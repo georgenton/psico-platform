@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Psico Platform — Web UI kit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#fafaf8; --surface:#fff; --subtle:#f5f4f1; --line:#d9d5ce; --line-soft:#eceae5;
+    --L100:#eeebff; --L200:#ddd8ff; --L300:#c3baff; --L400:#a697ff; --L500:#8b71f5; --L600:#5e42c0; --L700:#4d36a0; --L800:#3c2a80; --L900:#25185c;
+    --E100:#d9ebe6; --E400:#5aa092; --E500:#3d8475; --E700:#28544a;
+    --H100:#f5e8cf; --H700:#7a5a1d;
+    --W400:#928d84; --W500:#706b62; --W600:#574f45; --W700:#3d3730; --W900:#2a2420;
+    --F:'Geist',-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--subtle);color:var(--W700);font-family:var(--F);-webkit-font-smoothing:antialiased;}
+  .kit-head{padding:32px 40px 8px;max-width:1320px;margin:0 auto;}
+  .kit-head h1{font:700 28px/1.2 var(--F);color:var(--W900);margin:0 0 4px;letter-spacing:-0.01em;}
+  .kit-head p{font:14px/1.5 var(--F);color:var(--W500);margin:0;}
+  .kit{max-width:1320px;margin:0 auto;padding:24px 40px;}
+  .kit > h2{font:700 11px/1 var(--F);letter-spacing:0.12em;text-transform:uppercase;color:var(--W500);margin:0 0 12px;}
+  .frame{background:var(--bg);border:1.5px solid var(--line);border-radius:18px;overflow:hidden;}
+  .flbl{font:700 10px/1 var(--F);letter-spacing:0.1em;text-transform:uppercase;color:var(--W500);padding:10px 16px;background:var(--surface);border-bottom:1.5px solid var(--line-soft);}
+  .container{max-width:72rem;margin:0 auto;padding:0 32px;}
+  .btn-cta{background:var(--E400);color:#fff;border:0;border-radius:14px;padding:11px 22px;font:600 14px var(--F);cursor:pointer;display:inline-flex;align-items:center;gap:8px;box-shadow:0 1px 2px rgba(40,84,74,0.16);}
+  .btn-cta:hover{background:var(--E500);}
+  .btn-cta.lg{padding:14px 30px;font-size:16px;border-radius:16px;}
+  .btn-out{background:transparent;color:var(--L700);border:1.5px solid var(--L300);border-radius:14px;padding:9.5px 20px;font:600 14px var(--F);cursor:pointer;}
+  .btn-honey{background:var(--H100);color:var(--H700);border:0;border-radius:14px;padding:11px 22px;font:600 14px var(--F);cursor:pointer;}
+  .btn-soft{background:var(--L100);color:var(--L700);border:0;border-radius:14px;padding:11px 22px;font:600 14px var(--F);cursor:pointer;}
+  .pill{display:inline-flex;align-items:center;gap:6px;border-radius:9999px;padding:3px 12px;font:700 11px var(--F);}
+  .pill-free{background:var(--E100);color:var(--E700);}
+  .pill-pro{background:var(--L100);color:var(--L700);}
+  .pill-feat{background:var(--E400);color:#fff;padding:4px 14px;}
+  .pill-hero{background:#fff;color:var(--L700);border:1.5px solid var(--L200);padding:6px 16px;font-size:13px;font-weight:500;}
+  .field{width:100%;background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:11px 16px;font:14px var(--F);color:var(--W700);outline:none;}
+  .field:focus{border-color:var(--L700);box-shadow:0 0 0 3px rgba(94,66,192,0.14);}
+  .lbl{font:500 13px var(--F);color:var(--W600);display:block;margin-bottom:6px;}
+  .surface{background:#fff;border:1.5px solid var(--line-soft);border-radius:20px;}
+  .meta{font:12px var(--F);color:var(--W400);}
+  .eyebrow{font:700 10px var(--F);letter-spacing:0.12em;text-transform:uppercase;color:var(--W500);}
+  .grad-cool{background:linear-gradient(135deg,var(--L300),var(--L700));}
+  .grad-warm-g{background:linear-gradient(135deg,#84bcb0,var(--E700));}
+  .grad-mixed{background:linear-gradient(135deg,var(--L300),#5aa092);}
+  .nav-link{font:500 14px var(--F);color:var(--W600);text-decoration:none;}
+  a{color:inherit;text-decoration:none;}
+</style>
+</head>
+<body>
+
+<div class="kit-head">
+  <h1>Psico Platform — Web UI kit</h1>
+  <p>Estructura más firme · paleta sobria · eucalipto para CTA, lavanda para identidad. Bordes 1.5px omnipresentes; nada flota.</p>
+</div>
+
+<!-- NAVBAR -->
+<div class="kit"><h2>Navbar</h2>
+<div class="frame"><div class="flbl">Top nav · 64px · borde inferior firme</div>
+<div style="background:#fff;border-bottom:1.5px solid var(--line);">
+  <div class="container" style="height:64px;display:flex;align-items:center;justify-content:space-between;">
+    <a style="font:700 19px var(--F);color:var(--L700);letter-spacing:-0.01em;">Psico Platform</a>
+    <nav style="display:flex;gap:28px;align-items:center;">
+      <a class="nav-link">Libros</a><a class="nav-link">Cómo funciona</a><a class="nav-link">Planes</a>
+      <a class="nav-link" style="padding-right:6px;border-right:1.5px solid var(--line);padding-left:0;line-height:1;">Iniciar sesión</a>
+      <button class="btn-cta">Empieza gratis →</button>
+    </nav>
+  </div>
+</div></div></div>
+
+<!-- HERO -->
+<div class="kit"><h2>Hero</h2>
+<div class="frame"><div class="flbl">Hero · gradient suave + estructura centrada en card</div>
+<section style="background:linear-gradient(145deg,#f7f5ff 0%,#fafaf8 65%);padding:72px 24px;">
+  <div class="container" style="text-align:center;">
+    <span class="pill pill-hero" style="margin-bottom:24px;">✨ Psicología accesible para Ecuador y LATAM</span>
+    <h1 style="font:700 clamp(2.25rem,5vw,3.5rem)/1.05 var(--F);letter-spacing:-0.02em;color:var(--W900);text-wrap:balance;margin:14px auto 18px;max-width:46rem;">Aprende a entenderte. <span style="color:var(--L700);">Transforma tu vida.</span></h1>
+    <p style="font:1.05rem/1.6 var(--F);color:var(--W500);max-width:36rem;margin:0 auto 32px;text-wrap:balance;">Psicoeducación basada en evidencia para comprender tus emociones, mejorar tus relaciones y construir una vida más plena — a tu ritmo, en tu idioma.</p>
+    <div style="display:flex;gap:14px;justify-content:center;">
+      <button class="btn-cta lg">Empieza gratis →</button>
+      <button class="btn-out" style="padding:13px 26px;font-size:15px;border-radius:16px;">Cómo funciona</button>
+    </div>
+    <p class="meta" style="margin-top:22px;">Sin tarjeta de crédito · Cancela cuando quieras</p>
+  </div>
+</section></div></div>
+
+<!-- HOW -->
+<div class="kit"><h2>Cómo funciona · 3 pasos en cards estructuradas</h2>
+<div class="frame"><div class="flbl">Steps · cards bordeadas, sin flotar</div>
+<div style="background:#fff;padding:56px 32px;">
+  <div class="container">
+    <div style="text-align:center;margin-bottom:36px;">
+      <span class="eyebrow">Cómo funciona</span>
+      <h2 style="font:700 28px var(--F);color:var(--W800);margin:6px 0 8px;letter-spacing:-0.01em;">Simple desde el primer día</h2>
+      <p style="font:16px var(--F);color:var(--W500);margin:0;">Tres pasos. Sin fricción.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+      <div class="surface" style="padding:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;"><span class="eyebrow" style="color:var(--L700);">Paso 01</span><span style="height:1.5px;flex:1;background:var(--line-soft);"></span></div>
+        <div style="font-size:28px;margin-bottom:10px;">📚</div>
+        <div style="font:600 17px var(--F);color:var(--W800);margin-bottom:4px;">Lee a tu ritmo</div>
+        <p style="font:13px/1.5 var(--F);color:var(--W500);margin:0;">Libros completos de nuestros psicólogos.</p>
+      </div>
+      <div class="surface" style="padding:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;"><span class="eyebrow" style="color:var(--L700);">Paso 02</span><span style="height:1.5px;flex:1;background:var(--line-soft);"></span></div>
+        <div style="font-size:28px;margin-bottom:10px;">🎧</div>
+        <div style="font:600 17px var(--F);color:var(--W800);margin-bottom:4px;">Escucha cuando puedas</div>
+        <p style="font:13px/1.5 var(--F);color:var(--W500);margin:0;">Audios narrados con calma — bus, cocina, antes de dormir.</p>
+      </div>
+      <div class="surface" style="padding:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;"><span class="eyebrow" style="color:var(--L700);">Paso 03</span><span style="height:1.5px;flex:1;background:var(--line-soft);"></span></div>
+        <div style="font-size:28px;margin-bottom:10px;">🌱</div>
+        <div style="font:600 17px var(--F);color:var(--W800);margin-bottom:4px;">Practica lo aprendido</div>
+        <p style="font:13px/1.5 var(--F);color:var(--W500);margin:0;">Ejercicios guiados que aterrizan la teoría en tu día a día.</p>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+
+<!-- PRICING -->
+<div class="kit"><h2>Planes</h2>
+<div class="frame"><div class="flbl">Planes · cards estructuradas, eucalipto en CTAs, lavanda sobria en PRO</div>
+<div style="background:var(--bg);padding:56px 32px;">
+  <div class="container">
+    <div style="text-align:center;margin-bottom:32px;">
+      <h2 style="font:700 28px var(--F);color:var(--W800);margin:0 0 8px;letter-spacing:-0.01em;">Planes y precios</h2>
+      <p style="font:16px var(--F);color:var(--W500);margin:0;">Empieza gratis. Crece cuando estés listo.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px;align-items:start;">
+      <div class="surface" style="padding:28px;display:flex;flex-direction:column;">
+        <span class="pill pill-free" style="align-self:flex-start;margin-bottom:14px;">Gratuito</span>
+        <div style="font:700 32px var(--F);color:var(--W900);">Gratis <span style="font:14px var(--F);color:var(--W400);">para siempre</span></div>
+        <p style="font:13px var(--F);color:var(--W500);margin:6px 0 20px;">Empieza tu camino sin pagar nada.</p>
+        <ul style="list-style:none;padding:0;margin:0 0 24px;display:flex;flex-direction:column;gap:10px;">
+          <li style="display:flex;gap:10px;font:14px var(--F);color:var(--W600);"><span style="color:var(--E500);font-weight:700;">✓</span>Capítulo de muestra</li>
+          <li style="display:flex;gap:10px;font:14px var(--F);color:var(--W600);"><span style="color:var(--E500);font-weight:700;">✓</span>App móvil y web</li>
+          <li style="display:flex;gap:10px;font:14px var(--F);color:var(--W600);"><span style="color:var(--E500);font-weight:700;">✓</span>Boletín mensual</li>
+        </ul>
+        <button class="btn-out" style="margin-top:auto;width:100%;">Empezar gratis</button>
+      </div>
+      <div style="position:relative;padding:28px;border-radius:20px;background:#fff;border:2px solid var(--L700);display:flex;flex-direction:column;">
+        <span class="pill pill-feat" style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);">Más popular</span>
+        <span class="pill pill-pro" style="align-self:flex-start;margin-bottom:14px;">Pro</span>
+        <div style="font:700 32px var(--F);color:var(--L700);">$7 <span style="font:14px var(--F);color:var(--W400);">USD/mes · o $59/año</span></div>
+        <p style="font:13px var(--F);color:var(--W500);margin:6px 0 20px;">Acceso completo y herramientas para crecer.</p>
+        <ul style="list-style:none;padding:0;margin:0 0 24px;display:flex;flex-direction:column;gap:10px;">
+          <li style="display:flex;gap:10px;font:14px var(--F);color:var(--W700);"><span style="color:var(--E500);font-weight:700;">✓</span>Toda la biblioteca</li>
+          <li style="display:flex;gap:10px;font:14px var(--F);color:var(--W700);"><span style="color:var(--E500);font-weight:700;">✓</span>Audios profesionales</li>
+          <li style="display:flex;gap:10px;font:14px var(--F);color:var(--W700);"><span style="color:var(--E500);font-weight:700;">✓</span>Ejercicios prácticos</li>
+          <li style="display:flex;gap:10px;font:14px var(--F);color:var(--W700);"><span style="color:var(--E500);font-weight:700;">✓</span>Compañero AI <span style="font-weight:400;color:var(--W400);">(próximamente)</span></li>
+        </ul>
+        <button class="btn-cta" style="margin-top:auto;width:100%;justify-content:center;">Elegir Pro →</button>
+      </div>
+      <div class="surface" style="padding:28px;display:flex;flex-direction:column;">
+        <span class="pill pill-pro" style="align-self:flex-start;margin-bottom:14px;">Anual</span>
+        <div style="font:700 32px var(--F);color:var(--W900);">$59 <span style="font:14px var(--F);color:var(--W400);">USD/año</span></div>
+        <p style="font:13px var(--F);color:var(--W500);margin:6px 0 20px;">El mejor valor para crecimiento sostenido.</p>
+        <ul style="list-style:none;padding:0;margin:0 0 24px;display:flex;flex-direction:column;gap:10px;">
+          <li style="display:flex;gap:10px;font:14px var(--F);color:var(--W600);"><span style="color:var(--E500);font-weight:700;">✓</span>Todo lo de Pro</li>
+          <li style="display:flex;gap:10px;font:14px var(--F);color:var(--W600);"><span style="color:var(--E500);font-weight:700;">✓</span>Ahorras 30% al año</li>
+          <li style="display:flex;gap:10px;font:14px var(--F);color:var(--W600);"><span style="color:var(--E500);font-weight:700;">✓</span>Libros nuevos</li>
+        </ul>
+        <button class="btn-out" style="margin-top:auto;width:100%;">Elegir anual</button>
+      </div>
+    </div>
+    <p class="meta" style="text-align:center;margin-top:24px;">¿Eres institución o empresa? <a style="color:var(--L700);font-weight:500;border-bottom:1px solid var(--L300);">Escríbenos sobre el plan B2B →</a></p>
+  </div>
+</div></div></div>
+
+<!-- DASHBOARD -->
+<div class="kit"><h2>Dashboard</h2>
+<div class="frame"><div class="flbl">Dashboard · sidebar bordeada, top bar firme</div>
+<div style="display:grid;grid-template-columns:240px 1fr;min-height:560px;background:var(--subtle);">
+  <aside style="background:#fff;border-right:1.5px solid var(--line);">
+    <div style="padding:18px 20px 16px;border-bottom:1.5px solid var(--line-soft);font:700 17px var(--F);color:var(--L700);letter-spacing:-0.01em;">Psico Platform</div>
+    <div style="padding:14px 20px 6px;font:700 10px var(--F);letter-spacing:0.12em;text-transform:uppercase;color:var(--W400);">Menú</div>
+    <a style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-left:3px solid var(--L700);background:#f7f5ff;color:var(--L900);font:600 14px var(--F);"><span style="width:20px;text-align:center;">🏠</span>Inicio</a>
+    <a style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-left:3px solid transparent;color:var(--W600);font:500 14px var(--F);border-bottom:1px solid var(--subtle);"><span style="width:20px;text-align:center;color:var(--W400);">📚</span>Mis libros</a>
+    <a style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-left:3px solid transparent;color:var(--W600);font:500 14px var(--F);border-bottom:1px solid var(--subtle);"><span style="width:20px;text-align:center;color:var(--W400);">💳</span>Mi plan</a>
+    <a style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-left:3px solid transparent;color:var(--W600);font:500 14px var(--F);"><span style="width:20px;text-align:center;color:var(--W400);">👤</span>Perfil</a>
+    <div style="margin:16px;padding:14px;border:1.5px solid var(--line-soft);border-radius:12px;background:var(--bg);">
+      <div class="eyebrow" style="margin-bottom:4px;">Tu plan</div>
+      <div style="font:600 14px var(--F);color:var(--W800);">Pro · $7/mes</div>
+      <div style="font:11px var(--F);color:var(--W400);margin-top:2px;">Próximo cobro: 14 may</div>
+    </div>
+  </aside>
+  <main style="padding:0;">
+    <div style="height:48px;background:#fff;border-bottom:1.5px solid var(--line);padding:0 24px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="font:600 14px var(--F);color:var(--W800);">Inicio</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span style="font:500 12px var(--F);color:var(--W500);">Ana Pérez</span>
+        <div style="width:28px;height:28px;border-radius:9999px;background:linear-gradient(135deg,var(--L300),var(--L700));color:#fff;font:600 12px var(--F);display:flex;align-items:center;justify-content:center;">A</div>
+      </div>
+    </div>
+    <div style="padding:24px;">
+      <div style="font:700 22px var(--F);color:var(--W900);margin-bottom:4px;letter-spacing:-0.01em;">Hola, Ana 👋</div>
+      <div style="font:13px var(--F);color:var(--W500);margin-bottom:20px;">Continúa tu camino al bienestar emocional</div>
+
+      <div class="surface" style="padding:18px 20px;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;border:1.5px solid var(--L200);">
+        <div>
+          <div class="eyebrow" style="margin-bottom:4px;color:var(--L700);">Tu plan</div>
+          <div style="font:700 18px var(--F);color:var(--W900);">Pro · $7 USD/mes</div>
+          <div style="font:12px var(--F);color:var(--W400);margin-top:2px;">Próximo cobro: 14 de mayo</div>
+        </div>
+        <button class="btn-soft">Administrar</button>
+      </div>
+
+      <div class="eyebrow" style="margin-bottom:10px;">Tus libros</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+        <div class="surface" style="overflow:hidden;padding:0;">
+          <div class="grad-cool" style="aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;font:700 32px var(--F);color:rgba(255,255,255,0.92);">EM</div>
+          <div style="padding:12px 14px;border-top:1.5px solid var(--line-soft);">
+            <div style="font:600 14px var(--F);color:var(--W800);">Emociones en Construcción</div>
+            <div class="meta">12 capítulos · 4.8h</div>
+          </div>
+        </div>
+        <div class="surface" style="overflow:hidden;padding:0;">
+          <div class="grad-warm-g" style="aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;font:700 32px var(--F);color:rgba(255,255,255,0.92);">FA</div>
+          <div style="padding:12px 14px;border-top:1.5px solid var(--line-soft);">
+            <div style="font:600 14px var(--F);color:var(--W800);">Familias Ensambladas</div>
+            <div class="meta">10 capítulos · 3.5h</div>
+          </div>
+        </div>
+        <div class="surface" style="overflow:hidden;padding:0;">
+          <div class="grad-mixed" style="aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;font:700 32px var(--F);color:rgba(255,255,255,0.92);">RE</div>
+          <div style="padding:12px 14px;border-top:1.5px solid var(--line-soft);">
+            <div style="font:600 14px var(--F);color:var(--W800);">Relaciones Sanas</div>
+            <div class="meta">8 capítulos · 2.9h</div>
+          </div>
+        </div>
+        <div class="surface" style="overflow:hidden;padding:0;">
+          <div class="grad-cool" style="aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;position:relative;font:700 32px var(--F);color:rgba(255,255,255,0.92);">PR<div style="position:absolute;inset:0;background:rgba(42,36,32,0.55);display:flex;align-items:center;justify-content:center;font-size:28px;">🔒</div></div>
+          <div style="padding:12px 14px;border-top:1.5px solid var(--line-soft);">
+            <div style="font:600 14px var(--F);color:var(--W800);">Próximamente</div>
+            <div class="meta">Desbloquear con Pro →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div></div></div>
+
+<!-- TOKEN STRIP -->
+<div class="kit"><h2>Componentes · botones · pills · inputs</h2>
+<div class="frame"><div class="flbl">Tokens en uso</div>
+<div style="background:#fff;padding:24px 32px;display:flex;flex-direction:column;gap:18px;">
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+    <button class="btn-cta">Empieza gratis →</button>
+    <button class="btn-out">Cómo funciona</button>
+    <button class="btn-honey">Leer muestra</button>
+    <button class="btn-soft">Continuar capítulo →</button>
+    <button class="btn-cta" disabled style="opacity:0.55;cursor:not-allowed;">Iniciando sesión…</button>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+    <span class="pill pill-free">Gratuito</span>
+    <span class="pill pill-pro">Pro</span>
+    <span class="pill pill-feat">Más popular</span>
+    <span class="pill pill-hero">✨ Psicología accesible para Ecuador y LATAM</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:560px;">
+    <div><label class="lbl">Email</label><input class="field" value="ana@correo.com" /></div>
+    <div><label class="lbl">Contraseña</label><input class="field" type="password" value="••••••••" /></div>
+  </div>
+</div></div></div>
+
+</body></html>

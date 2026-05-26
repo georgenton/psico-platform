@@ -1,0 +1,295 @@
+/* dynamic-island/island.css */
+@import url("../colors_and_type.css");
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--color-warm-100); }
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; color: var(--fg-body); }
+
+.stage {
+  min-height: 100vh;
+  padding: 32px 32px 64px;
+  background: linear-gradient(180deg, #2a2420 0%, #3d3730 100%);
+  color: #f5f4f1;
+}
+
+.stage-head { max-width: 1280px; margin: 0 auto 40px; }
+.stage-eyebrow {
+  font: 600 11px/1 var(--font-mono);
+  color: var(--color-lavender-300);
+  text-transform: uppercase; letter-spacing: 0.12em;
+}
+.stage-title {
+  font-size: 32px; font-weight: 700; color: #fff;
+  letter-spacing: -0.02em; margin: 8px 0 10px; line-height: 1.1;
+  text-wrap: balance;
+}
+.stage-sub {
+  font-size: 15px; color: rgba(245,244,241,0.75);
+  line-height: 1.55; max-width: 64ch;
+}
+
+/* ── Phone "screen top" ─────────────────────────────────────────── */
+.phone-top {
+  position: relative;
+  width: 360px; height: 220px;
+  border-radius: 38px 38px 18px 18px;
+  background: linear-gradient(180deg, #1a1614 0%, #2a2420 100%);
+  box-shadow:
+    0 30px 60px rgba(0,0,0,0.4),
+    0 0 0 8px #0a0908,
+    inset 0 1px 0 rgba(255,255,255,0.05);
+  overflow: hidden;
+}
+.phone-top.tall {
+  height: 320px;
+}
+.phone-top.short { height: 140px; }
+
+/* Wallpaper sits behind */
+.phone-wallpaper {
+  position: absolute; inset: 0;
+  background: linear-gradient(165deg, #25185c 0%, #5e42c0 60%, #c3baff 100%);
+  opacity: 0.85;
+}
+.phone-wallpaper.warm { background: linear-gradient(165deg, #3a5e34 0%, #7fae76 100%); }
+.phone-wallpaper.deep { background: radial-gradient(120% 80% at 50% 100%, #8b71f5 0%, #25185c 100%); }
+.phone-wallpaper.dawn { background: linear-gradient(180deg, #5e42c0 0%, #8b71f5 60%, #f5f4f1 100%); }
+
+.phone-noise::after {
+  content: ""; position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 3px 3px;
+  pointer-events: none; mix-blend-mode: overlay;
+}
+
+/* Status bar */
+.phone-status {
+  position: relative; z-index: 2;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 22px 0; color: #fff;
+  font: 600 13px/1 -apple-system, system-ui;
+}
+
+/* Wallpaper time (for tall variants) */
+.phone-time {
+  position: relative; z-index: 1;
+  text-align: center; color: #fff;
+  font-family: -apple-system, system-ui;
+  font-weight: 200; font-size: 56px;
+  letter-spacing: -0.03em; margin-top: 12px;
+  line-height: 1;
+}
+
+/* ── Dynamic Island base ────────────────────────────────────────── */
+.island {
+  position: absolute; top: 9px; left: 50%; transform: translateX(-50%);
+  background: #000;
+  display: flex; align-items: center;
+  color: #fff;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  transition: width 300ms cubic-bezier(0.2, 0.8, 0.2, 1), height 300ms;
+  z-index: 10;
+  font-family: -apple-system, system-ui;
+}
+.island.compact {
+  width: 126px; height: 37px;
+  justify-content: space-between;
+  padding: 0 12px;
+  gap: 8px;
+}
+.island.expanded {
+  width: 320px;
+  padding: 12px 14px;
+  border-radius: 38px;
+}
+.island.tall {
+  width: 320px;
+  padding: 14px 16px 16px;
+  border-radius: 38px;
+  flex-direction: column; align-items: stretch;
+}
+.island.split {
+  width: 230px; height: 37px;
+  background: transparent;
+  box-shadow: none;
+  display: flex; gap: 14px;
+  align-items: center; justify-content: space-between;
+}
+.island-bubble {
+  background: #000;
+  height: 37px;
+  border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 0 13px;
+  color: #fff;
+  font: 600 12px/1 -apple-system, system-ui;
+}
+
+/* ── Island contents ────────────────────────────────────────────── */
+.is-icon {
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+  flex-shrink: 0;
+}
+.is-icon.book      { background: linear-gradient(135deg, #a697ff, #5e42c0); }
+.is-icon.eco       { background: linear-gradient(135deg, #a697ff, #4d36a0); color: #fff; }
+.is-icon.sage      { background: linear-gradient(135deg, #a5c99e, #3a5e34); }
+.is-icon.pause     { background: #fff; color: #000; }
+.is-icon.fire      { background: #fff2; }
+.is-icon.diario    { background: linear-gradient(135deg, #d9d5ce, #574f45); color: #fff; }
+.is-icon.audio     { background: linear-gradient(135deg, #a697ff, #25185c); }
+
+.is-label {
+  font: 600 12px/1 -apple-system, system-ui;
+  letter-spacing: -0.02em;
+}
+.is-label-sm {
+  font: 500 10.5px/1 -apple-system, system-ui;
+  color: rgba(255,255,255,0.6);
+  margin-top: 3px;
+}
+.is-meta {
+  font: 600 12px/1 -apple-system, system-ui;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+.is-meta.tabular { font-variant-numeric: tabular-nums; }
+.is-progress {
+  width: 100%; height: 3px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.18);
+  margin-top: 10px;
+  overflow: hidden;
+}
+.is-progress > span {
+  display: block; height: 100%; border-radius: 999px;
+}
+
+.is-wave {
+  display: inline-flex; align-items: center; gap: 2.5px;
+  height: 14px;
+}
+.is-wave .bar {
+  width: 2.5px; border-radius: 999px; background: currentColor;
+}
+.is-pulse {
+  width: 8px; height: 8px; border-radius: 999px;
+  background: #ff453a;
+  animation: pulse-rec 1.2s ease-in-out infinite;
+}
+.is-pulse.violet { background: #b08eff; }
+.is-pulse.sage   { background: #7fae76; }
+@keyframes pulse-rec {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.75); }
+}
+
+.is-mini-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.is-actions {
+  display: flex; gap: 14px; align-items: center; justify-content: center;
+  margin-top: 12px;
+  color: #fff;
+}
+.is-action-btn {
+  width: 36px; height: 36px; border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; border: 0;
+}
+.is-action-btn.primary {
+  background: var(--color-lavender-500);
+  width: 44px; height: 44px;
+}
+.is-action-btn.large { width: 44px; height: 44px; }
+
+/* ── Caption under each phone ──────────────────────────────────── */
+.tile {
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+}
+.tile-meta { max-width: 360px; text-align: center; }
+.tile-num {
+  font: 600 11px/1 var(--font-mono);
+  color: var(--color-lavender-300);
+  text-transform: uppercase; letter-spacing: 0.14em;
+}
+.tile-title {
+  font-size: 17px; font-weight: 600; color: #fff;
+  letter-spacing: -0.01em; margin: 8px 0 4px;
+}
+.tile-sub {
+  font-size: 13.5px; color: rgba(245,244,241,0.7);
+  line-height: 1.5;
+}
+.tile-tags {
+  display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 10px;
+}
+.tile-tag {
+  font: 500 10.5px/1 var(--font-mono);
+  padding: 4px 9px; border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  color: rgba(245,244,241,0.7);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+/* ── Hero ──────────────────────────────────────────────────────── */
+.hero {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 56px;
+  max-width: 1280px; margin: 0 auto 48px;
+  align-items: center;
+}
+.hero-meta { max-width: 460px; }
+.hero-meta h2 {
+  font-size: 22px; font-weight: 700; color: #fff;
+  letter-spacing: -0.01em; margin: 0 0 12px;
+}
+.hero-meta p { font-size: 14.5px; color: rgba(245,244,241,0.78); line-height: 1.6; margin: 0 0 16px; }
+
+.hero-list {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-top: 18px;
+}
+.hero-li {
+  display: flex; align-items: flex-start; gap: 12px;
+  font-size: 13.5px; color: rgba(245,244,241,0.85); line-height: 1.5;
+}
+.hero-li-key {
+  font: 600 11px/1 var(--font-mono);
+  color: var(--color-lavender-300);
+  text-transform: uppercase; letter-spacing: 0.12em;
+  width: 88px; flex-shrink: 0; padding-top: 2px;
+}
+.hero-li-body b { color: #fff; font-weight: 600; }
+
+/* ── Section ───────────────────────────────────────────────────── */
+.section { max-width: 1280px; margin: 0 auto 56px; }
+.section-h {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 22px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding-bottom: 16px;
+}
+.section-h h3 { font-size: 20px; font-weight: 600; color: #fff; margin: 0; letter-spacing: -0.01em; }
+.section-h .meta { font: 500 12px/1 var(--font-mono); color: rgba(245,244,241,0.55); }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 36px 24px;
+}
+.grid.two { grid-template-columns: repeat(2, 1fr); gap: 40px 32px; }
+
+/* Footer */
+.foot {
+  max-width: 1280px; margin: 32px auto 0;
+  padding: 24px; border-top: 1px solid rgba(255,255,255,0.08);
+  text-align: center;
+  font: 500 12px/1.7 var(--font-mono); color: rgba(245,244,241,0.5);
+}
+.foot b { color: #fff; font-weight: 600; }

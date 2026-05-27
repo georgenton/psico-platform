@@ -107,6 +107,8 @@ model User {
   bookBookmarks           BookBookmark[]
   bookReviews             BookReview[]
   dismissedPrompts        DismissedReflectionPrompt[]
+  diaryEntries            DiaryEntry[]
+  sharedDiaryEntries      SharedDiaryEntry[]
 
   @@unique([authProvider, providerId])
   @@index([email])
@@ -737,4 +739,120 @@ model DataExportRequest {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// ─── Diary · E2E-encrypted journal entries (Sprint S6 · ADR 0007) ────────────
+//
+// PRIVACY-CRITICAL — read this comment before touching any field below.
+//
+// The user encrypts the entry body on-device with their per-user diaryKey
+// derived from password via Argon2id. The server stores `textCiphertext` and
+// `textNonce` opaque; the server NEVER:
+//   - receives, derives, or holds the diaryKey
+//   - logs textCiphertext / textNonce (CI grep enforces this; ADR 0007 §F)
+//   - exposes any endpoint that returns plaintext
+//
+// Plaintext metadata (mood, promptId, tags, audioUrl) is intentionally kept
+// outside the cipher so the catalog UI can filter and the home stats can
+// count without round-tripping the cipher. These fields MUST NOT contain
+// sensitive content — the design (06-diario.md) commits to that.
+
+model DiaryEntry {
+  id String @id @default(cuid())
+  userId String
+
+  // base64url ciphertext of XChaCha20-Poly1305(plaintext, diaryKey, nonce, AAD).
+  // Capped at ~1 MB at the DTO layer (`@Length`). PostgreSQL TEXT, no
+  // compression at the row level — the cipher is already incompressible.
+  textCiphertext String
+
+  // base64url 24-byte random nonce. Generated client-side per write. Stored
+  // separately from the cipher so a future nonce-handling change does not
+  // require a payload migration.
+  textNonce String
+
+  // Excerpt cipher (first ~80 chars of plaintext, encrypted with the same
+  // diaryKey + a different nonce). Sent in list responses so the user gets a
+  // preview without downloading every full body. Optional: client may write
+  // null if the entry is too short.
+  excerptCiphertext String?
+  excerptNonce      String?
+
+  // Plaintext metadata — explicitly non-sensitive per the design contract.
+  mood     String  // token: "calma" | "foco" | "energia" | … (validated against OnboardingMood)
+  // "free" | "prompted" | "voz" — denormalized for filtering/analytics.
+  kind     String  @default("free")
+  promptId String? // FK is intentionally a soft pointer to DiaryPrompt
+  tags     String[]
+
+  // Voice entry attachments. Audio is NOT encrypted at rest — design 07-voz.md
+  // says transcription is destroyed after extraction so no plaintext lives on
+  // disk anyway. Only the URL + duration travel here.
+  audioUrl         String?
+  audioDurationSec Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt      DiaryPrompt?        @relation(fields: [promptId], references: [id], onDelete: SetNull)
+  sharedCopies SharedDiaryEntry[]
+
+  // Range scans for the list view (last N entries, optionally filtered by mood).
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, mood])
+  // The promptId path is rare; soft FK does not need an index of its own.
+}
+
+// Re-encrypted copy of a diary entry shared with a therapist for a bounded
+// window. The server is a blind mailbox: it stores `ciphertextForTherapist`
+// + `wrappedKey` + the user's one-shot pubkey, all base64url, and NEVER
+// touches them. Therapist reads via /api/terapia/shared-entries/:id (v2).
+//
+// Expiry is honored by a scheduled job (S3 jobs pipeline) — when v2
+// TherapyModule lands the worker will delete rows where `expiresAt < now()`.
+model SharedDiaryEntry {
+  id      String  @id @default(cuid())
+  // Nullable so the relation can be SetNull on entry delete — that lets us
+  // keep the audit trail "user U shared an entry with therapist T at time X"
+  // even after U deletes the original entry.
+  entryId String?
+  // therapistId is a soft pointer — TherapyModule is v2 and may live in a
+  // separate service. We store the string and validate at use-time.
+  therapistId String
+  userId      String
+
+  ciphertextForTherapist String // base64url AEAD(plaintext, ephemeralKey)
+  wrappedKey             String // base64url AEAD(ephemeralKey, ECDH(userPriv, therapistPub))
+  userOneShotPubKey      String // base64url X25519 pubkey used in the ECDH
+
+  // Server-enforced TTL. Default 7 days per ADR 0007 §E. The user can shorten
+  // at share-time (DTO), but cannot extend beyond 30 days.
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // SetNull on entry delete so the audit trail (who shared what with whom)
+  // survives even when the source entry is gone.
+  entry DiaryEntry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([therapistId, expiresAt])
+}
+
+// Curated daily prompts surfaced by GET /api/diario/prompt-of-the-day.
+// Rotation is deterministic by day-of-year hash so the user sees the same
+// prompt all day (cached client-side) without a server-side schedule.
+model DiaryPrompt {
+  id        String   @id @default(cuid())
+  text      String
+  // Coarse audience filter. v1 only uses "all"; future tier-aware prompts
+  // will reuse the same column.
+  audience  String   @default("all")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  entries DiaryEntry[]
+
+  @@index([isActive])
 }

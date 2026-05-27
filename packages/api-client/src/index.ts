@@ -4,6 +4,7 @@ export { ApiError } from "./error";
 export { authApi } from "./auth";
 export { booksApi } from "./books";
 export { contentApi } from "./content";
+export { diarioApi } from "./diario";
 export { subscriptionApi } from "./subscription";
 export type { BillingInterval, CheckoutSession } from "./subscription";
 

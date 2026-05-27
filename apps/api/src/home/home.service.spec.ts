@@ -18,6 +18,7 @@ function buildPrisma() {
     reflectionPrompt: { findFirst: vi.fn(), findUnique: vi.fn() },
     dismissedReflectionPrompt: { findMany: vi.fn(), upsert: vi.fn() },
     onboardingMood: { findUnique: vi.fn() },
+    diaryEntry: { count: vi.fn().mockResolvedValue(0) },
   };
 }
 

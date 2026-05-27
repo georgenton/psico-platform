@@ -730,3 +730,115 @@ export interface UpdateUserMoodResponse {
 export interface DismissReflectionPromptResponse {
   ok: true;
 }
+
+// ─── Diary · E2E-encrypted entries (Sprint S6) ───────────────────────────────
+//
+// Wire format only. The cleartext lives on-device. See ADR 0007 for the
+// crypto model. Backend treats `textCiphertext` / `textNonce` as opaque
+// blobs — these types do NOT include any plaintext shape.
+
+export type DiaryEntryKind = "free" | "prompted" | "voz";
+
+export interface DiaryEntrySummary {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  mood: string;
+  kind: DiaryEntryKind;
+  promptId: string | null;
+  promptText: string | null;
+  tags: string[];
+  /** Excerpt cipher (~80 chars decrypted). null when entry was too short. */
+  excerptCiphertext: string | null;
+  excerptNonce: string | null;
+  audioUrl: string | null;
+  audioDurationSec: number | null;
+}
+
+export interface DiaryEntryDetail extends DiaryEntrySummary {
+  /** Full body cipher. */
+  textCiphertext: string;
+  textNonce: string;
+}
+
+/** moodMap.byDay: ISO date "YYYY-MM-DD" → mood token (most recent of the day). */
+export interface DiaryMoodMap {
+  byDay: Record<string, string>;
+}
+
+export interface DiaryTagCount {
+  tag: string;
+  count: number;
+}
+
+export interface DiaryListResponse {
+  entries: DiaryEntrySummary[];
+  moodMap: DiaryMoodMap;
+  tags: DiaryTagCount[];
+  pagination: Pagination;
+}
+
+export interface DiaryDetailResponse {
+  entry: DiaryEntryDetail;
+  relatedEntryIds: string[];
+}
+
+export interface CreateDiaryEntryRequest {
+  mood: string;
+  kind?: DiaryEntryKind;
+  promptId?: string;
+  /** base64url ciphertext of the body. Up to ~1 MB. */
+  textCiphertext: string;
+  /** base64url 24-byte nonce. */
+  textNonce: string;
+  /** Optional preview cipher (~80 char plaintext encrypted separately). */
+  excerptCiphertext?: string;
+  excerptNonce?: string;
+  tags?: string[];
+  audioUrl?: string;
+  audioDurationSec?: number;
+}
+
+export interface UpdateDiaryEntryRequest {
+  mood?: string;
+  textCiphertext?: string;
+  textNonce?: string;
+  excerptCiphertext?: string;
+  excerptNonce?: string;
+  tags?: string[];
+}
+
+export interface CreateDiaryEntryResponse {
+  ok: true;
+  id: string;
+  createdAt: Date;
+  /** Echoed back so the client can update its local cache without re-encrypting. */
+  excerptCiphertext: string | null;
+}
+
+export interface DeleteDiaryEntryResponse {
+  ok: true;
+}
+
+export interface DiaryPromptOfTheDay {
+  id: string;
+  text: string;
+}
+
+export interface ShareDiaryEntryRequest {
+  therapistId: string;
+  /** base64url ciphertext encrypted with an ephemeralKey only the therapist can derive. */
+  ciphertextForTherapist: string;
+  /** base64url AEAD(ephemeralKey, ECDH(userPriv, therapistPub)). */
+  wrappedKey: string;
+  /** base64url X25519 pubkey used in the ECDH on the user side. */
+  userOneShotPubKey: string;
+  /** Optional shorter TTL (ISO 8601). Server caps at 30 days; default 7. */
+  expiresAt?: string;
+}
+
+export interface ShareDiaryEntryResponse {
+  ok: true;
+  shareId: string;
+  shareUntil: Date;
+}

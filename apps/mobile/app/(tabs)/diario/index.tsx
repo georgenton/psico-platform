@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { diarioApi } from "@psico/api-client";
 import { decryptString, encryptString } from "@psico/crypto";
@@ -267,6 +268,7 @@ function ActiveDiarioBody({
 // ─── EntryCard with decryption ───────────────────────────────────────────────
 
 function EntryCard({ entry }: { entry: DiaryEntrySummary }) {
+  const router = useRouter();
   const { key } = useDiaryKey();
   const [expanded, setExpanded] = useState(false);
 
@@ -302,7 +304,10 @@ function EntryCard({ entry }: { entry: DiaryEntrySummary }) {
         : "Libre";
 
   return (
-    <View style={styles.entryCard}>
+    <Pressable
+      style={styles.entryCard}
+      onPress={() => router.push(`/(tabs)/diario/${entry.id}`)}
+    >
       <View style={styles.entryHead}>
         <View style={styles.kindBadge}>
           <Text style={styles.kindBadgeText}>{kindLabel}</Text>
@@ -357,14 +362,19 @@ function EntryCard({ entry }: { entry: DiaryEntrySummary }) {
           <View />
         )}
         {decrypted && decrypted.length > 160 ? (
-          <Pressable onPress={() => setExpanded((v) => !v)}>
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation?.();
+              setExpanded((v) => !v);
+            }}
+          >
             <Text style={styles.expandBtn}>
               {expanded ? "Mostrar menos" : "Mostrar más"}
             </Text>
           </Pressable>
         ) : null}
       </View>
-    </View>
+    </Pressable>
   );
 }
 

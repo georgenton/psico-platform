@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { DiaryEntrySummary } from "@psico/types";
 import { decryptString } from "@psico/crypto";
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
@@ -133,74 +134,83 @@ function EntryCard({
 
   return (
     <article
-      className="rounded-2xl border-[1.5px] bg-white p-5"
+      className="rounded-2xl border-[1.5px] bg-white p-5 transition-all hover:border-[var(--color-lavender-300)]"
       style={{ borderColor: "var(--color-warm-200)" }}
     >
-      <header className="flex flex-wrap items-center gap-3 text-[11.5px]">
-        <span
-          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold uppercase tracking-wider"
-          style={{
-            background: "var(--color-warm-100)",
-            color: "var(--color-warm-700)",
-          }}
-        >
-          {kindLabel}
-        </span>
-        <span className="font-mono" style={{ color: "var(--color-warm-500)" }}>
-          {date} · {time}
-        </span>
-        <span
-          className="inline-flex items-center gap-1.5"
-          style={{ color: "var(--color-warm-600)" }}
-        >
+      <Link
+        href={`/dashboard/diario/${entry.id}`}
+        className="block no-underline"
+        aria-label={`Abrir entrada del ${date}`}
+      >
+        <header className="flex flex-wrap items-center gap-3 text-[11.5px]">
           <span
-            aria-hidden
-            className="inline-block h-2.5 w-2.5 rounded-full"
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold uppercase tracking-wider"
             style={{
-              background:
-                "linear-gradient(135deg, var(--color-lavender-300), var(--color-lavender-700))",
+              background: "var(--color-warm-100)",
+              color: "var(--color-warm-700)",
             }}
-          />
-          {entry.mood[0].toUpperCase() + entry.mood.slice(1)}
-        </span>
-      </header>
+          >
+            {kindLabel}
+          </span>
+          <span
+            className="font-mono"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            {date} · {time}
+          </span>
+          <span
+            className="inline-flex items-center gap-1.5"
+            style={{ color: "var(--color-warm-600)" }}
+          >
+            <span
+              aria-hidden
+              className="inline-block h-2.5 w-2.5 rounded-full"
+              style={{
+                background:
+                  "linear-gradient(135deg, var(--color-lavender-300), var(--color-lavender-700))",
+              }}
+            />
+            {entry.mood[0].toUpperCase() + entry.mood.slice(1)}
+          </span>
+        </header>
 
-      {entry.promptText ? (
-        <div
-          className="mt-3 rounded-lg px-3 py-2 text-[12.5px] italic"
-          style={{
-            background: "var(--color-lavender-50)",
-            color: "var(--color-lavender-700)",
-          }}
-        >
-          ✎ {entry.promptText}
-        </div>
-      ) : null}
+        {entry.promptText ? (
+          <div
+            className="mt-3 rounded-lg px-3 py-2 text-[12.5px] italic"
+            style={{
+              background: "var(--color-lavender-50)",
+              color: "var(--color-lavender-700)",
+            }}
+          >
+            ✎ {entry.promptText}
+          </div>
+        ) : null}
 
-      {/* Decrypted excerpt or fallback */}
-      {decryptedExcerpt ? (
-        <p
-          className="mt-3 text-[13.5px] leading-relaxed"
-          style={{ color: "var(--color-warm-800)" }}
-        >
-          {expanded
-            ? decryptedExcerpt
-            : decryptedExcerpt.length > 180
-              ? `${decryptedExcerpt.slice(0, 180)}…`
-              : decryptedExcerpt}
-        </p>
-      ) : (
-        <div
-          className="mt-3 rounded-lg border border-dashed p-3 text-[12px]"
-          style={{
-            borderColor: "var(--color-warm-300)",
-            color: "var(--color-warm-500)",
-          }}
-        >
-          🔒 Esta entrada no tiene preview cifrado · abre detalle para descifrar
-          el cuerpo completo
-        </div>
-      )}
+        {/* Decrypted excerpt or fallback */}
+        {decryptedExcerpt ? (
+          <p
+            className="mt-3 text-[13.5px] leading-relaxed"
+            style={{ color: "var(--color-warm-800)" }}
+          >
+            {expanded
+              ? decryptedExcerpt
+              : decryptedExcerpt.length > 180
+                ? `${decryptedExcerpt.slice(0, 180)}…`
+                : decryptedExcerpt}
+          </p>
+        ) : (
+          <div
+            className="mt-3 rounded-lg border border-dashed p-3 text-[12px]"
+            style={{
+              borderColor: "var(--color-warm-300)",
+              color: "var(--color-warm-500)",
+            }}
+          >
+            🔒 Esta entrada no tiene preview cifrado · abre detalle para
+            descifrar el cuerpo completo
+          </div>
+        )}
+      </Link>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         {entry.tags.length > 0 ? (

@@ -12,7 +12,11 @@ export default function DiarioLayout() {
         contentStyle: { backgroundColor: Colors.warm[50] },
       }}
     >
-      <Stack.Screen name="index" options={{ title: "Diario" }} />
+      <Stack.Screen
+        name="index"
+        options={{ title: "Diario", headerShown: false }}
+      />
+      <Stack.Screen name="[id]" options={{ title: "Entrada" }} />
     </Stack>
   );
 }

@@ -187,7 +187,35 @@ export class AuthService {
       ctx,
     });
 
-    return this.issueTokens(user, this.prisma, ctx);
+    // Sprint S6-crypto-polish: lazy migration of legacy accounts.
+    //
+    // Accounts created before the crypto layer landed have cryptoSalt = null.
+    // We backfill on first successful login because:
+    //   1. We have a confirmed password match — safe moment to bind a salt.
+    //   2. The salt is non-sensitive; no consent flow needed.
+    //   3. The user immediately gets the new salt back in the response and
+    //      can derive a master key on next Diary open without an extra trip.
+    //
+    // Idempotent: if a salt already exists we don't touch it.
+    const userWithSalt = await this.ensureCryptoSalt(user);
+
+    return this.issueTokens(userWithSalt, this.prisma, ctx);
+  }
+
+  /**
+   * Backfills `cryptoSalt` for legacy accounts. Returns the user object with
+   * the salt populated (either pre-existing or freshly written).
+   */
+  private async ensureCryptoSalt<
+    T extends { id: string; cryptoSalt: string | null },
+  >(user: T): Promise<T> {
+    if (user.cryptoSalt) return user;
+    const salt = randomBytes(16).toString("base64url");
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { cryptoSalt: salt },
+    });
+    return { ...user, cryptoSalt: salt };
   }
 
   // ── refresh ───────────────────────────────────────────────────────────────
@@ -246,6 +274,11 @@ export class AuthService {
       throw new UnauthorizedException("Invalid or expired refresh token");
     }
 
+    // Backfill cryptoSalt for legacy accounts on refresh too — covers the
+    // user who never explicitly logs in (session restored via refresh cookie
+    // on web cold-start, or via SecureStore on mobile relaunch).
+    const refreshedUser = await this.ensureCryptoSalt(stored.user);
+
     // Atomic rotation: revoke old token and issue new pair in a transaction
     const [, response] = await this.prisma.$transaction(async (tx) => {
       await tx.refreshToken.update({
@@ -253,7 +286,7 @@ export class AuthService {
         data: { revokedAt: new Date() },
       });
 
-      return [null, await this.issueTokens(stored.user, tx, ctx)];
+      return [null, await this.issueTokens(refreshedUser, tx, ctx)];
     });
 
     await this.recordEvent({
@@ -574,7 +607,9 @@ export class AuthService {
         ctx,
         metadata: { provider: "GOOGLE" },
       });
-      return this.issueTokens(existingByProvider, this.prisma, ctx);
+      const googleUserWithSalt =
+        await this.ensureCryptoSalt(existingByProvider);
+      return this.issueTokens(googleUserWithSalt, this.prisma, ctx);
     }
 
     // Path 3 first: same email under a different auth method? Refuse to

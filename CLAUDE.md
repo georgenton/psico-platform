@@ -794,11 +794,81 @@ tokens, Prisma schema and env validation`
 
 ---
 
-### Próximo paso — Sesión 22
+### Sesión 22 — 2026-05-27 ✅ COMPLETADA — Sprint S6-crypto-polish
 
-**Tres opciones disponibles:**
+**Rama:** `feature/sprint-s6-crypto-polish`
+**Tests:** 286 pasando (252 API + 34 crypto, +10 BIP39)
+**Bitácora:** [docs/informes/sprint-s6-crypto-polish.md](docs/informes/sprint-s6-crypto-polish.md) (con diagrama de detail flow)
 
-**Opción A — Sprint S7 SubscriptionModule completo:**
+**Decisión del usuario aplicada:** Opción B — polish del cripto. Scope ajustado a 3 features (de 5 candidatos) para mantener PR limpio.
+
+**Lo que se construyó:**
+
+- **Backend:** `AuthService.ensureCryptoSalt(user)` — backfill idempotente del salt para cuentas legacy. Invocado en `login`, `refresh`, OAuth Google path 1. Cero downtime, cero scripts ops, cero overhead para cuentas inactivas.
+- **`@psico/crypto` BIP39 toolkit:**
+  - `masterKeyToSeedPhrase(key)` — 32B → 24 English words
+  - `seedPhraseToMasterKey(phrase)` — reverso con normalización (whitespace + case)
+  - `isValidSeedPhrase(phrase)` — validador no-throwing para formularios
+  - Dep nueva: `@scure/bip39` v1.5.0
+  - **+10 tests** (34 total ahora)
+  - **Decisión cripto:** seed phrase = masterKey serializado (no PBKDF2 stretching). Recovery exacto bit-por-bit. Documentado.
+- **Web detail view:**
+  - `/dashboard/diario/[id]` Server Component
+  - `EntryDetailView` con `DiaryKeyProvider` (gate-or-decrypt)
+  - Decrypt body completo, render tags, related entries, delete con confirm in-place
+  - List cards ahora navegan a detail
+- **Mobile detail view:**
+  - `app/(tabs)/diario/[id].tsx` con mismo gate-or-decrypt
+  - Delete usa nativa `Alert.alert` con destructive style
+  - List cards ahora navegan con stopPropagation en "Mostrar más"
+  - `_layout.tsx` registra la nueva ruta
+
+**Decisiones del sprint:**
+1. Auto-gen salt en login, NO migration script — backfill bajo demanda
+2. Seed phrase = masterKey serializado directo (32B exactos)
+3. Delete confirm in-place web, Alert nativo mobile (UX idiomática)
+4. List cards 100% navegables con stopPropagation para botones interiores
+5. **Diferidos a sprints propios:** seed phrase UI (modal + recovery) + password change re-encrypt
+
+**Smoke verification:**
+- Crypto tests 34/34 (incluye Argon2id reales + BIP39)
+- API tests 252/252
+- Web build clean (Diario detail page 4 KB / 120 KB FL)
+- Mobile typecheck + lint clean
+- OpenAPI generate:check in sync
+- Privacy guard verde
+
+**Deuda técnica abierta:**
+- Seed phrase UI (modal post-unlock + recovery flow en /login) — usa el toolkit ya escrito
+- Password change re-encrypt — endpoint + flow cliente
+- Edit entry (el detail tiene delete, falta edit)
+- `User.cryptoSeedShownAt` flag para no spam-mostrar el modal
+
+---
+
+### Próximo paso — Sesión 23
+
+**Cuatro opciones disponibles:**
+
+**Opción A — Seed phrase UI:**
+```bash
+git checkout -b feature/sprint-seed-phrase-ui
+# Modal post-unlock: "anota estas 24 palabras"
+# Confirm flow: re-typear 3 palabras aleatorias
+# Recovery en /login con 24 words → derive masterKey
+# Backend: User.cryptoSeedShownAt flag
+# Usa el toolkit BIP39 ya escrito en S6-crypto-polish
+```
+
+**Opción B — Password change re-encrypt:**
+```bash
+git checkout -b feature/sprint-password-change-rekey
+# Endpoint nuevo POST /api/diario/entries/bulk-rekey
+# Cliente: derive newKey, descifrar/recifrar todas las entradas
+# Atomic: si re-encrypt falla, no se actualiza el password hash
+```
+
+**Opción C — Sprint S7 SubscriptionModule completo:**
 ```bash
 git checkout -b feature/sprint-s7-subscription-usage
 # Endpoints nuevos:
@@ -809,16 +879,7 @@ git checkout -b feature/sprint-s7-subscription-usage
 # Plus BullMQ jobs para sync diaria de usage counters.
 ```
 
-**Opción B — Polish sprint (cripto):**
-```bash
-git checkout -b feature/sprint-crypto-polish
-# Detail view del diary entry (descifrar body completo)
-# Recovery seed phrase BIP39 opt-in
-# Migración cuentas legacy con cryptoSalt nulo
-# Password change → re-encrypt flow
-```
-
-**Opción C — Sprint S8 VoiceModule:**
+**Opción D — Sprint S8 VoiceModule:**
 ```bash
 git checkout -b feature/sprint-s8-voice
 # Whisper / Deepgram para transcripción de audio

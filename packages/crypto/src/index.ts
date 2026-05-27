@@ -20,6 +20,11 @@ export {
   type CipherEnvelope,
 } from "./aead";
 export {
+  masterKeyToSeedPhrase,
+  seedPhraseToMasterKey,
+  isValidSeedPhrase,
+} from "./bip39";
+export {
   base64UrlToBytes,
   bytesToBase64Url,
   bytesToString,

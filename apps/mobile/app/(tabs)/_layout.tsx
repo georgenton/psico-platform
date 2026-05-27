@@ -7,6 +7,13 @@ type IconProps = {
   size: number;
 };
 
+/**
+ * Tabs layout — Sprint S5-front-mobile.
+ *
+ * Sidebar parity with web: Inicio · Biblioteca · Diario · Mi plan.
+ * The profile screen still exists but is hidden from the tabbar until the
+ * Users UI lands; deep links to `/profile` keep working.
+ */
 export default function TabsLayout() {
   return (
     <Tabs
@@ -23,7 +30,7 @@ export default function TabsLayout() {
           fontWeight: "600",
         },
         headerStyle: {
-          backgroundColor: Colors.lavender[50],
+          backgroundColor: Colors.warm[50],
         },
         headerTintColor: Colors.warm[800],
         headerTitleStyle: {
@@ -37,6 +44,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Inicio",
+          headerShown: false,
           tabBarIcon: ({ color, size }: IconProps) => (
             <Ionicons name="home" size={size} color={color} />
           ),
@@ -53,9 +61,19 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="diario"
+        options={{
+          title: "Diario",
+          headerShown: false,
+          tabBarIcon: ({ color, size }: IconProps) => (
+            <Ionicons name="create" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="plan"
         options={{
-          title: "Mi Plan",
+          title: "Mi plan",
           tabBarIcon: ({ color, size }: IconProps) => (
             <Ionicons name="diamond" size={size} color={color} />
           ),
@@ -64,6 +82,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
+          href: null,
           title: "Perfil",
           tabBarIcon: ({ color, size }: IconProps) => (
             <Ionicons name="person" size={size} color={color} />

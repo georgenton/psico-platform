@@ -675,10 +675,79 @@ tokens, Prisma schema and env validation`
 
 ---
 
-### Próximo paso — Sesión 19
+### Sesión 19 — 2026-05-26 ✅ COMPLETADA — Sprint S5-front (web)
 
-**Sprint S7 — SubscriptionModule completo**
+**Rama:** `feature/sprint-s5-front` · **Commit:** `6effa37` (PR #75 mergeado)
+**Tests:** 252/252 backend (sin cambios) + 8 rutas web build.
+**Bitácora:** [docs/informes/sprint-s5-front.md](docs/informes/sprint-s5-front.md)
 
+**Lo que se construyó:** 4 páginas (`/dashboard`, `/dashboard/biblioteca`, `/dashboard/biblioteca/[idOrSlug]`, `/dashboard/diario`) + 16 componentes en `apps/web/src/components/dashboard/{home,biblioteca,detalle,diario}/` + helper `cover-gradients.ts` + nav shell rebrand.
+
+**Bug crítico descubierto:** `import type { *Dto }` en 8 controllers stripeaba la metadata runtime → `ValidationPipe` rechazaba todos los query params. Fix: convertir a value imports en books/chapters/progress/subscription/ai/users/diario/onboarding. Era latente desde S1; solo AuthController estaba correcto.
+
+---
+
+### Sesión 20 — 2026-05-27 ✅ COMPLETADA — Sprint S5-front-mobile
+
+**Rama:** `feature/sprint-s5-front-mobile`
+**Tests:** 252/252 backend (sin cambios) — sprint orientado a UI mobile.
+**ADR aplicado:** ninguno
+**Bitácora:** [docs/informes/sprint-s5-front-mobile.md](docs/informes/sprint-s5-front-mobile.md) (con 2 diagramas Mermaid)
+
+**Decisión del usuario aplicada:** Opción A — replicar Home/Biblioteca/Detalle/Diario en RN antes de seguir con backend.
+
+**Lo que se construyó:**
+
+- **4 pantallas:** `/(tabs)` Inicio (rewrite), `/(tabs)/books` Biblioteca (rewrite), `/(tabs)/books/[slug]` Detalle (rewrite), `/(tabs)/diario` (nuevo).
+- **Tabs layout rebrand:** 4 tabs visibles (Inicio · Libros · Diario · Mi plan); Perfil queda como `href: null` (deep-link only).
+- **Helper:** `apps/mobile/src/components/dashboard/cover-colors.ts` — fallback de color sólido para CoverToken (sin `expo-linear-gradient` por elección).
+- **Cliente API extendido:** nuevo `homeApi` en `packages/api-client/src/home.ts` (`get`, `updateMood`, `dismissPrompt`). Web no lo necesita (usa Server Components con cookies); mobile lo usa vía `apiClient` + `TokenStore`.
+- **Pull-to-refresh** en Home.
+- **Search debounced (250ms)** + view tabs + category chips horizontales en Biblioteca.
+- **Composer del Diario disabled** (misma decisión ética que el web, ADR 0007 §G).
+
+**Decisiones del sprint:**
+1. Fallback de color sólido en lugar de gradiente — RN sin libs externas.
+2. Pull-to-refresh solo en Home (no en Biblioteca/Diario que ya re-fetchan).
+3. Composer disabled, no fake-crypto.
+4. Avatar de autor con initials (sin `<Image>` por ahora).
+5. `profile` tab oculta pero deep-link disponible.
+6. Stats grid 2x1 mobile (3 cards apiladas) por ancho de pantalla.
+
+**Smoke verification:**
+- API tests 252/252.
+- Web typecheck + lint + sin cambios.
+- Mobile typecheck + lint OK.
+- API-client build OK (homeApi añadido, 62 KB d.ts).
+- OpenAPI generate:check in sync.
+
+**Deuda técnica abierta:**
+- Avatares reales (`<Image>` con `avatarUrl`).
+- Gradientes en covers (agregar `expo-linear-gradient`).
+- Cliente cripto S6-crypto (Composer Diario funcional).
+- Mood selector funcional en composer.
+- Toggles favorito/bookmark en BookGridCard.
+- Modal "Escribir reseña".
+- Pull-to-refresh en más pantallas.
+- Reader screen.
+- Eco screen (los shortcuts del Home apuntan a placeholder).
+- Profile tab UI.
+
+---
+
+### Próximo paso — Sesión 21
+
+**Tres opciones disponibles:**
+
+**Opción A — Sprint S6-crypto:**
+```bash
+git checkout -b feature/sprint-s6-crypto
+# Argon2id + XChaCha20-Poly1305 + ECDH X25519 cliente-side
+# Desbloquea Composer del Diario funcional en web + mobile
+# Requiere libsodium-wrappers + argon2-browser
+```
+
+**Opción B — Sprint S7 SubscriptionModule completo:**
 ```bash
 git checkout -b feature/sprint-s7-subscription-usage
 # Endpoints nuevos:
@@ -689,7 +758,16 @@ git checkout -b feature/sprint-s7-subscription-usage
 # Plus BullMQ jobs para sync diaria de usage counters.
 ```
 
-**Decisión pendiente antes de S7:**
+**Opción C — Sprint Polish (mobile):**
+```bash
+git checkout -b feature/sprint-mobile-polish
+# Toggles favorito/bookmark en cards Biblioteca (paridad con web)
+# Modal "Escribir reseña" con form
+# Reader screen básico
+# Pull-to-refresh en Biblioteca y Diario
+```
+
+**Decisión pendiente antes de S7 (si la opción es B):**
 1. ¿`/usage` agrega TODOS los counters (Eco messages, voz, exports) o uno por feature? Plan v2 propone agregador único (consistente con `/home`).
 
 ---

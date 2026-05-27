@@ -30,6 +30,18 @@ class PsicoApiClient {
     this.store = store;
   }
 
+  /**
+   * Returns the current access token from the configured store, or null.
+   *
+   * Sprint front-eco: ecoApi.sendMessage uses a raw fetch+reader path
+   * (the apiClient pipeline buffers responses, no good for SSE), so the
+   * caller has to pass the token explicitly. This getter bridges the
+   * apiClient singleton's token state and that ad-hoc flow.
+   */
+  getAccessToken(): string | null {
+    return this.store?.getAccessToken() ?? null;
+  }
+
   get<T>(path: string): Promise<T> {
     return this.request<T>("GET", path);
   }

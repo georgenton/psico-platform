@@ -22,6 +22,7 @@ import { base64UrlToBytes, bytesToBase64Url } from "@psico/crypto";
  */
 
 const KEY_DIARY_KEY = "psico_diary_key_v1";
+const KEY_ECO_KEY = "psico_eco_key_v1";
 
 export const diaryKeyStore = {
   async save(diaryKey: Uint8Array): Promise<void> {
@@ -40,5 +41,34 @@ export const diaryKeyStore = {
 
   async clear(): Promise<void> {
     await SecureStore.deleteItemAsync(KEY_DIARY_KEY);
+    // Sprint front-eco: also clear the Eco subkey so logout / lock zeroes
+    // both. Keep the calls independent so a failure on one doesn't skip
+    // the other.
+    try {
+      await SecureStore.deleteItemAsync(KEY_ECO_KEY);
+    } catch {
+      // SecureStore can throw on simulator-without-Keychain edge cases —
+      // swallow because the consumer (logout / lock) doesn't have a useful
+      // recovery path.
+    }
+  },
+
+  /**
+   * Sprint front-eco: persist the Eco subkey alongside the diary one.
+   * Same SecureStore namespace, separate key so the store API stays
+   * symmetric with `save` above.
+   */
+  async saveEco(ecoKey: Uint8Array): Promise<void> {
+    await SecureStore.setItemAsync(KEY_ECO_KEY, bytesToBase64Url(ecoKey));
+  },
+
+  async loadEco(): Promise<Uint8Array | null> {
+    const stored = await SecureStore.getItemAsync(KEY_ECO_KEY);
+    if (!stored) return null;
+    try {
+      return base64UrlToBytes(stored);
+    } catch {
+      return null;
+    }
   },
 };

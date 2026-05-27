@@ -265,6 +265,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@psico/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@psico/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto

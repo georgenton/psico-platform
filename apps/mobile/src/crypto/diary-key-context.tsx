@@ -6,7 +6,12 @@ import {
   useMemo,
   useState,
 } from "react";
-import { deriveMasterKey, deriveSubKey, DIARY_KEY_INFO } from "@psico/crypto";
+import {
+  deriveMasterKey,
+  deriveSubKey,
+  DIARY_KEY_INFO,
+  ECO_KEY_INFO,
+} from "@psico/crypto";
 import { diaryKeyStore } from "./diary-key-store";
 
 /**
@@ -25,6 +30,14 @@ import { diaryKeyStore } from "./diary-key-store";
 
 export interface DiaryKeyState {
   key: Uint8Array | null;
+  /**
+   * 32-byte Eco subkey. null = locked OR no Eco usage yet (lazy derived
+   * inside unlock/adoptMasterKey alongside the diary subkey).
+   *
+   * Like the diary key, we persist this to SecureStore on unlock so the
+   * Eco screen works after a cold start without re-prompting.
+   */
+  ecoKey: Uint8Array | null;
   /**
    * 32-byte master key from Argon2id(password, salt). null = locked OR
    * restored from SecureStore (we only persist the diary subkey on mobile;
@@ -69,18 +82,20 @@ export function DiaryKeyProvider({
   cryptoSalt: string | null;
 }) {
   const [key, setKey] = useState<Uint8Array | null>(null);
+  const [ecoKey, setEcoKey] = useState<Uint8Array | null>(null);
   const [masterKey, setMasterKey] = useState<Uint8Array | null>(null);
   const [unlocking, setUnlocking] = useState(false);
   const [loadingPersisted, setLoadingPersisted] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // On mount: try to restore from SecureStore.
+  // On mount: try to restore both subkeys from SecureStore.
   useEffect(() => {
     let active = true;
-    diaryKeyStore
-      .load()
-      .then((stored) => {
-        if (active && stored) setKey(stored);
+    Promise.all([diaryKeyStore.load(), diaryKeyStore.loadEco()])
+      .then(([storedDiary, storedEco]) => {
+        if (!active) return;
+        if (storedDiary) setKey(storedDiary);
+        if (storedEco) setEcoKey(storedEco);
       })
       .catch(() => {
         // SecureStore unavailable (e.g. simulator without Keychain) — fall
@@ -105,13 +120,16 @@ export function DiaryKeyProvider({
       try {
         const derivedMaster = await deriveMasterKey(password, cryptoSalt);
         const diaryKey = deriveSubKey(derivedMaster, DIARY_KEY_INFO);
-        // Persist ONLY the diary subkey to SecureStore. The master key lives
+        const ecoSub = deriveSubKey(derivedMaster, ECO_KEY_INFO);
+        // Persist BOTH subkeys to SecureStore. The master key lives
         // RAM-only — losing it on cold restart is fine for ongoing reads/
         // writes; only seed-phrase + password-change need it, and both
         // explicitly require a fresh unlock.
         await diaryKeyStore.save(diaryKey);
+        await diaryKeyStore.saveEco(ecoSub);
         setMasterKey(derivedMaster);
         setKey(diaryKey);
+        setEcoKey(ecoSub);
       } catch (err) {
         const code =
           err instanceof Error ? err.message : "CRYPTO_UNKNOWN_ERROR";
@@ -133,26 +151,32 @@ export function DiaryKeyProvider({
       return;
     }
     const diaryKey = deriveSubKey(nextMaster, DIARY_KEY_INFO);
+    const ecoSub = deriveSubKey(nextMaster, ECO_KEY_INFO);
     // Caller may zero its own copy after this resolves — we own a fresh one.
     const owned = new Uint8Array(nextMaster);
     await diaryKeyStore.save(diaryKey);
+    await diaryKeyStore.saveEco(ecoSub);
     setMasterKey(owned);
     setKey(diaryKey);
+    setEcoKey(ecoSub);
     setError(null);
   }, []);
 
   const lock = useCallback(async () => {
     if (key) key.fill(0);
+    if (ecoKey) ecoKey.fill(0);
     if (masterKey) masterKey.fill(0);
     setKey(null);
+    setEcoKey(null);
     setMasterKey(null);
     setError(null);
     await diaryKeyStore.clear();
-  }, [key, masterKey]);
+  }, [key, ecoKey, masterKey]);
 
   const value = useMemo<DiaryKeyContextValue>(
     () => ({
       key,
+      ecoKey,
       masterKey,
       isLegacyAccount: cryptoSalt === null,
       unlocking,
@@ -164,6 +188,7 @@ export function DiaryKeyProvider({
     }),
     [
       key,
+      ecoKey,
       masterKey,
       cryptoSalt,
       unlocking,

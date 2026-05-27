@@ -81,6 +81,16 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
+          name="eco"
+          options={{
+            title: "Eco",
+            headerShown: false,
+            tabBarIcon: ({ color, size }: IconProps) => (
+              <Ionicons name="leaf" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="plan"
           options={{
             title: "Mi plan",

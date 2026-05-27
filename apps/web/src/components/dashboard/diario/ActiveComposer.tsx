@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type {
   CreateDiaryEntryRequest,
@@ -8,6 +9,7 @@ import type {
 } from "@psico/types";
 import { encryptString } from "@psico/crypto";
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
+import { consumeVoiceHandoff } from "@/lib/voice/handoff";
 
 /**
  * ActiveComposer — runs when the diary key is unlocked.
@@ -47,6 +49,16 @@ export function ActiveComposer({
     day: "numeric",
     month: "long",
   });
+
+  // Sprint front-voz: if the user just came back from /dashboard/voz with
+  // a transcribed text, pre-fill the composer. Only runs once per mount —
+  // `consumeVoiceHandoff` clears the sessionStorage key on read.
+  useEffect(() => {
+    const handoff = consumeVoiceHandoff();
+    if (handoff) {
+      setText((prev) => (prev ? `${prev}\n\n${handoff.text}` : handoff.text));
+    }
+  }, []);
 
   async function handleSubmit() {
     if (!key || !text.trim() || !token) return;
@@ -184,15 +196,29 @@ export function ActiveComposer({
         </p>
       ) : null}
 
-      <footer className="mt-4 flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={lock}
-          className="text-[11.5px] underline-offset-2 hover:underline"
-          style={{ color: "var(--color-warm-500)" }}
-        >
-          🔒 Bloquear diario
-        </button>
+      <footer className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={lock}
+            className="text-[11.5px] underline-offset-2 hover:underline"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            🔒 Bloquear diario
+          </button>
+          {/* Sprint front-voz: voice-to-text entry point. */}
+          <Link
+            href="/dashboard/voz?return=/dashboard/diario"
+            className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] px-3 py-1 text-[11.5px] font-semibold transition-colors hover:bg-[var(--color-warm-50)]"
+            style={{
+              borderColor: "var(--color-warm-200)",
+              color: "var(--color-warm-700)",
+            }}
+            aria-label="Dictar entrada por voz"
+          >
+            🎙️ Dictar
+          </Link>
+        </div>
         <button
           type="button"
           onClick={handleSubmit}

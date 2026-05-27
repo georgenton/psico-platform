@@ -1124,33 +1124,68 @@ tokens, Prisma schema and env validation`
 
 ---
 
-### Próximo paso — Sesión 28
+### Sesión 28 — 2026-05-27 ✅ COMPLETADA — Sprint front-voz (Voice UI)
 
-**Front UI cont.** (S10 backend ready):
+**Rama sugerida:** `feature/sprint-front-voz`
+**Tests:** 323/323 API + 34/34 crypto (sin cambios — sprint UI)
+**Bitácora:** [docs/informes/sprint-front-voz.md](docs/informes/sprint-front-voz.md)
 
-**Opción A — Sprint front-voz** (recomendada):
-```bash
-git checkout -b feature/sprint-front-voz
-# Web: /dashboard/voz - MediaRecorder + multipart upload a /voz/transcribe
-# Mobile: /(tabs)/voz - expo-av Audio.Recording + multipart
-# Integration: transcript se pre-fillea en /dashboard/diario composer
-# Quota gate: 402 from server → banner "Has usado tus minutos"
-```
+**Lo que se construyó:**
 
-**Opción B — Sprint front-eco**:
+**Web:**
+- `src/lib/voice/use-recorder.ts` — Hook MediaRecorder con state machine. Hard cap 10 min. Sin pausa/resume v1.
+- `src/lib/voice/handoff.ts` — sessionStorage read-and-delete para pasar transcript a Diario.
+- `src/components/dashboard/voz/VozRecorder.tsx` — Client Component orquestador con sub-components inline (Idle/Recording/Stopped/Transcribing/Ready/Errors).
+- `/dashboard/voz/page.tsx` — Server shell con `?return=…` (default /dashboard/diario).
+- ActiveComposer extendido con botón "🎙️ Dictar" + `useEffect` para `consumeVoiceHandoff` al mount.
+
+**Mobile:**
+- `expo-av@~15.0.0` instalado.
+- `src/lib/voice/handoff.ts` — singleton in-memory (no AsyncStorage por privacidad).
+- `(tabs)/voz.tsx` — paridad de state machine con web. `Audio.Recording.HIGH_QUALITY` preset. Registrado con `href: null`.
+- Diario composer extendido con botón "🎙️ Dictar" + `useFocusEffect` para consumir handoff al regainar foco.
+
+**Decisiones de diseño (bitácora §3):**
+1. Handoff por storage (sessionStorage web, singleton mobile) — privacy default, no en URL/disk.
+2. Single-take v1 — no pausa/resume.
+3. Sin waveform — dot rojo + timer.
+4. Cap 10 min cliente vs 25 MB server — UX honesta + cost containment.
+5. Mobile usa `{uri,name,type}` shape vs Blob (Android pre-12 mishandle boundary).
+
+**Error states cubiertos:** 403 PRO_REQUIRED, 402 QUOTA_EXCEEDED, 413 TOO_LARGE, 415 FORMAT, network, permission-denied, unsupported.
+
+**Bugs corregidos (2):** `ApiError.status` → `statusCode`. Unused `blob` variable cleanup.
+
+**Verificación:** API tests 323/323 (sin cambios), web/mobile typecheck + lint clean, web build clean, OpenAPI in sync.
+
+**Deuda técnica abierta:**
+- Sin tests UI dedicados.
+- No waveform / no pausa-resume / no streaming partial transcript.
+- Web fetch bypassa apiClient (no retry-on-401-refresh para flow voice).
+- `OPENAI_API_KEY` / `DEEPGRAM_API_KEY` no configurados en Railway — bloqueante deploy.
+
+---
+
+### Próximo paso — Sesión 29
+
+**Sprint front-eco** (último UI sprint de Fase 1):
+
 ```bash
 git checkout -b feature/sprint-front-eco
-# Web: /dashboard/eco - chat con SSE consumer + sidebar de threads
-# Mobile: /(tabs)/eco - same pero con fetch reader (no EventSource)
-# Crypto: cliente cifra USER msg con ecoKey antes de enviar
-# Crisis modal: cuando llega `crisis` event, muestra modal con hotline
-# Report menu: long-press en assistant msg → reason picker
+# Web: /dashboard/eco - chat con SSE consumer (EventSource o fetch reader)
+# Mobile: /(tabs)/eco - same pero con fetch reader (EventSource no en RN sin polyfill)
+# Crypto: cliente cifra USER msg con ecoKey antes de enviar el plaintext+ciphertext
+# Sidebar de hilos (ThreadRail) + composer + delta-by-delta render
+# Crisis modal: cuando llega `crisis` event, muestra modal con hotline 1800-4-SALUD
+# Report menu: long-press / context menu en assistant msg → reason picker
 ```
 
-**Opción C — Deploy a Railway:**
+**Alternativa — Deploy a Railway:**
 ```bash
-# Prerequisito antes de cualquier UI que pruebes con users reales
-# Aplicar 10 migraciones Prisma + configurar 5 envs (ANTHROPIC/OPENAI/...)
+# Prerequisito para probar con users reales:
+# - Aplicar 10 migraciones Prisma acumuladas
+# - Configurar 5 envs: ANTHROPIC/OPENAI/DEEPGRAM/RESEND/REDIS
+# - Smoke test cada endpoint
 ```
 
 ---

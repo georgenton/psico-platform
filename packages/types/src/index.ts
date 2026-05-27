@@ -179,6 +179,112 @@ export interface PortalSessionResponse {
   url: string;
 }
 
+// ─── Usage (Sprint S7) ────────────────────────────────────────────────────────
+//
+// Single aggregator returned by `GET /api/subscriptions/usage`. Mirrors the
+// `usage` block of the Mi Plan design (docs/design/handoff/09-plan.md).
+//
+// Why one endpoint over per-feature endpoints (Plan v2 §5.7):
+//   - The Mi Plan screen consumes all counters at once — minimises round-trips.
+//   - Quotas live on the Subscription plan, not on the feature module — having
+//     `eco/voice/diary` join their own quotas would duplicate the plan lookup.
+//   - Consistent with `/api/home` which already aggregates across modules.
+//
+// `quota: null` means unlimited (Pro tier on diary entries, for example).
+// Counters are scoped to the user's current billing period
+// (`subscription.currentPeriodStart` → `currentPeriodEnd`). FREE users get
+// the calendar month as a fallback period.
+
+export interface UsagePeriod {
+  start: Date;
+  end: Date;
+  /** "subscription" if the user has an active sub, "calendar-month" for FREE. */
+  source: "subscription" | "calendar-month";
+}
+
+export interface UsageBooks {
+  /** Distinct books where all chapters have `UserProgress.completedAt` in the period. */
+  completedThisPeriod: number;
+}
+
+export interface UsageEco {
+  /** AI companion messages this period. 0 until AIModule conversational (S10). */
+  messagesThisPeriod: number;
+  /** Cap per period. null = unlimited. */
+  quota: number | null;
+}
+
+export interface UsageVoice {
+  /** Transcribed voice minutes this period. 0 until VoiceModule (S8). */
+  minutesThisPeriod: number;
+  /** Cap per period. null = unlimited. */
+  quota: number | null;
+}
+
+export interface UsageDiary {
+  /** DiaryEntry rows created this period. */
+  entriesThisPeriod: number;
+  /** Cap per period. null = unlimited (Pro has no diary cap). */
+  quota: number | null;
+}
+
+export interface UsageResponse {
+  plan: UserPlan;
+  period: UsagePeriod;
+  books: UsageBooks;
+  eco: UsageEco;
+  voice: UsageVoice;
+  diary: UsageDiary;
+}
+
+// ─── Invoices (Sprint S7) ─────────────────────────────────────────────────────
+
+export type InvoiceStatus =
+  | "paid"
+  | "open"
+  | "void"
+  | "uncollectible"
+  | "draft";
+
+export interface InvoiceSummary {
+  /** Stripe invoice id (e.g. `in_1abc...`). */
+  id: string;
+  /** Invoice creation date. */
+  date: Date;
+  /** Total in the invoice's currency, in major units (i.e. dollars, not cents). */
+  amount: number;
+  /** ISO-4217 currency code, lowercase as Stripe returns it. */
+  currency: string;
+  status: InvoiceStatus;
+  /** Stripe's hosted PDF URL, signed and short-lived. May be null on drafts. */
+  pdfUrl: string | null;
+  /** Stripe's hosted invoice page (web-viewable). */
+  hostedUrl: string | null;
+}
+
+export interface InvoiceListResponse {
+  invoices: InvoiceSummary[];
+}
+
+// ─── Cancel / reactivate (Sprint S7) ──────────────────────────────────────────
+
+export interface CancelSubscriptionRequest {
+  /** Optional free-text reason captured for retention analytics. */
+  reason?: string;
+}
+
+export interface CancelSubscriptionResponse {
+  ok: true;
+  cancelAtPeriodEnd: true;
+  /** When the user loses Pro access. */
+  effectiveAt: Date;
+}
+
+export interface ReactivateSubscriptionResponse {
+  ok: true;
+  cancelAtPeriodEnd: false;
+}
+
 // ─── AI / RAG types ───────────────────────────────────────────────────────────
 
 export type MessageRole = "USER" | "ASSISTANT";

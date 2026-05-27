@@ -1,13 +1,16 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";
+import type { InvoiceSummary } from "@psico/types";
 import type { Env } from "../config";
 import type { BillingPlan } from "./dto/checkout-session.dto";
 import type { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
 import type {
+  CancelSubscriptionResult,
   CheckoutSessionResult,
   IPaymentProvider,
   PortalSessionResult,
+  ReactivateSubscriptionResult,
 } from "./providers/payment-provider.interface";
 import {
   PAYPHONE_PROVIDER,
@@ -75,5 +78,22 @@ export class PaymentService {
 
   handleWebhook(rawBody: Buffer, signature: string): Promise<void> {
     return this.selectProvider().handleWebhook(rawBody, signature);
+  }
+
+  // ─── Sprint S7 ─────────────────────────────────────────────────────────────
+
+  listInvoices(userId: string, limit: number): Promise<InvoiceSummary[]> {
+    return this.selectProvider().listInvoices(userId, limit);
+  }
+
+  cancelAtPeriodEnd(
+    userId: string,
+    reason?: string,
+  ): Promise<CancelSubscriptionResult> {
+    return this.selectProvider().cancelAtPeriodEnd(userId, reason);
+  }
+
+  reactivate(userId: string): Promise<ReactivateSubscriptionResult> {
+    return this.selectProvider().reactivate(userId);
   }
 }

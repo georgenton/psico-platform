@@ -123,6 +123,7 @@ model User {
   dismissedPrompts        DismissedReflectionPrompt[]
   diaryEntries            DiaryEntry[]
   sharedDiaryEntries      SharedDiaryEntry[]
+  billingUsageDays        BillingUsageDay[]
 
   @@unique([authProvider, providerId])
   @@index([email])
@@ -576,6 +577,36 @@ model StripeEvent {
   createdAt     DateTime @default(now())
 
   @@index([stripeEventId])
+}
+
+// ─── Billing usage rollup (Sprint S7) ────────────────────────────────────────
+//
+// One row per user per UTC day. Populated by the BullMQ `daily-usage` job
+// nightly at 02:00 UTC; not read by the live `/api/subscriptions/usage`
+// endpoint (that one queries live tables with a 5-min Redis cache). This
+// table exists for:
+//   1. Pulso admin / cohort metrics — usage trends across the user base.
+//   2. Quota auditing — "did this user actually exceed their limit on day X?"
+//   3. Future churn analytics — usage decline as a leading indicator.
+//
+// The producer truncates `day` to UTC midnight. (userId, day) is unique so
+// the rollup is idempotent: re-running for the same day re-computes the
+// counters and overwrites the row.
+model BillingUsageDay {
+  id             String   @id @default(cuid())
+  userId         String
+  day            DateTime // UTC midnight of the day being rolled up
+  booksCompleted Int      @default(0)
+  ecoMessages    Int      @default(0)
+  voiceMinutes   Float    @default(0)
+  diaryEntries   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day])
+  @@index([day])
 }
 
 // ─── AI / RAG models ──────────────────────────────────────────────────────────

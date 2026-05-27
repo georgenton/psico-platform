@@ -21,6 +21,9 @@ const mockStripeCheckoutCreate = vi.fn();
 const mockStripePortalCreate = vi.fn();
 const mockStripeCustomerCreate = vi.fn();
 const mockStripeWebhooksConstructEvent = vi.fn();
+const mockStripeInvoicesList = vi.fn();
+const mockStripeSubscriptionsRetrieve = vi.fn();
+const mockStripeSubscriptionsUpdate = vi.fn();
 
 vi.mock("stripe", () => {
   const MockStripe = vi.fn().mockImplementation(() => ({
@@ -28,6 +31,11 @@ vi.mock("stripe", () => {
     checkout: { sessions: { create: mockStripeCheckoutCreate } },
     billingPortal: { sessions: { create: mockStripePortalCreate } },
     webhooks: { constructEvent: mockStripeWebhooksConstructEvent },
+    invoices: { list: mockStripeInvoicesList },
+    subscriptions: {
+      retrieve: mockStripeSubscriptionsRetrieve,
+      update: mockStripeSubscriptionsUpdate,
+    },
   }));
   MockStripe.Stripe = MockStripe;
   return { default: MockStripe };
@@ -431,6 +439,163 @@ describe("StripeProvider", () => {
       );
       const result = await triggerSyncWithStatus(stripeStatus);
       expect(result).toBe(expected);
+    });
+  });
+
+  // ─── Sprint S7: listInvoices ─────────────────────────────────────────────
+
+  describe("listInvoices", () => {
+    it("returns empty array when user has no Stripe customer yet", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ stripeCustomerId: null });
+
+      const invoices = await provider.listInvoices(USER_ID, 12);
+
+      expect(invoices).toEqual([]);
+      expect(mockStripeInvoicesList).not.toHaveBeenCalled();
+    });
+
+    it("maps Stripe invoices to InvoiceSummary (amount in major units)", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        stripeCustomerId: "cus_123",
+      });
+      mockStripeInvoicesList.mockResolvedValue({
+        data: [
+          {
+            id: "in_1",
+            created: 1746144000, // 2025-05-02 in epoch seconds
+            amount_paid: 700, // $7.00
+            amount_due: 700,
+            currency: "usd",
+            status: "paid",
+            invoice_pdf: "https://stripe.com/pdf",
+            hosted_invoice_url: "https://stripe.com/hosted",
+          },
+        ],
+      });
+
+      const invoices = await provider.listInvoices(USER_ID, 12);
+
+      expect(invoices).toHaveLength(1);
+      expect(invoices[0]).toMatchObject({
+        id: "in_1",
+        amount: 7, // major units
+        currency: "usd",
+        status: "paid",
+        pdfUrl: "https://stripe.com/pdf",
+        hostedUrl: "https://stripe.com/hosted",
+      });
+      expect(invoices[0]?.date).toBeInstanceOf(Date);
+    });
+
+    it("forwards limit to Stripe", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        stripeCustomerId: "cus_123",
+      });
+      mockStripeInvoicesList.mockResolvedValue({ data: [] });
+
+      await provider.listInvoices(USER_ID, 5);
+
+      expect(mockStripeInvoicesList).toHaveBeenCalledWith({
+        customer: "cus_123",
+        limit: 5,
+      });
+    });
+  });
+
+  // ─── Sprint S7: cancel + reactivate ──────────────────────────────────────
+
+  describe("cancelAtPeriodEnd", () => {
+    it("throws 400 NO_ACTIVE_SUBSCRIPTION when no local sub exists", async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(null);
+
+      await expect(provider.cancelAtPeriodEnd(USER_ID)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it("throws 400 SUBSCRIPTION_NOT_CANCELLABLE for a canceled sub", async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue({
+        stripeSubscriptionId: "sub_1",
+        status: SubscriptionStatus.CANCELED,
+      });
+
+      await expect(provider.cancelAtPeriodEnd(USER_ID)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it("flips cancel_at_period_end on Stripe and mirrors locally", async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue({
+        stripeSubscriptionId: "sub_stripe_123",
+        status: SubscriptionStatus.ACTIVE,
+      });
+      mockStripeSubscriptionsRetrieve.mockResolvedValue(makeStripeSub());
+      mockStripeSubscriptionsUpdate.mockResolvedValue(
+        makeStripeSub({ cancel_at_period_end: true }),
+      );
+      mockPrisma.subscription.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await provider.cancelAtPeriodEnd(USER_ID, "too pricey");
+
+      expect(mockStripeSubscriptionsUpdate).toHaveBeenCalledWith(
+        "sub_stripe_123",
+        expect.objectContaining({
+          cancel_at_period_end: true,
+          metadata: expect.objectContaining({
+            cancellation_reason: "too pricey",
+          }),
+        }),
+      );
+      expect(mockPrisma.subscription.updateMany).toHaveBeenCalledWith({
+        where: { userId: USER_ID },
+        data: { cancelAtPeriodEnd: true },
+      });
+      expect(result.cancelAtPeriodEnd).toBe(true);
+      expect(result.effectiveAt).toBeInstanceOf(Date);
+    });
+  });
+
+  describe("reactivate", () => {
+    it("no-ops idempotently when the sub is not pending cancellation", async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue({
+        stripeSubscriptionId: "sub_stripe_123",
+        status: SubscriptionStatus.ACTIVE,
+      });
+      mockStripeSubscriptionsRetrieve.mockResolvedValue(
+        makeStripeSub({ cancel_at_period_end: false }),
+      );
+
+      const result = await provider.reactivate(USER_ID);
+
+      expect(result.cancelAtPeriodEnd).toBe(false);
+      // Should not call update — already in the desired state.
+      expect(mockStripeSubscriptionsUpdate).not.toHaveBeenCalled();
+    });
+
+    it("flips cancel_at_period_end back to false on Stripe + local", async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue({
+        stripeSubscriptionId: "sub_stripe_123",
+        status: SubscriptionStatus.ACTIVE,
+      });
+      mockStripeSubscriptionsRetrieve.mockResolvedValue(
+        makeStripeSub({ cancel_at_period_end: true }),
+      );
+      mockStripeSubscriptionsUpdate.mockResolvedValue(
+        makeStripeSub({ cancel_at_period_end: false }),
+      );
+      mockPrisma.subscription.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await provider.reactivate(USER_ID);
+
+      expect(mockStripeSubscriptionsUpdate).toHaveBeenCalledWith(
+        "sub_stripe_123",
+        { cancel_at_period_end: false },
+      );
+      expect(mockPrisma.subscription.updateMany).toHaveBeenCalledWith({
+        where: { userId: USER_ID },
+        data: { cancelAtPeriodEnd: false },
+      });
+      expect(result.cancelAtPeriodEnd).toBe(false);
     });
   });
 });

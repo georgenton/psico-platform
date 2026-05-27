@@ -42,6 +42,7 @@ import type { Env } from "../config";
       { name: QueueName.EMAIL },
       { name: QueueName.DATA_EXPORT },
       { name: QueueName.ACCOUNT_DELETION },
+      { name: QueueName.DAILY_USAGE },
     ),
   ],
   providers: [JobsService],

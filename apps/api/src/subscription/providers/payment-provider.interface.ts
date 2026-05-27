@@ -1,3 +1,4 @@
+import type { InvoiceSummary } from "@psico/types";
 import type { BillingPlan } from "../dto/checkout-session.dto";
 import type { CreatePortalSessionDto } from "../dto/create-portal-session.dto";
 
@@ -7,6 +8,16 @@ export interface CheckoutSessionResult {
 
 export interface PortalSessionResult {
   url: string;
+}
+
+export interface CancelSubscriptionResult {
+  cancelAtPeriodEnd: true;
+  /** When the user's access ends (currentPeriodEnd from Stripe). */
+  effectiveAt: Date;
+}
+
+export interface ReactivateSubscriptionResult {
+  cancelAtPeriodEnd: false;
 }
 
 export interface IPaymentProvider {
@@ -27,6 +38,23 @@ export interface IPaymentProvider {
   ): Promise<PortalSessionResult>;
 
   handleWebhook(rawBody: Buffer, signature: string): Promise<void>;
+
+  // ─── Sprint S7 — billing surface (required for all providers) ──────────────
+  //
+  // These mirror what the front needs for Mi Plan: invoice history, cancel
+  // at period end, reactivate. A provider that legitimately cannot support
+  // one (e.g. a future one-time-payment provider with no recurring billing
+  // surface) should throw NotImplementedException; PaymentService delegates
+  // the choice of provider.
+
+  listInvoices(userId: string, limit: number): Promise<InvoiceSummary[]>;
+
+  cancelAtPeriodEnd(
+    userId: string,
+    reason?: string,
+  ): Promise<CancelSubscriptionResult>;
+
+  reactivate(userId: string): Promise<ReactivateSubscriptionResult>;
 
   // ─── Optional extension points ─────────────────────────────────────────────
 

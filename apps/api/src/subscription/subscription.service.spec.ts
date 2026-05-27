@@ -26,6 +26,14 @@ const mockPaymentService = {
   createCheckoutSession: vi.fn(),
   createPortalSession: vi.fn(),
   handleWebhook: vi.fn(),
+  listInvoices: vi.fn(),
+  cancelAtPeriodEnd: vi.fn(),
+  reactivate: vi.fn(),
+};
+
+const mockUsageService = {
+  getUsage: vi.fn(),
+  invalidate: vi.fn().mockResolvedValue(undefined),
 };
 
 const USER_ID = "user-abc";
@@ -49,7 +57,9 @@ describe("SubscriptionService (orchestrator)", () => {
     service = new SubscriptionService(
       mockPrisma as never,
       mockPaymentService as never,
+      mockUsageService as never,
     );
+    mockUsageService.invalidate.mockResolvedValue(undefined);
   });
 
   // ─── getPlans ─────────────────────────────────────────────────────────────
@@ -172,6 +182,104 @@ describe("SubscriptionService (orchestrator)", () => {
       await expect(
         service.handleWebhook(Buffer.from("{}"), "bad-sig"),
       ).rejects.toThrow("Invalid signature");
+    });
+  });
+
+  // ─── Sprint S7: usage + invoices + cancel + reactivate ───────────────────
+
+  describe("getUsage", () => {
+    it("delega a UsageService.getUsage", async () => {
+      const expected = {
+        plan: "PRO" as const,
+        period: {
+          start: new Date(),
+          end: new Date(),
+          source: "subscription" as const,
+        },
+        books: { completedThisPeriod: 0 },
+        eco: { messagesThisPeriod: 0, quota: 200 },
+        voice: { minutesThisPeriod: 0, quota: 120 },
+        diary: { entriesThisPeriod: 7, quota: null },
+      };
+      mockUsageService.getUsage.mockResolvedValue(expected);
+
+      const result = await service.getUsage(USER_ID);
+
+      expect(mockUsageService.getUsage).toHaveBeenCalledWith(USER_ID);
+      expect(result).toBe(expected);
+    });
+  });
+
+  describe("listInvoices", () => {
+    it("envuelve la respuesta del PaymentService en { invoices }", async () => {
+      mockPaymentService.listInvoices.mockResolvedValue([
+        { id: "in_1", amount: 7, currency: "usd", status: "paid" },
+      ]);
+
+      const result = await service.listInvoices(USER_ID, 5);
+
+      expect(mockPaymentService.listInvoices).toHaveBeenCalledWith(USER_ID, 5);
+      expect(result.invoices).toHaveLength(1);
+      expect(result.invoices[0]?.id).toBe("in_1");
+    });
+  });
+
+  describe("cancel", () => {
+    it("delega a PaymentService.cancelAtPeriodEnd y devuelve el envelope ok=true", async () => {
+      const effectiveAt = new Date("2026-06-01");
+      mockPaymentService.cancelAtPeriodEnd.mockResolvedValue({
+        cancelAtPeriodEnd: true,
+        effectiveAt,
+      });
+
+      const result = await service.cancel(USER_ID, "razón opcional");
+
+      expect(mockPaymentService.cancelAtPeriodEnd).toHaveBeenCalledWith(
+        USER_ID,
+        "razón opcional",
+      );
+      expect(result).toEqual({
+        ok: true,
+        cancelAtPeriodEnd: true,
+        effectiveAt,
+      });
+    });
+
+    it("invalida el cache de usage para que el banner aparezca de inmediato", async () => {
+      mockPaymentService.cancelAtPeriodEnd.mockResolvedValue({
+        cancelAtPeriodEnd: true,
+        effectiveAt: new Date(),
+      });
+
+      await service.cancel(USER_ID, undefined);
+
+      expect(mockUsageService.invalidate).toHaveBeenCalledWith(USER_ID);
+    });
+
+    it("propaga el BadRequestException si el usuario no tiene una sub activa", async () => {
+      mockPaymentService.cancelAtPeriodEnd.mockRejectedValue(
+        new Error("NO_ACTIVE_SUBSCRIPTION"),
+      );
+
+      await expect(service.cancel(USER_ID, undefined)).rejects.toThrow(
+        "NO_ACTIVE_SUBSCRIPTION",
+      );
+      // No cache invalidation cuando falla — sería un side effect indeseado.
+      expect(mockUsageService.invalidate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("reactivate", () => {
+    it("delega a PaymentService.reactivate y bustea el cache", async () => {
+      mockPaymentService.reactivate.mockResolvedValue({
+        cancelAtPeriodEnd: false,
+      });
+
+      const result = await service.reactivate(USER_ID);
+
+      expect(mockPaymentService.reactivate).toHaveBeenCalledWith(USER_ID);
+      expect(result).toEqual({ ok: true, cancelAtPeriodEnd: false });
+      expect(mockUsageService.invalidate).toHaveBeenCalledWith(USER_ID);
     });
   });
 });

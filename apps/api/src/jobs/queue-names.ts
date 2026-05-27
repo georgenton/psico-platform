@@ -53,6 +53,24 @@ export const QueueName = {
    * `User.deleteRequestedAt` at execution time and no-ops if cleared.
    */
   ACCOUNT_DELETION: "account-deletion",
+
+  /**
+   * Sprint S7 — Daily usage rollup. Computes per-user counters for the
+   * previous UTC day and upserts a `BillingUsageDay` row. Feeds Pulso
+   * admin metrics + churn audit; NOT consumed by the live /usage endpoint
+   * (that one queries live tables with a 5-min Redis cache).
+   *
+   * Producer: `JobsService.enqueueDailyUsageRollover` — scheduled via a
+   * BullMQ repeatable job at 02:00 UTC. Producing is intentionally simple
+   * (one job per run, no payload) — the processor fan-outs to all users.
+   *
+   * Consumer: `apps/api/src/jobs/processors/daily-usage.processor.ts`
+   *
+   * Retry: 3 attempts with longer backoff (5min / 25min / 2h). The job is
+   * idempotent (unique (userId, day) on BillingUsageDay) so retries are
+   * safe even if a partial run already wrote some rows.
+   */
+  DAILY_USAGE: "daily-usage",
 } as const;
 
 export type QueueName = (typeof QueueName)[keyof typeof QueueName];
@@ -87,6 +105,18 @@ export interface AccountDeletionJobPayload {
 }
 
 /**
+ * Daily usage rollup carries no per-user data — the processor scans for
+ * all users with activity in the day and writes one row per (userId, day).
+ * The optional `targetDay` lets ops re-run a specific historical day
+ * (useful after fixing a data bug); when omitted, the processor uses
+ * "yesterday in UTC".
+ */
+export interface DailyUsageJobPayload {
+  /** ISO date YYYY-MM-DD. When unset, "yesterday in UTC" is computed. */
+  targetDay?: string;
+}
+
+/**
  * Job names within each queue. Currently each queue has one default job
  * (so the name is essentially the queue name) but the type system keeps
  * this open for future expansion.
@@ -95,6 +125,7 @@ export const JobName = {
   SEND_EMAIL: "send-email",
   RUN_DATA_EXPORT: "run-data-export",
   FINALIZE_ACCOUNT_DELETION: "finalize-account-deletion",
+  RUN_DAILY_USAGE_ROLLUP: "run-daily-usage-rollup",
 } as const;
 
 export type JobName = (typeof JobName)[keyof typeof JobName];

@@ -16,6 +16,7 @@ import type {
   DiaryListResponse,
   DiaryMoodMap,
   DiaryPromptOfTheDay,
+  DiaryRawCiphersResponse,
   DiaryTagCount,
   ShareDiaryEntryResponse,
 } from "@psico/types";
@@ -257,6 +258,45 @@ export class DiarioService {
     });
 
     return { ok: true, shareId: row.id, shareUntil: row.expiresAt };
+  }
+
+  // ─── Raw ciphers (used by password-change-with-rekey) ─────────────────────
+
+  /**
+   * Return every entry's cipher payload — no mood, no tags, no metadata.
+   *
+   * Used exclusively by the password-change-with-rekey flow: the client
+   * derives the new master key, fetches all ciphers in one round-trip,
+   * decrypts each one with the OLD diaryKey, re-encrypts with the NEW
+   * diaryKey, and then POSTs the rekeyed bundle to `/user/password-change-
+   * with-rekey`.
+   *
+   * Per ADR 0007 §G this endpoint MUST NOT log ciphertext (the
+   * `diario.privacy.spec.ts` walker enforces it). It also does not call
+   * the related-entry vector search the detail endpoint runs, because the
+   * caller doesn't need any of that.
+   */
+  async listRawCiphers(userId: string): Promise<DiaryRawCiphersResponse> {
+    const rows = await this.prisma.diaryEntry.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        textCiphertext: true,
+        textNonce: true,
+        excerptCiphertext: true,
+        excerptNonce: true,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    return {
+      entries: rows.map((row) => ({
+        id: row.id,
+        textCiphertext: row.textCiphertext,
+        textNonce: row.textNonce,
+        excerptCiphertext: row.excerptCiphertext,
+        excerptNonce: row.excerptNonce,
+      })),
+    };
   }
 
   // ─── Stats hook used by HomeService/UsersService ──────────────────────────

@@ -818,6 +818,25 @@
         ]
       }
     },
+    "/api/diario/entries/raw-ciphers": {
+      "get": {
+        "operationId": "DiarioController_listRawCiphers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Diario"
+        ]
+      }
+    },
     "/api/diario/entries/{id}": {
       "get": {
         "operationId": "DiarioController_getDetail",
@@ -1397,6 +1416,54 @@
         ]
       }
     },
+    "/api/user/password-change-with-rekey": {
+      "post": {
+        "operationId": "UsersController_changePasswordWithRekey",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChangeWithRekeyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/user/crypto-seed-acknowledged": {
+      "post": {
+        "operationId": "UsersController_acknowledgeCryptoSeed",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
     "/api/user/data-export": {
       "post": {
         "operationId": "UsersController_requestDataExport",
@@ -1877,6 +1944,10 @@
         "properties": {}
       },
       "PasswordChangeDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "PasswordChangeWithRekeyDto": {
         "type": "object",
         "properties": {}
       },

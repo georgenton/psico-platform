@@ -19,6 +19,10 @@ export {
   NONCE_LEN,
   type CipherEnvelope,
 } from "./aead";
+// Re-export the secure RNG used internally so callers (e.g. the password-
+// change-with-rekey flow that needs a fresh 16-byte salt) don't have to
+// reach into `@noble/ciphers` themselves. Works on web, RN/Hermes, Node.
+export { randomBytes } from "@noble/ciphers/webcrypto";
 export {
   masterKeyToSeedPhrase,
   seedPhraseToMasterKey,

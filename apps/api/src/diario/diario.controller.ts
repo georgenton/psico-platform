@@ -55,6 +55,14 @@ export class DiarioController {
     return this.diarioService.getPromptOfTheDay();
   }
 
+  // Declared BEFORE `entries/:id` so NestJS' route matcher resolves
+  // `/diario/entries/raw-ciphers` to this handler instead of treating
+  // "raw-ciphers" as an entry ID.
+  @Get("entries/raw-ciphers")
+  listRawCiphers(@CurrentUser() user: AuthenticatedUser) {
+    return this.diarioService.listRawCiphers(user.userId);
+  }
+
   @Get("entries/:id")
   getDetail(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     return this.diarioService.getDetail(user.userId, id);

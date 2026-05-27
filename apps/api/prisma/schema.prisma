@@ -92,6 +92,13 @@ model User {
   // registrations always populate it.
   cryptoSalt String?
 
+  // Timestamp when the client confirmed it showed the BIP39 recovery seed
+  // phrase modal (Sprint seed-and-password-rekey · ADR 0007 §G).
+  // Null = modal pending. Once the client POSTs the acknowledgment we set
+  // this and never bother the user again. The actual seed phrase is NOT
+  // stored — it's the masterKey serialized and the server never sees it.
+  cryptoSeedShownAt DateTime?
+
   stripeCustomerId String? @unique
 
   profile                 Profile?

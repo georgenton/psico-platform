@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { useState } from "react";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { UserPlan } from "@psico/types";
 import { useAuth } from "@/context/auth";
@@ -37,6 +38,7 @@ function initials(name: string): string {
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
+  const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
 
   if (!user) return null;
@@ -99,6 +101,36 @@ export default function ProfileScreen() {
             }
           />
         </View>
+      </View>
+
+      {/* Security shortcut */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Seguridad</Text>
+        <Pressable
+          style={styles.card}
+          onPress={() => router.push("/(tabs)/security")}
+        >
+          <View style={rowStyles.row}>
+            <View style={rowStyles.iconWrap}>
+              <Ionicons
+                name="key-outline"
+                size={18}
+                color={Colors.lavender[500]}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={rowStyles.label}>
+                Contraseña y frase de respaldo
+              </Text>
+              <Text style={rowStyles.value}>Cambiar contraseña</Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={Colors.warm[400]}
+            />
+          </View>
+        </Pressable>
       </View>
 
       {/* App section */}

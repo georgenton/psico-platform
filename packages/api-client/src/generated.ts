@@ -471,6 +471,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/diario/entries/raw-ciphers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["DiarioController_listRawCiphers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/diario/entries/{id}": {
         parameters: {
             query?: never;
@@ -811,6 +827,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/user/password-change-with-rekey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["UsersController_changePasswordWithRekey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/crypto-seed-acknowledged": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["UsersController_acknowledgeCryptoSeed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/user/data-export": {
         parameters: {
             query?: never;
@@ -1065,6 +1113,7 @@ export interface components {
         UpdateMoodDto: Record<string, never>;
         EmailChangeRequestDto: Record<string, never>;
         PasswordChangeDto: Record<string, never>;
+        PasswordChangeWithRekeyDto: Record<string, never>;
         DeleteRequestDto: Record<string, never>;
         OnboardingStep1Dto: Record<string, never>;
         OnboardingStep2Dto: Record<string, never>;
@@ -1697,6 +1746,23 @@ export interface operations {
             };
         };
     };
+    DiarioController_listRawCiphers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     DiarioController_getDetail: {
         parameters: {
             query?: never;
@@ -2141,6 +2207,44 @@ export interface operations {
         };
         responses: {
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    UsersController_changePasswordWithRekey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeWithRekeyDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    UsersController_acknowledgeCryptoSeed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

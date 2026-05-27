@@ -330,6 +330,12 @@ export interface UserMeResponse {
    * Null for accounts registered before crypto landed.
    */
   cryptoSalt: string | null;
+  /**
+   * Timestamp the client acknowledged showing the BIP39 seed phrase modal
+   * (Sprint seed-and-password-rekey). Null = the modal still needs to run
+   * on next diary unlock. ISO string in JSON, parsed Date in TypeScript.
+   */
+  cryptoSeedShownAt: Date | null;
 }
 
 // ─── User · request payloads ──────────────────────────────────────────────────
@@ -368,6 +374,46 @@ export interface EmailChangeRequestResponse {
 export interface PasswordChangeRequest {
   currentPassword: string;
   newPassword: string;
+}
+
+/**
+ * POST /api/user/crypto-seed-acknowledged — body is empty. The server
+ * stamps `cryptoSeedShownAt = now` on the calling user.
+ */
+export interface CryptoSeedAcknowledgedResponse {
+  ok: true;
+  shownAt: Date;
+}
+
+/**
+ * Re-encrypted entry payload accepted by /password-change-with-rekey.
+ * The client already ran encryptString(plaintext, newDiaryKey) before
+ * sending; the backend stores the new cipher verbatim.
+ */
+export interface RekeyedDiaryEntry {
+  id: string;
+  textCiphertext: string;
+  textNonce: string;
+  /** Optional — same rule as create: cipher and nonce must be paired. */
+  excerptCiphertext?: string;
+  excerptNonce?: string;
+}
+
+export interface PasswordChangeWithRekeyRequest {
+  currentPassword: string;
+  newPassword: string;
+  /** base64url 16-byte salt the client used to derive the new master key. */
+  newCryptoSalt: string;
+  /** Every active diary entry, re-encrypted with the new diary key. */
+  reencryptedEntries: RekeyedDiaryEntry[];
+}
+
+export interface PasswordChangeWithRekeyResponse {
+  ok: true;
+  /** Echo of the salt persisted, in case the client wants to verify. */
+  cryptoSalt: string;
+  /** Number of entries successfully rekeyed in the transaction. */
+  rekeyed: number;
 }
 
 export interface DataExportRequestResponse {
@@ -792,6 +838,23 @@ export interface DiaryListResponse {
 export interface DiaryDetailResponse {
   entry: DiaryEntryDetail;
   relatedEntryIds: string[];
+}
+
+/**
+ * Lean view returned by `GET /api/diario/entries/raw-ciphers` — only the
+ * fields the password-change-with-rekey flow needs to re-encrypt entries.
+ * No mood, no tags, no related-entry search.
+ */
+export interface DiaryRawCipherEntry {
+  id: string;
+  textCiphertext: string;
+  textNonce: string;
+  excerptCiphertext: string | null;
+  excerptNonce: string | null;
+}
+
+export interface DiaryRawCiphersResponse {
+  entries: DiaryRawCipherEntry[];
 }
 
 export interface CreateDiaryEntryRequest {

@@ -26,8 +26,10 @@ export default async function DiarioPage() {
     entriesResult.status === "fulfilled" ? entriesResult.value.entries : [];
   const prompt =
     promptResult.status === "fulfilled" ? promptResult.value : null;
-  const cryptoSalt =
-    meResult.status === "fulfilled" ? meResult.value.cryptoSalt : null;
+  const seedAlreadyShown =
+    meResult.status === "fulfilled"
+      ? meResult.value.cryptoSeedShownAt !== null
+      : true; // If we can't load /user/me, suppress the modal — we'll retry next visit.
   const accessToken = getAccessToken();
 
   return (
@@ -49,7 +51,7 @@ export default async function DiarioPage() {
       </header>
 
       <DiarioShell
-        cryptoSalt={cryptoSalt}
+        seedAlreadyShown={seedAlreadyShown}
         entries={entries}
         prompt={prompt}
         apiBase={API_BASE}

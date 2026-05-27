@@ -31,6 +31,21 @@ import { deriveMasterKey, deriveSubKey, DIARY_KEY_INFO } from "@psico/crypto";
 export interface DiaryKeyState {
   /** 32-byte diary subkey. null = locked. */
   key: Uint8Array | null;
+  /**
+   * 32-byte master key from Argon2id(password, cryptoSalt). null = locked.
+   *
+   * Kept in memory (in addition to the diary subkey) for two reasons:
+   *   1. The seed-phrase modal can render the 24-word backup without
+   *      asking the user for their password again.
+   *   2. The password-change-with-rekey flow needs to derive sub-keys
+   *      (DIARY_KEY_INFO) from the OLD master key while re-encrypting
+   *      entries with the NEW one.
+   *
+   * Security note: holding masterKey alongside diaryKey adds 32 B to the
+   * heap; the attack surface is unchanged (an attacker with read-memory
+   * access already has the diaryKey). On lock() we zero both.
+   */
+  masterKey: Uint8Array | null;
   /** Whether `cryptoSalt` is null on the user (legacy account, no E2E). */
   isLegacyAccount: boolean;
   /** Derivation is in flight (Argon2id ~500ms on desktop). */
@@ -42,6 +57,12 @@ export interface DiaryKeyState {
 export interface DiaryKeyActions {
   /** Prompt the user for their password and derive the diary key. */
   unlock: (password: string) => Promise<void>;
+  /**
+   * Adopt a master key that the caller already has (e.g. from BIP39 seed
+   * phrase recovery, or right after a password change). Derives the
+   * diaryKey and seeds it into the context, exactly as `unlock` would.
+   */
+  adoptMasterKey: (masterKey: Uint8Array) => void;
   /** Forget the key (e.g. user logs out or hits "lock again"). */
   lock: () => void;
 }
@@ -63,6 +84,7 @@ export function DiaryKeyProvider({
   cryptoSalt: string | null;
 }) {
   const [key, setKey] = useState<Uint8Array | null>(null);
+  const [masterKey, setMasterKey] = useState<Uint8Array | null>(null);
   const [unlocking, setUnlocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,10 +97,9 @@ export function DiaryKeyProvider({
       setUnlocking(true);
       setError(null);
       try {
-        const masterKey = await deriveMasterKey(password, cryptoSalt);
-        const diaryKey = deriveSubKey(masterKey, DIARY_KEY_INFO);
-        // Zero the master key buffer ASAP — diaryKey is enough for v1.
-        masterKey.fill(0);
+        const derivedMaster = await deriveMasterKey(password, cryptoSalt);
+        const diaryKey = deriveSubKey(derivedMaster, DIARY_KEY_INFO);
+        setMasterKey(derivedMaster);
         setKey(diaryKey);
       } catch (err) {
         const code =
@@ -95,22 +116,48 @@ export function DiaryKeyProvider({
     [cryptoSalt],
   );
 
+  const adoptMasterKey = useCallback((nextMaster: Uint8Array) => {
+    if (nextMaster.length !== 32) {
+      setError("La clave maestra tiene un tamaño inválido.");
+      return;
+    }
+    const diaryKey = deriveSubKey(nextMaster, DIARY_KEY_INFO);
+    // We copy `nextMaster` so the caller can safely zero its own buffer.
+    const owned = new Uint8Array(nextMaster);
+    setMasterKey(owned);
+    setKey(diaryKey);
+    setError(null);
+  }, []);
+
   const lock = useCallback(() => {
     if (key) key.fill(0);
+    if (masterKey) masterKey.fill(0);
     setKey(null);
+    setMasterKey(null);
     setError(null);
-  }, [key]);
+  }, [key, masterKey]);
 
   const value = useMemo<DiaryKeyContextValue>(
     () => ({
       key,
+      masterKey,
       isLegacyAccount: cryptoSalt === null,
       unlocking,
       error,
       unlock,
+      adoptMasterKey,
       lock,
     }),
-    [key, cryptoSalt, unlocking, error, unlock, lock],
+    [
+      key,
+      masterKey,
+      cryptoSalt,
+      unlocking,
+      error,
+      unlock,
+      adoptMasterKey,
+      lock,
+    ],
   );
 
   return (

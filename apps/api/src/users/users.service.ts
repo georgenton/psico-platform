@@ -182,6 +182,7 @@ export class UsersService {
       // E2E crypto salt (Sprint S6-crypto, ADR 0007 §A). Null for legacy
       // accounts. The client uses it to derive the diary master key.
       cryptoSalt: user.cryptoSalt,
+      cryptoSeedShownAt: user.cryptoSeedShownAt,
     };
   }
 
@@ -394,6 +395,138 @@ export class UsersService {
         data: { revokedAt: new Date() },
       }),
     ]);
+  }
+
+  // ── POST /api/user/crypto-seed-acknowledged ────────────────────────────────
+  //
+  // Sprint seed-and-password-rekey · ADR 0007 §G.
+  //
+  // Idempotent stamp: the client has shown the BIP39 seed phrase to the user
+  // and they confirmed (e.g. by re-typing 3 of 24 words). We never bother
+  // them again. The actual seed phrase is NOT stored — it's the master key
+  // serialized, and the server must remain blind to it.
+  async acknowledgeCryptoSeed(
+    userId: string,
+  ): Promise<{ ok: true; shownAt: Date }> {
+    const now = new Date();
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { cryptoSeedShownAt: true },
+    });
+    if (!user) throw new NotFoundException("User not found");
+
+    // Idempotent: only update if not already stamped. The first POST wins;
+    // duplicate POSTs from a buggy client return the existing timestamp.
+    if (user.cryptoSeedShownAt) {
+      return { ok: true, shownAt: user.cryptoSeedShownAt };
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { cryptoSeedShownAt: now },
+    });
+    return { ok: true, shownAt: now };
+  }
+
+  // ── POST /api/user/password-change-with-rekey ─────────────────────────────
+  //
+  // Sprint seed-and-password-rekey. Atomic password rotation + diary rekey.
+  //
+  // The client did all the cryptographic work BEFORE calling us:
+  //   1. Derived oldDiaryKey with currentPassword + oldSalt
+  //   2. Generated newSalt random (16B)
+  //   3. Derived newDiaryKey with newPassword + newSalt
+  //   4. For each diary entry: decrypted with oldKey, re-encrypted with newKey
+  //   5. Sent us the new cipher envelopes (one row per existing entry)
+  //
+  // Our job:
+  //   1. Verify currentPassword matches the stored hash (anti-CSRF / fresh auth)
+  //   2. Hash newPassword (bcrypt 12 rounds)
+  //   3. In a single transaction:
+  //      - Replace passwordHash
+  //      - Replace cryptoSalt with newSalt
+  //      - Update every supplied DiaryEntry with the new cipher/nonce
+  //      - Revoke all active refresh tokens (force re-login on other devices)
+  //   4. If ANY step fails, the transaction rolls back. The client retains the
+  //      old key (which still works because nothing changed). The new key is
+  //      discarded.
+  //
+  // Cap: 500 entries per request. Empirically, a user with a 5-year journal
+  // averages <200; cap is generous. The DTO enforces the cap with ArrayMaxSize.
+  async changePasswordWithRekey(
+    userId: string,
+    dto: import("./dto/password-change-with-rekey.dto").PasswordChangeWithRekeyDto,
+  ): Promise<{ ok: true; cryptoSalt: string; rekeyed: number }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { passwordHash: true, authProvider: true },
+    });
+    if (!user) throw new NotFoundException("User not found");
+    if (!user.passwordHash) {
+      throw new BadRequestException({
+        code: "OAUTH_USER_NO_PASSWORD",
+        message: `Esta cuenta usa ${user.authProvider.toLowerCase()} sign-in. No tiene contraseña que cambiar.`,
+      });
+    }
+
+    const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!valid) {
+      throw new UnauthorizedException("Current password is incorrect");
+    }
+
+    // Validate that every reencryptedEntry belongs to this user. We do one
+    // count query for the subset of IDs and reject if any are missing —
+    // cheaper than per-id existence checks and safe because the unique key
+    // is `id`.
+    const incomingIds = dto.reencryptedEntries.map((e) => e.id);
+    if (incomingIds.length > 0) {
+      const owned = await this.prisma.diaryEntry.count({
+        where: { id: { in: incomingIds }, userId },
+      });
+      if (owned !== incomingIds.length) {
+        throw new BadRequestException({
+          code: "REKEY_FOREIGN_ENTRY",
+          message:
+            "Algunas entradas no pertenecen a tu cuenta. Cancela y vuelve a intentar.",
+        });
+      }
+    }
+
+    const newHash = await bcrypt.hash(dto.newPassword, 12);
+
+    // Atomic: rotate password + salt + entries + tokens. Prisma transactions
+    // give us all-or-nothing semantics.
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          passwordHash: newHash,
+          cryptoSalt: dto.newCryptoSalt,
+        },
+      }),
+      ...dto.reencryptedEntries.map((entry) =>
+        this.prisma.diaryEntry.update({
+          where: { id: entry.id },
+          data: {
+            textCiphertext: entry.textCiphertext,
+            textNonce: entry.textNonce,
+            ...(entry.excerptCiphertext !== undefined && {
+              excerptCiphertext: entry.excerptCiphertext,
+              excerptNonce: entry.excerptNonce ?? null,
+            }),
+          },
+        }),
+      ),
+      this.prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    return {
+      ok: true,
+      cryptoSalt: dto.newCryptoSalt,
+      rekeyed: incomingIds.length,
+    };
   }
 
   // ── POST /api/user/data-export ─────────────────────────────────────────────

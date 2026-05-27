@@ -31,19 +31,45 @@ describe("JobsService", () => {
     );
   });
 
-  it("onModuleInit registers the daily-usage scheduler at 02:00 UTC", async () => {
+  it("onModuleInit skips scheduler registration in test env (no Redis required)", async () => {
+    // setup-env.ts sets NODE_ENV=test, so the guard short-circuits.
     await service.onModuleInit();
 
-    expect(mockDailyUsageQueue.upsertJobScheduler).toHaveBeenCalledWith(
-      "daily-usage-02-utc",
-      { pattern: "0 2 * * *", tz: "UTC" },
-      expect.objectContaining({
-        name: JobName.RUN_DAILY_USAGE_ROLLUP,
-        opts: expect.objectContaining({
-          attempts: 3,
+    expect(mockDailyUsageQueue.upsertJobScheduler).not.toHaveBeenCalled();
+  });
+
+  it("onModuleInit registers the daily-usage scheduler outside the test env", async () => {
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      await service.onModuleInit();
+
+      expect(mockDailyUsageQueue.upsertJobScheduler).toHaveBeenCalledWith(
+        "daily-usage-02-utc",
+        { pattern: "0 2 * * *", tz: "UTC" },
+        expect.objectContaining({
+          name: JobName.RUN_DAILY_USAGE_ROLLUP,
+          opts: expect.objectContaining({
+            attempts: 3,
+          }),
         }),
-      }),
+      );
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
+  });
+
+  it("onModuleInit swallows Redis errors so the API still boots", async () => {
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    mockDailyUsageQueue.upsertJobScheduler.mockRejectedValueOnce(
+      new Error("ECONNREFUSED"),
     );
+    try {
+      await expect(service.onModuleInit()).resolves.toBeUndefined();
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
   });
 
   it("enqueueEmail adds a SEND_EMAIL job with 3-attempt exponential backoff", async () => {

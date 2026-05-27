@@ -52,30 +52,54 @@ export class JobsService implements OnModuleInit {
    *     repeatable-job id deduplicates).
    *   - The worker can boot fresh without first picking up the schedule
    *     from cold storage.
+   *
+   * Skip in test/CI:
+   *   - Unit + E2E tests boot the full AppModule without a real Redis.
+   *     BullMQ's `upsertJobScheduler` performs a Redis round-trip and
+   *     blocks the test suite for ~10s before timing out.
+   *   - In production a missing Redis is a real outage — we don't want to
+   *     swallow it silently — but we DO want the API to keep booting
+   *     (idempotency cache + throttler degrade gracefully). So we log
+   *     ERROR and continue rather than crashing the process.
    */
   async onModuleInit(): Promise<void> {
-    // Run at 02:00 UTC every day — chosen because:
-    //   1. It's the lowest-traffic window across LATAM (no business hours).
-    //   2. Yesterday's data is fully settled (clocks past midnight UTC).
-    //   3. Long enough before EU/UK morning that Pulso dashboards see fresh
-    //      numbers when their day starts.
-    await this.dailyUsageQueue.upsertJobScheduler(
-      DAILY_USAGE_SCHEDULER_ID,
-      { pattern: "0 2 * * *", tz: "UTC" },
-      {
-        name: JobName.RUN_DAILY_USAGE_ROLLUP,
-        data: {}, // empty payload — processor uses "yesterday in UTC"
-        opts: {
-          attempts: 3,
-          backoff: { type: "exponential", delay: 5 * 60_000 }, // 5min / 25min / 2h
-          removeOnComplete: { age: 7 * 24 * 60 * 60 },
-          removeOnFail: false,
+    if (process.env.NODE_ENV === "test") {
+      this.logger.debug(
+        "Skipping daily-usage scheduler registration in test env",
+      );
+      return;
+    }
+    try {
+      await this.dailyUsageQueue.upsertJobScheduler(
+        DAILY_USAGE_SCHEDULER_ID,
+        // Run at 02:00 UTC every day — chosen because:
+        //   1. It's the lowest-traffic window across LATAM (no business hours).
+        //   2. Yesterday's data is fully settled (clocks past midnight UTC).
+        //   3. Long enough before EU/UK morning that Pulso dashboards see
+        //      fresh numbers when their day starts.
+        { pattern: "0 2 * * *", tz: "UTC" },
+        {
+          name: JobName.RUN_DAILY_USAGE_ROLLUP,
+          data: {}, // empty payload — processor uses "yesterday in UTC"
+          opts: {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 5 * 60_000 }, // 5min / 25min / 2h
+            removeOnComplete: { age: 7 * 24 * 60 * 60 },
+            removeOnFail: false,
+          },
         },
-      },
-    );
-    this.logger.log(
-      `Daily usage rollup scheduled · id=${DAILY_USAGE_SCHEDULER_ID} · cron=0 2 * * * UTC`,
-    );
+      );
+      this.logger.log(
+        `Daily usage rollup scheduled · id=${DAILY_USAGE_SCHEDULER_ID} · cron=0 2 * * * UTC`,
+      );
+    } catch (err) {
+      // Don't crash the boot. The API still serves; only the scheduler is
+      // missing — the rollup just won't run until Redis is back AND the
+      // process restarts.
+      this.logger.error(
+        `Failed to register daily-usage scheduler: ${(err as Error).message}`,
+      );
+    }
   }
 
   /**

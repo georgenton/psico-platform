@@ -9,6 +9,10 @@ describe("JobsService", () => {
   const mockAccountDeletionQueue = {
     add: vi.fn().mockResolvedValue(undefined),
   };
+  const mockDailyUsageQueue = {
+    add: vi.fn().mockResolvedValue(undefined),
+    upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
+  };
 
   let service: JobsService;
 
@@ -18,10 +22,27 @@ describe("JobsService", () => {
     mockEmailQueue.add.mockResolvedValue(undefined);
     mockDataExportQueue.add.mockResolvedValue(undefined);
     mockAccountDeletionQueue.add.mockResolvedValue(undefined);
+    mockDailyUsageQueue.upsertJobScheduler.mockResolvedValue(undefined);
     service = new JobsService(
       mockEmailQueue as never,
       mockDataExportQueue as never,
       mockAccountDeletionQueue as never,
+      mockDailyUsageQueue as never,
+    );
+  });
+
+  it("onModuleInit registers the daily-usage scheduler at 02:00 UTC", async () => {
+    await service.onModuleInit();
+
+    expect(mockDailyUsageQueue.upsertJobScheduler).toHaveBeenCalledWith(
+      "daily-usage-02-utc",
+      { pattern: "0 2 * * *", tz: "UTC" },
+      expect.objectContaining({
+        name: JobName.RUN_DAILY_USAGE_ROLLUP,
+        opts: expect.objectContaining({
+          attempts: 3,
+        }),
+      }),
     );
   });
 

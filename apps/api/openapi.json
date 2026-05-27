@@ -1041,6 +1041,72 @@
         ]
       }
     },
+    "/api/subscriptions/usage": {
+      "get": {
+        "operationId": "SubscriptionController_getUsage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Subscription"
+        ]
+      }
+    },
+    "/api/subscriptions/invoices": {
+      "get": {
+        "operationId": "SubscriptionController_listInvoices",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Subscription"
+        ]
+      }
+    },
+    "/api/subscriptions/cancel": {
+      "post": {
+        "operationId": "SubscriptionController_cancel",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelSubscriptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Subscription"
+        ]
+      }
+    },
+    "/api/subscriptions/reactivate": {
+      "post": {
+        "operationId": "SubscriptionController_reactivate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Subscription"
+        ]
+      }
+    },
     "/subscriptions/webhook": {
       "post": {
         "operationId": "SubscriptionController_handleWebhook",
@@ -1908,6 +1974,10 @@
         "properties": {}
       },
       "CreatePortalSessionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CancelSubscriptionDto": {
         "type": "object",
         "properties": {}
       },

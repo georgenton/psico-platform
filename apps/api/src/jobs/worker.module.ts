@@ -10,6 +10,7 @@ import { QueueName } from "./queue-names";
 import { EmailProcessor } from "./processors/email.processor";
 import { DataExportProcessor } from "./processors/data-export.processor";
 import { AccountDeletionProcessor } from "./processors/account-deletion.processor";
+import { DailyUsageProcessor } from "./processors/daily-usage.processor";
 import type { Env } from "../config";
 
 /**
@@ -54,8 +55,14 @@ import type { Env } from "../config";
       { name: QueueName.EMAIL },
       { name: QueueName.DATA_EXPORT },
       { name: QueueName.ACCOUNT_DELETION },
+      { name: QueueName.DAILY_USAGE },
     ),
   ],
-  providers: [EmailProcessor, DataExportProcessor, AccountDeletionProcessor],
+  providers: [
+    EmailProcessor,
+    DataExportProcessor,
+    AccountDeletionProcessor,
+    DailyUsageProcessor,
+  ],
 })
 export class WorkerAppModule {}

@@ -1,15 +1,20 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { InjectQueue } from "@nestjs/bullmq";
 import type { Queue } from "bullmq";
 import {
   JobName,
   QueueName,
   type AccountDeletionJobPayload,
+  type DailyUsageJobPayload,
   type DataExportJobPayload,
   type EmailJobPayload,
 } from "./queue-names";
 
 const DAYS = 24 * 60 * 60 * 1000;
+// Repeatable-job id for the nightly usage rollup. Using a stable id means
+// re-deploys don't pile up duplicate cron entries — BullMQ's
+// upsertJobScheduler upserts on it.
+const DAILY_USAGE_SCHEDULER_ID = "daily-usage-02-utc";
 
 /**
  * Producer-side API for enqueuing background work. Feature services inject
@@ -23,7 +28,7 @@ const DAYS = 24 * 60 * 60 * 1000;
  *    `EmailJobsService`, `UserJobsService`).
  */
 @Injectable()
-export class JobsService {
+export class JobsService implements OnModuleInit {
   private readonly logger = new Logger(JobsService.name);
 
   constructor(
@@ -33,7 +38,45 @@ export class JobsService {
     private readonly dataExportQueue: Queue<DataExportJobPayload>,
     @InjectQueue(QueueName.ACCOUNT_DELETION)
     private readonly accountDeletionQueue: Queue<AccountDeletionJobPayload>,
+    @InjectQueue(QueueName.DAILY_USAGE)
+    private readonly dailyUsageQueue: Queue<DailyUsageJobPayload>,
   ) {}
+
+  /**
+   * Register the nightly usage-rollup scheduler when the API boots.
+   *
+   * Why we register here (in the producer) rather than in the worker:
+   *   - Schedulers belong with their producers — the API knows the cron
+   *     and the policy; the worker just consumes whatever lands in Redis.
+   *   - Redis-backed schedulers are idempotent across deploys (the
+   *     repeatable-job id deduplicates).
+   *   - The worker can boot fresh without first picking up the schedule
+   *     from cold storage.
+   */
+  async onModuleInit(): Promise<void> {
+    // Run at 02:00 UTC every day — chosen because:
+    //   1. It's the lowest-traffic window across LATAM (no business hours).
+    //   2. Yesterday's data is fully settled (clocks past midnight UTC).
+    //   3. Long enough before EU/UK morning that Pulso dashboards see fresh
+    //      numbers when their day starts.
+    await this.dailyUsageQueue.upsertJobScheduler(
+      DAILY_USAGE_SCHEDULER_ID,
+      { pattern: "0 2 * * *", tz: "UTC" },
+      {
+        name: JobName.RUN_DAILY_USAGE_ROLLUP,
+        data: {}, // empty payload — processor uses "yesterday in UTC"
+        opts: {
+          attempts: 3,
+          backoff: { type: "exponential", delay: 5 * 60_000 }, // 5min / 25min / 2h
+          removeOnComplete: { age: 7 * 24 * 60 * 60 },
+          removeOnFail: false,
+        },
+      },
+    );
+    this.logger.log(
+      `Daily usage rollup scheduled · id=${DAILY_USAGE_SCHEDULER_ID} · cron=0 2 * * * UTC`,
+    );
+  }
 
   /**
    * Enqueue a transactional email for asynchronous delivery.

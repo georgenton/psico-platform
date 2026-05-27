@@ -31,7 +31,7 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   logger.log(
-    "Worker started · processors: email, data-export, account-deletion",
+    "Worker started · processors: email, data-export, account-deletion, daily-usage",
   );
   logger.log("Awaiting jobs from Redis…");
 

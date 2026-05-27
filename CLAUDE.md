@@ -898,26 +898,92 @@ tokens, Prisma schema and env validation`
 
 ---
 
-### Próximo paso — Sesión 24
+### Sesión 24 — 2026-05-27 ✅ COMPLETADA — Sprint S7 SubscriptionModule
 
-**Sprint S7 — SubscriptionModule completo** (recomendación del Plan v2):
+**Rama sugerida:** `feature/sprint-s7-subscription-usage`
+**Tests:** 313 pasando (252 → 279 API + 34 crypto, +27 tests nuevos)
+**ADRs aplicados:** ninguno nuevo (decisiones documentadas inline + bitácora §3)
+**Bitácora:** [docs/informes/sprint-s7-subscription-usage.md](docs/informes/sprint-s7-subscription-usage.md)
 
+**Decisiones del usuario lockeadas antes de implementar:**
+1. `/usage` agregador único (no per-feature) — consistente con `/home`.
+2. `POST /cancel` + `POST /reactivate` separados (no PATCH con action enum).
+3. Counters live + cache Redis 5 min — BullMQ daily rollup escribe `BillingUsageDay` para Pulso, no para `/usage`.
+
+**Lo que se construyó:**
+
+**Backend — 4 endpoints nuevos:**
+- `GET /api/subscriptions/usage` — agregador único (books/eco/voice/diary + quotas + period).
+- `GET /api/subscriptions/invoices?limit=N` — pasa-thru a `stripe.invoices.list`.
+- `POST /api/subscriptions/cancel` — Stripe `cancel_at_period_end=true` + mirror local + invalida cache.
+- `POST /api/subscriptions/reactivate` — idempotente, revierte el cancel.
+
+**Schema:** `BillingUsageDay { userId, day, booksCompleted, ecoMessages, voiceMinutes, diaryEntries }` con `(userId, day)` único. Migración `20260528000000_s7_billing_usage_day`.
+
+**Servicios nuevos:**
+- `UsageService` — agregador + cache Redis 5min con `invalidate(userId)` post cancel/reactivate.
+- `PaymentService` extendido con `listInvoices/cancelAtPeriodEnd/reactivate` (delegating).
+- `IPaymentProvider` interface +3 métodos requeridos; `StripeProvider` los implementa, `PayphoneProvider` los stubs.
+- `quotas.ts` — `PLAN_QUOTAS` record: FREE 20/0/null, PRO 200/120/null, B2B unlimited.
+
+**BullMQ:**
+- Nueva queue `DAILY_USAGE` registrada en producer + worker.
+- `JobsService.onModuleInit` registra `upsertJobScheduler` con cron `0 2 * * *` UTC.
+- `DailyUsageProcessor` (worker) — fan-out single-job. Idempotente por unique key. Retry 5min/25min/2h.
+
+**Shared:**
+- `@psico/types` +14 tipos (Usage*, Invoice*, Cancel/Reactivate*).
+- `@psico/api-client` +5 métodos (`createPortalSession`, `getUsage`, `listInvoices`, `cancel`, `reactivate`). `generated.ts` 62.1 KB → 65.5 KB.
+
+**Bugs corregidos (3, bitácora §8):**
+1. `Stripe.Invoice` como namespace no resoluble en Stripe v22 CJS → derivar con `Awaited<ReturnType<...>>`.
+2. `SubscriptionService` + `JobsService` specs rompieron con deps nuevas en constructor.
+3. Test reactivate fallaba: fixture `sub_stripe_123` vs prisma mock `sub_1` → unificados.
+
+**Smoke boot:** 60+ rutas mapeadas bajo `/api/*`, log "Daily usage rollup scheduled · id=daily-usage-02-utc". OpenAPI generate:check OK.
+
+**Deuda técnica abierta:**
+- Eco/Voice counters siempre 0 hasta S8/S10. Quotas YA expuestas para que el front diseñe la UI desde día 1.
+- `booksCompletedThisPeriod` aproximado (no usa un `book.completedAt` real).
+- Sin enforcement de quotas — los feature modules tienen que respetarlas en S8/S10.
+- Sin test integration del `DailyUsageProcessor` (depende de queries Prisma reales).
+- 8 migraciones acumuladas en Railway (bloqueante de deploy).
+- `InvoiceSummary` no incluye `description` ni `lineItems`.
+- Cache invalidation no es proactiva en writes (5min stale window aceptable v1).
+
+---
+
+### Próximo paso — Sesión 25
+
+**Tres opciones disponibles:**
+
+**Opción A — Sprint S8 VoiceModule:**
 ```bash
-git checkout -b feature/sprint-s7-subscription-usage
-# Endpoints nuevos:
-#   GET  /api/subscriptions/usage       — quota consumida agregada
-#   POST /api/subscriptions/portal      — Stripe Customer Portal session
-#   GET  /api/subscriptions/invoices    — historial de facturación
-#   POST /api/subscriptions/cancel      — cancelar al fin de período
-# Plus BullMQ jobs para sync diaria de usage counters.
+git checkout -b feature/sprint-s8-voice
+# Whisper / Deepgram para transcripción de audio
+# Entries con kind="voz" funcionales — wire-up con DiaryModule existente
+# Audio NO cifrado at-rest (ADR); solo transcript cifrado con la diaryKey
+# Quota voice ya expuesta en /usage → ahora se respeta server-side
 ```
 
-**Alternativas (cuando aplique):**
-- Sprint S8 — VoiceModule (Whisper/Deepgram, entries `kind="voz"`).
-- Tests dedicados para los 3 endpoints del sprint actual (deuda técnica de S23).
+**Opción B — Sprint S10 AIModule conversacional:**
+```bash
+git checkout -b feature/sprint-s10-eco-chat
+# Extender RAG existente con threads + messages E2E (ADR 0007)
+# SSE streaming + safety/crisis detection
+# Quota eco ya expuesta en /usage → ahora se respeta server-side
+```
 
-**Decisión pendiente antes de S7:**
-1. ¿`/usage` agrega TODOS los counters (Eco messages, voz, exports) o uno por feature? Plan v2 propone agregador único (consistente con `/home`).
+**Opción C — Sprint S5-front-cleanup / Mi Plan UI:**
+```bash
+git checkout -b feature/sprint-mi-plan-ui
+# Web + mobile: pantalla Mi Plan consumiendo /usage, /invoices, /cancel
+# Bloqueante porque los endpoints están listos pero la UI aún muestra placeholders
+# Web: /dashboard/plan (existe, falta el cuerpo real)
+# Mobile: /(tabs)/plan
+```
+
+**Decisión pendiente antes de S8 o S10:** si vamos por la pantalla Mi Plan primero (opción C), ¿quitamos los placeholders de los counters Eco/Voice (siempre 0) o los dejamos visibles como "Próximamente"?
 
 ---
 

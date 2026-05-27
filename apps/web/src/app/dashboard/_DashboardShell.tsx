@@ -23,6 +23,7 @@ const NAV_ITEMS = [
     exact: false,
   },
   { href: "/dashboard/diario", label: "Diario", icon: "✎", exact: false },
+  { href: "/dashboard/eco", label: "Eco", icon: "🌿", exact: false },
   { href: "/dashboard/plan", label: "Mi plan", icon: "💳", exact: false },
   {
     href: "/dashboard/security",

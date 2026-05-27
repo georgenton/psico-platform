@@ -1166,26 +1166,90 @@ tokens, Prisma schema and env validation`
 
 ---
 
-### Próximo paso — Sesión 29
+### Sesión 29 — 2026-05-27 ✅ COMPLETADA — Sprint front-eco (Eco chat UI)
 
-**Sprint front-eco** (último UI sprint de Fase 1):
+**Rama sugerida:** `feature/sprint-front-eco`
+**Tests:** 323/323 API + 34/34 crypto (sin cambios — sprint UI)
+**Bitácora:** [docs/informes/sprint-front-eco.md](docs/informes/sprint-front-eco.md)
 
-```bash
-git checkout -b feature/sprint-front-eco
-# Web: /dashboard/eco - chat con SSE consumer (EventSource o fetch reader)
-# Mobile: /(tabs)/eco - same pero con fetch reader (EventSource no en RN sin polyfill)
-# Crypto: cliente cifra USER msg con ecoKey antes de enviar el plaintext+ciphertext
-# Sidebar de hilos (ThreadRail) + composer + delta-by-delta render
-# Crisis modal: cuando llega `crisis` event, muestra modal con hotline 1800-4-SALUD
-# Report menu: long-press / context menu en assistant msg → reason picker
-```
+**Lo que se construyó (último UI sprint de Fase 1):**
 
-**Alternativa — Deploy a Railway:**
+**Shared:**
+- `DiaryKeyContext` extendido con `ecoKey` (derivado de masterKey vía HKDF/ECO_KEY_INFO en unlock + adoptMasterKey; zerificado en lock). Web + mobile paridad.
+- Mobile `diaryKeyStore.saveEco/loadEco` para persistir en SecureStore. `clear()` borra ambas keys.
+- `@psico/api-client`: nuevo `apiClient.getAccessToken()` público (necesario para el SSE bypass).
+
+**Web (`apps/web`):**
+- `/dashboard/eco/page.tsx` — Server shell paraleliza `/eco/caps` + `/eco/threads`.
+- `EcoShell.tsx` — Client orchestrator, gates por ecoKey, auto-create thread vacío al landing.
+- `ThreadRail.tsx` — sidebar con title decryption inline.
+- `ChatArea.tsx` — message history + composer + SSE consumer + crisis handling.
+- `CrisisModal.tsx` — non-dismissable banner con tel: deep link.
+- `_DashboardShell` nav: nuevo item "🌿 Eco".
+- `@psico/api-client` añadido como dep de web.
+
+**Mobile (`apps/mobile`):**
+- `(tabs)/eco/index.tsx` — chat completo, single screen.
+- `KeyboardAvoidingView` iOS; `ScrollView.scrollToEnd` auto-scroll.
+- `ThreadRailModal` (bottom-sheet idiomático mobile, no sidebar permanente).
+- `CrisisModal.tsx` — paridad web con `Linking.openURL("tel:...")`.
+- Eco registrado como tab visible con ícono `leaf` entre Diario y Mi plan.
+
+**Decisiones (bitácora §4):**
+1. Single context para diary + eco — masterKey deriva ambos.
+2. Rail como sidebar permanente en web, modal bottom-sheet en mobile.
+3. Hotline `tel:` deep link en ambas plataformas (one tap to dial en crisis).
+4. Auto-scroll instant (web) / animated (mobile) — RN renderiza más lento que red.
+5. Title decryption con fallback "🔒 Hilo cifrado" para password-rotation edge cases.
+
+**Bugs corregidos (3):** `@psico/api-client` no era dep de web (añadido). `react-hooks/exhaustive-deps` rule no instalada en web (refactor a `useRef`). `apiClient.getAccessToken()` no existía (añadido).
+
+**Privacy invariants:**
+- `textPlaintext` SOLO va in-flight; nunca persiste cliente OR server.
+- USER messages persisten cifrados; ASSISTANT/CRISIS persisten plaintext (LLM-generados).
+- Title cipher rotation-tolerant (fallback graceful).
+
+**Smoke verification:** API tests 323/323 (sin cambios), web/mobile typecheck + lint clean, web build clean, OpenAPI in sync.
+
+**Deuda técnica abierta:**
+- Sin tests UI dedicados (mismo argumento sprints anteriores).
+- Reports UI no implementado (backend listo desde S10).
+- No thread title generation (cliente cifrando primer msg → enviar como title).
+- Sin paginación de mensajes (cargamos primera página de 50).
+- Web api-client singleton no configurado (solo sendMessage usa baseUrl+token explícitos).
+- Sin retry on SSE network disconnect mid-stream.
+- `ANTHROPIC_API_KEY` no configurado en Railway — bloqueante deploy del módulo.
+
+---
+
+### Próximo paso — Sesión 30
+
+**🎉 Fase 1 UI completa.** Tres caminos:
+
+**Opción A — Deploy a Railway (recomendado):**
 ```bash
 # Prerequisito para probar con users reales:
-# - Aplicar 10 migraciones Prisma acumuladas
-# - Configurar 5 envs: ANTHROPIC/OPENAI/DEEPGRAM/RESEND/REDIS
-# - Smoke test cada endpoint
+# - Aplicar 10 migraciones Prisma acumuladas desde S9
+# - Configurar 6 envs: ANTHROPIC/OPENAI/DEEPGRAM/RESEND/REDIS/GOOGLE_CLIENT_ID
+# - Smoke test cada endpoint en producción
+# - Provisionar worker Railway service (running dist/worker)
+```
+
+**Opción B — Sprint deuda técnica UI (Reports + tests + paginación):**
+```bash
+git checkout -b feature/sprint-front-polish
+# UI tests (Vitest + RTL setup + happy paths web)
+# Reports UI: long-press / context menu en assistant msgs
+# Thread title generation: cliente cifra el primer msg → POST /threads
+# Paginación de mensajes en /eco/threads/:id
+```
+
+**Opción C — Sprint S11 PatternsModule (Pro feature):**
+```bash
+git checkout -b feature/sprint-s11-patterns
+# Análisis de patrones del Diario: heatmap mood, tag clusters
+# Pro-tier only. Reads DiaryEntry.mood/tags (plaintext en schema).
+# Usa EcoModule (S10) para generar "insights" narrativos.
 ```
 
 ---

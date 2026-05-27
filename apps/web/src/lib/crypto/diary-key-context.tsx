@@ -7,7 +7,12 @@ import {
   useMemo,
   useState,
 } from "react";
-import { deriveMasterKey, deriveSubKey, DIARY_KEY_INFO } from "@psico/crypto";
+import {
+  deriveMasterKey,
+  deriveSubKey,
+  DIARY_KEY_INFO,
+  ECO_KEY_INFO,
+} from "@psico/crypto";
 
 /**
  * DiaryKeyContext — provides the user's derived diary key during a session.
@@ -31,6 +36,18 @@ import { deriveMasterKey, deriveSubKey, DIARY_KEY_INFO } from "@psico/crypto";
 export interface DiaryKeyState {
   /** 32-byte diary subkey. null = locked. */
   key: Uint8Array | null;
+  /**
+   * 32-byte Eco subkey, derived from masterKey with HKDF(ECO_KEY_INFO).
+   * null = locked (or no Eco messages sent yet — derivation is lazy).
+   *
+   * Sprint front-eco: the Eco composer encrypts USER messages with this
+   * key before posting to /api/eco/messages. The thread view decrypts USER
+   * ciphertexts with it on render.
+   *
+   * Derived in `unlock` and `adoptMasterKey` alongside the diary subkey.
+   * Zeroed in `lock`.
+   */
+  ecoKey: Uint8Array | null;
   /**
    * 32-byte master key from Argon2id(password, cryptoSalt). null = locked.
    *
@@ -84,6 +101,7 @@ export function DiaryKeyProvider({
   cryptoSalt: string | null;
 }) {
   const [key, setKey] = useState<Uint8Array | null>(null);
+  const [ecoKey, setEcoKey] = useState<Uint8Array | null>(null);
   const [masterKey, setMasterKey] = useState<Uint8Array | null>(null);
   const [unlocking, setUnlocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,8 +117,10 @@ export function DiaryKeyProvider({
       try {
         const derivedMaster = await deriveMasterKey(password, cryptoSalt);
         const diaryKey = deriveSubKey(derivedMaster, DIARY_KEY_INFO);
+        const ecoSub = deriveSubKey(derivedMaster, ECO_KEY_INFO);
         setMasterKey(derivedMaster);
         setKey(diaryKey);
+        setEcoKey(ecoSub);
       } catch (err) {
         const code =
           err instanceof Error ? err.message : "CRYPTO_UNKNOWN_ERROR";
@@ -122,24 +142,29 @@ export function DiaryKeyProvider({
       return;
     }
     const diaryKey = deriveSubKey(nextMaster, DIARY_KEY_INFO);
+    const ecoSub = deriveSubKey(nextMaster, ECO_KEY_INFO);
     // We copy `nextMaster` so the caller can safely zero its own buffer.
     const owned = new Uint8Array(nextMaster);
     setMasterKey(owned);
     setKey(diaryKey);
+    setEcoKey(ecoSub);
     setError(null);
   }, []);
 
   const lock = useCallback(() => {
     if (key) key.fill(0);
+    if (ecoKey) ecoKey.fill(0);
     if (masterKey) masterKey.fill(0);
     setKey(null);
+    setEcoKey(null);
     setMasterKey(null);
     setError(null);
-  }, [key, masterKey]);
+  }, [key, ecoKey, masterKey]);
 
   const value = useMemo<DiaryKeyContextValue>(
     () => ({
       key,
+      ecoKey,
       masterKey,
       isLegacyAccount: cryptoSalt === null,
       unlocking,
@@ -150,6 +175,7 @@ export function DiaryKeyProvider({
     }),
     [
       key,
+      ecoKey,
       masterKey,
       cryptoSalt,
       unlocking,

@@ -18,6 +18,7 @@ import { UsersModule } from "./users";
 import { OnboardingModule } from "./onboarding";
 import { NotificationsModule } from "./notifications";
 import { JobsModule } from "./jobs";
+import { VoiceModule } from "./voice";
 import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
 
 @Module({
@@ -43,6 +44,7 @@ import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
     AIModule,
     UsersModule,
     OnboardingModule,
+    VoiceModule,
     // TODO senior: register remaining feature modules here
     // AnalyticsModule, PatternsModule (S11)
   ],

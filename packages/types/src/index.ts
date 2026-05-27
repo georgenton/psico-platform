@@ -285,6 +285,42 @@ export interface ReactivateSubscriptionResponse {
   cancelAtPeriodEnd: false;
 }
 
+// ─── Voice (Sprint S8) ────────────────────────────────────────────────────────
+//
+// Audio in, transcript out. Per docs/design/handoff/07-voz.md the audio is
+// NEVER stored — only a VoiceTranscription audit row with duration metadata.
+//
+// `VoiceProvider` is exposed publicly so the front can render different copy
+// per backend (e.g. "Powered by Whisper" / "Powered by Deepgram") if we ever
+// run a UI experiment.
+
+export type VoiceProvider = "whisper" | "deepgram";
+
+export interface VoiceTranscribeResponse {
+  ok: true;
+  transcript: string;
+  durationSec: number;
+  language: string;
+  provider: VoiceProvider;
+  /** Minutes still available in the current billing period. May be 0. */
+  remainingMinutesThisPeriod: number;
+}
+
+/**
+ * Sent from the client AFTER a successful transcription to reconcile any
+ * client-side duration measurement with the server's. v1 is a no-op
+ * (the server already counted on `/transcribe`) — kept in the contract
+ * for the design spec compatibility and future client-attributed metrics.
+ */
+export interface VoiceUsageReportRequest {
+  secondsUsed: number;
+}
+
+export interface VoiceUsageReportResponse {
+  ok: true;
+  remainingMinutesThisPeriod: number;
+}
+
 // ─── AI / RAG types ───────────────────────────────────────────────────────────
 
 export type MessageRole = "USER" | "ASSISTANT";

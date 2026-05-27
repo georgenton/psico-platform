@@ -953,35 +953,91 @@ tokens, Prisma schema and env validation`
 
 ---
 
-### Próximo paso — Sesión 25
+### Sesión 25 — 2026-05-27 ✅ COMPLETADA — Sprint S8 VoiceModule
+
+**Rama sugerida:** `feature/sprint-s8-voice`
+**Tests:** 296/296 API + 34/34 crypto (279 → 296, +17 tests nuevos)
+**ADRs aplicados:** ninguno nuevo (decisión documentada en bitácora §3)
+**Bitácora:** [docs/informes/sprint-s8-voice.md](docs/informes/sprint-s8-voice.md)
+
+**Decisiones del usuario lockeadas:**
+1. **Ambos providers via strategy pattern** (Whisper + Deepgram) — VOICE_PROVIDER env selecciona. Whisper default.
+2. **Pre-flight reject 402 + post-flight track** — protege contra abuso financiero ($$$/min).
+3. **Cap 25 MB (Whisper-native)** — sin chunking server-side, deuda para v2 si UX lo pide.
+
+**Lo que se construyó:**
+
+**Backend — 2 endpoints nuevos:**
+- `POST /api/voz/transcribe` — multipart audio → transcript. Throttle 10/min/user. Quota gates: 403 FREE, 402 over-quota.
+- `POST /api/voz/usage` — reconciliación opcional cliente/server.
+
+**Schema:** `VoiceTranscription { userId, durationSec, language, provider, createdAt }` — SOLO metadata, audio nunca se almacena (07-voz.md privacy contract). Migración `20260529000000_s8_voice_transcription`.
+
+**Provider strategy:**
+- `IVoiceProvider` interface (analog a `IPaymentProvider`).
+- `WhisperProvider` — POST multipart a OpenAI `/audio/transcriptions`.
+- `DeepgramProvider` — POST binario a `/v1/listen?model=nova-3`.
+- `VoiceService.selectProvider()` lee `VOICE_PROVIDER` env.
+- Env `superRefine` exige la API key del provider activo.
+
+**Wire-up con S7:**
+- `UsageService.voice.minutesThisPeriod` ahora SUMa `VoiceTranscription.durationSec` real (antes hardcoded 0).
+- `DailyUsageProcessor` (BullMQ nightly) popula `BillingUsageDay.voiceMinutes`.
+- Post-transcripción: `usageService.invalidate(userId)` busta el cache 5-min.
+
+**Shared:**
+- `@psico/types` +3 tipos (`VoiceProvider`, `VoiceTranscribeResponse`, `VoiceUsageReport*`).
+- `@psico/api-client` +1 `voiceApi.transcribe(blob, { language })` + nuevo `apiClient.postFormData<T>` para multipart. `generated.ts` 65.5 KB → 67.0 KB.
+
+**Bugs corregidos (3, bitácora §7):**
+1. `Stripe.Invoice` namespace pattern reusado para `StripeInvoice` — feedback de S7.
+2. Test del Whisper provider con `makeConfig(undefined)` no rechazaba — JS default-parameter sustituye `undefined`. Fix: sentinel `Symbol("unset")`.
+3. `@psico/api-client` no soportaba multipart — añadido `postFormData` que skip JSON-stringify + Content-Type.
+
+**Smoke boot:** 2 rutas nuevas mapeadas, OpenAPI generate:check OK, todos los typecheck/lint verdes.
+
+**Deuda técnica abierta:**
+- Sin chunking >25 MB (v2 con ffmpeg).
+- Sin streaming Deepgram WS (v2).
+- Sin idempotencia (retry duplica costo — mitiga el throttle 10/min). Idempotency-Key header en S11.
+- Sin tests del DeepgramProvider (mocks anidados; cubrir cuando ops lo active).
+- `OPENAI_API_KEY` y `DEEPGRAM_API_KEY` no configurados en Railway — bloqueante para deploy del módulo.
+- 9 migraciones acumuladas en Railway.
+- Quota cuenta por billing period (no calendar month) cuando hay sub activa — documentado, edge case aceptable.
+
+---
+
+### Próximo paso — Sesión 26
 
 **Tres opciones disponibles:**
 
-**Opción A — Sprint S8 VoiceModule:**
-```bash
-git checkout -b feature/sprint-s8-voice
-# Whisper / Deepgram para transcripción de audio
-# Entries con kind="voz" funcionales — wire-up con DiaryModule existente
-# Audio NO cifrado at-rest (ADR); solo transcript cifrado con la diaryKey
-# Quota voice ya expuesta en /usage → ahora se respeta server-side
-```
-
-**Opción B — Sprint S10 AIModule conversacional:**
+**Opción A — Sprint S10 AIModule conversacional:**
 ```bash
 git checkout -b feature/sprint-s10-eco-chat
 # Extender RAG existente con threads + messages E2E (ADR 0007)
 # SSE streaming + safety/crisis detection
 # Quota eco ya expuesta en /usage → ahora se respeta server-side
+# Cierra el último counter de /usage (todos los placeholders)
 ```
 
-**Opción C — Sprint S5-front-cleanup / Mi Plan UI:**
+**Opción B — Front UI consumiendo S6-S8:**
 ```bash
-git checkout -b feature/sprint-mi-plan-ui
+git checkout -b feature/sprint-mi-plan-front
 # Web + mobile: pantalla Mi Plan consumiendo /usage, /invoices, /cancel
-# Bloqueante porque los endpoints están listos pero la UI aún muestra placeholders
-# Web: /dashboard/plan (existe, falta el cuerpo real)
-# Mobile: /(tabs)/plan
+# Web + mobile: pantalla Voz consumiendo /voz/transcribe con MediaRecorder
+# Web: /dashboard/plan, /dashboard/voz
+# Mobile: /(tabs)/plan, /(tabs)/voz (nuevo)
 ```
+
+**Opción C — Sprint S11 PatternsModule (Pro feature):**
+```bash
+git checkout -b feature/sprint-s11-patterns
+# Análisis de patrones del Diario (heat-map por mood, tag clusters, etc.)
+# Pro-tier only. Reads DiaryEntry.mood/tags (ya plaintext en el schema).
+# Probablemente requiere AIModule conversacional primero para el "insights"
+# generativo — re-evaluar el orden con el usuario.
+```
+
 
 **Decisión pendiente antes de S8 o S10:** si vamos por la pantalla Mi Plan primero (opción C), ¿quitamos los placeholders de los counters Eco/Voice (siempre 0) o los dejamos visibles como "Próximamente"?
 

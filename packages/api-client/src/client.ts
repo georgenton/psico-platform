@@ -38,6 +38,17 @@ class PsicoApiClient {
     return this.request<T>("POST", path, body);
   }
 
+  /**
+   * Multipart POST — used by endpoints that accept a file upload (e.g.
+   * `/voz/transcribe`). FormData carries its own Content-Type header
+   * including the boundary, so we MUST NOT set `Content-Type: application/json`
+   * on the request. We also skip the JSON.stringify path so the browser
+   * serialises the FormData natively.
+   */
+  postFormData<T>(path: string, form: FormData): Promise<T> {
+    return this.request<T>("POST", path, form, false, /* isFormData */ true);
+  }
+
   patch<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>("PATCH", path, body);
   }
@@ -51,22 +62,28 @@ class PsicoApiClient {
     path: string,
     body?: unknown,
     isRetry = false,
+    isFormData = false,
   ): Promise<T> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+    const headers: Record<string, string> = {};
+    if (!isFormData) {
+      headers["Content-Type"] = "application/json";
+    }
     const token = this.store?.getAccessToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
     const res = await fetch(`${this.baseUrl}${path}`, {
       method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: isFormData
+        ? (body as FormData)
+        : body !== undefined
+          ? JSON.stringify(body)
+          : undefined,
     });
 
     if (res.status === 401 && !isRetry && this.store) {
       await this.tryRefresh();
-      return this.request<T>(method, path, body, true);
+      return this.request<T>(method, path, body, true, isFormData);
     }
 
     if (!res.ok) {

@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Linking,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,8 +13,17 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { ApiError, subscriptionApi } from "@psico/api-client";
 import type { BillingInterval } from "@psico/api-client";
-import type { PlanInfo, UserPlan } from "@psico/types";
+import type {
+  InvoiceListResponse,
+  PlanInfo,
+  Subscription,
+  UsageResponse,
+  UserPlan,
+} from "@psico/types";
 import { useAuth } from "@/context/auth";
+import { InvoicesList } from "@/components/dashboard/plan/InvoicesList";
+import { SubscriptionActions } from "@/components/dashboard/plan/SubscriptionActions";
+import { UsageCards } from "@/components/dashboard/plan/UsageCards";
 import { Colors, Radius, Spacing } from "@/theme";
 
 // These URLs must pass IsUrl() validation on the server.
@@ -76,16 +86,47 @@ function getCheckoutOptions(plan: PlanInfo): CheckoutOption[] {
 export default function PlanScreen() {
   const { user } = useAuth();
   const [plans, setPlans] = useState<PlanInfo[]>([]);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [usage, setUsage] = useState<UsageResponse | null>(null);
+  const [invoices, setInvoices] = useState<InvoiceListResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
 
-  useEffect(() => {
-    subscriptionApi
-      .getPlans()
-      .then(setPlans)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+  /**
+   * Loads everything Mi Plan needs in one shot. The promises are kept
+   * independent so a transient failure on /invoices doesn't blank the
+   * /usage card, etc. Each catch clause swallows + sets null.
+   */
+  const loadAll = useCallback(async () => {
+    const [plansRes, subRes, usageRes, invRes] = await Promise.all([
+      subscriptionApi.getPlans().catch(() => [] as PlanInfo[]),
+      subscriptionApi
+        .getMySubscription()
+        .catch(() => null as Subscription | null),
+      subscriptionApi.getUsage().catch(() => null as UsageResponse | null),
+      subscriptionApi
+        .listInvoices(12)
+        .catch(() => null as InvoiceListResponse | null),
+    ]);
+    setPlans(plansRes);
+    setSubscription(subRes);
+    setUsage(usageRes);
+    setInvoices(invRes);
   }, []);
+
+  useEffect(() => {
+    void loadAll().finally(() => setLoading(false));
+  }, [loadAll]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadAll();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadAll]);
 
   const handleUpgrade = async (billingPlan: BillingInterval) => {
     setCheckoutLoading(billingPlan);
@@ -117,6 +158,13 @@ export default function PlanScreen() {
       style={styles.root}
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={Colors.lavender[500]}
+        />
+      }
     >
       {/* Current plan banner */}
       <View style={styles.currentPlan}>
@@ -131,6 +179,22 @@ export default function PlanScreen() {
           {plans.find((p) => p.plan === user.plan)?.description ?? ""}
         </Text>
       </View>
+
+      {/* Active subscription actions (cancel / reactivate / portal) */}
+      {subscription ? (
+        <SubscriptionActions
+          subscription={subscription}
+          onChanged={() => {
+            void loadAll();
+          }}
+        />
+      ) : null}
+
+      {/* Usage cards — visible to FREE users too as a preview */}
+      <UsageCards usage={usage} />
+
+      {/* Invoices — only when sub exists; FREE has none */}
+      {subscription ? <InvoicesList invoices={invoices} /> : null}
 
       {loading ? (
         <ActivityIndicator

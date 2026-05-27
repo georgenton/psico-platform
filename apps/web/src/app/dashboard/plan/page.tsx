@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import type { PlanInfo, Subscription } from "@psico/types";
+import type {
+  InvoiceListResponse,
+  PlanInfo,
+  Subscription,
+  UsageResponse,
+} from "@psico/types";
 
 import { ApiError } from "@/lib/api";
 import { serverFetch, getSessionUser } from "@/lib/api.server";
@@ -7,8 +12,12 @@ import {
   createCheckoutAction,
   createPortalAction,
 } from "@/actions/subscription";
+import { InvoicesList } from "@/components/dashboard/plan/InvoicesList";
+import { SubscriptionActions } from "@/components/dashboard/plan/SubscriptionActions";
+import { UsageCards } from "@/components/dashboard/plan/UsageCards";
 
 export const metadata: Metadata = { title: "Mi plan" };
+export const dynamic = "force-dynamic";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -189,18 +198,24 @@ function ActiveSubscription({ subscription }: { subscription: Subscription }) {
         </p>
       )}
 
-      <form action={createPortalAction}>
-        <button
-          type="submit"
-          className="rounded-2xl px-6 py-2.5 text-sm font-semibold transition-opacity hover:opacity-80"
-          style={{
-            background: "var(--color-lavender-100)",
-            color: "var(--color-lavender-700)",
-          }}
-        >
-          Gestionar suscripción →
-        </button>
-      </form>
+      <div className="flex flex-wrap items-center gap-3">
+        <form action={createPortalAction}>
+          <button
+            type="submit"
+            className="rounded-2xl px-6 py-2.5 text-sm font-semibold transition-opacity hover:opacity-80"
+            style={{
+              background: "var(--color-lavender-100)",
+              color: "var(--color-lavender-700)",
+            }}
+          >
+            Gestionar suscripción →
+          </button>
+        </form>
+        <SubscriptionActions
+          cancelAtPeriodEnd={cancelAtEnd}
+          effectiveAt={subscription.currentPeriodEnd}
+        />
+      </div>
     </div>
   );
 }
@@ -210,13 +225,22 @@ function ActiveSubscription({ subscription }: { subscription: Subscription }) {
 export default async function PlanPage() {
   const user = getSessionUser();
 
-  const [subscription, plans] = await Promise.all([
+  const [subscription, plans, usage, invoices] = await Promise.all([
     serverFetch<Subscription>("/subscriptions/me").catch((err: unknown) => {
       if (err instanceof ApiError && err.status === 404) return null;
       return null;
     }),
     serverFetch<PlanInfo[]>("/subscriptions/plans").catch(
       () => [] as PlanInfo[],
+    ),
+    // Sprint front-fase1: aggregated usage + recent invoices. Both are
+    // visible to FREE users too (they show 0 + empty respectively, which
+    // is a useful "here's what you'd unlock" preview).
+    serverFetch<UsageResponse>("/subscriptions/usage").catch(
+      () => null as UsageResponse | null,
+    ),
+    serverFetch<InvoiceListResponse>("/subscriptions/invoices?limit=12").catch(
+      () => null as InvoiceListResponse | null,
     ),
   ]);
 
@@ -296,6 +320,16 @@ export default async function PlanPage() {
           persiste.
         </p>
       )}
+
+      {/* ── Usage cards (Sprint front-fase1) ─────────────────────────────── */}
+      <div className="mt-8">
+        <UsageCards usage={usage} />
+      </div>
+
+      {/* ── Invoices (Sprint front-fase1) ────────────────────────────────── */}
+      <div className="mt-8">
+        <InvoicesList invoices={invoices} />
+      </div>
     </div>
   );
 }

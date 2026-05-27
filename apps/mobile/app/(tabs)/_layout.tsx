@@ -109,6 +109,16 @@ export default function TabsLayout() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="voz"
+          options={{
+            href: null,
+            title: "Voz",
+            tabBarIcon: ({ color, size }: IconProps) => (
+              <Ionicons name="mic" size={size} color={color} />
+            ),
+          }}
+        />
       </Tabs>
     </DiaryKeyProvider>
   );

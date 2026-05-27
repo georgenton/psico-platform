@@ -8,7 +8,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { diarioApi } from "@psico/api-client";
 import { decryptString, encryptString } from "@psico/crypto";
@@ -21,6 +21,7 @@ import { useAuth } from "@/context/auth";
 import { useDiaryKey } from "@/crypto/diary-key-context";
 import { SeedPhraseModal } from "@/components/dashboard/diario/SeedPhraseModal";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
+import { consumeVoiceHandoff } from "@/lib/voice/handoff";
 import { Colors, Radius, Spacing } from "@/theme";
 import { apiClient } from "@psico/api-client";
 import type { UserMeResponse } from "@psico/types";
@@ -140,9 +141,24 @@ function ActiveDiarioBody({
   onCreated: () => void;
 }) {
   const { key, lock } = useDiaryKey();
+  const router = useRouter();
   const [text, setText] = useState("");
   const [mood, setMood] = useState("calma");
   const [submitting, setSubmitting] = useState(false);
+
+  // Sprint front-voz: when the Diario screen regains focus (i.e. the user
+  // came back from /voz with "Usar este texto"), pull the pending transcript
+  // out of the in-memory handoff module and append/replace the composer
+  // text. `useFocusEffect` fires every time the screen becomes active —
+  // perfect for cross-screen passthrough on a single navigation hop.
+  useFocusEffect(
+    useCallback(() => {
+      const handoff = consumeVoiceHandoff();
+      if (handoff) {
+        setText((prev) => (prev ? `${prev}\n\n${handoff.text}` : handoff.text));
+      }
+    }, []),
+  );
 
   async function handleSave() {
     if (!key || !text.trim() || submitting) return;
@@ -242,9 +258,22 @@ function ActiveDiarioBody({
         ) : null}
 
         <View style={styles.composerFoot}>
-          <Pressable onPress={lock}>
-            <Text style={styles.lockBtn}>🔒 Bloquear diario</Text>
-          </Pressable>
+          <View style={styles.composerFootLeft}>
+            <Pressable onPress={lock}>
+              <Text style={styles.lockBtn}>🔒 Bloquear</Text>
+            </Pressable>
+            {/* Sprint front-voz: voice-to-text entry. */}
+            <Pressable
+              onPress={() =>
+                router.push("/(tabs)/voz?return=/(tabs)/diario" as never)
+              }
+              style={styles.dictateBtn}
+              accessibilityLabel="Dictar por voz"
+            >
+              <Ionicons name="mic" size={12} color={Colors.warm[700]} />
+              <Text style={styles.dictateBtnText}>Dictar</Text>
+            </Pressable>
+          </View>
           <Pressable
             disabled={submitting || !text.trim()}
             onPress={handleSave}
@@ -511,10 +540,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: Spacing.sm + 2,
   },
+  composerFootLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
   lockBtn: {
     fontSize: 11,
     color: Colors.warm[500],
     textDecorationLine: "underline",
+  },
+  dictateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: Colors.warm[200],
+    backgroundColor: Colors.warm[50],
+  },
+  dictateBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.warm[700],
   },
   saveBtn: {
     flexDirection: "row",

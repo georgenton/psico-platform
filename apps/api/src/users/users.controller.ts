@@ -34,6 +34,8 @@ import { EmailChangeRequestDto } from "./dto/email-change-request.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PasswordChangeDto } from "./dto/password-change.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { PasswordChangeWithRekeyDto } from "./dto/password-change-with-rekey.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { DeleteRequestDto } from "./dto/delete-request.dto";
 
 @ApiTags("Users")
@@ -121,6 +123,26 @@ export class UsersController {
     @Body() dto: PasswordChangeDto,
   ) {
     await this.usersService.changePassword(user.userId, dto);
+  }
+
+  // Sprint seed-and-password-rekey. The standard password-change endpoint
+  // above is preserved for OAuth-or-legacy callers that don't have E2E
+  // diary data. This new variant accepts the re-encrypted entries the
+  // client produced after deriving the new master key, and rotates
+  // everything atomically.
+  @Post("password-change-with-rekey")
+  @HttpCode(HttpStatus.OK)
+  async changePasswordWithRekey(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: PasswordChangeWithRekeyDto,
+  ) {
+    return this.usersService.changePasswordWithRekey(user.userId, dto);
+  }
+
+  @Post("crypto-seed-acknowledged")
+  @HttpCode(HttpStatus.OK)
+  acknowledgeCryptoSeed(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.acknowledgeCryptoSeed(user.userId);
   }
 
   @Post("data-export")

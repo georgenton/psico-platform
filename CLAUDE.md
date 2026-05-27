@@ -846,29 +846,62 @@ tokens, Prisma schema and env validation`
 
 ---
 
-### Próximo paso — Sesión 23
+### Sesión 23 — 2026-05-27 ✅ COMPLETADA — Sprint seed-and-password-rekey
 
-**Cuatro opciones disponibles:**
+**Rama sugerida:** `feature/sprint-seed-and-password-rekey`
+**Tests:** 286 pasando (252 API + 34 crypto, baseline mantenido)
+**ADR aplicado:** [0007 §F + §G](docs/adr/0007-e2e-encryption-diario-eco.md) — password rotation + seed phrase recovery
+**Bitácora:** [docs/informes/sprint-seed-and-password-rekey.md](docs/informes/sprint-seed-and-password-rekey.md)
 
-**Opción A — Seed phrase UI:**
-```bash
-git checkout -b feature/sprint-seed-phrase-ui
-# Modal post-unlock: "anota estas 24 palabras"
-# Confirm flow: re-typear 3 palabras aleatorias
-# Recovery en /login con 24 words → derive masterKey
-# Backend: User.cryptoSeedShownAt flag
-# Usa el toolkit BIP39 ya escrito en S6-crypto-polish
-```
+**Lo que se construyó (cierre del módulo de cripto E2E):**
 
-**Opción B — Password change re-encrypt:**
-```bash
-git checkout -b feature/sprint-password-change-rekey
-# Endpoint nuevo POST /api/diario/entries/bulk-rekey
-# Cliente: derive newKey, descifrar/recifrar todas las entradas
-# Atomic: si re-encrypt falla, no se actualiza el password hash
-```
+**Backend — 3 endpoints nuevos:**
+- `POST /api/user/crypto-seed-acknowledged` — idempotente, marca `User.cryptoSeedShownAt`.
+- `POST /api/user/password-change-with-rekey` — atómico: bcrypt(newPassword) + update User + UPDATE de cada DiaryEntry con cipher/nonce nuevos + revoca refresh tokens.
+- `GET /api/diario/entries/raw-ciphers` — lean view (sin related-search) usado solo por el rekey flow.
 
-**Opción C — Sprint S7 SubscriptionModule completo:**
+**Schema:** `User.cryptoSeedShownAt: DateTime?` (migración `20260527110000_seed_phrase_shown_at`).
+
+**DTOs:** `PasswordChangeWithRekeyDto` con `ArrayMaxSize(500)`, base64url validation, `NEW_PASSWORD_MIN=10`, `MAX_ENTRIES_PER_REKEY=500`.
+
+**Web:**
+- `SeedPhraseModal` (post-unlock first-time, confirm 3 de 24 palabras).
+- `UnlockGate` con modo "seed" (textarea de 24 palabras → `seedPhraseToMasterKey` → `adoptMasterKey`).
+- `/dashboard/security` con `ChangePasswordCard` (phase machine deriving → fetching → reencrypting → submitting → done).
+- `DiaryKeyContext` extendido con `masterKey` + `adoptMasterKey`. Provider hoisted a `/dashboard/layout.tsx` para que la unlock sobreviva navegación.
+
+**Mobile:**
+- `SeedPhraseModal` (RN Modal con misma lógica).
+- `UnlockGate` con modo seed paridad web.
+- `(tabs)/security.tsx` accesible desde Perfil → "Cambiar contraseña".
+- `DiaryKeyProvider` hoisted a `(tabs)/_layout.tsx`. masterKey RAM-only en mobile (subkey persistido en SecureStore como antes).
+
+**Shared:**
+- `@psico/types`: 6 tipos nuevos (`CryptoSeedAcknowledgedResponse`, `RekeyedDiaryEntry`, `PasswordChangeWithRekey*`, `DiaryRawCipher*`).
+- `@psico/crypto`: re-exporta `randomBytes` para evitar que web/mobile dependan de `@noble/ciphers` directo.
+- `@psico/api-client`: `diarioApi.listRawCiphers()` + `generated.ts` 58 KB → 62.1 KB.
+
+**Bugs corregidos durante el sprint (4, cf. bitácora §5):**
+1. Mobile: `crypto.getRandomValues` no tipado en RN → re-export de `randomBytes` desde `@psico/crypto`.
+2. Mobile: `@noble/ciphers/webcrypto` no resoluble como import directo → mismo fix que #1.
+3. `users.controller.spec.ts` esperaba 12 handlers — actualizado a 14.
+4. Route order en `DiarioController`: `entries/raw-ciphers` declarado antes de `entries/:id` para evitar conflicto del path matcher.
+
+**Smoke boot del API:** 60 rutas bajo `/api/*`. OpenAPI generate:check OK. Privacy spec OK.
+
+**Deuda técnica abierta:**
+- Sin unit tests dedicados para los 3 nuevos endpoints. Cubrir antes de cerrar Phase 1 (idempotencia del ack, mismatch del currentPassword, ownership de entry IDs, rollback de la transacción).
+- Sin E2E full-circle test (encrypt → POST → decrypt con la nueva key).
+- Mobile cold-start: `SeedPhraseModal` no se muestra si el usuario hace cold-start con subkey cached (masterKey null). Aceptable porque vuelve a aparecer en cualquier fresh unlock — pero un user que nunca bloquea su diario podría no verla.
+- Migración `20260527110000_seed_phrase_shown_at` acumulada con las anteriores desde Sesión 9 — sin aplicar en Railway.
+- Cap de 500 entries por rekey suficiente para v1, subir a 2500 cuando el feature madure.
+
+---
+
+### Próximo paso — Sesión 24
+
+**Sprint S7 — SubscriptionModule completo** (recomendación del Plan v2):
+
 ```bash
 git checkout -b feature/sprint-s7-subscription-usage
 # Endpoints nuevos:
@@ -879,15 +912,11 @@ git checkout -b feature/sprint-s7-subscription-usage
 # Plus BullMQ jobs para sync diaria de usage counters.
 ```
 
-**Opción D — Sprint S8 VoiceModule:**
-```bash
-git checkout -b feature/sprint-s8-voice
-# Whisper / Deepgram para transcripción de audio
-# Entries con kind="voz" funcionales
-# Audio NO cifrado at-rest (ADR); solo transcript cifrado
-```
+**Alternativas (cuando aplique):**
+- Sprint S8 — VoiceModule (Whisper/Deepgram, entries `kind="voz"`).
+- Tests dedicados para los 3 endpoints del sprint actual (deuda técnica de S23).
 
-**Decisión pendiente antes de S7 (si la opción es B):**
+**Decisión pendiente antes de S7:**
 1. ¿`/usage` agrega TODOS los counters (Eco messages, voz, exports) o uno por feature? Plan v2 propone agregador único (consistente con `/home`).
 
 ---

@@ -5,6 +5,7 @@ import type {
   DiaryDetailResponse,
   DiaryListResponse,
   DiaryPromptOfTheDay,
+  DiaryRawCiphersResponse,
   ShareDiaryEntryRequest,
   ShareDiaryEntryResponse,
   UpdateDiaryEntryRequest,
@@ -51,6 +52,14 @@ export const diarioApi = {
     apiClient.delete<DeleteDiaryEntryResponse>(`/diario/entries/${id}`),
   getPromptOfTheDay: () =>
     apiClient.get<DiaryPromptOfTheDay | null>("/diario/prompt-of-the-day"),
+  /**
+   * Pull every entry's raw cipher payload — used by the password-change-
+   * with-rekey flow. The server never sees plaintext: the client decrypts
+   * with the OLD diary key, re-encrypts with the NEW one, and POSTs the
+   * rekeyed bundle back.
+   */
+  listRawCiphers: () =>
+    apiClient.get<DiaryRawCiphersResponse>("/diario/entries/raw-ciphers"),
   share: (id: string, body: ShareDiaryEntryRequest) =>
     apiClient.post<ShareDiaryEntryResponse>(
       `/diario/entries/${id}/share`,

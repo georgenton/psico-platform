@@ -18,34 +18,37 @@ import type {
   DiaryPromptOfTheDay,
 } from "@psico/types";
 import { useAuth } from "@/context/auth";
-import { DiaryKeyProvider, useDiaryKey } from "@/crypto/diary-key-context";
+import { useDiaryKey } from "@/crypto/diary-key-context";
+import { SeedPhraseModal } from "@/components/dashboard/diario/SeedPhraseModal";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
 import { Colors, Radius, Spacing } from "@/theme";
+import { apiClient } from "@psico/api-client";
+import type { UserMeResponse } from "@psico/types";
 
 /**
  * Diario — mobile, fully functional with E2E encryption.
  *
- * The screen wraps itself in a DiaryKeyProvider seeded with the user's
- * cryptoSalt (loaded from AuthContext at login). When the key is unlocked
- * (either via cache hit from SecureStore or fresh password derive) we
- * render the composer + decrypted entries. Otherwise → UnlockGate.
+ * The DiaryKeyProvider lives one level up in app/(tabs)/_layout.tsx so the
+ * unlock state survives navigation across tabs (specifically: Seguridad
+ * needs the in-memory master key to perform password-change-with-rekey).
+ * Here we just read from it.
  */
 export default function DiarioScreen() {
   const { user } = useAuth();
   if (!user) return null;
-
-  return (
-    <DiaryKeyProvider cryptoSalt={user.cryptoSalt}>
-      <DiarioInner />
-    </DiaryKeyProvider>
-  );
+  return <DiarioInner />;
 }
 
 function DiarioInner() {
-  const { key, loadingPersisted } = useDiaryKey();
+  const { key, masterKey, loadingPersisted } = useDiaryKey();
   const [entries, setEntries] = useState<DiaryEntrySummary[]>([]);
   const [prompt, setPrompt] = useState<DiaryPromptOfTheDay | null>(null);
   const [loading, setLoading] = useState(true);
+  // Seed phrase modal trigger. We fetch /user/me lazily once the user is
+  // unlocked so we know whether they've already acknowledged the backup.
+  const [seedAlreadyShown, setSeedAlreadyShown] = useState<boolean | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     try {
@@ -63,6 +66,22 @@ function DiarioInner() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Once the diary is unlocked AND we have the master key in memory (fresh
+  // unlock — not a cold-start with cached subkey), check whether we still
+  // owe the user the seed phrase backup flow.
+  useEffect(() => {
+    if (!key || !masterKey || seedAlreadyShown !== null) return;
+    void (async () => {
+      try {
+        const me = await apiClient.get<UserMeResponse>("/user/me");
+        setSeedAlreadyShown(me.cryptoSeedShownAt !== null);
+      } catch {
+        // If /user/me fails, suppress the modal to avoid annoying loops.
+        setSeedAlreadyShown(true);
+      }
+    })();
+  }, [key, masterKey, seedAlreadyShown]);
 
   if (loadingPersisted) {
     return (
@@ -96,6 +115,13 @@ function DiarioInner() {
           onCreated={load}
         />
       )}
+
+      {key && masterKey && seedAlreadyShown === false ? (
+        <SeedPhraseModal
+          masterKey={masterKey}
+          onAcknowledged={() => setSeedAlreadyShown(true)}
+        />
+      ) : null}
     </ScrollView>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { isValidSeedPhrase, seedPhraseToMasterKey } from "@psico/crypto";
 import { useDiaryKey } from "@/crypto/diary-key-context";
 import { Colors, Radius, Spacing } from "@/theme";
 
@@ -16,8 +17,33 @@ import { Colors, Radius, Spacing } from "@/theme";
  * unavailable" card pointing users to support.
  */
 export function UnlockGate() {
-  const { unlock, unlocking, error, isLegacyAccount } = useDiaryKey();
+  const { unlock, adoptMasterKey, unlocking, error, isLegacyAccount } =
+    useDiaryKey();
   const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"password" | "seed">("password");
+  const [seedText, setSeedText] = useState("");
+  const [seedError, setSeedError] = useState<string | null>(null);
+
+  async function handleSeedUnlock() {
+    setSeedError(null);
+    const trimmed = seedText.trim();
+    if (!isValidSeedPhrase(trimmed)) {
+      setSeedError(
+        "Esta frase no es válida. Revisa que sean exactamente 24 palabras.",
+      );
+      return;
+    }
+    try {
+      const recovered = seedPhraseToMasterKey(trimmed);
+      await adoptMasterKey(recovered);
+      recovered.fill(0);
+      setSeedText("");
+    } catch {
+      setSeedError(
+        "No pudimos recuperar la clave. Verifícala palabra por palabra.",
+      );
+    }
+  }
 
   if (isLegacyAccount) {
     return (
@@ -31,6 +57,63 @@ export function UnlockGate() {
         <Text style={styles.subtitle}>
           Las cuentas creadas antes del módulo de cripto no tienen un salt
           Argon2id. Contacta soporte para activarlo.
+        </Text>
+      </View>
+    );
+  }
+
+  if (mode === "seed") {
+    return (
+      <View style={styles.card}>
+        <View style={[styles.icon, { backgroundColor: Colors.lavender[50] }]}>
+          <Ionicons name="key" size={22} color={Colors.lavender[700]} />
+        </View>
+        <Text style={styles.title}>Recupera con tu frase de respaldo</Text>
+        <Text style={styles.subtitle}>
+          Escribe las 24 palabras separadas por espacio. Usa esta opción solo si
+          olvidaste tu contraseña.
+        </Text>
+
+        <Text style={styles.label}>Frase de 24 palabras</Text>
+        <TextInput
+          style={[styles.input, styles.seedInput]}
+          value={seedText}
+          onChangeText={setSeedText}
+          placeholder="palabra1 palabra2 palabra3 …"
+          placeholderTextColor={Colors.warm[400]}
+          multiline
+          numberOfLines={4}
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="none"
+        />
+
+        {seedError ? (
+          <Text style={styles.error} accessibilityRole="alert">
+            {seedError}
+          </Text>
+        ) : null}
+
+        <Pressable
+          style={[styles.button, !seedText.trim() && { opacity: 0.5 }]}
+          onPress={handleSeedUnlock}
+          disabled={!seedText.trim()}
+        >
+          <Text style={styles.buttonText}>Recuperar acceso</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            setMode("password");
+            setSeedError(null);
+            setSeedText("");
+          }}
+        >
+          <Text style={styles.linkButton}>Volver a usar contraseña</Text>
+        </Pressable>
+
+        <Text style={styles.helper}>
+          ⓘ La recuperación es 100% local. Tu frase no se envía al servidor.
         </Text>
       </View>
     );
@@ -74,6 +157,12 @@ export function UnlockGate() {
       >
         <Text style={styles.buttonText}>
           {unlocking ? "Derivando clave…" : "Desbloquear"}
+        </Text>
+      </Pressable>
+
+      <Pressable onPress={() => setMode("seed")}>
+        <Text style={styles.linkButton}>
+          Olvidé mi contraseña — usar frase de respaldo
         </Text>
       </Pressable>
 
@@ -155,6 +244,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.warm[500],
     textAlign: "center",
+    marginTop: Spacing.sm + 2,
+  },
+  seedInput: {
+    minHeight: 90,
+    textAlignVertical: "top",
+    fontFamily: "monospace",
+  },
+  linkButton: {
+    fontSize: 12,
+    color: Colors.warm[500],
+    textAlign: "center",
+    textDecorationLine: "underline",
     marginTop: Spacing.sm + 2,
   },
 });

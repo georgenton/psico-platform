@@ -628,21 +628,69 @@ tokens, Prisma schema and env validation`
 
 ---
 
-### Próximo paso — Sesión 18
+### Sesión 18 — 2026-05-26 ✅ COMPLETADA — Sprint S6
 
-**Sprint S6 — DiaryModule con E2E encryption**
+**Rama:** `feature/sprint-s6-diary-e2e`
+**Tests:** 252/252 pasando (234 → 252, +18: 15 DiarioService + 3 privacy regression)
+**ADR aplicado:** [0007 — E2E encryption Diario/Eco](docs/adr/0007-e2e-encryption-diario-eco.md) (escrito en S1, ahora en código)
+**Bitácora:** [docs/informes/sprint-s6.md](docs/informes/sprint-s6.md) (con 4 diagramas Mermaid)
+
+**Decisión del usuario aplicada:**
+- Continuar backend → S6 DiaryModule (recomendación del Plan v2). Frontend companion sprint queda diferido al final de Fase 1.
+
+**Lo que se construyó:**
+
+- **7 endpoints nuevos** en `/api/diario/*`: list (paginado + moodMap + tags), prompt-of-the-day, detail, create, update, delete, share-with-therapist.
+- **3 modelos Prisma:** `DiaryEntry` (cipher + nonce + plaintext metadata), `SharedDiaryEntry` (wrapped key + ephemeral pubkey + expiry), `DiaryPrompt` (catálogo curado, rotación por day-of-year hash).
+- **Migración** `20260526210000_s6_diary_e2e_encryption/migration.sql`, additive.
+- **`@psico/types` +14 tipos** del wire format (cipher + nonce + summary/detail responses).
+- **3 custom DTO validators:** `@IsBase64UrlCipher()` (≤1.4 MB), `@IsBase64UrlNonce()` (24B exactos), `@IsBase64UrlBlob(maxLen)` (genéricos). Single source of truth para shape/size.
+- **Privacy defense in depth:**
+  - `diario.privacy.spec.ts` — walks `diario/`, `home/`, `users/`, falla si `logger.*`/`console.*` toca campo cifrado.
+  - CI workflow job `privacy` en `.github/workflows/ci.yml` — corre el mismo grep antes de build.
+- **Cipher/nonce pairing enforced** en `UpdateDiaryEntryDto` service-side (`CIPHER_NONCE_PAIRING`).
+- **Share with therapist** persiste sin TherapyModule (v2 lo consume cuando aterrice).
+- **Stats wired:** `UsersService.computeStats` y `HomeService.fetchStats` ya cuentan entries reales — `diaryEntries`/`minutesTotal`/`entriesThisWeek` salen de 0.
+- **Cliente:** `diarioApi` con 7 métodos en `packages/api-client/src/diario.ts`. `apiClient.delete<T>()` añadido.
+- **Seed:** 7 nuevos `DiaryPrompt` curados (distintos de `ReflectionPrompt` de Home).
+- **READMEs:** `apps/api/src/diario/README.md`.
+
+**Bugs corregidos durante S6 (3, cf. bitácora §4):**
+1. Tests de Home + Users no mockeaban `prisma.diaryEntry.count` → cubrir con `.mockResolvedValue(0)` por defecto.
+2. `apiClient` no tenía `delete<T>()` → añadido.
+3. Prisma warning: `SharedDiaryEntry.entryId` requerido + `onDelete: SetNull` incompatible. Fix: nullable + documentar (audit trail).
+
+**Smoke boot del API:**
+- 58 rutas mapeadas bajo `/api/*` (51 previas + 7 Diario).
+- `openapi.json`: 35 KB → 39 KB.
+- `generated.ts`: 53 KB → 58 KB.
+
+**Deuda técnica abierta:**
+- Migración S6 sin aplicar en Railway (acumulada con todas las previas).
+- `SharedDiaryEntry` expiry sweeper sin implementar (v2 TherapyModule).
+- Sin rate limit específico en POST entries (60/min global aplica).
+- Sin full-text search en diario (cipher → server no puede indexar; búsqueda cliente-side).
+- `audioUrl` queda sin storage real hasta VoiceModule (S8).
+- Recovery seed-phrase BIP39 es opt-in cliente-side (no aplica al server).
+
+---
+
+### Próximo paso — Sesión 19
+
+**Sprint S7 — SubscriptionModule completo**
 
 ```bash
-git checkout -b feature/sprint-s6-diary-e2e
-# ADR 0007 ya escrito (Sprint S1) — implementación
-# Cliente-side crypto: Argon2id + XChaCha20-Poly1305 + ECDH X25519 + HKDF
-# Backend recibe textCiphertext + textNonce, nunca texto plano
-# share-with-therapist con re-encrypt efímero
-# stats.diaryEntries y stats.minutesTotal se llenan
+git checkout -b feature/sprint-s7-subscription-usage
+# Endpoints nuevos:
+#   GET  /api/subscriptions/usage       — quota consumida agregada
+#   POST /api/subscriptions/portal      — Stripe Customer Portal session
+#   GET  /api/subscriptions/invoices    — historial de facturación
+#   POST /api/subscriptions/cancel      — cancelar al fin de período
+# Plus BullMQ jobs para sync diaria de usage counters.
 ```
 
-**Decisión bloqueante antes de S6:**
-1. ¿Hacemos el web companion sprint (S5-front) primero, o continuamos backend → frontend en paralelo al final de Fase 1?
+**Decisión pendiente antes de S7:**
+1. ¿`/usage` agrega TODOS los counters (Eco messages, voz, exports) o uno por feature? Plan v2 propone agregador único (consistente con `/home`).
 
 ---
 

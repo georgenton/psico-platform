@@ -10,6 +10,7 @@ import { BooksModule } from "./books";
 import { ChaptersModule } from "./chapters";
 import { ProgressModule } from "./progress";
 import { HomeModule } from "./home";
+import { DiarioModule } from "./diario";
 import { SubscriptionModule } from "./subscription";
 import { HealthModule } from "./health";
 import { AIModule } from "./ai";
@@ -36,13 +37,14 @@ import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
     ChaptersModule,
     ProgressModule,
     HomeModule,
+    DiarioModule,
     SubscriptionModule,
     HealthModule,
     AIModule,
     UsersModule,
     OnboardingModule,
     // TODO senior: register remaining feature modules here
-    // AnalyticsModule, DiaryModule (S6), PatternsModule (S11)
+    // AnalyticsModule, PatternsModule (S11)
   ],
   providers: [
     // Global interceptor — activates only on handlers marked with @Idempotent()

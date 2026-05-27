@@ -510,36 +510,43 @@ export class UsersService {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   private async computeStats(userId: string) {
-    // chaptersRead and daysActive derive from UserProgress; diaryEntries and
-    // minutesTotal currently lack the source models (DiarioModule, ReadingSession)
-    // and return 0 — they'll fill in as those modules land.
-    const [chaptersRead, distinctDaysRows, completedProgress, user] =
-      await Promise.all([
-        this.prisma.userProgress.count({ where: { userId } }),
-        this.prisma.$queryRaw<Array<{ day: Date }>>`
+    // S6: diaryEntries now reflects the real count. minutesTotal still
+    // lacks a ReadingSession source — DiaryEntry contributes a flat estimate
+    // (5 min per entry, conservative) plus chapter completions. We will
+    // refine when ReadingSession lands in a future sprint.
+    const [
+      chaptersRead,
+      distinctDaysRows,
+      completedProgress,
+      user,
+      diaryEntries,
+    ] = await Promise.all([
+      this.prisma.userProgress.count({ where: { userId } }),
+      this.prisma.$queryRaw<Array<{ day: Date }>>`
           SELECT DISTINCT DATE_TRUNC('day', "completedAt") AS day
           FROM "UserProgress"
           WHERE "userId" = ${userId}
         `,
-        this.prisma.userProgress.findMany({
-          where: { userId },
-          select: {
-            chapter: {
-              select: {
-                bookId: true,
-                book: { select: { totalChapters: true } },
-              },
+      this.prisma.userProgress.findMany({
+        where: { userId },
+        select: {
+          chapter: {
+            select: {
+              bookId: true,
+              book: { select: { totalChapters: true } },
             },
           },
-        }),
-        this.prisma.user.findUnique({
-          where: { id: userId },
-          select: {
-            currentStreakDays: true,
-            longestStreakDays: true,
-          },
-        }),
-      ]);
+        },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          currentStreakDays: true,
+          longestStreakDays: true,
+        },
+      }),
+      this.prisma.diaryEntry.count({ where: { userId } }),
+    ]);
 
     // booksCompleted: a book counts as completed iff the user has progress for
     // every published chapter. Cheap-to-compute approximation: bookId →
@@ -557,12 +564,16 @@ export class UsersService {
       if (total > 0 && read >= total) booksCompleted += 1;
     }
 
+    // Minutes estimate: 12 min per completed chapter + 5 min per diary entry.
+    // Conservative on purpose — overstating progress is worse than understating.
+    const minutesTotal = chaptersRead * 12 + diaryEntries * 5;
+
     return {
       daysActive: distinctDaysRows.length,
       booksCompleted,
       chaptersRead,
-      diaryEntries: 0,
-      minutesTotal: 0,
+      diaryEntries,
+      minutesTotal,
       currentStreakDays: user?.currentStreakDays ?? 0,
       longestStreakDays: user?.longestStreakDays ?? 0,
     };

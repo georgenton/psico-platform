@@ -77,6 +77,9 @@ const mockPrisma = {
     count: vi.fn(),
     findMany: vi.fn(),
   },
+  diaryEntry: {
+    count: vi.fn().mockResolvedValue(0),
+  },
   $queryRaw: vi.fn(),
   $transaction: vi.fn(),
 };

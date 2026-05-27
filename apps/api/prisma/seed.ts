@@ -295,6 +295,42 @@ async function main() {
   }
   console.log(`✅  ReflectionPrompt catalog: ${prompts.length} entries`);
 
+  // ─── Diary prompts (S6) ──────────────────────────────────────────────────
+  //
+  // Curated by the content team. Rotated daily by DiarioService via a
+  // day-of-year hash — same prompt all day across all users.
+
+  console.log("\n📓 Diary prompts…");
+  const diaryPrompts = [
+    {
+      id: "dp-1",
+      text: "Describe un momento de hoy donde te sentiste presente.",
+    },
+    {
+      id: "dp-2",
+      text: "¿Qué emoción dominó tu día? ¿De dónde crees que vino?",
+    },
+    {
+      id: "dp-3",
+      text: "Si pudieras volver a vivir un instante del día, ¿cuál sería?",
+    },
+    {
+      id: "dp-4",
+      text: "¿Hubo algo que te costó decir hoy? Ponlo en palabras aquí.",
+    },
+    { id: "dp-5", text: "Hoy aprendí…" },
+    { id: "dp-6", text: "Una conversación que me quedó dando vueltas." },
+    { id: "dp-7", text: "¿Cómo cuidaste de ti hoy, aunque sea un poco?" },
+  ];
+  for (const p of diaryPrompts) {
+    await prisma.diaryPrompt.upsert({
+      where: { id: p.id },
+      create: { ...p, audience: "all", isActive: true },
+      update: { text: p.text, isActive: true },
+    });
+  }
+  console.log(`✅  DiaryPrompt catalog: ${diaryPrompts.length} entries`);
+
   console.log("\n🌱 Seed completado.");
 }
 

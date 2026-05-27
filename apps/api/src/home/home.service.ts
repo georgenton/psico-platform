@@ -300,25 +300,33 @@ export class HomeService {
   }
 
   private async fetchStats(userId: string): Promise<HomeStats> {
-    // Coarse stats. Diary minutes / entries arrive with DiarioModule (S6).
-    // For S5 we return the streak we already track + chapters-read derived
-    // counters so the UI can render the weekly arc immediately.
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        currentStreakDays: true,
-        preferences: { select: { weeklyGoalMinutes: true } },
-      },
-    });
-
-    // Last 7 days of chapter completions as a stand-in for minutesThisWeek.
+    // Stats blend two sources:
+    //   - Chapter completions (UserProgress) approximate minutes spent.
+    //   - DiaryEntry counts feed the journaling progress arc.
+    // We DO NOT touch ciphertext here — the count() query reads only the
+    // server-visible columns (userId, createdAt).
     const since = new Date();
     since.setDate(since.getDate() - 7);
-    const completedThisWeek = await this.prisma.userProgress.count({
-      where: { userId, completedAt: { gte: since } },
-    });
 
-    // Approx 12 min/chapter when we don't have chapter.durationMinutes filled.
+    const [user, completedThisWeek, entriesThisWeek] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          currentStreakDays: true,
+          preferences: { select: { weeklyGoalMinutes: true } },
+        },
+      }),
+      this.prisma.userProgress.count({
+        where: { userId, completedAt: { gte: since } },
+      }),
+      this.prisma.diaryEntry.count({
+        where: { userId, createdAt: { gte: since } },
+      }),
+    ]);
+
+    // Approx 12 min/chapter when chapter.durationMinutes is missing. Diary
+    // entries are not counted toward minutesThisWeek because we do not know
+    // how long the user spent writing (the ciphertext doesn't carry timing).
     const minutesThisWeek = completedThisWeek * 12;
     const weeklyGoal = user?.preferences?.weeklyGoalMinutes ?? 60;
     const weeklyGoalPct =
@@ -328,7 +336,7 @@ export class HomeService {
 
     return {
       minutesThisWeek,
-      entriesThisWeek: 0,
+      entriesThisWeek,
       streakDays: user?.currentStreakDays ?? 0,
       weeklyGoalPct,
     };

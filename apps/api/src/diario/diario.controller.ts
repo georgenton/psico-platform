@@ -1,0 +1,92 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
+import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import type { AuthenticatedUser } from "../auth";
+import { JwtAuthGuard } from "../auth";
+import { CurrentUser } from "../shared";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { DiarioService } from "./diario.service";
+import type { CreateDiaryEntryDto } from "./dto/create-entry.dto";
+import type { UpdateDiaryEntryDto } from "./dto/update-entry.dto";
+import type { ListDiaryEntriesQueryDto } from "./dto/list-entries-query.dto";
+import type { ShareDiaryEntryDto } from "./dto/share-entry.dto";
+
+/**
+ * DiarioController — Sprint S6.
+ *
+ * All endpoints require auth. Bodies that carry encrypted material run
+ * through validators in dto/ciphertext-validators.ts before reaching the
+ * service. The controller is intentionally thin so the privacy guarantees
+ * are easy to audit — every endpoint can be read top-to-bottom in under
+ * 10 seconds.
+ */
+@ApiTags("Diario")
+@ApiBearerAuth("bearer")
+@Controller("diario")
+@UseGuards(JwtAuthGuard)
+export class DiarioController {
+  constructor(private readonly diarioService: DiarioService) {}
+
+  @Get("entries")
+  list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListDiaryEntriesQueryDto,
+  ) {
+    return this.diarioService.list(user.userId, query);
+  }
+
+  @Get("prompt-of-the-day")
+  getPromptOfTheDay() {
+    return this.diarioService.getPromptOfTheDay();
+  }
+
+  @Get("entries/:id")
+  getDetail(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.diarioService.getDetail(user.userId, id);
+  }
+
+  @Post("entries")
+  @HttpCode(HttpStatus.CREATED)
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateDiaryEntryDto,
+  ) {
+    return this.diarioService.create(user.userId, dto);
+  }
+
+  @Patch("entries/:id")
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+    @Body() dto: UpdateDiaryEntryDto,
+  ) {
+    return this.diarioService.update(user.userId, id, dto);
+  }
+
+  @Delete("entries/:id")
+  @HttpCode(HttpStatus.OK)
+  remove(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.diarioService.remove(user.userId, id);
+  }
+
+  @Post("entries/:id/share")
+  @HttpCode(HttpStatus.OK)
+  share(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+    @Body() dto: ShareDiaryEntryDto,
+  ) {
+    return this.diarioService.share(user.userId, id, dto);
+  }
+}

@@ -42,6 +42,10 @@ class PsicoApiClient {
     return this.request<T>("PATCH", path, body);
   }
 
+  delete<T>(path: string): Promise<T> {
+    return this.request<T>("DELETE", path);
+  }
+
   private async request<T>(
     method: string,
     path: string,

@@ -285,6 +285,127 @@ export interface ReactivateSubscriptionResponse {
   cancelAtPeriodEnd: false;
 }
 
+// ─── Eco · conversational AI (Sprint S10) ─────────────────────────────────────
+//
+// Wire shapes. The on-the-wire model is hybrid:
+//   - `textPlaintext` is sent ONLY in the request body (server uses it for the
+//     LLM call + crisis detection, never persists it).
+//   - `textCiphertext + textNonce` is sent in the same request and IS persisted.
+//   - Assistant replies stream back as plaintext SSE events.
+// See docs/informes/sprint-s10-eco-chat.md §3 for the decision matrix.
+
+export type EcoMessageKind = "user" | "assistant" | "crisis" | "suggestion";
+
+export type EcoMessageReportReason =
+  | "HALLUCINATION"
+  | "OFF_TONE"
+  | "SENSITIVE_CONTENT"
+  | "CRISIS_MISHANDLED"
+  | "OTHER";
+
+export interface EcoPersona {
+  name: string;
+  voice: string;
+  caps: string[];
+}
+
+export interface EcoThreadRailItem {
+  id: string;
+  /** base64url ciphertext of the thread title; null until first reply. */
+  titleCiphertext: string | null;
+  titleNonce: string | null;
+  lastMessageAt: Date;
+  messageCount: number;
+}
+
+export interface EcoThreadListResponse {
+  rail: EcoThreadRailItem[];
+}
+
+export interface EcoThreadCreatedResponse {
+  id: string;
+  createdAt: Date;
+}
+
+export interface EcoMessage {
+  id: string;
+  kind: EcoMessageKind;
+  /** Present for USER messages. */
+  textCiphertext: string | null;
+  textNonce: string | null;
+  /** Present for ASSISTANT / CRISIS / SUGGESTION. */
+  assistantText: string | null;
+  /** Populated when kind === "suggestion". */
+  suggestedBookId: string | null;
+  createdAt: Date;
+}
+
+export interface EcoThreadResponse {
+  thread: {
+    id: string;
+    titleCiphertext: string | null;
+    titleNonce: string | null;
+    createdAt: Date;
+    lastMessageAt: Date;
+  };
+  messages: EcoMessage[];
+  hasMore: boolean;
+}
+
+export interface EcoSendMessageRequest {
+  threadId: string;
+  /**
+   * Ephemeral — used for LLM inference + crisis detection. Never persisted.
+   * Server-side privacy spec enforces no logging.
+   */
+  textPlaintext: string;
+  textCiphertext: string;
+  textNonce: string;
+  intent?: "free" | "suggest";
+}
+
+/**
+ * Server-Sent Events emitted by `POST /api/eco/messages`.
+ *
+ * The client renders progressively from `delta` events, then finalises on
+ * `done`. `crisis` and `suggestion` short-circuit the normal flow — they
+ * arrive instead of (not alongside) `delta` events.
+ */
+export type EcoSseEvent =
+  | { event: "delta"; data: { text: string } }
+  | {
+      event: "crisis";
+      data: {
+        text: string;
+        /** Localised hotline + crisis page slug for client routing. */
+        hotline: string;
+        crisisPath: string;
+      };
+    }
+  | {
+      event: "suggestion";
+      data: {
+        bookId: string;
+        rationale: string;
+      };
+    }
+  | {
+      event: "done";
+      data: {
+        messageId: string;
+        quotaRemaining: number | null;
+      };
+    }
+  | {
+      event: "error";
+      data: { code: string; message: string };
+    };
+
+export interface EcoReportMessageRequest {
+  reason: EcoMessageReportReason;
+  comment?: string;
+}
+
 // ─── Voice (Sprint S8) ────────────────────────────────────────────────────────
 //
 // Audio in, transcript out. Per docs/design/handoff/07-voz.md the audio is

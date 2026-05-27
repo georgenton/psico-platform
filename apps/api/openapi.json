@@ -1886,6 +1886,190 @@
           "Voice"
         ]
       }
+    },
+    "/api/eco/caps": {
+      "get": {
+        "operationId": "EcoController_getCaps",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      }
+    },
+    "/api/eco/threads": {
+      "get": {
+        "operationId": "EcoController_listThreads",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      },
+      "post": {
+        "operationId": "EcoController_createThread",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      }
+    },
+    "/api/eco/threads/{id}": {
+      "get": {
+        "operationId": "EcoController_getThread",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      },
+      "delete": {
+        "operationId": "EcoController_deleteThread",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      }
+    },
+    "/api/eco/messages": {
+      "post": {
+        "operationId": "EcoController_sendMessage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendEcoMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      }
+    },
+    "/api/eco/messages/{id}/report": {
+      "post": {
+        "operationId": "EcoController_reportMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportEcoMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      }
     }
   },
   "info": {
@@ -2080,6 +2264,14 @@
         "properties": {}
       },
       "OnboardingTourCompleteDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "SendEcoMessageDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReportEcoMessageDto": {
         "type": "object",
         "properties": {}
       }

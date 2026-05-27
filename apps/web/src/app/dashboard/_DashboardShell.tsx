@@ -9,11 +9,20 @@ import type { SessionUser } from "@/lib/api.server";
 
 // ── Nav config ─────────────────────────────────────────────────────────────
 
+// Sprint S5-front: nav lines up with the design system's sidebar order from
+// docs/design/inicio/web.jsx and docs/design/biblioteca/web.jsx. Diary appears
+// because the backend (Sprint S6) ships the endpoints; the page below renders
+// a placeholder until the crypto module is wired client-side.
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Inicio", icon: "🏠", exact: true },
-  { href: "/dashboard/books", label: "Mis libros", icon: "📚", exact: false },
+  {
+    href: "/dashboard/biblioteca",
+    label: "Mi biblioteca",
+    icon: "📚",
+    exact: false,
+  },
+  { href: "/dashboard/diario", label: "Diario", icon: "✎", exact: false },
   { href: "/dashboard/plan", label: "Mi plan", icon: "💳", exact: false },
-  { href: "/dashboard/profile", label: "Perfil", icon: "👤", exact: false },
 ] as const;
 
 function matchesRoute(href: string, pathname: string, exact: boolean): boolean {

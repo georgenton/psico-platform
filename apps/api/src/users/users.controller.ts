@@ -17,15 +17,24 @@ import type { AuthenticatedUser } from "../auth";
 import { CurrentUser } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { UsersService } from "./users.service";
-import type { UpdateProfileDto } from "./dto/update-profile.dto";
-import type { UpdatePreferencesDto } from "./dto/update-preferences.dto";
-import type { UpdateReaderPreferencesDto } from "./dto/update-reader-preferences.dto";
-import type { UpdateNotificationsDto } from "./dto/update-notifications.dto";
-import type { UpdatePrivacyDto } from "./dto/update-privacy.dto";
-import type { UpdateMoodDto } from "./dto/update-mood.dto";
-import type { EmailChangeRequestDto } from "./dto/email-change-request.dto";
-import type { PasswordChangeDto } from "./dto/password-change.dto";
-import type { DeleteRequestDto } from "./dto/delete-request.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { UpdateProfileDto } from "./dto/update-profile.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { UpdatePreferencesDto } from "./dto/update-preferences.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { UpdateReaderPreferencesDto } from "./dto/update-reader-preferences.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { UpdateNotificationsDto } from "./dto/update-notifications.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { UpdatePrivacyDto } from "./dto/update-privacy.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { UpdateMoodDto } from "./dto/update-mood.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { EmailChangeRequestDto } from "./dto/email-change-request.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { PasswordChangeDto } from "./dto/password-change.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { DeleteRequestDto } from "./dto/delete-request.dto";
 
 @ApiTags("Users")
 @ApiBearerAuth("bearer")

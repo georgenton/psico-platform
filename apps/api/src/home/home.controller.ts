@@ -15,7 +15,8 @@ import { JwtAuthGuard } from "../auth";
 import { CurrentUser } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { HomeService } from "./home.service";
-import type { UpdateUserMoodBodyDto } from "./dto/update-mood.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { UpdateUserMoodBodyDto } from "./dto/update-mood.dto";
 
 /**
  * HomeController — three endpoints designed in 02-inicio.md:

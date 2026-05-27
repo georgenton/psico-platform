@@ -14,7 +14,8 @@ import { ProgressService } from "./progress.service";
 import type { AuthenticatedUser } from "../auth";
 import { JwtAuthGuard } from "../auth";
 import { CurrentUser } from "../shared";
-import type { MarkProgressDto } from "./dto/mark-progress.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { MarkProgressDto } from "./dto/mark-progress.dto";
 
 /**
  * ProgressController — S5 rename from /content/progress to /progress.

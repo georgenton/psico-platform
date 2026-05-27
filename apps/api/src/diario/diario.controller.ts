@@ -17,10 +17,14 @@ import { JwtAuthGuard } from "../auth";
 import { CurrentUser } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { DiarioService } from "./diario.service";
-import type { CreateDiaryEntryDto } from "./dto/create-entry.dto";
-import type { UpdateDiaryEntryDto } from "./dto/update-entry.dto";
-import type { ListDiaryEntriesQueryDto } from "./dto/list-entries-query.dto";
-import type { ShareDiaryEntryDto } from "./dto/share-entry.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CreateDiaryEntryDto } from "./dto/create-entry.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { UpdateDiaryEntryDto } from "./dto/update-entry.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ListDiaryEntriesQueryDto } from "./dto/list-entries-query.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ShareDiaryEntryDto } from "./dto/share-entry.dto";
 
 /**
  * DiarioController — Sprint S6.

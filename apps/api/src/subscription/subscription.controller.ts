@@ -14,8 +14,10 @@ import type { Request } from "express";
 import { JwtAuthGuard } from "../auth";
 import { CurrentUser } from "../shared";
 import type { AuthenticatedUser } from "../auth";
-import type { CreateCheckoutSessionDto } from "./dto/checkout-session.dto";
-import type { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CreateCheckoutSessionDto } from "./dto/checkout-session.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { SubscriptionService } from "./subscription.service";
 

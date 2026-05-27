@@ -16,8 +16,10 @@ import { ChaptersService } from "./chapters.service";
 import type { AuthenticatedUser } from "../auth";
 import { JwtAuthGuard } from "../auth";
 import { CurrentUser, PlanGuard, RequiredRole, RolesGuard } from "../shared";
-import type { CreateChapterDto } from "./dto/create-chapter.dto";
-import type { UploadAudioDto } from "./dto/upload-audio.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CreateChapterDto } from "./dto/create-chapter.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { UploadAudioDto } from "./dto/upload-audio.dto";
 
 /**
  * ChaptersController — read access to chapter content + admin authoring.

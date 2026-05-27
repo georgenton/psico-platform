@@ -18,11 +18,22 @@ import { JwtAuthGuard } from "../auth";
 import { CurrentUser, RequiredRole, RolesGuard } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { BooksService } from "./books.service";
-import type { CreateBookDto } from "./dto/create-book.dto";
-import type { UpdateBookDto } from "./dto/update-book.dto";
-import type { ListBooksQueryDto } from "./dto/list-books-query.dto";
-import type { ListReviewsQueryDto } from "./dto/list-reviews-query.dto";
-import type { CreateBookReviewDto } from "./dto/create-review.dto";
+// IMPORTANT: do NOT use `import type` for these DTOs. NestJS reads the
+// parameter type at runtime via reflect-metadata to apply the global
+// ValidationPipe. `import type` strips the class out of the compiled JS,
+// so the pipe sees `undefined` as the target type and rejects EVERY
+// query/body field as "should not exist". This is the same hazard that
+// burned us with DI tokens earlier in the project.
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CreateBookDto } from "./dto/create-book.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { UpdateBookDto } from "./dto/update-book.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ListBooksQueryDto } from "./dto/list-books-query.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ListReviewsQueryDto } from "./dto/list-reviews-query.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CreateBookReviewDto } from "./dto/create-review.dto";
 
 /**
  * BooksController — the Sprint S5 catalog surface.

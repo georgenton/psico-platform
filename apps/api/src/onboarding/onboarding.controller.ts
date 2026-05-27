@@ -13,11 +13,16 @@ import type { AuthenticatedUser } from "../auth";
 import { CurrentUser } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { OnboardingService } from "./onboarding.service";
-import type { OnboardingStep1Dto } from "./dto/step1.dto";
-import type { OnboardingStep2Dto } from "./dto/step2.dto";
-import type { OnboardingStep3Dto } from "./dto/step3.dto";
-import type { OnboardingCompleteDto } from "./dto/complete.dto";
-import type { OnboardingTourCompleteDto } from "./dto/tour-complete.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { OnboardingStep1Dto } from "./dto/step1.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { OnboardingStep2Dto } from "./dto/step2.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { OnboardingStep3Dto } from "./dto/step3.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { OnboardingCompleteDto } from "./dto/complete.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { OnboardingTourCompleteDto } from "./dto/tour-complete.dto";
 
 @ApiTags("Onboarding")
 @ApiBearerAuth("bearer")

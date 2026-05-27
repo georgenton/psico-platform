@@ -13,7 +13,8 @@ import {
 import { AIService } from "./ai.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { IngestService } from "./ingest.service";
-import type { ChatRequestDto } from "./dto/chat-request.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ChatRequestDto } from "./dto/chat-request.dto";
 
 @ApiTags("AI · Eco")
 @ApiBearerAuth("bearer")

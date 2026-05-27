@@ -1071,40 +1071,87 @@ tokens, Prisma schema and env validation`
 
 ---
 
-### Próximo paso — Sesión 27
+### Sesión 27 — 2026-05-27 ✅ COMPLETADA — Sprint front-fase1 (Mi Plan UI)
 
-**Fase 1 backend está completa** (todos los counters de `/usage` reportan datos reales). Tres opciones:
+**Rama sugerida:** `feature/sprint-front-fase1`
+**Tests:** 323/323 API + 34/34 crypto (sin cambios — sprint orientado a UI)
+**Bitácora:** [docs/informes/sprint-front-fase1-mi-plan.md](docs/informes/sprint-front-fase1-mi-plan.md)
 
-**Opción A — Front UI consumiendo S6–S10 (recomendada):**
+**Decisión del usuario:** scope reducido a "Mi Plan (web + mobile) primero" (de las 4 opciones disponibles). Voz y Eco UI quedan para sprints separados.
+
+**Lo que se construyó:**
+
+**Web (`apps/web`):**
+- Server actions `cancelSubscriptionAction(formData)` + `reactivateSubscriptionAction()` con `revalidatePath("/dashboard/plan")`.
+- Componentes nuevos en `src/components/dashboard/plan/`:
+  - `UsageCards.tsx` — Server Component puro, 4 mini-cards (libros/eco/voz/diario) con progress bars y formato i18n.
+  - `InvoicesList.tsx` — Server Component, tabla con date/amount/status pill/PDF link. Empty state.
+  - `SubscriptionActions.tsx` — Client Component, modal de cancel con textarea de razón (480 chars), ReactivateButton conditional.
+- `/dashboard/plan/page.tsx` paraleliza 4 fetches (`/me`, `/plans`, `/usage`, `/invoices`). `dynamic = "force-dynamic"`.
+
+**Mobile (`apps/mobile`):**
+- Componentes paridad en `src/components/dashboard/plan/`:
+  - `UsageCards.tsx` — grid 2x2.
+  - `InvoicesList.tsx` — lista stack con `Linking.openURL` para PDF.
+  - `SubscriptionActions.tsx` — Card con badge, fecha, 3 botones, modal RN custom (no `Alert.prompt` por incompatibilidad Android).
+- `(tabs)/plan.tsx` ahora orquesta `loadAll()` con `RefreshControl` pull-to-refresh + `onChanged` callback para invalidación manual.
+
+**Shared (`@psico/api-client`):**
+- `subscriptionApi.getMySubscription()` añadido (faltaba — el endpoint existe desde S4 pero el cliente nunca lo había wrapped).
+
+**Bugs corregidos (3, bitácora §5):**
+1. `Colors.sage[700]` no existe en theme mobile (solo `50/100/400/500/600`). Fix: usar 600.
+2. `getMySubscription` faltaba en api-client. Añadido sin breaking changes.
+3. TS strict null check en `inv.pdfUrl` — guards correctos en web (ternario) y mobile (`!` post-guard).
+
+**UX trade-offs:**
+- UsageCards visible para FREE como preview educativo ("vas a desbloquear esto").
+- Cancel reason capture como free-text (no taxonomy todavía — esperar 50-100 cancels para data-driven design).
+- Color rojo + progress bar rojo cuando `current >= quota` (sutil, sin gritar).
+- Pull-to-refresh solo en mobile; web confía en `revalidatePath`.
+
+**Smoke verification:**
+- API tests 323/323 (sin cambios).
+- Web/mobile typecheck + lint clean.
+- Web `pnpm build` compila sin errores.
+- OpenAPI generate:check OK.
+
+**Deuda técnica abierta:**
+- Sin tests UI dedicados (Vitest + React Testing Library). Esperar a tener más componentes para amortizar setup.
+- Mobile `Linking.openURL` Stripe Portal no usa deep-link return → user vuelve manualmente. v2 requiere Universal Links setup.
+- Web `<table>` no es responsive narrow (aceptable — desktop-first).
+- Sin error toast global; cancel error aparece dentro del modal.
+
+---
+
+### Próximo paso — Sesión 28
+
+**Front UI cont.** (S10 backend ready):
+
+**Opción A — Sprint front-voz** (recomendada):
 ```bash
-git checkout -b feature/sprint-front-fase1
-# Web + mobile: pantalla Mi Plan (/usage, /invoices, /cancel)
-# Web + mobile: pantalla Voz (MediaRecorder + /voz/transcribe)
-# Web + mobile: pantalla Eco chat (EventSource/fetch reader + /eco/messages)
-# Web: /dashboard/plan, /dashboard/voz, /dashboard/eco
-# Mobile: /(tabs)/plan, /(tabs)/voz (nuevo), /(tabs)/eco (nuevo)
+git checkout -b feature/sprint-front-voz
+# Web: /dashboard/voz - MediaRecorder + multipart upload a /voz/transcribe
+# Mobile: /(tabs)/voz - expo-av Audio.Recording + multipart
+# Integration: transcript se pre-fillea en /dashboard/diario composer
+# Quota gate: 402 from server → banner "Has usado tus minutos"
 ```
 
-**Opción B — Deploy a Railway:**
+**Opción B — Sprint front-eco**:
 ```bash
-# Aplicar 10 migraciones Prisma acumuladas
-# Configurar API keys: ANTHROPIC_API_KEY, OPENAI_API_KEY (o DEEPGRAM_API_KEY),
-#                     RESEND_API_KEY, GOOGLE_CLIENT_ID, REDIS_URL (Upstash)
-# Smoke-test cada endpoint en producción
-# Promover web a Vercel preview → main
+git checkout -b feature/sprint-front-eco
+# Web: /dashboard/eco - chat con SSE consumer + sidebar de threads
+# Mobile: /(tabs)/eco - same pero con fetch reader (no EventSource)
+# Crypto: cliente cifra USER msg con ecoKey antes de enviar
+# Crisis modal: cuando llega `crisis` event, muestra modal con hotline
+# Report menu: long-press en assistant msg → reason picker
 ```
 
-**Opción C — Sprint S11 PatternsModule (Pro feature):**
+**Opción C — Deploy a Railway:**
 ```bash
-git checkout -b feature/sprint-s11-patterns
-# Análisis de patrones del Diario (heat-map mood, tag clusters)
-# Pro-tier only. Reads DiaryEntry.mood/tags (plaintext en schema).
-# Usa EcoModule (S10) para generar "insights" narrativos.
+# Prerequisito antes de cualquier UI que pruebes con users reales
+# Aplicar 10 migraciones Prisma + configurar 5 envs (ANTHROPIC/OPENAI/...)
 ```
-
-
-
-**Decisión pendiente antes de S8 o S10:** si vamos por la pantalla Mi Plan primero (opción C), ¿quitamos los placeholders de los counters Eco/Voice (siempre 0) o los dejamos visibles como "Próximamente"?
 
 ---
 

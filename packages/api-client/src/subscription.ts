@@ -5,6 +5,7 @@ import type {
   PlanInfo,
   PortalSessionResponse,
   ReactivateSubscriptionResponse,
+  Subscription,
   UsageResponse,
 } from "@psico/types";
 import { apiClient } from "./client";
@@ -17,6 +18,10 @@ export interface CheckoutSession {
 
 export const subscriptionApi = {
   getPlans: () => apiClient.get<PlanInfo[]>("/subscriptions/plans"),
+
+  /** Current user's subscription row (null when FREE / no Stripe sub yet). */
+  getMySubscription: () =>
+    apiClient.get<Subscription | null>("/subscriptions/me"),
 
   createCheckoutSession: (
     billingPlan: BillingInterval,

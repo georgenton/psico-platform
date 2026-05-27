@@ -46,6 +46,12 @@ export interface AuthUser {
   name: string;
   role: UserRole;
   plan: UserPlan;
+  /**
+   * base64url Argon2id salt for E2E diary crypto (ADR 0007 §A, Sprint S6-crypto).
+   * `null` for accounts registered before the crypto layer landed; clients
+   * gracefully fall back to "diario sin cifrar activado" (read-only legacy).
+   */
+  cryptoSalt: string | null;
 }
 
 export interface AuthResponse {
@@ -319,6 +325,11 @@ export interface UserMeResponse {
   readerPreferences: UserReaderPreferences;
   notifications: UserNotificationSettings;
   privacy: UserPrivacySettings;
+  /**
+   * base64url Argon2id salt for E2E diary crypto (Sprint S6-crypto).
+   * Null for accounts registered before crypto landed.
+   */
+  cryptoSalt: string | null;
 }
 
 // ─── User · request payloads ──────────────────────────────────────────────────

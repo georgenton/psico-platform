@@ -735,19 +735,70 @@ tokens, Prisma schema and env validation`
 
 ---
 
-### Próximo paso — Sesión 21
+### Sesión 21 — 2026-05-27 ✅ COMPLETADA — Sprint S6-crypto
+
+**Rama:** `feature/sprint-s6-crypto`
+**Tests:** 276 pasando (252 API + 24 crypto package nuevos)
+**ADR aplicado:** [0007 — E2E encryption Diario/Eco](docs/adr/0007-e2e-encryption-diario-eco.md) — completamente implementado (contrato → schema → cripto cliente real)
+**Bitácora:** [docs/informes/sprint-s6-crypto.md](docs/informes/sprint-s6-crypto.md) (con 3 diagramas Mermaid)
+
+**Decisión del usuario aplicada:** Opción A — implementar el cripto cliente que cierra el contrato escrito 4 sprints atrás.
+
+**Lo que se construyó:**
+
+- **Paquete `@psico/crypto`** v0.1.0 — pure JS (sin WASM, sin native modules):
+  - `deriveMasterKey` (Argon2id m=64MB t=3 p=4 vía `@noble/hashes`)
+  - `deriveSubKey` (HKDF-SHA256 vía `@noble/hashes`)
+  - `encryptString` / `decryptString` (XChaCha20-Poly1305 vía `@noble/ciphers`)
+  - base64url helpers
+  - **24 tests** (roundtrip, avalanche, domain separation, AEAD rejection)
+- **Backend:**
+  - `User.cryptoSalt String?` (migración `20260527090000_s6_crypto_user_salt`)
+  - Generación al `register` + OAuth Google
+  - Exposición en `AuthResponseDto` (4 endpoints) y `UserMeResponse`
+- **Web:**
+  - `lib/crypto/diary-key-context.tsx` — Context, in-memory key (no localStorage)
+  - `UnlockGate` + `ActiveComposer` (encripta body + excerpt) + `ActiveEntryList` (descifra excerpts memoized) + `DiarioShell`
+  - Removed placeholders: `Composer.tsx`, `EntryList.tsx`, `CryptoNotice.tsx`
+  - Diario page consume `/user/me` para el salt
+- **Mobile:**
+  - `src/crypto/diary-key-store.ts` (Expo SecureStore wrapper)
+  - `src/crypto/diary-key-context.tsx` (restore on mount, persist on unlock)
+  - `UnlockGate` + ActiveDiarioBody (composer + entries decrypt)
+  - `AuthContext.logout` también limpia `diaryKeyStore`
+- **Cliente API:**
+  - `generated.ts` regenerated (57.9 KB → 59.5 KB) con `cryptoSalt` en 4 endpoints
+
+**Decisiones del sprint:**
+1. `@noble/hashes` + `@noble/ciphers` over WASM libs (portable web + RN, no bundling fragilidad).
+2. Web: memoria de pestaña; Mobile: SecureStore. Divergencia intencional documentada en ADR.
+3. Excerpt cipher por separado para list views sin descargar body completo.
+4. `masterKey.fill(0)` después de derivar subkey (minimizar ventana de exposición).
+5. Sin migración para cuentas legacy en este sprint (mini-sprint posterior).
+6. Sin recovery seed phrase (BIP39) — UX significativo, validar con Pulso primero.
+
+**Smoke verification:**
+- Crypto tests 24/24 (incluye Argon2id reales, ~16s tiempo total).
+- API tests 252/252.
+- Web/Mobile typecheck + lint clean.
+- Privacy invariant grep verde (sin ciphertext logged).
+- OpenAPI generate:check in sync.
+
+**Deuda técnica abierta:**
+- Recovery seed phrase (BIP39) — ADR 0007 §G compromete opt-in.
+- Migración cuentas legacy con `cryptoSalt = null`.
+- Password change flow → re-encrypt del Diario.
+- Detail view del entry (descifrar body completo, no solo excerpt).
+- Share with therapist UI — backend ready desde S6, espera TherapyModule v2.
+- Eco crypto wire — helper `eco-v1` listo, AIModule lo usará en S10.
+
+---
+
+### Próximo paso — Sesión 22
 
 **Tres opciones disponibles:**
 
-**Opción A — Sprint S6-crypto:**
-```bash
-git checkout -b feature/sprint-s6-crypto
-# Argon2id + XChaCha20-Poly1305 + ECDH X25519 cliente-side
-# Desbloquea Composer del Diario funcional en web + mobile
-# Requiere libsodium-wrappers + argon2-browser
-```
-
-**Opción B — Sprint S7 SubscriptionModule completo:**
+**Opción A — Sprint S7 SubscriptionModule completo:**
 ```bash
 git checkout -b feature/sprint-s7-subscription-usage
 # Endpoints nuevos:
@@ -758,13 +809,21 @@ git checkout -b feature/sprint-s7-subscription-usage
 # Plus BullMQ jobs para sync diaria de usage counters.
 ```
 
-**Opción C — Sprint Polish (mobile):**
+**Opción B — Polish sprint (cripto):**
 ```bash
-git checkout -b feature/sprint-mobile-polish
-# Toggles favorito/bookmark en cards Biblioteca (paridad con web)
-# Modal "Escribir reseña" con form
-# Reader screen básico
-# Pull-to-refresh en Biblioteca y Diario
+git checkout -b feature/sprint-crypto-polish
+# Detail view del diary entry (descifrar body completo)
+# Recovery seed phrase BIP39 opt-in
+# Migración cuentas legacy con cryptoSalt nulo
+# Password change → re-encrypt flow
+```
+
+**Opción C — Sprint S8 VoiceModule:**
+```bash
+git checkout -b feature/sprint-s8-voice
+# Whisper / Deepgram para transcripción de audio
+# Entries con kind="voz" funcionales
+# Audio NO cifrado at-rest (ADR); solo transcript cifrado
 ```
 
 **Decisión pendiente antes de S7 (si la opción es B):**

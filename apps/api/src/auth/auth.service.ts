@@ -75,15 +75,28 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
+    // Generate the per-user Argon2id salt (ADR 0007 §A). 16 bytes random,
+    // base64url, stored as-is in the DB. NOT a secret — the client receives
+    // it back at login to derive the master key.
+    const cryptoSalt = randomBytes(16).toString("base64url");
+
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         passwordHash,
         name: dto.name,
         authProvider: "LOCAL",
+        cryptoSalt,
         profile: { create: {} },
       },
-      select: { id: true, email: true, name: true, role: true, plan: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        plan: true,
+        cryptoSalt: true,
+      },
     });
 
     // Audit BEFORE issuing tokens so a DB failure on the audit doesn't issue
@@ -126,6 +139,7 @@ export class AuthService {
         plan: true,
         passwordHash: true,
         isActive: true,
+        cryptoSalt: true,
       },
     });
 
@@ -197,6 +211,7 @@ export class AuthService {
             role: true,
             plan: true,
             isActive: true,
+            cryptoSalt: true,
           },
         },
       },
@@ -533,6 +548,7 @@ export class AuthService {
         role: true,
         plan: true,
         isActive: true,
+        cryptoSalt: true,
       },
     });
 
@@ -585,6 +601,13 @@ export class AuthService {
     }
 
     // Path 2: brand-new user.
+    //
+    // Google OAuth users get a cryptoSalt too — the master key derives from
+    // a future "passcode" the user sets the first time they open Diario.
+    // For now the salt is stored but the diary unlock UX will prompt for a
+    // passcode (separate from Google login). Documented as TODO until UX
+    // lands; the salt being there means we don't need a migration later.
+    const cryptoSalt = randomBytes(16).toString("base64url");
     const created = await this.prisma.user.create({
       data: {
         email: claims.email,
@@ -594,6 +617,7 @@ export class AuthService {
         avatarUrl: claims.picture,
         authProvider: "GOOGLE",
         providerId: claims.sub,
+        cryptoSalt,
         // Google already verified the email — skip our own verification flow.
         emailVerified: claims.emailVerified,
         profile: { create: {} },
@@ -604,6 +628,7 @@ export class AuthService {
         name: true,
         role: true,
         plan: true,
+        cryptoSalt: true,
       },
     });
 
@@ -700,6 +725,7 @@ export class AuthService {
       name: string;
       role: string;
       plan: string;
+      cryptoSalt?: string | null;
     },
     // TODO senior: accept Prisma transaction client type once shared kernel is extracted
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -741,6 +767,10 @@ export class AuthService {
         name: user.name,
         role: user.role,
         plan: user.plan,
+        // cryptoSalt is null for legacy accounts. The client gracefully
+        // shows "tu cuenta no tiene cifrado E2E activado" with a re-derive
+        // CTA (future) instead of breaking the diary flow.
+        cryptoSalt: user.cryptoSalt ?? null,
       },
     };
   }

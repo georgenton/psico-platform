@@ -179,6 +179,9 @@ export class UsersService {
           user.privacySettings?.dataExportRequestedAt ?? null,
         accountDeleteRequested: user.deleteRequestedAt,
       },
+      // E2E crypto salt (Sprint S6-crypto, ADR 0007 §A). Null for legacy
+      // accounts. The client uses it to derive the diary master key.
+      cryptoSalt: user.cryptoSalt,
     };
   }
 

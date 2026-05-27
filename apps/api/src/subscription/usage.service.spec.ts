@@ -29,6 +29,7 @@ function makePrismaMock(opts: {
   }>;
   allTimeProgress?: Array<{ chapterId: string }>;
   chapterToBook?: Array<{ id: string; bookId: string }>;
+  voiceSecondsSum?: number;
 }) {
   return {
     subscription: {
@@ -54,6 +55,11 @@ function makePrismaMock(opts: {
     },
     chapter: {
       findMany: vi.fn().mockResolvedValue(opts.chapterToBook ?? []),
+    },
+    voiceTranscription: {
+      aggregate: vi.fn().mockResolvedValue({
+        _sum: { durationSec: opts.voiceSecondsSum ?? 0 },
+      }),
     },
   };
 }
@@ -162,7 +168,7 @@ describe("UsageService", () => {
       expect(result.diary.entriesThisPeriod).toBe(9);
     });
 
-    it("eco/voice quedan en 0 hasta que aterricen S10/S8", async () => {
+    it("eco queda en 0 hasta S10", async () => {
       const prisma = makePrismaMock({ plan: Plan.PRO, hasActiveSub: true });
       const redis = makeRedisMock();
       const service = new UsageService(prisma as never, redis as never);
@@ -170,7 +176,21 @@ describe("UsageService", () => {
       const result = await service.getUsage(USER_ID);
 
       expect(result.eco.messagesThisPeriod).toBe(0);
-      expect(result.voice.minutesThisPeriod).toBe(0);
+    });
+
+    it("voice.minutesThisPeriod = SUM(durationSec) / 60 rounded to 1 dp (S8)", async () => {
+      const prisma = makePrismaMock({
+        plan: Plan.PRO,
+        hasActiveSub: true,
+        voiceSecondsSum: 154, // 2.566… min → rounds to 2.6
+      });
+      const redis = makeRedisMock();
+      const service = new UsageService(prisma as never, redis as never);
+
+      const result = await service.getUsage(USER_ID);
+
+      expect(result.voice.minutesThisPeriod).toBe(2.6);
+      expect(result.voice.quota).toBe(120);
     });
 
     it("booksCompleted suma 1 cuando el usuario terminó todos los capítulos en el periodo", async () => {

@@ -64,6 +64,14 @@ export const envSchema = z
       .string()
       .min(1, "STRIPE_PRO_YEARLY_PRICE_ID is required"),
     STRIPE_B2B_PRICE_ID: z.string().min(1, "STRIPE_B2B_PRICE_ID is required"),
+
+    // Voice transcription (Sprint S8). VOICE_PROVIDER selects between
+    // Whisper (OpenAI) and Deepgram. Per-provider API keys are optional at
+    // the schema level — superRefine below requires the matching key for
+    // the selected provider so we don't crash mid-request.
+    VOICE_PROVIDER: z.enum(["whisper", "deepgram"]).default("whisper"),
+    OPENAI_API_KEY: z.string().optional(),
+    DEEPGRAM_API_KEY: z.string().optional(),
   })
   // Cross-field validation: in production, certain optional fields become
   // required. Keeping the rule here (instead of separate per-env schemas)
@@ -75,6 +83,26 @@ export const envSchema = z
         path: ["REDIS_URL"],
         message:
           "REDIS_URL is required in production (used by throttler and idempotency cache)",
+      });
+    }
+    // The selected voice provider must have its API key. We don't gate by
+    // NODE_ENV because dev should also fail fast if you set VOICE_PROVIDER=
+    // deepgram without DEEPGRAM_API_KEY — easier to catch at boot than at
+    // the first /voz/transcribe call.
+    if (env.VOICE_PROVIDER === "whisper" && !env.OPENAI_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["OPENAI_API_KEY"],
+        message:
+          "OPENAI_API_KEY is required when VOICE_PROVIDER=whisper. Set it or switch VOICE_PROVIDER to deepgram.",
+      });
+    }
+    if (env.VOICE_PROVIDER === "deepgram" && !env.DEEPGRAM_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["DEEPGRAM_API_KEY"],
+        message:
+          "DEEPGRAM_API_KEY is required when VOICE_PROVIDER=deepgram. Set it or switch VOICE_PROVIDER to whisper.",
       });
     }
   });

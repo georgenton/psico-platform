@@ -124,6 +124,7 @@ model User {
   diaryEntries            DiaryEntry[]
   sharedDiaryEntries      SharedDiaryEntry[]
   billingUsageDays        BillingUsageDay[]
+  voiceTranscriptions     VoiceTranscription[]
 
   @@unique([authProvider, providerId])
   @@index([email])
@@ -577,6 +578,30 @@ model StripeEvent {
   createdAt     DateTime @default(now())
 
   @@index([stripeEventId])
+}
+
+// ─── Voice transcriptions (Sprint S8) ────────────────────────────────────────
+//
+// Audit row per transcription. Per ADR / docs/design/handoff/07-voz.md the
+// audio is NEVER stored — only this metadata. Two uses:
+//   1. Live quota counter — UsageService SUMs `durationSec` in the period.
+//   2. BullMQ daily rollup — DailyUsageProcessor aggregates into
+//      BillingUsageDay.voiceMinutes for Pulso admin.
+//
+// We intentionally store the provider (`whisper` | `deepgram`) so that
+// future cost-attribution analytics can split per-vendor without us
+// having to redo joins.
+model VoiceTranscription {
+  id           String   @id @default(cuid())
+  userId       String
+  durationSec  Float
+  language     String // "es" | "es-419" | "en" | ...
+  provider     String // "whisper" | "deepgram" (also used to plan migration)
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 // ─── Billing usage rollup (Sprint S7) ────────────────────────────────────────

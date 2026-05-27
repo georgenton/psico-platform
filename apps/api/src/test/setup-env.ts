@@ -19,6 +19,10 @@ const STUBS = {
   STRIPE_PRO_MONTHLY_PRICE_ID: "price_stub_monthly",
   STRIPE_PRO_YEARLY_PRICE_ID: "price_stub_yearly",
   STRIPE_B2B_PRICE_ID: "price_stub_b2b",
+  // Voice provider — Whisper by default in tests. Tests that exercise
+  // Deepgram override VOICE_PROVIDER + DEEPGRAM_API_KEY locally.
+  VOICE_PROVIDER: "whisper",
+  OPENAI_API_KEY: "sk-stub",
   NODE_ENV: "test",
   // REDIS_URL intentionally unset → RedisModule falls back to ioredis-mock.
 } as const;

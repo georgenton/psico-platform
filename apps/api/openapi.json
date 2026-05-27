@@ -1848,6 +1848,44 @@
           "Onboarding"
         ]
       }
+    },
+    "/api/voz/transcribe": {
+      "post": {
+        "operationId": "VoiceController_transcribe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Voice"
+        ]
+      }
+    },
+    "/api/voz/usage": {
+      "post": {
+        "operationId": "VoiceController_reportUsage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Voice"
+        ]
+      }
     }
   },
   "info": {

@@ -125,6 +125,7 @@ model User {
   sharedDiaryEntries      SharedDiaryEntry[]
   billingUsageDays        BillingUsageDay[]
   voiceTranscriptions     VoiceTranscription[]
+  ecoThreads              EcoThread[]
 
   @@unique([authProvider, providerId])
   @@index([email])
@@ -578,6 +579,99 @@ model StripeEvent {
   createdAt     DateTime @default(now())
 
   @@index([stripeEventId])
+}
+
+// ─── Eco conversational AI (Sprint S10) ──────────────────────────────────────
+//
+// Hybrid encryption model for v1:
+//   - User messages: client encrypts → server stores `textCiphertext + textNonce`.
+//     Server also receives plaintext IN-FLIGHT to call the LLM and run crisis
+//     detection, but NEVER persists it. The privacy spec enforces no logging.
+//   - Assistant messages: LLM-generated, stored as plaintext in `assistantText`.
+//     They're not the user's private input; encrypting them adds plumbing
+//     without privacy upside for the v1 threat model.
+//
+// `EcoMessage.kind` lets the UI distinguish normal replies from crisis
+// derivations and book/exercise suggestions:
+//   - "user"        → user → eco
+//   - "assistant"   → eco → user (regular reply)
+//   - "crisis"      → eco → user (crisis derivation; no LLM call needed,
+//                                  server-generated)
+//   - "suggestion"  → eco → user (assistant suggesting a book/exercise;
+//                                  carries an optional bookId/exerciseId)
+//
+// `EcoMessageReport` captures user-flagged bad answers for offline review.
+
+enum EcoMessageKind {
+  USER
+  ASSISTANT
+  CRISIS
+  SUGGESTION
+}
+
+enum EcoMessageReportReason {
+  HALLUCINATION
+  OFF_TONE
+  SENSITIVE_CONTENT
+  CRISIS_MISHANDLED
+  OTHER
+}
+
+model EcoThread {
+  id            String   @id @default(cuid())
+  userId        String
+  // Generated client-side from the first user message, then encrypted with
+  // the same ecoKey. Null until the first response is received. Used as a
+  // "title" in the sidebar rail — client decrypts before render.
+  titleCiphertext String?
+  titleNonce      String?
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages EcoMessage[]
+
+  @@index([userId, lastMessageAt])
+}
+
+model EcoMessage {
+  id          String         @id @default(cuid())
+  threadId    String
+  kind        EcoMessageKind
+  // For USER messages: cipher payload encrypted client-side. NEVER null
+  // for USER kind. Always null for non-USER kinds.
+  textCiphertext String?
+  textNonce      String?
+  // For ASSISTANT / CRISIS / SUGGESTION: LLM-generated plaintext.
+  // Stored to make the thread re-readable without re-running inference.
+  // Always null for USER kind.
+  assistantText  String?
+  // Suggestion metadata. Populated only when kind=SUGGESTION.
+  suggestedBookId String?
+  // Token accounting for billing/cost analysis. Zero for USER messages.
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  thread  EcoThread        @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  reports EcoMessageReport[]
+
+  @@index([threadId, createdAt])
+}
+
+model EcoMessageReport {
+  id        String                 @id @default(cuid())
+  messageId String
+  userId    String // denormalised so the report row is queryable without a join
+  reason    EcoMessageReportReason
+  comment   String?
+  createdAt DateTime               @default(now())
+
+  message EcoMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([reason])
 }
 
 // ─── Voice transcriptions (Sprint S8) ────────────────────────────────────────

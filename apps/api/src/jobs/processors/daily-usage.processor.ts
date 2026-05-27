@@ -19,10 +19,8 @@ import { JobName, QueueName, type DailyUsageJobPayload } from "../queue-names";
  *                         chapter of that book.
  *   - `voiceMinutes`    — Sprint S8: SUM(durationSec) on VoiceTranscription
  *                         in the window, divided by 60. Rounded to 0.1 min.
- *
- * What this DOES NOT write yet:
- *   - `ecoMessages`  — wired when AIModule conversational lands (S10).
- *   Defaults to 0 in the schema so the row shape stays stable.
+ *   - `ecoMessages`     — Sprint S10: COUNT(EcoMessage) where kind=USER in
+ *                         the window. Assistant replies don't count.
  *
  * Idempotency: the (userId, day) unique constraint plus an `upsert` makes
  * re-running for the same day safe. Useful when ops needs to backfill a
@@ -71,6 +69,22 @@ export class DailyUsageProcessor extends WorkerHost {
     const voiceSecondsByUser = new Map<string, number>(
       voiceGroups.map((g) => [g.userId, g._sum.durationSec ?? 0]),
     );
+
+    // ── Eco messages (Sprint S10) ───────────────────────────────────────────
+    // Count USER-kind EcoMessages per user. Threads carry the userId; we
+    // join via the thread relation. Assistant replies don't count.
+    const ecoRows = await this.prisma.ecoMessage.findMany({
+      where: {
+        kind: "USER",
+        createdAt: { gte: day, lt: dayEnd },
+      },
+      select: { thread: { select: { userId: true } } },
+    });
+    const ecoCountByUser = new Map<string, number>();
+    for (const row of ecoRows) {
+      const uid = row.thread.userId;
+      ecoCountByUser.set(uid, (ecoCountByUser.get(uid) ?? 0) + 1);
+    }
 
     // ── Books completed: a book counts if the user finished its last chapter
     //    in the window. Cheap heuristic: count books where the user has any
@@ -133,6 +147,7 @@ export class DailyUsageProcessor extends WorkerHost {
       ...diaryGroups.map((g) => g.userId),
       ...candidateByUser.keys(),
       ...voiceSecondsByUser.keys(),
+      ...ecoCountByUser.keys(),
     ]);
 
     let written = 0;
@@ -143,6 +158,7 @@ export class DailyUsageProcessor extends WorkerHost {
       const voiceMinutes = Number(
         ((voiceSecondsByUser.get(userId) ?? 0) / 60).toFixed(1),
       );
+      const ecoMessages = ecoCountByUser.get(userId) ?? 0;
 
       await this.prisma.billingUsageDay.upsert({
         where: { userId_day: { userId, day } },
@@ -152,13 +168,13 @@ export class DailyUsageProcessor extends WorkerHost {
           diaryEntries: diaryCount,
           booksCompleted,
           voiceMinutes,
-          // ecoMessages defaults to 0 — wire up in S10 with AIModule
-          // conversational.
+          ecoMessages,
         },
         update: {
           diaryEntries: diaryCount,
           booksCompleted,
           voiceMinutes,
+          ecoMessages,
         },
       });
       written += 1;

@@ -57,42 +57,55 @@ export class UsageService {
     }
 
     // ── Live aggregation ─────────────────────────────────────────────────────
-    const [user, diaryEntriesCount, progressInPeriod, voiceAggregate] =
-      await Promise.all([
-        this.prisma.user.findUnique({
-          where: { id: userId },
-          select: { plan: true },
-        }),
-        this.prisma.diaryEntry.count({
-          where: {
-            userId,
-            createdAt: { gte: period.start, lt: period.end },
-          },
-        }),
-        this.prisma.userProgress.findMany({
-          where: {
-            userId,
-            completedAt: { gte: period.start, lt: period.end },
-          },
-          select: {
-            chapter: {
-              select: {
-                bookId: true,
-                book: { select: { totalChapters: true } },
-              },
+    const [
+      user,
+      diaryEntriesCount,
+      progressInPeriod,
+      voiceAggregate,
+      ecoMessagesCount,
+    ] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { plan: true },
+      }),
+      this.prisma.diaryEntry.count({
+        where: {
+          userId,
+          createdAt: { gte: period.start, lt: period.end },
+        },
+      }),
+      this.prisma.userProgress.findMany({
+        where: {
+          userId,
+          completedAt: { gte: period.start, lt: period.end },
+        },
+        select: {
+          chapter: {
+            select: {
+              bookId: true,
+              book: { select: { totalChapters: true } },
             },
           },
-        }),
-        // Sprint S8: sum the user's voice transcription seconds in the
-        // period. Returns 0 for users who haven't transcribed yet.
-        this.prisma.voiceTranscription.aggregate({
-          where: {
-            userId,
-            createdAt: { gte: period.start, lt: period.end },
-          },
-          _sum: { durationSec: true },
-        }),
-      ]);
+        },
+      }),
+      // Sprint S8: sum the user's voice transcription seconds in the period.
+      this.prisma.voiceTranscription.aggregate({
+        where: {
+          userId,
+          createdAt: { gte: period.start, lt: period.end },
+        },
+        _sum: { durationSec: true },
+      }),
+      // Sprint S10: count the user's Eco messages (USER role only — assistant
+      // replies don't count against the quota) in the period.
+      this.prisma.ecoMessage.count({
+        where: {
+          kind: "USER",
+          createdAt: { gte: period.start, lt: period.end },
+          thread: { userId },
+        },
+      }),
+    ]);
 
     const plan = user?.plan ?? "FREE";
     const quotas = PLAN_QUOTAS[plan];
@@ -146,7 +159,10 @@ export class UsageService {
       plan,
       period,
       books: { completedThisPeriod: completedBooks },
-      eco: { messagesThisPeriod: 0, quota: quotas.eco }, // TODO S10
+      // Sprint S10: real count from EcoMessage. FREE-tier daily cap (10/day)
+      // is enforced by EcoService independently; here we report the
+      // billing-period total so Mi Plan shows a meaningful number.
+      eco: { messagesThisPeriod: ecoMessagesCount, quota: quotas.eco },
       voice: {
         // Round to 0.1 min — what the UI displays. We keep the raw seconds
         // server-side (VoiceTranscription rows) for accurate quota math.

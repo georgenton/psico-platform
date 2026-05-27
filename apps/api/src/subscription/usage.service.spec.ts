@@ -61,6 +61,9 @@ function makePrismaMock(opts: {
         _sum: { durationSec: opts.voiceSecondsSum ?? 0 },
       }),
     },
+    ecoMessage: {
+      count: vi.fn().mockResolvedValue(0),
+    },
   };
 }
 

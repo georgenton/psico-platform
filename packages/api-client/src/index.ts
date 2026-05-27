@@ -9,6 +9,7 @@ export { homeApi } from "./home";
 export { subscriptionApi } from "./subscription";
 export type { BillingInterval, CheckoutSession } from "./subscription";
 export { voiceApi } from "./voice";
+export { ecoApi } from "./eco";
 
 // Auto-generated OpenAPI types — see scripts/generate.mjs and ADR 0008.
 // Consumers can use:

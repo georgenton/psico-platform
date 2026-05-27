@@ -1007,36 +1007,101 @@ tokens, Prisma schema and env validation`
 
 ---
 
-### Próximo paso — Sesión 26
+### Sesión 26 — 2026-05-27 ✅ COMPLETADA — Sprint S10 AIModule conversacional (Eco)
 
-**Tres opciones disponibles:**
+**Rama sugerida:** `feature/sprint-s10-eco-chat`
+**Tests:** 323/323 API + 34/34 crypto (296 → 323, +27 tests nuevos · 1 skipped sentinel)
+**ADRs aplicados:** [0007 §C](docs/adr/0007-e2e-encryption-diario-eco.md) — Eco hybrid encryption, parcialmente.
+**Bitácora:** [docs/informes/sprint-s10-eco-chat.md](docs/informes/sprint-s10-eco-chat.md)
 
-**Opción A — Sprint S10 AIModule conversacional:**
+**Decisiones del usuario lockeadas:**
+1. **Hybrid encryption** — cliente envía plaintext+ciphertext, server usa plaintext in-flight para LLM/crisis y persiste solo ciphertext. Assistant en plaintext.
+2. **SSE** (Server-Sent Events) como protocolo de streaming.
+3. **Ambos layers de crisis detection** — regex pre-LLM + [CRISIS] sentinel del LLM.
+
+**Lo que se construyó:**
+
+**Backend — 6 endpoints nuevos bajo `/api/eco/*`:**
+- `GET /caps` — persona (name, voice, caps).
+- `GET /threads`, `POST /threads`, `GET /threads/:id`, `DELETE /threads/:id`.
+- `POST /messages` — SSE stream (delta/crisis/suggestion/done/error events). Throttle 30/min/user.
+- `POST /messages/:id/report` — flag bad replies (HALLUCINATION/OFF_TONE/SENSITIVE_CONTENT/CRISIS_MISHANDLED/OTHER).
+
+**Schema:**
+- `EcoThread { id, userId, titleCiphertext?, titleNonce?, lastMessageAt }`.
+- `EcoMessage { id, threadId, kind (USER/ASSISTANT/CRISIS/SUGGESTION), textCiphertext?, textNonce?, assistantText?, suggestedBookId?, input/outputTokens }`.
+- `EcoMessageReport { id, messageId, userId, reason enum, comment? }`.
+- Backward-compat: `Conversation` y `ConversationMessage` siguen vivos para `/ai/chat`.
+
+**Crisis detection (dos layers):**
+- **Layer 1** — `isCrisisText(plaintext)` regex con patrones unambiguos (`suicid`, `quitarme la vida`, `no quiero vivir`, inglés). Si match → emit `crisis` event, persiste `EcoMessage` con `kind=CRISIS`, NO llama al LLM.
+- **Layer 2** — system prompt instruye al LLM a responder EXCLUSIVAMENTE con `[CRISIS]` como primer token si detecta señales. Streaming pipeline aborta + reemplaza con canned message.
+
+**Quotas (`PLAN_QUOTAS.eco`):**
+- FREE: 10 user-messages por UTC-day.
+- PRO/ANNUAL: 200 user-messages por billing period.
+- B2B: unlimited.
+
+**Wire-up con S7:** 🎉 cierra el último counter de `/usage`:
+- `UsageService.eco.messagesThisPeriod` ahora cuenta `EcoMessage` con `kind=USER`.
+- `DailyUsageProcessor` popula `BillingUsageDay.ecoMessages` nightly.
+- Post-mensaje: `usageService.invalidate(userId)` busta cache 5-min.
+
+**Shared:**
+- `@psico/types` +9 tipos (`EcoMessageKind`, `EcoPersona`, `EcoSseEvent` union, etc.).
+- `@psico/api-client`: nuevo `ecoApi` con SSE consumer (`sendMessage` usa fetch + reader, parser de event/data frames). `generated.ts` 67.0 KB → 72.2 KB.
+
+**Privacy invariant:** `eco.privacy.spec.ts` enforce no `logger.*`/`console.*` referencia `textPlaintext`, `textCiphertext`, `textNonce`, `titleCiphertext`, ni `titleNonce`.
+
+**Bugs corregidos (3, bitácora §7):**
+1. `Subject.complete()` en `finally` antes del error event → quota gate test veía 0 eventos. Fix: try/catch INSIDE el runner, emit error inline, complete una vez al final.
+2. `UsageService` spec mock faltaba `ecoMessage.count`. Añadido al helper.
+3. Anthropic SDK mock con `stream.on("text", ...)` necesitó drenar chunks vía `Promise.resolve().then` para que el listener se registre antes.
+
+**Smoke boot:** 7 rutas nuevas mapeadas, OpenAPI generate:check OK, todos los typecheck/lint/privacy verdes.
+
+**Deuda técnica abierta:**
+- History parcial del user en LLM (solo current turn + assistant past turns; user past turns son ciphertext, server no puede decrypt). v2 con client-side summary.
+- Sin frontend UI (chat screen web + mobile pendiente).
+- `intent: "suggest"` no diferencia el system prompt todavía.
+- Sin resumen de hilo cada 20 mensajes (design 08-eco.md §thread).
+- Sin tests del LLM-sentinel path (layer 2). Layer 1 cubierto.
+- 10 migraciones Prisma + 3 API keys (ANTHROPIC/OPENAI/DEEPGRAM) + RESEND_API_KEY + REDIS_URL sin configurar en Railway — bloqueante de deploy.
+- `Conversation` viejo + `/ai/chat` siguen vivos. Cleanup en sprint separado cuando el front migre.
+
+---
+
+### Próximo paso — Sesión 27
+
+**Fase 1 backend está completa** (todos los counters de `/usage` reportan datos reales). Tres opciones:
+
+**Opción A — Front UI consumiendo S6–S10 (recomendada):**
 ```bash
-git checkout -b feature/sprint-s10-eco-chat
-# Extender RAG existente con threads + messages E2E (ADR 0007)
-# SSE streaming + safety/crisis detection
-# Quota eco ya expuesta en /usage → ahora se respeta server-side
-# Cierra el último counter de /usage (todos los placeholders)
+git checkout -b feature/sprint-front-fase1
+# Web + mobile: pantalla Mi Plan (/usage, /invoices, /cancel)
+# Web + mobile: pantalla Voz (MediaRecorder + /voz/transcribe)
+# Web + mobile: pantalla Eco chat (EventSource/fetch reader + /eco/messages)
+# Web: /dashboard/plan, /dashboard/voz, /dashboard/eco
+# Mobile: /(tabs)/plan, /(tabs)/voz (nuevo), /(tabs)/eco (nuevo)
 ```
 
-**Opción B — Front UI consumiendo S6-S8:**
+**Opción B — Deploy a Railway:**
 ```bash
-git checkout -b feature/sprint-mi-plan-front
-# Web + mobile: pantalla Mi Plan consumiendo /usage, /invoices, /cancel
-# Web + mobile: pantalla Voz consumiendo /voz/transcribe con MediaRecorder
-# Web: /dashboard/plan, /dashboard/voz
-# Mobile: /(tabs)/plan, /(tabs)/voz (nuevo)
+# Aplicar 10 migraciones Prisma acumuladas
+# Configurar API keys: ANTHROPIC_API_KEY, OPENAI_API_KEY (o DEEPGRAM_API_KEY),
+#                     RESEND_API_KEY, GOOGLE_CLIENT_ID, REDIS_URL (Upstash)
+# Smoke-test cada endpoint en producción
+# Promover web a Vercel preview → main
 ```
 
 **Opción C — Sprint S11 PatternsModule (Pro feature):**
 ```bash
 git checkout -b feature/sprint-s11-patterns
-# Análisis de patrones del Diario (heat-map por mood, tag clusters, etc.)
-# Pro-tier only. Reads DiaryEntry.mood/tags (ya plaintext en el schema).
-# Probablemente requiere AIModule conversacional primero para el "insights"
-# generativo — re-evaluar el orden con el usuario.
+# Análisis de patrones del Diario (heat-map mood, tag clusters)
+# Pro-tier only. Reads DiaryEntry.mood/tags (plaintext en schema).
+# Usa EcoModule (S10) para generar "insights" narrativos.
 ```
+
 
 
 **Decisión pendiente antes de S8 o S10:** si vamos por la pantalla Mi Plan primero (opción C), ¿quitamos los placeholders de los counters Eco/Voice (siempre 0) o los dejamos visibles como "Próximamente"?

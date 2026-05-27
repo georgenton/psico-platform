@@ -1,25 +1,34 @@
 import type { Metadata } from "next";
-import type { DiaryListResponse, DiaryPromptOfTheDay } from "@psico/types";
+import type {
+  DiaryListResponse,
+  DiaryPromptOfTheDay,
+  UserMeResponse,
+} from "@psico/types";
 
-import { serverFetch } from "@/lib/api.server";
-import { Composer } from "@/components/dashboard/diario/Composer";
-import { CryptoNotice } from "@/components/dashboard/diario/CryptoNotice";
-import { EntryList } from "@/components/dashboard/diario/EntryList";
+import { getAccessToken, serverFetch } from "@/lib/api.server";
+import { DiarioShell } from "@/components/dashboard/diario/DiarioShell";
 
 export const metadata: Metadata = { title: "Diario" };
 export const dynamic = "force-dynamic";
 
+const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001").replace(/\/$/, "")}/api`;
+
 export default async function DiarioPage() {
-  // Both calls can fail independently; we render whatever succeeded.
-  const [entriesResult, promptResult] = await Promise.allSettled([
+  // Three parallel fetches: entries (list), prompt (rotation), me (for the
+  // cryptoSalt). Each can fail independently — we degrade gracefully.
+  const [entriesResult, promptResult, meResult] = await Promise.allSettled([
     serverFetch<DiaryListResponse>("/diario/entries?perPage=30"),
     serverFetch<DiaryPromptOfTheDay | null>("/diario/prompt-of-the-day"),
+    serverFetch<UserMeResponse>("/user/me"),
   ]);
 
   const entries =
     entriesResult.status === "fulfilled" ? entriesResult.value.entries : [];
   const prompt =
     promptResult.status === "fulfilled" ? promptResult.value : null;
+  const cryptoSalt =
+    meResult.status === "fulfilled" ? meResult.value.cryptoSalt : null;
+  const accessToken = getAccessToken();
 
   return (
     <div className="mx-auto max-w-[720px]">
@@ -39,26 +48,13 @@ export default async function DiarioPage() {
         </p>
       </header>
 
-      <CryptoNotice />
-
-      <Composer prompt={prompt} />
-
-      <div className="mt-7 mb-3 flex items-baseline justify-between">
-        <h2
-          className="text-[12px] font-bold uppercase tracking-[0.14em]"
-          style={{ color: "var(--color-warm-500)" }}
-        >
-          Entradas recientes
-        </h2>
-        <span
-          className="text-[11px]"
-          style={{ color: "var(--color-warm-400)" }}
-        >
-          {entries.length} {entries.length === 1 ? "entrada" : "entradas"}
-        </span>
-      </div>
-
-      <EntryList entries={entries} />
+      <DiarioShell
+        cryptoSalt={cryptoSalt}
+        entries={entries}
+        prompt={prompt}
+        apiBase={API_BASE}
+        token={accessToken}
+      />
     </div>
   );
 }

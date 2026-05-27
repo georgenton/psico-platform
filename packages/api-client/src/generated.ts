@@ -1044,7 +1044,33 @@ export interface components {
         ResetPasswordDto: Record<string, never>;
         VerifyEmailDto: Record<string, never>;
         OAuthGoogleDto: Record<string, never>;
-        Function: Record<string, never>;
+        CreateBookReviewDto: Record<string, never>;
+        CreateBookDto: Record<string, never>;
+        UpdateBookDto: Record<string, never>;
+        CreateChapterDto: Record<string, never>;
+        UploadAudioDto: Record<string, never>;
+        MarkProgressDto: Record<string, never>;
+        UpdateUserMoodBodyDto: Record<string, never>;
+        CreateDiaryEntryDto: Record<string, never>;
+        UpdateDiaryEntryDto: Record<string, never>;
+        ShareDiaryEntryDto: Record<string, never>;
+        CreateCheckoutSessionDto: Record<string, never>;
+        CreatePortalSessionDto: Record<string, never>;
+        ChatRequestDto: Record<string, never>;
+        UpdateProfileDto: Record<string, never>;
+        UpdatePreferencesDto: Record<string, never>;
+        UpdateReaderPreferencesDto: Record<string, never>;
+        UpdateNotificationsDto: Record<string, never>;
+        UpdatePrivacyDto: Record<string, never>;
+        UpdateMoodDto: Record<string, never>;
+        EmailChangeRequestDto: Record<string, never>;
+        PasswordChangeDto: Record<string, never>;
+        DeleteRequestDto: Record<string, never>;
+        OnboardingStep1Dto: Record<string, never>;
+        OnboardingStep2Dto: Record<string, never>;
+        OnboardingStep3Dto: Record<string, never>;
+        OnboardingCompleteDto: Record<string, never>;
+        OnboardingTourCompleteDto: Record<string, never>;
     };
     responses: never;
     parameters: never;
@@ -1248,7 +1274,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["CreateBookDto"];
             };
         };
         responses: {
@@ -1360,7 +1386,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["CreateBookReviewDto"];
             };
         };
         responses: {
@@ -1440,7 +1466,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["UpdateBookDto"];
             };
         };
         responses: {
@@ -1483,7 +1509,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["CreateChapterDto"];
             };
         };
         responses: {
@@ -1507,7 +1533,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["UploadAudioDto"];
             };
         };
         responses: {
@@ -1530,7 +1556,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["MarkProgressDto"];
             };
         };
         responses: {
@@ -1585,7 +1611,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["UpdateMoodDto"];
             };
         };
         responses: {
@@ -1642,7 +1668,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["CreateDiaryEntryDto"];
             };
         };
         responses: {
@@ -1720,7 +1746,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["UpdateDiaryEntryDto"];
             };
         };
         responses: {
@@ -1743,7 +1769,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["ShareDiaryEntryDto"];
             };
         };
         responses: {
@@ -1798,7 +1824,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["CreateCheckoutSessionDto"];
             };
         };
         responses: {
@@ -1819,7 +1845,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["CreatePortalSessionDto"];
             };
         };
         responses: {
@@ -1874,7 +1900,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["ChatRequestDto"];
             };
         };
         responses: {
@@ -1967,7 +1993,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["UpdateProfileDto"];
             };
         };
         responses: {
@@ -2005,7 +2031,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["UpdatePreferencesDto"];
             };
         };
         responses: {
@@ -2026,7 +2052,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["UpdateReaderPreferencesDto"];
             };
         };
         responses: {
@@ -2047,7 +2073,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["UpdateNotificationsDto"];
             };
         };
         responses: {
@@ -2068,7 +2094,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["UpdatePrivacyDto"];
             };
         };
         responses: {
@@ -2089,7 +2115,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["EmailChangeRequestDto"];
             };
         };
         responses: {
@@ -2110,7 +2136,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["PasswordChangeDto"];
             };
         };
         responses: {
@@ -2148,7 +2174,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["DeleteRequestDto"];
             };
         };
         responses: {
@@ -2220,7 +2246,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["OnboardingStep1Dto"];
             };
         };
         responses: {
@@ -2258,7 +2284,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["OnboardingStep2Dto"];
             };
         };
         responses: {
@@ -2279,7 +2305,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["OnboardingStep3Dto"];
             };
         };
         responses: {
@@ -2317,7 +2343,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["OnboardingCompleteDto"];
             };
         };
         responses: {
@@ -2355,7 +2381,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Function"];
+                "application/json": components["schemas"]["OnboardingTourCompleteDto"];
             };
         };
         responses: {

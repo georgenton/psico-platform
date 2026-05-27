@@ -10,32 +10,43 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { diarioApi } from "@psico/api-client";
-import type { DiaryEntrySummary, DiaryPromptOfTheDay } from "@psico/types";
+import { decryptString, encryptString } from "@psico/crypto";
+import type {
+  CreateDiaryEntryRequest,
+  DiaryEntrySummary,
+  DiaryPromptOfTheDay,
+} from "@psico/types";
 import { useAuth } from "@/context/auth";
+import { DiaryKeyProvider, useDiaryKey } from "@/crypto/diary-key-context";
+import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
 import { Colors, Radius, Spacing } from "@/theme";
 
 /**
- * Diario — mobile.
+ * Diario — mobile, fully functional with E2E encryption.
  *
- * Same E2E-encryption gap as the web (see CryptoNotice). The composer is
- * visible but the Save button is disabled with a tooltip explaining the
- * crypto module lands in S6-crypto. Until then, the user can write text
- * locally and the server never sees it.
- *
- * The list renders existing entries' metadata (mood, tags, kind, date).
- * The body says "Cifrado · descifrar próximamente" — we cannot decrypt
- * without the client cripto module.
+ * The screen wraps itself in a DiaryKeyProvider seeded with the user's
+ * cryptoSalt (loaded from AuthContext at login). When the key is unlocked
+ * (either via cache hit from SecureStore or fresh password derive) we
+ * render the composer + decrypted entries. Otherwise → UnlockGate.
  */
 export default function DiarioScreen() {
   const { user } = useAuth();
+  if (!user) return null;
+
+  return (
+    <DiaryKeyProvider cryptoSalt={user.cryptoSalt}>
+      <DiarioInner />
+    </DiaryKeyProvider>
+  );
+}
+
+function DiarioInner() {
+  const { key, loadingPersisted } = useDiaryKey();
   const [entries, setEntries] = useState<DiaryEntrySummary[]>([]);
   const [prompt, setPrompt] = useState<DiaryPromptOfTheDay | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [text, setText] = useState("");
 
   const load = useCallback(async () => {
-    setError(null);
     try {
       const [list, p] = await Promise.all([
         diarioApi.list({ perPage: 30 }),
@@ -43,8 +54,6 @@ export default function DiarioScreen() {
       ]);
       setEntries(list.entries);
       setPrompt(p);
-    } catch {
-      setError("No se pudo cargar el diario.");
     } finally {
       setLoading(false);
     }
@@ -54,7 +63,13 @@ export default function DiarioScreen() {
     load();
   }, [load]);
 
-  if (!user) return null;
+  if (loadingPersisted) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={Colors.lavender[500]} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -62,7 +77,6 @@ export default function DiarioScreen() {
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Tu diario</Text>
         <Text style={styles.subtitle}>
@@ -71,53 +85,117 @@ export default function DiarioScreen() {
         </Text>
       </View>
 
-      {/* Crypto notice */}
-      <View style={styles.cryptoNotice}>
-        <View style={styles.cryptoIcon}>
-          <Ionicons name="lock-closed" size={14} color={Colors.lavender[700]} />
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.cryptoTitle}>
-            Diario cifrado de extremo a extremo
-          </Text>
-          <Text style={styles.cryptoSub}>
-            Tu texto se cifra en tu dispositivo con una clave derivada de tu
-            contraseña. El módulo de cifrado llega en el próximo sprint; por
-            ahora puedes ver la estructura.
-          </Text>
-        </View>
-      </View>
+      {!key ? (
+        <UnlockGate />
+      ) : (
+        <ActiveDiarioBody
+          entries={entries}
+          prompt={prompt}
+          loading={loading}
+          onCreated={load}
+        />
+      )}
+    </ScrollView>
+  );
+}
 
+// ─── Active body ─────────────────────────────────────────────────────────────
+
+function ActiveDiarioBody({
+  entries,
+  prompt,
+  loading,
+  onCreated,
+}: {
+  entries: DiaryEntrySummary[];
+  prompt: DiaryPromptOfTheDay | null;
+  loading: boolean;
+  onCreated: () => void;
+}) {
+  const { key, lock } = useDiaryKey();
+  const [text, setText] = useState("");
+  const [mood, setMood] = useState("calma");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSave() {
+    if (!key || !text.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      const trimmed = text.trim();
+      const envelope = encryptString(trimmed, key);
+      const excerptText =
+        trimmed.length > 140 ? `${trimmed.slice(0, 140).trimEnd()}…` : trimmed;
+      const excerpt = encryptString(excerptText, key);
+      const body: CreateDiaryEntryRequest = {
+        mood,
+        kind: prompt ? "prompted" : "free",
+        promptId: prompt?.id,
+        textCiphertext: envelope.ciphertext,
+        textNonce: envelope.nonce,
+        excerptCiphertext: excerpt.ciphertext,
+        excerptNonce: excerpt.nonce,
+      };
+      await diarioApi.create(body);
+      setText("");
+      onCreated();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <>
       {/* Composer */}
       <View style={styles.composer}>
-        <View style={styles.composerHead}>
-          <View style={styles.moodPill}>
-            <View
-              style={[
-                styles.moodPillDot,
-                { backgroundColor: Colors.sage[400] },
-              ]}
-            />
-            <Text style={styles.moodPillText}>Calma</Text>
-            <Text style={styles.moodPillChange}>· cambiar</Text>
-          </View>
-          <Text style={styles.composerDate}>
-            {new Date().toLocaleDateString("es-EC", {
-              weekday: "short",
-              day: "numeric",
-              month: "short",
-            })}
-          </Text>
-        </View>
+        {/* Mood chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 6, paddingVertical: 2 }}
+        >
+          {MOODS.map((m) => {
+            const active = m.id === mood;
+            return (
+              <Pressable
+                key={m.id}
+                onPress={() => setMood(m.id)}
+                disabled={submitting}
+                style={[
+                  styles.moodChip,
+                  active
+                    ? {
+                        backgroundColor: Colors.warm[900],
+                        borderColor: Colors.warm[900],
+                      }
+                    : {
+                        backgroundColor: Colors.warm[50],
+                        borderColor: Colors.warm[200],
+                      },
+                ]}
+              >
+                <Text style={{ fontSize: 12 }}>{m.emoji}</Text>
+                <Text
+                  style={[
+                    styles.moodChipText,
+                    { color: active ? Colors.white : Colors.warm[800] },
+                  ]}
+                >
+                  {m.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
 
         <TextInput
-          style={styles.composerInput}
+          style={styles.input}
           value={text}
           onChangeText={setText}
           placeholder="¿Cómo llegas hoy? Escribe lo que necesites — nadie lo lee más que tú."
           placeholderTextColor={Colors.warm[400]}
           multiline
           numberOfLines={4}
+          editable={!submitting}
         />
 
         {prompt ? (
@@ -137,20 +215,26 @@ export default function DiarioScreen() {
         ) : null}
 
         <View style={styles.composerFoot}>
-          <View style={styles.composerFootLeft}>
-            <Ionicons name="lock-closed" size={11} color={Colors.warm[500]} />
-            <Text style={styles.composerFootText}>
-              Privado · cifrado en tu dispositivo
-            </Text>
-          </View>
-          <Pressable disabled style={[styles.saveBtn, { opacity: 0.5 }]}>
+          <Pressable onPress={lock}>
+            <Text style={styles.lockBtn}>🔒 Bloquear diario</Text>
+          </Pressable>
+          <Pressable
+            disabled={submitting || !text.trim()}
+            onPress={handleSave}
+            style={[
+              styles.saveBtn,
+              (submitting || !text.trim()) && { opacity: 0.5 },
+            ]}
+          >
             <Ionicons name="create" size={14} color={Colors.white} />
-            <Text style={styles.saveBtnText}>Guardar (próximamente)</Text>
+            <Text style={styles.saveBtnText}>
+              {submitting ? "Cifrando…" : "Guardar"}
+            </Text>
           </Pressable>
         </View>
       </View>
 
-      {/* Entries section */}
+      {/* Entries */}
       <View style={styles.sectionH}>
         <Text style={styles.sectionTitle}>Entradas recientes</Text>
         <Text style={styles.sectionCount}>
@@ -161,10 +245,6 @@ export default function DiarioScreen() {
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="small" color={Colors.lavender[500]} />
-        </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : entries.length === 0 ? (
         <View style={styles.emptyCard}>
@@ -180,13 +260,31 @@ export default function DiarioScreen() {
       ) : (
         entries.map((e) => <EntryCard key={e.id} entry={e} />)
       )}
-    </ScrollView>
+    </>
   );
 }
 
-// ─── EntryCard ───────────────────────────────────────────────────────────────
+// ─── EntryCard with decryption ───────────────────────────────────────────────
 
 function EntryCard({ entry }: { entry: DiaryEntrySummary }) {
+  const { key } = useDiaryKey();
+  const [expanded, setExpanded] = useState(false);
+
+  const decrypted = (() => {
+    if (!key || !entry.excerptCiphertext || !entry.excerptNonce) return null;
+    try {
+      return decryptString(
+        {
+          ciphertext: entry.excerptCiphertext,
+          nonce: entry.excerptNonce,
+        },
+        key,
+      );
+    } catch {
+      return null;
+    }
+  })();
+
   const date = new Date(entry.createdAt).toLocaleDateString("es-EC", {
     weekday: "short",
     day: "numeric",
@@ -229,25 +327,58 @@ function EntryCard({ entry }: { entry: DiaryEntrySummary }) {
         </View>
       ) : null}
 
-      <View style={styles.cipherPlaceholder}>
-        <Ionicons name="lock-closed" size={11} color={Colors.warm[500]} />
-        <Text style={styles.cipherText}>
-          Contenido cifrado · descifrar próximamente
+      {decrypted ? (
+        <Text style={styles.entryBody}>
+          {expanded
+            ? decrypted
+            : decrypted.length > 160
+              ? `${decrypted.slice(0, 160)}…`
+              : decrypted}
         </Text>
-      </View>
-
-      {entry.tags.length > 0 ? (
-        <View style={styles.tagsRow}>
-          {entry.tags.map((t) => (
-            <View key={t} style={styles.tag}>
-              <Text style={styles.tagText}>#{t}</Text>
-            </View>
-          ))}
+      ) : (
+        <View style={styles.cipherPlaceholder}>
+          <Ionicons name="lock-closed" size={11} color={Colors.warm[500]} />
+          <Text style={styles.cipherText}>
+            Esta entrada no tiene preview cifrado · abre detalle para descifrar
+          </Text>
         </View>
-      ) : null}
+      )}
+
+      <View style={styles.entryFoot}>
+        {entry.tags.length > 0 ? (
+          <View style={styles.tagsRow}>
+            {entry.tags.map((t) => (
+              <View key={t} style={styles.tag}>
+                <Text style={styles.tagText}>#{t}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View />
+        )}
+        {decrypted && decrypted.length > 160 ? (
+          <Pressable onPress={() => setExpanded((v) => !v)}>
+            <Text style={styles.expandBtn}>
+              {expanded ? "Mostrar menos" : "Mostrar más"}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const MOODS = [
+  { id: "calma", emoji: "😌", label: "Calma" },
+  { id: "foco", emoji: "🎯", label: "Foco" },
+  { id: "energia", emoji: "✨", label: "Energía" },
+  { id: "reflexion", emoji: "🕊", label: "Reflexión" },
+  { id: "alegria", emoji: "😊", label: "Alegría" },
+  { id: "ansiedad", emoji: "😟", label: "Ansiedad" },
+  { id: "tristeza", emoji: "😔", label: "Tristeza" },
+] as const;
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -263,11 +394,6 @@ const styles = StyleSheet.create({
   center: {
     alignItems: "center",
     paddingVertical: Spacing.lg,
-  },
-  errorText: {
-    fontSize: 13,
-    color: Colors.warm[500],
-    textAlign: "center",
   },
 
   header: {
@@ -286,38 +412,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  cryptoNotice: {
-    flexDirection: "row",
-    gap: 10,
-    padding: Spacing.md,
-    backgroundColor: Colors.lavender[50],
-    borderRadius: Radius.lg,
-    borderWidth: 1.5,
-    borderColor: Colors.lavender[200],
-    marginBottom: Spacing.md,
-  },
-  cryptoIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: Colors.white,
-    borderWidth: 1.5,
-    borderColor: Colors.lavender[200],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cryptoTitle: {
-    fontSize: 12.5,
-    fontWeight: "700",
-    color: Colors.warm[900],
-  },
-  cryptoSub: {
-    fontSize: 11.5,
-    color: Colors.warm[700],
-    marginTop: 4,
-    lineHeight: 16,
-  },
-
   composer: {
     backgroundColor: Colors.white,
     borderRadius: Radius.lg,
@@ -326,43 +420,21 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     marginBottom: Spacing.md,
   },
-  composerHead: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.sm,
-  },
-  moodPill: {
+  moodChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: Colors.white,
-    borderWidth: 1.5,
-    borderColor: Colors.warm[200],
+    paddingVertical: 6,
     borderRadius: Radius.full,
+    borderWidth: 1.5,
   },
-  moodPillDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-  },
-  moodPillText: {
+  moodChipText: {
     fontSize: 12,
     fontWeight: "700",
-    color: Colors.warm[800],
   },
-  moodPillChange: {
-    fontSize: 11,
-    color: Colors.warm[400],
-  },
-  composerDate: {
-    fontSize: 11,
-    color: Colors.warm[500],
-  },
-  composerInput: {
-    minHeight: 80,
+  input: {
+    minHeight: 90,
     textAlignVertical: "top",
     padding: Spacing.sm,
     backgroundColor: Colors.warm[50],
@@ -372,6 +444,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: Colors.warm[800],
+    marginTop: Spacing.sm,
   },
   promptCard: {
     marginTop: Spacing.sm,
@@ -402,14 +475,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: Spacing.sm + 2,
   },
-  composerFootLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  composerFootText: {
-    fontSize: 10.5,
+  lockBtn: {
+    fontSize: 11,
     color: Colors.warm[500],
+    textDecorationLine: "underline",
   },
   saveBtn: {
     flexDirection: "row",
@@ -417,12 +486,12 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: Spacing.md,
     paddingVertical: 10,
-    backgroundColor: Colors.warm[900],
+    backgroundColor: Colors.sage[400],
     borderRadius: Radius.md,
   },
   saveBtnText: {
     color: Colors.white,
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: "700",
   },
 
@@ -532,6 +601,12 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     color: Colors.lavender[700],
   },
+  entryBody: {
+    fontSize: 13.5,
+    lineHeight: 19,
+    color: Colors.warm[800],
+    marginTop: Spacing.sm,
+  },
   cipherPlaceholder: {
     flexDirection: "row",
     alignItems: "center",
@@ -546,12 +621,18 @@ const styles = StyleSheet.create({
   cipherText: {
     fontSize: 11,
     color: Colors.warm[500],
+    flex: 1,
+  },
+  entryFoot: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: Spacing.sm,
   },
   tagsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
-    marginTop: Spacing.sm,
   },
   tag: {
     paddingHorizontal: 8,
@@ -563,5 +644,10 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     fontWeight: "600",
     color: Colors.warm[600],
+  },
+  expandBtn: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.lavender[700],
   },
 });

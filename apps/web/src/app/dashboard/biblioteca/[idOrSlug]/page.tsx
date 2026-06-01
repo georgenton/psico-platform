@@ -4,7 +4,12 @@ import Link from "next/link";
 import type { BookDetailResponse } from "@psico/types";
 
 import { ApiError } from "@/lib/api";
-import { getAccessToken, getSessionUser, serverFetch } from "@/lib/api.server";
+import {
+  getAccessToken,
+  getSessionUser,
+  isNextThrow,
+  serverFetch,
+} from "@/lib/api.server";
 import { BookHero } from "@/components/dashboard/detalle/BookHero";
 import { ChaptersList } from "@/components/dashboard/detalle/ChaptersList";
 import { ReviewsSection } from "@/components/dashboard/detalle/ReviewsSection";
@@ -28,7 +33,9 @@ export async function generateMetadata({
       title: detail.book.title,
       description: detail.book.subtitle ?? detail.book.description ?? undefined,
     };
-  } catch {
+  } catch (err) {
+    // Don't swallow Next.js redirect/notFound throws — see api.server.ts.
+    if (isNextThrow(err)) throw err;
     return { title: "Libro" };
   }
 }

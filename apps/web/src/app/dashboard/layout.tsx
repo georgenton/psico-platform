@@ -1,6 +1,6 @@
 import type { UserMeResponse } from "@psico/types";
 
-import { getSessionUser, serverFetch } from "@/lib/api.server";
+import { getSessionUser, isNextThrow, serverFetch } from "@/lib/api.server";
 import { DashboardShell } from "./_DashboardShell";
 
 export default async function DashboardLayout({
@@ -18,8 +18,16 @@ export default async function DashboardLayout({
   try {
     const me = await serverFetch<UserMeResponse>("/user/me");
     cryptoSalt = me.cryptoSalt;
-  } catch {
-    // If /user/me fails the dashboard pages will redirect on their own.
+  } catch (err) {
+    // CRITICAL: `serverFetch` throws `redirect('/login')` on auth failure;
+    // that throw must propagate so Next.js can perform the actual redirect.
+    // Swallowing it (the previous `catch {}` did) leaves the user on
+    // /dashboard with stale tokens and the client falls into an infinite
+    // refresh loop. Surface anything that ISN'T a missing-cryptoSalt error
+    // — non-auth errors get re-thrown too so the error boundary catches.
+    if (isNextThrow(err)) throw err;
+    // Other non-redirect errors: leave cryptoSalt as null. The Diario
+    // UnlockGate will render the empty state instead of crashing.
   }
 
   return (

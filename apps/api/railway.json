@@ -1,8 +1,10 @@
 {
   "build": {
-    "builder": "NIXPACKS"
+    "builder": "NIXPACKS",
+    "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @psico/api... build"
   },
   "deploy": {
+    "preDeployCommand": "pnpm --filter @psico/api migrate:deploy",
     "startCommand": "pnpm --filter @psico/api start:prod",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 30,

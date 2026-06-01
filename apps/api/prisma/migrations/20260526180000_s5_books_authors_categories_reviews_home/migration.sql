@@ -1,4 +1,3 @@
-Loaded Prisma config from prisma.config.ts.
 
 -- AlterTable
 ALTER TABLE "Book" ADD COLUMN     "authorId" TEXT,
@@ -176,4 +175,3 @@ ALTER TABLE "DismissedReflectionPrompt" ADD CONSTRAINT "DismissedReflectionPromp
 
 -- AddForeignKey
 ALTER TABLE "DismissedReflectionPrompt" ADD CONSTRAINT "DismissedReflectionPrompt_promptId_fkey" FOREIGN KEY ("promptId") REFERENCES "ReflectionPrompt"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-

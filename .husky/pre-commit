@@ -1,1 +1,6 @@
+# Guard against Prisma CLI noise leaking into migration.sql files (see
+# docs/informes/deploy-2026-06-01-incident.md). Runs first because it is
+# cheap and a failure here means downstream lint-staged work is wasted.
+bash scripts/check-migration-sql.sh
+
 npx lint-staged

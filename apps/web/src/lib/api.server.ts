@@ -97,6 +97,24 @@ async function attemptRefresh(refreshToken: string): Promise<string | null> {
 //   2. On 401, attempts a silent token refresh.
 //   3. If refresh also fails (or no tokens exist), redirects to /login.
 
+// ── Helper: detect Next.js redirect/notFound throws ────────────────────────
+//
+// `redirect()` and `notFound()` from `next/navigation` work by THROWING a
+// special internal error that Next.js' framework code catches and turns
+// into an HTTP redirect / 404. Any `try { ... } catch {}` block in user
+// code that wraps a call to those functions (directly or transitively,
+// e.g. via `serverFetch` which calls `redirect('/login')` on auth failure)
+// will SWALLOW the redirect — and the page will render with stale/null
+// data instead of bouncing the user to /login.
+//
+// This helper detects that internal throw so callers can re-throw it from
+// their catch block and let Next.js do its thing.
+export function isNextThrow(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const digest = (err as { digest?: unknown }).digest;
+  return typeof digest === "string" && digest.startsWith("NEXT_");
+}
+
 export async function serverFetch<T>(
   path: string,
   init: Omit<Parameters<typeof apiFetch>[1], "token"> = {},

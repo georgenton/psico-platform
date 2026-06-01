@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Psico Platform — Mobile UI kit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../colors_and_type.css" />
+<style>
+  html, body { margin: 0; background: #ece9e2; font-family: var(--font-sans); }
+  body { padding: 48px 32px 96px; }
+  .header { max-width: 1280px; margin: 0 auto 24px; }
+  .header h1 { font: 700 28px/1.2 var(--font-sans); color: var(--color-warm-900); margin: 0 0 4px; letter-spacing: -0.01em; }
+  .header p { font: 14px var(--font-sans); color: var(--color-warm-600); margin: 0; }
+  .stage { max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; align-items: start; }
+  .label { font: 700 11px var(--font-sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-warm-600); margin-top: 16px; text-align: center; }
+  .scaler { transform: scale(0.72); transform-origin: top center; height: 630px; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+</head>
+<body>
+
+<div class="header">
+  <h1>Psico Platform — Mobile UI kit</h1>
+  <p>Four core flows. Tokens & components mirror <code>apps/mobile/src/theme.ts</code> + <code>app/(tabs)/*</code>.</p>
+</div>
+
+<div id="root" class="stage"></div>
+
+<script type="text/babel">
+const C = {
+  bg:'#fafaf8', surface:'#ffffff', subtle:'#f5f4f1', divider:'#eceae5',
+  L100:'#eeebff', L200:'#ddd8ff', L300:'#c3baff', L400:'#a697ff', L500:'#8b71f5', L600:'#5e42c0', L700:'#4d36a0', L800:'#3c2a80', L900:'#25185c',
+  S100:'#d9ebe6', S400:'#5aa092', S500:'#3d8475', S700:'#28544a',
+  H100:'#f5e8cf', H700:'#7a5a1d',
+  W100:'#f5f4f1', W200:'#eceae5', W400:'#b8b3aa', W500:'#928d84', W600:'#706b62', W700:'#574f45', W800:'#3d3730', W900:'#2a2420',
+};
+const F = '"Geist", -apple-system, system-ui, sans-serif';
+
+// ---- Ionicons subset (rounded outlined / filled) ----
+const Icon = {
+  home:    (s=22,c=C.L500) => <svg width={s} height={s} viewBox="0 0 512 512" fill={c}><path d="M261.56 101.28a8 8 0 0 0-11.06 0L66.4 277.15a8 8 0 0 0-2.47 5.79L63.9 448a32 32 0 0 0 32 32H192a16 16 0 0 0 16-16V328a8 8 0 0 1 8-8h80a8 8 0 0 1 8 8v136a16 16 0 0 0 16 16h96.06a32 32 0 0 0 32-32V282.94a8 8 0 0 0-2.47-5.79z"/></svg>,
+  library: (s=22,c=C.W400) => <svg width={s} height={s} viewBox="0 0 512 512" fill={c}><path d="M64 480h64a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16H64a16 16 0 0 0-16 16v416a16 16 0 0 0 16 16zm132-50.42 60.41-15.16a8 8 0 0 0 5.86-9.71L161.93 26.07A16 16 0 0 0 142.36 14.5l-62.07 15.55Zm304-345.6L361.46 70.31a8 8 0 0 0-9.7 5.83l-39.86 158.7A8 8 0 0 0 320 256l30.07 7.55a16 16 0 0 0 19.6-11.57z"/></svg>,
+  diamond: (s=22,c=C.W400) => <svg width={s} height={s} viewBox="0 0 512 512" fill={c}><path d="M378.94 154.46a16 16 0 0 0-13.05-6.46H146.11a16 16 0 0 0-13.05 6.46l-90.84 116a16 16 0 0 0 .67 20.41l213.89 219a16 16 0 0 0 22.44 0l213.89-219a16 16 0 0 0 .67-20.41z"/></svg>,
+  person:  (s=22,c=C.W400) => <svg width={s} height={s} viewBox="0 0 512 512" fill={c}><path d="M256 256a112 112 0 1 0-112-112 112 112 0 0 0 112 112zm0 32c-69.42 0-208 42.88-208 128v64h416v-64c0-85.12-138.58-128-208-128z"/></svg>,
+  arrow:   (s=18,c='#fff') => <svg width={s} height={s} viewBox="0 0 512 512" fill="none" stroke={c} strokeWidth="48" strokeLinecap="round" strokeLinejoin="round"><polyline points="268 112 412 256 268 400"/><line x1="392" y1="256" x2="100" y2="256"/></svg>,
+  chev:    (s=14,c=C.W400) => <svg width={s} height={s} viewBox="0 0 512 512" fill="none" stroke={c} strokeWidth="48" strokeLinecap="round" strokeLinejoin="round"><polyline points="184 112 328 256 184 400"/></svg>,
+  lock:    (s=22,c='#fff') => <svg width={s} height={s} viewBox="0 0 512 512" fill={c}><path d="M336 208v-95a80 80 0 0 0-160 0v95" fill="none" stroke={c} strokeWidth="32"/><rect x="96" y="208" width="320" height="272" rx="48"/></svg>,
+  check:   (s=18,c=C.S500) => <svg width={s} height={s} viewBox="0 0 512 512" fill={c}><path d="M256 48C141.31 48 48 141.31 48 256s93.31 208 208 208 208-93.31 208-208S370.69 48 256 48zm108.25 138.29-134.4 160a16 16 0 0 1-12 5.71h-.27a16 16 0 0 1-11.89-5.3l-57.6-64a16 16 0 1 1 23.78-21.4l45.29 50.32 122.59-145.91a16 16 0 0 1 24.5 20.58z"/></svg>,
+  star:    (s=18,c='#fff') => <svg width={s} height={s} viewBox="0 0 512 512" fill={c}><path d="M256 32 195.76 192H32l160 96-64 192 192-128 192 128-64-192 160-96H316.24z"/></svg>,
+};
+
+// ---- Shared bits ----
+const TabBar = ({active='home'}) => (
+  <div style={{position:'absolute', bottom:0, left:0, right:0, paddingBottom:34, background:'rgba(255,255,255,0.96)', borderTop:'1px solid '+C.W200, backdropFilter:'blur(12px)'}}>
+    <div style={{display:'flex', justifyContent:'space-around', padding:'10px 12px 6px'}}>
+      {[
+        {k:'home',  i:(s,c)=><svg width={s} height={s} viewBox="0 0 512 512" fill={c}><path d="M261.56 101.28a8 8 0 0 0-11.06 0L66.4 277.15a8 8 0 0 0-2.47 5.79L63.9 448a32 32 0 0 0 32 32H192a16 16 0 0 0 16-16V328a8 8 0 0 1 8-8h80a8 8 0 0 1 8 8v136a16 16 0 0 0 16 16h96.06a32 32 0 0 0 32-32V282.94a8 8 0 0 0-2.47-5.79z"/></svg>, l:'Inicio'},
+        {k:'lib',   i:Icon.library, l:'Libros'},
+        {k:'plan',  i:Icon.diamond, l:'Mi Plan'},
+        {k:'prof',  i:Icon.person,  l:'Perfil'},
+      ].map(t => {
+        const on = active===t.k;
+        const c = on ? C.L700 : C.W400;
+        return (
+          <div key={t.k} style={{display:'flex', flexDirection:'column', alignItems:'center', gap:2}}>
+            {t.i(22, c)}
+            <span style={{font:`700 11px ${F}`, color:c}}>{t.l}</span>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
+
+const Cover = ({grad, label, locked=false, w=64, h=80, big=false}) => (
+  <div style={{
+    width:w, height:h, borderRadius:big?16:12,
+    background:grad, position:'relative',
+    display:'flex', alignItems:'center', justifyContent:'center',
+    color:'rgba(255,255,255,0.92)', font:`700 ${big?28:16}px ${F}`, flexShrink:0,
+  }}>
+    {label}
+    {locked && <div style={{position:'absolute', inset:0, background:'rgba(42,36,32,0.55)', borderRadius:big?16:12, display:'flex', alignItems:'center', justifyContent:'center'}}>{Icon.lock(big?28:18)}</div>}
+  </div>
+);
+
+const G_COOL  = `linear-gradient(135deg, ${C.L300}, ${C.L700})`;
+const G_WARM  = `linear-gradient(135deg, #84bcb0, ${C.S700})`;
+const G_MIXED = `linear-gradient(135deg, ${C.L300}, ${C.S400})`;
+
+// ---- Screen 1: Home ----
+const HomeScreen = () => (
+  <div style={{padding:'8px 16px 100px', background:C.bg, minHeight:'100%', position:'relative'}}>
+    <div style={{padding:'8px 0 16px'}}>
+      <div style={{font:`700 24px ${F}`, color:C.W900, letterSpacing:'-0.01em'}}>Hola, Ana 👋</div>
+      <div style={{font:`14px ${F}`, color:C.W500, marginTop:2}}>Continúa tu camino al bienestar emocional</div>
+    </div>
+
+    {/* Plan card */}
+    <div style={{background:'#fff', border:`1.5px solid ${C.L200}`, borderRadius:20, padding:'16px 18px', marginBottom:20, color:C.W800, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+      <div>
+        <div style={{font:`700 11px ${F}`, letterSpacing:'0.12em', textTransform:'uppercase', color:C.L700}}>Tu plan</div>
+        <div style={{font:`700 18px ${F}`, marginTop:2, color:C.W900}}>Pro · $7 USD/mes</div>
+      </div>
+      <div style={{background:C.L100, borderRadius:12, width:36, height:36, display:'flex', alignItems:'center', justifyContent:'center'}}>{Icon.star(18,C.L700)}</div>
+    </div>
+
+    {/* Continue reading */}
+    <div style={{font:`700 11px ${F}`, letterSpacing:'0.12em', textTransform:'uppercase', color:C.W500, marginBottom:10}}>Continúa leyendo</div>
+    <div style={{background:'#fff', borderRadius:20, padding:14, display:'flex', gap:14, alignItems:'center', boxShadow:'0 1px 4px rgba(42,36,32,0.06), 0 4px 24px rgba(42,36,32,0.04)', marginBottom:24}}>
+      <Cover grad={G_COOL} label="EM" />
+      <div style={{flex:1, minWidth:0}}>
+        <div style={{font:`600 15px ${F}`, color:C.W800}}>Emociones en Construcción</div>
+        <div style={{font:`12px ${F}`, color:C.W500, marginTop:2}}>Capítulo 4 · La rabia que protege</div>
+        <div style={{height:4, background:C.W200, borderRadius:2, marginTop:10, overflow:'hidden'}}>
+          <div style={{width:'34%', height:'100%', background:C.S500}}/>
+        </div>
+      </div>
+    </div>
+
+    {/* Library */}
+    <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:10}}>
+      <div style={{font:`700 11px ${F}`, letterSpacing:'0.12em', textTransform:'uppercase', color:C.W500}}>Tu biblioteca</div>
+      <div style={{font:`600 12px ${F}`, color:C.L700}}>Ver todos →</div>
+    </div>
+    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+      {[
+        {g:G_WARM, t:'Familias Ensambladas', m:'10 capítulos', l:'FA'},
+        {g:G_MIXED, t:'Relaciones Sanas', m:'8 capítulos', l:'RE'},
+      ].map((b,i)=>(
+        <div key={i} style={{background:'#fff', borderRadius:16, overflow:'hidden', boxShadow:'0 1px 4px rgba(42,36,32,0.05)'}}>
+          <div style={{background:b.g, aspectRatio:'4/3', display:'flex', alignItems:'center', justifyContent:'center', font:`700 24px ${F}`, color:'rgba(255,255,255,0.92)'}}>{b.l}</div>
+          <div style={{padding:'10px 12px'}}>
+            <div style={{font:`600 13px ${F}`, color:C.W800, lineHeight:1.25}}>{b.t}</div>
+            <div style={{font:`11px ${F}`, color:C.W500, marginTop:2}}>{b.m}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <TabBar active="home" />
+  </div>
+);
+
+// ---- Screen 2: Books ----
+const BooksScreen = () => (
+  <div style={{padding:'8px 16px 100px', background:C.bg, minHeight:'100%', position:'relative'}}>
+    <div style={{padding:'8px 0 16px'}}>
+      <div style={{font:`700 24px ${F}`, color:C.W900, letterSpacing:'-0.01em'}}>Libros</div>
+      <div style={{font:`14px ${F}`, color:C.W500, marginTop:2}}>Toda la biblioteca · 4 disponibles</div>
+    </div>
+
+    <div style={{display:'flex', gap:8, marginBottom:18}}>
+      <span style={{background:C.L700, color:'#fff', borderRadius:9999, padding:'6px 14px', font:`600 12px ${F}`}}>Todos</span>
+      <span style={{background:'#fff', color:C.W600, borderRadius:9999, padding:'6px 14px', font:`600 12px ${F}`, border:'1.5px solid '+C.W200}}>Disponibles</span>
+      <span style={{background:'#fff', color:C.W600, borderRadius:9999, padding:'6px 14px', font:`600 12px ${F}`, border:'1.5px solid '+C.W200}}>Pro</span>
+    </div>
+
+    {[
+      {g:G_COOL, t:'Emociones en Construcción', a:'Dr. Jorge Genton', m:'12 capítulos · 4.8h', tag:'En curso', tagBg:C.S100, tagFg:C.S700, l:'EM', locked:false},
+      {g:G_WARM, t:'Familias Ensambladas', a:'Dr. Jorge Genton', m:'10 capítulos · 3.5h', tag:'Disponible', tagBg:C.W100, tagFg:C.W700, l:'FA', locked:false},
+      {g:G_MIXED, t:'Relaciones Sanas', a:'Dra. M. Andrade', m:'8 capítulos · 2.9h', tag:'Pro', tagBg:C.L100, tagFg:C.L700, l:'RE', locked:false},
+      {g:G_COOL, t:'Próximamente: Ansiedad', a:'Equipo Psico', m:'Disponible en junio', tag:'Pro', tagBg:C.L100, tagFg:C.L700, l:'PR', locked:true},
+    ].map((b,i)=>(
+      <div key={i} style={{background:'#fff', borderRadius:18, padding:14, marginBottom:10, display:'flex', gap:14, alignItems:'center', boxShadow:'0 1px 4px rgba(42,36,32,0.05)'}}>
+        <Cover grad={b.g} label={b.l} locked={b.locked} />
+        <div style={{flex:1, minWidth:0}}>
+          <div style={{font:`600 15px ${F}`, color:C.W800, lineHeight:1.25}}>{b.t}</div>
+          <div style={{font:`12px ${F}`, color:C.W500, marginTop:2}}>{b.a}</div>
+          <div style={{display:'flex', gap:8, alignItems:'center', marginTop:8}}>
+            <span style={{background:b.tagBg, color:b.tagFg, borderRadius:9999, padding:'2px 10px', font:`700 11px ${F}`}}>{b.tag}</span>
+            <span style={{font:`11px ${F}`, color:C.W400}}>{b.m}</span>
+          </div>
+        </div>
+        {Icon.chev()}
+      </div>
+    ))}
+
+    <TabBar active="lib" />
+  </div>
+);
+
+// ---- Screen 3: My Plan ----
+const PlanScreen = () => (
+  <div style={{padding:'8px 16px 100px', background:C.bg, minHeight:'100%', position:'relative'}}>
+    <div style={{padding:'8px 0 18px'}}>
+      <div style={{font:`700 24px ${F}`, color:C.W900, letterSpacing:'-0.01em'}}>Mi Plan</div>
+    </div>
+
+    {/* Active plan banner */}
+    <div style={{background:'linear-gradient(135deg, '+C.L700+', '+C.L900+')', borderRadius:24, padding:'22px 22px 20px', color:'#fff', boxShadow:'0 4px 14px rgba(37,24,92,0.18)', marginBottom:24}}>
+      <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:12}}>
+        {Icon.star(16,'#fff')}
+        <span style={{font:`700 11px ${F}`, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(255,255,255,0.85)'}}>Plan activo</span>
+      </div>
+      <div style={{font:`700 28px ${F}`, letterSpacing:'-0.01em'}}>Pro</div>
+      <div style={{font:`14px ${F}`, color:'rgba(255,255,255,0.85)', marginTop:2}}>$7 USD/mes · próximo cobro 14 may</div>
+    </div>
+
+    <div style={{font:`700 11px ${F}`, letterSpacing:'0.12em', textTransform:'uppercase', color:C.W500, marginBottom:10}}>Cambia tu plan</div>
+
+    {[
+      {n:'Anual', p:'$59 USD/año', d:'Ahorra 30% al año', recommend:true},
+      {n:'Empresarial', p:'desde $120 USD/mes', d:'Para equipos e instituciones'},
+    ].map((p,i)=>(
+      <div key={i} style={{background:'#fff', borderRadius:18, padding:'16px 18px', marginBottom:10, display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow:'0 1px 4px rgba(42,36,32,0.05)', border: p.recommend ? `1.5px solid ${C.S400}` : 'none'}}>
+        <div>
+          <div style={{display:'flex', alignItems:'center', gap:8}}>
+            <span style={{font:`700 16px ${F}`, color:C.W800}}>{p.n}</span>
+            {p.recommend && <span style={{background:C.S400, color:'#fff', borderRadius:9999, padding:'2px 8px', font:`700 10px ${F}`}}>Recomendado</span>}
+          </div>
+          <div style={{font:`14px ${F}`, color:C.L700, marginTop:2, fontWeight:600}}>{p.p}</div>
+          <div style={{font:`12px ${F}`, color:C.W500, marginTop:2}}>{p.d}</div>
+        </div>
+        {Icon.chev()}
+      </div>
+    ))}
+
+    <button style={{width:'100%', background:C.S500, color:'#fff', border:0, borderRadius:14, padding:'14px', font:`600 15px ${F}`, marginTop:14, display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:'0 1px 2px rgba(40,84,74,0.16)'}}>
+      Cambiar a anual {Icon.arrow(16)}
+    </button>
+    <p style={{font:`12px ${F}`, color:C.W400, textAlign:'center', marginTop:12}}>Cancela cuando quieras · Sin compromisos</p>
+
+    <TabBar active="plan" />
+  </div>
+);
+
+// ---- Screen 4: Profile ----
+const ProfileScreen = () => (
+  <div style={{padding:'8px 16px 100px', background:C.bg, minHeight:'100%', position:'relative'}}>
+    <div style={{padding:'8px 0 18px'}}>
+      <div style={{font:`700 24px ${F}`, color:C.W900, letterSpacing:'-0.01em'}}>Perfil</div>
+    </div>
+
+    <div style={{background:'#fff', borderRadius:20, padding:'20px', display:'flex', alignItems:'center', gap:14, marginBottom:18, boxShadow:'0 1px 4px rgba(42,36,32,0.05)'}}>
+      <div style={{width:56, height:56, borderRadius:9999, background:`linear-gradient(135deg, ${C.L300}, ${C.L700})`, display:'flex', alignItems:'center', justifyContent:'center', font:`700 22px ${F}`, color:'#fff'}}>A</div>
+      <div style={{flex:1}}>
+        <div style={{font:`700 16px ${F}`, color:C.W800}}>Ana Pérez</div>
+        <div style={{font:`13px ${F}`, color:C.W500}}>ana@correo.com</div>
+      </div>
+    </div>
+
+    <div style={{font:`700 11px ${F}`, letterSpacing:'0.12em', textTransform:'uppercase', color:C.W500, padding:'8px 4px 8px'}}>Cuenta</div>
+    <div style={{background:'#fff', borderRadius:16, overflow:'hidden', marginBottom:18, boxShadow:'0 1px 4px rgba(42,36,32,0.05)'}}>
+      {[
+        ['Editar perfil', '👤'],
+        ['Notificaciones', '✉'],
+        ['Privacidad y datos', '🛡'],
+        ['Idioma', '🌐'],
+      ].map((row,i,arr)=>(
+        <div key={i} style={{display:'flex', alignItems:'center', gap:12, padding:'14px 18px', borderBottom: i<arr.length-1 ? `1px solid ${C.W100}` : 'none'}}>
+          <span style={{width:22, fontSize:16, color:C.W500}}>{row[1]}</span>
+          <span style={{flex:1, font:`500 15px ${F}`, color:C.W800}}>{row[0]}</span>
+          {Icon.chev()}
+        </div>
+      ))}
+    </div>
+
+    <div style={{font:`700 11px ${F}`, letterSpacing:'0.12em', textTransform:'uppercase', color:C.W500, padding:'8px 4px'}}>Soporte</div>
+    <div style={{background:'#fff', borderRadius:16, overflow:'hidden', boxShadow:'0 1px 4px rgba(42,36,32,0.05)'}}>
+      <div style={{padding:'14px 18px', font:`500 15px ${F}`, color:C.W800, borderBottom:`1px solid ${C.W100}`}}>Acerca de</div>
+      <div style={{padding:'14px 18px', font:`500 15px ${F}`, color:'#e53e3e'}}>Cerrar sesión</div>
+    </div>
+
+    <TabBar active="prof" />
+  </div>
+);
+
+const Stage = () => {
+  const screens = [
+    {label:'Inicio',  Comp: HomeScreen},
+    {label:'Libros',  Comp: BooksScreen},
+    {label:'Mi Plan', Comp: PlanScreen},
+    {label:'Perfil',  Comp: ProfileScreen},
+  ];
+  return screens.map(({label, Comp}) => (
+    <div key={label} style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
+      <div className="scaler">
+        <IOSDevice width={402} height={874}>
+          <Comp/>
+        </IOSDevice>
+      </div>
+      <div className="label">{label}</div>
+    </div>
+  ));
+};
+
+const wait = setInterval(() => {
+  if (typeof IOSDevice !== 'undefined') {
+    clearInterval(wait);
+    ReactDOM.createRoot(document.getElementById('root')).render(<Stage/>);
+  }
+}, 30);
+</script>
+
+</body>
+</html>

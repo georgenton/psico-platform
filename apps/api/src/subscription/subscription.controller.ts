@@ -6,18 +6,27 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import type { Request } from "express";
 import { JwtAuthGuard } from "../auth";
-import { CurrentUser } from "../content/guards/current-user.decorator";
+import { CurrentUser } from "../shared";
 import type { AuthenticatedUser } from "../auth";
-import type { CreateCheckoutSessionDto } from "./dto/checkout-session.dto";
-import type { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CancelSubscriptionDto } from "./dto/cancel-subscription.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CreateCheckoutSessionDto } from "./dto/checkout-session.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ListInvoicesQueryDto } from "./dto/list-invoices-query.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { SubscriptionService } from "./subscription.service";
 
+@ApiTags("Subscription")
 @Controller("subscriptions")
 export class SubscriptionController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
@@ -55,6 +64,43 @@ export class SubscriptionController {
     @Body() dto: CreatePortalSessionDto,
   ) {
     return this.subscriptionService.createPortalSession(user.userId, dto);
+  }
+
+  // ─── Sprint S7 ────────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard)
+  @Get("usage")
+  getUsage(@CurrentUser() user: AuthenticatedUser) {
+    return this.subscriptionService.getUsage(user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get("invoices")
+  listInvoices(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListInvoicesQueryDto,
+  ) {
+    return this.subscriptionService.listInvoices(
+      user.userId,
+      query.limit ?? 12,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post("cancel")
+  @HttpCode(HttpStatus.OK)
+  cancel(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CancelSubscriptionDto,
+  ) {
+    return this.subscriptionService.cancel(user.userId, dto.reason);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post("reactivate")
+  @HttpCode(HttpStatus.OK)
+  reactivate(@CurrentUser() user: AuthenticatedUser) {
+    return this.subscriptionService.reactivate(user.userId);
   }
 
   // Stripe sends raw body — no JWT, signature is verified inside the service

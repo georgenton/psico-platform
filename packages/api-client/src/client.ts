@@ -21,8 +21,25 @@ class PsicoApiClient {
   private refreshing: Promise<void> | null = null;
 
   configure(baseUrl: string, store: TokenStore): void {
-    this.baseUrl = baseUrl.replace(/\/$/, "");
+    // baseUrl from env is the API root (e.g. "https://api.example.com").
+    // The /api segment is appended here so feature clients (auth, content, …)
+    // can declare clean paths like "/auth/login". Mirrors web/src/lib/api.ts.
+    // Sprint 0.A · ADR 0006.
+    const root = baseUrl.replace(/\/$/, "");
+    this.baseUrl = `${root}/api`;
     this.store = store;
+  }
+
+  /**
+   * Returns the current access token from the configured store, or null.
+   *
+   * Sprint front-eco: ecoApi.sendMessage uses a raw fetch+reader path
+   * (the apiClient pipeline buffers responses, no good for SSE), so the
+   * caller has to pass the token explicitly. This getter bridges the
+   * apiClient singleton's token state and that ad-hoc flow.
+   */
+  getAccessToken(): string | null {
+    return this.store?.getAccessToken() ?? null;
   }
 
   get<T>(path: string): Promise<T> {
@@ -33,8 +50,23 @@ class PsicoApiClient {
     return this.request<T>("POST", path, body);
   }
 
+  /**
+   * Multipart POST — used by endpoints that accept a file upload (e.g.
+   * `/voz/transcribe`). FormData carries its own Content-Type header
+   * including the boundary, so we MUST NOT set `Content-Type: application/json`
+   * on the request. We also skip the JSON.stringify path so the browser
+   * serialises the FormData natively.
+   */
+  postFormData<T>(path: string, form: FormData): Promise<T> {
+    return this.request<T>("POST", path, form, false, /* isFormData */ true);
+  }
+
   patch<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>("PATCH", path, body);
+  }
+
+  delete<T>(path: string): Promise<T> {
+    return this.request<T>("DELETE", path);
   }
 
   private async request<T>(
@@ -42,22 +74,28 @@ class PsicoApiClient {
     path: string,
     body?: unknown,
     isRetry = false,
+    isFormData = false,
   ): Promise<T> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+    const headers: Record<string, string> = {};
+    if (!isFormData) {
+      headers["Content-Type"] = "application/json";
+    }
     const token = this.store?.getAccessToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
     const res = await fetch(`${this.baseUrl}${path}`, {
       method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: isFormData
+        ? (body as FormData)
+        : body !== undefined
+          ? JSON.stringify(body)
+          : undefined,
     });
 
     if (res.status === 401 && !isRetry && this.store) {
       await this.tryRefresh();
-      return this.request<T>(method, path, body, true);
+      return this.request<T>(method, path, body, true, isFormData);
     }
 
     if (!res.ok) {

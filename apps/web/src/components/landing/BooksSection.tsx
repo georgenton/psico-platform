@@ -1,11 +1,9 @@
 import Link from "next/link";
-import type { Book } from "@psico/types";
+import type { BookListItem } from "@psico/types";
 
-const PLAN_LABEL: Record<string, string> = {
-  FREE: "Gratuito",
-  PRO: "Pro",
-  ANNUAL: "Anual",
-  B2B: "Empresa",
+const TIER_LABEL: Record<string, string> = {
+  free: "Gratuito",
+  pro: "Pro",
 };
 
 const COVER_GRADIENTS = [
@@ -14,7 +12,7 @@ const COVER_GRADIENTS = [
   "linear-gradient(135deg, var(--color-lavender-300) 0%, var(--color-sage-500) 100%)",
 ];
 
-export function BooksSection({ books }: { books: Book[] }) {
+export function BooksSection({ books }: { books: BookListItem[] }) {
   return (
     <section
       id="libros"
@@ -48,9 +46,9 @@ export function BooksSection({ books }: { books: Book[] }) {
                   background: COVER_GRADIENTS[i % COVER_GRADIENTS.length],
                 }}
               >
-                {book.coverUrl ? (
+                {book.coverArtUrl ? (
                   <img
-                    src={book.coverUrl}
+                    src={book.coverArtUrl}
                     alt={book.title}
                     className="h-full w-full object-cover"
                   />
@@ -63,11 +61,11 @@ export function BooksSection({ books }: { books: Book[] }) {
 
               {/* Content */}
               <div className="flex flex-1 flex-col p-6">
-                {/* Plan badge */}
+                {/* Tier badge */}
                 <span
                   className="mb-3 self-start rounded-full px-3 py-0.5 text-xs font-semibold"
                   style={
-                    book.plan === "FREE"
+                    book.tierRequired === "free"
                       ? {
                           background: "var(--color-sage-100)",
                           color: "var(--color-sage-700)",
@@ -78,7 +76,7 @@ export function BooksSection({ books }: { books: Book[] }) {
                         }
                   }
                 >
-                  {PLAN_LABEL[book.plan] ?? book.plan}
+                  {TIER_LABEL[book.tierRequired] ?? book.tierRequired}
                 </span>
 
                 <h3
@@ -92,7 +90,7 @@ export function BooksSection({ books }: { books: Book[] }) {
                   className="mb-4 flex-1 text-sm leading-relaxed"
                   style={{ color: "var(--color-warm-500)" }}
                 >
-                  {book.description ??
+                  {book.subtitle ??
                     "Contenido psicoeducativo para tu bienestar."}
                 </p>
 
@@ -101,7 +99,7 @@ export function BooksSection({ books }: { books: Book[] }) {
                     className="text-xs"
                     style={{ color: "var(--color-warm-400)" }}
                   >
-                    {book.totalChapters} capítulos
+                    {book.chapters} capítulos
                   </span>
                   <Link
                     href="/register"

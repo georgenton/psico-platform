@@ -8,15 +8,21 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { Plan, SubscriptionStatus } from "@prisma/client";
 import Stripe from "stripe";
+import type {
+  InvoiceStatus as PsicoInvoiceStatus,
+  InvoiceSummary,
+} from "@psico/types";
 import type { Env } from "../../../config";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../../../prisma";
 import type { BillingPlan } from "../../dto/checkout-session.dto";
 import type { CreatePortalSessionDto } from "../../dto/create-portal-session.dto";
 import type {
+  CancelSubscriptionResult,
   CheckoutSessionResult,
   IPaymentProvider,
   PortalSessionResult,
+  ReactivateSubscriptionResult,
 } from "../payment-provider.interface";
 
 // In Stripe v22 with CJS module resolution, instance type is Stripe.Stripe
@@ -25,6 +31,11 @@ type StripeEvent = ReturnType<StripeInstance["webhooks"]["constructEvent"]>;
 type StripeSubscription = Awaited<
   ReturnType<StripeInstance["subscriptions"]["retrieve"]>
 >;
+// invoices.list returns an ApiList<Invoice> — pull the element type out so
+// we get the bare Invoice without the .retrieve wrapper's lastResponse.
+type StripeInvoice = Awaited<
+  ReturnType<StripeInstance["invoices"]["list"]>
+>["data"][number];
 
 @Injectable()
 export class StripeProvider implements IPaymentProvider {
@@ -89,6 +100,84 @@ export class StripeProvider implements IPaymentProvider {
     });
 
     return { url: session.url };
+  }
+
+  // ─── Sprint S7: invoices + cancel + reactivate ─────────────────────────────
+
+  async listInvoices(userId: string, limit: number): Promise<InvoiceSummary[]> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { stripeCustomerId: true },
+    });
+    if (!user?.stripeCustomerId) {
+      // No customer yet → no invoices. Empty array, not 404 — the UI shows
+      // "Aún no hay facturas" without surfacing a backend error.
+      return [];
+    }
+
+    const list = await this.stripe.invoices.list({
+      customer: user.stripeCustomerId,
+      limit,
+    });
+
+    return list.data.map((inv) => this.mapInvoice(inv));
+  }
+
+  async cancelAtPeriodEnd(
+    userId: string,
+    reason?: string,
+  ): Promise<CancelSubscriptionResult> {
+    const sub = await this.findActiveStripeSubscription(userId);
+
+    const updated = await this.stripe.subscriptions.update(sub.id, {
+      cancel_at_period_end: true,
+      // Stripe accepts arbitrary metadata — handy for the customer-success
+      // CSV without us building a separate retention table.
+      metadata: reason
+        ? { ...sub.metadata, cancellation_reason: reason }
+        : sub.metadata,
+    });
+
+    // Mirror locally so Mi Plan shows the banner immediately without
+    // waiting for the customer.subscription.updated webhook.
+    const periodEnd = new Date(
+      (updated.items.data[0]?.current_period_end ??
+        updated.billing_cycle_anchor) * 1000,
+    );
+    await this.prisma.subscription.updateMany({
+      where: { userId },
+      data: { cancelAtPeriodEnd: true },
+    });
+
+    this.logger.log(
+      `Cancel-at-period-end requested for user ${userId} (effective ${periodEnd.toISOString()})`,
+    );
+
+    return { cancelAtPeriodEnd: true, effectiveAt: periodEnd };
+  }
+
+  async reactivate(userId: string): Promise<ReactivateSubscriptionResult> {
+    const sub = await this.findActiveStripeSubscription(userId);
+
+    if (!sub.cancel_at_period_end) {
+      // Already active — return idempotently rather than 4xx-ing. UX wise
+      // the user clicked "reactivate", and the system state already matches
+      // that intent.
+      return { cancelAtPeriodEnd: false };
+    }
+
+    await this.stripe.subscriptions.update(sub.id, {
+      cancel_at_period_end: false,
+    });
+
+    await this.prisma.subscription.updateMany({
+      where: { userId },
+      data: { cancelAtPeriodEnd: false },
+    });
+
+    this.logger.log(`Reactivated subscription for user ${userId}`);
+
+    return { cancelAtPeriodEnd: false };
   }
 
   async handleWebhook(rawBody: Buffer, signature: string): Promise<void> {
@@ -299,5 +388,63 @@ export class StripeProvider implements IPaymentProvider {
       incomplete: SubscriptionStatus.INCOMPLETE,
     };
     return statusMap[status] ?? SubscriptionStatus.INCOMPLETE;
+  }
+
+  /**
+   * Pull the active Stripe subscription for a user. Used by cancel + reactivate.
+   * Rejects with 400 if the user has no Stripe-backed sub (e.g. still FREE) —
+   * the controller catches and surfaces a clean error to the client.
+   */
+  private async findActiveStripeSubscription(
+    userId: string,
+  ): Promise<StripeSubscription> {
+    const local = await this.prisma.subscription.findUnique({
+      where: { userId },
+      select: { stripeSubscriptionId: true, status: true },
+    });
+    if (!local?.stripeSubscriptionId) {
+      throw new BadRequestException("NO_ACTIVE_SUBSCRIPTION");
+    }
+    if (
+      local.status === SubscriptionStatus.CANCELED ||
+      local.status === SubscriptionStatus.INCOMPLETE
+    ) {
+      throw new BadRequestException("SUBSCRIPTION_NOT_CANCELLABLE");
+    }
+    return this.stripe.subscriptions.retrieve(local.stripeSubscriptionId);
+  }
+
+  private mapInvoice(inv: StripeInvoice): InvoiceSummary {
+    return {
+      // `id` is null only on draft auto-advance invoices we haven't surfaced
+      // before; fall back to invoice_number to avoid an undefined.
+      id: inv.id ?? inv.number ?? "unknown",
+      // Stripe.created is epoch seconds.
+      date: new Date(inv.created * 1000),
+      // Stripe amounts are minor units; convert to major (USD dollars).
+      amount: (inv.amount_paid || inv.amount_due) / 100,
+      currency: inv.currency,
+      status: this.mapInvoiceStatus(inv.status),
+      pdfUrl: inv.invoice_pdf ?? null,
+      hostedUrl: inv.hosted_invoice_url ?? null,
+    };
+  }
+
+  private mapInvoiceStatus(
+    status: StripeInvoice["status"] | null,
+  ): PsicoInvoiceStatus {
+    switch (status) {
+      case "paid":
+        return "paid";
+      case "open":
+        return "open";
+      case "void":
+        return "void";
+      case "uncollectible":
+        return "uncollectible";
+      case "draft":
+      default:
+        return "draft";
+    }
   }
 }

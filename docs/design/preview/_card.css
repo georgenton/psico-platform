@@ -1,0 +1,64 @@
+/* Shared card frame for all preview cards. Each card is 700×~150 by default. */
+@import url("../colors_and_type.css");
+
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  color: var(--fg-body);
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+.card-frame {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  padding: 20px 24px;
+  background: var(--bg-page);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-tertiary);
+  margin: 0;
+}
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row.tight { gap: 4px; }
+.row.gap-md { gap: 16px; }
+.col { display: flex; flex-direction: column; gap: 8px; }
+.muted { color: var(--fg-muted); }
+.tertiary { color: var(--fg-tertiary); }
+.mono { font-family: var(--font-mono); }
+
+/* Swatches */
+.swatch-strip { display: grid; gap: 2px; grid-auto-flow: column; grid-auto-columns: 1fr; align-items: stretch; border-radius: 12px; overflow: hidden; }
+.swatch {
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 8px 10px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: rgba(255,255,255,0.92);
+  min-height: 56px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.18);
+}
+.swatch.dark-text { color: rgba(42,36,32,0.78); text-shadow: none; }
+.swatch .name { font-weight: 600; font-family: var(--font-sans); font-size: 11px; }
+.swatch .hex { opacity: 0.85; letter-spacing: 0.02em; }
+
+/* Token chip */
+.chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-divider);
+  font-size: 11px;
+  color: var(--fg-body);
+  font-family: var(--font-mono);
+}
+.chip .dot { width: 12px; height: 12px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.05); }
+</content>

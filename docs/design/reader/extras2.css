@@ -1,0 +1,707 @@
+/* reader/extras2.css — Styles for items #1, #3, #6, #8, #17.
+   Loaded after extras.css. Uses same CSS-variable system. */
+
+/* Shared eyebrow (mirrors extras.css for use in safety/sample). */
+.ext2-eyebrow {
+  font: 700 10px/1 var(--font-sans);
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--color-lavender-700);
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.web.theme-dark .ext2-eyebrow,
+.mob.theme-dark .ext2-eyebrow { color: #c3baff; }
+
+/* ────────────────────────────────────────────────────────────────────────
+   #1  Mobile selection popover
+   ──────────────────────────────────────────────────────────────────────── */
+
+.ext2-mobsel {
+  position: absolute;
+  /* Anchor handled inline by the caller; default to a sensible value so it
+     never floats off-screen if the host forgets to position it. */
+  bottom: 140px;
+  left: 12px; right: 12px;
+  z-index: 22;
+  background: var(--reader-paper);
+  border: 1px solid var(--reader-line);
+  border-radius: 14px;
+  box-shadow: 0 12px 28px rgba(28, 24, 20, .22), 0 2px 6px rgba(28, 24, 20, .08);
+  padding: 10px 10px 6px;
+  animation: ext2-mobsel-in 200ms cubic-bezier(.2,.8,.2,1) both;
+}
+.mob.theme-sepia .ext2-mobsel { background: #fbf6ea; }
+.mob.theme-dark  .ext2-mobsel { background: #25221f; border-color: #322f2b; }
+
+@keyframes ext2-mobsel-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.ext2-mobsel-arrow {
+  position: absolute;
+  bottom: -7px; left: 50%;
+  width: 14px; height: 14px;
+  transform: translateX(-50%) rotate(45deg);
+  background: inherit;
+  border-right: 1px solid var(--reader-line);
+  border-bottom: 1px solid var(--reader-line);
+  border-radius: 0 0 3px 0;
+}
+
+.ext2-mobsel-row {
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 2px 8px;
+}
+.ext2-mobsel-colors { display: inline-flex; gap: 5px; padding: 0 4px; }
+.ext2-mobsel-color {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 0;
+  cursor: pointer;
+  transition: transform 120ms;
+}
+.ext2-mobsel-color:hover { transform: scale(1.08); }
+.ext2-mobsel-color.is-on { box-shadow: 0 0 0 2px var(--reader-paper), 0 0 0 4px var(--color-lavender-500); }
+.mob.theme-dark .ext2-mobsel-color.is-on { box-shadow: 0 0 0 2px #25221f, 0 0 0 4px var(--color-lavender-500); }
+.ext2-mobsel-color.c-lavender { background: var(--color-lavender-300); }
+.ext2-mobsel-color.c-yellow   { background: #f9e58c; }
+.ext2-mobsel-color.c-sage     { background: var(--color-sage-300); }
+.ext2-mobsel-color.c-rose     { background: #f4b5b8; }
+
+.ext2-mobsel-sep {
+  width: 1px; height: 22px;
+  background: var(--reader-line);
+  margin: 0 6px;
+}
+.ext2-mobsel-btn {
+  background: transparent; border: 0;
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  color: var(--reader-ink-soft);
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 600 14px/1 var(--font-sans);
+}
+.ext2-mobsel-btn:hover { background: var(--color-warm-100); color: var(--reader-ink); }
+.mob.theme-sepia .ext2-mobsel-btn:hover { background: #ede4ce; }
+.mob.theme-dark  .ext2-mobsel-btn:hover { background: #322f2b; }
+
+.ext2-mobsel-second {
+  display: flex; align-items: center; gap: 2px;
+  padding: 7px 2px 2px;
+  border-top: 1px dashed var(--reader-line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ext2-mobsel-second::-webkit-scrollbar { display: none; }
+.ext2-mobsel-second-btn {
+  flex-shrink: 0;
+  background: transparent; border: 0;
+  padding: 6px 10px;
+  border-radius: 7px;
+  font: 500 11.5px/1 var(--font-sans);
+  color: var(--reader-ink-muted);
+  white-space: nowrap;
+}
+.ext2-mobsel-second-btn:hover { background: var(--color-warm-100); color: var(--reader-ink); }
+.mob.theme-sepia .ext2-mobsel-second-btn:hover { background: #ede4ce; }
+.mob.theme-dark  .ext2-mobsel-second-btn:hover { background: #322f2b; }
+
+/* Pill-style selection handles around the highlighted phrase. */
+.mob .sel-anchor.has-handles {
+  position: relative;
+}
+.mob .sel-anchor.has-handles::before,
+.mob .sel-anchor.has-handles::after {
+  content: "";
+  position: absolute; top: -2px;
+  width: 11px; height: calc(100% + 4px);
+  pointer-events: none;
+}
+.mob .sel-anchor.has-handles::before {
+  left: -8px;
+  background:
+    radial-gradient(circle at 50% 100%, var(--color-lavender-500) 4px, transparent 5px) bottom left/11px 11px no-repeat,
+    linear-gradient(var(--color-lavender-500), var(--color-lavender-500)) right 5px/2px calc(100% - 11px) no-repeat;
+}
+.mob .sel-anchor.has-handles::after {
+  right: -8px;
+  background:
+    radial-gradient(circle at 50% 0%, var(--color-lavender-500) 4px, transparent 5px) top right/11px 11px no-repeat,
+    linear-gradient(var(--color-lavender-500), var(--color-lavender-500)) left 5px/2px calc(100% - 11px) no-repeat;
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   #3  Onboarding tour
+   ──────────────────────────────────────────────────────────────────────── */
+
+.ext2-onb {
+  position: absolute; inset: 0;
+  z-index: 35;
+  pointer-events: auto;
+  animation: ext2-onb-in 220ms ease-out both;
+}
+@keyframes ext2-onb-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* The spotlight: clear hole over the target, dark scrim everywhere else.
+   Achieved via giant box-shadow (a known trick — no canvas, no clip-path). */
+.ext2-onb-spot {
+  position: absolute;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(20, 16, 12, .68);
+  transition: top 200ms, left 200ms, width 200ms, height 200ms;
+  pointer-events: none;
+  outline: 2px solid rgba(139, 113, 245, .55);
+  outline-offset: -2px;
+}
+.ext2-onb.is-mobile .ext2-onb-spot { border-radius: 14px; }
+
+.ext2-onb-callout {
+  position: absolute;
+  max-width: 320px;
+  background: var(--reader-paper);
+  border: 1px solid var(--reader-line);
+  border-radius: 14px;
+  padding: 16px 18px 14px;
+  box-shadow: 0 14px 40px rgba(20, 16, 12, .35);
+  pointer-events: auto;
+  animation: ext2-onb-callout-in 280ms cubic-bezier(.2,.8,.2,1) both;
+}
+.web.theme-sepia .ext2-onb-callout { background: #fbf6ea; }
+.web.theme-dark  .ext2-onb-callout,
+.mob.theme-dark  .ext2-onb-callout { background: #25221f; border-color: #322f2b; }
+@keyframes ext2-onb-callout-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ext2-onb.is-mobile .ext2-onb-callout { max-width: 86%; }
+
+.ext2-onb-step {
+  font: 700 10px/1 var(--font-mono);
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--color-lavender-700);
+  margin-bottom: 8px;
+}
+.web.theme-dark .ext2-onb-step,
+.mob.theme-dark .ext2-onb-step { color: #c3baff; }
+
+.ext2-onb-title {
+  font: 700 17px/1.25 var(--font-sans);
+  color: var(--reader-ink);
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+  text-wrap: balance;
+}
+.ext2-onb-body {
+  font: 400 13px/1.55 var(--font-sans);
+  color: var(--reader-ink-soft);
+  margin: 0 0 14px;
+  text-wrap: pretty;
+}
+
+.ext2-onb-dots {
+  display: flex; gap: 6px;
+  margin-bottom: 14px;
+}
+.ext2-onb-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--reader-line);
+  transition: background 150ms, width 200ms;
+}
+.ext2-onb-dot.is-on {
+  background: var(--color-lavender-500);
+  width: 16px; border-radius: 3px;
+}
+
+.ext2-onb-actions {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+}
+.ext2-onb-skip {
+  background: transparent; border: 0;
+  font: 600 12px/1 var(--font-sans);
+  color: var(--reader-ink-muted);
+  padding: 6px 4px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ext2-onb-skip:hover { color: var(--reader-ink); }
+.ext2-onb-nav { display: inline-flex; gap: 6px; }
+.ext2-onb-prev {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent;
+  border: 1px solid var(--reader-line);
+  border-radius: 8px;
+  padding: 7px 11px;
+  font: 600 12px/1 var(--font-sans);
+  color: var(--reader-ink-soft);
+  cursor: pointer;
+}
+.ext2-onb-prev:hover { background: var(--color-warm-100); color: var(--reader-ink); }
+.web.theme-dark .ext2-onb-prev:hover,
+.mob.theme-dark .ext2-onb-prev:hover { background: #322f2b; }
+
+.ext2-onb-next {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--color-lavender-700);
+  color: #fff; border: 0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font: 600 12px/1 var(--font-sans);
+  cursor: pointer;
+  transition: background 150ms;
+}
+.ext2-onb-next:hover { background: var(--color-lavender-800); }
+
+/* ────────────────────────────────────────────────────────────────────────
+   #6  Eco-with-citation card (inline in Eco rail / thread)
+   ──────────────────────────────────────────────────────────────────────── */
+
+.ext2-cite {
+  display: block; width: 100%;
+  background: var(--color-lavender-50);
+  border: 1px solid var(--color-lavender-100);
+  border-left: 3px solid var(--color-lavender-500);
+  border-radius: 0 11px 11px 0;
+  padding: 12px 14px;
+  margin: 6px 0;
+  text-align: left;
+  cursor: pointer;
+  transition: background 150ms, transform 150ms;
+}
+.ext2-cite:hover {
+  background: #f0eaff;
+  transform: translateX(2px);
+}
+.web.theme-sepia .ext2-cite { background: #ebe1c7; border-color: #ddd1b3; border-left-color: #b69540; }
+.web.theme-dark  .ext2-cite,
+.mob.theme-dark  .ext2-cite { background: rgba(139, 113, 245, .10); border-color: rgba(139, 113, 245, .22); }
+
+.ext2-cite-head {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin-bottom: 8px;
+}
+.ext2-cite-glyph {
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  background: var(--color-lavender-700);
+  color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.ext2-cite-where { flex: 1; min-width: 0; }
+.ext2-cite-source {
+  font: 700 9.5px/1 var(--font-mono);
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--color-lavender-700);
+}
+.web.theme-dark .ext2-cite-source,
+.mob.theme-dark .ext2-cite-source { color: #c3baff; }
+.ext2-cite-title {
+  font: 600 12.5px/1.3 var(--font-sans);
+  color: var(--reader-ink);
+  letter-spacing: -0.005em;
+  margin-top: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ext2-cite-arrow {
+  font-size: 14px;
+  color: var(--color-lavender-700);
+  opacity: .7;
+  margin-top: 4px;
+}
+
+.ext2-cite-quote {
+  font: 400 13px/1.5 "Newsreader", Georgia, serif;
+  font-style: italic;
+  color: var(--reader-ink);
+  margin-bottom: 8px;
+  text-wrap: pretty;
+}
+.web.font-sans-body .ext2-cite-quote,
+.mob.font-sans-body .ext2-cite-quote { font-family: var(--font-sans); font-style: normal; }
+
+.ext2-cite-foot {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 600 10.5px/1 var(--font-sans);
+  color: var(--color-lavender-700);
+  letter-spacing: .02em;
+}
+.web.theme-dark .ext2-cite-foot,
+.mob.theme-dark .ext2-cite-foot { color: #c3baff; }
+
+/* ────────────────────────────────────────────────────────────────────────
+   #8  Safety / crisis card
+   ──────────────────────────────────────────────────────────────────────── */
+
+.ext2-safety-overlay {
+  /* Tighter scrim than the default — feels less alarming, more "pause". */
+  background: rgba(28, 24, 20, .58) !important;
+}
+.web.theme-dark .ext2-safety-overlay { background: rgba(8, 6, 5, .68) !important; }
+
+.ext2-safety {
+  width: min(620px, 100%);
+  max-height: 92vh;
+  background: var(--reader-paper);
+  border: 1px solid var(--reader-line);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(28, 24, 20, .42);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  overflow-y: auto;
+}
+.web.theme-sepia .ext2-safety { background: #fbf6ea; }
+.web.theme-dark  .ext2-safety { background: #1c1a18; }
+.ext2-safety.is-mobile {
+  width: 100%;
+  max-height: 96%;
+  border-radius: 22px 22px 0 0;
+}
+
+.ext2-safety-head {
+  padding: 24px 26px 14px;
+  display: flex; align-items: flex-start; gap: 14px;
+  border-bottom: 1px solid var(--reader-line);
+}
+.ext2-safety-glyph {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(155deg, #f4c5a0, #e8a890);
+  color: #7a3d1f;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.web.theme-dark .ext2-safety-glyph,
+.mob.theme-dark .ext2-safety-glyph { background: linear-gradient(155deg, rgba(244, 197, 160, .18), rgba(232, 168, 144, .15)); color: #f4c5a0; }
+
+.ext2-safety-title {
+  font: 700 22px/1.18 var(--font-sans);
+  color: var(--reader-ink);
+  letter-spacing: -0.015em;
+  margin: 6px 0 0;
+  text-wrap: balance;
+}
+
+.ext2-safety-lead {
+  padding: 18px 26px 14px;
+  font: 400 14.5px/1.6 var(--font-sans);
+  color: var(--reader-ink-soft);
+  margin: 0;
+  text-wrap: pretty;
+}
+.ext2-safety-lead strong { color: var(--reader-ink); font-weight: 600; }
+
+.ext2-safety-lines { padding: 6px 26px 16px; }
+.ext2-safety-lines-h {
+  font: 700 10px/1 var(--font-sans);
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--reader-ink-muted);
+  margin-bottom: 10px;
+}
+.ext2-safety-lines-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px;
+}
+.ext2-safety.is-mobile .ext2-safety-lines-grid { grid-template-columns: 1fr; }
+
+.ext2-safety-line {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 13px;
+  background: var(--reader-paper-2);
+  border: 1px solid var(--reader-line);
+  border-radius: 11px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 150ms, transform 150ms;
+}
+.ext2-safety-line:hover {
+  border-color: var(--color-lavender-300);
+  transform: translateY(-1px);
+}
+.ext2-safety-line-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: var(--color-sage-100);
+  color: var(--color-sage-700);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.web.theme-dark .ext2-safety-line-icon,
+.mob.theme-dark .ext2-safety-line-icon { background: rgba(124, 167, 117, .18); color: #b8d5af; }
+.ext2-safety-line-country {
+  font: 700 10px/1 var(--font-mono);
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--reader-ink-muted);
+}
+.ext2-safety-line-num {
+  font: 700 16px/1.1 var(--font-sans);
+  color: var(--reader-ink);
+  letter-spacing: -0.005em;
+  margin-top: 3px;
+}
+.ext2-safety-line-desc {
+  font: 500 11px/1.3 var(--font-sans);
+  color: var(--reader-ink-muted);
+  margin-top: 2px;
+}
+
+.ext2-safety-also {
+  padding: 14px 26px;
+  border-top: 1px dashed var(--reader-line);
+}
+.ext2-safety-also-row {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 10px 0;
+  text-align: left;
+  cursor: pointer;
+  color: var(--reader-ink);
+  border-radius: 9px;
+  transition: background 150ms;
+}
+.ext2-safety-also-row + .ext2-safety-also-row { border-top: 1px solid var(--reader-line); }
+.ext2-safety-also-row:hover { background: var(--reader-paper-2); padding-left: 8px; padding-right: 8px; }
+.ext2-safety-also-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: var(--color-lavender-50);
+  color: var(--color-lavender-700);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 13px;
+}
+.web.theme-dark .ext2-safety-also-icon,
+.mob.theme-dark .ext2-safety-also-icon { background: rgba(139, 113, 245, .15); color: #c3baff; }
+.ext2-safety-also-h {
+  font: 600 13.5px/1.25 var(--font-sans);
+  color: var(--reader-ink);
+  letter-spacing: -0.005em;
+}
+.ext2-safety-also-s {
+  font: 400 12px/1.4 var(--font-sans);
+  color: var(--reader-ink-muted);
+  margin-top: 3px;
+}
+
+.ext2-safety-disclaimer {
+  padding: 0 26px;
+  margin: 8px 0 16px;
+  font: 400 11px/1.55 var(--font-sans);
+  color: var(--reader-ink-muted);
+  font-style: italic;
+}
+
+.ext2-safety-foot {
+  padding: 14px 26px 22px;
+  border-top: 1px solid var(--reader-line);
+  display: flex; gap: 10px; justify-content: flex-end;
+  background: var(--reader-paper-2);
+}
+.web.theme-dark .ext2-safety-foot { background: #15130f; }
+
+.ext2-safety.is-mobile .ext2-safety-foot { flex-direction: column-reverse; }
+.ext2-safety.is-mobile .ext2-safety-foot .ext-btn-ghost,
+.ext2-safety.is-mobile .ext2-safety-foot .ext-btn-primary { width: 100%; justify-content: center; }
+
+/* ────────────────────────────────────────────────────────────────────────
+   #17  Sample mode — badge, banner, soft paywall
+   ──────────────────────────────────────────────────────────────────────── */
+
+.ext2-sample-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px;
+  background: linear-gradient(135deg, var(--color-sage-100), var(--color-lavender-50));
+  border: 1px solid var(--color-sage-200);
+  border-radius: 9999px;
+  font: 700 9.5px/1 var(--font-sans);
+  color: var(--color-sage-700);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.web.theme-dark .ext2-sample-badge,
+.mob.theme-dark .ext2-sample-badge { background: rgba(124, 167, 117, .14); border-color: rgba(124, 167, 117, .25); color: #b8d5af; }
+.ext2-sample-badge-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--color-sage-500);
+  animation: ext-pulse 1.6s ease-in-out infinite;
+}
+
+.ext2-sample-banner {
+  display: flex; align-items: center; gap: 12px;
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, var(--color-sage-100), var(--color-lavender-50));
+  border: 1px solid var(--color-sage-200);
+  border-radius: 12px;
+  color: var(--reader-ink);
+}
+.web.theme-sepia .ext2-sample-banner { background: linear-gradient(135deg, #e3e8d3, #ebe1c7); border-color: #cbc7a8; }
+.web.theme-dark .ext2-sample-banner,
+.mob.theme-dark .ext2-sample-banner {
+  background: linear-gradient(135deg, rgba(124, 167, 117, .14), rgba(139, 113, 245, .10));
+  border-color: rgba(124, 167, 117, .25);
+}
+.ext2-sample-banner-glyph {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: var(--color-lavender-700);
+  color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.ext2-sample-banner-meta { flex: 1; min-width: 0; }
+.ext2-sample-banner-h {
+  font: 600 13.5px/1.3 var(--font-sans);
+  color: var(--reader-ink);
+  letter-spacing: -0.005em;
+}
+.ext2-sample-banner-s {
+  font: 400 12px/1.4 var(--font-sans);
+  color: var(--reader-ink-soft);
+  margin-top: 3px;
+}
+.ext2-sample-banner-cta {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--color-lavender-700);
+  color: #fff; border: 0;
+  border-radius: 9px;
+  padding: 9px 13px;
+  font: 600 12px/1 var(--font-sans);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 150ms;
+}
+.ext2-sample-banner-cta:hover { background: var(--color-lavender-800); }
+
+/* Soft paywall — bottom of the sample. Fades the last bit of prose into a
+   sales card. Less aggressive than the hard takeover (#15). */
+.ext2-soft {
+  position: relative;
+  margin: -120px 0 28px;
+  padding: 120px 0 0;
+}
+.ext2-soft-fade {
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 130px;
+  background: linear-gradient(180deg,
+    rgba(250, 250, 248, 0) 0%,
+    var(--reader-paper) 70%,
+    var(--reader-paper) 100%);
+  pointer-events: none;
+}
+.web.theme-sepia .ext2-soft-fade { background: linear-gradient(180deg, rgba(246, 240, 227, 0), #f6f0e3 70%); }
+.web.theme-dark .ext2-soft-fade,
+.mob.theme-dark .ext2-soft-fade { background: linear-gradient(180deg, rgba(28, 26, 24, 0), #1c1a18 70%); }
+
+.ext2-soft-body {
+  position: relative;
+  background: linear-gradient(155deg, var(--color-lavender-50) 0%, var(--reader-paper-2) 65%);
+  border: 1px solid var(--color-lavender-100);
+  border-radius: 18px;
+  padding: 32px 32px 28px;
+  text-align: center;
+  max-width: 560px;
+  margin: 0 auto;
+}
+.web.theme-sepia .ext2-soft-body { background: linear-gradient(155deg, #ebe1c7 0%, #fbf6ea 65%); border-color: #ddd1b3; }
+.web.theme-dark .ext2-soft-body,
+.mob.theme-dark .ext2-soft-body { background: linear-gradient(155deg, rgba(139, 113, 245, .14) 0%, var(--reader-paper-2) 65%); border-color: rgba(139, 113, 245, .22); }
+
+.ext2-soft-title {
+  font: 700 26px/1.15 var(--font-sans);
+  color: var(--reader-ink);
+  letter-spacing: -0.022em;
+  margin: 8px 0 12px;
+  text-wrap: balance;
+}
+.ext2-soft-title em {
+  font-style: normal;
+  color: var(--color-lavender-700);
+}
+.web.theme-dark .ext2-soft-title em,
+.mob.theme-dark .ext2-soft-title em { color: #c3baff; }
+
+.ext2-soft-sub {
+  font: 400 14px/1.55 var(--font-sans);
+  color: var(--reader-ink-soft);
+  margin: 0 0 22px;
+  text-wrap: pretty;
+}
+
+.ext2-soft-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 22px;
+}
+.mob .ext2-soft-stats { grid-template-columns: repeat(2, 1fr); }
+.ext2-soft-stat {
+  background: var(--reader-paper-2);
+  border-radius: 11px;
+  padding: 12px 6px;
+}
+.ext2-soft-stat strong {
+  display: block;
+  font: 700 24px/1 var(--font-sans);
+  color: var(--color-lavender-700);
+  letter-spacing: -0.02em;
+}
+.web.theme-dark .ext2-soft-stat strong,
+.mob.theme-dark .ext2-soft-stat strong { color: #c3baff; }
+.ext2-soft-stat span {
+  display: block;
+  font: 500 10.5px/1.3 var(--font-sans);
+  color: var(--reader-ink-muted);
+  margin-top: 5px;
+  letter-spacing: .02em;
+}
+
+.ext2-soft-actions {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-bottom: 14px;
+}
+.ext2-soft-cta {
+  width: 100%; padding: 14px 18px;
+  font-size: 14px;
+}
+
+.ext2-soft-fine {
+  font: 400 11.5px/1.5 var(--font-sans);
+  color: var(--reader-ink-muted);
+  margin: 0;
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Bug fixes — flagged in the previous review
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* (1) flex-basis:0 in `.desktop-frame` was eating the explicit height. Use
+   `flex: 0 0 auto` so the height: min(85vh, 880px) is honored even when
+   the parent flex column is narrow. */
+.desktop-frame {
+  flex: 0 0 auto !important;
+  min-height: 380px;
+}
+
+/* (2) Mobile offline banner currently bumps the device chrome down. Float
+   it over the topbar instead. */
+.mob > .ext-offline-banner {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 6;
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 4px 12px rgba(28, 24, 20, .15);
+}
+/* When the offline banner is up, the topbar pushes down so progress doesn't
+   disappear behind it. */
+.mob:has(> .ext-offline-banner) .mob-top { margin-top: 48px; }

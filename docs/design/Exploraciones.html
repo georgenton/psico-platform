@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Exploraciones · Psico Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&display=swap" />
+  <link rel="stylesheet" href="colors_and_type.css" />
+  <style>
+    html, body { margin: 0; padding: 0; background: var(--color-warm-50); }
+    body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; color: var(--fg-body); }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 64px 32px 80px; }
+    .eyebrow {
+      font: 600 11px/1 var(--font-mono); color: var(--color-lavender-700);
+      text-transform: uppercase; letter-spacing: 0.14em;
+    }
+    h1 {
+      font-size: 42px; font-weight: 700; color: var(--color-warm-900);
+      letter-spacing: -0.025em; margin: 12px 0 14px; line-height: 1.05;
+      text-wrap: balance;
+    }
+    .lead {
+      font-size: 17px; color: var(--color-warm-600);
+      line-height: 1.55; max-width: 60ch; margin: 0 0 48px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 22px;
+    }
+    .card {
+      background: #fff; border-radius: 24px;
+      box-shadow: var(--shadow-card);
+      overflow: hidden; display: flex; flex-direction: column;
+      text-decoration: none; color: inherit;
+      transition: transform 200ms var(--easing-default), box-shadow 200ms var(--easing-default);
+    }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(42,36,32,0.08); }
+    .card-art {
+      height: 200px; position: relative; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff;
+    }
+    .card-art-num {
+      position: absolute; top: 16px; left: 18px;
+      font: 600 11px/1 var(--font-mono);
+      letter-spacing: 0.14em; text-transform: uppercase;
+      color: rgba(255,255,255,0.7);
+    }
+    .card-art-glyph {
+      font-family: "Newsreader", Georgia, serif;
+      font-size: 90px; font-weight: 300; line-height: 1;
+      letter-spacing: -0.04em;
+      opacity: 0.88;
+    }
+    .a-patrones { background: linear-gradient(150deg, #25185c 0%, #5e42c0 70%, #c3baff 100%); }
+    .a-voz      { background: linear-gradient(160deg, #574f45 0%, #b8b3aa 100%); }
+    .a-wp       { background: linear-gradient(150deg, #3a5e34 0%, #7fae76 100%); }
+    .a-island   { background: radial-gradient(120% 80% at 30% 100%, #8b71f5 0%, #25185c 100%); }
+    .a-bundles  { background: linear-gradient(150deg, #c3baff 0%, #7fae76 100%); color: #25185c; }
+    .card-body { padding: 22px 22px 24px; flex: 1; display: flex; flex-direction: column; }
+    .card-tag {
+      font: 600 11px/1 var(--font-mono); color: var(--color-warm-500);
+      text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px;
+    }
+    .card-title {
+      font-size: 22px; font-weight: 700; color: var(--color-warm-900);
+      letter-spacing: -0.015em; margin: 0 0 8px; line-height: 1.15;
+    }
+    .card-sub {
+      font-size: 14.5px; color: var(--color-warm-700);
+      line-height: 1.55; margin: 0 0 14px;
+    }
+    .card-meta {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 14px;
+      border-top: 1px solid var(--color-warm-200);
+    }
+    .pill {
+      font: 500 11px/1 var(--font-mono);
+      padding: 4px 10px; border-radius: 999px;
+      background: var(--color-warm-100); color: var(--color-warm-700);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .pill.lav { background: var(--color-lavender-100); color: var(--color-lavender-700); }
+    .pill.sage { background: var(--color-sage-100); color: var(--color-sage-700); }
+    .foot {
+      margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--color-warm-200);
+      font: 500 12px/1.7 var(--font-mono); color: var(--color-warm-500);
+      max-width: 70ch;
+    }
+    .foot b { color: var(--color-warm-800); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <span class="eyebrow">◇ Sesión del 15 may · cinco direcciones</span>
+    <h1>Lo que se prototipó esta vuelta.</h1>
+    <p class="lead">
+      Cinco exploraciones que cierran ciclos abiertos: el self-knowledge loop (Patrones),
+      la fricción de escribir (Voz), la identidad fuera de la app (Wallpapers),
+      la presencia ambient en iOS (Dynamic Island) y un modelo de negocio que escala
+      sin diluir el producto (Rutas).
+    </p>
+
+    <div class="grid">
+      <a class="card" href="Patrones.html">
+        <div class="card-art a-patrones">
+          <span class="card-art-num">03 · Self-knowledge</span>
+          <span class="card-art-glyph">◎</span>
+        </div>
+        <div class="card-body">
+          <div class="card-tag">Web dashboard · nueva surface</div>
+          <h2 class="card-title">Patrones — lo que se repite en ti.</h2>
+          <p class="card-sub">
+            Agrega diario, conversaciones con Eco y subrayados en un solo lugar.
+            Reloj de mood por hora, mapa de 12 semanas, correlaciones probabilísticas
+            ("cuando lees el Cap. 3, baja #trabajo en tu diario") y vocab cloud.
+          </p>
+          <div class="card-meta">
+            <span class="pill lav">Nueva sección sidebar</span>
+            <span class="pill">Privado por defecto</span>
+            <span class="pill sage">Cierra el loop</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="card" href="Voice-to-text.html">
+        <div class="card-art a-voz">
+          <span class="card-art-num">05 · Journaling UX</span>
+          <span class="card-art-glyph">◐</span>
+        </div>
+        <div class="card-body">
+          <div class="card-tag">Mobile · 4 estados</div>
+          <h2 class="card-title">Voz-a-texto — hablar como quien escribe.</h2>
+          <p class="card-sub">
+            Mic prominente junto al teclado (nunca oculto). Cuatro frames en iPhone 14 Pro:
+            composer · grabando con waveform y timer · transcripción local con Whisper ·
+            resultado editable con audio opcional.
+          </p>
+          <div class="card-meta">
+            <span class="pill lav">Whisper local</span>
+            <span class="pill">94% confianza</span>
+            <span class="pill sage">Privado · sin nube</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="card" href="Wallpapers.html">
+        <div class="card-art a-wp">
+          <span class="card-art-num">12 · Identidad</span>
+          <span class="card-art-glyph">◇</span>
+        </div>
+        <div class="card-body">
+          <div class="card-tag">Compartible · shareables</div>
+          <h2 class="card-title">Wallpapers — lo que llevas contigo.</h2>
+          <p class="card-sub">
+            8 lock-screens nacidos del producto: subrayados convertidos en cita,
+            mantras del manifiesto, rachas, mood-of-week, blow-ups de portadas y
+            la identidad plana. Generador a partir de un subrayado.
+          </p>
+          <div class="card-meta">
+            <span class="pill lav">2532×1170</span>
+            <span class="pill">Stories · WhatsApp</span>
+            <span class="pill sage">Newsreader + Geist</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="card" href="Dynamic Island.html">
+        <div class="card-art a-island">
+          <span class="card-art-num">14 · iOS-native</span>
+          <span class="card-art-glyph">◯</span>
+        </div>
+        <div class="card-body">
+          <div class="card-tag">Mobile · 9 estados</div>
+          <h2 class="card-title">Dynamic Island — vive ahí, no en notificaciones.</h2>
+          <p class="card-sub">
+            Eco escuchando, audio en escucha, pausa de 3 min con respiración guiada,
+            día-6 de racha, recordatorio nocturno de diario, subrayado guardado y
+            sesión de lectura activa. Compacto · expandido · separado.
+          </p>
+          <div class="card-meta">
+            <span class="pill lav">9 patrones</span>
+            <span class="pill">Tap · tap-largo · swipe</span>
+            <span class="pill sage">Persistente · suave</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="card" href="Rutas.html" style="grid-column: 1 / -1;">
+        <div class="card-art a-bundles" style="height: 180px;">
+          <span class="card-art-num" style="color: rgba(37,24,92,0.6)">22 · Negocio escalable</span>
+          <span class="card-art-glyph">◇</span>
+        </div>
+        <div class="card-body">
+          <div class="card-tag">Web · nueva surface · monetización</div>
+          <h2 class="card-title">Rutas temáticas — la unidad que escala el catálogo.</h2>
+          <p class="card-sub">
+            Seis bundles curados: ansiedad y descanso, vínculos sanos, bienestar mañanero,
+            padres recién separados, adolescencia compañera, empezar a leerte (free sample).
+            Cada ruta = libros + audios + persona Eco + diario guiado. A la carta $19–$39, o
+            todas las base con Pro $7/mes. Cierra con teaser B2B desde $120/mes.
+          </p>
+          <div class="card-meta">
+            <span class="pill lav">6 rutas + 4 en cola</span>
+            <span class="pill sage">Pro · 14 días free</span>
+            <span class="pill">B2B · equipos · clínicas</span>
+            <span class="pill">Modelo a la carta + suscripción</span>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <footer class="foot">
+      <b>Notas:</b>&nbsp; los cinco prototipos respetan el sistema Psico Platform —
+      Lavender · Sage · Warm + Geist. Lo único nuevo: la familia Newsreader (serif)
+      aparece en wallpapers, diarios y citas de Dynamic Island, alineada con la decisión
+      previa del Diario. &nbsp;·&nbsp; Cada archivo es independiente: puedes abrir,
+      comentar o iterar sin tocar los demás.
+    </footer>
+  </div>
+</body>
+</html>

@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@psico/api-client": "workspace:*",
+    "@psico/crypto": "workspace:*",
     "@psico/types": "workspace:*",
     "@psico/ui": "workspace:*",
     "@tailwindcss/postcss": "^4.2.4",

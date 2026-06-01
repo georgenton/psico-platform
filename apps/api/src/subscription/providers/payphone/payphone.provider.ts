@@ -1,10 +1,13 @@
 import { Injectable, NotImplementedException } from "@nestjs/common";
+import type { InvoiceSummary } from "@psico/types";
 import type { BillingPlan } from "../../dto/checkout-session.dto";
 import type { CreatePortalSessionDto } from "../../dto/create-portal-session.dto";
 import type {
+  CancelSubscriptionResult,
   CheckoutSessionResult,
   IPaymentProvider,
   PortalSessionResult,
+  ReactivateSubscriptionResult,
 } from "../payment-provider.interface";
 
 /**
@@ -57,6 +60,36 @@ export class PayphoneProvider implements IPaymentProvider {
   async handleWebhook(_rawBody: Buffer, _signature: string): Promise<void> {
     throw new NotImplementedException(
       "Payphone webhook handler not yet implemented — Phase 2",
+    );
+  }
+
+  // ─── Sprint S7: billing surface (not applicable to one-time payments) ─────
+  //
+  // Payphone has no concept of "recurring subscription" or "invoice history"
+  // in the Stripe sense. If we ever route a Payphone user here, the right
+  // answer for `listInvoices` is an empty list (so Mi Plan still renders),
+  // and for cancel/reactivate is NotImplemented (UX should route them to
+  // re-purchase instead).
+
+  async listInvoices(
+    _userId: string,
+    _limit: number,
+  ): Promise<InvoiceSummary[]> {
+    return [];
+  }
+
+  async cancelAtPeriodEnd(
+    _userId: string,
+    _reason?: string,
+  ): Promise<CancelSubscriptionResult> {
+    throw new NotImplementedException(
+      "Payphone does not support recurring billing — there is nothing to cancel.",
+    );
+  }
+
+  async reactivate(_userId: string): Promise<ReactivateSubscriptionResult> {
+    throw new NotImplementedException(
+      "Payphone does not support recurring billing — there is nothing to reactivate.",
     );
   }
 

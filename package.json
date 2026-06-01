@@ -26,11 +26,14 @@
     "typescript": "^5.4.5"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx}": [
+    "(apps|packages)/**/*.{ts,tsx,js,jsx}": [
       "eslint --fix",
       "prettier --write"
     ],
-    "*.{json,md,yml,yaml}": [
+    "(apps|packages)/**/*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ],
+    "{docs,.changeset,.github}/**/*.{md,yml,yaml,json}": [
       "prettier --write"
     ]
   },

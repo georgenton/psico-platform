@@ -1,15 +1,19 @@
 import type {
   AuthResponse,
   BillingInterval,
-  Book,
-  BookWithChapters,
+  BookDetailResponse,
+  BookListResponse,
   CheckoutSessionResponse,
   PlanInfo,
   PortalSessionResponse,
   Subscription,
 } from "@psico/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333";
+// API base URL. Routes are mounted under /api/* after Sprint 0.A (ADR 0006).
+// NEXT_PUBLIC_API_URL points to the API root (e.g. "https://api.example.com");
+// the "/api" segment is appended by this client so paths in apiFetch stay clean.
+const API_ROOT = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_BASE = `${API_ROOT.replace(/\/$/, "")}/api`;
 
 // ── Error type ─────────────────────────────────────────────────────────────
 
@@ -110,12 +114,16 @@ export const authApi = {
 };
 
 // ── Books ──────────────────────────────────────────────────────────────────
+//
+// Sprint S5: `/content/*` routes were renamed to `/books`. Response shape is
+// also richer (BookListResponse / BookDetailResponse) — see 03-biblioteca.md
+// and 04-detalle.md for the contract.
 
 export const booksApi = {
-  findAll: (token?: string) => apiFetch<Book[]>("/content/books", { token }),
+  findAll: (token?: string) => apiFetch<BookListResponse>("/books", { token }),
 
-  findBySlug: (slug: string, token?: string) =>
-    apiFetch<BookWithChapters>(`/content/books/${slug}`, { token }),
+  findBySlug: (idOrSlug: string, token?: string) =>
+    apiFetch<BookDetailResponse>(`/books/${idOrSlug}`, { token }),
 };
 
 // ── Subscriptions ──────────────────────────────────────────────────────────

@@ -38,30 +38,98 @@ enum SubscriptionStatus {
   INCOMPLETE
 }
 
+// LOCAL: classic email + password (passwordHash required)
+// GOOGLE: signed in with Google ID token (passwordHash null; providerId = Google `sub` claim)
+// Future: APPLE (deferred, design says wait until we have an Apple Developer account)
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
-  passwordHash  String
+  // passwordHash is optional because OAuth users (authProvider != LOCAL) have
+  // no password — they authenticate through their identity provider. The
+  // service layer enforces "LOCAL → must have hash, GOOGLE → must NOT".
+  passwordHash  String?
   name          String
+  // firstName is nullable initially; backfilled from `name` by data migration before the field is made required
+  firstName     String?
+  city          String?
   avatarUrl     String?
   role          Role     @default(USER)
   plan          Plan     @default(FREE)
   isActive      Boolean  @default(true)
   emailVerified Boolean  @default(false)
+  // How this account authenticates. LOCAL is the default for backward compat.
+  authProvider  AuthProvider @default(LOCAL)
+  // Provider-specific user id (Google's `sub` claim). Indexed for lookup
+  // during OAuth login. Composite uniqueness with authProvider prevents
+  // a Google `sub` and Apple `sub` from colliding when both are added.
+  providerId    String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  // Mood — current self-reported mood (token string, e.g. "calm", "anxious", "sad")
+  mood          String?
+  moodUpdatedAt DateTime?
+
+  // Streaks — denormalized counters updated by ProgressService / DiarioService on activity
+  currentStreakDays Int       @default(0)
+  longestStreakDays Int       @default(0)
+  streakLastDay     DateTime?
+
+  // Soft delete with cooldown — finalized by background worker after 30 days
+  deleteRequestedAt DateTime?
+
+  // E2E crypto salt — base64url-encoded 16 random bytes, generated at register.
+  // Used by the client to derive the master key with Argon2id (ADR 0007 §A).
+  // The salt is NOT secret — leaking it doesn't help an attacker without the
+  // password. Nullable for users registered before Sprint S6-crypto; new
+  // registrations always populate it.
+  cryptoSalt String?
+
+  // Timestamp when the client confirmed it showed the BIP39 recovery seed
+  // phrase modal (Sprint seed-and-password-rekey · ADR 0007 §G).
+  // Null = modal pending. Once the client POSTs the acknowledgment we set
+  // this and never bother the user again. The actual seed phrase is NOT
+  // stored — it's the masterKey serialized and the server never sees it.
+  cryptoSeedShownAt DateTime?
+
   stripeCustomerId String? @unique
 
-  profile       Profile?
-  refreshTokens RefreshToken[]
-  progress      UserProgress[]
-  subscription  Subscription?
-  conversations Conversation[]
+  profile                 Profile?
+  refreshTokens           RefreshToken[]
+  progress                UserProgress[]
+  subscription            Subscription?
+  conversations           Conversation[]
+  preferences             UserPreferences?
+  readerPreferences       ReaderPreferences?
+  notificationSettings    NotificationSettings?
+  privacySettings         PrivacySettings?
+  achievements            UserAchievement[]
+  emailChangeRequests     EmailChangeRequest[]
+  dataExportRequests      DataExportRequest[]
+  authEvents              AuthEvent[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  onboardingState         OnboardingState?
+  bookFavorites           BookFavorite[]
+  bookBookmarks           BookBookmark[]
+  bookReviews             BookReview[]
+  dismissedPrompts        DismissedReflectionPrompt[]
+  diaryEntries            DiaryEntry[]
+  sharedDiaryEntries      SharedDiaryEntry[]
+  billingUsageDays        BillingUsageDay[]
+  voiceTranscriptions     VoiceTranscription[]
+  ecoThreads              EcoThread[]
 
+  @@unique([authProvider, providerId])
   @@index([email])
+  @@index([providerId])
 }
 
 model Profile {
@@ -92,20 +160,334 @@ model RefreshToken {
   @@index([token])
 }
 
-model Book {
+// ─── Auth · password reset & email verification ──────────────────────────────
+//
+// Token storage strategy (mirrors AuthService.recordEvent's swallow-on-error
+// pattern): we hash the one-time secret with SHA-256 before persistence. The
+// raw token only exists in the email body. If the DB is compromised, an
+// attacker still cannot reuse the tokens.
+//
+// `consumedAt` keeps the row after use for two reasons:
+//   1. Audit — we can answer "did this user reset their password yesterday?"
+//   2. Replay protection — a second call with the same token returns 410 Gone.
+//
+// Old rows (consumedAt + 30 days, or expiresAt + 7 days for unused tokens) can
+// be GC'd by a future scheduled job. Not urgent.
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model EmailVerificationToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── Onboarding · catalogs (seeded) ──────────────────────────────────────────
+//
+// Why tables and not TypeScript enums:
+//  - OnboardingState references motivosIds + moodId. Tables give us referential
+//    integrity (FK-able when we want to enforce) and i18n-friendly label storage.
+//  - Editing the catalog = SQL UPDATE, no deploy needed.
+//
+// Seed populates a sensible default set. Updating in prod is a migration.
+
+model OnboardingMotivo {
+  id       String  @id // "ansiedad", "tristeza", "relaciones", ... — stable slug
+  label    String
+  icon     String  // lucide-style token, e.g. "heart-pulse"
+  order    Int     @default(0)
+  isActive Boolean @default(true)
+
+  @@index([isActive, order])
+}
+
+model OnboardingMood {
+  id       String  @id // "calma", "foco", "energia", ...
+  label    String
+  swatch   String  // hex color (e.g. "#A8C7E4") — drives the UI swatch
+  order    Int     @default(0)
+  isActive Boolean @default(true)
+
+  @@index([isActive, order])
+}
+
+// ─── Onboarding · per-user state ─────────────────────────────────────────────
+//
+// 1:1 with User. Created lazily on first onboarding endpoint hit (intro / step1).
+// Tracks WHAT the user picked during onboarding (audit + later analytics for
+// Pulso). The user's long-term state (firstName, mood, voicePreference) lives
+// in User / UserPreferences — onboarding writes there too, but THIS table is
+// the historical record of the original picks.
+
+model OnboardingState {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  // Step 1: chosen motivos. Stored as plain string[] for simplicity; the API
+  // validates they exist in OnboardingMotivo at write time.
+  motivosIds String[] @default([])
+
+  // Step 2: initial mood pick. Distinct from User.mood (current mood, which
+  // gets re-set every time the user changes it from Inicio).
+  initialMoodId String?
+
+  // Step 3: voice preference chosen at onboarding. Also written to
+  // UserPreferences.voicePreference at the same time so the rest of the
+  // app reads it from there. Stored here separately as immutable audit.
+  initialVoicePreference String? // "marina" | "tomas" | "none"
+
+  // Step 4: what we showed as the primary recommendation + what they picked.
+  recommendedBookId String?
+  chosenBookId      String?
+
+  // Lifecycle
+  startedAt             DateTime  @default(now())
+  step1CompletedAt      DateTime?
+  step2CompletedAt      DateTime?
+  step3CompletedAt      DateTime?
+  onboardingCompletedAt DateTime?
+  onboardingSkippedAt   DateTime?
+
+  // Tour (separate flow, optional, runs after onboarding completes)
+  tourCompletedAt    DateTime?
+  tourStepsCompleted Int       @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Auth audit log ──────────────────────────────────────────────────────────
+//
+// Append-only log of every auth event (register, login, refresh, logout, plus
+// failures). Captured synchronously in AuthService so the trail is guaranteed.
+//
+// Why we instrument now even without dashboards:
+//   - Sprint S25 (Pulso · Funnel) materializes signup/login funnels from here.
+//   - Security alerts (Sprint future): "N failed logins from same IP in 5min"
+//     becomes a Redis aggregation over this stream.
+//   - GDPR/data-export (Sprint S3 worker): user can download their auth history.
+//
+// userId is nullable because some events (LOGIN_FAIL on non-existent email)
+// have no user to attach to. We still record the attempt with the supplied
+// email so brute-force enumeration is detectable.
+
+model AuthEvent {
+  id        String   @id @default(cuid())
+  // Free-form discriminator. Document the canonical set in apps/api/src/auth/auth-event.type.ts.
+  // Examples: REGISTER · LOGIN_OK · LOGIN_FAIL · REFRESH · REFRESH_REUSED · LOGOUT
+  type      String
+  userId    String?
+  email     String?
+  ipAddress String?
+  userAgent String?
+  // Structured context (reason for failure, oauth provider, etc.). Always small.
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Per-user history (Pulso, data export)
+  @@index([userId, createdAt(sort: Desc)])
+  // Type filters (alerts: "all LOGIN_FAIL in last hour")
+  @@index([type, createdAt(sort: Desc)])
+  // IP-based abuse detection
+  @@index([ipAddress, createdAt(sort: Desc)])
+}
+
+// ─── Book catalog (Sprint S5) ────────────────────────────────────────────────
+//
+// BookAuthor + BookCategory live as tables (not enums) because:
+//   1. Editor de autor (B2B, Sprint S19) needs to write to BookAuthor at
+//      runtime. An enum would require a migration on each new author.
+//   2. Categorías are described as an open set in 03-biblioteca.md
+//      ("ansiedad | vinculos | duelo | …"). Curated by content team.
+//   3. Both can be ordered, translated, or marked inactive in the future
+//      without schema churn.
+//
+// Book.cover is the design token (cool|warm|mixed). The real artwork URL
+// lives in coverArtUrl. The front falls back to the gradient token when
+// coverArtUrl is null — see 03-biblioteca.md §states.
+
+model BookAuthor {
   id            String   @id @default(cuid())
   slug          String   @unique
-  title         String
-  description   String?
-  coverUrl      String?
-  // TODO senior: totalChapters is a denormalized count — keep in sync on every Chapter create/delete
-  totalChapters Int      @default(0)
-  isPublished   Boolean  @default(false)
-  plan          Plan     @default(FREE)
+  name          String
+  // Professional title shown on book detail ("Dra. en Psicología Clínica")
+  title         String?
+  bio           String?
+  avatarUrl     String?
+  // Visible only when verified (banco de psicólogos colegiados). Detail UI
+  // hides it when null.
+  licenseNumber String?
+  // Cover token used when avatar is missing.
+  cover         String   @default("cool")
+  isVerified    Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  chapters Chapter[]
+  books Book[]
+}
+
+model BookCategory {
+  id        String   @id @default(cuid())
+  // Stable token for URLs/filters: "ansiedad", "vinculos", "duelo".
+  slug      String   @unique
+  label     String
+  // Display order in filter sidebar.
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  books Book[]
+}
+
+model Book {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  title           String
+  // Shorter subtitle line shown next to title (optional).
+  subtitle        String?
+  // Short description on cards (1-2 sentences).
+  description     String?
+  // Long-form summary (markdown) for detail page.
+  summary         String?
+  // Design token (cool|warm|mixed). The frontend renders this as a gradient
+  // when coverArtUrl is null. Stored as string for flexibility — we may add
+  // new tokens without a migration.
+  cover           String   @default("cool")
+  // Legacy field — kept for backward compat with seeded data and the existing
+  // ContentModule URL exposure. New artwork goes to coverArtUrl.
+  coverUrl        String?
+  coverArtUrl     String?
+  // Total page count (nullable for audio-only or chapter-only books).
+  pages           Int?
+  // Sum of chapter durations. Denormalized for list/detail performance.
+  // Recomputed on chapter create/delete via service.
+  durationMinutes Int      @default(0)
+  // Language tag (BCP 47): "es", "en". Defaults to Spanish for our market.
+  language        String   @default("es")
+  // TODO senior: totalChapters is a denormalized count — keep in sync on every Chapter create/delete
+  totalChapters   Int      @default(0)
+  isPublished     Boolean  @default(false)
+  plan            Plan     @default(FREE)
+  // Optional FK to author/category. Nullable so we can seed books before
+  // wiring catalog (avoids chicken-and-egg in migration). Service requires it
+  // on publish.
+  authorId        String?
+  categoryId      String?
+  publishedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  chapters  Chapter[]
+  author    BookAuthor?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  category  BookCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  favorites BookFavorite[]
+  bookmarks BookBookmark[]
+  reviews   BookReview[]
+
+  @@index([authorId])
+  @@index([categoryId])
+  @@index([isPublished, publishedAt(sort: Desc)])
+}
+
+// User-scoped catalog state. Both are toggleable; both delete on user delete.
+model BookFavorite {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+}
+
+model BookBookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+}
+
+// One review per user per book. UI only allows submission when the user has
+// completed the book (`UserProgress.completedAt != null` for every chapter).
+// The service enforces this — no DB-level constraint.
+model BookReview {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  rating    Int      // 1..5, validated in DTO
+  text      String   // Markdown allowed; sanitized in UI
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([bookId, createdAt(sort: Desc)])
+  @@index([userId])
+}
+
+// Reflection prompts (Home dashboard). Curated by content team; rotated daily.
+// `audience` is a coarse filter — "all" or a tier token. The service can also
+// filter by mood/streak if needed in the future.
+model ReflectionPrompt {
+  id        String   @id @default(cuid())
+  text      String
+  audience  String   @default("all")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  dismissals DismissedReflectionPrompt[]
+
+  @@index([isActive])
+}
+
+// Per-user dismissals (POST /reflection-prompts/:id/dismiss). The Home
+// service excludes any prompt the user dismissed in the last 7 days.
+model DismissedReflectionPrompt {
+  id          String   @id @default(cuid())
+  userId      String
+  promptId    String
+  dismissedAt DateTime @default(now())
+
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt ReflectionPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, promptId])
+  @@index([userId, dismissedAt(sort: Desc)])
 }
 
 model Chapter {
@@ -199,6 +581,153 @@ model StripeEvent {
   @@index([stripeEventId])
 }
 
+// ─── Eco conversational AI (Sprint S10) ──────────────────────────────────────
+//
+// Hybrid encryption model for v1:
+//   - User messages: client encrypts → server stores `textCiphertext + textNonce`.
+//     Server also receives plaintext IN-FLIGHT to call the LLM and run crisis
+//     detection, but NEVER persists it. The privacy spec enforces no logging.
+//   - Assistant messages: LLM-generated, stored as plaintext in `assistantText`.
+//     They're not the user's private input; encrypting them adds plumbing
+//     without privacy upside for the v1 threat model.
+//
+// `EcoMessage.kind` lets the UI distinguish normal replies from crisis
+// derivations and book/exercise suggestions:
+//   - "user"        → user → eco
+//   - "assistant"   → eco → user (regular reply)
+//   - "crisis"      → eco → user (crisis derivation; no LLM call needed,
+//                                  server-generated)
+//   - "suggestion"  → eco → user (assistant suggesting a book/exercise;
+//                                  carries an optional bookId/exerciseId)
+//
+// `EcoMessageReport` captures user-flagged bad answers for offline review.
+
+enum EcoMessageKind {
+  USER
+  ASSISTANT
+  CRISIS
+  SUGGESTION
+}
+
+enum EcoMessageReportReason {
+  HALLUCINATION
+  OFF_TONE
+  SENSITIVE_CONTENT
+  CRISIS_MISHANDLED
+  OTHER
+}
+
+model EcoThread {
+  id            String   @id @default(cuid())
+  userId        String
+  // Generated client-side from the first user message, then encrypted with
+  // the same ecoKey. Null until the first response is received. Used as a
+  // "title" in the sidebar rail — client decrypts before render.
+  titleCiphertext String?
+  titleNonce      String?
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages EcoMessage[]
+
+  @@index([userId, lastMessageAt])
+}
+
+model EcoMessage {
+  id          String         @id @default(cuid())
+  threadId    String
+  kind        EcoMessageKind
+  // For USER messages: cipher payload encrypted client-side. NEVER null
+  // for USER kind. Always null for non-USER kinds.
+  textCiphertext String?
+  textNonce      String?
+  // For ASSISTANT / CRISIS / SUGGESTION: LLM-generated plaintext.
+  // Stored to make the thread re-readable without re-running inference.
+  // Always null for USER kind.
+  assistantText  String?
+  // Suggestion metadata. Populated only when kind=SUGGESTION.
+  suggestedBookId String?
+  // Token accounting for billing/cost analysis. Zero for USER messages.
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  thread  EcoThread        @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  reports EcoMessageReport[]
+
+  @@index([threadId, createdAt])
+}
+
+model EcoMessageReport {
+  id        String                 @id @default(cuid())
+  messageId String
+  userId    String // denormalised so the report row is queryable without a join
+  reason    EcoMessageReportReason
+  comment   String?
+  createdAt DateTime               @default(now())
+
+  message EcoMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([reason])
+}
+
+// ─── Voice transcriptions (Sprint S8) ────────────────────────────────────────
+//
+// Audit row per transcription. Per ADR / docs/design/handoff/07-voz.md the
+// audio is NEVER stored — only this metadata. Two uses:
+//   1. Live quota counter — UsageService SUMs `durationSec` in the period.
+//   2. BullMQ daily rollup — DailyUsageProcessor aggregates into
+//      BillingUsageDay.voiceMinutes for Pulso admin.
+//
+// We intentionally store the provider (`whisper` | `deepgram`) so that
+// future cost-attribution analytics can split per-vendor without us
+// having to redo joins.
+model VoiceTranscription {
+  id           String   @id @default(cuid())
+  userId       String
+  durationSec  Float
+  language     String // "es" | "es-419" | "en" | ...
+  provider     String // "whisper" | "deepgram" (also used to plan migration)
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// ─── Billing usage rollup (Sprint S7) ────────────────────────────────────────
+//
+// One row per user per UTC day. Populated by the BullMQ `daily-usage` job
+// nightly at 02:00 UTC; not read by the live `/api/subscriptions/usage`
+// endpoint (that one queries live tables with a 5-min Redis cache). This
+// table exists for:
+//   1. Pulso admin / cohort metrics — usage trends across the user base.
+//   2. Quota auditing — "did this user actually exceed their limit on day X?"
+//   3. Future churn analytics — usage decline as a leading indicator.
+//
+// The producer truncates `day` to UTC midnight. (userId, day) is unique so
+// the rollup is idempotent: re-running for the same day re-computes the
+// counters and overwrites the row.
+model BillingUsageDay {
+  id             String   @id @default(cuid())
+  userId         String
+  day            DateTime // UTC midnight of the day being rolled up
+  booksCompleted Int      @default(0)
+  ecoMessages    Int      @default(0)
+  voiceMinutes   Float    @default(0)
+  diaryEntries   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day])
+  @@index([day])
+}
+
 // ─── AI / RAG models ──────────────────────────────────────────────────────────
 
 model ContentChunk {
@@ -248,4 +777,246 @@ model ConversationMessage {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
+}
+
+// ─── User · preferences, notifications, privacy ───────────────────────────────
+
+model UserPreferences {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  // "marina" | "tomas" | "none"
+  voicePreference   String   @default("none")
+  moodPrompts       Boolean  @default(true)
+  // "morning" | "noon" | "evening" | "any"
+  bestTime          String   @default("any")
+  weeklyGoalMinutes Int      @default(60)
+  // "system" | "light" | "dark"
+  theme             String   @default("system")
+  // BCP 47: "es-419" | "es-ES"
+  language          String   @default("es-419")
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ReaderPreferences {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  // "serif" | "sans"
+  font       String   @default("serif")
+  fontSize   Int      @default(18)
+  // "system" | "light" | "sepia" | "dark"
+  theme      String   @default("system")
+  lineHeight Float    @default(1.6)
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NotificationSettings {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  dailyReminder    Boolean  @default(true)
+  // HH:MM (local user time, interpreted with Profile.timezone)
+  reminderTime     String   @default("20:00")
+  streakReminders  Boolean  @default(true)
+  ecoReplies       Boolean  @default(true)
+  terapiaReminders Boolean  @default(true)
+  weeklyReport     Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PrivacySettings {
+  id                       String    @id @default(cuid())
+  userId                   String    @unique
+  shareDiaryWithTherapist  Boolean   @default(false)
+  anonymizedAnalytics      Boolean   @default(true)
+  marketingEmail           Boolean   @default(false)
+  // Mirrors of DataExportRequest / User.deleteRequestedAt so the FE has them in one read
+  dataExportRequestedAt    DateTime?
+  accountDeleteRequestedAt DateTime?
+  updatedAt                DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Achievements ─────────────────────────────────────────────────────────────
+
+model Achievement {
+  // Stable string id (e.g. "first-chapter", "7-day-streak") — seeded
+  id             String   @id
+  label          String
+  description    String
+  // Lucide-style token (e.g. "book-open", "flame")
+  icon           String
+  progressTarget Int
+  category       String?
+  createdAt      DateTime @default(now())
+
+  userAchievements UserAchievement[]
+}
+
+model UserAchievement {
+  id              String    @id @default(cuid())
+  userId          String
+  achievementId   String
+  progressCurrent Int       @default(0)
+  unlockedAt      DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+}
+
+// ─── Account lifecycle requests ───────────────────────────────────────────────
+
+model EmailChangeRequest {
+  id         String    @id @default(cuid())
+  userId     String
+  newEmail   String
+  // SHA-256 hash of the one-time verification token — never store the raw token
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model DataExportRequest {
+  id          String    @id @default(cuid())
+  userId      String
+  // "PENDING" | "PROCESSING" | "READY" | "FAILED"
+  status      String    @default("PENDING")
+  fileUrl     String?
+  expectedAt  DateTime
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── Diary · E2E-encrypted journal entries (Sprint S6 · ADR 0007) ────────────
+//
+// PRIVACY-CRITICAL — read this comment before touching any field below.
+//
+// The user encrypts the entry body on-device with their per-user diaryKey
+// derived from password via Argon2id. The server stores `textCiphertext` and
+// `textNonce` opaque; the server NEVER:
+//   - receives, derives, or holds the diaryKey
+//   - logs textCiphertext / textNonce (CI grep enforces this; ADR 0007 §F)
+//   - exposes any endpoint that returns plaintext
+//
+// Plaintext metadata (mood, promptId, tags, audioUrl) is intentionally kept
+// outside the cipher so the catalog UI can filter and the home stats can
+// count without round-tripping the cipher. These fields MUST NOT contain
+// sensitive content — the design (06-diario.md) commits to that.
+
+model DiaryEntry {
+  id String @id @default(cuid())
+  userId String
+
+  // base64url ciphertext of XChaCha20-Poly1305(plaintext, diaryKey, nonce, AAD).
+  // Capped at ~1 MB at the DTO layer (`@Length`). PostgreSQL TEXT, no
+  // compression at the row level — the cipher is already incompressible.
+  textCiphertext String
+
+  // base64url 24-byte random nonce. Generated client-side per write. Stored
+  // separately from the cipher so a future nonce-handling change does not
+  // require a payload migration.
+  textNonce String
+
+  // Excerpt cipher (first ~80 chars of plaintext, encrypted with the same
+  // diaryKey + a different nonce). Sent in list responses so the user gets a
+  // preview without downloading every full body. Optional: client may write
+  // null if the entry is too short.
+  excerptCiphertext String?
+  excerptNonce      String?
+
+  // Plaintext metadata — explicitly non-sensitive per the design contract.
+  mood     String  // token: "calma" | "foco" | "energia" | … (validated against OnboardingMood)
+  // "free" | "prompted" | "voz" — denormalized for filtering/analytics.
+  kind     String  @default("free")
+  promptId String? // FK is intentionally a soft pointer to DiaryPrompt
+  tags     String[]
+
+  // Voice entry attachments. Audio is NOT encrypted at rest — design 07-voz.md
+  // says transcription is destroyed after extraction so no plaintext lives on
+  // disk anyway. Only the URL + duration travel here.
+  audioUrl         String?
+  audioDurationSec Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt      DiaryPrompt?        @relation(fields: [promptId], references: [id], onDelete: SetNull)
+  sharedCopies SharedDiaryEntry[]
+
+  // Range scans for the list view (last N entries, optionally filtered by mood).
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, mood])
+  // The promptId path is rare; soft FK does not need an index of its own.
+}
+
+// Re-encrypted copy of a diary entry shared with a therapist for a bounded
+// window. The server is a blind mailbox: it stores `ciphertextForTherapist`
+// + `wrappedKey` + the user's one-shot pubkey, all base64url, and NEVER
+// touches them. Therapist reads via /api/terapia/shared-entries/:id (v2).
+//
+// Expiry is honored by a scheduled job (S3 jobs pipeline) — when v2
+// TherapyModule lands the worker will delete rows where `expiresAt < now()`.
+model SharedDiaryEntry {
+  id      String  @id @default(cuid())
+  // Nullable so the relation can be SetNull on entry delete — that lets us
+  // keep the audit trail "user U shared an entry with therapist T at time X"
+  // even after U deletes the original entry.
+  entryId String?
+  // therapistId is a soft pointer — TherapyModule is v2 and may live in a
+  // separate service. We store the string and validate at use-time.
+  therapistId String
+  userId      String
+
+  ciphertextForTherapist String // base64url AEAD(plaintext, ephemeralKey)
+  wrappedKey             String // base64url AEAD(ephemeralKey, ECDH(userPriv, therapistPub))
+  userOneShotPubKey      String // base64url X25519 pubkey used in the ECDH
+
+  // Server-enforced TTL. Default 7 days per ADR 0007 §E. The user can shorten
+  // at share-time (DTO), but cannot extend beyond 30 days.
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // SetNull on entry delete so the audit trail (who shared what with whom)
+  // survives even when the source entry is gone.
+  entry DiaryEntry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([therapistId, expiresAt])
+}
+
+// Curated daily prompts surfaced by GET /api/diario/prompt-of-the-day.
+// Rotation is deterministic by day-of-year hash so the user sees the same
+// prompt all day (cached client-side) without a server-side schedule.
+model DiaryPrompt {
+  id        String   @id @default(cuid())
+  text      String
+  // Coarse audience filter. v1 only uses "all"; future tier-aware prompts
+  // will reuse the same column.
+  audience  String   @default("all")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  entries DiaryEntry[]
+
+  @@index([isActive])
 }

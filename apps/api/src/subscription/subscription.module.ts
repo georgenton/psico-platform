@@ -9,6 +9,7 @@ import {
 import { StripeProvider } from "./providers/stripe/stripe.provider";
 import { SubscriptionController } from "./subscription.controller";
 import { SubscriptionService } from "./subscription.service";
+import { UsageService } from "./usage.service";
 
 @Module({
   imports: [PrismaModule],
@@ -18,7 +19,8 @@ import { SubscriptionService } from "./subscription.service";
     { provide: PAYPHONE_PROVIDER, useClass: PayphoneProvider },
     PaymentService,
     SubscriptionService,
+    UsageService,
   ],
-  exports: [SubscriptionService],
+  exports: [SubscriptionService, UsageService],
 })
 export class SubscriptionModule {}

@@ -127,10 +127,39 @@ jobs:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
+  privacy:
+    name: Privacy (no ciphertext logging — ADR 0007)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Sprint S6 invariant from ADR 0007 §verification:
+      # No source line under apps/api/src/ may pass a ciphertext field to
+      # console.* / logger.*. The grep-based guard runs in seconds and is
+      # mirrored by diario.privacy.spec.ts inside the test suite.
+      - name: Grep for ciphertext-in-logs (must return no matches)
+        run: |
+          set -e
+          MATCHES=$(grep -rnE \
+            '(console\.(log|debug|info|warn|error)|(this\.)?logger\.(log|debug|info|warn|error))\s*\([^)]*\b(textCiphertext|textNonce|excerptCiphertext|wrappedKey|ciphertextForTherapist)\b' \
+            apps/api/src/ \
+            --include='*.ts' \
+            --exclude='*.spec.ts' \
+            --exclude='*.privacy.spec.ts' || true)
+          if [ -n "$MATCHES" ]; then
+            echo "❌ Found ciphertext fields inside logger/console calls:"
+            echo "$MATCHES"
+            echo ""
+            echo "ADR 0007 forbids logging encrypted material. Remove the log"
+            echo "or move it behind a metadata-only summary."
+            exit 1
+          fi
+          echo "✅ No ciphertext in logger/console calls."
+
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
+    needs: [lint, typecheck, test, privacy]
     steps:
       - uses: actions/checkout@v4
         with:

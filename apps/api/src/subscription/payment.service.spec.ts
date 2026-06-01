@@ -7,6 +7,9 @@ const mockStripeProvider = {
   createCheckoutSession: vi.fn(),
   createPortalSession: vi.fn(),
   handleWebhook: vi.fn(),
+  listInvoices: vi.fn(),
+  cancelAtPeriodEnd: vi.fn(),
+  reactivate: vi.fn(),
   supportsRecurring: vi.fn().mockReturnValue(true),
 };
 
@@ -15,6 +18,9 @@ const mockPayphoneProvider = {
   createCheckoutSession: vi.fn(),
   createPortalSession: vi.fn(),
   handleWebhook: vi.fn(),
+  listInvoices: vi.fn(),
+  cancelAtPeriodEnd: vi.fn(),
+  reactivate: vi.fn(),
   supportsRecurring: vi.fn().mockReturnValue(false),
 };
 

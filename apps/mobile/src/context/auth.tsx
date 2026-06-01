@@ -11,8 +11,13 @@ import type { ReactNode } from "react";
 import { apiClient, authApi } from "@psico/api-client";
 import type { AuthUser } from "@psico/types";
 import { tokenStore } from "../store/secure-store";
+import { diaryKeyStore } from "../crypto/diary-key-store";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
+const API_ROOT = process.env.EXPO_PUBLIC_API_URL ?? "";
+// Cold-start refresh hits the raw fetch (not apiClient — see below comment),
+// so it must compose the /api prefix itself. ADR 0006 — Sprint 0.A.
+const API_URL = API_ROOT.replace(/\/$/, "");
+const API_BASE = `${API_URL}/api`;
 
 type TokenPair = { accessToken: string; refreshToken: string };
 
@@ -44,6 +49,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tokensRef.current = null;
     setUser(null);
     void tokenStore.clearTokens();
+    // S6-crypto: when the user signs out the diary key MUST be wiped from
+    // SecureStore too. Otherwise the next user on the same device (kid,
+    // partner, lost-phone scenario) could open the diary with a stale key.
+    void diaryKeyStore.clear();
   }, []);
 
   // Wire the shared API client singleton once on mount.
@@ -74,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           : null;
 
         try {
-          const res = await fetch(`${API_URL}/auth/refresh`, {
+          const res = await fetch(`${API_BASE}/auth/refresh`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refreshToken: stored.refreshToken }),

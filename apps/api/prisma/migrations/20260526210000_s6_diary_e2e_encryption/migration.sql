@@ -1,4 +1,3 @@
-Loaded Prisma config from prisma.config.ts.
 
 -- CreateTable
 CREATE TABLE "DiaryEntry" (
@@ -72,4 +71,3 @@ ALTER TABLE "SharedDiaryEntry" ADD CONSTRAINT "SharedDiaryEntry_entryId_fkey" FO
 
 -- AddForeignKey
 ALTER TABLE "SharedDiaryEntry" ADD CONSTRAINT "SharedDiaryEntry_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-

@@ -180,6 +180,45 @@ export class StripeProvider implements IPaymentProvider {
     return { cancelAtPeriodEnd: false };
   }
 
+  async getCheckoutSessionStatus(sessionId: string): Promise<{
+    status: "success" | "processing" | "failed";
+    subscriptionId: string | null;
+  }> {
+    // We expand `subscription` so the consuming service can decide on the
+    // human-readable message without an extra round-trip — Stripe charges
+    // the same regardless of expand depth.
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ["subscription"],
+    });
+
+    // Stripe's payment_status disambiguates the three cases we care about:
+    // - "paid" → user got Pro right now.
+    // - "unpaid" with status == "open" → async payment method still settling.
+    // - "no_payment_required" + status "complete" → free trial captured.
+    // - status "expired" → user abandoned the checkout window.
+    if (session.status === "expired" || session.payment_status === "unpaid") {
+      if (session.status === "expired") {
+        return { status: "failed", subscriptionId: null };
+      }
+      // unpaid + not expired = still processing (async methods).
+      return {
+        status: "processing",
+        subscriptionId:
+          typeof session.subscription === "string"
+            ? session.subscription
+            : (session.subscription?.id ?? null),
+      };
+    }
+
+    return {
+      status: "success",
+      subscriptionId:
+        typeof session.subscription === "string"
+          ? session.subscription
+          : (session.subscription?.id ?? null),
+    };
+  }
+
   async handleWebhook(rawBody: Buffer, signature: string): Promise<void> {
     let event: StripeEvent;
 

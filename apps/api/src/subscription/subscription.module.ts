@@ -21,6 +21,6 @@ import { UsageService } from "./usage.service";
     SubscriptionService,
     UsageService,
   ],
-  exports: [SubscriptionService, UsageService],
+  exports: [SubscriptionService, UsageService, PaymentService],
 })
 export class SubscriptionModule {}

@@ -9,8 +9,10 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import { DeprecationInterceptor } from "./deprecation.interceptor";
 import type { Request } from "express";
 import { JwtAuthGuard } from "../auth";
 import { CurrentUser } from "../shared";
@@ -26,8 +28,14 @@ import { ListInvoicesQueryDto } from "./dto/list-invoices-query.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { SubscriptionService } from "./subscription.service";
 
-@ApiTags("Subscription")
+/**
+ * @deprecated Sprint S11 (2026-06-02) — use `/api/billing/*` instead.
+ * Sunset: 2026-08-31. See deprecation.interceptor.ts for the headers we
+ * emit and ADR 0006 for the 90-day deprecation policy.
+ */
+@ApiTags("Subscription (deprecated)")
 @Controller("subscriptions")
+@UseInterceptors(DeprecationInterceptor)
 export class SubscriptionController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
 

@@ -56,6 +56,19 @@ export interface IPaymentProvider {
 
   reactivate(userId: string): Promise<ReactivateSubscriptionResult>;
 
+  // ─── Sprint S11 — checkout session lookup ──────────────────────────────────
+  //
+  // After Stripe Checkout completes, the user's browser is redirected to
+  // /dashboard/plan/success with `session_id=cs_xxx` appended. The front
+  // hits `GET /api/billing/return?session_id=...` once; this method does
+  // the read against the provider so we can confirm payment without polling
+  // /subscriptions/me (which would race the webhook).
+  //
+  // Implementations should not require the call to be idempotent — Stripe's
+  // own `sessions.retrieve` is read-only and safe to call many times.
+
+  getCheckoutSessionStatus?(sessionId: string): Promise<CheckoutSessionStatus>;
+
   // ─── Optional extension points ─────────────────────────────────────────────
 
   // Returns the normalized event type string from a raw webhook payload
@@ -64,6 +77,18 @@ export interface IPaymentProvider {
 
   // Returns false for one-time payment providers (e.g. Payphone in Phase 1).
   supportsRecurring?(): boolean;
+}
+
+export interface CheckoutSessionStatus {
+  /**
+   * "success" — payment captured, subscription is active or trialing.
+   * "processing" — Stripe still processing (async methods like bank xfer).
+   *   The front should retry on the next visit.
+   * "failed" — payment declined or session expired.
+   */
+  status: "success" | "processing" | "failed";
+  /** Provider-side subscription id, if one was created. */
+  subscriptionId: string | null;
 }
 
 // Injection token used to register/retrieve providers in NestJS DI.

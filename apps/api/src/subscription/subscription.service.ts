@@ -101,6 +101,7 @@ export class SubscriptionService {
       where: { userId },
       select: {
         id: true,
+        userId: true,
         plan: true,
         status: true,
         currentPeriodStart: true,

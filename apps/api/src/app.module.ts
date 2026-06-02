@@ -12,6 +12,7 @@ import { ProgressModule } from "./progress";
 import { HomeModule } from "./home";
 import { DiarioModule } from "./diario";
 import { SubscriptionModule } from "./subscription";
+import { BillingModule } from "./billing";
 import { HealthModule } from "./health";
 import { AIModule } from "./ai";
 import { UsersModule } from "./users";
@@ -41,6 +42,7 @@ import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
     HomeModule,
     DiarioModule,
     SubscriptionModule,
+    BillingModule, // Sprint S11 — /api/billing/* + /api/plan, depends on SubscriptionModule
     HealthModule,
     AIModule,
     UsersModule,

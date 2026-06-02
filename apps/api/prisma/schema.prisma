@@ -49,8 +49,8 @@ enum AuthProvider {
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
+  id            String       @id @default(cuid())
+  email         String       @unique
   // passwordHash is optional because OAuth users (authProvider != LOCAL) have
   // no password — they authenticate through their identity provider. The
   // service layer enforces "LOCAL → must have hash, GOOGLE → must NOT".
@@ -60,18 +60,18 @@ model User {
   firstName     String?
   city          String?
   avatarUrl     String?
-  role          Role     @default(USER)
-  plan          Plan     @default(FREE)
-  isActive      Boolean  @default(true)
-  emailVerified Boolean  @default(false)
+  role          Role         @default(USER)
+  plan          Plan         @default(FREE)
+  isActive      Boolean      @default(true)
+  emailVerified Boolean      @default(false)
   // How this account authenticates. LOCAL is the default for backward compat.
   authProvider  AuthProvider @default(LOCAL)
   // Provider-specific user id (Google's `sub` claim). Indexed for lookup
   // during OAuth login. Composite uniqueness with authProvider prevents
   // a Google `sub` and Apple `sub` from colliding when both are added.
   providerId    String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   // Mood — current self-reported mood (token string, e.g. "calm", "anxious", "sad")
   mood          String?
@@ -126,6 +126,9 @@ model User {
   billingUsageDays        BillingUsageDay[]
   voiceTranscriptions     VoiceTranscription[]
   ecoThreads              EcoThread[]
+  highlights              Highlight[]
+  annotations             Annotation[]
+  readingSessions         ReadingSession[]
 
   @@unique([authProvider, providerId])
   @@index([email])
@@ -212,7 +215,7 @@ model EmailVerificationToken {
 model OnboardingMotivo {
   id       String  @id // "ansiedad", "tristeza", "relaciones", ... — stable slug
   label    String
-  icon     String  // lucide-style token, e.g. "heart-pulse"
+  icon     String // lucide-style token, e.g. "heart-pulse"
   order    Int     @default(0)
   isActive Boolean @default(true)
 
@@ -222,7 +225,7 @@ model OnboardingMotivo {
 model OnboardingMood {
   id       String  @id // "calma", "foco", "energia", ...
   label    String
-  swatch   String  // hex color (e.g. "#A8C7E4") — drives the UI swatch
+  swatch   String // hex color (e.g. "#A8C7E4") — drives the UI swatch
   order    Int     @default(0)
   isActive Boolean @default(true)
 
@@ -362,8 +365,8 @@ model BookCategory {
 }
 
 model Book {
-  id              String   @id @default(cuid())
-  slug            String   @unique
+  id              String    @id @default(cuid())
+  slug            String    @unique
   title           String
   // Shorter subtitle line shown next to title (optional).
   subtitle        String?
@@ -374,7 +377,7 @@ model Book {
   // Design token (cool|warm|mixed). The frontend renders this as a gradient
   // when coverArtUrl is null. Stored as string for flexibility — we may add
   // new tokens without a migration.
-  cover           String   @default("cool")
+  cover           String    @default("cool")
   // Legacy field — kept for backward compat with seeded data and the existing
   // ContentModule URL exposure. New artwork goes to coverArtUrl.
   coverUrl        String?
@@ -383,13 +386,13 @@ model Book {
   pages           Int?
   // Sum of chapter durations. Denormalized for list/detail performance.
   // Recomputed on chapter create/delete via service.
-  durationMinutes Int      @default(0)
+  durationMinutes Int       @default(0)
   // Language tag (BCP 47): "es", "en". Defaults to Spanish for our market.
-  language        String   @default("es")
+  language        String    @default("es")
   // TODO senior: totalChapters is a denormalized count — keep in sync on every Chapter create/delete
-  totalChapters   Int      @default(0)
-  isPublished     Boolean  @default(false)
-  plan            Plan     @default(FREE)
+  totalChapters   Int       @default(0)
+  isPublished     Boolean   @default(false)
+  plan            Plan      @default(FREE)
   // Optional FK to author/category. Nullable so we can seed books before
   // wiring catalog (avoids chicken-and-egg in migration). Service requires it
   // on publish.
@@ -447,8 +450,8 @@ model BookReview {
   id        String   @id @default(cuid())
   userId    String
   bookId    String
-  rating    Int      // 1..5, validated in DTO
-  text      String   // Markdown allowed; sanitized in UI
+  rating    Int // 1..5, validated in DTO
+  text      String // Markdown allowed; sanitized in UI
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -501,10 +504,12 @@ model Chapter {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  book      Book           @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  audios    Audio[]
-  exercises Exercise[]
-  progress  UserProgress[]
+  book            Book             @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  audios          Audio[]
+  exercises       Exercise[]
+  progress        UserProgress[]
+  blocks          ChapterBlock[]
+  readingSessions ReadingSession[]
 
   @@unique([bookId, order])
   @@index([bookId])
@@ -550,6 +555,125 @@ model UserProgress {
 
   @@unique([userId, chapterId])
   @@index([userId])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Sprint S6 — LectorModule
+//
+// `ChapterBlock` rompe `Chapter` en bloques tipados. Inspirado en el modelo
+// editorial tipo Notion del prototype `Lector RISE.html` (futuro) y los
+// modos Libro/Guía del prototype `Lector.html`. Cada bloque vive en una
+// `order` única dentro del capítulo y conoce su tipo, contenido y metadata
+// opcional (e.g. exerciseId si KIND = EXERCISE, url si KIND = AUDIO/IMAGE).
+//
+// Por qué no `Chapter.body String` con markdown:
+//   1. Highlights/annotations apuntan a bloques específicos — no rangos
+//      en un string que cambia con cada edición editorial.
+//   2. El "Modo Guía" sincroniza un transcript de audio con los bloques
+//      del libro; necesita un anchor por bloque.
+//   3. El editor de autor (Sprint S19) va a editar bloque por bloque,
+//      no archivos markdown gigantes.
+// ───────────────────────────────────────────────────────────────────────────
+
+enum ChapterBlockKind {
+  PARAGRAPH
+  HEADING
+  QUOTE
+  EXERCISE
+  AUDIO
+  IMAGE
+  PAUSE
+}
+
+model ChapterBlock {
+  id        String           @id @default(cuid())
+  chapterId String
+  order     Int
+  kind      ChapterBlockKind
+  // Contenido del bloque. Para PARAGRAPH/HEADING/QUOTE es markdown plano.
+  // Para EXERCISE/AUDIO/IMAGE el `meta` JSON contiene la referencia rica
+  // y `content` puede traer un caption/título.
+  content   String
+  // Metadata estructurada según `kind` (exerciseId, audioUrl, imageUrl,
+  // duration, caption, etc). Documentado en `apps/api/src/lector/README.md`.
+  meta      Json?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  chapter     Chapter      @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  highlights  Highlight[]
+  annotations Annotation[]
+
+  @@unique([chapterId, order])
+  @@index([chapterId])
+}
+
+enum HighlightColor {
+  YELLOW
+  BLUE
+  PINK
+}
+
+model Highlight {
+  id          String         @id @default(cuid())
+  userId      String
+  blockId     String
+  // Offsets dentro del `content` del bloque (UTF-16 code units, igual que
+  // `Range.startOffset`/`endOffset` del DOM).
+  startOffset Int
+  endOffset   Int
+  color       HighlightColor @default(YELLOW)
+  // Nota opcional adjunta al subrayado. Si el user quiere sin nota → null.
+  note        String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  block ChapterBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  @@index([userId, blockId])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model Annotation {
+  id        String   @id @default(cuid())
+  userId    String
+  blockId   String
+  // Texto plain — NO se cifra (no es parte del Diario E2E, ADR 0007 §G).
+  // Diseño 05-lector.md trata las anotaciones como notas al libro, no
+  // pensamiento personal sensible. Si en el futuro el producto pide
+  // anotaciones cifradas, se introduce un campo separado.
+  text      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  block ChapterBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  @@index([userId, blockId])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+// Sesión de lectura: una fila por (user, chapter). El heartbeat del cliente
+// (PATCH /api/lector/session cada 5s) actualiza `lastBlockId`, `progressPct`
+// y `timeSpentSec`. `completedAt` se setea cuando el user llega al último
+// bloque (o presiona "Marcar como leído").
+model ReadingSession {
+  id           String    @id @default(cuid())
+  userId       String
+  chapterId    String
+  lastBlockId  String?
+  progressPct  Float     @default(0)
+  timeSpentSec Int       @default(0)
+  startedAt    DateTime  @default(now())
+  lastSeenAt   DateTime  @updatedAt
+  completedAt  DateTime?
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+  @@index([userId, lastSeenAt(sort: Desc)])
 }
 
 model Subscription {
@@ -618,16 +742,16 @@ enum EcoMessageReportReason {
 }
 
 model EcoThread {
-  id            String   @id @default(cuid())
-  userId        String
+  id              String   @id @default(cuid())
+  userId          String
   // Generated client-side from the first user message, then encrypted with
   // the same ecoKey. Null until the first response is received. Used as a
   // "title" in the sidebar rail — client decrypts before render.
   titleCiphertext String?
   titleNonce      String?
-  lastMessageAt DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  lastMessageAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages EcoMessage[]
@@ -636,25 +760,25 @@ model EcoThread {
 }
 
 model EcoMessage {
-  id          String         @id @default(cuid())
-  threadId    String
-  kind        EcoMessageKind
+  id              String         @id @default(cuid())
+  threadId        String
+  kind            EcoMessageKind
   // For USER messages: cipher payload encrypted client-side. NEVER null
   // for USER kind. Always null for non-USER kinds.
-  textCiphertext String?
-  textNonce      String?
+  textCiphertext  String?
+  textNonce       String?
   // For ASSISTANT / CRISIS / SUGGESTION: LLM-generated plaintext.
   // Stored to make the thread re-readable without re-running inference.
   // Always null for USER kind.
-  assistantText  String?
+  assistantText   String?
   // Suggestion metadata. Populated only when kind=SUGGESTION.
   suggestedBookId String?
   // Token accounting for billing/cost analysis. Zero for USER messages.
-  inputTokens  Int      @default(0)
-  outputTokens Int      @default(0)
-  createdAt    DateTime @default(now())
+  inputTokens     Int            @default(0)
+  outputTokens    Int            @default(0)
+  createdAt       DateTime       @default(now())
 
-  thread  EcoThread        @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  thread  EcoThread          @relation(fields: [threadId], references: [id], onDelete: Cascade)
   reports EcoMessageReport[]
 
   @@index([threadId, createdAt])
@@ -686,12 +810,12 @@ model EcoMessageReport {
 // future cost-attribution analytics can split per-vendor without us
 // having to redo joins.
 model VoiceTranscription {
-  id           String   @id @default(cuid())
-  userId       String
-  durationSec  Float
-  language     String // "es" | "es-419" | "en" | ...
-  provider     String // "whisper" | "deepgram" (also used to plan migration)
-  createdAt    DateTime @default(now())
+  id          String   @id @default(cuid())
+  userId      String
+  durationSec Float
+  language    String // "es" | "es-419" | "en" | ...
+  provider    String // "whisper" | "deepgram" (also used to plan migration)
+  createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -731,17 +855,17 @@ model BillingUsageDay {
 // ─── AI / RAG models ──────────────────────────────────────────────────────────
 
 model ContentChunk {
-  id        String                      @id @default(cuid())
+  id        String                       @id @default(cuid())
   bookId    String
   chapterId String?
   content   String
   // SHA-256 of content — used for idempotent upsert during ingest
-  chunkHash String                      @unique
+  chunkHash String                       @unique
   metadata  Json
   // voyage-3 produces 1024-dimensional embeddings
   embedding Unsupported("vector(1024)")?
-  createdAt DateTime                    @default(now())
-  updatedAt DateTime                    @updatedAt
+  createdAt DateTime                     @default(now())
+  updatedAt DateTime                     @updatedAt
 
   @@index([bookId])
   @@index([chapterId])
@@ -922,7 +1046,7 @@ model DataExportRequest {
 // sensitive content — the design (06-diario.md) commits to that.
 
 model DiaryEntry {
-  id String @id @default(cuid())
+  id     String @id @default(cuid())
   userId String
 
   // base64url ciphertext of XChaCha20-Poly1305(plaintext, diaryKey, nonce, AAD).
@@ -943,9 +1067,9 @@ model DiaryEntry {
   excerptNonce      String?
 
   // Plaintext metadata — explicitly non-sensitive per the design contract.
-  mood     String  // token: "calma" | "foco" | "energia" | … (validated against OnboardingMood)
+  mood     String // token: "calma" | "foco" | "energia" | … (validated against OnboardingMood)
   // "free" | "prompted" | "voz" — denormalized for filtering/analytics.
-  kind     String  @default("free")
+  kind     String   @default("free")
   promptId String? // FK is intentionally a soft pointer to DiaryPrompt
   tags     String[]
 
@@ -958,14 +1082,14 @@ model DiaryEntry {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  prompt      DiaryPrompt?        @relation(fields: [promptId], references: [id], onDelete: SetNull)
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt       DiaryPrompt?       @relation(fields: [promptId], references: [id], onDelete: SetNull)
   sharedCopies SharedDiaryEntry[]
+  // The promptId path is rare; soft FK does not need an index of its own.
 
   // Range scans for the list view (last N entries, optionally filtered by mood).
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, mood])
-  // The promptId path is rare; soft FK does not need an index of its own.
 }
 
 // Re-encrypted copy of a diary entry shared with a therapist for a bounded
@@ -976,11 +1100,11 @@ model DiaryEntry {
 // Expiry is honored by a scheduled job (S3 jobs pipeline) — when v2
 // TherapyModule lands the worker will delete rows where `expiresAt < now()`.
 model SharedDiaryEntry {
-  id      String  @id @default(cuid())
+  id          String  @id @default(cuid())
   // Nullable so the relation can be SetNull on entry delete — that lets us
   // keep the audit trail "user U shared an entry with therapist T at time X"
   // even after U deletes the original entry.
-  entryId String?
+  entryId     String?
   // therapistId is a soft pointer — TherapyModule is v2 and may live in a
   // separate service. We store the string and validate at use-time.
   therapistId String

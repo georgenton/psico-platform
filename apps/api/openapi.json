@@ -975,7 +975,7 @@
           }
         },
         "tags": [
-          "Subscription"
+          "Subscription (deprecated)"
         ]
       }
     },
@@ -989,7 +989,7 @@
           }
         },
         "tags": [
-          "Subscription"
+          "Subscription (deprecated)"
         ]
       }
     },
@@ -1013,7 +1013,7 @@
           }
         },
         "tags": [
-          "Subscription"
+          "Subscription (deprecated)"
         ]
       }
     },
@@ -1037,7 +1037,7 @@
           }
         },
         "tags": [
-          "Subscription"
+          "Subscription (deprecated)"
         ]
       }
     },
@@ -1051,7 +1051,7 @@
           }
         },
         "tags": [
-          "Subscription"
+          "Subscription (deprecated)"
         ]
       }
     },
@@ -1065,7 +1065,7 @@
           }
         },
         "tags": [
-          "Subscription"
+          "Subscription (deprecated)"
         ]
       }
     },
@@ -1089,7 +1089,7 @@
           }
         },
         "tags": [
-          "Subscription"
+          "Subscription (deprecated)"
         ]
       }
     },
@@ -1103,7 +1103,7 @@
           }
         },
         "tags": [
-          "Subscription"
+          "Subscription (deprecated)"
         ]
       }
     },
@@ -1117,7 +1117,215 @@
           }
         },
         "tags": [
-          "Subscription"
+          "Subscription (deprecated)"
+        ]
+      }
+    },
+    "/api/billing/plans": {
+      "get": {
+        "operationId": "BillingController_getPlans",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/billing/me": {
+      "get": {
+        "operationId": "BillingController_getMySubscription",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/billing/usage": {
+      "get": {
+        "operationId": "BillingController_getUsage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/billing/invoices": {
+      "get": {
+        "operationId": "BillingController_listInvoices",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/billing/checkout-session": {
+      "post": {
+        "operationId": "BillingController_createCheckoutSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCheckoutSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/billing/customer-portal": {
+      "post": {
+        "operationId": "BillingController_createPortalSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePortalSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/billing/return": {
+      "get": {
+        "operationId": "BillingController_getReturn",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/billing/subscription": {
+      "patch": {
+        "operationId": "BillingController_patchSubscription",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchSubscriptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/billing/cancel": {
+      "post": {
+        "operationId": "BillingController_cancel",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelSubscriptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/billing/reactivate": {
+      "post": {
+        "operationId": "BillingController_reactivate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/billing/webhook": {
+      "post": {
+        "operationId": "BillingController_handleWebhook",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/plan": {
+      "get": {
+        "operationId": "PlanController_getPlan",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
         ]
       }
     },
@@ -2070,6 +2278,248 @@
           "Eco"
         ]
       }
+    },
+    "/api/lector/{bookId}/{chapterOrder}": {
+      "get": {
+        "operationId": "LectorController_getChapter",
+        "parameters": [
+          {
+            "name": "bookId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Lector"
+        ]
+      }
+    },
+    "/api/lector/{bookId}/{chapterOrder}/audio": {
+      "get": {
+        "operationId": "LectorController_getAudio",
+        "parameters": [
+          {
+            "name": "bookId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Lector"
+        ]
+      }
+    },
+    "/api/lector/session": {
+      "patch": {
+        "operationId": "LectorController_heartbeat",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LectorSessionHeartbeatDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Lector"
+        ]
+      }
+    },
+    "/api/lector/{bookId}/{chapterOrder}/complete": {
+      "post": {
+        "operationId": "LectorController_complete",
+        "parameters": [
+          {
+            "name": "bookId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Lector"
+        ]
+      }
+    },
+    "/api/highlights": {
+      "post": {
+        "operationId": "HighlightsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHighlightDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Highlights"
+        ]
+      }
+    },
+    "/api/highlights/{id}": {
+      "delete": {
+        "operationId": "HighlightsController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Highlights"
+        ]
+      }
+    },
+    "/api/annotations": {
+      "post": {
+        "operationId": "AnnotationsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAnnotationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Annotations"
+        ]
+      }
+    },
+    "/api/annotations/{id}": {
+      "patch": {
+        "operationId": "AnnotationsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAnnotationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Annotations"
+        ]
+      },
+      "delete": {
+        "operationId": "AnnotationsController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Annotations"
+        ]
+      }
     }
   },
   "info": {
@@ -2203,6 +2653,10 @@
         "type": "object",
         "properties": {}
       },
+      "PatchSubscriptionDto": {
+        "type": "object",
+        "properties": {}
+      },
       "ChatRequestDto": {
         "type": "object",
         "properties": {}
@@ -2272,6 +2726,22 @@
         "properties": {}
       },
       "ReportEcoMessageDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "LectorSessionHeartbeatDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateHighlightDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateAnnotationDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateAnnotationDto": {
         "type": "object",
         "properties": {}
       }

@@ -1,13 +1,7 @@
 import type { Metadata } from "next";
-import type {
-  InvoiceListResponse,
-  PlanInfo,
-  Subscription,
-  UsageResponse,
-} from "@psico/types";
+import type { PlanInfo, PlanResponse, Subscription } from "@psico/types";
 
-import { ApiError } from "@/lib/api";
-import { serverFetch, getSessionUser } from "@/lib/api.server";
+import { isNextThrow, serverFetch, getSessionUser } from "@/lib/api.server";
 import {
   createCheckoutAction,
   createPortalAction,
@@ -225,27 +219,26 @@ function ActiveSubscription({ subscription }: { subscription: Subscription }) {
 export default async function PlanPage() {
   const user = getSessionUser();
 
-  const [subscription, plans, usage, invoices] = await Promise.all([
-    serverFetch<Subscription>("/subscriptions/me").catch((err: unknown) => {
-      if (err instanceof ApiError && err.status === 404) return null;
-      return null;
-    }),
-    serverFetch<PlanInfo[]>("/subscriptions/plans").catch(
-      () => [] as PlanInfo[],
-    ),
-    // Sprint front-fase1: aggregated usage + recent invoices. Both are
-    // visible to FREE users too (they show 0 + empty respectively, which
-    // is a useful "here's what you'd unlock" preview).
-    serverFetch<UsageResponse>("/subscriptions/usage").catch(
-      () => null as UsageResponse | null,
-    ),
-    serverFetch<InvoiceListResponse>("/subscriptions/invoices?limit=12").catch(
-      () => null as InvoiceListResponse | null,
-    ),
-  ]);
+  // Sprint S11: single envolvente request — replaces the 4 parallel fetches
+  // the previous page issued (me + plans + usage + invoices). The backend
+  // already parallelises those reads internally so we get the same wall-clock
+  // performance with a quarter of the request volume.
+  let plan: PlanResponse | null = null;
+  try {
+    plan = await serverFetch<PlanResponse>("/plan");
+  } catch (err) {
+    if (isNextThrow(err)) throw err;
+    // Non-auth failure (Stripe outage etc.). We render the FREE preview
+    // shell so the user still sees something useful.
+    plan = null;
+  }
 
-  const userPlan = subscription?.plan ?? user?.plan ?? "FREE";
+  const userPlan = plan?.tier ?? user?.plan ?? "FREE";
   const isFreePlan = userPlan === "FREE";
+  const subscription = plan?.subscription ?? null;
+  const usage = plan?.usage ?? null;
+  const invoices = plan?.invoices ? { invoices: plan.invoices } : null;
+  const plans: PlanInfo[] = plan?.plans ?? [];
 
   const upgradePlans = plans.filter(
     (p) => p.plan === "PRO" || p.plan === "ANNUAL",

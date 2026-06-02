@@ -96,4 +96,26 @@ export class PaymentService {
   reactivate(userId: string): Promise<ReactivateSubscriptionResult> {
     return this.selectProvider().reactivate(userId);
   }
+
+  /**
+   * Sprint S11. Reads the status of a Stripe Checkout session so the front
+   * can render the `/dashboard/plan/success` page without polling.
+   *
+   * Throws if the active provider does not implement `getCheckoutSessionStatus`
+   * — today only Stripe does. Payphone redirects through its own protocol
+   * and never reaches `/api/billing/return`, so we keep this method
+   * provider-bound rather than synthesising a fake status.
+   */
+  getCheckoutSessionStatus(sessionId: string): Promise<{
+    status: "success" | "processing" | "failed";
+    subscriptionId: string | null;
+  }> {
+    const provider = this.selectProvider();
+    if (!provider.getCheckoutSessionStatus) {
+      throw new Error(
+        `Provider ${provider.name} does not support checkout session lookup.`,
+      );
+    }
+    return provider.getCheckoutSessionStatus(sessionId);
+  }
 }

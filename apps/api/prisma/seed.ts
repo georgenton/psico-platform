@@ -331,6 +331,349 @@ async function main() {
   }
   console.log(`✅  DiaryPrompt catalog: ${diaryPrompts.length} entries`);
 
+  // ─── Lector · ChapterBlocks (Sprint S6) ──────────────────────────────────
+  //
+  // Six representative blocks per chapter so the reader has real content
+  // from day one. Idempotent: re-running the seed updates existing blocks
+  // by (chapterId, order) instead of inserting duplicates.
+  //
+  // The IDs are deterministic (cb-<bookSlug>-<chapterOrder>-<blockOrder>)
+  // so tests can rely on them without round-tripping.
+
+  console.log("\n📖 Lector · ChapterBlocks…");
+
+  const chapterBlocks: Array<{
+    id: string;
+    chapterBookId: string;
+    chapterOrder: number;
+    order: number;
+    kind:
+      | "HEADING"
+      | "PARAGRAPH"
+      | "QUOTE"
+      | "EXERCISE"
+      | "AUDIO"
+      | "IMAGE"
+      | "PAUSE";
+    content: string;
+    meta?: Record<string, unknown>;
+  }> = [
+    // ── Emociones en Construcción · cap 1 ────────────────────────────────
+    {
+      id: "cb-emo-1-1",
+      chapterBookId: book1.id,
+      chapterOrder: 1,
+      order: 1,
+      kind: "HEADING",
+      content: "¿Qué son las emociones?",
+    },
+    {
+      id: "cb-emo-1-2",
+      chapterBookId: book1.id,
+      chapterOrder: 1,
+      order: 2,
+      kind: "PARAGRAPH",
+      content:
+        "Las emociones son respuestas adaptativas que evolucionaron para ayudarnos a sobrevivir. Antes de ser palabras, son sensaciones del cuerpo: una opresión en el pecho, un calor en la cara, un nudo en la garganta. Reconocerlas empieza por escucharlas.",
+    },
+    {
+      id: "cb-emo-1-3",
+      chapterBookId: book1.id,
+      chapterOrder: 1,
+      order: 3,
+      kind: "QUOTE",
+      content:
+        "No hay emociones buenas o malas. Hay emociones útiles que, mal interpretadas, terminan haciéndonos daño.",
+    },
+    {
+      id: "cb-emo-1-4",
+      chapterBookId: book1.id,
+      chapterOrder: 1,
+      order: 4,
+      kind: "PARAGRAPH",
+      content:
+        "Cada emoción cumple una función. El miedo nos prepara para protegernos. La tristeza nos invita a hacer una pausa. La ira nos avisa que algo importante está en riesgo. Aprender a leerlas es aprender a entendernos.",
+    },
+    {
+      id: "cb-emo-1-5",
+      chapterBookId: book1.id,
+      chapterOrder: 1,
+      order: 5,
+      kind: "PAUSE",
+      content:
+        "Respira tres veces. Identifica una emoción que sentiste en las últimas 24 horas.",
+    },
+    {
+      id: "cb-emo-1-6",
+      chapterBookId: book1.id,
+      chapterOrder: 1,
+      order: 6,
+      kind: "PARAGRAPH",
+      content:
+        "Este libro te acompañará a construir una relación más amable con tus emociones. No para controlarlas, sino para escucharlas con menos miedo y más curiosidad.",
+    },
+
+    // ── Emociones en Construcción · cap 2 ────────────────────────────────
+    {
+      id: "cb-emo-2-1",
+      chapterBookId: book1.id,
+      chapterOrder: 2,
+      order: 1,
+      kind: "HEADING",
+      content: "Las seis emociones básicas",
+    },
+    {
+      id: "cb-emo-2-2",
+      chapterBookId: book1.id,
+      chapterOrder: 2,
+      order: 2,
+      kind: "PARAGRAPH",
+      content:
+        "Paul Ekman identificó seis emociones universales: alegría, tristeza, miedo, ira, sorpresa y asco. Las reconocemos en rostros de cualquier cultura porque son parte del software emocional humano.",
+    },
+    {
+      id: "cb-emo-2-3",
+      chapterBookId: book1.id,
+      chapterOrder: 2,
+      order: 3,
+      kind: "PARAGRAPH",
+      content:
+        "Cada una nos protege de algo distinto. El miedo, del peligro físico. La tristeza, de la pérdida. La ira, del abuso. La alegría refuerza vínculos. La sorpresa nos hace prestar atención. El asco, evitar lo que enferma.",
+    },
+    {
+      id: "cb-emo-2-4",
+      chapterBookId: book1.id,
+      chapterOrder: 2,
+      order: 4,
+      kind: "QUOTE",
+      content:
+        "Si la emoción no se nombra, el cuerpo la grita. Si la nombras, empiezas a poder elegir qué hacer con ella.",
+    },
+    {
+      id: "cb-emo-2-5",
+      chapterBookId: book1.id,
+      chapterOrder: 2,
+      order: 5,
+      kind: "PARAGRAPH",
+      content:
+        "Las emociones secundarias (vergüenza, culpa, orgullo, envidia) se construyen sobre las básicas y suman una capa social: aparecen cuando hay otro. Por eso a veces son tan difíciles de soltar.",
+    },
+    {
+      id: "cb-emo-2-6",
+      chapterBookId: book1.id,
+      chapterOrder: 2,
+      order: 6,
+      kind: "EXERCISE",
+      content: "Mapa de emociones del día",
+      meta: { kind: "JOURNALING", durationMinutes: 5 },
+    },
+
+    // ── Familias Ensambladas · cap 1 ─────────────────────────────────────
+    {
+      id: "cb-fam-1-1",
+      chapterBookId: book2.id,
+      chapterOrder: 1,
+      order: 1,
+      kind: "HEADING",
+      content: "Lo que llamamos familia",
+    },
+    {
+      id: "cb-fam-1-2",
+      chapterBookId: book2.id,
+      chapterOrder: 1,
+      order: 2,
+      kind: "PARAGRAPH",
+      content:
+        "Las familias ensambladas son las que se forman cuando dos personas se eligen y ya traen historias previas: hijos, parejas que no son, casas vendidas, costumbres heredadas. No son rotas. Son nuevas.",
+    },
+    {
+      id: "cb-fam-1-3",
+      chapterBookId: book2.id,
+      chapterOrder: 1,
+      order: 3,
+      kind: "QUOTE",
+      content:
+        "Llamarse familia no la hace una. Cuidarse, sí. Y el cuidado, en estos vínculos, se aprende.",
+    },
+    {
+      id: "cb-fam-1-4",
+      chapterBookId: book2.id,
+      chapterOrder: 1,
+      order: 4,
+      kind: "PARAGRAPH",
+      content:
+        "No hay un manual: la familia ensamblada se construye por capas. Primero la pareja se elige. Después se eligen los rituales. Más tarde se construyen acuerdos con los hijos. Cada paso pide tiempo y consentimiento.",
+    },
+    {
+      id: "cb-fam-1-5",
+      chapterBookId: book2.id,
+      chapterOrder: 1,
+      order: 5,
+      kind: "PARAGRAPH",
+      content:
+        "Lo que más fractura no son los conflictos visibles, sino los acuerdos que nadie hizo explícitos: quién decide qué, cuánto se involucra el padrastro o la madrastra, qué pasa con el otro hogar.",
+    },
+    {
+      id: "cb-fam-1-6",
+      chapterBookId: book2.id,
+      chapterOrder: 1,
+      order: 6,
+      kind: "PAUSE",
+      content:
+        "Piensa en tu familia ensamblada (la actual o la de tu infancia). ¿Qué acuerdo nunca se habló y siguen pagando?",
+    },
+
+    // ── Familias Ensambladas · cap 2 ─────────────────────────────────────
+    {
+      id: "cb-fam-2-1",
+      chapterBookId: book2.id,
+      chapterOrder: 2,
+      order: 1,
+      kind: "HEADING",
+      content: "El rol del padrastro o madrastra",
+    },
+    {
+      id: "cb-fam-2-2",
+      chapterBookId: book2.id,
+      chapterOrder: 2,
+      order: 2,
+      kind: "PARAGRAPH",
+      content:
+        "El recién llegado no es ni padre ni madre, y tampoco es solo amigo. Vive en una zona intermedia donde, según el día y el conflicto, se le pide algo distinto. Sostener esa ambigüedad es agotador.",
+    },
+    {
+      id: "cb-fam-2-3",
+      chapterBookId: book2.id,
+      chapterOrder: 2,
+      order: 3,
+      kind: "PARAGRAPH",
+      content:
+        "Una guía útil: el padrastro o madrastra no compite por el rol del progenitor biológico. Construye su propio vínculo con los niños, basado en quien es él o ella, no en sustituir a alguien.",
+    },
+    {
+      id: "cb-fam-2-4",
+      chapterBookId: book2.id,
+      chapterOrder: 2,
+      order: 4,
+      kind: "QUOTE",
+      content:
+        "No te elijas el papel de padre. Elígete el de adulto presente. Eso ya es enorme.",
+    },
+    {
+      id: "cb-fam-2-5",
+      chapterBookId: book2.id,
+      chapterOrder: 2,
+      order: 5,
+      kind: "PARAGRAPH",
+      content:
+        "Los primeros dos años son los más duros. Los niños están duelando un cambio que no pidieron, la pareja está aprendiendo, todos prueban dónde están los límites. La paciencia gana terreno donde la urgencia lo pierde.",
+    },
+    {
+      id: "cb-fam-2-6",
+      chapterBookId: book2.id,
+      chapterOrder: 2,
+      order: 6,
+      kind: "EXERCISE",
+      content: "Carta al niño o niña que vive contigo",
+      meta: { kind: "JOURNALING", durationMinutes: 10 },
+    },
+
+    // ── Familias Ensambladas · cap 3 ─────────────────────────────────────
+    {
+      id: "cb-fam-3-1",
+      chapterBookId: book2.id,
+      chapterOrder: 3,
+      order: 1,
+      kind: "HEADING",
+      content: "Construyendo rituales propios",
+    },
+    {
+      id: "cb-fam-3-2",
+      chapterBookId: book2.id,
+      chapterOrder: 3,
+      order: 2,
+      kind: "PARAGRAPH",
+      content:
+        "Lo que sostiene una familia ensamblada con el tiempo son los rituales propios: la cena de los domingos, el viaje anual, la frase que dicen al despedirse. Son anclajes pequeños, pero acumulan pertenencia.",
+    },
+    {
+      id: "cb-fam-3-3",
+      chapterBookId: book2.id,
+      chapterOrder: 3,
+      order: 3,
+      kind: "PARAGRAPH",
+      content:
+        "Los rituales no se imponen: se construyen. Empiezan torpes, los niños hacen muecas, y de repente, un día, alguien los pide. Ese día empezó a haber familia.",
+    },
+    {
+      id: "cb-fam-3-4",
+      chapterBookId: book2.id,
+      chapterOrder: 3,
+      order: 4,
+      kind: "QUOTE",
+      content:
+        "La familia se hace en los detalles. En quién prepara el café los sábados. En quién recuerda el cumpleaños del perro.",
+    },
+    {
+      id: "cb-fam-3-5",
+      chapterBookId: book2.id,
+      chapterOrder: 3,
+      order: 5,
+      kind: "PARAGRAPH",
+      content:
+        "Cuando la pareja se separa, los rituales construidos quedan. A veces los niños se llevan consigo el recuerdo y, años después, intentan replicarlos en sus propios hogares.",
+    },
+    {
+      id: "cb-fam-3-6",
+      chapterBookId: book2.id,
+      chapterOrder: 3,
+      order: 6,
+      kind: "PAUSE",
+      content:
+        "Identifica un ritual de tu familia. Ahora propón uno nuevo, por chiquito que sea, para empezar esta semana.",
+    },
+  ];
+
+  // Group by chapter to resolve chapter ID once.
+  const chapterIdCache: Record<string, string> = {};
+  for (const b of chapterBlocks) {
+    const key = `${b.chapterBookId}:${b.chapterOrder}`;
+    if (!chapterIdCache[key]) {
+      const ch = await prisma.chapter.findUnique({
+        where: {
+          bookId_order: {
+            bookId: b.chapterBookId,
+            order: b.chapterOrder,
+          },
+        },
+        select: { id: true },
+      });
+      if (!ch) {
+        throw new Error(
+          `Seed precondition failed: chapter (${b.chapterBookId}, order=${b.chapterOrder}) not found — seed it before ChapterBlocks.`,
+        );
+      }
+      chapterIdCache[key] = ch.id;
+    }
+    await prisma.chapterBlock.upsert({
+      where: { id: b.id },
+      create: {
+        id: b.id,
+        chapterId: chapterIdCache[key]!,
+        order: b.order,
+        kind: b.kind,
+        content: b.content,
+        meta: (b.meta ?? undefined) as never,
+      },
+      update: {
+        kind: b.kind,
+        content: b.content,
+        meta: (b.meta ?? undefined) as never,
+      },
+    });
+  }
+  console.log(`✅  ChapterBlock catalog: ${chapterBlocks.length} entries`);
+
   console.log("\n🌱 Seed completado.");
 }
 

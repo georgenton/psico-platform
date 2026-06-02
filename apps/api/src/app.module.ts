@@ -21,6 +21,7 @@ import { NotificationsModule } from "./notifications";
 import { JobsModule } from "./jobs";
 import { VoiceModule } from "./voice";
 import { EcoModule } from "./eco";
+import { LectorModule } from "./lector";
 import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
 
 @Module({
@@ -49,8 +50,9 @@ import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
     OnboardingModule,
     VoiceModule,
     EcoModule,
+    LectorModule, // Sprint S6 — /api/lector/*, /api/highlights/*, /api/annotations/*
     // TODO senior: register remaining feature modules here
-    // AnalyticsModule, PatternsModule (S11)
+    // AnalyticsModule, PatternsModule (S10)
   ],
   providers: [
     // Global interceptor — activates only on handlers marked with @Idempotent()

@@ -1252,3 +1252,191 @@ export interface ShareDiaryEntryResponse {
   shareId: string;
   shareUntil: Date;
 }
+
+// ─── Lector (Sprint S6) ───────────────────────────────────────────────────────
+//
+// Reader for book chapters. `Chapter.body` no longer lives in DB as a string;
+// each chapter is split into typed `ChapterBlock`s so highlights and
+// annotations can anchor to a stable block id, and so the Mode Guía audio
+// track can sync each transcription segment to the corresponding block.
+// See ADR-free for the schema rationale — design in 05-lector.md.
+
+export type ChapterBlockKind =
+  | "PARAGRAPH"
+  | "HEADING"
+  | "QUOTE"
+  | "EXERCISE"
+  | "AUDIO"
+  | "IMAGE"
+  | "PAUSE";
+
+export type HighlightColor = "YELLOW" | "BLUE" | "PINK";
+
+export interface ChapterBlockSummary {
+  id: string;
+  order: number;
+  kind: ChapterBlockKind;
+  /** Markdown text for PARAGRAPH/HEADING/QUOTE; caption for IMAGE/AUDIO/EXERCISE. */
+  content: string;
+  /** Structured metadata; shape depends on `kind`. See lector/README.md. */
+  meta: Record<string, unknown> | null;
+}
+
+export interface HighlightSummary {
+  id: string;
+  blockId: string;
+  startOffset: number;
+  endOffset: number;
+  color: HighlightColor;
+  note: string | null;
+  createdAt: Date;
+}
+
+export interface AnnotationSummary {
+  id: string;
+  blockId: string;
+  text: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface LectorChapterLesson {
+  id: string;
+  title: string;
+  /** Type tag mirrored from `Exercise.type`. */
+  kind: string;
+  durationMinutes: number | null;
+  status: "locked" | "available" | "completed";
+}
+
+export interface LectorReadingSessionSnapshot {
+  /** 0–1 ratio (clamped). */
+  progressPct: number;
+  lastBlockId: string | null;
+  timeSpentSec: number;
+  startedAt: Date;
+  lastSeenAt: Date;
+  completedAt: Date | null;
+}
+
+export interface LectorChapterResponse {
+  book: {
+    id: string;
+    slug: string;
+    title: string;
+    authorName: string | null;
+    cover: string;
+    totalChapters: number;
+  };
+  chapter: {
+    id: string;
+    order: number;
+    title: string;
+    subtitle: string | null;
+    durationMinutes: number | null;
+    audioAvailable: boolean;
+  };
+  blocks: ChapterBlockSummary[];
+  lessons: LectorChapterLesson[];
+  highlights: HighlightSummary[];
+  annotations: AnnotationSummary[];
+  session: LectorReadingSessionSnapshot;
+  /** Reader prefs from User.readerPreferences (mirrored here so the client can render without an extra fetch). */
+  preferences: {
+    theme: "system" | "light" | "sepia" | "dark";
+    font: "serif" | "sans";
+    fontSize: number;
+    lineHeight: number;
+  };
+}
+
+// ─── Lector · session heartbeat ──────────────────────────────────────────────
+
+export interface LectorSessionHeartbeatRequest {
+  bookId: string;
+  chapterOrder: number;
+  lastBlockId: string;
+  /** Seconds elapsed since the previous heartbeat. Server caps at 60 to defend against tab-suspend resume. */
+  timeSpentDeltaSec: number;
+  /** 0–1 ratio. Server clamps; client computes from scroll position. */
+  progressPct: number;
+}
+
+export interface LectorSessionHeartbeatResponse {
+  ok: true;
+  /** Server-canonical progress (may differ from request if server applies caps). */
+  progressPct: number;
+}
+
+// ─── Lector · audio (Pro) ────────────────────────────────────────────────────
+
+export interface LectorAudioTranscriptSegment {
+  start: number;
+  end: number;
+  text: string;
+  blockId: string | null;
+}
+
+export interface LectorAudioResponse {
+  /** Signed R2 URL, expires in 1h. */
+  url: string;
+  durationSec: number;
+  transcript: LectorAudioTranscriptSegment[];
+}
+
+// ─── Lector · complete ───────────────────────────────────────────────────────
+
+export interface LectorCompleteResponse {
+  ok: true;
+  /** Order of the next chapter in the book, or null if this was the last. */
+  nextChapter: number | null;
+}
+
+// ─── Highlights ──────────────────────────────────────────────────────────────
+
+export interface CreateHighlightRequest {
+  blockId: string;
+  startOffset: number;
+  endOffset: number;
+  color?: HighlightColor;
+  note?: string | null;
+}
+
+export interface CreateHighlightResponse {
+  ok: true;
+  highlight: HighlightSummary;
+}
+
+// ─── Annotations ─────────────────────────────────────────────────────────────
+
+export interface CreateAnnotationRequest {
+  blockId: string;
+  text: string;
+}
+
+export interface CreateAnnotationResponse {
+  ok: true;
+  annotation: AnnotationSummary;
+}
+
+export interface UpdateAnnotationRequest {
+  text: string;
+}
+
+export interface UpdateAnnotationResponse {
+  ok: true;
+  annotation: AnnotationSummary;
+}
+
+// ─── Reader preferences (response shape) ─────────────────────────────────────
+// `UpdateReaderPreferencesRequest` was already declared above (UsersModule
+// surface from Sesión 9). Sprint S6 reuses it — same fields, same validation.
+// We only add the response shape that the Lector layout consumes.
+
+export interface ReaderPreferencesResponse {
+  theme: "system" | "light" | "sepia" | "dark";
+  font: "serif" | "sans";
+  fontSize: number;
+  lineHeight: number;
+  updatedAt: Date;
+}

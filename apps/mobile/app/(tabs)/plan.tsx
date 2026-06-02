@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { ApiError, subscriptionApi } from "@psico/api-client";
+import { ApiError, billingApi } from "@psico/api-client";
 import type { BillingInterval } from "@psico/api-client";
 import type {
   InvoiceListResponse,
@@ -99,20 +99,22 @@ export default function PlanScreen() {
    * /usage card, etc. Each catch clause swallows + sets null.
    */
   const loadAll = useCallback(async () => {
-    const [plansRes, subRes, usageRes, invRes] = await Promise.all([
-      subscriptionApi.getPlans().catch(() => [] as PlanInfo[]),
-      subscriptionApi
-        .getMySubscription()
-        .catch(() => null as Subscription | null),
-      subscriptionApi.getUsage().catch(() => null as UsageResponse | null),
-      subscriptionApi
-        .listInvoices(12)
-        .catch(() => null as InvoiceListResponse | null),
-    ]);
-    setPlans(plansRes);
-    setSubscription(subRes);
-    setUsage(usageRes);
-    setInvoices(invRes);
+    // Sprint S11: single envolvente request — replaces the 4 parallel fetches
+    // the previous screen issued (plans + me + usage + invoices). The
+    // backend parallelises the same reads server-side, so the wall-clock
+    // budget is identical with one quarter of the request volume + one
+    // quarter of the auth round-trips.
+    try {
+      const plan = await billingApi.getPlan();
+      setPlans(plan.plans);
+      setSubscription(plan.subscription);
+      setUsage(plan.usage);
+      setInvoices({ invoices: plan.invoices });
+    } catch {
+      // Don't blank existing state on a transient failure — the user
+      // probably still has the latest snapshot from the previous load.
+      // The "pull to refresh" handler surfaces the error if it persists.
+    }
   }, []);
 
   useEffect(() => {
@@ -131,7 +133,7 @@ export default function PlanScreen() {
   const handleUpgrade = async (billingPlan: BillingInterval) => {
     setCheckoutLoading(billingPlan);
     try {
-      const session = await subscriptionApi.createCheckoutSession(
+      const session = await billingApi.createCheckoutSession(
         billingPlan,
         SUCCESS_URL,
         CANCEL_URL,

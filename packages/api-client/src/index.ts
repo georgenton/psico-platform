@@ -6,8 +6,12 @@ export { booksApi } from "./books";
 export { contentApi } from "./content";
 export { diarioApi } from "./diario";
 export { homeApi } from "./home";
+// Sprint S11 — canonical billing client. Prefer this over `subscriptionApi`.
+export { billingApi } from "./billing";
+export type { BillingInterval, CheckoutSession } from "./billing";
+
+/** @deprecated Sprint S11 — use `billingApi` instead. Sunset 2026-08-31. */
 export { subscriptionApi } from "./subscription";
-export type { BillingInterval, CheckoutSession } from "./subscription";
 export { voiceApi } from "./voice";
 export { ecoApi } from "./eco";
 

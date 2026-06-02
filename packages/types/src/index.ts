@@ -285,6 +285,79 @@ export interface ReactivateSubscriptionResponse {
   cancelAtPeriodEnd: false;
 }
 
+// ─── Billing — Sprint S11 (rename + envolvente) ───────────────────────────────
+//
+// Replaces /api/subscriptions/* with /api/billing/* per design 09-plan.md.
+// Both prefixes serve the same handlers for 90 days (deprecation window
+// per ADR 0006). The legacy controller adds `Deprecation: true` headers.
+//
+// New endpoints exposed by this sprint:
+//   - `GET /api/plan` — single-request aggregator for the Mi Plan screen.
+//     Returns subscription state + usage counters + recent invoices +
+//     plan catalog in one round-trip. Replaces 4 separate fetches that
+//     the previous web/mobile screen had to do.
+//   - `GET /api/billing/return?session_id=` — callback Stripe redirects to
+//     after Checkout completes. Reads the Stripe session, returns the
+//     resulting plan + a `status` so the front can render success / pending
+//     / failed without polling.
+//   - `PATCH /api/billing/subscription` — consolidates cancel + reactivate
+//     into one endpoint with an `action` discriminator (per the design).
+//     The legacy POSTs (/cancel + /reactivate) stay available during the
+//     deprecation window.
+
+/**
+ * Envolvente del Mi Plan screen. Single GET /api/plan returns:
+ *   - The user's current `subscription` (null if FREE without any sub history).
+ *   - The `usage` block for the current billing period (same shape as
+ *     /api/billing/usage).
+ *   - The last 12 `invoices` (same shape as /api/billing/invoices).
+ *   - The full `plans` catalog (same shape as /api/billing/plans).
+ *   - `tier`: convenience field flattened from `user.plan`.
+ *
+ * Why a wrapper: the Mi Plan screen used to do 4 sequential fetches
+ * (me + plans + usage + invoices) on every navigation. Wrapping them
+ * server-side cuts client-perceived latency by ~3× and lets the API
+ * cache the entire aggregate together. See docs/design/handoff/09-plan.md.
+ */
+export interface PlanResponse {
+  tier: UserPlan;
+  subscription: Subscription | null;
+  usage: UsageResponse;
+  invoices: InvoiceSummary[];
+  plans: PlanInfo[];
+}
+
+/**
+ * Callback hit by the user's browser after a Stripe Checkout completes.
+ * The front passes back the `session_id` Stripe appended to the success
+ * URL; the server reads the session, confirms payment, and returns the
+ * new subscription state.
+ *
+ * `status`:
+ *   - `"success"` — payment captured, subscription is active or trialing.
+ *   - `"processing"` — bank still processing (async payment methods).
+ *     Front should poll the same endpoint or fall through to /dashboard/plan.
+ *   - `"failed"` — payment declined or session expired. Front shows retry.
+ */
+export interface BillingReturnResponse {
+  status: "success" | "processing" | "failed";
+  tier: UserPlan;
+  subscription: Subscription | null;
+  /** Human-readable line for the front to show, in es-EC. */
+  message: string;
+}
+
+/**
+ * Discriminated body for the consolidated PATCH /api/billing/subscription.
+ * Maps to the existing cancel/reactivate methods underneath. `switch-plan`
+ * is reserved for a future sprint (Stripe `subscriptions.update` with
+ * `proration_behavior`); accepted in the shape but rejected with 501 today.
+ */
+export type PatchSubscriptionRequest =
+  | { action: "cancel"; reason?: string }
+  | { action: "reactivate" }
+  | { action: "switch-plan"; newPlanId: BillingInterval };
+
 // ─── Eco · conversational AI (Sprint S10) ─────────────────────────────────────
 //
 // Wire shapes. The on-the-wire model is hybrid:

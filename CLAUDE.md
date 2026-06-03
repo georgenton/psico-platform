@@ -1500,7 +1500,52 @@ Backend del onboarding estaba vivo desde Sesión 16 (Sprint S4) con 11 endpoints
 
 ---
 
-### Próximo paso — Sesión 37
+### Sesión 37 — 2026-06-03 ✅ COMPLETADA — Sprint S37 Tour overlay onboarding
+
+**Rama sugerida:** `feature/sprint-37-tour`
+**Tests:** 356/357 API + 34/34 crypto (sin cambios — sprint UI).
+**Bitácora:** [docs/informes/sprint-37-tour.md](docs/informes/sprint-37-tour.md)
+
+**Decisión clave:** Backend ya tenía los 2 endpoints (`GET /api/onboarding/tour`, `POST /api/onboarding/tour/complete`) y el catálogo de steps desde Sesión 16. Sprint S37 monta los clientes web + mobile, cerrando `tourCompletedAt` que vivía en `null` en producción. Patrones añadido como 5° step (post-S35).
+
+**Decisiones:**
+1. Tour solo dispara con `completedAt && !tourCompletedAt`. Skip explícito del onboarding ⇒ no tour.
+2. `showTour` se decide server-side (en layout), no por componente — single source of truth.
+3. Persistencia vía `tourCompletedAt` en server, no localStorage — multi-device + analytics gratis.
+4. Web: spotlight + coachmark sobre nav items. Mobile: modal centrado (tabs abajo no se prestan a highlight sin Reanimated/blur).
+5. Click backdrop = Saltar (dismissal explícito + barato).
+6. `Saltar` y `Terminar` ambos POST a `/tour/complete`; diferencia es `stepsCompleted` reportado.
+
+**Lo que se construyó:**
+
+**Backend:**
+- `apps/api/src/onboarding/constants.ts` — agregado step 5 `target: "patrones"`.
+
+**Web:**
+- `apps/web/src/app/dashboard/_TourOverlay.tsx` — Client Component (nuevo). Fetch del catálogo + DOM query + spotlight + coachmark + state machine de steps.
+- `apps/web/src/app/dashboard/_DashboardShell.tsx` — extendido con `tourTarget` por nav item + `data-tour-target` attribute + nueva prop `showTour`.
+- `apps/web/src/app/dashboard/layout.tsx` — computa `showTour` y lo pasa al shell.
+
+**Mobile:**
+- `apps/mobile/src/components/TourOverlay.tsx` — RN Modal con paridad de state machine.
+- `apps/mobile/app/(tabs)/_layout.tsx` — extrae `tourCompletedAt` de `/user/me` + monta `<TourOverlay>` post-Tabs.
+
+**Smoke verification:**
+- API tests 356/356.
+- @psico/crypto 34/34.
+- Web typecheck + lint OK · Mobile typecheck + lint OK.
+- OpenAPI in sync.
+
+**Deuda técnica abierta:**
+- Mobile no highlightea tabs (decisión de scope — agregar con Reanimated/expo-blur si UX lo pide).
+- Sin animación entre steps.
+- No vuelve a aparecer si user lo cierra (intencional, pero podría añadirse botón "Volver a ver el tour" en Seguridad).
+- `tourStepsCompleted` no se surface — primer panel de funnel cuando Pulso v2 aterrice.
+- Tour es por user (no por device) — install mobile post-tour-web no lo dispara.
+
+---
+
+### Próximo paso — Sesión 38
 
 **🎉 Fase 1 UI completa.** Tres caminos:
 

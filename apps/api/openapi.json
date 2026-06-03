@@ -2520,6 +2520,58 @@
           "Annotations"
         ]
       }
+    },
+    "/api/patrones": {
+      "get": {
+        "operationId": "PatronesController_getPatrones",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patrones"
+        ]
+      }
+    },
+    "/api/patrones/weekly-summary/regenerate": {
+      "post": {
+        "operationId": "PatronesController_regenerate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patrones"
+        ]
+      }
+    },
+    "/api/patrones/share-with-therapist": {
+      "post": {
+        "operationId": "PatronesController_shareWithTherapist",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareWithTherapistDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patrones"
+        ]
+      }
     }
   },
   "info": {
@@ -2742,6 +2794,10 @@
         "properties": {}
       },
       "UpdateAnnotationDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ShareWithTherapistDto": {
         "type": "object",
         "properties": {}
       }

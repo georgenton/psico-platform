@@ -10,6 +10,7 @@ import type {
 import { ecoApi } from "@psico/api-client";
 import { decryptString, encryptString } from "@psico/crypto";
 import { CrisisModal } from "./CrisisModal";
+import { ReportMessageModal } from "./ReportMessageModal";
 
 /**
  * ChatArea — Sprint front-eco (web).
@@ -56,6 +57,10 @@ export function ChatArea({
     hotline: string;
     crisisPath: string;
   } | null>(null);
+  const [reportingId, setReportingId] = useState<string | null>(null);
+  const [reportFlash, setReportFlash] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // ─── Load history when thread changes ────────────────────────────────────
@@ -77,6 +82,7 @@ export function ChatArea({
       .then((res) => {
         if (!active) return;
         setMessages(res.messages);
+        setHasMore(res.hasMore);
       })
       .catch(() => {
         if (active) setHistoryError("No pudimos cargar este hilo.");
@@ -89,12 +95,53 @@ export function ChatArea({
     };
   }, [threadId, apiBase, token]);
 
-  // Scroll to bottom on new messages + streaming deltas.
+  // Scroll to bottom on new messages + streaming deltas. We skip this when
+  // `loadingMore` is true — that's the only path that prepends to the list
+  // and the user is reading at the top, not the bottom.
   useEffect(() => {
+    if (loadingMore) return;
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, streamingText]);
+  }, [messages, streamingText, loadingMore]);
+
+  // ─── Load older (pagination) ─────────────────────────────────────────────
+
+  const loadOlder = useCallback(async () => {
+    if (!hasMore || loadingMore || messages.length === 0) return;
+    const oldestId = messages[0]?.id;
+    if (!oldestId || oldestId.startsWith("local-")) return; // optimistic msg
+    setLoadingMore(true);
+
+    // Snapshot scroll geometry so we can restore position after prepending.
+    const el = scrollRef.current;
+    const prevHeight = el?.scrollHeight ?? 0;
+    const prevTop = el?.scrollTop ?? 0;
+
+    try {
+      const res = await fetch(
+        `${apiBase}/eco/threads/${threadId}?cursor=${encodeURIComponent(oldestId)}`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : undefined },
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as EcoThreadResponse;
+      setMessages((prev) => [...data.messages, ...prev]);
+      setHasMore(data.hasMore);
+
+      // After React commits, restore scroll so the user stays anchored on
+      // the message they were reading.
+      requestAnimationFrame(() => {
+        if (el) {
+          const delta = el.scrollHeight - prevHeight;
+          el.scrollTop = prevTop + delta;
+        }
+      });
+    } catch {
+      // Silent fail — user can retry by scrolling again.
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [hasMore, loadingMore, messages, apiBase, threadId, token]);
 
   // ─── Send ────────────────────────────────────────────────────────────────
 
@@ -250,11 +297,41 @@ export function ChatArea({
           </div>
         </header>
 
+        {/* Report-sent flash banner */}
+        {reportFlash ? (
+          <div
+            className="mx-5 mt-3 rounded-xl px-3 py-2 text-[12px]"
+            role="status"
+            style={{
+              background: "var(--color-sage-50, #F0F6EE)",
+              color: "var(--color-sage-700, #2F5A2A)",
+            }}
+          >
+            {reportFlash}
+          </div>
+        ) : null}
+
         {/* Messages */}
         <div
           ref={scrollRef}
           className="flex-1 space-y-3 overflow-y-auto px-5 py-4"
         >
+          {hasMore && messages.length > 0 ? (
+            <div className="flex justify-center pb-2">
+              <button
+                type="button"
+                onClick={() => void loadOlder()}
+                disabled={loadingMore}
+                className="rounded-full border-[1.5px] bg-white px-3 py-1 text-[11.5px] font-semibold disabled:opacity-60"
+                style={{
+                  borderColor: "var(--color-warm-200)",
+                  color: "var(--color-warm-600)",
+                }}
+              >
+                {loadingMore ? "Cargando…" : "↑ Mensajes anteriores"}
+              </button>
+            </div>
+          ) : null}
           {loading ? (
             <p
               className="text-center text-[12px]"
@@ -273,7 +350,16 @@ export function ChatArea({
             <Welcome caps={caps} />
           ) : (
             messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} ecoKey={ecoKey} />
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                ecoKey={ecoKey}
+                onReport={
+                  msg.kind === "assistant" && !msg.id.startsWith("local-")
+                    ? () => setReportingId(msg.id)
+                    : undefined
+                }
+              />
             ))
           )}
           {streamingText ? (
@@ -312,6 +398,19 @@ export function ChatArea({
           onClose={() => setCrisisData(null)}
         />
       ) : null}
+
+      {reportingId ? (
+        <ReportMessageModal
+          messageId={reportingId}
+          onClose={(sent) => {
+            setReportingId(null);
+            if (sent) {
+              setReportFlash("Gracias — recibimos tu reporte.");
+              setTimeout(() => setReportFlash(null), 4000);
+            }
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -342,10 +441,13 @@ function MessageBubble({
   message,
   ecoKey,
   streaming = false,
+  onReport,
 }: {
   message: EcoMessage;
   ecoKey: Uint8Array;
   streaming?: boolean;
+  /** When provided, renders the "Reportar" affordance under the bubble. */
+  onReport?: () => void;
 }) {
   const isUser = message.kind === "user";
   const isCrisis = message.kind === "crisis";
@@ -373,7 +475,7 @@ function MessageBubble({
   ]);
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+    <div className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
       <div
         className="max-w-[80%] rounded-2xl px-4 py-2.5"
         style={
@@ -406,6 +508,17 @@ function MessageBubble({
           ) : null}
         </p>
       </div>
+      {onReport && !streaming ? (
+        <button
+          type="button"
+          onClick={onReport}
+          className="mt-0.5 text-[10.5px] underline-offset-2 hover:underline"
+          style={{ color: "var(--color-warm-400)" }}
+          aria-label="Reportar esta respuesta"
+        >
+          Reportar
+        </button>
+      ) : null}
     </div>
   );
 }

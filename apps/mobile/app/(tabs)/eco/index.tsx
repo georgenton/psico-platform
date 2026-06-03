@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiClient, ecoApi } from "@psico/api-client";
 import type {
   EcoMessage,
+  EcoMessageReportReason,
   EcoPersona,
   EcoSseEvent,
   EcoThreadRailItem,
@@ -60,6 +61,8 @@ export default function EcoScreen() {
     hotline: string;
     crisisPath: string;
   } | null>(null);
+  const [reportingId, setReportingId] = useState<string | null>(null);
+  const [reportFlash, setReportFlash] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView | null>(null);
 
   // ─── Boot: load persona + rail; auto-create first thread if needed ──────
@@ -300,7 +303,16 @@ export default function EcoScreen() {
           <Welcome persona={persona} />
         ) : (
           messages.map((msg) => (
-            <Bubble key={msg.id} message={msg} ecoKey={ecoKey} />
+            <Bubble
+              key={msg.id}
+              message={msg}
+              ecoKey={ecoKey}
+              onLongPress={
+                msg.kind === "assistant" && !msg.id.startsWith("local-")
+                  ? () => setReportingId(msg.id)
+                  : undefined
+              }
+            />
           ))
         )}
         {streamingText ? (
@@ -349,6 +361,25 @@ export default function EcoScreen() {
           crisisPath={crisisData.crisisPath}
           onClose={() => setCrisisData(null)}
         />
+      ) : null}
+
+      {reportingId ? (
+        <ReportModal
+          messageId={reportingId}
+          onClose={(sent) => {
+            setReportingId(null);
+            if (sent) {
+              setReportFlash("Gracias — recibimos tu reporte.");
+              setTimeout(() => setReportFlash(null), 4000);
+            }
+          }}
+        />
+      ) : null}
+
+      {reportFlash ? (
+        <View style={styles.flash} pointerEvents="none">
+          <Text style={styles.flashText}>{reportFlash}</Text>
+        </View>
       ) : null}
     </KeyboardAvoidingView>
   );
@@ -401,10 +432,13 @@ function Bubble({
   message,
   ecoKey,
   streaming = false,
+  onLongPress,
 }: {
   message: EcoMessage;
   ecoKey: Uint8Array;
   streaming?: boolean;
+  /** When provided, long-press opens the report flow (assistant msgs only). */
+  onLongPress?: () => void;
 }) {
   const isUser = message.kind === "user";
   const isCrisis = message.kind === "crisis";
@@ -429,6 +463,41 @@ function Bubble({
     ecoKey,
   ]);
 
+  const bubbleStyle = [
+    styles.bubble,
+    isCrisis
+      ? styles.bubbleCrisis
+      : isUser
+        ? styles.bubbleUser
+        : styles.bubbleAssistant,
+  ];
+  const textStyle = [
+    styles.bubbleText,
+    {
+      color: isCrisis ? "#7F1D1D" : isUser ? Colors.white : Colors.warm[800],
+    },
+  ];
+
+  const Inner = onLongPress ? (
+    <Pressable
+      onLongPress={onLongPress}
+      delayLongPress={400}
+      style={({ pressed }) => [...bubbleStyle, pressed && { opacity: 0.7 }]}
+    >
+      <Text style={textStyle}>
+        {body}
+        {streaming ? <Text style={{ opacity: 0.5 }}> ▍</Text> : null}
+      </Text>
+    </Pressable>
+  ) : (
+    <View style={bubbleStyle}>
+      <Text style={textStyle}>
+        {body}
+        {streaming ? <Text style={{ opacity: 0.5 }}> ▍</Text> : null}
+      </Text>
+    </View>
+  );
+
   return (
     <View
       style={[
@@ -436,33 +505,137 @@ function Bubble({
         { justifyContent: isUser ? "flex-end" : "flex-start" },
       ]}
     >
-      <View
-        style={[
-          styles.bubble,
-          isCrisis
-            ? styles.bubbleCrisis
-            : isUser
-              ? styles.bubbleUser
-              : styles.bubbleAssistant,
-        ]}
-      >
-        <Text
-          style={[
-            styles.bubbleText,
-            {
-              color: isCrisis
-                ? "#7F1D1D"
-                : isUser
-                  ? Colors.white
-                  : Colors.warm[800],
-            },
-          ]}
-        >
-          {body}
-          {streaming ? <Text style={{ opacity: 0.5 }}> ▍</Text> : null}
-        </Text>
-      </View>
+      {Inner}
     </View>
+  );
+}
+
+// ─── ReportModal ──────────────────────────────────────────────────────────
+
+const REPORT_REASONS: Array<{
+  value: EcoMessageReportReason;
+  label: string;
+  hint: string;
+}> = [
+  {
+    value: "HALLUCINATION",
+    label: "Eco inventó información",
+    hint: "Hechos o citas que no existen.",
+  },
+  {
+    value: "OFF_TONE",
+    label: "El tono no fue apropiado",
+    hint: "Frío, sermoneador, condescendiente.",
+  },
+  {
+    value: "SENSITIVE_CONTENT",
+    label: "Tocó algo sensible mal",
+    hint: "Trivializó o dijo algo dañino.",
+  },
+  {
+    value: "CRISIS_MISHANDLED",
+    label: "No detectó una crisis",
+    hint: "Yo necesitaba ayuda urgente.",
+  },
+  { value: "OTHER", label: "Otra cosa", hint: "Cuéntanos en el comentario." },
+];
+
+function ReportModal({
+  messageId,
+  onClose,
+}: {
+  messageId: string;
+  onClose: (sent: boolean) => void;
+}) {
+  const [reason, setReason] = useState<EcoMessageReportReason | null>(null);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    if (!reason) return;
+    setSubmitting(true);
+    setErr(null);
+    try {
+      await ecoApi.reportMessage(messageId, {
+        reason,
+        comment: comment.trim() || undefined,
+      });
+      onClose(true);
+    } catch {
+      setErr("No pudimos enviar el reporte. Reintenta.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={() => onClose(false)}
+    >
+      <View style={styles.reportBackdrop}>
+        <View style={styles.reportCard}>
+          <Text style={styles.reportTitle}>Reportar respuesta de Eco</Text>
+          <Text style={styles.reportSub}>
+            Nos ayuda a que el companion no te falle de la misma manera dos
+            veces.
+          </Text>
+
+          <ScrollView style={{ maxHeight: 280, marginTop: Spacing.md }}>
+            {REPORT_REASONS.map((r) => {
+              const active = r.value === reason;
+              return (
+                <Pressable
+                  key={r.value}
+                  onPress={() => setReason(r.value)}
+                  style={[styles.reasonRow, active && styles.reasonRowActive]}
+                >
+                  <Text style={styles.reasonLabel}>{r.label}</Text>
+                  <Text style={styles.reasonHint}>{r.hint}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <Text style={styles.commentLabel}>COMENTARIO (OPCIONAL)</Text>
+          <TextInput
+            value={comment}
+            onChangeText={(t) => setComment(t.slice(0, 500))}
+            placeholder="¿Qué hubieras necesitado escuchar?"
+            placeholderTextColor={Colors.warm[400]}
+            multiline
+            style={styles.commentInput}
+          />
+          <Text style={styles.commentCount}>{comment.length}/500</Text>
+
+          {err ? <Text style={styles.reportErr}>{err}</Text> : null}
+
+          <View style={styles.reportActions}>
+            <Pressable
+              onPress={() => onClose(false)}
+              style={styles.reportCancel}
+            >
+              <Text style={styles.reportCancelText}>Cancelar</Text>
+            </Pressable>
+            <Pressable
+              onPress={submit}
+              disabled={!reason || submitting}
+              style={[
+                styles.reportSubmit,
+                (!reason || submitting) && { opacity: 0.5 },
+              ]}
+            >
+              <Text style={styles.reportSubmitText}>
+                {submitting ? "Enviando…" : "Enviar"}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -821,5 +994,125 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.warm[400],
     marginTop: 2,
+  },
+  // Report modal
+  reportBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.md,
+  },
+  reportCard: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    padding: Spacing.lg,
+  },
+  reportTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: Colors.warm[900],
+  },
+  reportSub: {
+    fontSize: 12.5,
+    color: Colors.warm[500],
+    marginTop: 4,
+  },
+  reasonRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: Radius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.warm[200],
+    backgroundColor: Colors.white,
+    marginBottom: 6,
+  },
+  reasonRowActive: {
+    backgroundColor: Colors.lavender[50],
+    borderColor: Colors.lavender[500],
+  },
+  reasonLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.warm[900],
+  },
+  reasonHint: {
+    fontSize: 11.5,
+    color: Colors.warm[500],
+    marginTop: 2,
+  },
+  commentLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    color: Colors.warm[500],
+    marginTop: Spacing.md,
+    marginBottom: 6,
+  },
+  commentInput: {
+    minHeight: 70,
+    borderRadius: Radius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.warm[200],
+    backgroundColor: Colors.warm[50],
+    padding: 10,
+    color: Colors.warm[800],
+    fontSize: 13,
+    textAlignVertical: "top",
+  },
+  commentCount: {
+    textAlign: "right",
+    marginTop: 4,
+    fontSize: 10.5,
+    color: Colors.warm[400],
+  },
+  reportErr: {
+    color: "#B91C1C",
+    fontSize: 12,
+    marginTop: 6,
+  },
+  reportActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  reportCancel: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  reportCancelText: {
+    color: Colors.warm[600],
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  reportSubmit: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.lavender[500],
+  },
+  reportSubmitText: {
+    color: Colors.white,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  // Flash toast
+  flash: {
+    position: "absolute",
+    top: 60,
+    left: 16,
+    right: 16,
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  flashText: {
+    color: Colors.sage[600],
+    fontSize: 12.5,
+    textAlign: "center",
   },
 });

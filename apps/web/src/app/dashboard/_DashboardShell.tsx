@@ -24,6 +24,7 @@ const NAV_ITEMS = [
   },
   { href: "/dashboard/diario", label: "Diario", icon: "✎", exact: false },
   { href: "/dashboard/eco", label: "Eco", icon: "🌿", exact: false },
+  { href: "/dashboard/patrones", label: "Patrones", icon: "📊", exact: false },
   { href: "/dashboard/plan", label: "Mi plan", icon: "💳", exact: false },
   {
     href: "/dashboard/security",

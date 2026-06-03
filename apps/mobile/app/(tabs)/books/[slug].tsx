@@ -228,8 +228,13 @@ export default function BookDetailScreen() {
               {detail.chaptersList.map((ch, idx) => {
                 const isLast = idx === detail.chaptersList.length - 1;
                 return (
-                  <View
+                  <Pressable
                     key={`${ch.n}-${idx}`}
+                    onPress={() =>
+                      router.push(
+                        `/books/${detail.book.slug}/lector/${ch.n}` as never,
+                      )
+                    }
                     style={[
                       styles.chapterRow,
                       !isLast && styles.chapterDivider,
@@ -292,7 +297,7 @@ export default function BookDetailScreen() {
                         color={Colors.warm[400]}
                       />
                     )}
-                  </View>
+                  </Pressable>
                 );
               })}
             </View>

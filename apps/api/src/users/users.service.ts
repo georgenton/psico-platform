@@ -96,6 +96,7 @@ export class UsersService {
         notificationSettings: true,
         privacySettings: true,
         achievements: { include: { achievement: true } },
+        onboardingState: true,
       },
     });
 
@@ -183,6 +184,18 @@ export class UsersService {
       // accounts. The client uses it to derive the diary master key.
       cryptoSalt: user.cryptoSalt,
       cryptoSeedShownAt: user.cryptoSeedShownAt,
+      // Sprint S4-front: surface onboarding progress so the web middleware
+      // and mobile auth context can redirect new users to /onboarding.
+      // null = state row doesn't exist yet (fresh user, never opened
+      // onboarding). Either timestamp (completedAt or skippedAt) being
+      // set means we're DONE with onboarding — the front skips it.
+      onboardingState: user.onboardingState
+        ? {
+            completedAt: user.onboardingState.onboardingCompletedAt,
+            skippedAt: user.onboardingState.onboardingSkippedAt,
+            tourCompletedAt: user.onboardingState.tourCompletedAt,
+          }
+        : null,
     };
   }
 

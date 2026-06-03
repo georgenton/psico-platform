@@ -15,6 +15,7 @@ export { subscriptionApi } from "./subscription";
 export { voiceApi } from "./voice";
 export { ecoApi } from "./eco";
 export { lectorApi, highlightsApi, annotationsApi } from "./lector";
+export { onboardingApi } from "./onboarding";
 
 // Auto-generated OpenAPI types — see scripts/generate.mjs and ADR 0008.
 // Consumers can use:

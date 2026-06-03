@@ -120,7 +120,10 @@ export default async function BookDetailPage({ params }: { params: Params }) {
 
       {/* Chapters */}
       <div className="mt-10">
-        <ChaptersList chapters={detail.chaptersList} />
+        <ChaptersList
+          chapters={detail.chaptersList}
+          bookSlug={detail.book.slug}
+        />
       </div>
 
       {/* Reviews */}

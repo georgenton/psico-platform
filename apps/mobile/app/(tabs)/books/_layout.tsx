@@ -14,6 +14,10 @@ export default function BooksLayout() {
     >
       <Stack.Screen name="index" options={{ title: "Biblioteca" }} />
       <Stack.Screen name="[slug]" options={{ title: "Libro" }} />
+      <Stack.Screen
+        name="[slug]/lector/[chapterOrder]"
+        options={{ title: "Lector", headerBackTitle: "Volver" }}
+      />
     </Stack>
   );
 }

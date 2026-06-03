@@ -672,6 +672,18 @@ export interface UserMeResponse {
    * on next diary unlock. ISO string in JSON, parsed Date in TypeScript.
    */
   cryptoSeedShownAt: Date | null;
+  /**
+   * Onboarding progress (Sprint S4-front). null = no OnboardingState row
+   * → user never opened onboarding → front should redirect to /onboarding.
+   * Either `completedAt` or `skippedAt` being set means onboarding is
+   * done; the front skips it and goes straight to the dashboard.
+   * `tourCompletedAt` separately tracks the post-onboarding tour overlay.
+   */
+  onboardingState: {
+    completedAt: Date | null;
+    skippedAt: Date | null;
+    tourCompletedAt: Date | null;
+  } | null;
 }
 
 // ─── User · request payloads ──────────────────────────────────────────────────

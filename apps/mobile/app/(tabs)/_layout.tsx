@@ -1,5 +1,9 @@
-import { Tabs } from "expo-router";
+import { useEffect, useState } from "react";
+import { Redirect, Tabs } from "expo-router";
+import { ActivityIndicator, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { apiClient } from "@psico/api-client";
+import type { UserMeResponse } from "@psico/types";
 import { Colors } from "@/theme";
 import { useAuth } from "@/context/auth";
 import { DiaryKeyProvider } from "@/crypto/diary-key-context";
@@ -10,7 +14,7 @@ type IconProps = {
 };
 
 /**
- * Tabs layout — Sprint S5-front-mobile.
+ * Tabs layout — Sprint S5-front-mobile + S4-front-onboarding.
  *
  * Sidebar parity with web: Inicio · Biblioteca · Diario · Mi plan.
  * The profile + security screens exist but are hidden from the tabbar;
@@ -21,9 +25,56 @@ type IconProps = {
  * The security screen specifically needs the in-memory master key to
  * perform the password-change-with-rekey, and we don't want to force the
  * user to lock+unlock just to get there.
+ *
+ * Sprint S4-front-onboarding: gate on the user's onboarding state. We hit
+ * /api/user/me on mount and redirect to /onboarding if neither
+ * `completedAt` nor `skippedAt` is set. We render a loading spinner
+ * during the network call so the user never sees the tabbar before the
+ * decision is made.
  */
 export default function TabsLayout() {
   const { user } = useAuth();
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    apiClient
+      .get<UserMeResponse>("/user/me")
+      .then((me) => {
+        if (cancelled) return;
+        const s = me.onboardingState;
+        setOnboardingDone(Boolean(s?.completedAt || s?.skippedAt));
+      })
+      .catch(() => {
+        // Network failure — assume done so the user isn't trapped.
+        // The next /user/me fetch (any other screen) will correct it.
+        if (!cancelled) setOnboardingDone(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  if (onboardingDone === null) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: Colors.warm[50],
+        }}
+      >
+        <ActivityIndicator color={Colors.lavender[500]} />
+      </View>
+    );
+  }
+
+  if (!onboardingDone) {
+    return <Redirect href="/onboarding" />;
+  }
+
   return (
     <DiaryKeyProvider cryptoSalt={user?.cryptoSalt ?? null}>
       <Tabs

@@ -7,6 +7,7 @@ import type { UserMeResponse } from "@psico/types";
 import { Colors } from "@/theme";
 import { useAuth } from "@/context/auth";
 import { DiaryKeyProvider } from "@/crypto/diary-key-context";
+import { TourOverlay } from "@/components/TourOverlay";
 
 type IconProps = {
   color: string;
@@ -35,6 +36,9 @@ type IconProps = {
 export default function TabsLayout() {
   const { user } = useAuth();
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
+  // Sprint S37: mirrors the web logic — show the tour overlay once for
+  // users who finished onboarding but never saw it.
+  const [showTour, setShowTour] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -45,11 +49,15 @@ export default function TabsLayout() {
         if (cancelled) return;
         const s = me.onboardingState;
         setOnboardingDone(Boolean(s?.completedAt || s?.skippedAt));
+        setShowTour(Boolean(s?.completedAt && !s?.tourCompletedAt));
       })
       .catch(() => {
         // Network failure — assume done so the user isn't trapped.
         // The next /user/me fetch (any other screen) will correct it.
-        if (!cancelled) setOnboardingDone(true);
+        if (!cancelled) {
+          setOnboardingDone(true);
+          setShowTour(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -190,6 +198,7 @@ export default function TabsLayout() {
           }}
         />
       </Tabs>
+      {showTour ? <TourOverlay onClose={() => setShowTour(false)} /> : null}
     </DiaryKeyProvider>
   );
 }

@@ -36,6 +36,13 @@ export default async function DashboardLayout({
   // reach any dashboard page. We treat "no OnboardingState row" and "row
   // exists but neither completedAt nor skippedAt is set" as the same case
   // — the user has not yet decided about onboarding.
+  //
+  // Sprint S37: compute showTour at the layout level so the check happens
+  // server-side per navigation, not per render. Tour fires only for users
+  // who finished onboarding (`completedAt`) but never saw the tour yet
+  // (`tourCompletedAt === null`). Users who explicitly skipped the whole
+  // onboarding (`skippedAt`) DON'T get the tour either — they opted out.
+  let showTour = false;
   if (me) {
     const onboarding = me.onboardingState;
     const onboardingDone = Boolean(
@@ -44,10 +51,11 @@ export default async function DashboardLayout({
     if (!onboardingDone) {
       redirect("/onboarding");
     }
+    showTour = Boolean(onboarding?.completedAt && !onboarding?.tourCompletedAt);
   }
 
   return (
-    <DashboardShell user={user} cryptoSalt={cryptoSalt}>
+    <DashboardShell user={user} cryptoSalt={cryptoSalt} showTour={showTour}>
       {children}
     </DashboardShell>
   );

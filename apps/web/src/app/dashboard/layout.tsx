@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import type { UserMeResponse } from "@psico/types";
 
 import { getSessionUser, isNextThrow, serverFetch } from "@/lib/api.server";
@@ -10,13 +11,14 @@ export default async function DashboardLayout({
 }) {
   const user = getSessionUser();
 
-  // We fetch cryptoSalt once at the layout level so the DiaryKeyProvider can
-  // be hoisted above the entire /dashboard subtree. That way the diary
-  // unlock survives navigation (e.g. Diario → Seguridad → back), which the
-  // password-change-with-rekey flow specifically needs.
+  // We fetch cryptoSalt + onboardingState once at the layout level so the
+  // DiaryKeyProvider can be hoisted above the entire /dashboard subtree.
+  // That way the diary unlock survives navigation (e.g. Diario → Seguridad
+  // → back), which the password-change-with-rekey flow specifically needs.
   let cryptoSalt: string | null = null;
+  let me: UserMeResponse | null = null;
   try {
-    const me = await serverFetch<UserMeResponse>("/user/me");
+    me = await serverFetch<UserMeResponse>("/user/me");
     cryptoSalt = me.cryptoSalt;
   } catch (err) {
     // CRITICAL: `serverFetch` throws `redirect('/login')` on auth failure;
@@ -28,6 +30,20 @@ export default async function DashboardLayout({
     if (isNextThrow(err)) throw err;
     // Other non-redirect errors: leave cryptoSalt as null. The Diario
     // UnlockGate will render the empty state instead of crashing.
+  }
+
+  // Sprint S4-front: redirect new users to /onboarding before they can
+  // reach any dashboard page. We treat "no OnboardingState row" and "row
+  // exists but neither completedAt nor skippedAt is set" as the same case
+  // — the user has not yet decided about onboarding.
+  if (me) {
+    const onboarding = me.onboardingState;
+    const onboardingDone = Boolean(
+      onboarding?.completedAt || onboarding?.skippedAt,
+    );
+    if (!onboardingDone) {
+      redirect("/onboarding");
+    }
   }
 
   return (

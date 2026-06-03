@@ -1452,3 +1452,105 @@ export interface ReaderPreferencesResponse {
   lineHeight: number;
   updatedAt: Date;
 }
+
+// ─── Patrones (Sprint S10) ───────────────────────────────────────────────────
+//
+// Pro-only Diario analytics. The shape mirrors handoff 12-patrones.md.
+// v1 returns moodMap + hourMood + weeklySummary in full; themes, vocab,
+// correlations, and ecoNotes ship as empty arrays until the NLP layer
+// (privacy-preserving over ciphered excerpts) lands in a follow-up sprint.
+
+export type PatronesPeriod = "30d" | "90d" | "1y";
+
+export interface PatronesPeriodDescriptor {
+  /** ISO YYYY-MM-DD inclusive. */
+  from: string;
+  /** ISO YYYY-MM-DD inclusive. */
+  to: string;
+  label: string;
+}
+
+export interface PatronesMoodMapDay {
+  /** ISO YYYY-MM-DD. */
+  date: string;
+  /** moodId from the user's entry on that day (most recent if multiple). */
+  moodId: string;
+  /** Swatch hex/token from OnboardingMood, for the heatmap cell color. */
+  swatch: string;
+}
+
+export interface PatronesHourMoodBucket {
+  /** 0-23. */
+  hour: number;
+  /** { moodId: count } across the whole period. */
+  moodCounts: Record<string, number>;
+}
+
+export interface PatronesTheme {
+  id: string;
+  label: string;
+  count: number;
+  entryIds: string[];
+}
+
+export interface PatronesCorrelation {
+  id: string;
+  label: string;
+  coefficient: number;
+  direction: "+" | "-";
+}
+
+export interface PatronesEcoNote {
+  id: string;
+  text: string;
+  relatedTheme: string | null;
+}
+
+export interface PatronesVocabWord {
+  word: string;
+  count: number;
+  delta: number;
+}
+
+export interface PatronesWeeklySummary {
+  headline: string;
+  /** Editorial paragraph, plain Markdown. */
+  narrative: string;
+  entriesUsed: number;
+  generatedAt: Date;
+  /** UTC midnight of the Monday opening the summary week. */
+  weekStart: Date;
+}
+
+export interface PatronesResponse {
+  /** Plan gate echo. FREE never gets full data — see `locked`. */
+  tier: "free" | "pro";
+  period: PatronesPeriodDescriptor;
+  /** When true, the caller is FREE and the rest of the response is empty. */
+  locked: boolean;
+  /** How many DiaryEntry rows landed in the requested period. The UI uses
+   *  this to gate the "less than 7 entries" empty state. */
+  entryCount: number;
+  hourMood: PatronesHourMoodBucket[];
+  moodMap: PatronesMoodMapDay[];
+  themes: PatronesTheme[];
+  correlations: PatronesCorrelation[];
+  ecoNotes: PatronesEcoNote[];
+  vocab: PatronesVocabWord[];
+  weeklySummary: PatronesWeeklySummary | null;
+}
+
+export interface PatronesRegenerateResponse {
+  ok: true;
+  weeklySummary: PatronesWeeklySummary;
+}
+
+export interface PatronesShareWithTherapistRequest {
+  therapistId: string;
+}
+
+export interface PatronesShareWithTherapistResponse {
+  ok: true;
+  /** TerapiaModule (Sprint S13) is not live yet; v1 returns a stub. */
+  status: "stub" | "scheduled" | "sent";
+}

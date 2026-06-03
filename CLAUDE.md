@@ -1222,7 +1222,285 @@ tokens, Prisma schema and env validation`
 
 ---
 
-### Próximo paso — Sesión 30
+### Sesión 30 — 2026-06-01 ✅ COMPLETADA — Deploy a Railway + incident recovery + 3 bugfixes
+
+**Rama:** `fix/deploy-prisma-corruption`
+**Bitácora:** [docs/informes/deploy-2026-06-01-incident.md](docs/informes/deploy-2026-06-01-incident.md)
+
+**Síntoma:** primer deploy a Railway desde Sesión 8. El servicio del API servía código pre-Sprint 0.A: `/api/health` 404 porque el global prefix `/api` (Sesión 11) no estaba en producción. Dos `railway up` fallaron con "Deploy failed".
+
+**Causa raíz:** archivos `migration.sql` corruptos con `Loaded Prisma config from prisma.config.ts.` como primera línea literal (Prisma 7 imprime esa línea informativa a stdout al cargar `prisma.config.ts`; se filtró por pipe/redirect mal hecho al generar las migraciones). En Railway, `prisma migrate deploy` lo ejecutó como SQL → `ERROR: syntax error at or near "Loaded"`.
+
+**Lo que se hizo:**
+- `sed -i` para limpiar los archivos afectados (`20260526180000_s5_books_*` y `20260526210000_s6_diary_*`).
+- `prisma migrate resolve --rolled-back` para reset del estado en Postgres.
+- Re-deploy con migraciones limpias.
+- `apps/api/railway.json` con `buildCommand: "pnpm install --frozen-lockfile && pnpm --filter @psico/api... build"` + `preDeployCommand: "pnpm --filter @psico/api migrate:deploy"`.
+- `apps/web/vercel.json` con `installCommand: "cd ../.. && corepack enable && pnpm install --frozen-lockfile"`.
+
+**3 bugfixes a posteriori:**
+1. **Redirect propagation en Next.js layouts** — `serverFetch` lanza `redirect('/login')` pero los `catch {}` lo swallowaban. Fix: helper `isNextThrow(err)` en `apps/web/src/lib/api.server.ts` y re-throw en `dashboard/layout.tsx` + `biblioteca/[idOrSlug]/page.tsx`.
+2. **Stripe price IDs reales** — pendiente, tarea del usuario.
+3. **Pre-commit hook contra "Loaded Prisma config"** — `scripts/check-migration-sql.sh` que rechaza cualquier `migration.sql` cuya primera línea no sea SQL válida. Hooked vía `husky/.husky/pre-commit`.
+
+**Smoke verification post-fix:**
+- `GET /api/health` → 200 OK.
+- Prisma migraciones aplicadas (8 acumuladas).
+- Worker provisionado como segundo Railway service.
+- Smoke walk con el usuario: register → unlock Diario → Eco chat ✅.
+
+**Deuda técnica abierta:**
+- Stripe price IDs reales (bugfix #2 sigue pending).
+- `pnpm-lock.yaml` quedó duplicado (767 líneas) por `-X ours` merge — corregido con `pnpm install --no-frozen-lockfile`.
+
+---
+
+### Sesión 31 — 2026-06-02 ✅ COMPLETADA — Sprint S11 BillingModule + GET /api/plan + GET /api/billing/return
+
+**Rama:** `feature/sprint-s11-billing-cleanup`
+**Tests:** 323/323 API + 34/34 crypto (sin cambios — sprint sin lógica nueva en cripto)
+**Bitácora:** [docs/informes/sprint-s11-billing-cleanup.md](docs/informes/sprint-s11-billing-cleanup.md)
+
+**Decisión gigante:** NO movemos `apps/api/src/subscription/` físicamente — creamos `apps/api/src/billing/` que **reusa** los services del legacy module. El legacy controller queda activo con headers `Deprecation: true` + `Sunset` por 90 días según ADR 0006. Cuando esa ventana cierre (2026-08-31), una sesión futura colapsa todo a `billing/`.
+
+**Lo que se construyó:**
+
+**Backend:**
+- `apps/api/src/billing/` nuevo con controller que delega a `SubscriptionService` + `UsageService` + `PaymentService`.
+- `GET /api/billing/checkout-session` · `POST /api/billing/customer-portal` · `GET /api/billing/usage` · `GET /api/billing/invoices` · `POST /api/billing/cancel` · `POST /api/billing/reactivate` · `GET /api/billing/return`.
+- **`GET /api/plan` envolvente** — agrega `/me + /plans + /usage + /invoices` en una sola request (consistente con `/api/home`).
+- **`GET /api/billing/return`** — callback post-checkout que detecta status (paid/processing/failed) y produce mensaje accionable. Sin Universal Links en mobile, sin deep-link gymnastics.
+- **Webhook doble exposure:** `/api/billing/webhook` + `/api/subscriptions/webhook` (legacy) ambos válidos por 90d.
+
+**Cliente:**
+- `packages/api-client/src/billing.ts` nuevo. `subscriptionApi` queda `@deprecated`.
+- `generated.ts` 65.5 KB → 67.0 KB.
+
+**Web:** `/dashboard/plan` migrado a `billingApi.getPlan()` (1 request en lugar de 4).
+**Mobile:** `(tabs)/plan` migrado igual.
+
+**Smoke verification:**
+- API tests 323/323.
+- OpenAPI in sync.
+- Web typecheck + lint OK, build OK.
+- Mobile typecheck + lint OK.
+
+**Deuda técnica abierta:**
+- Sunset 2026-08-31 del path `/api/subscriptions/*`.
+- Stripe price IDs reales (bugfix #2 sigue pending).
+
+---
+
+### Sesión 32 — 2026-06-02 ✅ COMPLETADA — Sprint S6 LectorModule backend
+
+**Rama:** `feature/sprint-s6-lector`
+**Tests:** 348/349 (323 anteriores + 25 nuevos, 1 skipped sentinel)
+**Bitácora:** [docs/informes/sprint-s6-lector.md](docs/informes/sprint-s6-lector.md)
+
+**Lo que se construyó (último backend core de Phase 1):**
+
+Cierra el core product que faltaba: la pantalla del **Lector** real. Hasta hoy `/dashboard/biblioteca/[slug]` mostraba metadata + lista de capítulos pero los capítulos no se podían leer porque su contenido no existía en DB. Este sprint introduce `ChapterBlock` (bloques tipados que reemplazan `Chapter.body String`), highlights, annotations, reading session heartbeat y audio signed URL — los 9 endpoints del diseño `docs/design/handoff/05-lector.md`.
+
+**Schema (`apps/api/prisma/schema.prisma`):**
+- `ChapterBlock { id, chapterId, order, kind, content, meta?, createdAt, updatedAt }`.
+- `Highlight { id, userId, blockId, startOffset, endOffset, color, note? }`.
+- `Annotation { id, userId, blockId, text }`.
+- `ReadingSession { id, userId, chapterId, lastBlockId?, progressPct, timeSpentSec, completedAt? }`.
+- Enums: `ChapterBlockKind` (PARAGRAPH/HEADING/QUOTE/PAUSE/EXERCISE), `HighlightColor` (YELLOW/BLUE/PINK).
+- Migración `20260602100000_s6_lector_*` aditiva.
+
+**Por qué `ChapterBlock` en lugar de `Chapter.body String`:**
+1. Highlights/annotations anclan a un block ID estable, no a rangos en un string que cambia con cada edición editorial.
+2. Audio playback puede mapearse por block ID (timestamps).
+3. Renderizado tipado por bloque (un PAUSE no es un PARAGRAPH).
+
+**Endpoints (9 nuevos):**
+- `GET /api/lector/:bookId/:order` — fetcha capítulo + bloques + highlights/annotations del user + reading session.
+- `PATCH /api/lector/session` — heartbeat cada 5s.
+- `POST /api/lector/session/complete` — marca completedAt + dispara cascade en bookProgress.
+- `GET/POST/PATCH/DELETE /api/lector/highlights` — CRUD.
+- `GET/POST/PATCH/DELETE /api/lector/annotations` — CRUD.
+- `PATCH /api/user/reader-preferences` — theme/font/fontSize/lineHeight.
+
+**Seed:** 30 ChapterBlocks reales para los 2 libros ancla (Emociones en Construcción + Familias Ensambladas).
+
+**Cliente:** `lectorApi`, `highlightsApi`, `annotationsApi`. `generated.ts` 67.0 KB → 72.0 KB.
+
+**Smoke verification:**
+- API tests 348/349 (323 → 348, +25 nuevos).
+- OpenAPI in sync.
+- Migración aplicada en producción Railway.
+
+**Deuda técnica abierta:**
+- Audio playback URLs: signed por R2, TTL 1h. No streaming, expone direct URL.
+- `ChapterBlock.content` plaintext (no E2E) — books son contenido público licenciado.
+- Sin búsqueda full-text en blocks (postgres `tsvector` candidate).
+
+---
+
+### Sesión 33 — 2026-06-02 ✅ COMPLETADA — Sprint S6-front Reader UI (web + mobile)
+
+**Rama:** `feature/sprint-s6-front-lector`
+**Tests:** 348/349 backend (sin cambios — sprint UI puro)
+**Bitácora:** [docs/informes/sprint-s6-front-lector.md](docs/informes/sprint-s6-front-lector.md)
+
+**Lo que se construyó (último UI de Fase 1):**
+
+**Web — `/dashboard/biblioteca/[idOrSlug]/lector/[chapterOrder]`:**
+- `page.tsx` Server Component — pre-fetcha el chapter con `serverFetch('/lector/:bookId/:order')` para first-paint con contenido real.
+- `LectorShell.tsx` — Client orchestrator. Owns todos los state slices: highlights, annotations, prefs, selection, session. Optimistic UI on todas las mutaciones.
+- `BlockRenderer.tsx` — Renderiza cada `ChapterBlockKind` con estilos del prototype `Lector.html`. Cada block expone `data-block-id` para hit-testing.
+- `HighlightPopover.tsx` — Popover flotante anclado al `selection.rect`. 3 swatches (YELLOW/BLUE/PINK) + botón "✎ Nota".
+- `AnnotationsPanel.tsx` — Side sheet derecho con composer + lista + inline edit + delete con confirm. Filtrable por bloque.
+- `ReaderPreferencesModal.tsx` — Aa-style settings sheet (theme + font + fontSize + lineHeight).
+- `use-heartbeat.ts` — Hook que dispara `PATCH /api/lector/session` cada 5s. Pausa cuando `document.hidden`. `keepalive: true` para que el último beat sobreviva navegación.
+
+**Mobile:** vista view-only del lector + heartbeat + annotations CRUD via long-press. Web tiene la selección + highlights; mobile defiere a v2 (text selection en RN requiere libraries adicionales).
+
+**Wire del "Leer →":** `ChaptersList.tsx` (detalle del libro) ahora envuelve cada row en `<Link href={\`/dashboard/biblioteca/${bookSlug}/lector/${ch.n}\`}>`.
+
+**Smoke verification:**
+- API tests 348/349 (sin cambios).
+- Web typecheck + lint OK.
+- Mobile typecheck + lint OK.
+
+**Deuda técnica abierta:**
+- Mobile text selection + highlight creation.
+- Reader audio playback (audio URL ya viene del backend).
+- Sin tests UI dedicados.
+
+---
+
+### Sesión 34 — 2026-06-03 ✅ COMPLETADA — Sprint S4-front Onboarding UI
+
+**Rama:** `feature/sprint-s4-front-onboarding`
+**Tests:** 348/349 backend (sin cambios)
+**Bitácora:** [docs/informes/sprint-s4-front-onboarding.md](docs/informes/sprint-s4-front-onboarding.md)
+
+**Lo que se construyó:**
+
+Backend del onboarding estaba vivo desde Sesión 16 (Sprint S4) con 11 endpoints + 3 modelos Prisma + catálogos seeded. Hasta hoy ningún usuario nuevo lo veía — entraban al `/dashboard` directamente sin contexto, sin firstName, sin reco de libro inicial. Este sprint cierra el gap UI.
+
+**Backend (cambio mínimo):**
+- `UserMeResponse.onboardingState: { completedAt, skippedAt, tourCompletedAt } | null` — single source of truth.
+- Sin migración Prisma (modelo `OnboardingState` ya existía desde S4).
+
+**Web (`apps/web/src/app/(onboarding)/`):**
+- 5-step route group con layout gating: Welcome → Motivos → Mood → Perfil → Recomendación.
+- Server actions en cada step: `saveStep1Action(motivosIds)`, `saveStep2Action(moodId)`, `saveStep3Action(firstName, voicePreference)`, `closeOnboarding()`.
+- Middleware en `apps/web/middleware.ts` redirige users sin onboarding a `/onboarding`.
+
+**Mobile (`apps/mobile/app/(onboarding)/`):**
+- 5 pantallas paridad con state machine.
+- Tabs layout gating en `(tabs)/_layout.tsx` redirige a `/onboarding` si no `completedAt && !skippedAt`.
+
+**Smoke verification:**
+- API tests 348/349 (sin cambios).
+- Web typecheck + lint OK, build OK.
+- Mobile typecheck + lint OK.
+
+**Deuda técnica abierta:**
+- Tour overlay (paso 5 del design dice "tour" — quedó como `tourCompletedAt: null`).
+- Reco copy puede mejorar con A/B test cuando hay datos.
+
+---
+
+### Sesión 35 — 2026-06-03 ✅ COMPLETADA — Sprint S10 PatronesModule + UI
+
+**Rama sugerida:** `feature/sprint-s10-patrones`
+**Tests:** 356/356 API + 34/34 crypto (348 → 356, +8 nuevos · 1 skipped sentinel)
+**Bitácora:** [docs/informes/sprint-s10-patrones.md](docs/informes/sprint-s10-patrones.md)
+
+**Decisiones lockeadas:**
+1. Pro-only **soft-lock** (200 + `locked: true`), no 403. Mismo patrón que `home.ecoMoment`.
+2. Aggregation **in-process** sobre plaintext metadata (`mood`, `tags`, `createdAt`). Cripto E2E del Diario solo protege `body`/`excerpt`.
+3. `WeeklySummary` **persiste** con `@@unique([userId, weekStart])`. v1 narrative rule-based; LLM-backed cuando AIModule lo permita.
+4. **Sincrónico**, no BullMQ. Aggregation <50ms para 90d.
+5. `shareWithTherapist` queda **stub** hasta TherapyModule v2.
+
+**Lo que se construyó:**
+
+**Backend — 3 endpoints `/api/patrones/*`:**
+- `GET /` → soft-lock FREE o full aggregate (moodMap + hourMood + weeklySummary + period descriptor).
+- `POST /weekly-summary/regenerate` → 200 con summary · 403 FREE · 422 NOT_ENOUGH_ENTRIES (<7 weekly entries).
+- `POST /share-with-therapist` → stub.
+
+**Schema:** `WeeklySummary { userId, weekStart, headline, narrative, entriesUsed, generatedAt }`. Migración `20260604120000_s10_weekly_summary` ya aplicada en prod.
+
+**`@psico/types` +12 tipos** (PatronesPeriod, PatronesResponse, PatronesMoodMapDay, PatronesHourMoodBucket, PatronesWeeklySummary, etc.).
+
+**8 unit tests:** FREE soft-lock · PRO aggregation · hourMood buckets · fallback swatch · regenerate 403/422/upsert · share stub.
+
+**Web (`apps/web/src/app/dashboard/patrones/page.tsx` + 3 components):**
+- `MoodHeatmap.tsx` — calendar strip first-to-last ISO con `warm-100` para gap days.
+- `HourMoodChart.tsx` — 24-bar horizontal chart, dominant mood per hour.
+- `WeeklySummaryCard.tsx` — Client Component lavender gradient, regenerate handler con 422 inline.
+- Header con tabs `?period=30d|90d|1y` como `<Link>` (zero-JS).
+- Paywall card lavender gradient para FREE → CTA `/dashboard/plan`.
+- Sidebar `_DashboardShell` extendido con `📊 Patrones`.
+
+**Mobile (`apps/mobile/app/(tabs)/patrones.tsx` single-screen):**
+- Tabbar item nuevo con `stats-chart` icon (6 ítems totales).
+- Mismo state machine: loading | error | locked (paywall) | empty (<7) | full Pro.
+- Pull-to-refresh, period tabs como Pressable chips, regenerate handler.
+
+**Cliente:** `patronesApi` con 3 métodos. `generated.ts` regenerated, `generate:check` OK.
+
+**Smoke verification:**
+- API tests 356/356.
+- @psico/crypto tests 34/34.
+- Web typecheck + lint OK · Mobile typecheck + lint OK.
+- OpenAPI in sync.
+
+**Deuda técnica abierta:**
+- `composeNarrative` rule-based v1 (placeholder LLM).
+- Sin cache 5-min de getPatrones (justificable cuando period=1y).
+- `shareWithTherapist` stub hasta TherapyModule v2.
+- Mobile tabbar a 6 ítems — re-evaluar si se siente apretado.
+- WeeklySummary nunca borra rows viejas (~104/año, no crítico).
+
+---
+
+### Sesión 36 — 2026-06-03 ✅ COMPLETADA — Sprint B (pulir Phase 1)
+
+**Rama sugerida:** `feature/sprint-b-polish`
+**Tests:** 356/356 API + 34/34 crypto (sin cambios — sprint UI/UX puro).
+**Bitácora:** [docs/informes/sprint-b-polish.md](docs/informes/sprint-b-polish.md)
+
+**Lo que se construyó (3 pulidos sobre el Eco chat):**
+
+1. **Reports UI Eco (web)** — `ReportMessageModal` con 5 razones (HALLUCINATION/OFF_TONE/SENSITIVE_CONTENT/CRISIS_MISHANDLED/OTHER) + comentario opcional 500c. Botón "Reportar" muted bajo cada assistant bubble, filtered out local optimistic IDs.
+2. **Paginación Eco (web)** — botón "↑ Mensajes anteriores" al tope cuando `hasMore`. Snapshot `scrollHeight + scrollTop` → fetch con `?cursor=oldestId` → prepend → restore vía `requestAnimationFrame`. Scroll-to-bottom effect respeta `loadingMore` para no re-anclar al fondo.
+3. **Reports UI Eco (mobile)** — long-press 400ms en assistant bubble → Modal RN con misma lista de razones. Flash toast 4s al tope post-submit.
+
+**Decisiones:**
+- Botón visible vs context-menu (web): no-discoverable en touch.
+- Long-press en mobile: gesture idiomático.
+- Modal con radio-select sobre `Alert.alert`: 5 opciones + comentario opcional no caben en Alert.
+- Mobile pagination diferido: data muestra threads cortos en v1.
+- Flash 4s no bloqueante.
+
+**Sin cambios:**
+- Backend (endpoint `POST /eco/messages/:id/report` listo desde S10).
+- `@psico/types` (EcoMessageReportReason ya existía).
+- `@psico/api-client` (`reportMessage()` y `cursor` param ya existían).
+
+**Smoke verification:**
+- API tests 356/356.
+- @psico/crypto 34/34.
+- Web typecheck + lint OK · Mobile typecheck + lint OK.
+- OpenAPI in sync.
+
+**Deuda técnica abierta:**
+- Mobile pagination si threads crecen.
+- Edit/withdraw de un report.
+- UI tests con Vitest + RTL (sprint propio).
+- Tour overlay onboarding (sprint propio).
+- Reports admin dashboard (Pulso v2).
+
+---
+
+### Próximo paso — Sesión 37
 
 **🎉 Fase 1 UI completa.** Tres caminos:
 

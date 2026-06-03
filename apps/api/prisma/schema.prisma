@@ -129,6 +129,7 @@ model User {
   highlights              Highlight[]
   annotations             Annotation[]
   readingSessions         ReadingSession[]
+  weeklySummaries         WeeklySummary[]
 
   @@unique([authProvider, providerId])
   @@index([email])
@@ -850,6 +851,48 @@ model BillingUsageDay {
 
   @@unique([userId, day])
   @@index([day])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Sprint S10 — PatronesModule (Pro feature)
+//
+// `WeeklySummary` is a per-week LLM-generated reflection card. The server
+// composes a prompt from the user's mood pattern + entry count of the last
+// 7 days (NOT the entry content — that's still E2E-encrypted), asks
+// Anthropic for a short editorial paragraph, and persists it.
+//
+// Privacy note:
+//   - `narrative` is plain text. The aggregate inputs (mood + count) are
+//     non-sensitive metadata already visible to the server. The output is
+//     a paraphrase of those aggregates, not of any cifrado entry body.
+//   - Users who opt-OUT of Eco/insights (UserPrivacySettings) skip this
+//     entirely; their `weekly-summary` job is a no-op.
+//   - When TerapiaModule (S13) lands, sharing this snapshot with a
+//     therapist re-encrypts it with the therapist's ephemeral key — same
+//     pattern as SharedDiaryEntry.
+// ───────────────────────────────────────────────────────────────────────────
+
+model WeeklySummary {
+  id          String   @id @default(cuid())
+  userId      String
+  // UTC midnight of the Monday that opens the summary week. Combined with
+  // userId as a unique key so the regenerate endpoint is idempotent.
+  weekStart   DateTime
+  // Headline rendered as the card title. Server-trimmed at 80 chars to
+  // avoid LLM-generated runaway lengths.
+  headline    String
+  // Editorial paragraph rendered as the card body. Stored plain (see
+  // §Privacy note above).
+  narrative   String
+  // How many DiaryEntry rows landed in the week. Recorded so the UI can
+  // show "5 entradas esta semana" without re-querying.
+  entriesUsed Int      @default(0)
+  generatedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekStart])
+  @@index([userId, weekStart(sort: Desc)])
 }
 
 // ─── AI / RAG models ──────────────────────────────────────────────────────────

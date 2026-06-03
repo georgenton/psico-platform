@@ -7,6 +7,7 @@ import { useState } from "react";
 import { logoutAction } from "@/actions/auth";
 import type { SessionUser } from "@/lib/api.server";
 import { DiaryKeyProvider } from "@/lib/crypto/diary-key-context";
+import { TourOverlay } from "./_TourOverlay";
 
 // ── Nav config ─────────────────────────────────────────────────────────────
 
@@ -15,22 +16,54 @@ import { DiaryKeyProvider } from "@/lib/crypto/diary-key-context";
 // because the backend (Sprint S6) ships the endpoints; the page below renders
 // a placeholder until the crypto module is wired client-side.
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Inicio", icon: "🏠", exact: true },
+  {
+    href: "/dashboard",
+    label: "Inicio",
+    icon: "🏠",
+    exact: true,
+    tourTarget: "inicio",
+  },
   {
     href: "/dashboard/biblioteca",
     label: "Mi biblioteca",
     icon: "📚",
     exact: false,
+    tourTarget: "biblioteca",
   },
-  { href: "/dashboard/diario", label: "Diario", icon: "✎", exact: false },
-  { href: "/dashboard/eco", label: "Eco", icon: "🌿", exact: false },
-  { href: "/dashboard/patrones", label: "Patrones", icon: "📊", exact: false },
-  { href: "/dashboard/plan", label: "Mi plan", icon: "💳", exact: false },
+  {
+    href: "/dashboard/diario",
+    label: "Diario",
+    icon: "✎",
+    exact: false,
+    tourTarget: "diario",
+  },
+  {
+    href: "/dashboard/eco",
+    label: "Eco",
+    icon: "🌿",
+    exact: false,
+    tourTarget: "eco",
+  },
+  {
+    href: "/dashboard/patrones",
+    label: "Patrones",
+    icon: "📊",
+    exact: false,
+    tourTarget: "patrones",
+  },
+  {
+    href: "/dashboard/plan",
+    label: "Mi plan",
+    icon: "💳",
+    exact: false,
+    tourTarget: null,
+  },
   {
     href: "/dashboard/security",
     label: "Seguridad",
     icon: "🔐",
     exact: false,
+    tourTarget: null,
   },
 ] as const;
 
@@ -83,6 +116,7 @@ function SidebarContent({
               key={item.href}
               href={item.href}
               onClick={onNav}
+              data-tour-target={item.tourTarget ?? undefined}
               className="mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all"
               style={
                 active
@@ -150,6 +184,7 @@ function SidebarContent({
 export function DashboardShell({
   user,
   cryptoSalt,
+  showTour,
   children,
 }: {
   user: SessionUser | null;
@@ -160,6 +195,12 @@ export function DashboardShell({
    * survive navigation, which the security page needs.
    */
   cryptoSalt: string | null;
+  /**
+   * Sprint S37: when true, mounts the post-onboarding TourOverlay on top
+   * of the dashboard. Computed at the layout level from `onboardingState`
+   * so the check happens once per nav, not per render.
+   */
+  showTour: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -245,6 +286,11 @@ export function DashboardShell({
           {/* Page content */}
           <main className="flex-1 overflow-auto p-4 sm:p-6">{children}</main>
         </div>
+
+        {/* Sprint S37: post-onboarding tour overlay. Mounts after the rest
+            of the dashboard so target nav items exist in the DOM when the
+            overlay queries for them. */}
+        {showTour ? <TourOverlay /> : null}
       </div>
     </DiaryKeyProvider>
   );

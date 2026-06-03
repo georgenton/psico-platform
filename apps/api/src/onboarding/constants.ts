@@ -62,6 +62,15 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
       "Tu compañero conversacional. No es un terapeuta — está aquí para " +
       "escucharte y ayudarte a poner palabras a lo que sientes.",
   },
+  {
+    order: 5,
+    target: "patrones",
+    title: "Patrones",
+    body:
+      "Cuando escribas un poco más en tu diario, aquí vas a ver tu " +
+      "mapa emocional: qué moods se repiten y cuándo escribes. Función " +
+      "Pro — el preview vive aquí también.",
+  },
 ];
 
 // ─── Recommendation algorithm ────────────────────────────────────────────────

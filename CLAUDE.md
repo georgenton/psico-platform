@@ -1640,7 +1640,55 @@ Primera capa de tests UI para `apps/web`. Setup completo Vitest + RTL + jsdom + 
 
 ---
 
-### Próximo paso — Sesión 40
+### Sesión 40 — 2026-06-04 ✅ COMPLETADA — Sprint S40 UI tests mobile (Jest + RNTL + jest-expo)
+
+**Rama sugerida:** `feature/sprint-40-mobile-ui-tests`
+**Tests:** 16/16 mobile nuevos + 24/24 web + 358/359 API + 34/34 crypto.
+**Bitácora:** [docs/informes/sprint-40-mobile-ui-tests.md](docs/informes/sprint-40-mobile-ui-tests.md)
+
+**Lo que se construyó:**
+
+Cierra la simetría que faltaba después de S39 (web): setup completo Jest + jest-expo + RN Testing Library en `apps/mobile` + cobertura de 3 componentes presentacionales críticos paralelos a los del web.
+
+**Setup:**
+- Dev deps: `jest@^29.7.0`, `jest-expo@~52.0.6`, `@testing-library/react-native@^12.9.0`, `react-test-renderer@18.3.1`, `@types/jest`, `@types/react-test-renderer`.
+- `babel.config.js` con `babel-preset-expo` para Jest.
+- `jest.config.js` con preset `jest-expo`, `setupFilesAfterEnv`, testMatch, transformIgnorePatterns **pnpm-safe** (regex con `(.*/)?<pkg>` que matchea cualquier profundidad), moduleNameMapper `@/*`.
+- `jest.setup.ts` con `extend-expect` matchers + mock de `@expo/vector-icons` (el real falla con `loadedNativeFonts.forEach is not a function`).
+- Scripts: `test` (`jest --passWithNoTests`) + `test:watch`.
+
+**Tests creados:**
+- `UsageCards mobile` — 6 tests: null state, 4 cards, ilimitado, no incluido, "de N", date range.
+- `InvoicesList mobile` — 5 tests: null return, empty state, render con invoices, `Linking.openURL` con spy, omite botón cuando pdfUrl es null.
+- `TourOverlay mobile` — 5 tests: first step, advance, Terminar con stepsCompleted=N, Saltar con index actual, empty catalog dismiss silencioso.
+
+**Decisiones:**
+1. Jest + jest-expo, no Vitest — RN babel preset no portable a Vitest.
+2. transformIgnorePatterns pnpm-safe — sin esto, Flow types de `@react-native/js-polyfills` rompen el parser.
+3. `babel.config.js` explícito — Jest no comparte el resolver de Metro.
+4. Mock de `@expo/vector-icons` global en setup — render real necesita Expo's font-loading bridge.
+5. `setupFilesAfterEnv` (no "setupFilesAfterEach" — no existe).
+6. `@testing-library/react-native/extend-expect` para matchers.
+7. Sin tests de screens completos con `expo-router` — diferido a S41.
+
+**Smoke verification:**
+- Mobile tests 16/16 en 1.7s.
+- Mobile typecheck + lint OK.
+- Web tests 24/24 (sin cambios).
+- API tests 358/358 (sin cambios).
+- @psico/crypto 34/34.
+
+**Deuda técnica abierta:**
+- Sin tests para screens completos con `expo-router` (requieren harness con Stack/Tabs mocked).
+- Sin tests para `_layout.tsx` (useAuth + useDiaryKey context providers).
+- Sin coverage thresholds (sembramos infra; floor 60% en sprint propio).
+- Sin integración a CI workflow (cubre el sprint que sigue).
+- Sin tests del crypto context ni del auth context.
+- Reanimated mock no añadido (no needed v1; agregar cuando atravesemos animaciones).
+
+---
+
+### Próximo paso — Sesión 41
 
 **🎉 Fase 1 UI completa.** Tres caminos:
 

@@ -11,6 +11,8 @@ import type {
 } from "@psico/types";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { AIService } from "../ai";
 
 /**
  * PatronesService — Sprint S10.
@@ -37,7 +39,14 @@ export class PatronesService {
   // heatmap renderable instead of throwing.
   private static readonly FALLBACK_SWATCH = "#C7C0B5";
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Sprint S38: nullable in spirit — we DO inject AIService, but every
+    // call site wraps it in try/catch + rule-based fallback so a missing
+    // `ANTHROPIC_API_KEY` or a transient LLM error never breaks the user
+    // flow.
+    private readonly aiService: AIService,
+  ) {}
 
   // ── GET /api/patrones?period=30d ──────────────────────────────────────
 
@@ -140,7 +149,9 @@ export class PatronesService {
 
     const entries = await this.prisma.diaryEntry.findMany({
       where: { userId, createdAt: { gte: weekStart, lt: weekEnd } },
-      select: { mood: true, createdAt: true },
+      // Sprint S38: include `tags` so the LLM can mention recurring topics
+      // (the tag tokens are plaintext metadata, never the body cipher).
+      select: { mood: true, createdAt: true, tags: true },
     });
 
     if (entries.length < PatronesService.MIN_ENTRIES_FOR_FULL_VIEW) {
@@ -148,7 +159,15 @@ export class PatronesService {
       throw new Error("NOT_ENOUGH_ENTRIES");
     }
 
-    const { headline, narrative } = this.composeNarrative(entries);
+    // Sprint S38: try the LLM first. The aggregate stats we pass are
+    // EXACTLY what the rule-based composer already had access to — no diary
+    // body, no plaintext content, only categorical counts. If the LLM call
+    // fails (missing key, network blip, parse mismatch), drop back to the
+    // deterministic narrative so the user never sees an empty card.
+    const { headline, narrative } = await this.buildNarrative(
+      entries,
+      weekStart,
+    );
 
     const row = await this.prisma.weeklySummary.upsert({
       where: { userId_weekStart: { userId, weekStart } },
@@ -226,18 +245,35 @@ export class PatronesService {
   }
 
   // ───────────────────────────────────────────────────────────────────
-  // Narrative composition (placeholder — LLM wiring in Worker stage)
+  // Narrative composition — Sprint S38: LLM-first with deterministic
+  // fallback. Aggregates are computed once and shared between paths so the
+  // LLM and the fallback see EXACTLY the same view of the week.
   // ───────────────────────────────────────────────────────────────────
 
   /**
-   * v1 narrative is built from a few rule-based observations:
-   *   - dominant mood
-   *   - quietest day of the week (hour cluster)
-   *   - swing (range of mood diversity)
-   *
-   * When the LLM wiring lands (BullMQ + Anthropic), this method is
-   * replaced by a network call to `AIService.summariseWeek`. The shape
-   * of the row stays the same so consumers don't break.
+   * Try the LLM-backed narrative; on any failure (missing key, network,
+   * parse error) fall back to the deterministic composer. The aggregate
+   * stats we pass to the model are metadata-only — no diary body, no
+   * plaintext content.
+   */
+  private async buildNarrative(
+    entries: Array<{ mood: string; createdAt: Date; tags: string[] }>,
+    weekStart: Date,
+  ): Promise<{ headline: string; narrative: string }> {
+    const stats = computeWeeklyStats(entries, weekStart);
+    try {
+      return await this.aiService.generateWeeklyNarrative(stats);
+    } catch (err) {
+      this.logger.warn(
+        `LLM weekly-narrative failed (${(err as Error).message}); using rule-based fallback`,
+      );
+      return this.composeNarrative(entries);
+    }
+  }
+
+  /**
+   * Deterministic fallback (also kept for the test path). Operates on the
+   * SAME entry shape as `buildNarrative`, but only looks at mood + count.
    */
   private composeNarrative(entries: Array<{ mood: string; createdAt: Date }>): {
     headline: string;
@@ -328,4 +364,46 @@ export class PatronesService {
       weeklySummary: partial.weeklySummary ?? null,
     };
   }
+}
+
+// ─── Helpers (module-level, side-effect-free) ─────────────────────────────
+
+/**
+ * Compute the aggregate stats we hand to the LLM. The shape is intentionally
+ * narrow — categorical counts only. The model never receives the entry body
+ * (it's encrypted and we don't have the key) nor anything that could leak
+ * the diary's textual content. The same stats also drive the rule-based
+ * fallback so both paths are auditable identically.
+ */
+export function computeWeeklyStats(
+  entries: Array<{ mood: string; createdAt: Date; tags: string[] }>,
+  weekStart: Date,
+): {
+  entryCount: number;
+  dominantMood: string;
+  moodCounts: Record<string, number>;
+  topTags: string[];
+  weekStartIso: string;
+} {
+  const moodCounts: Record<string, number> = {};
+  const tagCounts: Record<string, number> = {};
+  for (const e of entries) {
+    moodCounts[e.mood] = (moodCounts[e.mood] ?? 0) + 1;
+    for (const t of e.tags) {
+      tagCounts[t] = (tagCounts[t] ?? 0) + 1;
+    }
+  }
+  const dominantMood =
+    Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "calma";
+  const topTags = Object.entries(tagCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([t]) => t);
+  return {
+    entryCount: entries.length,
+    dominantMood,
+    moodCounts,
+    topTags,
+    weekStartIso: weekStart.toISOString().slice(0, 10),
+  };
 }

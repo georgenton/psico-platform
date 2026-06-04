@@ -25,10 +25,29 @@ function buildPrisma(overrides: Partial<Record<string, unknown>> = {}) {
   } as unknown as ConstructorParameters<typeof PatronesService>[0];
 }
 
-function entry(mood: string, isoDate: string, hourUtc: number) {
+// Sprint S38: a tiny stub matching the AIService surface we need.
+function buildAi(
+  generateImpl: (
+    stats: unknown,
+  ) => Promise<{ headline: string; narrative: string }> = async () => ({
+    headline: "LLM headline",
+    narrative: "LLM narrative paragraph.",
+  }),
+) {
+  return {
+    generateWeeklyNarrative: vi.fn(generateImpl),
+  } as unknown as ConstructorParameters<typeof PatronesService>[1];
+}
+
+function entry(
+  mood: string,
+  isoDate: string,
+  hourUtc: number,
+  tags: string[] = [],
+) {
   const d = new Date(`${isoDate}T00:00:00.000Z`);
   d.setUTCHours(hourUtc, 0, 0, 0);
-  return { mood, createdAt: d };
+  return { mood, createdAt: d, tags };
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────
@@ -43,7 +62,7 @@ describe("PatronesService.getPatrones", () => {
         count: vi.fn().mockResolvedValue(5),
       } as never,
     });
-    const svc = new PatronesService(prisma);
+    const svc = new PatronesService(prisma, buildAi());
     const result = await svc.getPatrones("u-1", "FREE" as Plan, "30d");
 
     expect(result.tier).toBe("free");
@@ -65,7 +84,7 @@ describe("PatronesService.getPatrones", () => {
         count: vi.fn(),
       } as never,
     });
-    const svc = new PatronesService(prisma);
+    const svc = new PatronesService(prisma, buildAi());
     const result = await svc.getPatrones("u-1", "PRO" as Plan, "30d");
 
     expect(result.tier).toBe("pro");
@@ -89,7 +108,7 @@ describe("PatronesService.getPatrones", () => {
         count: vi.fn(),
       } as never,
     });
-    const svc = new PatronesService(prisma);
+    const svc = new PatronesService(prisma, buildAi());
     const result = await svc.getPatrones("u-1", "PRO" as Plan, "30d");
 
     expect(result.hourMood).toHaveLength(24);
@@ -111,7 +130,7 @@ describe("PatronesService.getPatrones", () => {
         findMany: vi.fn().mockResolvedValue([]),
       } as never,
     });
-    const svc = new PatronesService(prisma);
+    const svc = new PatronesService(prisma, buildAi());
     const result = await svc.getPatrones("u-1", "PRO" as Plan, "30d");
 
     expect(result.moodMap[0]?.swatch).toBe("#C7C0B5");
@@ -122,7 +141,7 @@ describe("PatronesService.regenerateWeeklySummary", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("throws ForbiddenException for FREE", async () => {
-    const svc = new PatronesService(buildPrisma());
+    const svc = new PatronesService(buildPrisma(), buildAi());
     await expect(
       svc.regenerateWeeklySummary("u-1", "FREE" as Plan),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -140,7 +159,7 @@ describe("PatronesService.regenerateWeeklySummary", () => {
         count: vi.fn(),
       } as never,
     });
-    const svc = new PatronesService(prisma);
+    const svc = new PatronesService(prisma, buildAi());
     await expect(
       svc.regenerateWeeklySummary("u-1", "PRO" as Plan),
     ).rejects.toThrow("NOT_ENOUGH_ENTRIES");
@@ -167,18 +186,114 @@ describe("PatronesService.regenerateWeeklySummary", () => {
         upsert: upsertSpy,
       } as never,
     });
-    const svc = new PatronesService(prisma);
+    const svc = new PatronesService(prisma, buildAi());
     const result = await svc.regenerateWeeklySummary("u-1", "PRO" as Plan);
 
     expect(upsertSpy).toHaveBeenCalled();
     expect(result.entriesUsed).toBe(7);
     expect(result.headline).toBe("Headline test");
   });
+
+  // ─── Sprint S38: LLM wiring ──────────────────────────────────────────
+
+  it("calls the LLM with aggregated stats and persists its output", async () => {
+    const seven = [
+      entry("calma", "2026-06-01", 9, ["familia", "trabajo"]),
+      entry("ansiedad", "2026-06-02", 10, ["trabajo"]),
+      entry("calma", "2026-06-03", 7),
+      entry("calma", "2026-06-04", 22, ["familia"]),
+      entry("ansiedad", "2026-06-05", 18),
+      entry("calma", "2026-06-06", 9, ["familia"]),
+      entry("calma", "2026-06-07", 11),
+    ];
+    const upsertSpy = vi.fn().mockResolvedValue({
+      weekStart: new Date("2026-06-01T00:00:00.000Z"),
+      headline: "LLM-built headline",
+      narrative: "LLM-built narrative.",
+      entriesUsed: 7,
+      generatedAt: new Date(),
+    });
+    const ai = buildAi(async () => ({
+      headline: "LLM-built headline",
+      narrative: "LLM-built narrative.",
+    }));
+    const prisma = buildPrisma({
+      diaryEntry: {
+        findMany: vi.fn().mockResolvedValue(seven),
+        count: vi.fn(),
+      } as never,
+      weeklySummary: {
+        findFirst: vi.fn(),
+        upsert: upsertSpy,
+      } as never,
+    });
+    const svc = new PatronesService(prisma, ai);
+    const result = await svc.regenerateWeeklySummary("u-1", "PRO" as Plan);
+
+    expect(
+      (ai as unknown as { generateWeeklyNarrative: ReturnType<typeof vi.fn> })
+        .generateWeeklyNarrative,
+    ).toHaveBeenCalledTimes(1);
+    expect(result.headline).toBe("LLM-built headline");
+
+    // What we passed to the LLM is metadata-only — the privacy invariant.
+    const passed = (
+      ai as unknown as { generateWeeklyNarrative: ReturnType<typeof vi.fn> }
+    ).generateWeeklyNarrative.mock.calls[0]![0] as Record<string, unknown>;
+    expect(Object.keys(passed).sort()).toEqual(
+      [
+        "dominantMood",
+        "entryCount",
+        "moodCounts",
+        "topTags",
+        "weekStartIso",
+      ].sort(),
+    );
+    expect(passed.entryCount).toBe(7);
+    expect(passed.dominantMood).toBe("calma");
+    expect(passed.topTags).toEqual(["familia", "trabajo"]);
+    // Critical: no `textCiphertext`, no body, no plaintext content.
+    expect(JSON.stringify(passed)).not.toContain("textCiphertext");
+    expect(JSON.stringify(passed)).not.toContain("body");
+  });
+
+  it("falls back to the rule-based composer when the LLM call throws", async () => {
+    const seven = Array.from({ length: 7 }, (_, i) =>
+      entry("ansiedad", `2026-06-0${i + 1}`, 10),
+    );
+    const upsertSpy = vi.fn().mockImplementation(({ create }) =>
+      Promise.resolve({
+        weekStart: new Date("2026-06-01T00:00:00.000Z"),
+        headline: (create as { headline: string }).headline,
+        narrative: (create as { narrative: string }).narrative,
+        entriesUsed: 7,
+        generatedAt: new Date(),
+      }),
+    );
+    const ai = buildAi(() => {
+      throw new Error("ANTHROPIC_DOWN");
+    });
+    const prisma = buildPrisma({
+      diaryEntry: {
+        findMany: vi.fn().mockResolvedValue(seven),
+        count: vi.fn(),
+      } as never,
+      weeklySummary: {
+        findFirst: vi.fn(),
+        upsert: upsertSpy,
+      } as never,
+    });
+    const svc = new PatronesService(prisma, ai);
+    const result = await svc.regenerateWeeklySummary("u-1", "PRO" as Plan);
+
+    // The rule-based composer mentions the dominant mood by name.
+    expect(result.headline.toLowerCase()).toContain("ansiedad");
+  });
 });
 
 describe("PatronesService.shareWithTherapist", () => {
   it("returns the v1 stub", () => {
-    const svc = new PatronesService(buildPrisma());
+    const svc = new PatronesService(buildPrisma(), buildAi());
     expect(svc.shareWithTherapist()).toEqual({ ok: true, status: "stub" });
   });
 });

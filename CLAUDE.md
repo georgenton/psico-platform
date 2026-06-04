@@ -1545,7 +1545,53 @@ Backend del onboarding estaba vivo desde Sesión 16 (Sprint S4) con 11 endpoints
 
 ---
 
-### Próximo paso — Sesión 38
+### Sesión 38 — 2026-06-03 ✅ COMPLETADA — Sprint S38 LLM-backed WeeklySummary
+
+**Rama sugerida:** `feature/sprint-38-weekly-narrative`
+**Tests:** 358/359 API + 34/34 crypto (356 → 358 · +2 nuevos · 1 skipped sentinel)
+**Bitácora:** [docs/informes/sprint-38-llm-weekly.md](docs/informes/sprint-38-llm-weekly.md)
+
+**Lo que se construyó:**
+
+Reemplaza el `composeNarrative` rule-based del `PatronesService.regenerateWeeklySummary` con una llamada al LLM (Claude Sonnet 4.6 via `AIService`). El endpoint, request shape y response shape quedan idénticos — todo cambia bajo el capó.
+
+**Backend:**
+- `apps/api/src/ai/ai.service.ts` — nuevo `generateWeeklyNarrative(stats)` + `WEEKLY_SYSTEM_PROMPT` cacheable + parser `parseWeeklyOutput`.
+- `apps/api/src/patrones/patrones.module.ts` — importa `AIModule`.
+- `apps/api/src/patrones/patrones.service.ts` — inyecta AIService; nuevo `buildNarrative()` try LLM → catch fallback rule-based; helper `computeWeeklyStats()` module-level que centraliza el payload.
+- `findMany` extendido con `tags: true` (plaintext metadata).
+
+**Decisiones:**
+1. Sonnet 4.6 (no Haiku) — 1×/semana/user, costo despreciable, tono pesa más.
+2. Max tokens 512 + cache_control ephemeral en system prompt.
+3. Format estricto `HEADLINE:`/`NARRATIVE:` parseado deterministic.
+4. Fallback automático ante CUALQUIER error (key, network, parse, 5xx).
+5. Tags incluidos (top 5) — plaintext desde S6, semánticos.
+6. Sin cap por user (upsert sobre weekStart hace rate-limit natural).
+7. Shape `WeeklySummary` sin cambios — consumers no se tocan.
+
+**Privacy hard:** el LLM **nunca** ve `textCiphertext`, body, o texto del diario. Solo metadata categórica (entryCount, dominantMood, moodCounts, topTags, weekStartIso). Test explícito enforces que las keys del payload son exactamente esas — sin `textCiphertext`, sin `body`.
+
+**Tests nuevos:**
+- "calls the LLM with aggregated stats and persists its output" + verificación de privacy keys.
+- "falls back to the rule-based composer when the LLM call throws" verifica que el headline contiene el mood dominante.
+
+**Smoke verification:**
+- API tests 358/358 (+1 skipped sentinel).
+- @psico/crypto 34/34.
+- API typecheck + lint OK (4 warnings preexistentes, sin errores nuevos).
+- OpenAPI in sync (no shape changes).
+
+**Deuda técnica abierta:**
+- Sin cap Redis-backed por user/día (justificable cuando costos lo pidan).
+- Sin telemetría en BillingUsageDay del LLM cost.
+- Sin A/B entre LLM vs rule-based (pinned para Pulso v2).
+- Prompt no usa `lastWeekSummary` como contexto editorial.
+- Idioma español hardcoded.
+
+---
+
+### Próximo paso — Sesión 39
 
 **🎉 Fase 1 UI completa.** Tres caminos:
 

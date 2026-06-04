@@ -35,5 +35,19 @@ export default defineConfig({
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     // Headless mode for CI — no UI, parallel pool.
     pool: "threads",
+    // Sprint S41: coverage thresholds as a soft floor for now. We turn
+    // OFF the hard fail (`thresholds.lines: 60` would error) and just
+    // surface the report. When we grow coverage beyond 60% lines on
+    // tested files, flip `thresholds.autoUpdate: false` and enable a real
+    // floor.
+    coverage: {
+      provider: "v8",
+      include: [
+        "src/components/dashboard/**/*.{ts,tsx}",
+        "src/app/dashboard/_TourOverlay.tsx",
+      ],
+      exclude: ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],
+      reporter: ["text", "json-summary"],
+    },
   },
 });

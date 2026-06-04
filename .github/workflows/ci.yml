@@ -121,8 +121,32 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @psico/api exec prisma generate
 
-      - name: Test (affected, unit only — no DB in CI)
-        run: pnpm turbo run test --affected
+      # Sprint S41 (cierre deuda S39+S40): tests split por workspace para
+      # visibilidad explícita en la UI de GitHub Actions. Cada step usa
+      # turbo + --filter para preservar el cache `.turbo`, y los 4 corren
+      # SIEMPRE (sin --affected) — la safety net es más valiosa que el
+      # ahorro de CI minutes en este monorepo. Un fallo en un workspace no
+      # esconde el status de los otros.
+      - name: Test · API (Vitest + Nest unit, no DB in CI)
+        run: pnpm turbo run test --filter=@psico/api
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+      - name: Test · Crypto (Argon2id + AEAD roundtrip)
+        run: pnpm turbo run test --filter=@psico/crypto
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+      - name: Test · Web (Vitest + RTL + jsdom)
+        run: pnpm turbo run test --filter=@psico/web
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+      - name: Test · Mobile (Jest + jest-expo + RNTL)
+        run: pnpm turbo run test --filter=@psico/mobile
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}

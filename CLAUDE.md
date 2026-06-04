@@ -1688,7 +1688,54 @@ Cierra la simetría que faltaba después de S39 (web): setup completo Jest + jes
 
 ---
 
-### Próximo paso — Sesión 41
+### Sesión 41 — 2026-06-04 ✅ COMPLETADA — Sprint S41 CI tests por workspace + coverage opt-in
+
+**Rama sugerida:** `feature/sprint-41-ci-wire-tests`
+**Tests:** 16/16 mobile + 24/24 web + 358/359 API + 34/34 crypto (sin cambios — sprint CI).
+**Bitácora:** [docs/informes/sprint-41-ci-wire-tests.md](docs/informes/sprint-41-ci-wire-tests.md)
+
+**Lo que se construyó (cierra deuda técnica S39+S40):**
+
+Hace visible en el GitHub Actions UI que cada workspace tiene su propia suite y status independientes. Añade coverage opt-in en web y mobile como infraestructura para floors futuros.
+
+**CI workflow:**
+- `.github/workflows/ci.yml` Test job reescrito — reemplaza el step monolítico `Test (affected)` con **4 steps named**:
+  - `Test · API (Vitest + Nest unit)`
+  - `Test · Crypto (Argon2id + AEAD roundtrip)`
+  - `Test · Web (Vitest + RTL + jsdom)`
+  - `Test · Mobile (Jest + jest-expo + RNTL)`
+- Cada uno `pnpm turbo run test --filter=@psico/<name>` para preservar cache `.turbo`.
+- `--affected` removido del flow CI: la safety net (TODOS los workspaces SIEMPRE) vale más que ahorrar ~40s.
+
+**Coverage opt-in:**
+- Web: `apps/web/vitest.config.ts` con `test.coverage` provider `v8` + reporter `text`/`json-summary`. Script `test:cov`. Dev dep `@vitest/coverage-v8@^2`.
+- Mobile: `apps/mobile/jest.config.js` con `collectCoverageFrom: src/**/*.{ts,tsx}` + reporter `text`/`json-summary`. Script `test:cov`.
+- Ambos warn-only (sin thresholds). Smoke local OK: MoodHeatmap 100% · UsageCards 100% · WeeklySummaryCard 97.8% (web); UsageCards 100% · InvoicesList 100% · TourOverlay 100% (mobile).
+
+**Decisiones:**
+1. Split named en lugar de un step monolítico — un fallo no esconde el status de los demás.
+2. `turbo run test --filter` por workspace (no `pnpm --filter`) — preserva cache.
+3. Sin `--affected` en CI — la safety net vale los segundos.
+4. Coverage capability, no gate v1 — cuando crezcamos sobre 60% lines en archivos cubiertos, activar floor real.
+5. Provider v8 en web (vitest), istanbul default en mobile (jest).
+6. No coverage en API ni crypto (tests sólidos ya, ROI bajo).
+
+**Smoke verification:**
+- API tests 358/358 + 1 skipped sentinel · @psico/crypto 34/34 · Web 24/24 · Mobile 16/16.
+- Web `test:cov` emite tabla con percentages por archivo.
+- Mobile `test:cov` emite tabla equivalente.
+- YAML válido (`python3 -c "import yaml; yaml.safe_load(...)"`).
+
+**Deuda técnica abierta:**
+- Coverage floors quedan en warn-only — activar `thresholds.lines: 60` cuando cobertura sea >60% en archivos cubiertos.
+- Coverage en API + crypto sin wireado — agregar si queremos dashboard global.
+- Coverage dashboard (Codecov / Artifact upload) no integrado — pendiente justificación.
+- Tests de Client Components grandes (ChatArea, LectorShell, EcoShell) siguen sin cubrir.
+- Tests de screens completos con `expo-router` siguen diferidos.
+
+---
+
+### Próximo paso — Sesión 42
 
 **🎉 Fase 1 UI completa.** Tres caminos:
 

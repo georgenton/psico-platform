@@ -38,4 +38,14 @@ module.exports = {
   // a few seconds on the first run. Bumping the global timeout from 5s
   // to 15s gives the slowest path enough room without masking real bugs.
   testTimeout: 15000,
+  // Sprint S41: coverage opt-in via `pnpm --filter @psico/mobile test:cov`.
+  // We collect from src/ but exclude test files. Reporter is text +
+  // json-summary so CI can grep the percentages later if we want to add a
+  // hard floor — for now, warn-only.
+  collectCoverageFrom: [
+    "src/**/*.{ts,tsx}",
+    "!src/**/*.test.{ts,tsx}",
+    "!src/**/*.spec.{ts,tsx}",
+  ],
+  coverageReporters: ["text", "json-summary"],
 };

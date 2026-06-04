@@ -1,15 +1,21 @@
 // Sprint S39: Vitest global setup for the web app.
 //
-// Imports the jest-dom matchers (`toBeInTheDocument`, `toHaveTextContent`,
-// `toHaveAttribute`, etc.) so RTL queries read naturally. The auto-cleanup
-// import from @testing-library/react is opt-in in Vitest — we wire it here
-// once and forget about it.
+// Registers the jest-dom matchers (`toBeInTheDocument`, `toHaveTextContent`,
+// `toHaveAttribute`, etc.) so RTL queries read naturally. Wires
+// `afterEach(cleanup)` once so DOM state doesn't leak between tests.
+//
+// We do the matcher registration manually via `expect.extend(matchers)`
+// instead of the side-effect `import "@testing-library/jest-dom/vitest"`
+// shortcut because the subpath import was flaky on CI's pnpm resolution
+// (worked locally, threw "Invalid Chai property: toBeInTheDocument" on
+// GitHub Actions). The explicit form is robust and version-tolerant.
 
-import "@testing-library/jest-dom/vitest";
-import { afterEach } from "vitest";
+import { expect, afterEach } from "vitest";
+import * as matchers from "@testing-library/jest-dom/matchers";
 import { cleanup } from "@testing-library/react";
 
-// Unmount every component after each test so DOM state doesn't leak.
+expect.extend(matchers);
+
 afterEach(() => {
   cleanup();
 });

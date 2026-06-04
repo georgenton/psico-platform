@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { PrismaModule } from "../prisma";
+import { AIModule } from "../ai";
 import { PatronesController } from "./patrones.controller";
 import { PatronesService } from "./patrones.service";
 
@@ -17,7 +18,11 @@ import { PatronesService } from "./patrones.service";
  * NLP over the decrypted text and ship in a follow-up sprint.
  */
 @Module({
-  imports: [PrismaModule],
+  // Sprint S38: AIModule exposes AIService.generateWeeklyNarrative for the
+  // LLM-backed `weekly-summary/regenerate` path. If AIService is unavailable
+  // (e.g. ANTHROPIC_API_KEY unset in dev), the service falls back to the
+  // rule-based composer.
+  imports: [PrismaModule, AIModule],
   controllers: [PatronesController],
   providers: [PatronesService],
   exports: [PatronesService],

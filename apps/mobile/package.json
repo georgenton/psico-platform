@@ -12,7 +12,8 @@
     "lint": "eslint app/",
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage --passWithNoTests"
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.2.1",

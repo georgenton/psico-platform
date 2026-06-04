@@ -8,7 +8,9 @@
     "dev": "next dev --port 3000",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@psico/api-client": "workspace:*",
@@ -28,11 +30,18 @@
   "devDependencies": {
     "@psico/eslint-config": "workspace:*",
     "@psico/typescript-config": "workspace:*",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20.14.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.7.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.4",
-    "typescript": "^5.4.5"
+    "happy-dom": "^15.11.7",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.4.5",
+    "vitest": "^2.1.9"
   }
 }

@@ -1591,7 +1591,56 @@ Reemplaza el `composeNarrative` rule-based del `PatronesService.regenerateWeekly
 
 ---
 
-### Próximo paso — Sesión 39
+### Sesión 39 — 2026-06-04 ✅ COMPLETADA — Sprint S39 UI tests web (Vitest + RTL)
+
+**Rama sugerida:** `feature/sprint-39-web-ui-tests`
+**Tests:** 24/24 web nuevos + 358/359 API + 34/34 crypto.
+**Bitácora:** [docs/informes/sprint-39-web-ui-tests.md](docs/informes/sprint-39-web-ui-tests.md)
+
+**Lo que se construyó:**
+
+Primera capa de tests UI para `apps/web`. Setup completo Vitest + RTL + jsdom + jest-dom + user-event en el workspace, más cobertura de 5 componentes críticos del producto Phase 1.
+
+**Setup:**
+- Dev deps: `vitest@^2`, `@vitejs/plugin-react@^4`, `@testing-library/react@^16`, `@testing-library/jest-dom@^6`, `@testing-library/user-event@^14`, `jsdom@^25`.
+- `vitest.config.ts` + `vitest.setup.ts` (jest-dom matchers + cleanup global).
+- Scripts: `test` (run once) + `test:watch`.
+
+**Tests creados:**
+- `UsageCards` — 6 tests: null state, 4 cards renderizadas, progress bar aria-label, over-quota highlight, `ilimitado`, `no incluido`.
+- `WeeklySummaryCard` — 4 tests: null state CTA, render con summary, 422 inline error, regenerate success.
+- `ReportMessageModal` — 5 tests: render, radio + counter, POST con shape correcto, error inline, Cancelar.
+- `MoodHeatmap` — 4 tests: empty state, cells por día consecutivo, gap-fills warm-100, heading.
+- `TourOverlay` — 5 tests: first step, advance, Terminar (stepsCompleted=N), Saltar (stepsCompleted=actual), empty catalog dismiss silencioso.
+
+**Decisiones:**
+1. Vitest sobre Jest — mismo runner que API/crypto, sin context switch.
+2. jsdom v25 sobre happy-dom — fricción default del ecosistema.
+3. `globals: true` para `describe/it/expect` sin imports.
+4. `vi.mock("next/navigation")` para `useRouter`.
+5. `vi.mock("@psico/api-client")` para mockear cliente sin tocar red.
+6. `vi.spyOn(globalThis, "fetch")` cuando el componente usa fetch directo.
+7. Sin tests de Server Components (Next runtime complejo).
+8. Sin coverage thresholds — sprint para sembrar, no enforce.
+
+**Smoke verification:**
+- Web tests 24/24 en 1.35s.
+- Web typecheck + lint OK.
+- API tests 358/358 (sin cambios).
+- @psico/crypto 34/34.
+- OpenAPI in sync.
+
+**Deuda técnica abierta:**
+- Sin tests para Client Components grandes (LectorShell, ChatArea Eco, EcoShell).
+- Sin tests para hooks custom (use-heartbeat, useDiaryKey).
+- Sin coverage thresholds.
+- Wire de `pnpm test` web al workflow CI pendiente.
+- Mobile UI tests (RN Testing Library) — sprint propio.
+- Tests integration con MSW — cuando se justifique fidelidad.
+
+---
+
+### Próximo paso — Sesión 40
 
 **🎉 Fase 1 UI completa.** Tres caminos:
 

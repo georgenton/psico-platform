@@ -33,4 +33,9 @@ module.exports = {
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
   },
+  // CI runs jest in cold cache + a slower CPU than dev. `waitFor` queues
+  // a useEffect → setState → react test renderer flush that can take
+  // a few seconds on the first run. Bumping the global timeout from 5s
+  // to 15s gives the slowest path enough room without masking real bugs.
+  testTimeout: 15000,
 };

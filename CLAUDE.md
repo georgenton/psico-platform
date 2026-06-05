@@ -1988,9 +1988,68 @@ Hasta S45, el flujo era: S38 genera narrative LLM al click, S44 manda digest lun
 
 ---
 
-### Próximo paso — Sesión 47
+### Sesión 47 — 2026-06-05 ✅ COMPLETADA — Sprint S47 Web Push (VAPID)
 
-**🎉 Fase 1 UI completa + loop retention cerrado.** Tres caminos:
+**Rama sugerida:** `feature/sprint-47-web-push`
+**Tests:** 400 API + 24 web + 34 crypto (392 → 400, +8 nuevos · 1 skipped sentinel)
+**Bitácora:** [docs/informes/sprint-47-web-push.md](docs/informes/sprint-47-web-push.md)
+
+**Lo que se construyó:**
+
+Cierra la simetría mobile/web del push. Mobile tenía push real desde S43; web se quedaba sin notifications fuera del email. Después de este sprint, ambos transports están en producción detrás de la misma interfaz.
+
+**Backend:**
+- `web-push@^3.6.7` + `@types/web-push` deps.
+- Script `pnpm --filter @psico/api gen:vapid` — one-shot para generar el VAPID keypair y los 3 envs a stdout.
+- `envSchema` extendido con `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` + `VAPID_SUBJECT` (todos opcionales — half-set state rejected por `superRefine`).
+- `RegisterDeviceDto.token` length: 256 → 2048 (para serialized PushSubscription).
+- `PushService` rewrite a dual-platform:
+  - Inyecta `ConfigService` para leer VAPID.
+  - Particiona tokens por shape: ExponentPushToken / web: / unknown.
+  - `sendExpo` (lógica S43 intacta) + nuevo `sendWeb` (web-push lib, Promise.allSettled).
+  - 404/410 del Web Push service → `invalidToken` para pruning automático.
+  - `ensureVapid()` memoiza el setup de claves.
+  - `parseWebToken()` exportado para tests.
+
+**Web:**
+- `apps/web/public/sw.js` — service worker mínimo (push + notificationclick). Sin caching de assets — feature dedicado.
+- `apps/web/src/lib/web-push.ts` — `detectWebPushSupport`, `urlBase64ToUint8Array`, `subscribeWebPush(apiBase, accessToken)`, `unsubscribeWebPush(...)`.
+- `apps/web/src/components/dashboard/notifications/WebPushToggle.tsx` — Client Component con state machine de 7 phases (loading/unsupported/blocked/off/on/submitting/error). Auth via `apiBase + accessToken` props (patrón EcoShell).
+- `/dashboard/notifications` ahora renderiza `<WebPushToggle>` ARRIBA del form.
+
+**Decisiones clave:**
+1. `web-push` lib oficial sobre custom JWT/AES-GCM — implementar a mano son ~500 líneas cripto delicado.
+2. Token shape `web:<JSON>` para reusar la columna `DeviceToken.token` existente.
+3. VAPID env trio: tolerate "todos vacíos" (web push disabled), reject half-set.
+4. SW dedicado a push (no Workbox / no offline caching) — versionado por comentario.
+5. Lazy + memoized VAPID init en el service.
+6. `Promise.allSettled` para fan-out a cada push service (cada sub hits endpoint distinto).
+7. Auth via props (no `apiClient` singleton) — mismo patrón que EcoShell, paridad con cookies del web.
+8. `BufferSource` cast manual para satisfacer TS lib.dom — documentado en línea.
+
+**Tests (+8 API):**
+- `push.service.spec.ts` extendido: constructor a 1 arg (ConfigService mock), `vi.mock("web-push")` con hoisted spies.
+- 5 tests nuevos: web sin VAPID, web envía + receipt ok, web 410 → invalidToken, web malformado → invalidToken, orden preservado en mixed batch.
+- 4 tests para `parseWebToken`.
+
+**Privacy / security:**
+- VAPID private key vive solo en Railway env (API + worker). Nunca en git, nunca en Vercel.
+- Web Push payloads se cifran in-transit (ECDH + AES-GCM) — push services intermedios no ven title/body. Solo el browser con la subscription key descifra.
+- DiaryEntry ciphertext sigue sin entrar en notifications (ADR 0007 intacto).
+
+**Deuda técnica abierta:**
+- Generar VAPID en prod (`pnpm gen:vapid`) y configurar Railway (API + worker) + Vercel (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`). Sin esto el toggle muestra "Falta configurar VAPID".
+- Sin tests del SW — requiere Playwright E2E con push test endpoint.
+- No re-prompt programático tras `denied` (limitación del spec del browser).
+- Sin retry on web push per-sub failure (BullMQ retry global solo).
+- iOS Safari < 16.4 sin Web Push; 16.4+ requiere PWA instalada.
+- Tour S37 sigue sin re-trigger; idem deuda timezone-aware schedules.
+
+---
+
+### Próximo paso — Sesión 48
+
+**🎉 Loop completo de notifications: email + Expo push + Web push.** Tres caminos:
 
 **Opción A — Deploy a Railway (recomendado):**
 ```bash

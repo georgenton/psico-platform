@@ -78,6 +78,14 @@ const NAV_ITEMS = [
 // `user.role === "ADMIN"`. Lives in its own array so it never leaks into
 // the regular tour catalog or analytics.
 const ADMIN_NAV_ITEMS = [
+  // Sprint S48 — overview goes first so it's the natural landing for admins.
+  {
+    href: "/dashboard/admin/overview",
+    label: "Pulso · Overview",
+    icon: "📊",
+    exact: false,
+    tourTarget: null,
+  },
   {
     href: "/dashboard/admin/reports",
     label: "Pulso · Reports",

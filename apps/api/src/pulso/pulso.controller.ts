@@ -37,4 +37,15 @@ export class PulsoController {
       cursor: query.cursor,
     });
   }
+
+  // ── Sprint S48 — overview KPIs ──────────────────────────────────────
+
+  @Get("overview")
+  @ApiOperation({
+    summary:
+      "Platform overview — KPIs aggregated across users, engagement, content, and business. Cached 5min.",
+  })
+  getOverview() {
+    return this.pulso.getOverview();
+  }
 }

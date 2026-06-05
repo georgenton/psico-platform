@@ -8,6 +8,8 @@ import {
   type DailyUsageJobPayload,
   type DataExportJobPayload,
   type EmailJobPayload,
+  type InactiveNudgeJobPayload,
+  type WeeklyDigestJobPayload,
 } from "./queue-names";
 
 const DAYS = 24 * 60 * 60 * 1000;
@@ -15,6 +17,14 @@ const DAYS = 24 * 60 * 60 * 1000;
 // re-deploys don't pile up duplicate cron entries — BullMQ's
 // upsertJobScheduler upserts on it.
 const DAILY_USAGE_SCHEDULER_ID = "daily-usage-02-utc";
+
+// Sprint S44 — Weekly digest scheduler. Monday 07:00 UTC. UTC chosen for
+// predictability; the digest covers the previous ISO week (Mon→Sun UTC).
+const WEEKLY_DIGEST_SCHEDULER_ID = "weekly-digest-monday-07-utc";
+
+// Sprint S44 — Nightly nudge scheduler. 18:00 UTC ≈ midday in LATAM,
+// evening in EU — chosen so the push doesn't wake anyone up.
+const INACTIVE_NUDGE_SCHEDULER_ID = "inactive-nudge-18-utc";
 
 /**
  * Producer-side API for enqueuing background work. Feature services inject
@@ -40,6 +50,11 @@ export class JobsService implements OnModuleInit {
     private readonly accountDeletionQueue: Queue<AccountDeletionJobPayload>,
     @InjectQueue(QueueName.DAILY_USAGE)
     private readonly dailyUsageQueue: Queue<DailyUsageJobPayload>,
+    // Sprint S44 — notification scheduling queues.
+    @InjectQueue(QueueName.WEEKLY_DIGEST)
+    private readonly weeklyDigestQueue: Queue<WeeklyDigestJobPayload>,
+    @InjectQueue(QueueName.INACTIVE_NUDGE)
+    private readonly inactiveNudgeQueue: Queue<InactiveNudgeJobPayload>,
   ) {}
 
   /**
@@ -98,6 +113,56 @@ export class JobsService implements OnModuleInit {
       // process restarts.
       this.logger.error(
         `Failed to register daily-usage scheduler: ${(err as Error).message}`,
+      );
+    }
+
+    // Sprint S44 — Weekly digest cron.
+    try {
+      await this.weeklyDigestQueue.upsertJobScheduler(
+        WEEKLY_DIGEST_SCHEDULER_ID,
+        { pattern: "0 7 * * 1", tz: "UTC" }, // Monday 07:00 UTC
+        {
+          name: JobName.RUN_WEEKLY_DIGEST,
+          data: {},
+          opts: {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 5 * 60_000 },
+            removeOnComplete: { age: 30 * 24 * 60 * 60 },
+            removeOnFail: false,
+          },
+        },
+      );
+      this.logger.log(
+        `Weekly digest scheduled · id=${WEEKLY_DIGEST_SCHEDULER_ID} · cron=0 7 * * 1 UTC`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to register weekly-digest scheduler: ${(err as Error).message}`,
+      );
+    }
+
+    // Sprint S44 — Inactive nudge cron.
+    try {
+      await this.inactiveNudgeQueue.upsertJobScheduler(
+        INACTIVE_NUDGE_SCHEDULER_ID,
+        { pattern: "0 18 * * *", tz: "UTC" }, // 18:00 UTC daily
+        {
+          name: JobName.SEND_INACTIVE_NUDGE,
+          data: {},
+          opts: {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 5 * 60_000 },
+            removeOnComplete: { age: 7 * 24 * 60 * 60 },
+            removeOnFail: false,
+          },
+        },
+      );
+      this.logger.log(
+        `Inactive nudge scheduled · id=${INACTIVE_NUDGE_SCHEDULER_ID} · cron=0 18 * * * UTC`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to register inactive-nudge scheduler: ${(err as Error).message}`,
       );
     }
   }

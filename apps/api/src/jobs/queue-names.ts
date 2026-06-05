@@ -71,6 +71,33 @@ export const QueueName = {
    * safe even if a partial run already wrote some rows.
    */
   DAILY_USAGE: "daily-usage",
+
+  /**
+   * Sprint S44 — Weekly digest. Monday 07:00 UTC. Scans users with
+   * `NotificationSettings.weeklyReport === true`, computes last week's
+   * stats, sends email via Resend + push via PushService.
+   *
+   * Producer: `JobsService.onModuleInit` registers the cron.
+   * Consumer: `apps/api/src/jobs/processors/weekly-digest.processor.ts`
+   *
+   * Retry: 3 attempts, exponential (5min / 25min / 2h). The processor
+   * doesn't write to DB beyond optionally bumping a `lastDigestSentAt`
+   * flag — re-running the same Monday is safe.
+   */
+  WEEKLY_DIGEST: "weekly-digest",
+
+  /**
+   * Sprint S44 — Re-engagement nudge. Nightly 18:00 UTC. Scans users who
+   * (a) have ≥1 diary entry ever, (b) haven't written in 3+ days,
+   * (c) have `dailyReminder === true`, and (d) `lastNudgedAt` null or
+   * > 4 days ago.
+   *
+   * Producer: `JobsService.onModuleInit`.
+   * Consumer: `apps/api/src/jobs/processors/inactive-nudge.processor.ts`
+   *
+   * Retry: 3 attempts, exponential (5min / 25min / 2h).
+   */
+  INACTIVE_NUDGE: "inactive-nudge",
 } as const;
 
 export type QueueName = (typeof QueueName)[keyof typeof QueueName];
@@ -117,6 +144,28 @@ export interface DailyUsageJobPayload {
 }
 
 /**
+ * Sprint S44 — Weekly digest fan-out.
+ *
+ * `targetWeekStart` lets ops re-run a specific historical Monday (useful
+ * to backfill if the cron missed a run). When omitted, the processor
+ * uses "last week's Monday in UTC".
+ */
+export interface WeeklyDigestJobPayload {
+  /** ISO date YYYY-MM-DD of the target week's Monday. */
+  targetWeekStart?: string;
+}
+
+/**
+ * Sprint S44 — Inactive nudge fan-out. No payload in v1; the processor
+ * computes "today in UTC" itself. Kept as an interface for future
+ * extension (e.g. `dryRun: true` for staging tests).
+ */
+export interface InactiveNudgeJobPayload {
+  /** When true, the processor computes candidates but does NOT send pushes. */
+  dryRun?: boolean;
+}
+
+/**
  * Job names within each queue. Currently each queue has one default job
  * (so the name is essentially the queue name) but the type system keeps
  * this open for future expansion.
@@ -126,6 +175,8 @@ export const JobName = {
   RUN_DATA_EXPORT: "run-data-export",
   FINALIZE_ACCOUNT_DELETION: "finalize-account-deletion",
   RUN_DAILY_USAGE_ROLLUP: "run-daily-usage-rollup",
+  RUN_WEEKLY_DIGEST: "run-weekly-digest",
+  SEND_INACTIVE_NUDGE: "send-inactive-nudge",
 } as const;
 
 export type JobName = (typeof JobName)[keyof typeof JobName];

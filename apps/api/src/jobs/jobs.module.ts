@@ -43,6 +43,9 @@ import type { Env } from "../config";
       { name: QueueName.DATA_EXPORT },
       { name: QueueName.ACCOUNT_DELETION },
       { name: QueueName.DAILY_USAGE },
+      // Sprint S44 — notification schedulers.
+      { name: QueueName.WEEKLY_DIGEST },
+      { name: QueueName.INACTIVE_NUDGE },
     ),
   ],
   providers: [JobsService],

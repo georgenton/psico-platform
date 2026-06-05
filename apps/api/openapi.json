@@ -1,6 +1,55 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/api/notifications/devices": {
+      "post": {
+        "operationId": "DevicesController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Register an Expo push token for the current user. Idempotent on (token).",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/notifications/devices/{id}": {
+      "delete": {
+        "operationId": "DevicesController_unregister",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Revoke a push token. No-op if id doesn't exist.",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
     "/api/auth/register": {
       "post": {
         "operationId": "AuthController_register",
@@ -2655,6 +2704,10 @@
       }
     },
     "schemas": {
+      "RegisterDeviceDto": {
+        "type": "object",
+        "properties": {}
+      },
       "RegisterDto": {
         "type": "object",
         "properties": {}

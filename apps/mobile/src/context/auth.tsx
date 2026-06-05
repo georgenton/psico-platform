@@ -10,8 +10,12 @@ import {
 import type { ReactNode } from "react";
 import { apiClient, authApi } from "@psico/api-client";
 import type { AuthUser } from "@psico/types";
-import { tokenStore } from "../store/secure-store";
+import { tokenStore, pushIdStore } from "../store/secure-store";
 import { diaryKeyStore } from "../crypto/diary-key-store";
+import {
+  tryRegisterPushToken,
+  tryUnregisterPushToken,
+} from "../notifications/push-registration";
 
 const API_ROOT = process.env.EXPO_PUBLIC_API_URL ?? "";
 // Cold-start refresh hits the raw fetch (not apiClient — see below comment),
@@ -53,6 +57,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // SecureStore too. Otherwise the next user on the same device (kid,
     // partner, lost-phone scenario) could open the diary with a stale key.
     void diaryKeyStore.clear();
+    // S43: revoke the server-side push device token so we don't push
+    // nudges to a logged-out user. Best-effort — the next login will
+    // re-register.
+    void (async () => {
+      const id = await pushIdStore.load();
+      if (id) {
+        await tryUnregisterPushToken(id);
+        await pushIdStore.clear();
+      }
+    })();
   }, []);
 
   // Wire the shared API client singleton once on mount.
@@ -147,6 +161,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authApi.logout(refreshToken).catch(() => {});
     }
   }, [handleUnauthenticated]);
+
+  // Sprint S43: register the device push token whenever auth transitions
+  // to authenticated. Idempotent on the server side (upsert on token), so
+  // re-running on app cold start is safe. Errors are swallowed by the
+  // helper — push is non-critical.
+  useEffect(() => {
+    if (user === null) return;
+    void (async () => {
+      const existing = await pushIdStore.load();
+      if (existing) return; // already registered on this install
+      const res = await tryRegisterPushToken();
+      if (res) await pushIdStore.save(res.id);
+    })();
+  }, [user]);
 
   const value = useMemo(
     () => ({

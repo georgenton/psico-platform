@@ -131,6 +131,16 @@ export class WeeklyDigestProcessor extends WorkerHost {
       .slice(0, 5)
       .map(([t]) => t);
 
+    // Sprint S45: pull the WeeklySummary row (S38 LLM narrative) if one
+    // was generated for the target week. We don't generate one here —
+    // that's PatronesService's job, triggered by the user or by ops.
+    // The digest is purely a consumer: if a narrative exists, it lives
+    // at the top of the email; if not, the stats stand on their own.
+    const summary = await this.prisma.weeklySummary.findUnique({
+      where: { userId_weekStart: { userId: user.id, weekStart } },
+      select: { headline: true, narrative: true },
+    });
+
     // Email — always send to opted-in users (the JOIN already filtered).
     const email = weeklyDigestEmail({
       firstName: user.firstName ?? user.name,
@@ -141,6 +151,9 @@ export class WeeklyDigestProcessor extends WorkerHost {
       topTags,
       // Web base URL — config later. Hardcoded for v1 (matches Vercel).
       patronesUrl: "https://psico-platform-web.vercel.app/dashboard/patrones",
+      narrative: summary
+        ? { headline: summary.headline, body: summary.narrative }
+        : undefined,
     });
     await this.resend.send({
       to: user.email,

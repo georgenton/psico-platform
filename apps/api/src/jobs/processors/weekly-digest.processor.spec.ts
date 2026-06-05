@@ -12,6 +12,9 @@ function buildPrisma(
     diaryEntry: { findMany: vi.fn().mockResolvedValue([]) },
     ecoMessage: { count: vi.fn().mockResolvedValue(0) },
     deviceToken: { deleteMany: vi.fn() },
+    // Sprint S45: WeeklySummary lookup. Default null so existing tests
+    // exercise the "no narrative" branch; tests opt in by overriding.
+    weeklySummary: { findUnique: vi.fn().mockResolvedValue(null) },
     ...extraOverrides,
   } as never;
 }
@@ -195,6 +198,48 @@ describe("WeeklyDigestProcessor", () => {
     };
     expect(emailArg.subject).toContain("Tu espacio");
     expect(emailArg.text).toContain("no escribiste");
+  });
+
+  it("includes the WeeklySummary LLM narrative when one exists for the week (S45)", async () => {
+    const userRow = {
+      id: "u-1",
+      email: "u1@test.com",
+      firstName: "X",
+      name: "X",
+      notificationSettings: { dailyReminder: true },
+      deviceTokens: [],
+    };
+    const findUnique = vi.fn().mockResolvedValue({
+      headline: "Una semana con foco en familia",
+      narrative: "Notamos que la familia volvió varias veces…",
+    });
+    const prisma = buildPrisma([userRow], {
+      diaryEntry: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ mood: "calma", tags: ["familia"] }]),
+      },
+      ecoMessage: { count: vi.fn().mockResolvedValue(2) },
+      weeklySummary: { findUnique },
+    });
+    const resend = buildResend();
+    const proc = new WeeklyDigestProcessor(prisma, resend, buildPush());
+
+    await proc.process(jobOf({}));
+
+    // The findUnique was scoped to (userId, weekStart).
+    expect(findUnique).toHaveBeenCalledOnce();
+    const arg = findUnique.mock.calls[0]![0] as {
+      where: { userId_weekStart: { userId: string; weekStart: Date } };
+    };
+    expect(arg.where.userId_weekStart.userId).toBe("u-1");
+    expect(arg.where.userId_weekStart.weekStart).toBeInstanceOf(Date);
+
+    const emailArg = (resend.send as ReturnType<typeof vi.fn>).mock
+      .calls[0]![0] as { html: string; text: string };
+    expect(emailArg.html).toContain("Una semana con foco en familia");
+    expect(emailArg.html).toContain("Notamos que la familia volvió");
+    expect(emailArg.text).toContain("Una semana con foco en familia");
   });
 
   it("does not abort the run if one user's send fails", async () => {

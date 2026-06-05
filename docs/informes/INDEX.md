@@ -52,6 +52,7 @@
 |     42 | 2026-06-04 | Sprint S42 — Pulso v2 · Admin reports Eco                                                  | [sprint-42-pulso-reports.md](sprint-42-pulso-reports.md)                     |
 |     43 | 2026-06-05 | Sprint S43 — Push infrastructure (device tokens + Expo)                                    | [sprint-43-notifications.md](sprint-43-notifications.md)                     |
 |     44 | 2026-06-05 | Sprint S44 — Notification processors (WeeklyDigest + InactiveNudge)                        | [sprint-44-notification-processors.md](sprint-44-notification-processors.md) |
+|     45 | 2026-06-05 | Sprint S45 — Notifications UI + WeeklySummary wire en digest                               | [sprint-45-notifications-ui.md](sprint-45-notifications-ui.md)               |
 
 ---
 
@@ -65,7 +66,7 @@
 
 ## Cobertura
 
-**32 sprints documentados** (Sesiones 11–44, sin gaps).
+**33 sprints documentados** (Sesiones 11–45, sin gaps).
 
 Sesiones 1–10 (pre-Plan-v2, bootstrap → primer deploy) están condensadas inline en `CLAUDE.md`:
 

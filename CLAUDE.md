@@ -1844,7 +1844,48 @@ Primera surface de **Pulso v2** — back-office para revisar reportes de mensaje
 
 ---
 
-### Próximo paso — Sesión 44
+### Sesión 44 — 2026-06-05 ✅ COMPLETADA — Sprint S44 Notification processors
+
+**Rama sugerida:** `feature/sprint-44-notification-processors`
+**Tests:** 383/384 API + 34/34 crypto (370 → 383, +13 nuevos · 1 skipped sentinel).
+**Bitácora:** [docs/informes/sprint-44-notification-processors.md](docs/informes/sprint-44-notification-processors.md)
+
+**Lo que se construyó:**
+
+Cierra la deuda de S43 — entrega los dos processors prometidos sobre la infra de push ya cocinada.
+
+- **WeeklyDigestProcessor** — lunes 07:00 UTC. Email digest via Resend a usuarios con `weeklyReport=true` + push via PushService a quienes también tengan `dailyReminder=true` con device tokens. 7 unit tests.
+- **InactiveNudgeProcessor** — nightly 18:00 UTC. Busca users con ≥1 entry alguna vez + sin actividad 3+ días + `dailyReminder=true` + `lastNudgedAt` null o > 4 días. Push solamente (no email diario). 6 unit tests.
+- **Email template** `weekly-digest.template.ts` con stats en lista + CTA Patrones + "no activity" branch.
+- **2 queues nuevas** (`WEEKLY_DIGEST`, `INACTIVE_NUDGE`) registradas en producer + worker.
+- **2 crons** en `JobsService.onModuleInit` con retry policy.
+
+**Decisiones:**
+1. UTC en todos los crons — timezone-aware diferido hasta tener base que lo justifique.
+2. Digest = email + push; Nudge = push solo.
+3. `weeklyReport` controla email; `dailyReminder` gates push (flags independientes).
+4. **Privacy hard:** digest NUNCA incluye texto del diario, solo categorical counts + tags (plaintext).
+5. `lastNudgedAt` solo bump si receipt OK; if all stale, deja al user disponible para re-nudge.
+6. Stale-token pruning inline en ambos processors (self-healing, sin job adicional).
+7. Fanout en proceso (no per-user jobs) — mismo patrón que `DailyUsageProcessor`.
+8. `dryRun` flag en InactiveNudge para ops sandboxing.
+9. `patronesUrl` hardcoded a Vercel URL (refactor cuando lleguen custom domains).
+
+**Smoke verification:**
+- API tests 383/384.
+- API typecheck + lint OK (4 warnings preexistentes).
+- OpenAPI in sync (sin cambios al wire).
+
+**Deuda técnica abierta:**
+- Timezone-aware schedules (multi-fanout per-tz).
+- Sin UI de opt-in/out en Settings.
+- Sin Resend opens tracking ni Expo receipt poller.
+- `SILENCE_DAYS`/`MIN_DAYS_BETWEEN_NUDGES` hardcoded.
+- WeeklySummary (S38) no se wirea en el digest semanal.
+
+---
+
+### Próximo paso — Sesión 45
 
 **🎉 Fase 1 UI completa.** Tres caminos:
 

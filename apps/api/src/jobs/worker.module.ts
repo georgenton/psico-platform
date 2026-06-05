@@ -11,6 +11,8 @@ import { EmailProcessor } from "./processors/email.processor";
 import { DataExportProcessor } from "./processors/data-export.processor";
 import { AccountDeletionProcessor } from "./processors/account-deletion.processor";
 import { DailyUsageProcessor } from "./processors/daily-usage.processor";
+import { WeeklyDigestProcessor } from "./processors/weekly-digest.processor";
+import { InactiveNudgeProcessor } from "./processors/inactive-nudge.processor";
 import type { Env } from "../config";
 
 /**
@@ -56,6 +58,9 @@ import type { Env } from "../config";
       { name: QueueName.DATA_EXPORT },
       { name: QueueName.ACCOUNT_DELETION },
       { name: QueueName.DAILY_USAGE },
+      // Sprint S44 — notification queues.
+      { name: QueueName.WEEKLY_DIGEST },
+      { name: QueueName.INACTIVE_NUDGE },
     ),
   ],
   providers: [
@@ -63,6 +68,9 @@ import type { Env } from "../config";
     DataExportProcessor,
     AccountDeletionProcessor,
     DailyUsageProcessor,
+    // Sprint S44 — notification processors.
+    WeeklyDigestProcessor,
+    InactiveNudgeProcessor,
   ],
 })
 export class WorkerAppModule {}

@@ -1795,7 +1795,56 @@ Primera surface de **Pulso v2** — back-office para revisar reportes de mensaje
 
 ---
 
-### Próximo paso — Sesión 43
+### Sesión 43 — 2026-06-05 ✅ COMPLETADA — Sprint S43 Push infrastructure (device tokens + Expo)
+
+**Rama sugerida:** `feature/sprint-43-notifications`
+**Tests:** 370/371 API + 34/34 crypto (363 → 370, +7 nuevos · 1 skipped sentinel).
+**Bitácora:** [docs/informes/sprint-43-notifications.md](docs/informes/sprint-43-notifications.md)
+
+**Scope re-evaluado:** sprint planificado con (a) push infra + (b) WeeklyDigest + (c) InactiveNudge. Scope final: solo (a) — los processors requieren cron orchestration en worker.ts + BullMQ delayed jobs + email templates, eso se merece sprint propio (S44). S43 cierra **todo el plumbing**; los processors aterrizan en S44 con la infra ya cocinada.
+
+**Schema:**
+- Enum `DevicePlatform { EXPO, WEB }`.
+- Model `DeviceToken { id, userId, platform, token @unique, deviceLabel?, createdAt, lastSeenAt }`.
+- `User.deviceTokens DeviceToken[]` + `User.lastNudgedAt DateTime?` (para S44).
+- Migración aditiva `20260605200000_s43_device_tokens`.
+
+**Backend:**
+- `push.service.ts` — plain fetch sobre Expo Push API (sin `expo-server-sdk`). Retorna `PushReceipt[]` con `invalidToken` flag para self-cleaning de DeviceNotRegistered.
+- `devices.controller.ts` — `POST /api/notifications/devices` (upsert idempotente) + `DELETE /api/notifications/devices/:id`.
+- NotificationsModule extendido. 7 unit tests.
+
+**Mobile:**
+- Deps: `expo-notifications` + `expo-device`.
+- `push-registration.ts` con permission flow + token + POST.
+- `pushIdStore` en SecureStore.
+- `AuthContext`: `useEffect([user])` registra; logout revoca.
+
+**Tipos + cliente:**
+- 3 shapes nuevos, `notificationsApi` cliente.
+- `generated.ts` 94.2 → 96.1 KB.
+
+**Decisiones:**
+1. Plain fetch sobre expo-server-sdk — ~400KB ahorrados.
+2. `invalidToken` en receipt para self-cleaning.
+3. Upsert por `@unique(token)` — idempotent + account-switch safe.
+4. Mobile registra en `useEffect([user])`.
+5. `pushIdStore` en SecureStore para revoke en logout.
+6. No web push v1, no Live Activities (iOS-only).
+7. `lastNudgedAt` declarado pre-S44 (evita 2 migrations).
+
+**Smoke verification:**
+- API tests 370/371. API + Web + Mobile typecheck + lint OK. OpenAPI in sync.
+
+**Deuda técnica abierta:**
+- **S44** — WeeklyDigestProcessor + InactiveNudgeProcessor.
+- Sin UI de opt-in/out.
+- Sin Expo receipts poller.
+- Web push (VAPID) post-v1.
+
+---
+
+### Próximo paso — Sesión 44
 
 **🎉 Fase 1 UI completa.** Tres caminos:
 

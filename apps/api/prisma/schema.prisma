@@ -130,6 +130,12 @@ model User {
   annotations             Annotation[]
   readingSessions         ReadingSession[]
   weeklySummaries         WeeklySummary[]
+  deviceTokens            DeviceToken[]
+
+  // Sprint S43: last time we sent a re-engagement nudge (any channel). The
+  // InactiveNudgeProcessor uses this to avoid spamming the same user
+  // every night when they go quiet for a week.
+  lastNudgedAt DateTime?
 
   @@unique([authProvider, providerId])
   @@index([email])
@@ -1186,4 +1192,30 @@ model DiaryPrompt {
   entries DiaryEntry[]
 
   @@index([isActive])
+}
+
+// ─── Notifications (Sprint S43) ───────────────────────────────────────────
+//
+// Push tokens registered by the mobile app via expo-notifications. One row
+// per (user, device) pair. We keep `lastSeenAt` so InactiveNudgeProcessor
+// can prune stale tokens after ~90 days (Expo tokens rotate).
+
+enum DevicePlatform {
+  EXPO
+  WEB
+}
+
+model DeviceToken {
+  id          String         @id @default(cuid())
+  userId      String
+  platform    DevicePlatform
+  // Expo push token format: "ExponentPushToken[xxx]" or "ExpoPushToken[xxx]".
+  token       String         @unique
+  deviceLabel String?
+  createdAt   DateTime       @default(now())
+  lastSeenAt  DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

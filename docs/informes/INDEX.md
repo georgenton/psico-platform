@@ -54,6 +54,7 @@
 |     44 | 2026-06-05 | Sprint S44 — Notification processors (WeeklyDigest + InactiveNudge)                        | [sprint-44-notification-processors.md](sprint-44-notification-processors.md) |
 |     45 | 2026-06-05 | Sprint S45 — Notifications UI + WeeklySummary wire en digest                               | [sprint-45-notifications-ui.md](sprint-45-notifications-ui.md)               |
 |     46 | 2026-06-05 | Sprint S46 — Auto-generate WeeklySummary (cron domingo 23:00 UTC)                          | [sprint-46-auto-weekly-summary.md](sprint-46-auto-weekly-summary.md)         |
+|     47 | 2026-06-05 | Sprint S47 — Web Push (VAPID + Service Worker + dual-platform PushService)                 | [sprint-47-web-push.md](sprint-47-web-push.md)                               |
 
 ---
 
@@ -67,7 +68,7 @@
 
 ## Cobertura
 
-**34 sprints documentados** (Sesiones 11–46, sin gaps).
+**35 sprints documentados** (Sesiones 11–47, sin gaps).
 
 Sesiones 1–10 (pre-Plan-v2, bootstrap → primer deploy) están condensadas inline en `CLAUDE.md`:
 

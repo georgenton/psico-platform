@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
 import type { UserMeResponse } from "@psico/types";
 
-import { isNextThrow, serverFetch } from "@/lib/api.server";
+import { getAccessToken, isNextThrow, serverFetch } from "@/lib/api.server";
 import { NotificationsForm } from "@/components/dashboard/notifications/NotificationsForm";
+import { WebPushToggle } from "@/components/dashboard/notifications/WebPushToggle";
 
 export const metadata: Metadata = { title: "Notificaciones" };
 export const dynamic = "force-dynamic";
+
+// Sprint S47 — WebPushToggle needs the API base URL to register the
+// browser subscription against the user.
+const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001").replace(/\/$/, "")}/api`;
 
 export default async function NotificationsPage() {
   let me: UserMeResponse | null = null;
@@ -14,6 +19,7 @@ export default async function NotificationsPage() {
   } catch (err) {
     if (isNextThrow(err)) throw err;
   }
+  const accessToken = getAccessToken();
 
   if (!me) {
     return (
@@ -54,6 +60,10 @@ export default async function NotificationsPage() {
           email como al push del mobile.
         </p>
       </header>
+
+      {accessToken ? (
+        <WebPushToggle apiBase={API_BASE} accessToken={accessToken} />
+      ) : null}
 
       <NotificationsForm initial={me.notifications} />
     </div>

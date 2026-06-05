@@ -23,6 +23,7 @@ import { VoiceModule } from "./voice";
 import { EcoModule } from "./eco";
 import { LectorModule } from "./lector";
 import { PatronesModule } from "./patrones";
+import { PulsoModule } from "./pulso";
 import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
 
 @Module({
@@ -53,6 +54,7 @@ import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
     EcoModule,
     LectorModule, // Sprint S6 — /api/lector/*, /api/highlights/*, /api/annotations/*
     PatronesModule, // Sprint S10 — /api/patrones/* (Pro)
+    PulsoModule, // Sprint S42 — /api/pulso/* (ADMIN only)
     // TODO senior: register remaining feature modules here
     // AnalyticsModule, TerapiaModule (S13)
   ],

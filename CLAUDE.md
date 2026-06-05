@@ -1735,7 +1735,67 @@ Hace visible en el GitHub Actions UI que cada workspace tiene su propia suite y 
 
 ---
 
-### Próximo paso — Sesión 42
+### Sesión 42 — 2026-06-04 ✅ COMPLETADA — Sprint S42 Pulso v2 · Admin reports Eco
+
+**Rama sugerida:** `feature/sprint-42-pulso-reports`
+**Tests:** 363/364 API + 34/34 crypto (358 → 363, +5 nuevos · 1 skipped sentinel).
+**Bitácora:** [docs/informes/sprint-42-pulso-reports.md](docs/informes/sprint-42-pulso-reports.md)
+
+**Lo que se construyó:**
+
+Primera surface de **Pulso v2** — back-office para revisar reportes de mensajes de Eco. Design completo lista 6 vistas + 15 endpoints; este sprint shipea SOLO Reports inbox porque (a) la data ya se acumula sin surface, (b) tiene la privacy story más simple.
+
+**Backend:**
+- Nuevo `PulsoModule` con 2 endpoints ADMIN-only:
+  - `GET /api/pulso/reports/eco/summary` — counts por reason (zero-fill).
+  - `GET /api/pulso/reports/eco?reason=...&limit=...&cursor=...` — paginado, includes assistant snippet + threadId.
+- `RolesGuard + @RequiredRole("ADMIN")` a nivel clase. PSYCHOLOGIST NO basta.
+- Cursor pagination (peek-ahead con `take: limit + 1`).
+- 5 unit tests: summary zero-fill, summary aggregation, list shape sin ciphertext, pagination, reason filter.
+
+**Tipos + cliente:**
+- `@psico/types` +4 shapes (`PulsoReportReason`, `PulsoReportRow`, `PulsoReportListResponse`, `PulsoReportSummary`).
+- `@psico/api-client` `pulsoApi` con `getEcoSummary` + `listEcoReports`.
+- `generated.ts` 92.5 KB → 94.2 KB.
+
+**Web (`apps/web/src/app/dashboard/admin/reports/page.tsx`):**
+- Server Component con gate `if user.role !== ADMIN → redirect("/dashboard")`.
+- Pre-fetch summary + first page con `Promise.all`.
+- `ReasonChips` con counts + active state via querystring.
+- `ReportsList` con badges colored por reason + comment + assistant snippet trimmed + IDs truncados (8 chars).
+- Sidebar nav: `ADMIN_NAV_ITEMS` separado, renderizado solo cuando `user?.role === "ADMIN"` con eyebrow "Pulso · Admin".
+
+**Privacy hard:**
+- El response **no contiene** ningún ciphertext (USER messages siguen cifrados).
+- Solo expone assistant text (plaintext LLM output) trimmed a 240 chars.
+- Test explícito verifica `JSON.stringify(row)` NO contiene "textCiphertext"/"textNonce".
+- Admin ve userId + threadId truncados, sin email/PII.
+
+**Decisiones:**
+1. ADMIN-only (no PSYCHOLOGIST) — Pulso es operacional, no clínico.
+2. Cursor pagination (más robusto que offset cuando rows crecen rápido).
+3. Default limit 50, cap 100 — admin tooling.
+4. Frontend gate redundante del backend gate (defensive).
+5. Mobile out-of-scope — Pulso es desktop-only en v1.
+
+**Smoke verification:**
+- API tests 363/363 + 1 skipped sentinel.
+- @psico/crypto 34/34.
+- Typecheck + lint OK en API + Web.
+- OpenAPI `generate:check` in sync.
+- Boot del API muestra `/api/pulso/reports/eco/summary` y `/api/pulso/reports/eco` mapped.
+
+**Deuda técnica abierta:**
+- Resto de Pulso v2 (5 vistas adicionales) — diferido, requieren agregación nocturna.
+- Sin filtros por rango de fecha en list.
+- Sin "marcar como revisado" — añadir `status` field cuando volumen lo justifique.
+- Sin export CSV.
+- Sin link "Ver thread completo" en UI.
+- Mobile companion diferido hasta que un admin lo pida.
+
+---
+
+### Próximo paso — Sesión 43
 
 **🎉 Fase 1 UI completa.** Tres caminos:
 

@@ -53,6 +53,7 @@
 |     43 | 2026-06-05 | Sprint S43 — Push infrastructure (device tokens + Expo)                                    | [sprint-43-notifications.md](sprint-43-notifications.md)                     |
 |     44 | 2026-06-05 | Sprint S44 — Notification processors (WeeklyDigest + InactiveNudge)                        | [sprint-44-notification-processors.md](sprint-44-notification-processors.md) |
 |     45 | 2026-06-05 | Sprint S45 — Notifications UI + WeeklySummary wire en digest                               | [sprint-45-notifications-ui.md](sprint-45-notifications-ui.md)               |
+|     46 | 2026-06-05 | Sprint S46 — Auto-generate WeeklySummary (cron domingo 23:00 UTC)                          | [sprint-46-auto-weekly-summary.md](sprint-46-auto-weekly-summary.md)         |
 
 ---
 
@@ -66,7 +67,7 @@
 
 ## Cobertura
 
-**33 sprints documentados** (Sesiones 11–45, sin gaps).
+**34 sprints documentados** (Sesiones 11–46, sin gaps).
 
 Sesiones 1–10 (pre-Plan-v2, bootstrap → primer deploy) están condensadas inline en `CLAUDE.md`:
 

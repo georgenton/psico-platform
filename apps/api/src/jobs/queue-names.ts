@@ -98,6 +98,30 @@ export const QueueName = {
    * Retry: 3 attempts, exponential (5min / 25min / 2h).
    */
   INACTIVE_NUDGE: "inactive-nudge",
+
+  /**
+   * Sprint S46 — Pre-generate WeeklySummary so the Monday digest finds it.
+   *
+   * Cron: Sunday 23:00 UTC. Closes the loop opened by S38 (LLM-backed
+   * narrative) + S44 (digest cron) + S45 (digest wires WeeklySummary if
+   * the row exists). Without this job, the row only exists when a Pro
+   * user manually clicks "Regenerar" in /dashboard/patrones — so the
+   * digest almost never includes the editorial narrative.
+   *
+   * Why Sunday 23:00 UTC and not Friday:
+   *   - The summary covers the ENTIRE ISO week (Mon→Sun). Generating
+   *     Friday would only see Mon→Thu data.
+   *   - Sunday 23:00 UTC leaves 8 hours of buffer before the Monday
+   *     07:00 UTC digest cron fires — enough for retries if the run
+   *     hits a transient LLM 5xx.
+   *
+   * Producer: `JobsService.onModuleInit` registers the cron.
+   * Consumer: `apps/api/src/jobs/processors/weekly-summary.processor.ts`
+   *
+   * Retry: 3 attempts, exponential (5min / 25min / 2h). The processor is
+   * idempotent — `regenerateWeeklySummary` upserts on `(userId, weekStart)`.
+   */
+  WEEKLY_SUMMARY_GENERATION: "weekly-summary-generation",
 } as const;
 
 export type QueueName = (typeof QueueName)[keyof typeof QueueName];
@@ -166,6 +190,20 @@ export interface InactiveNudgeJobPayload {
 }
 
 /**
+ * Sprint S46 — Weekly summary pre-generation fan-out.
+ *
+ * No payload in v1; the processor computes "current ISO week" itself.
+ * Kept as an interface so ops can backfill a specific week if a Sunday
+ * run is missed (`targetWeekStart`) or run dry to count candidates.
+ */
+export interface WeeklySummaryGenerationJobPayload {
+  /** ISO date YYYY-MM-DD of the target week's Monday. */
+  targetWeekStart?: string;
+  /** When true, the processor lists candidates but does NOT call the LLM. */
+  dryRun?: boolean;
+}
+
+/**
  * Job names within each queue. Currently each queue has one default job
  * (so the name is essentially the queue name) but the type system keeps
  * this open for future expansion.
@@ -177,6 +215,7 @@ export const JobName = {
   RUN_DAILY_USAGE_ROLLUP: "run-daily-usage-rollup",
   RUN_WEEKLY_DIGEST: "run-weekly-digest",
   SEND_INACTIVE_NUDGE: "send-inactive-nudge",
+  RUN_WEEKLY_SUMMARY_GENERATION: "run-weekly-summary-generation",
 } as const;
 
 export type JobName = (typeof JobName)[keyof typeof JobName];

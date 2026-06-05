@@ -13,6 +13,20 @@ describe("JobsService", () => {
     add: vi.fn().mockResolvedValue(undefined),
     upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
   };
+  // Sprint S44 — notification cron queues.
+  const mockWeeklyDigestQueue = {
+    add: vi.fn().mockResolvedValue(undefined),
+    upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
+  };
+  const mockInactiveNudgeQueue = {
+    add: vi.fn().mockResolvedValue(undefined),
+    upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
+  };
+  // Sprint S46 — weekly summary pre-generation queue.
+  const mockWeeklySummaryQueue = {
+    add: vi.fn().mockResolvedValue(undefined),
+    upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
+  };
 
   let service: JobsService;
 
@@ -23,11 +37,17 @@ describe("JobsService", () => {
     mockDataExportQueue.add.mockResolvedValue(undefined);
     mockAccountDeletionQueue.add.mockResolvedValue(undefined);
     mockDailyUsageQueue.upsertJobScheduler.mockResolvedValue(undefined);
+    mockWeeklyDigestQueue.upsertJobScheduler.mockResolvedValue(undefined);
+    mockInactiveNudgeQueue.upsertJobScheduler.mockResolvedValue(undefined);
+    mockWeeklySummaryQueue.upsertJobScheduler.mockResolvedValue(undefined);
     service = new JobsService(
       mockEmailQueue as never,
       mockDataExportQueue as never,
       mockAccountDeletionQueue as never,
       mockDailyUsageQueue as never,
+      mockWeeklyDigestQueue as never,
+      mockInactiveNudgeQueue as never,
+      mockWeeklySummaryQueue as never,
     );
   });
 
@@ -98,6 +118,28 @@ describe("JobsService", () => {
       { requestId: "req-1", userId: "user-1" },
       expect.objectContaining({ attempts: 2 }),
     );
+  });
+
+  it("onModuleInit registers the Sunday 23:00 UTC weekly-summary generation scheduler (S46)", async () => {
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      await service.onModuleInit();
+
+      expect(mockWeeklySummaryQueue.upsertJobScheduler).toHaveBeenCalledWith(
+        "weekly-summary-sunday-23-utc",
+        { pattern: "0 23 * * 0", tz: "UTC" },
+        expect.objectContaining({
+          name: JobName.RUN_WEEKLY_SUMMARY_GENERATION,
+          opts: expect.objectContaining({
+            attempts: 3,
+            backoff: { type: "exponential", delay: 5 * 60_000 },
+          }),
+        }),
+      );
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
   });
 
   it("enqueueAccountDeletion uses a 30-day delay + 5-attempt retry policy", async () => {

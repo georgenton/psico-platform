@@ -1937,9 +1937,60 @@ Cierra la **UX gap** que S43+S44 abrieron — el user ya tiene controles para op
 
 ---
 
-### Próximo paso — Sesión 46
+### Sesión 46 — 2026-06-05 ✅ COMPLETADA — Sprint S46 Auto-generate WeeklySummary
 
-**🎉 Fase 1 UI completa.** Tres caminos:
+**Rama sugerida:** `feature/sprint-46-auto-weekly-summary`
+**Tests:** 392/393 API + 34/34 crypto (384 → 392, +8 nuevos · 1 skipped sentinel)
+**Bitácora:** [docs/informes/sprint-46-auto-weekly-summary.md](docs/informes/sprint-46-auto-weekly-summary.md)
+
+**Lo que se construyó (cierre del loop S38 → S44 → S45):**
+
+Hasta S45, el flujo era: S38 genera narrative LLM al click, S44 manda digest lunes 07:00 UTC, S45 lee `WeeklySummary` SI existe. La fila casi nunca existía → digest casi nunca incluía editorial. S46 lo cierra con un cron que pre-genera la fila los domingos 23:00 UTC para que cuando el digest del lunes la busque, la encuentre.
+
+**Backend:**
+- `QueueName.WEEKLY_SUMMARY_GENERATION` + payload + `RUN_WEEKLY_SUMMARY_GENERATION` job name en `queue-names.ts`.
+- `JobsService.onModuleInit` registra cron `0 23 * * 0 UTC` (Sunday 23:00 UTC). Retry 3/exp 5min/25min/2h.
+- `JobsModule.registerQueue` + `WorkerAppModule.registerQueue` extendidos.
+- `WorkerAppModule` ahora importa `PatronesModule` (cascade: `AIModule` + `PrismaModule`) para que el worker pueda invocar el LLM.
+- `WeeklySummaryGenerationProcessor` — fan-out + retry shell. Query Pro+ users con `weeklyReport=true`, llama `PatronesService.regenerateWeeklySummary(userId, plan)` per user. Swallow per-user errors:
+  - `NOT_ENOUGH_ENTRIES` → contador `skippedNotEnough`, continue.
+  - `ForbiddenException` (race con plan change) → log + continue.
+  - Cualquier otro → contador `failed`, log + continue.
+- `dryRun=true` short-circuita los LLM calls (útil ops cuando Anthropic spend está near-cap).
+
+**Decisiones:**
+1. Domingo 23:00 UTC (no viernes) — cubre semana completa Mon→Sun ISO + 8h buffer antes del digest lunes 07:00.
+2. Reusar `PatronesService.regenerateWeeklySummary` en lugar de duplicar — processor solo es fan-out + error isolation.
+3. Candidate set: Pro+ con `weeklyReport=true` — FREE devuelve 403, weeklyReport=false el digest skipea de todas formas.
+4. Failure isolation per-user — un LLM 5xx no aborta la run.
+5. Idempotente — upsert sobre `(userId, weekStart)` significa retries seguros.
+6. Worker importa PatronesModule — Anthropic SDK boota en worker; si key falta, fallback rule-based per user.
+
+**Tests (+8):**
+- `weekly-summary.processor.spec.ts` — 7 tests: unknown job, where-clause shape + per-user calls, NOT_ENOUGH_ENTRIES swallowed, ForbiddenException swallowed, arbitrary error swallowed, dryRun, empty candidates.
+- `jobs.service.spec.ts` — +1 test asserts cron `weekly-summary-sunday-23-utc` + pattern `0 23 * * 0` + job name + retry policy. Constructor del spec actualizado a 7 args.
+
+**Sin cambios:**
+- Schema, migración, tipos compartidos, OpenAPI surface (cron interno).
+- UI (botón manual "Regenerar" sigue ahí para casos antes del cron).
+
+**Privacy invariant preservado:**
+- ADR 0007 intacto. `computeWeeklyStats` opera solo sobre `mood` + `tags` + `createdAt`.
+- LLM recibe `{ entryCount, dominantMood, moodCounts, topTags, weekStartIso }` — nunca body, nunca cipher.
+- Processor S46 delega 100% al `PatronesService` que ya tiene el invariant cubierto.
+
+**Deuda técnica abierta:**
+- Timezone-aware scheduling (S44 deuda sigue abierta).
+- Sin telemetría LLM cost en `BillingUsageDay`.
+- Sin alerting si el worker está caído un domingo.
+- `WeeklyDigestProcessor.lastDigestSentAt` sigue sin tracking (idempotencia del digest).
+- Sin diff between weeks anterior/actual en el prompt LLM.
+
+---
+
+### Próximo paso — Sesión 47
+
+**🎉 Fase 1 UI completa + loop retention cerrado.** Tres caminos:
 
 **Opción A — Deploy a Railway (recomendado):**
 ```bash

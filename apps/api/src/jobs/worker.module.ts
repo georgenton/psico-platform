@@ -6,6 +6,9 @@ import { PrismaModule } from "../prisma";
 import { RedisModule } from "../redis";
 import { StorageModule } from "../storage";
 import { NotificationsModule } from "../notifications";
+// Sprint S46 — PatronesModule wires the LLM-backed regenerator the worker
+// reuses. Imports cascade so AIModule (Anthropic SDK) loads here too.
+import { PatronesModule } from "../patrones/patrones.module";
 import { QueueName } from "./queue-names";
 import { EmailProcessor } from "./processors/email.processor";
 import { DataExportProcessor } from "./processors/data-export.processor";
@@ -13,6 +16,7 @@ import { AccountDeletionProcessor } from "./processors/account-deletion.processo
 import { DailyUsageProcessor } from "./processors/daily-usage.processor";
 import { WeeklyDigestProcessor } from "./processors/weekly-digest.processor";
 import { InactiveNudgeProcessor } from "./processors/inactive-nudge.processor";
+import { WeeklySummaryGenerationProcessor } from "./processors/weekly-summary.processor";
 import type { Env } from "../config";
 
 /**
@@ -44,6 +48,7 @@ import type { Env } from "../config";
     RedisModule,
     StorageModule,
     NotificationsModule,
+    PatronesModule,
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<Env, true>) => {
@@ -61,6 +66,8 @@ import type { Env } from "../config";
       // Sprint S44 — notification queues.
       { name: QueueName.WEEKLY_DIGEST },
       { name: QueueName.INACTIVE_NUDGE },
+      // Sprint S46 — weekly summary pre-generation queue.
+      { name: QueueName.WEEKLY_SUMMARY_GENERATION },
     ),
   ],
   providers: [
@@ -71,6 +78,8 @@ import type { Env } from "../config";
     // Sprint S44 — notification processors.
     WeeklyDigestProcessor,
     InactiveNudgeProcessor,
+    // Sprint S46 — pre-generation of WeeklySummary so digest finds the row.
+    WeeklySummaryGenerationProcessor,
   ],
 })
 export class WorkerAppModule {}

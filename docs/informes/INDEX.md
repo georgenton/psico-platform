@@ -55,6 +55,7 @@
 |     45 | 2026-06-05 | Sprint S45 — Notifications UI + WeeklySummary wire en digest                               | [sprint-45-notifications-ui.md](sprint-45-notifications-ui.md)               |
 |     46 | 2026-06-05 | Sprint S46 — Auto-generate WeeklySummary (cron domingo 23:00 UTC)                          | [sprint-46-auto-weekly-summary.md](sprint-46-auto-weekly-summary.md)         |
 |     47 | 2026-06-05 | Sprint S47 — Web Push (VAPID + Service Worker + dual-platform PushService)                 | [sprint-47-web-push.md](sprint-47-web-push.md)                               |
+|     48 | 2026-06-05 | Sprint S48 — Pulso v2 · Overview (admin KPIs dashboard)                                    | [sprint-48-pulso-overview.md](sprint-48-pulso-overview.md)                   |
 
 ---
 
@@ -68,7 +69,7 @@
 
 ## Cobertura
 
-**35 sprints documentados** (Sesiones 11–47, sin gaps).
+**36 sprints documentados** (Sesiones 11–48, sin gaps).
 
 Sesiones 1–10 (pre-Plan-v2, bootstrap → primer deploy) están condensadas inline en `CLAUDE.md`:
 

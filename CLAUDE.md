@@ -2047,9 +2047,63 @@ Cierra la simetría mobile/web del push. Mobile tenía push real desde S43; web 
 
 ---
 
-### Próximo paso — Sesión 48
+### Sesión 48 — 2026-06-05 ✅ COMPLETADA — Sprint S48 Pulso v2 · Overview
 
-**🎉 Loop completo de notifications: email + Expo push + Web push.** Tres caminos:
+**Rama sugerida:** `feature/sprint-48-pulso-overview`
+**Tests:** 404/405 API + 24 web + 34 crypto (400 → 404, +4 nuevos · 1 skipped sentinel)
+**Bitácora:** [docs/informes/sprint-48-pulso-overview.md](docs/informes/sprint-48-pulso-overview.md)
+
+**Lo que se construyó:**
+
+Segunda surface de Pulso v2 después del reports inbox (S42). Admin tiene ahora un dashboard de "cómo va la plataforma" en una sola pantalla con KPIs agrupados en 4 secciones: Users · Engagement · Content · Business.
+
+**Backend:**
+- `@psico/types`: 6 nuevos shapes (`PulsoOverviewResponse` + 4 blocks + `PulsoOverviewPeriod`).
+- `PulsoService.getOverview()` agregado al servicio existente. Cache Redis 5min (key global `pulso:overview`).
+- 4 bloques en el response:
+  - **Users**: total + newToday + newThisWeek + newThisMonth.
+  - **Engagement**: DAU/WAU/MAU (distinct users con cualquier actividad en la ventana).
+  - **Content**: diaryEntries · ecoMessages USER · ecoCrisis · voiceMinutes · readingSessions (todos last 7d).
+  - **Business**: paidUsers (PRO/ANNUAL/B2B) + reportsBacklog (total reports en v1).
+- `countActiveUsers(since)` private — une distinct userIds de 4 tablas via `Set<userId>` en aplicación.
+- `RedisModule` importado en `PulsoModule`.
+- `GET /api/pulso/overview` ADMIN-only.
+
+**Cliente:** `pulsoApi.getOverview()`. OpenAPI regenerado.
+
+**Web:**
+- `KpiCard.tsx` componente compacto (label/value/helper/accent — danger/warning/success).
+- `/dashboard/admin/overview/page.tsx` Server Component con grid de KPIs. ADMIN gate doble (backend + frontend redirect). `accent="danger"` para crisis count cuando > 0.
+- Sidebar nav: "📊 Pulso · Overview" ARRIBA de "📋 Pulso · Reports".
+
+**Decisiones clave:**
+1. Rolling windows (24h/7d/30d) — no calendar boundaries.
+2. Sin sparklines v1 — `recharts` no justificable para 2-3 curvas.
+3. Cache Redis 5min single global key.
+4. Active = diary OR eco USER OR voice OR reading. Dedupe via Set en aplicación.
+5. `paidUsers` por `User.plan` (no chequea `Subscription.status`).
+6. `reportsBacklog = total` v1.
+7. Privacy invariant FUERTE — test explícito.
+
+**Tests (+4):** zero state · aggregation · cache hit · privacy invariant.
+
+**Privacy preservada:**
+- Response NUNCA contiene `userId`/`email`/IP/snippet.
+- ADMIN-only doble gate: backend `RolesGuard + @RequiredRole("ADMIN")` + frontend redirect.
+
+**Deuda técnica abierta:**
+- Sin time series / sparklines — sprint propio cuando exista tabla `PlatformMetricDaily`.
+- DAU/WAU/MAU via Set en aplicación — escalable hasta ~100k MAU.
+- Sin "vs período anterior" delta.
+- `paidUsers` no chequea `Subscription.status` — confiamos en `User.plan` por webhook.
+- `reportsBacklog = total` v1.
+- Cache 5min no invalida en writes.
+
+---
+
+### Próximo paso — Sesión 49
+
+**🎉 Pulso v2 con Overview + Reports.** Tres caminos:
 
 **Opción A — Deploy a Railway (recomendado):**
 ```bash

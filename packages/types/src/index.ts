@@ -1595,3 +1595,21 @@ export interface PulsoReportSummary {
   total: number;
   byReason: Record<PulsoReportReason, number>;
 }
+
+// ─── Notifications (Sprint S43) ─────────────────────────────────────────────
+//
+// Device tokens registered by the mobile app via expo-notifications. The
+// shape is intentionally minimal — push delivery details (badge, sound,
+// channel) live server-side, not in the wire contract.
+
+export type DevicePlatform = "EXPO" | "WEB";
+
+export interface RegisterDeviceRequest {
+  platform: DevicePlatform;
+  token: string;
+  deviceLabel?: string;
+}
+
+export interface RegisterDeviceResponse {
+  id: string;
+}

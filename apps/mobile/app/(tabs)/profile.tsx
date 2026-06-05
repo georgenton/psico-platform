@@ -103,6 +103,36 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* Notifications shortcut — Sprint S45 */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Notificaciones</Text>
+        <Pressable
+          style={styles.card}
+          onPress={() => router.push("/(tabs)/notifications")}
+        >
+          <View style={rowStyles.row}>
+            <View style={rowStyles.iconWrap}>
+              <Ionicons
+                name="notifications-outline"
+                size={18}
+                color={Colors.lavender[500]}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={rowStyles.label}>
+                Push, email digest, recordatorios
+              </Text>
+              <Text style={rowStyles.value}>Controla qué te avisamos</Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={Colors.warm[400]}
+            />
+          </View>
+        </Pressable>
+      </View>
+
       {/* Security shortcut */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Seguridad</Text>

@@ -1885,7 +1885,59 @@ Cierra la deuda de S43 — entrega los dos processors prometidos sobre la infra 
 
 ---
 
-### Próximo paso — Sesión 45
+### Sesión 45 — 2026-06-05 ✅ COMPLETADA — Sprint S45 Notifications UI + WeeklySummary wire
+
+**Rama sugerida:** `feature/sprint-45-notifications-ui`
+**Tests:** 384/385 API + 34/34 crypto (383 → 384, +1 nuevo · 1 skipped sentinel).
+**Bitácora:** [docs/informes/sprint-45-notifications-ui.md](docs/informes/sprint-45-notifications-ui.md)
+
+**Lo que se construyó:**
+
+Cierra la **UX gap** que S43+S44 abrieron — el user ya tiene controles para opt-in/out de cada tipo de notification + wire del WeeklySummary (S38) dentro del digest email (cierra deuda S44).
+
+**Cliente:**
+- Nuevo `@psico/api-client/users.ts` con `usersApi.getMe()` + `usersApi.updateNotifications()`.
+
+**Backend (sin tocar endpoints):**
+- `weekly-digest.template.ts` extendido con `narrative?: { headline, body }` block lavender ABOVE stats.
+- `WeeklyDigestProcessor` ahora `findUnique` sobre `weeklySummary(userId, weekStart)` y pasa al template si existe.
+- +1 test verifica wire + privacy.
+
+**Web (`/dashboard/notifications`):**
+- Server Component pre-fetcha `/user/me`.
+- `NotificationsForm` Client Component con 5 toggles + reminderTime input.
+- Server action `updateNotificationsAction` con `revalidatePath`.
+- Optimistic save + flash + inline error.
+- Sidebar item "🔔 Notificaciones".
+
+**Mobile (`/(tabs)/notifications`):**
+- Switch nativos + TextInput para reminderTime + optimistic save.
+- Shortcut card "Notificaciones" en profile screen antes de Seguridad.
+- Registered con `href: null` (deep-link only desde Perfil).
+
+**Decisiones:**
+1. Optimistic UI sin botón Save — toggle = save inmediato.
+2. Flash "Guardado" 2.5-3s.
+3. Errores inline globales (no per-row).
+4. Narrative ABOVE stats en email — editorial cálido primero, cifras después.
+5. Wire WeeklySummary en lookup-only, NO genera (PatronesService es el productor).
+6. No tocar backend — endpoint `PATCH /api/user/notifications` existía desde S9.
+
+**Smoke verification:**
+- API tests 384/385.
+- Typecheck + lint OK en API + Web + Mobile.
+- OpenAPI in sync.
+
+**Deuda técnica abierta:**
+- Sin tests UI para los componentes settings.
+- `reminderTime` no aplica timezone (conecta cuando S44 deuda TZ aterrice).
+- Sin "Enviar email de prueba".
+- Sin `pushEnabled` separado de `dailyReminder`.
+- WeeklySummary no se auto-genera el viernes para el digest del lunes.
+
+---
+
+### Próximo paso — Sesión 46
 
 **🎉 Fase 1 UI completa.** Tres caminos:
 

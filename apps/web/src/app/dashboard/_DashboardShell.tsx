@@ -59,6 +59,13 @@ const NAV_ITEMS = [
     tourTarget: null,
   },
   {
+    href: "/dashboard/notifications",
+    label: "Notificaciones",
+    icon: "🔔",
+    exact: false,
+    tourTarget: null,
+  },
+  {
     href: "/dashboard/security",
     label: "Seguridad",
     icon: "🔐",

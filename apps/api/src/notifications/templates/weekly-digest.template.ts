@@ -12,6 +12,16 @@ export interface WeeklyDigestProps {
   topTags: string[]; // up to ~5
   /** Optional link to the user's Patrones page for richer view. */
   patronesUrl?: string;
+  /**
+   * Sprint S45: WeeklySummary editorial narrative from S38 LLM (when
+   * available). The processor looks up the row for `weekStartIso` and
+   * passes it through if present — otherwise the email falls back to the
+   * stats-only block.
+   */
+  narrative?: {
+    headline: string;
+    body: string;
+  };
 }
 
 /**
@@ -67,6 +77,22 @@ export function weeklyDigestEmail(props: WeeklyDigestProps): RenderedEmail {
       </ul>
     `;
 
+  // Sprint S45: editorial narrative from S38 WeeklySummary, if available.
+  // Renders BEFORE the stats so the user reads the warm voice first.
+  const narrativeBlock = props.narrative
+    ? `
+      <div style="background:#F3EFF8; border-left:3px solid #8B73C0;
+                  padding:14px 16px; border-radius:8px; margin:0 0 18px;">
+        <p style="margin:0 0 6px; font-size:15px; font-weight:600; color:#3D2F5A;">
+          ${escape(props.narrative.headline)}
+        </p>
+        <p style="margin:0; font-size:14px; color:#5A4A7A; white-space:pre-line;">
+          ${escape(props.narrative.body)}
+        </p>
+      </div>
+    `
+    : "";
+
   const ctaButton = props.patronesUrl
     ? `<p style="margin:16px 0;">
          <a href="${escape(props.patronesUrl)}"
@@ -87,6 +113,7 @@ export function weeklyDigestEmail(props: WeeklyDigestProps): RenderedEmail {
       <p style="margin:0 0 16px; color:#7E6F5F;">
         Pequeño resumen de tu ${escape(weekLabel)}.
       </p>
+      ${narrativeBlock}
       ${statLines}
       ${ctaButton}
       <p style="margin:24px 0 0; font-size:13px; color:#7E6F5F;">
@@ -96,10 +123,15 @@ export function weeklyDigestEmail(props: WeeklyDigestProps): RenderedEmail {
     `,
   });
 
+  const narrativeText = props.narrative
+    ? `\n${props.narrative.headline}\n\n${props.narrative.body}\n`
+    : "";
+
   const text = noActivity
     ? `¡${greeting}! Esta semana no escribiste — tu espacio te espera cuando quieras.\n\nDesactivar: Perfil → Notificaciones → Resumen semanal.`
-    : `¡${greeting}! Resumen de tu ${weekLabel}:\n\n` +
-      `· ${props.diaryEntries} entradas en tu diario\n` +
+    : `¡${greeting}! Resumen de tu ${weekLabel}:\n` +
+      narrativeText +
+      `\n· ${props.diaryEntries} entradas en tu diario\n` +
       `· ${props.ecoMessages} mensajes con Eco\n` +
       (props.dominantMood ? `· Mood dominante: ${props.dominantMood}\n` : "") +
       (props.topTags.length > 0

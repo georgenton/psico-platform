@@ -188,6 +188,16 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
+          name="notifications"
+          options={{
+            href: null,
+            title: "Notificaciones",
+            tabBarIcon: ({ color, size }: IconProps) => (
+              <Ionicons name="notifications" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="voz"
           options={{
             href: null,

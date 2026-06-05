@@ -19,6 +19,7 @@ export { onboardingApi } from "./onboarding";
 export { patronesApi } from "./patrones";
 export { pulsoApi } from "./pulso";
 export { notificationsApi } from "./notifications";
+export { usersApi } from "./users";
 
 // Auto-generated OpenAPI types — see scripts/generate.mjs and ADR 0008.
 // Consumers can use:

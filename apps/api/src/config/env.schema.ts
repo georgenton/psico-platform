@@ -72,6 +72,26 @@ export const envSchema = z
     VOICE_PROVIDER: z.enum(["whisper", "deepgram"]).default("whisper"),
     OPENAI_API_KEY: z.string().optional(),
     DEEPGRAM_API_KEY: z.string().optional(),
+
+    // Sprint S47 — Web Push (VAPID).
+    //
+    // VAPID = Voluntary Application Server Identification. Mozilla / Chrome /
+    // Edge push services require the server to sign each push payload with a
+    // VAPID JWT so they can rate-limit and identify the originating service.
+    //
+    // Generation: `pnpm --filter @psico/api gen:vapid` writes a fresh keypair
+    // to stdout. Add the values to Railway (API + worker services) and the
+    // PUBLIC key to Vercel as `NEXT_PUBLIC_VAPID_PUBLIC_KEY`.
+    //
+    // All three are OPTIONAL at the schema level — when unset, the PushService
+    // skips WEB tokens (returns status="error" + logs a warning) and continues
+    // delivering EXPO tokens normally. This keeps existing deploys booting
+    // without an env shuffle. superRefine below requires the trio together
+    // in production once at least one is set — half-set is a configuration
+    // bug we want to catch at boot.
+    VAPID_PUBLIC_KEY: z.string().optional(),
+    VAPID_PRIVATE_KEY: z.string().optional(),
+    VAPID_SUBJECT: z.string().optional(),
   })
   // Cross-field validation: in production, certain optional fields become
   // required. Keeping the rule here (instead of separate per-env schemas)
@@ -103,6 +123,21 @@ export const envSchema = z
         path: ["DEEPGRAM_API_KEY"],
         message:
           "DEEPGRAM_API_KEY is required when VOICE_PROVIDER=deepgram. Set it or switch VOICE_PROVIDER to whisper.",
+      });
+    }
+    // Sprint S47 — VAPID trio. We tolerate the all-unset state (web push
+    // simply disabled), but reject the half-set states because they ALWAYS
+    // come from a botched env shuffle and silently break delivery.
+    const anyVapid =
+      env.VAPID_PUBLIC_KEY || env.VAPID_PRIVATE_KEY || env.VAPID_SUBJECT;
+    const allVapid =
+      env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY && env.VAPID_SUBJECT;
+    if (anyVapid && !allVapid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["VAPID_PUBLIC_KEY"],
+        message:
+          "VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY + VAPID_SUBJECT must be set together (or all three left unset to disable web push).",
       });
     }
   });

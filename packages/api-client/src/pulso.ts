@@ -1,4 +1,5 @@
 import type {
+  PulsoOverviewResponse,
   PulsoReportListResponse,
   PulsoReportReason,
   PulsoReportSummary,
@@ -6,7 +7,7 @@ import type {
 import { apiClient } from "./client";
 
 /**
- * pulsoApi — Sprint S42.
+ * pulsoApi — Sprint S42 (reports) + S48 (overview).
  *
  * Admin-only surface (server enforces role=ADMIN). Calling these endpoints
  * as a non-admin returns 403 — the frontend ALSO gates the route, but the
@@ -32,4 +33,7 @@ export const pulsoApi = {
       `/pulso/reports/eco${query ? `?${query}` : ""}`,
     );
   },
+
+  // Sprint S48 — platform overview KPIs (cached 5min server-side).
+  getOverview: () => apiClient.get<PulsoOverviewResponse>("/pulso/overview"),
 };

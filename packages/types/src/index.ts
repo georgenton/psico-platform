@@ -1596,6 +1596,66 @@ export interface PulsoReportSummary {
   byReason: Record<PulsoReportReason, number>;
 }
 
+// ─── Pulso v2 · Overview (Sprint S48) ───────────────────────────────────────
+//
+// Single-screen "how is the platform doing" dashboard for ADMIN. All counts
+// are aggregates; we deliberately don't expose per-user identifiers here so
+// the response is safe to log + share inside the team.
+//
+// Privacy contract:
+// - No userId, email, name, IP, or user-content snippet appears in this shape.
+// - All values are integer counts or numeric metrics.
+// - The `period.from`/`period.to` are UTC ISO date strings (YYYY-MM-DD).
+
+export interface PulsoOverviewPeriod {
+  from: string; // YYYY-MM-DD UTC
+  to: string; // YYYY-MM-DD UTC
+}
+
+export interface PulsoOverviewUsersBlock {
+  total: number;
+  /** Created in the last 24h (UTC). */
+  newToday: number;
+  /** Created in the last 7 days (UTC). */
+  newThisWeek: number;
+  /** Created in the last 30 days (UTC). */
+  newThisMonth: number;
+}
+
+export interface PulsoOverviewEngagementBlock {
+  /** Distinct users with any activity (diary/eco/lector/voice) in the last 24h. */
+  dau: number;
+  /** Distinct users with activity in the last 7 days. */
+  wau: number;
+  /** Distinct users with activity in the last 30 days. */
+  mau: number;
+}
+
+export interface PulsoOverviewContentBlock {
+  diaryEntriesThisWeek: number;
+  ecoMessagesThisWeek: number;
+  /** Eco messages flagged as crisis (regex or LLM sentinel) in the last 7 days. */
+  ecoCrisisThisWeek: number;
+  voiceMinutesThisWeek: number;
+  readingSessionsThisWeek: number;
+}
+
+export interface PulsoOverviewBusinessBlock {
+  /** Users on a paid plan (PRO/ANNUAL/B2B). */
+  paidUsers: number;
+  /** Eco-reports awaiting admin review (no `resolvedAt` yet — v1 = total). */
+  reportsBacklog: number;
+}
+
+export interface PulsoOverviewResponse {
+  generatedAt: Date;
+  period: PulsoOverviewPeriod;
+  users: PulsoOverviewUsersBlock;
+  engagement: PulsoOverviewEngagementBlock;
+  content: PulsoOverviewContentBlock;
+  business: PulsoOverviewBusinessBlock;
+}
+
 // ─── Notifications (Sprint S43) ─────────────────────────────────────────────
 //
 // Device tokens registered by the mobile app via expo-notifications. The

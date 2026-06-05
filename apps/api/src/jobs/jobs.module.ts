@@ -46,6 +46,8 @@ import type { Env } from "../config";
       // Sprint S44 — notification schedulers.
       { name: QueueName.WEEKLY_DIGEST },
       { name: QueueName.INACTIVE_NUDGE },
+      // Sprint S46 — pre-generate WeeklySummary so the Monday digest finds it.
+      { name: QueueName.WEEKLY_SUMMARY_GENERATION },
     ),
   ],
   providers: [JobsService],

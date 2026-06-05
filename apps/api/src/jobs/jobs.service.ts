@@ -10,6 +10,7 @@ import {
   type EmailJobPayload,
   type InactiveNudgeJobPayload,
   type WeeklyDigestJobPayload,
+  type WeeklySummaryGenerationJobPayload,
 } from "./queue-names";
 
 const DAYS = 24 * 60 * 60 * 1000;
@@ -25,6 +26,12 @@ const WEEKLY_DIGEST_SCHEDULER_ID = "weekly-digest-monday-07-utc";
 // Sprint S44 — Nightly nudge scheduler. 18:00 UTC ≈ midday in LATAM,
 // evening in EU — chosen so the push doesn't wake anyone up.
 const INACTIVE_NUDGE_SCHEDULER_ID = "inactive-nudge-18-utc";
+
+// Sprint S46 — Pre-generate WeeklySummary so the Monday digest finds it.
+// Sunday 23:00 UTC covers the full ISO week (Mon→Sun) AND leaves 8h of
+// buffer before the Monday 07:00 UTC digest cron — enough room for retries
+// if the LLM hits a transient 5xx.
+const WEEKLY_SUMMARY_SCHEDULER_ID = "weekly-summary-sunday-23-utc";
 
 /**
  * Producer-side API for enqueuing background work. Feature services inject
@@ -55,6 +62,9 @@ export class JobsService implements OnModuleInit {
     private readonly weeklyDigestQueue: Queue<WeeklyDigestJobPayload>,
     @InjectQueue(QueueName.INACTIVE_NUDGE)
     private readonly inactiveNudgeQueue: Queue<InactiveNudgeJobPayload>,
+    // Sprint S46 — weekly summary pre-generation.
+    @InjectQueue(QueueName.WEEKLY_SUMMARY_GENERATION)
+    private readonly weeklySummaryQueue: Queue<WeeklySummaryGenerationJobPayload>,
   ) {}
 
   /**
@@ -163,6 +173,34 @@ export class JobsService implements OnModuleInit {
     } catch (err) {
       this.logger.error(
         `Failed to register inactive-nudge scheduler: ${(err as Error).message}`,
+      );
+    }
+
+    // Sprint S46 — Weekly summary pre-generation cron. Sunday 23:00 UTC.
+    // Runs ~8 hours BEFORE the Monday 07:00 UTC digest so the row exists
+    // when the digest looks it up. The processor is idempotent (upsert on
+    // (userId, weekStart)) — re-running is safe.
+    try {
+      await this.weeklySummaryQueue.upsertJobScheduler(
+        WEEKLY_SUMMARY_SCHEDULER_ID,
+        { pattern: "0 23 * * 0", tz: "UTC" }, // Sunday 23:00 UTC
+        {
+          name: JobName.RUN_WEEKLY_SUMMARY_GENERATION,
+          data: {},
+          opts: {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 5 * 60_000 },
+            removeOnComplete: { age: 30 * 24 * 60 * 60 },
+            removeOnFail: false,
+          },
+        },
+      );
+      this.logger.log(
+        `Weekly-summary generation scheduled · id=${WEEKLY_SUMMARY_SCHEDULER_ID} · cron=0 23 * * 0 UTC`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to register weekly-summary scheduler: ${(err as Error).message}`,
       );
     }
   }

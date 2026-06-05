@@ -1554,3 +1554,44 @@ export interface PatronesShareWithTherapistResponse {
   /** TerapiaModule (Sprint S13) is not live yet; v1 returns a stub. */
   status: "stub" | "scheduled" | "sent";
 }
+
+// ─── Pulso (Sprint S42) ─────────────────────────────────────────────────────
+//
+// Admin-only back-office. First slice: reports inbox over `EcoMessageReport`.
+// All endpoints below sit under `/api/pulso/*` and require role=ADMIN.
+//
+// Privacy: rows expose `assistantTextSnippet` (the LLM reply that the user
+// reported, NOT the user's prompt). User prompts live as ciphertext and are
+// never decrypted server-side, so they are intentionally absent from this
+// surface.
+
+export type PulsoReportReason =
+  | "HALLUCINATION"
+  | "OFF_TONE"
+  | "SENSITIVE_CONTENT"
+  | "CRISIS_MISHANDLED"
+  | "OTHER";
+
+export interface PulsoReportRow {
+  id: string;
+  reason: PulsoReportReason;
+  comment: string | null;
+  createdAt: Date;
+  userId: string;
+  messageId: string;
+  threadId: string;
+  messageKind: "USER" | "ASSISTANT" | "CRISIS" | "SUGGESTION";
+  /** Trimmed assistant text (plaintext from the LLM). */
+  assistantTextSnippet: string;
+}
+
+export interface PulsoReportListResponse {
+  items: PulsoReportRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export interface PulsoReportSummary {
+  total: number;
+  byReason: Record<PulsoReportReason, number>;
+}

@@ -2572,6 +2572,36 @@
           "Patrones"
         ]
       }
+    },
+    "/api/pulso/reports/eco/summary": {
+      "get": {
+        "operationId": "PulsoController_getSummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Counts of Eco message reports grouped by reason",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/reports/eco": {
+      "get": {
+        "operationId": "PulsoController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List Eco message reports, newest-first. Supports cursor pagination + reason filter.",
+        "tags": [
+          "Pulso"
+        ]
+      }
     }
   },
   "info": {

@@ -67,6 +67,19 @@ const NAV_ITEMS = [
   },
 ] as const;
 
+// Sprint S42: admin-only nav item appended at render time when
+// `user.role === "ADMIN"`. Lives in its own array so it never leaks into
+// the regular tour catalog or analytics.
+const ADMIN_NAV_ITEMS = [
+  {
+    href: "/dashboard/admin/reports",
+    label: "Pulso · Reports",
+    icon: "📋",
+    exact: false,
+    tourTarget: null,
+  },
+] as const;
+
 function matchesRoute(href: string, pathname: string, exact: boolean): boolean {
   return exact ? pathname === href : pathname.startsWith(href);
 }
@@ -132,6 +145,40 @@ function SidebarContent({
             </Link>
           );
         })}
+
+        {/* Sprint S42: admin section — visible only to ADMIN users. */}
+        {user?.role === "ADMIN" ? (
+          <>
+            <p
+              className="mt-4 mb-1 px-3 text-[10.5px] font-bold uppercase tracking-[0.14em]"
+              style={{ color: "var(--color-warm-400)" }}
+            >
+              Pulso · Admin
+            </p>
+            {ADMIN_NAV_ITEMS.map((item) => {
+              const active = matchesRoute(item.href, pathname, item.exact);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onNav}
+                  className="mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all"
+                  style={
+                    active
+                      ? {
+                          background: "var(--color-lavender-100)",
+                          color: "var(--color-lavender-700)",
+                        }
+                      : { color: "var(--color-warm-600)" }
+                  }
+                >
+                  <span className="text-base">{item.icon}</span>
+                  {item.label}
+                </Link>
+              );
+            })}
+          </>
+        ) : null}
       </nav>
 
       {/* User section */}

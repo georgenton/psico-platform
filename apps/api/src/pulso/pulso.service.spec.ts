@@ -35,6 +35,10 @@ function buildPrisma(overrides: Partial<Record<string, unknown>> = {}) {
     platformMetricDaily: {
       findMany: vi.fn().mockResolvedValue([]),
     },
+    // Sprint S51 — CohortRetentionWeek powers the cohort heatmap.
+    cohortRetentionWeek: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     ...overrides,
   } as unknown as ConstructorParameters<typeof PulsoService>[0];
 }
@@ -714,5 +718,94 @@ describe("PulsoService.getOverview series + deltas (Sprint S50)", () => {
     const res = await svc.getOverview();
 
     expect(res.deltas.dau).toBe(999);
+  });
+});
+
+// ─── Sprint S51 — cohort retention ───────────────────────────────────────
+
+describe("PulsoService.getCohortRetention (Sprint S51)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns empty rows + maxWeekOffset=0 when the table is empty", async () => {
+    const svc = new PulsoService(buildPrisma(), buildRedis());
+    const res = await svc.getCohortRetention();
+    expect(res.rows).toEqual([]);
+    expect(res.maxWeekOffset).toBe(0);
+  });
+
+  it("groups rows by cohortWeek and precomputes pct for each cell", async () => {
+    const wk1 = new Date("2026-05-25T00:00:00.000Z"); // Monday
+    const wk2 = new Date("2026-06-01T00:00:00.000Z");
+    const prisma = buildPrisma({
+      cohortRetentionWeek: {
+        findMany: vi.fn().mockResolvedValue([
+          // Newest-first by cohortWeek desc, then weekOffset asc.
+          { cohortWeek: wk2, weekOffset: 0, cohortSize: 10, activeUsers: 10 },
+          // wk1 has 8 members; offsets 0 and 1.
+          { cohortWeek: wk1, weekOffset: 0, cohortSize: 8, activeUsers: 8 },
+          { cohortWeek: wk1, weekOffset: 1, cohortSize: 8, activeUsers: 3 },
+        ]),
+      },
+    });
+    const svc = new PulsoService(prisma, buildRedis());
+    const res = await svc.getCohortRetention();
+
+    expect(res.rows).toHaveLength(2);
+    expect(res.rows[0]!.cohortWeek).toBe("2026-06-01");
+    expect(res.rows[0]!.cohortSize).toBe(10);
+    expect(res.rows[0]!.cells).toEqual([
+      { weekOffset: 0, activeUsers: 10, pct: 100 },
+    ]);
+    expect(res.rows[1]!.cohortWeek).toBe("2026-05-25");
+    expect(res.rows[1]!.cells).toEqual([
+      { weekOffset: 0, activeUsers: 8, pct: 100 },
+      { weekOffset: 1, activeUsers: 3, pct: 37.5 },
+    ]);
+    expect(res.maxWeekOffset).toBe(1);
+  });
+
+  it("guards divide-by-zero when cohortSize is 0 (returns pct=0)", async () => {
+    const prisma = buildPrisma({
+      cohortRetentionWeek: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            cohortWeek: new Date("2026-06-01T00:00:00.000Z"),
+            weekOffset: 0,
+            cohortSize: 0,
+            activeUsers: 0,
+          },
+        ]),
+      },
+    });
+    const svc = new PulsoService(prisma, buildRedis());
+    const res = await svc.getCohortRetention();
+    expect(res.rows[0]!.cells[0]!.pct).toBe(0);
+  });
+
+  it("serves from cache when the Redis key exists", async () => {
+    const cached = {
+      generatedAt: new Date("2026-06-08T10:00:00Z").toISOString(),
+      rows: [{ cohortWeek: "2026-06-01", cohortSize: 7, cells: [] }],
+      maxWeekOffset: 0,
+    };
+    const prisma = buildPrisma();
+    const redis = {
+      get: vi.fn().mockResolvedValue(JSON.stringify(cached)),
+      setex: vi.fn(),
+      del: vi.fn(),
+    } as unknown as ConstructorParameters<typeof PulsoService>[1];
+    const svc = new PulsoService(prisma, redis);
+
+    const res = await svc.getCohortRetention();
+
+    expect(res.rows[0]!.cohortSize).toBe(7);
+    // Cache hit means prisma untouched.
+    expect(
+      (
+        prisma as unknown as {
+          cohortRetentionWeek: { findMany: ReturnType<typeof vi.fn> };
+        }
+      ).cohortRetentionWeek.findMany,
+    ).not.toHaveBeenCalled();
   });
 });

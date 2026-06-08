@@ -5,6 +5,7 @@ import {
   JobName,
   QueueName,
   type AccountDeletionJobPayload,
+  type CohortRetentionJobPayload,
   type DailyUsageJobPayload,
   type DataExportJobPayload,
   type EmailJobPayload,
@@ -38,6 +39,11 @@ const WEEKLY_SUMMARY_SCHEDULER_ID = "weekly-summary-sunday-23-utc";
 // the daily-usage rollup at 02:00 (no resource contention, billing data
 // settled). The snapshot writes ONE row per day, so the schedule is daily.
 const PLATFORM_SNAPSHOT_SCHEDULER_ID = "platform-snapshot-02-30-utc";
+
+// Sprint S51 — Cohort retention recomputation. Monday 03:00 UTC, right
+// after the daily snapshot. Rebuilds the full retention triangle once per
+// week (more frequent runs add no signal because cohorts are weekly).
+const COHORT_RETENTION_SCHEDULER_ID = "cohort-retention-monday-03-utc";
 
 /**
  * Producer-side API for enqueuing background work. Feature services inject
@@ -74,6 +80,9 @@ export class JobsService implements OnModuleInit {
     // Sprint S50 — platform-wide daily snapshot.
     @InjectQueue(QueueName.PLATFORM_SNAPSHOT)
     private readonly platformSnapshotQueue: Queue<PlatformSnapshotJobPayload>,
+    // Sprint S51 — weekly cohort retention recomputation.
+    @InjectQueue(QueueName.COHORT_RETENTION)
+    private readonly cohortRetentionQueue: Queue<CohortRetentionJobPayload>,
   ) {}
 
   /**
@@ -237,6 +246,32 @@ export class JobsService implements OnModuleInit {
     } catch (err) {
       this.logger.error(
         `Failed to register platform-snapshot scheduler: ${(err as Error).message}`,
+      );
+    }
+
+    // Sprint S51 — Cohort retention cron. Monday 03:00 UTC. Recomputes the
+    // full triangle; idempotent on (cohortWeek, weekOffset). Retries safe.
+    try {
+      await this.cohortRetentionQueue.upsertJobScheduler(
+        COHORT_RETENTION_SCHEDULER_ID,
+        { pattern: "0 3 * * 1", tz: "UTC" }, // Monday 03:00 UTC
+        {
+          name: JobName.RUN_COHORT_RETENTION,
+          data: {},
+          opts: {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 5 * 60_000 },
+            removeOnComplete: { age: 30 * 24 * 60 * 60 },
+            removeOnFail: false,
+          },
+        },
+      );
+      this.logger.log(
+        `Cohort retention scheduled · id=${COHORT_RETENTION_SCHEDULER_ID} · cron=0 3 * * 1 UTC`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to register cohort-retention scheduler: ${(err as Error).message}`,
       );
     }
   }

@@ -58,6 +58,7 @@
 |     48 | 2026-06-05 | Sprint S48 — Pulso v2 · Overview (admin KPIs dashboard)                                    | [sprint-48-pulso-overview.md](sprint-48-pulso-overview.md)                   |
 |     49 | 2026-06-06 | Sprint S49 — Pulso v2 · Reports resolution flow (resolvedAt + tabs Open/Resolved)          | [sprint-49-reports-resolved.md](sprint-49-reports-resolved.md)               |
 |     50 | 2026-06-08 | Sprint S50 — Pulso v2 · Time series + sparklines (PlatformMetricDaily + deltas)            | [sprint-50-pulso-timeseries.md](sprint-50-pulso-timeseries.md)               |
+|     51 | 2026-06-08 | Sprint S51 — Pulso v2 · Cohort retention triangle (CohortRetentionWeek + heatmap)          | [sprint-51-cohort-retention.md](sprint-51-cohort-retention.md)               |
 
 ---
 
@@ -71,7 +72,7 @@
 
 ## Cobertura
 
-**38 sprints documentados** (Sesiones 11–50, sin gaps).
+**39 sprints documentados** (Sesiones 11–51, sin gaps).
 
 Sesiones 1–10 (pre-Plan-v2, bootstrap → primer deploy) están condensadas inline en `CLAUDE.md`:
 

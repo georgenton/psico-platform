@@ -138,6 +138,27 @@ export const QueueName = {
    * idempotent — upserts on `day` so retries on the same day overwrite.
    */
   PLATFORM_SNAPSHOT: "platform-snapshot",
+
+  /**
+   * Sprint S51 — Weekly cohort retention recomputation.
+   *
+   * Cron: Monday 03:00 UTC (after the daily snapshot at 02:30). Rebuilds
+   * the full `CohortRetentionWeek` triangle — every (cohortWeek,
+   * weekOffset) cell up to 52 weeks of history × 52 weeks of follow-up.
+   *
+   * Why weekly and not daily:
+   *   - Retention is a slow-changing metric. Daily recompute would waste
+   *     compute; the chart wouldn't visibly change.
+   *   - Cohorts are week-anchored (Mon→Sun), so Monday is the natural
+   *     boundary day to refresh the latest column.
+   *
+   * Producer: `JobsService.onModuleInit` registers the cron.
+   * Consumer: `apps/api/src/jobs/processors/cohort-retention.processor.ts`
+   *
+   * Retry: 3 attempts, exp 5min/25min/2h. Idempotent — upserts on
+   * (cohortWeek, weekOffset).
+   */
+  COHORT_RETENTION: "cohort-retention",
 } as const;
 
 export type QueueName = (typeof QueueName)[keyof typeof QueueName];
@@ -234,6 +255,18 @@ export interface PlatformSnapshotJobPayload {
 }
 
 /**
+ * Sprint S51 — Cohort retention recomputation. No payload in v1; the
+ * processor scans the full history each week. Kept as an interface so ops
+ * can backfill or restrict horizons in the future.
+ */
+export interface CohortRetentionJobPayload {
+  /** Cap cohorts older than this many weeks. Default 52 (1 year). */
+  horizonWeeks?: number;
+  /** When true, computes counts but does NOT upsert any rows. */
+  dryRun?: boolean;
+}
+
+/**
  * Job names within each queue. Currently each queue has one default job
  * (so the name is essentially the queue name) but the type system keeps
  * this open for future expansion.
@@ -247,6 +280,7 @@ export const JobName = {
   SEND_INACTIVE_NUDGE: "send-inactive-nudge",
   RUN_WEEKLY_SUMMARY_GENERATION: "run-weekly-summary-generation",
   RUN_PLATFORM_SNAPSHOT: "run-platform-snapshot",
+  RUN_COHORT_RETENTION: "run-cohort-retention",
 } as const;
 
 export type JobName = (typeof JobName)[keyof typeof JobName];

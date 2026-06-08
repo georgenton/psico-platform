@@ -144,6 +144,7 @@ export class JobsService implements OnModuleInit {
       );
     }
 
+<<<<<<< HEAD
     // Sprint S53 — Weekly digest cron, now HOURLY (was Monday 07:00 UTC).
     // The processor filters per user: only those whose `Profile.timezone`
     // makes their local weekday Monday AND local hour 7 at the cron's
@@ -154,6 +155,13 @@ export class JobsService implements OnModuleInit {
       await this.weeklyDigestQueue.upsertJobScheduler(
         WEEKLY_DIGEST_SCHEDULER_ID,
         { pattern: "0 * * * *", tz: "UTC" }, // Every hour UTC
+=======
+    // Sprint S44 — Weekly digest cron.
+    try {
+      await this.weeklyDigestQueue.upsertJobScheduler(
+        WEEKLY_DIGEST_SCHEDULER_ID,
+        { pattern: "0 7 * * 1", tz: "UTC" }, // Monday 07:00 UTC
+>>>>>>> origin/main
         {
           name: JobName.RUN_WEEKLY_DIGEST,
           data: {},
@@ -166,7 +174,11 @@ export class JobsService implements OnModuleInit {
         },
       );
       this.logger.log(
+<<<<<<< HEAD
         `Weekly digest scheduled · id=${WEEKLY_DIGEST_SCHEDULER_ID} · cron=0 * * * * UTC (per-user TZ filter inside)`,
+=======
+        `Weekly digest scheduled · id=${WEEKLY_DIGEST_SCHEDULER_ID} · cron=0 7 * * 1 UTC`,
+>>>>>>> origin/main
       );
     } catch (err) {
       this.logger.error(
@@ -174,6 +186,7 @@ export class JobsService implements OnModuleInit {
       );
     }
 
+<<<<<<< HEAD
     // Sprint S53 — Inactive nudge cron, now HOURLY (was 18:00 UTC daily).
     // Same TZ-aware filtering: only candidates whose local hour at `now`
     // is 18 actually get a push.
@@ -181,6 +194,13 @@ export class JobsService implements OnModuleInit {
       await this.inactiveNudgeQueue.upsertJobScheduler(
         INACTIVE_NUDGE_SCHEDULER_ID,
         { pattern: "0 * * * *", tz: "UTC" }, // Every hour UTC
+=======
+    // Sprint S44 — Inactive nudge cron.
+    try {
+      await this.inactiveNudgeQueue.upsertJobScheduler(
+        INACTIVE_NUDGE_SCHEDULER_ID,
+        { pattern: "0 18 * * *", tz: "UTC" }, // 18:00 UTC daily
+>>>>>>> origin/main
         {
           name: JobName.SEND_INACTIVE_NUDGE,
           data: {},
@@ -193,7 +213,11 @@ export class JobsService implements OnModuleInit {
         },
       );
       this.logger.log(
+<<<<<<< HEAD
         `Inactive nudge scheduled · id=${INACTIVE_NUDGE_SCHEDULER_ID} · cron=0 * * * * UTC (per-user TZ filter inside)`,
+=======
+        `Inactive nudge scheduled · id=${INACTIVE_NUDGE_SCHEDULER_ID} · cron=0 18 * * * UTC`,
+>>>>>>> origin/main
       );
     } catch (err) {
       this.logger.error(

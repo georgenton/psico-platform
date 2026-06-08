@@ -2654,6 +2654,7 @@
     "/api/pulso/reports/eco/summary": {
       "get": {
         "operationId": "PulsoController_getSummary",
+<<<<<<< HEAD
         "parameters": [
           {
             "name": "status",
@@ -2664,12 +2665,19 @@
             }
           }
         ],
+=======
+        "parameters": [],
+>>>>>>> origin/main
         "responses": {
           "200": {
             "description": ""
           }
         },
+<<<<<<< HEAD
         "summary": "Counts of Eco message reports grouped by reason. Default scope: open reports only.",
+=======
+        "summary": "Counts of Eco message reports grouped by reason",
+>>>>>>> origin/main
         "tags": [
           "Pulso"
         ]
@@ -2684,6 +2692,7 @@
             "description": ""
           }
         },
+<<<<<<< HEAD
         "summary": "List Eco message reports, newest-first. Supports cursor pagination, reason filter, and status (open|resolved|all).",
         "tags": [
           "Pulso"
@@ -2773,6 +2782,9 @@
           }
         },
         "summary": "Cohort retention triangle. Materialised by the Monday 03:00 UTC cron; cached 5min.",
+=======
+        "summary": "List Eco message reports, newest-first. Supports cursor pagination + reason filter.",
+>>>>>>> origin/main
         "tags": [
           "Pulso"
         ]
@@ -3013,10 +3025,13 @@
       "ShareWithTherapistDto": {
         "type": "object",
         "properties": {}
+<<<<<<< HEAD
       },
       "MarkResolvedDto": {
         "type": "object",
         "properties": {}
+=======
+>>>>>>> origin/main
       }
     }
   }

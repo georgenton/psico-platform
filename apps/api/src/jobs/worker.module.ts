@@ -17,6 +17,7 @@ import { DailyUsageProcessor } from "./processors/daily-usage.processor";
 import { WeeklyDigestProcessor } from "./processors/weekly-digest.processor";
 import { InactiveNudgeProcessor } from "./processors/inactive-nudge.processor";
 import { WeeklySummaryGenerationProcessor } from "./processors/weekly-summary.processor";
+import { PlatformSnapshotProcessor } from "./processors/platform-snapshot.processor";
 import type { Env } from "../config";
 
 /**
@@ -68,6 +69,8 @@ import type { Env } from "../config";
       { name: QueueName.INACTIVE_NUDGE },
       // Sprint S46 — weekly summary pre-generation queue.
       { name: QueueName.WEEKLY_SUMMARY_GENERATION },
+      // Sprint S50 — platform-wide daily snapshot queue.
+      { name: QueueName.PLATFORM_SNAPSHOT },
     ),
   ],
   providers: [
@@ -80,6 +83,8 @@ import type { Env } from "../config";
     InactiveNudgeProcessor,
     // Sprint S46 — pre-generation of WeeklySummary so digest finds the row.
     WeeklySummaryGenerationProcessor,
+    // Sprint S50 — platform-wide daily snapshot for Pulso time series.
+    PlatformSnapshotProcessor,
   ],
 })
 export class WorkerAppModule {}

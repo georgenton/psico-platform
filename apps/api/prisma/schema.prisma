@@ -873,6 +873,58 @@ model BillingUsageDay {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// Sprint S50 — Pulso v2 time series
+//
+// `PlatformMetricDaily` is a platform-wide daily snapshot that powers the
+// sparklines + "vs last period" deltas in the admin Overview (S48). One row
+// per UTC day, written by a nightly cron (`PlatformSnapshotProcessor` in
+// `apps/api/src/jobs/processors/platform-snapshot.processor.ts`).
+//
+// Why a separate table instead of aggregating `BillingUsageDay` at query
+// time:
+//   - `BillingUsageDay` is per-user. Charting requires platform-wide totals,
+//     and the count of active users (DAU) is its own metric, not a sum.
+//   - The snapshot includes columns BillingUsageDay never tracked
+//     (reportsOpened, reportsResolved, paidUsers, totalUsers).
+//   - A pre-aggregated table is O(N days) to chart; aggregating on the fly
+//     would scan millions of rows once the user base is non-trivial.
+//
+// Privacy contract:
+//   - Every column is an integer count or a float (voiceMinutes). NO per-
+//     user identifiers. Same invariant as `getOverview` (S48): rows are
+//     safe to log + share inside the team.
+// ───────────────────────────────────────────────────────────────────────────
+
+model PlatformMetricDaily {
+  // UTC midnight of the day being snapshotted. We use the date as the PK
+  // so the upsert in the cron is naturally idempotent — re-running today's
+  // snapshot just overwrites the row.
+  day DateTime @id
+
+  // Users block
+  totalUsers Int @default(0) // cumulative count at snapshot time
+  newUsers   Int @default(0) // signups within the day
+  paidUsers  Int @default(0) // cumulative PRO/ANNUAL/B2B at snapshot time
+  dau        Int @default(0) // distinct active users in the day
+
+  // Content block — created within the day
+  diaryEntries     Int   @default(0)
+  ecoMessages      Int   @default(0) // USER kind only
+  ecoCrisis        Int   @default(0)
+  voiceMinutes     Float @default(0) // sum of durationSec / 60
+  readingSessions  Int   @default(0) // ReadingSession.lastSeenAt within day
+
+  // Pulso operations block — events on EcoMessageReport within the day
+  reportsOpened   Int @default(0) // rows created in the day
+  reportsResolved Int @default(0) // rows whose resolvedAt fell in the day
+
+  generatedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([day(sort: Desc)])
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Sprint S10 — PatronesModule (Pro feature)
 //
 // `WeeklySummary` is a per-week LLM-generated reflection card. The server

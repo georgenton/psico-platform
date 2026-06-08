@@ -2170,9 +2170,69 @@ ADMIN-only doble gate (heredado del controller).
 
 ---
 
-### Próximo paso — Sesión 50
+### Sesión 50 — 2026-06-08 ✅ COMPLETADA — Sprint S50 Pulso v2 · Time series + sparklines
 
-**🎉 Pulso v2 con Overview + Reports + resolution flow.** Tres caminos:
+**Rama sugerida:** `feature/sprint-50-pulso-timeseries`
+**Tests:** 422/423 API + 24 web + 34 crypto (411 → 422, +11 nuevos · 1 skipped sentinel)
+**Bitácora:** [docs/informes/sprint-50-pulso-timeseries.md](docs/informes/sprint-50-pulso-timeseries.md)
+
+**Lo que se construyó (cierre visual del Overview):**
+
+Cierra la deuda más visible de S48 ("sin time series / sparklines" + "sin vs período anterior delta"). Entrega tabla materializada de snapshots diarios + cron nightly + extensión del Overview.
+
+**Schema (`PlatformMetricDaily`):**
+- Row per UTC day. PK `day`. 11 columns: users (total/new/paid), engagement (dau), content (diary/eco/ecoCrisis/voice/reading), pulso ops (reportsOpened/reportsResolved).
+- Migración aditiva — tabla empieza vacía; el cron la llena desde mañana.
+
+**Backend:**
+- `QueueName.PLATFORM_SNAPSHOT` + `RUN_PLATFORM_SNAPSHOT` + payload.
+- `JobsService.onModuleInit` registra cron `30 2 * * *` UTC.
+- `PlatformSnapshotProcessor` — resuelve "yesterday in UTC" (override via `targetDay`), computa 4 bloques en paralelo, upserts en `day` PK. `dryRun: true` no escribe.
+- `PulsoService.buildSeriesAndDeltas(now)` — 30-day window zero-filled + `percentDelta` last-7 vs prev-7 (clamp 999, null branches).
+- `getOverview` response extiende con `series` + `deltas`. Cache 5min hereda.
+
+**Tipos compartidos:**
+- `PulsoOverviewSeries` (7 metrics × number[]).
+- `PulsoOverviewDeltas` (5 metrics × number | null).
+- `PulsoOverviewResponse` extendido (backward-compat).
+
+**Web:**
+- `Sparkline.tsx` — inline SVG polyline + opcional fill, sin libs externas.
+- `DeltaBadge.tsx` — chip ↑/↓% con color sage/rose. `inverted` flag para métricas tipo "más = peor".
+- `KpiCard.tsx` extendido con props opcionales `series?`, `delta?`, `deltaInverted?`. Backward-compat.
+- `/dashboard/admin/overview` — 6 sparklines + 5 deltas wired.
+
+**Decisiones clave:**
+1. Tabla separada de `BillingUsageDay` (platform-wide vs per-user, DAU no es suma).
+2. Snapshot de "ayer" no "hoy" — closed window, idempotente.
+3. Cron 02:30 UTC — justo después del billing rollup.
+4. 30-day window default.
+5. Last-7 vs prev-7 para delta — menos ruidoso.
+6. Clamp delta a 999 cuando prev=0.
+7. Sparkline inline SVG — 0 KB runtime.
+8. `KpiCard` backward-compat.
+9. `deltaInverted` flag para reports/crisis.
+10. **Privacy invariant FUERTE**: counts only, ningún userId en la tabla.
+
+**Tests (+11):** processor (6) + series/deltas (4) + cron registration (1).
+
+**Privacy preservada:**
+- `PlatformMetricDaily` columns son integer+float counts only.
+- DAU dedupe vía `Set<userId>` en RAM, IDs nunca llegan a la columna.
+- ADMIN-only doble gate intacto.
+
+**Deuda técnica abierta:**
+- Backfill histórico (script ops). Cron natural cierra el gap en 1 semana.
+- Sin window selector. 30 es default duro.
+- `paidUsers` sin delta (acumulativo).
+- Tests UI para Sparkline/DeltaBadge.
+- Sin alerting cuando el cron NO corre.
+
+---
+
+### Próximo paso — Sesión 51
+
+**🎉 Pulso v2 completo: Overview + Reports + resolution + time series.** Tres caminos:
 
 **Opción A — Deploy a Railway (recomendado):**
 ```bash

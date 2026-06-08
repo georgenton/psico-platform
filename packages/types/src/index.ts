@@ -1666,6 +1666,45 @@ export interface PulsoOverviewBusinessBlock {
   reportsBacklog: number;
 }
 
+// Sprint S50 — time series + deltas for sparklines in the admin Overview.
+//
+// `series` is keyed by metric name; each value is an array of N daily
+// observations (oldest → newest) covering the last `seriesWindowDays`. Empty
+// arrays when no historical data exists yet (fresh install, no
+// PlatformMetricDaily rows). Sparse days are zero-filled.
+//
+// `deltas` compares the LAST 7 days against the PREVIOUS 7 days using
+// the corresponding window in `series`. Values are percentage points,
+// rounded to 1 decimal. `null` means we don't have enough history to
+// compute a meaningful delta.
+
+export interface PulsoOverviewSeries {
+  /** Window length (e.g. 30). Same for all metrics. */
+  windowDays: number;
+  /** Active users that day. */
+  dau: number[];
+  /** Cumulative Pro+ users at end-of-day. */
+  paidUsers: number[];
+  /** Diary entries created that day. */
+  diaryEntries: number[];
+  /** Eco USER messages that day. */
+  ecoMessages: number[];
+  /** Crisis events flagged that day. */
+  ecoCrisis: number[];
+  /** Reports opened (created) that day. */
+  reportsOpened: number[];
+  /** Reports resolved (resolvedAt fell in that day). */
+  reportsResolved: number[];
+}
+
+export interface PulsoOverviewDeltas {
+  dau: number | null;
+  diaryEntries: number | null;
+  ecoMessages: number | null;
+  reportsOpened: number | null;
+  reportsResolved: number | null;
+}
+
 export interface PulsoOverviewResponse {
   generatedAt: Date;
   period: PulsoOverviewPeriod;
@@ -1673,6 +1712,10 @@ export interface PulsoOverviewResponse {
   engagement: PulsoOverviewEngagementBlock;
   content: PulsoOverviewContentBlock;
   business: PulsoOverviewBusinessBlock;
+  /** Sprint S50 — daily time series for sparklines. */
+  series: PulsoOverviewSeries;
+  /** Sprint S50 — percent-change last 7d vs prev 7d. */
+  deltas: PulsoOverviewDeltas;
 }
 
 // ─── Notifications (Sprint S43) ─────────────────────────────────────────────

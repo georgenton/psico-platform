@@ -122,6 +122,22 @@ export const QueueName = {
    * idempotent — `regenerateWeeklySummary` upserts on `(userId, weekStart)`.
    */
   WEEKLY_SUMMARY_GENERATION: "weekly-summary-generation",
+
+  /**
+   * Sprint S50 — Platform-wide daily snapshot for Pulso v2 time series.
+   *
+   * Cron: 02:30 UTC daily (right after `DAILY_USAGE` at 02:00 so the
+   * billing rollup completes first). Writes one `PlatformMetricDaily` row
+   * for "yesterday in UTC" — counts of new users, DAU, content created,
+   * reports opened/resolved, etc.
+   *
+   * Producer: `JobsService.onModuleInit` registers the cron.
+   * Consumer: `apps/api/src/jobs/processors/platform-snapshot.processor.ts`
+   *
+   * Retry: 3 attempts, exponential (5min / 25min / 2h). The processor is
+   * idempotent — upserts on `day` so retries on the same day overwrite.
+   */
+  PLATFORM_SNAPSHOT: "platform-snapshot",
 } as const;
 
 export type QueueName = (typeof QueueName)[keyof typeof QueueName];
@@ -204,6 +220,20 @@ export interface WeeklySummaryGenerationJobPayload {
 }
 
 /**
+ * Sprint S50 — Platform daily snapshot fan-in.
+ *
+ * No payload in v1; the processor computes "yesterday in UTC" itself.
+ * Kept as an interface so ops can backfill a specific historical day
+ * via `targetDay` or run dry to count + log without writing.
+ */
+export interface PlatformSnapshotJobPayload {
+  /** ISO date YYYY-MM-DD. When unset, "yesterday in UTC" is computed. */
+  targetDay?: string;
+  /** When true, computes counts but does NOT upsert the row. */
+  dryRun?: boolean;
+}
+
+/**
  * Job names within each queue. Currently each queue has one default job
  * (so the name is essentially the queue name) but the type system keeps
  * this open for future expansion.
@@ -216,6 +246,7 @@ export const JobName = {
   RUN_WEEKLY_DIGEST: "run-weekly-digest",
   SEND_INACTIVE_NUDGE: "send-inactive-nudge",
   RUN_WEEKLY_SUMMARY_GENERATION: "run-weekly-summary-generation",
+  RUN_PLATFORM_SNAPSHOT: "run-platform-snapshot",
 } as const;
 
 export type JobName = (typeof JobName)[keyof typeof JobName];

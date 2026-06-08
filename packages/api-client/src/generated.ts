@@ -1005,6 +1005,22 @@ export interface paths {
         patch: operations["UsersController_updateProfile"];
         trace?: never;
     };
+    "/api/user/timezone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["UsersController_updateTimezone"];
+        trace?: never;
+    };
     "/api/user/avatar": {
         parameters: {
             query?: never;
@@ -1666,7 +1682,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Counts of Eco message reports grouped by reason */
+        /** Counts of Eco message reports grouped by reason. Default scope: open reports only. */
         get: operations["PulsoController_getSummary"];
         put?: never;
         post?: never;
@@ -1683,8 +1699,76 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Eco message reports, newest-first. Supports cursor pagination + reason filter. */
+        /** List Eco message reports, newest-first. Supports cursor pagination, reason filter, and status (open|resolved|all). */
         get: operations["PulsoController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/reports/eco/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark an Eco report as triaged. Idempotent: re-resolving overwrites the timestamp and admin/note. */
+        post: operations["PulsoController_resolve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/reports/eco/{id}/unresolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reopen a previously-resolved report. Clears resolvedAt/By/Note. */
+        post: operations["PulsoController_unresolve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Platform overview — KPIs aggregated across users, engagement, content, and business. Cached 5min. */
+        get: operations["PulsoController_getOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/cohorts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cohort retention triangle. Materialised by the Monday 03:00 UTC cron; cached 5min. */
+        get: operations["PulsoController_getCohorts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1721,6 +1805,7 @@ export interface components {
         PatchSubscriptionDto: Record<string, never>;
         ChatRequestDto: Record<string, never>;
         UpdateProfileDto: Record<string, never>;
+        UpdateTimezoneDto: Record<string, never>;
         UpdatePreferencesDto: Record<string, never>;
         UpdateReaderPreferencesDto: Record<string, never>;
         UpdateNotificationsDto: Record<string, never>;
@@ -1742,6 +1827,7 @@ export interface components {
         CreateAnnotationDto: Record<string, never>;
         UpdateAnnotationDto: Record<string, never>;
         ShareWithTherapistDto: Record<string, never>;
+        MarkResolvedDto: Record<string, never>;
     };
     responses: never;
     parameters: never;
@@ -3025,6 +3111,27 @@ export interface operations {
             };
         };
     };
+    UsersController_updateTimezone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTimezoneDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     UsersController_uploadAvatar: {
         parameters: {
             query?: never;
@@ -3861,7 +3968,9 @@ export interface operations {
     };
     PulsoController_getSummary: {
         parameters: {
-            query?: never;
+            query: {
+                status: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3877,6 +3986,82 @@ export interface operations {
         };
     };
     PulsoController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PulsoController_resolve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkResolvedDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PulsoController_unresolve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PulsoController_getOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PulsoController_getCohorts: {
         parameters: {
             query?: never;
             header?: never;

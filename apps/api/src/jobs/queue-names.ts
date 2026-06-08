@@ -214,6 +214,16 @@ export interface DailyUsageJobPayload {
 export interface WeeklyDigestJobPayload {
   /** ISO date YYYY-MM-DD of the target week's Monday. */
   targetWeekStart?: string;
+<<<<<<< HEAD
+  /**
+   * Sprint S53 — Override the "now" instant the processor uses for the
+   * per-user timezone gate. Tests pass this to assert behavior at
+   * arbitrary UTC moments without depending on wall-clock time.
+   * Production code does NOT set this; the cron sees the live `new Date()`.
+   */
+  nowIso?: string;
+=======
+>>>>>>> origin/main
 }
 
 /**
@@ -224,6 +234,14 @@ export interface WeeklyDigestJobPayload {
 export interface InactiveNudgeJobPayload {
   /** When true, the processor computes candidates but does NOT send pushes. */
   dryRun?: boolean;
+<<<<<<< HEAD
+  /**
+   * Sprint S53 — Override the "now" instant for the per-user timezone
+   * gate. Tests inject this; production reads `new Date()` directly.
+   */
+  nowIso?: string;
+=======
+>>>>>>> origin/main
 }
 
 /**

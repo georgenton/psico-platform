@@ -1,5 +1,6 @@
 import type {
   UpdateNotificationsRequest,
+  UpdateTimezoneRequest,
   UserMeResponse,
   UserNotificationSettings,
 } from "@psico/types";
@@ -22,4 +23,13 @@ export const usersApi = {
 
   updateNotifications: (body: UpdateNotificationsRequest) =>
     apiClient.patch<UserNotificationSettings>("/user/notifications", body),
+
+  /**
+   * Sprint S53 — Auto-detected by web/mobile right after login from
+   * `Intl.DateTimeFormat().resolvedOptions().timeZone` when
+   * `UserMeResponse.profile.timezone === null`. Idempotent; safe to
+   * call on every login. Returns the refreshed `/user/me` shape.
+   */
+  updateTimezone: (body: UpdateTimezoneRequest) =>
+    apiClient.patch<UserMeResponse>("/user/timezone", body),
 };

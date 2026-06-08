@@ -20,6 +20,8 @@ import { UsersService } from "./users.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { UpdateProfileDto } from "./dto/update-profile.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { UpdateTimezoneDto } from "./dto/update-timezone.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { UpdatePreferencesDto } from "./dto/update-preferences.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { UpdateReaderPreferencesDto } from "./dto/update-reader-preferences.dto";
@@ -56,6 +58,15 @@ export class UsersController {
     @Body() dto: UpdateProfileDto,
   ) {
     return this.usersService.updateProfile(user.userId, dto);
+  }
+
+  // Sprint S53 — auto-detected by the client right after login.
+  @Patch("timezone")
+  updateTimezone(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateTimezoneDto,
+  ) {
+    return this.usersService.updateTimezone(user.userId, dto);
   }
 
   @Post("avatar")

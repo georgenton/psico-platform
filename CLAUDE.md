@@ -2298,9 +2298,70 @@ Cierra el loop analítico de Pulso v2 con la métrica clásica SaaS: retention c
 
 ---
 
-### Próximo paso — Sesión 52
+### Sesión 52 — 2026-06-08 ✅ COMPLETADA — Audit cleanup (ADRs + changesets + tag)
 
-**🎉 Pulso v2 completo: Overview + Reports + resolution + time series + cohorts.** Tres caminos:
+**Rama sugerida:** `chore/changesets-adrs-cleanup`
+**Tests:** 433/434 API + 24 web + 34 crypto (sin cambios — sprint de housekeeping)
+**Bitácora:** inline en este session log (sin .md dedicado por convención de housekeeping).
+
+**Lo que se construyó (deuda acumulada que la auditoría destapó):**
+
+Una auditoría sistemática del estado del proyecto reveló:
+- **18 changesets pendientes sin consumir** desde S34 (último publish 2026-06-03).
+- **2 ADRs faltantes** del Plan v2: 0011 (multi-rol) y 0013 (OpenAPI as source of truth).
+- **`@psico/crypto` sin CHANGELOG.md.**
+
+S52 cierra todo esto:
+
+**ADRs nuevos:**
+- `docs/adr/0011-multi-rol-sin-multi-tenant.md` — documenta el `User.role` enum (USER/AUTHOR/PSYCHOLOGIST/ADMIN) y justifica multi-rol sobre single tenant para evitar overhead de query scoping.
+- `docs/adr/0013-openapi-as-source-of-truth.md` — formaliza el pipeline `apps/api → openapi.json → generated.ts` que vive en código desde S12 + el CI `openapi-diff.yml` que enforce.
+
+**CHANGELOGs:**
+- `@psico/crypto` ahora tiene CHANGELOG.md con entrada inicial 0.1.0 documentando los primitives + sprints S21/S22/S23.
+
+**Changesets consolidados (5 nuevos):**
+- `sprint-s10-patrones.md` — S35 PatronesModule tipos.
+- `sprint-s42-pulso-reports.md` — S42 Pulso reports tipos.
+- `sprint-s43-notifications.md` — S43 push notifications tipos.
+- `sprint-s45-notifications-ui.md` — S45 usersApi + WeeklyDigest wire.
+- `sprint-s48-s51-pulso-v2.md` — bundle de S48+S49+S50+S51 Pulso v2 tipos.
+
+**Limpieza de changesets viejos:**
+- Removidas referencias a `@psico/web` y `@psico/mobile` (config ignora apps).
+- Eliminados 3 changesets que quedaron vacíos tras el strip.
+
+**Version bumps consumidos (`pnpm changeset version`):**
+| Paquete | Antes | Después |
+|---|---|---|
+| `@psico/types` | 0.8.0 | **0.9.0** |
+| `@psico/api-client` | 0.0.7 | **0.1.0** |
+| `@psico/crypto` | 0.1.0 | **0.2.0** |
+
+**Decisiones de housekeeping:**
+1. Single version bump consolidado en lugar de 17 versiones intermedias — releases granulares se pueden hacer a partir de aquí.
+2. Changesets retroactivos descritos por sprint (no por commit individual) para mantener el CHANGELOG legible.
+3. Sin git tags por ahora — el repo no tiene historial de tags y agregarlos retroactivamente sería confuso. Cuando hagamos el próximo release significativo, etiquetar desde ahí.
+4. `@psico/web` y `@psico/mobile` siguen en el ignore — son apps internas, no se publican.
+
+**Smoke verification:**
+- API tests 433/434, web tests 24/24, crypto tests 34/34. Sin regresiones.
+- Typecheck verde en API + Web + Mobile + types + crypto + api-client.
+- Build de los 3 paquetes publishables OK.
+- OpenAPI `generate:check` in sync.
+
+**Cobertura post-S52 del proyecto:**
+- **12 de 13 áreas v1** del diseño implementadas (92 %).
+- **8 ADRs activos + 5 históricos = 13 total.** Solo 0012 (Video provider) queda pendiente para Terapia v2.
+- **39 bitácoras** docs/informes + 41 sesiones en CLAUDE.md (S1-S10 inline por convención).
+- **507 tests** (API 433 + web 24 + mobile 16 + crypto 34).
+- **116 endpoints REST** en producción.
+
+---
+
+### Próximo paso — Sesión 53
+
+**🎉 Pulso v2 completo + audit cleanup ✅.** Tres caminos:
 
 **Opción A — Deploy a Railway (recomendado):**
 ```bash

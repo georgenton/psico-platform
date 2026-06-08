@@ -1,29 +1,25 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import type { UserMeResponse } from "@psico/types";
 
 import { serverFetch } from "@/lib/api.server";
 
 /**
- * Server action — Sprint S53.
+ * Server actions — Sprint S53 (auto probe) + S54 (explicit settings).
  *
- * Auto-detected from the browser via
- * `Intl.DateTimeFormat().resolvedOptions().timeZone` and called once per
- * session when `UserMeResponse.profile.timezone === null`. Idempotent on
- * the backend; safe to retry. Errors are swallowed by the caller (the
- * UI should never break a dashboard load because TZ sync failed).
+ * `setTimezoneAction` is the silent path used by the invisible
+ * `_TimezoneSync` probe: any failure is swallowed because the
+ * dashboard shouldn't break if TZ sync fails. The probe runs again
+ * on the next page load.
+ *
+ * `setTimezoneActionStrict` is the explicit path used by
+ * `TimezoneCard` in /dashboard/notifications: the user clicked or
+ * picked something, so they deserve to know if it failed. Errors
+ * propagate so the component can render an inline error.
  */
 export async function setTimezoneAction(timezone: string): Promise<void> {
-  // Defensive: basic sanity check on the client-supplied IANA name. The
-  // backend validates more strictly via `Intl.DateTimeFormat` — this is
-  // just to short-circuit obvious garbage before we burn a roundtrip.
-  if (
-    typeof timezone !== "string" ||
-    timezone.length < 1 ||
-    timezone.length > 64
-  ) {
-    return;
-  }
+  if (!isPlausibleIana(timezone)) return;
   try {
     await serverFetch<UserMeResponse>("/user/timezone", {
       method: "PATCH",
@@ -31,7 +27,26 @@ export async function setTimezoneAction(timezone: string): Promise<void> {
       headers: { "Content-Type": "application/json" },
     });
   } catch {
-    // Silently ignored — the user's notifications will keep firing in
-    // UTC until the next probe succeeds. Not a critical path.
+    // Silent — invisible probe path.
   }
+}
+
+export async function setTimezoneActionStrict(timezone: string): Promise<void> {
+  if (!isPlausibleIana(timezone)) {
+    throw new Error("INVALID_TIMEZONE");
+  }
+  await serverFetch<UserMeResponse>("/user/timezone", {
+    method: "PATCH",
+    body: JSON.stringify({ timezone }),
+    headers: { "Content-Type": "application/json" },
+  });
+  // Refresh the notifications page so the next render shows the new TZ
+  // in any SC-rendered card (eg. NotificationsForm and the layout). The
+  // TimezoneCard itself uses local state too, but this keeps the SSR
+  // path honest.
+  revalidatePath("/dashboard/notifications");
+}
+
+function isPlausibleIana(tz: unknown): tz is string {
+  return typeof tz === "string" && tz.length >= 1 && tz.length <= 64;
 }

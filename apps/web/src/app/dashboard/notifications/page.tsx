@@ -3,6 +3,7 @@ import type { UserMeResponse } from "@psico/types";
 
 import { getAccessToken, isNextThrow, serverFetch } from "@/lib/api.server";
 import { NotificationsForm } from "@/components/dashboard/notifications/NotificationsForm";
+import { TimezoneCard } from "@/components/dashboard/notifications/TimezoneCard";
 import { WebPushToggle } from "@/components/dashboard/notifications/WebPushToggle";
 
 export const metadata: Metadata = { title: "Notificaciones" };
@@ -64,6 +65,8 @@ export default async function NotificationsPage() {
       {accessToken ? (
         <WebPushToggle apiBase={API_BASE} accessToken={accessToken} />
       ) : null}
+
+      <TimezoneCard currentTimezone={me.user.timezone ?? null} />
 
       <NotificationsForm initial={me.notifications} />
     </div>

@@ -13,13 +13,26 @@ import {
   QueueName,
   type WeeklyDigestJobPayload,
 } from "../queue-names";
+import { userLocalHour, userLocalWeekday } from "../utils/timezone";
 
 /**
- * Sprint S44 — WeeklyDigestProcessor.
+ * Sprint S53 — target local time at which a user receives the weekly
+ * digest. Sunday=0, Monday=1, ..., Saturday=6 (matches `Date.getDay()`).
+ */
+const DIGEST_TARGET_HOUR = 7;
+const DIGEST_TARGET_WEEKDAY = 1; // Monday
+
+/**
+ * Sprint S44 — WeeklyDigestProcessor (revised in S53 to be timezone-aware).
  *
- * Mondays 07:00 UTC. Scans users with `NotificationSettings.weeklyReport
- * === true`, computes last week's stats from plaintext metadata, and
- * sends:
+ * Cron fires HOURLY UTC. For each user with `NotificationSettings
+ * .weeklyReport === true`, we compute the user's local hour + local
+ * weekday at the cron's `now` using `Profile.timezone`. If both match
+ * the digest target (Monday 07:00), we send. Users without a timezone
+ * fall back to UTC — preserves S44 behavior for legacy accounts until
+ * the client auto-detects on next login.
+ *
+ * Sends:
  *   - Email digest via Resend (always — every user has an email).
  *   - Push notification via Expo (only when the user has device tokens
  *     AND `dailyReminder === true` — we reuse dailyReminder as the
@@ -54,12 +67,21 @@ export class WeeklyDigestProcessor extends WorkerHost {
     const weekStart = this.resolveWeekStart(job.data.targetWeekStart);
     const weekEnd = new Date(weekStart);
     weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
+    // Sprint S53 — Capture `now` once per run so all per-user TZ checks
+    // use a consistent reference instant. Tests may inject `nowIso` to
+    // exercise the TZ gate at arbitrary moments without wall-clock noise.
+    const now = job.data.nowIso
+      ? new Date(job.data.nowIso)
+      : job.data.targetWeekStart
+        ? weekStart
+        : new Date();
     this.logger.log(
-      `WeeklyDigest start · weekStart=${weekStart.toISOString().slice(0, 10)}`,
+      `WeeklyDigest start · weekStart=${weekStart.toISOString().slice(0, 10)} · nowUtcHour=${now.getUTCHours()}`,
     );
 
     // Fetch all users opted-in to the weekly report. We filter by JOIN
-    // here so we don't iterate inactive accounts.
+    // here so we don't iterate inactive accounts. `profile.timezone`
+    // pulled in so the per-user TZ gate has what it needs.
     const users = await this.prisma.user.findMany({
       where: {
         isActive: true,
@@ -72,14 +94,32 @@ export class WeeklyDigestProcessor extends WorkerHost {
         name: true,
         notificationSettings: { select: { dailyReminder: true } },
         deviceTokens: { select: { token: true } },
+        profile: { select: { timezone: true } },
       },
     });
 
-    this.logger.log(`WeeklyDigest fanout · users=${users.length}`);
+    this.logger.log(`WeeklyDigest fanout · candidates=${users.length}`);
+
+    // Sprint S53 — Per-user TZ gate. If `targetWeekStart` was passed in
+    // the payload, skip the gate entirely (manual replay / test path).
+    const replayMode = Boolean(job.data.targetWeekStart);
 
     let sent = 0;
+    let skipped = 0;
     for (const u of users) {
       try {
+        if (!replayMode) {
+          const tz = u.profile?.timezone ?? null;
+          const localHour = userLocalHour(now, tz);
+          const localWeekday = userLocalWeekday(now, tz);
+          if (
+            localHour !== DIGEST_TARGET_HOUR ||
+            localWeekday !== DIGEST_TARGET_WEEKDAY
+          ) {
+            skipped++;
+            continue;
+          }
+        }
         await this.sendDigestForUser(u, weekStart, weekEnd);
         sent++;
       } catch (err) {
@@ -89,7 +129,9 @@ export class WeeklyDigestProcessor extends WorkerHost {
         );
       }
     }
-    this.logger.log(`WeeklyDigest done · sent=${sent}/${users.length}`);
+    this.logger.log(
+      `WeeklyDigest done · sent=${sent} · skippedByTz=${skipped} · total=${users.length}`,
+    );
   }
 
   // ─── Per-user processing ─────────────────────────────────────────────

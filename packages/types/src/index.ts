@@ -593,6 +593,13 @@ export interface UserProfileSummary {
   email: string;
   city: string | null;
   country: string | null;
+  /**
+   * Sprint S53 — IANA timezone (e.g. "America/Guayaquil"). null = the
+   * user hasn't been probed yet; web/mobile auto-detect on next login
+   * and PATCH `/user/timezone`. Cron processors fall back to UTC when
+   * null (preserves S44 behavior for legacy accounts).
+   */
+  timezone: string | null;
   tier: UserTier;
   joinedAt: Date;
   initials: string;
@@ -698,6 +705,14 @@ export interface UpdateProfileRequest {
 export type UpdatePreferencesRequest = Partial<UserPreferences>;
 export type UpdateReaderPreferencesRequest = Partial<UserReaderPreferences>;
 export type UpdateNotificationsRequest = Partial<UserNotificationSettings>;
+
+/**
+ * Sprint S53 — Auto-detected by the client right after login when
+ * `UserProfile.timezone` is null. IANA name (e.g. "America/Guayaquil").
+ */
+export interface UpdateTimezoneRequest {
+  timezone: string;
+}
 
 export type UpdatePrivacyRequest = Partial<
   Pick<

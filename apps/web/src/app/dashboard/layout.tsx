@@ -3,6 +3,7 @@ import type { UserMeResponse } from "@psico/types";
 
 import { getSessionUser, isNextThrow, serverFetch } from "@/lib/api.server";
 import { DashboardShell } from "./_DashboardShell";
+import { TimezoneSync } from "./_TimezoneSync";
 
 export default async function DashboardLayout({
   children,
@@ -54,8 +55,14 @@ export default async function DashboardLayout({
     showTour = Boolean(onboarding?.completedAt && !onboarding?.tourCompletedAt);
   }
 
+  // Sprint S53 — auto-detect the user's timezone on first dashboard load
+  // if the backend has none yet. The probe is invisible; if it fails
+  // the user just keeps receiving notifications in UTC.
+  const needsTimezoneProbe = Boolean(me && me.user.timezone === null);
+
   return (
     <DashboardShell user={user} cryptoSalt={cryptoSalt} showTour={showTour}>
+      <TimezoneSync needsProbe={needsTimezoneProbe} />
       {children}
     </DashboardShell>
   );

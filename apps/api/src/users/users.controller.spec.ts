@@ -31,6 +31,7 @@ describe("UsersController · auth posture", () => {
       [
         "getMe",
         "updateProfile",
+        "updateTimezone",
         "uploadAvatar",
         "updatePreferences",
         "updateReaderPreferences",

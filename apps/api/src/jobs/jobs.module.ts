@@ -50,6 +50,8 @@ import type { Env } from "../config";
       { name: QueueName.WEEKLY_SUMMARY_GENERATION },
       // Sprint S50 — platform-wide daily snapshot for Pulso time series.
       { name: QueueName.PLATFORM_SNAPSHOT },
+      // Sprint S51 — weekly cohort retention recomputation.
+      { name: QueueName.COHORT_RETENTION },
     ),
   ],
   providers: [JobsService],

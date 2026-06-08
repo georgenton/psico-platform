@@ -93,6 +93,15 @@ const ADMIN_NAV_ITEMS = [
     exact: false,
     tourTarget: null,
   },
+  // Sprint S51 — cohort retention heatmap. Sits last among admin items
+  // because it's the most "analytics-deep" view.
+  {
+    href: "/dashboard/admin/cohorts",
+    label: "Pulso · Cohorts",
+    icon: "📐",
+    exact: false,
+    tourTarget: null,
+  },
 ] as const;
 
 function matchesRoute(href: string, pathname: string, exact: boolean): boolean {

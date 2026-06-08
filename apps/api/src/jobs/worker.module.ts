@@ -18,6 +18,7 @@ import { WeeklyDigestProcessor } from "./processors/weekly-digest.processor";
 import { InactiveNudgeProcessor } from "./processors/inactive-nudge.processor";
 import { WeeklySummaryGenerationProcessor } from "./processors/weekly-summary.processor";
 import { PlatformSnapshotProcessor } from "./processors/platform-snapshot.processor";
+import { CohortRetentionProcessor } from "./processors/cohort-retention.processor";
 import type { Env } from "../config";
 
 /**
@@ -71,6 +72,8 @@ import type { Env } from "../config";
       { name: QueueName.WEEKLY_SUMMARY_GENERATION },
       // Sprint S50 — platform-wide daily snapshot queue.
       { name: QueueName.PLATFORM_SNAPSHOT },
+      // Sprint S51 — weekly cohort retention queue.
+      { name: QueueName.COHORT_RETENTION },
     ),
   ],
   providers: [
@@ -85,6 +88,8 @@ import type { Env } from "../config";
     WeeklySummaryGenerationProcessor,
     // Sprint S50 — platform-wide daily snapshot for Pulso time series.
     PlatformSnapshotProcessor,
+    // Sprint S51 — weekly cohort retention recomputation.
+    CohortRetentionProcessor,
   ],
 })
 export class WorkerAppModule {}

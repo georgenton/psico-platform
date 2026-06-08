@@ -895,6 +895,57 @@ model BillingUsageDay {
 //     safe to log + share inside the team.
 // ───────────────────────────────────────────────────────────────────────────
 
+// ───────────────────────────────────────────────────────────────────────────
+// Sprint S51 — Cohort retention analysis
+//
+// `CohortRetentionWeek` materializes the classic SaaS retention triangle:
+// one row per (signup-week, week-offset) describing how many users from
+// the cohort who signed up that week were still active `weekOffset` weeks
+// later. Rendered as a heatmap in /dashboard/admin/cohorts.
+//
+// Why a separate table instead of computing on the fly:
+//   - The triangle has up to N_weeks × N_weeks cells (52 × 52 = 2704 at
+//     1 year of history). Computing live would scan activity tables
+//     repeatedly on every admin page view.
+//   - Retention is a slow-changing metric — a Monday cron is fast enough.
+//   - Materialising lets us track historical retention curves even if the
+//     activity data is later pruned for cost reasons.
+//
+// Population strategy:
+//   - `CohortRetentionProcessor` (Monday 03:00 UTC, after the daily
+//     snapshot) recomputes the full triangle and upserts every cell.
+//   - Idempotent on (cohortWeek, weekOffset) so retries are safe.
+//
+// Privacy invariant (same as PlatformMetricDaily):
+//   - Every column is an integer count or timestamp. No per-user identifiers.
+// ───────────────────────────────────────────────────────────────────────────
+
+model CohortRetentionWeek {
+  // Monday 00:00:00 UTC of the signup week. Combined with `weekOffset`
+  // identifies a single cell of the retention triangle.
+  cohortWeek DateTime
+
+  // 0 = signup week, 1 = +1 week, etc. The processor caps weekOffset to
+  // 52 (1 year) — older offsets would mostly be empty and the heatmap
+  // would be unreadable.
+  weekOffset Int
+
+  // Total users whose `createdAt` fell within `cohortWeek..+7d` UTC.
+  // Same value across all rows of a given cohortWeek; denormalised so
+  // a single SELECT can render the heatmap without a self-join.
+  cohortSize Int @default(0)
+
+  // Distinct users from this cohort with ANY activity (diary, eco USER,
+  // voice, reader) inside `[cohortWeek + weekOffset*7d, +1 week]`.
+  activeUsers Int @default(0)
+
+  generatedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@id([cohortWeek, weekOffset])
+  @@index([cohortWeek(sort: Desc)])
+}
+
 model PlatformMetricDaily {
   // UTC midnight of the day being snapshotted. We use the date as the PK
   // so the upsert in the cron is naturally idempotent — re-running today's

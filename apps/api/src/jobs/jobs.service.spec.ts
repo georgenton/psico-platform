@@ -27,6 +27,11 @@ describe("JobsService", () => {
     add: vi.fn().mockResolvedValue(undefined),
     upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
   };
+  // Sprint S50 — platform snapshot queue.
+  const mockPlatformSnapshotQueue = {
+    add: vi.fn().mockResolvedValue(undefined),
+    upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
+  };
 
   let service: JobsService;
 
@@ -40,6 +45,7 @@ describe("JobsService", () => {
     mockWeeklyDigestQueue.upsertJobScheduler.mockResolvedValue(undefined);
     mockInactiveNudgeQueue.upsertJobScheduler.mockResolvedValue(undefined);
     mockWeeklySummaryQueue.upsertJobScheduler.mockResolvedValue(undefined);
+    mockPlatformSnapshotQueue.upsertJobScheduler.mockResolvedValue(undefined);
     service = new JobsService(
       mockEmailQueue as never,
       mockDataExportQueue as never,
@@ -48,6 +54,7 @@ describe("JobsService", () => {
       mockWeeklyDigestQueue as never,
       mockInactiveNudgeQueue as never,
       mockWeeklySummaryQueue as never,
+      mockPlatformSnapshotQueue as never,
     );
   });
 
@@ -131,6 +138,28 @@ describe("JobsService", () => {
         { pattern: "0 23 * * 0", tz: "UTC" },
         expect.objectContaining({
           name: JobName.RUN_WEEKLY_SUMMARY_GENERATION,
+          opts: expect.objectContaining({
+            attempts: 3,
+            backoff: { type: "exponential", delay: 5 * 60_000 },
+          }),
+        }),
+      );
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
+  });
+
+  it("onModuleInit registers the 02:30 UTC platform-snapshot scheduler (S50)", async () => {
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      await service.onModuleInit();
+
+      expect(mockPlatformSnapshotQueue.upsertJobScheduler).toHaveBeenCalledWith(
+        "platform-snapshot-02-30-utc",
+        { pattern: "30 2 * * *", tz: "UTC" },
+        expect.objectContaining({
+          name: JobName.RUN_PLATFORM_SNAPSHOT,
           opts: expect.objectContaining({
             attempts: 3,
             backoff: { type: "exponential", delay: 5 * 60_000 },

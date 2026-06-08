@@ -3,8 +3,10 @@ import type IoRedis from "ioredis";
 import type {
   PulsoOverviewBusinessBlock,
   PulsoOverviewContentBlock,
+  PulsoOverviewDeltas,
   PulsoOverviewEngagementBlock,
   PulsoOverviewResponse,
+  PulsoOverviewSeries,
   PulsoOverviewUsersBlock,
   PulsoReportListResponse,
   PulsoReportRow,
@@ -42,6 +44,12 @@ export class PulsoService {
   private readonly logger = new Logger(PulsoService.name);
   private static readonly OVERVIEW_CACHE_KEY = "pulso:overview";
   private static readonly OVERVIEW_CACHE_TTL_SECONDS = 5 * 60;
+  /**
+   * Sprint S50 — how many trailing days of history we pull from
+   * `PlatformMetricDaily` for sparklines. 30 covers the longest "vs last
+   * 7d" delta plus 2 reference weeks of context.
+   */
+  private static readonly SERIES_WINDOW_DAYS = 30;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -396,6 +404,10 @@ export class PulsoService {
       reportsBacklog,
     };
 
+    // Sprint S50 — time series + deltas. Pulled from the materialised
+    // PlatformMetricDaily table written nightly by the snapshot processor.
+    const { series, deltas } = await this.buildSeriesAndDeltas(now);
+
     const response: PulsoOverviewResponse = {
       generatedAt: now,
       period: {
@@ -406,6 +418,8 @@ export class PulsoService {
       engagement,
       content,
       business,
+      series,
+      deltas,
     };
 
     // Fire-and-forget cache write.
@@ -463,6 +477,107 @@ export class PulsoService {
     for (const row of reader) set.add(row.userId);
     return set.size;
   }
+
+  /**
+   * Sprint S50 — build the daily time series + percent deltas from
+   * `PlatformMetricDaily`. The table is written nightly by the snapshot
+   * processor; if it hasn't accumulated history yet, we return zero-filled
+   * arrays + null deltas so the frontend can degrade gracefully.
+   *
+   * Zero-fill strategy: we pad the window to exactly N days (oldest →
+   * newest) by walking the calendar from `now - N` and looking up each
+   * day in a Map. Missing days become 0, so the sparkline draws a clean
+   * baseline rather than guessing dates from sparse data.
+   */
+  private async buildSeriesAndDeltas(now: Date): Promise<{
+    series: PulsoOverviewSeries;
+    deltas: PulsoOverviewDeltas;
+  }> {
+    const N = PulsoService.SERIES_WINDOW_DAYS;
+    const dayMs = 24 * 60 * 60 * 1000;
+    const todayUtc = new Date(now);
+    todayUtc.setUTCHours(0, 0, 0, 0);
+    // Window: the last N days INCLUDING yesterday (snapshots are built for
+    // closed days, so "today" hasn't been written yet).
+    const windowEnd = new Date(todayUtc.getTime() - dayMs); // yesterday 00:00 UTC
+    const windowStart = new Date(windowEnd.getTime() - (N - 1) * dayMs);
+
+    const rows = await this.prisma.platformMetricDaily.findMany({
+      where: { day: { gte: windowStart, lte: windowEnd } },
+      orderBy: { day: "asc" },
+    });
+
+    const byDay = new Map<string, (typeof rows)[number]>();
+    for (const r of rows) {
+      byDay.set(r.day.toISOString().slice(0, 10), r);
+    }
+
+    const dau: number[] = [];
+    const paidUsers: number[] = [];
+    const diaryEntries: number[] = [];
+    const ecoMessages: number[] = [];
+    const ecoCrisis: number[] = [];
+    const reportsOpened: number[] = [];
+    const reportsResolved: number[] = [];
+
+    for (let i = 0; i < N; i++) {
+      const day = new Date(windowStart.getTime() + i * dayMs);
+      const key = day.toISOString().slice(0, 10);
+      const row = byDay.get(key);
+      dau.push(row?.dau ?? 0);
+      paidUsers.push(row?.paidUsers ?? 0);
+      diaryEntries.push(row?.diaryEntries ?? 0);
+      ecoMessages.push(row?.ecoMessages ?? 0);
+      ecoCrisis.push(row?.ecoCrisis ?? 0);
+      reportsOpened.push(row?.reportsOpened ?? 0);
+      reportsResolved.push(row?.reportsResolved ?? 0);
+    }
+
+    const series: PulsoOverviewSeries = {
+      windowDays: N,
+      dau,
+      paidUsers,
+      diaryEntries,
+      ecoMessages,
+      ecoCrisis,
+      reportsOpened,
+      reportsResolved,
+    };
+
+    const deltas: PulsoOverviewDeltas = {
+      dau: percentDelta(dau),
+      diaryEntries: percentDelta(diaryEntries),
+      ecoMessages: percentDelta(ecoMessages),
+      reportsOpened: percentDelta(reportsOpened),
+      reportsResolved: percentDelta(reportsResolved),
+    };
+
+    return { series, deltas };
+  }
+}
+
+/**
+ * Sprint S50 — percent change of last-7 vs prev-7 days from a length-N
+ * series (oldest → newest). Returns:
+ *   - `null` when the series is too short (< 14 days of history).
+ *   - `null` when the previous-week sum is 0 AND the current-week sum is
+ *     also 0 (no signal).
+ *   - `Infinity` mapped to a large clamped value when previous is 0 and
+ *     current isn't — we surface "+999%" rather than divide by zero.
+ *   - Otherwise a number rounded to one decimal.
+ *
+ * Why last-7 vs prev-7 rather than last-day vs prev-day:
+ *   - Less noisy. A single weekday spike doesn't dominate.
+ *   - Matches the weekly cadence admins are used to comparing.
+ */
+function percentDelta(series: readonly number[]): number | null {
+  if (series.length < 14) return null;
+  const last7 = series.slice(-7).reduce((a, b) => a + b, 0);
+  const prev7 = series.slice(-14, -7).reduce((a, b) => a + b, 0);
+  if (prev7 === 0 && last7 === 0) return null;
+  if (prev7 === 0) return 999; // clamp; the UI renders "+>999%"
+  const pct = ((last7 - prev7) / prev7) * 100;
+  return Math.round(pct * 10) / 10;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────

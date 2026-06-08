@@ -30,6 +30,11 @@ function buildPrisma(overrides: Partial<Record<string, unknown>> = {}) {
       count: vi.fn().mockResolvedValue(0),
       findMany: vi.fn().mockResolvedValue([]),
     },
+    // Sprint S50 — PlatformMetricDaily rows feed the sparklines + deltas.
+    // Default empty so the existing tests see zero-filled series.
+    platformMetricDaily: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     ...overrides,
   } as unknown as ConstructorParameters<typeof PulsoService>[0];
 }
@@ -571,5 +576,143 @@ describe("PulsoService.listEcoReports — status filter (S49)", () => {
       .where as Record<string, unknown>;
     expect(where.reason).toBe("HALLUCINATION");
     expect(where).not.toHaveProperty("resolvedAt");
+  });
+});
+
+// ─── Sprint S50 — sparklines + deltas ────────────────────────────────────
+
+describe("PulsoService.getOverview series + deltas (Sprint S50)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns zero-filled 30-day series + null deltas when no history exists", async () => {
+    const svc = new PulsoService(buildPrisma(), buildRedis());
+    const res = await svc.getOverview();
+
+    expect(res.series.windowDays).toBe(30);
+    expect(res.series.dau).toHaveLength(30);
+    expect(res.series.dau.every((v) => v === 0)).toBe(true);
+    expect(res.series.paidUsers).toHaveLength(30);
+    expect(res.series.diaryEntries).toHaveLength(30);
+    expect(res.series.ecoMessages).toHaveLength(30);
+    expect(res.series.ecoCrisis).toHaveLength(30);
+    expect(res.series.reportsOpened).toHaveLength(30);
+    expect(res.series.reportsResolved).toHaveLength(30);
+
+    // 14 days of zero history → percentDelta returns null for all metrics.
+    expect(res.deltas.dau).toBeNull();
+    expect(res.deltas.diaryEntries).toBeNull();
+    expect(res.deltas.ecoMessages).toBeNull();
+    expect(res.deltas.reportsOpened).toBeNull();
+    expect(res.deltas.reportsResolved).toBeNull();
+  });
+
+  it("zero-fills sparse days and maps PlatformMetricDaily rows by date key", async () => {
+    // Build a 30-day window ending yesterday with only 2 days populated.
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+    const twoDaysAgo = new Date(yesterday.getTime() - 24 * 60 * 60 * 1000);
+
+    const prisma = buildPrisma({
+      platformMetricDaily: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            day: twoDaysAgo,
+            dau: 5,
+            paidUsers: 10,
+            diaryEntries: 12,
+            ecoMessages: 8,
+            ecoCrisis: 0,
+            reportsOpened: 1,
+            reportsResolved: 0,
+          },
+          {
+            day: yesterday,
+            dau: 9,
+            paidUsers: 11,
+            diaryEntries: 14,
+            ecoMessages: 11,
+            ecoCrisis: 1,
+            reportsOpened: 2,
+            reportsResolved: 1,
+          },
+        ]),
+      },
+    });
+    const svc = new PulsoService(prisma, buildRedis());
+    const res = await svc.getOverview();
+
+    expect(res.series.dau).toHaveLength(30);
+    // Last value is yesterday; second-to-last is two days ago.
+    expect(res.series.dau[29]).toBe(9);
+    expect(res.series.dau[28]).toBe(5);
+    // Earlier days are zero-filled.
+    expect(res.series.dau.slice(0, 28).every((v) => v === 0)).toBe(true);
+  });
+
+  it("computes percent-delta as last-7 vs prev-7 with 1-decimal rounding", async () => {
+    // Build a fixture where the last 7 days sum to 70 and the prev 7 days
+    // sum to 50 → delta = +40.0%. We pad the 16 oldest days with zeros
+    // because percentDelta only looks at the last 14.
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const dayMs = 24 * 60 * 60 * 1000;
+    const rows = [];
+    for (let i = 0; i < 30; i++) {
+      const day = new Date(today.getTime() - (30 - i) * dayMs);
+      let dau = 0;
+      if (i >= 16 && i < 23) dau = 50 / 7; // prev 7 sum = 50
+      if (i >= 23 && i < 30) dau = 10; // last 7 sum = 70
+      rows.push({
+        day,
+        dau: Math.round(dau),
+        paidUsers: 0,
+        diaryEntries: 0,
+        ecoMessages: 0,
+        ecoCrisis: 0,
+        reportsOpened: 0,
+        reportsResolved: 0,
+      });
+    }
+    const prisma = buildPrisma({
+      platformMetricDaily: { findMany: vi.fn().mockResolvedValue(rows) },
+    });
+    const svc = new PulsoService(prisma, buildRedis());
+    const res = await svc.getOverview();
+
+    // dau prev-7 sum = 7×7 = 49 (rounding), last-7 = 70 → ≈ +42.9%.
+    // Verify positive and 1-decimal precision.
+    expect(res.deltas.dau).not.toBeNull();
+    expect(res.deltas.dau!).toBeGreaterThan(0);
+    expect(Math.round(res.deltas.dau! * 10)).toBe(res.deltas.dau! * 10);
+  });
+
+  it("returns 999 when prev-7 is zero but last-7 has activity (clamped +inf)", async () => {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const dayMs = 24 * 60 * 60 * 1000;
+    const rows = [];
+    for (let i = 0; i < 30; i++) {
+      const day = new Date(today.getTime() - (30 - i) * dayMs);
+      // All-zero prev 7; last 7 has 1 per day = sum 7.
+      const dau = i >= 23 ? 1 : 0;
+      rows.push({
+        day,
+        dau,
+        paidUsers: 0,
+        diaryEntries: 0,
+        ecoMessages: 0,
+        ecoCrisis: 0,
+        reportsOpened: 0,
+        reportsResolved: 0,
+      });
+    }
+    const prisma = buildPrisma({
+      platformMetricDaily: { findMany: vi.fn().mockResolvedValue(rows) },
+    });
+    const svc = new PulsoService(prisma, buildRedis());
+    const res = await svc.getOverview();
+
+    expect(res.deltas.dau).toBe(999);
   });
 });

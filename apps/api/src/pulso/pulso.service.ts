@@ -1,6 +1,9 @@
 import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import type IoRedis from "ioredis";
 import type {
+  PulsoCohortCell,
+  PulsoCohortRetentionResponse,
+  PulsoCohortRow,
   PulsoOverviewBusinessBlock,
   PulsoOverviewContentBlock,
   PulsoOverviewDeltas,
@@ -476,6 +479,87 @@ export class PulsoService {
     for (const row of voice) set.add(row.userId);
     for (const row of reader) set.add(row.userId);
     return set.size;
+  }
+
+  // ── GET /api/pulso/cohorts ──────────────────────────────────────────
+
+  /**
+   * Sprint S51 — return the cohort retention triangle.
+   *
+   * Reads the materialised `CohortRetentionWeek` rows and reshapes them
+   * into one `PulsoCohortRow` per cohort week. Each row carries an array
+   * of cells (one per `weekOffset`) with `activeUsers` and a precomputed
+   * `pct` so the frontend renders a heatmap without doing math.
+   *
+   * If the processor hasn't run yet (fresh install), returns an empty
+   * `rows` array — the heatmap UI shows an empty-state.
+   *
+   * Cached behind the same Redis surface as `getOverview` because the
+   * source table only updates weekly; staleness within 5min is invisible.
+   */
+  async getCohortRetention(): Promise<PulsoCohortRetentionResponse> {
+    const cacheKey = "pulso:cohorts";
+    const cached = await this.redis.get(cacheKey).catch(() => null);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as PulsoCohortRetentionResponse;
+        return {
+          ...parsed,
+          generatedAt: new Date(parsed.generatedAt),
+        };
+      } catch {
+        // Stale format — recompute.
+      }
+    }
+
+    const rowsRaw = await this.prisma.cohortRetentionWeek.findMany({
+      orderBy: [{ cohortWeek: "desc" }, { weekOffset: "asc" }],
+    });
+
+    // Group by cohortWeek. We iterate in the orderBy order so cells land
+    // in offset-ascending order naturally.
+    const byCohort = new Map<string, PulsoCohortRow>();
+    let maxWeekOffset = 0;
+    for (const r of rowsRaw) {
+      const key = r.cohortWeek.toISOString().slice(0, 10);
+      let row = byCohort.get(key);
+      if (!row) {
+        row = { cohortWeek: key, cohortSize: r.cohortSize, cells: [] };
+        byCohort.set(key, row);
+      }
+      const pct =
+        r.cohortSize === 0
+          ? 0
+          : Math.round((r.activeUsers / r.cohortSize) * 1000) / 10;
+      const cell: PulsoCohortCell = {
+        weekOffset: r.weekOffset,
+        activeUsers: r.activeUsers,
+        pct,
+      };
+      row.cells.push(cell);
+      if (r.weekOffset > maxWeekOffset) maxWeekOffset = r.weekOffset;
+    }
+
+    const response: PulsoCohortRetentionResponse = {
+      generatedAt: new Date(),
+      rows: Array.from(byCohort.values()),
+      maxWeekOffset,
+    };
+
+    // Fire-and-forget cache write. Same TTL as the overview cache.
+    this.redis
+      .setex(
+        cacheKey,
+        PulsoService.OVERVIEW_CACHE_TTL_SECONDS,
+        JSON.stringify(response),
+      )
+      .catch((err) =>
+        this.logger.warn(
+          `Failed to cache pulso cohorts: ${(err as Error).message}`,
+        ),
+      );
+
+    return response;
   }
 
   /**

@@ -1718,6 +1718,38 @@ export interface PulsoOverviewResponse {
   deltas: PulsoOverviewDeltas;
 }
 
+// Sprint S51 — cohort retention triangle (admin /dashboard/admin/cohorts).
+//
+// One `PulsoCohortRow` per signup-week (Monday UTC), newest first. Each
+// row carries the `cohortSize` plus an ordered list of per-week-offset
+// `cells` (offset 0 = signup week, offset 1 = +1 week, ...). Each cell
+// has `activeUsers` and a precomputed `pct` (0-100, 1 decimal).
+//
+// `pct` is computed server-side as `activeUsers / cohortSize * 100`. The
+// frontend can render the heatmap without doing math.
+
+export interface PulsoCohortCell {
+  weekOffset: number;
+  activeUsers: number;
+  /** Percent retention, 0–100, rounded to 1 decimal. */
+  pct: number;
+}
+
+export interface PulsoCohortRow {
+  /** ISO YYYY-MM-DD of the cohort week's Monday (UTC). */
+  cohortWeek: string;
+  cohortSize: number;
+  cells: PulsoCohortCell[];
+}
+
+export interface PulsoCohortRetentionResponse {
+  generatedAt: Date;
+  /** Newest-first list of cohorts (Monday UTC dates). */
+  rows: PulsoCohortRow[];
+  /** Max week-offset in the data — useful for sizing the heatmap. */
+  maxWeekOffset: number;
+}
+
 // ─── Notifications (Sprint S43) ─────────────────────────────────────────────
 //
 // Device tokens registered by the mobile app via expo-notifications. The

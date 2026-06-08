@@ -32,6 +32,11 @@ describe("JobsService", () => {
     add: vi.fn().mockResolvedValue(undefined),
     upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
   };
+  // Sprint S51 — cohort retention queue.
+  const mockCohortRetentionQueue = {
+    add: vi.fn().mockResolvedValue(undefined),
+    upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
+  };
 
   let service: JobsService;
 
@@ -46,6 +51,7 @@ describe("JobsService", () => {
     mockInactiveNudgeQueue.upsertJobScheduler.mockResolvedValue(undefined);
     mockWeeklySummaryQueue.upsertJobScheduler.mockResolvedValue(undefined);
     mockPlatformSnapshotQueue.upsertJobScheduler.mockResolvedValue(undefined);
+    mockCohortRetentionQueue.upsertJobScheduler.mockResolvedValue(undefined);
     service = new JobsService(
       mockEmailQueue as never,
       mockDataExportQueue as never,
@@ -55,6 +61,7 @@ describe("JobsService", () => {
       mockInactiveNudgeQueue as never,
       mockWeeklySummaryQueue as never,
       mockPlatformSnapshotQueue as never,
+      mockCohortRetentionQueue as never,
     );
   });
 
@@ -160,6 +167,28 @@ describe("JobsService", () => {
         { pattern: "30 2 * * *", tz: "UTC" },
         expect.objectContaining({
           name: JobName.RUN_PLATFORM_SNAPSHOT,
+          opts: expect.objectContaining({
+            attempts: 3,
+            backoff: { type: "exponential", delay: 5 * 60_000 },
+          }),
+        }),
+      );
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
+  });
+
+  it("onModuleInit registers the Monday 03:00 UTC cohort-retention scheduler (S51)", async () => {
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      await service.onModuleInit();
+
+      expect(mockCohortRetentionQueue.upsertJobScheduler).toHaveBeenCalledWith(
+        "cohort-retention-monday-03-utc",
+        { pattern: "0 3 * * 1", tz: "UTC" },
+        expect.objectContaining({
+          name: JobName.RUN_COHORT_RETENTION,
           opts: expect.objectContaining({
             attempts: 3,
             backoff: { type: "exponential", delay: 5 * 60_000 },

@@ -1,4 +1,5 @@
 import type {
+  PulsoCohortRetentionResponse,
   PulsoMarkResolvedRequest,
   PulsoOverviewResponse,
   PulsoReportListResponse,
@@ -52,4 +53,9 @@ export const pulsoApi = {
 
   // Sprint S48 — platform overview KPIs (cached 5min server-side).
   getOverview: () => apiClient.get<PulsoOverviewResponse>("/pulso/overview"),
+
+  // Sprint S51 — cohort retention triangle. One row per signup-week with
+  // weekOffset cells; cached 5min server-side.
+  getCohorts: () =>
+    apiClient.get<PulsoCohortRetentionResponse>("/pulso/cohorts"),
 };

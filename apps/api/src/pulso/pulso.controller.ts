@@ -90,4 +90,15 @@ export class PulsoController {
   getOverview() {
     return this.pulso.getOverview();
   }
+
+  // ── Sprint S51 — cohort retention triangle ──────────────────────────
+
+  @Get("cohorts")
+  @ApiOperation({
+    summary:
+      "Cohort retention triangle. Materialised by the Monday 03:00 UTC cron; cached 5min.",
+  })
+  getCohorts() {
+    return this.pulso.getCohortRetention();
+  }
 }

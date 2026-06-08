@@ -2230,9 +2230,77 @@ Cierra la deuda más visible de S48 ("sin time series / sparklines" + "sin vs pe
 
 ---
 
-### Próximo paso — Sesión 51
+### Sesión 51 — 2026-06-08 ✅ COMPLETADA — Sprint S51 Pulso v2 · Cohort retention triangle
 
-**🎉 Pulso v2 completo: Overview + Reports + resolution + time series.** Tres caminos:
+**Rama sugerida:** `feature/sprint-51-cohort-retention`
+**Tests:** 433/434 API + 24 web + 34 crypto (422 → 433, +11 nuevos · 1 skipped sentinel)
+**Bitácora:** [docs/informes/sprint-51-cohort-retention.md](docs/informes/sprint-51-cohort-retention.md)
+
+**Lo que se construyó (cierre analítico de Pulso v2):**
+
+Cierra el loop analítico de Pulso v2 con la métrica clásica SaaS: retention curves por cohort de signup. Después de Overview, Reports y time series, el admin tiene respondida la pregunta "¿se queda la gente que entra?" en un heatmap clásico SaaS.
+
+**Schema (`CohortRetentionWeek`):**
+- PK compuesta `(cohortWeek, weekOffset)`. Columns: cohortSize, activeUsers, generatedAt, updatedAt.
+- Índice descendente sobre `cohortWeek`.
+- Migración aditiva — tabla empieza vacía; el cron la llena el primer lunes post-deploy.
+
+**Backend:**
+- `QueueName.COHORT_RETENTION` + payload + `RUN_COHORT_RETENTION` job name.
+- `JobsService.onModuleInit` registra cron `0 3 * * 1 UTC` (Lunes 03:00 — justo después del platform snapshot 02:30).
+- `CohortRetentionProcessor`:
+  - Resuelve `horizonWeeks` (default 52) + lista de Mondays.
+  - Para cada cohort: fetch users + `Set<userId>` en RAM.
+  - Para cada `weekOffset` 0..N: `countActiveCohortMembers` via Set intersection.
+  - Upsert idempotente sobre `(cohortWeek, weekOffset)`.
+  - `dryRun` flag.
+- `PulsoService.getCohortRetention()` — fetch ordenado + reshape rows + precompute `pct` server-side + cache Redis 5min.
+- `GET /api/pulso/cohorts` ADMIN-only.
+
+**Tipos compartidos:** `PulsoCohortCell`, `PulsoCohortRow`, `PulsoCohortRetentionResponse`.
+
+**Cliente:** `pulsoApi.getCohorts()`. OpenAPI regenerado.
+
+**Web:**
+- `CohortHeatmap.tsx` — tabla HTML triangular con HSL gradient lavender. Sticky left column. Empty-state copy claro.
+- `/dashboard/admin/cohorts/page.tsx` Server Component con ADMIN doble gate.
+- Sidebar: `📐 Pulso · Cohorts` como 3a entrada admin.
+
+**Decisiones clave:**
+1. Tabla materializada con PK compuesta — triangle O(N²) precomputed.
+2. Weekly cron — cohorts son week-anchored.
+3. Activity definition reusada de S50 (consistency).
+4. Cohort filter client-side (Set intersection) — escala.
+5. `pct` precomputado + guard divide-by-zero.
+6. Cache Redis 5min.
+7. Heatmap como `<table>` — accessible.
+8. HSL interpolation para gradient.
+9. **Privacy invariant FUERTE**: tabla solo integer counts; userId-sets en RAM se descartan antes del upsert.
+
+**Tests (+11):**
+- `cohort-retention.processor.spec.ts` (6): unknown job, no users, single cohort, dryRun, intersection guard, triangle math.
+- `pulso.service.spec.ts` (4): empty, group + precompute pct, divide-by-zero, cache hit.
+- `jobs.service.spec.ts` (1): cron registration.
+
+**Privacy preservada:**
+- `CohortRetentionWeek` columns son integer counts only.
+- Processor maneja `Set<userId>` en RAM; IDs nunca llegan a Postgres.
+- ADMIN-only doble gate.
+
+**Deuda técnica abierta:**
+- Cron primer-run vacío hasta el lunes post-deploy.
+- Sin cell hover drill-down.
+- Sin filtros (date range, cohort size threshold).
+- Sin exportación CSV.
+- Sin alerting si week-1 retention cae.
+- Sin retention por feature.
+- Tests UI dedicados para CohortHeatmap.
+
+---
+
+### Próximo paso — Sesión 52
+
+**🎉 Pulso v2 completo: Overview + Reports + resolution + time series + cohorts.** Tres caminos:
 
 **Opción A — Deploy a Railway (recomendado):**
 ```bash

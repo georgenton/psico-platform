@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import type IoRedis from "ioredis";
 import type {
   PulsoOverviewBusinessBlock,
@@ -8,6 +8,7 @@ import type {
   PulsoOverviewUsersBlock,
   PulsoReportListResponse,
   PulsoReportRow,
+  PulsoReportStatus,
   PulsoReportSummary,
   PulsoReportReason,
 } from "@psico/types";
@@ -53,10 +54,16 @@ export class PulsoService {
    * Counts of reports grouped by reason. Used by the admin shell to render
    * the chips at the top of the page. Always returns one row per reason
    * (zero-filled).
+   *
+   * Sprint S49 — accepts an optional `status` filter so the summary chips
+   * reflect what's actually visible in the list below (open by default).
    */
-  async getEcoReportSummary(): Promise<PulsoReportSummary> {
+  async getEcoReportSummary(
+    status: PulsoReportStatus = "open",
+  ): Promise<PulsoReportSummary> {
     const groups = await this.prisma.ecoMessageReport.groupBy({
       by: ["reason"],
+      where: statusWhereClause(status),
       _count: { _all: true },
     });
 
@@ -79,13 +86,19 @@ export class PulsoService {
 
   async listEcoReports(params: {
     reason?: PulsoReportReason;
+    /** Sprint S49 — `open` by default; `resolved` or `all` opt-in. */
+    status?: PulsoReportStatus;
     limit?: number;
     cursor?: string;
   }): Promise<PulsoReportListResponse> {
     const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
+    const status = params.status ?? "open";
 
     const rows = await this.prisma.ecoMessageReport.findMany({
-      where: params.reason ? { reason: params.reason } : undefined,
+      where: {
+        ...(params.reason ? { reason: params.reason } : {}),
+        ...statusWhereClause(status),
+      },
       orderBy: { createdAt: "desc" },
       take: limit + 1, // peek one ahead to know if there's a next page
       ...(params.cursor ? { cursor: { id: params.cursor }, skip: 1 } : {}),
@@ -117,11 +130,143 @@ export class PulsoService {
       // The assistant text IS plaintext (LLM output, not user content).
       // We trim aggressively to keep the table compact.
       assistantTextSnippet: snippet(r.message.assistantText, 240),
+      resolvedAt: r.resolvedAt,
+      resolvedBy: r.resolvedBy,
+      resolutionNote: r.resolutionNote,
     }));
 
     const nextCursor = hasMore ? (page[page.length - 1]?.id ?? null) : null;
 
     return { items, nextCursor, hasMore };
+  }
+
+  // ── POST /api/pulso/reports/eco/:id/resolve ─────────────────────────
+
+  /**
+   * Sprint S49 — mark a report as triaged. Idempotent in spirit: if the row
+   * is already resolved, we OVERWRITE the timestamp + admin + note (the new
+   * action wins). That matches admin-side expectations more than a 409: if
+   * you're re-marking, you're probably correcting your own previous note.
+   *
+   * Side effects:
+   *   - Busts the `pulso:overview` cache so the backlog count refreshes.
+   */
+  async markResolved(
+    reportId: string,
+    adminUserId: string,
+    note: string | null,
+  ): Promise<PulsoReportRow> {
+    const existing = await this.prisma.ecoMessageReport.findUnique({
+      where: { id: reportId },
+      select: { id: true },
+    });
+    if (!existing) {
+      throw new NotFoundException("REPORT_NOT_FOUND");
+    }
+
+    const updated = await this.prisma.ecoMessageReport.update({
+      where: { id: reportId },
+      data: {
+        resolvedAt: new Date(),
+        resolvedBy: adminUserId,
+        resolutionNote: note,
+      },
+      include: {
+        message: {
+          select: {
+            id: true,
+            threadId: true,
+            assistantText: true,
+            kind: true,
+          },
+        },
+      },
+    });
+
+    await this.invalidateOverviewCache();
+
+    return {
+      id: updated.id,
+      reason: updated.reason as PulsoReportReason,
+      comment: updated.comment,
+      createdAt: updated.createdAt,
+      userId: updated.userId,
+      messageId: updated.messageId,
+      threadId: updated.message.threadId,
+      messageKind: updated.message.kind as PulsoReportRow["messageKind"],
+      assistantTextSnippet: snippet(updated.message.assistantText, 240),
+      resolvedAt: updated.resolvedAt,
+      resolvedBy: updated.resolvedBy,
+      resolutionNote: updated.resolutionNote,
+    };
+  }
+
+  // ── POST /api/pulso/reports/eco/:id/unresolve ───────────────────────
+
+  /**
+   * Sprint S49 — reopen a previously-resolved report. Clears all three
+   * resolution columns. Symmetric inverse of `markResolved`.
+   */
+  async markUnresolved(reportId: string): Promise<PulsoReportRow> {
+    const existing = await this.prisma.ecoMessageReport.findUnique({
+      where: { id: reportId },
+      select: { id: true },
+    });
+    if (!existing) {
+      throw new NotFoundException("REPORT_NOT_FOUND");
+    }
+
+    const updated = await this.prisma.ecoMessageReport.update({
+      where: { id: reportId },
+      data: {
+        resolvedAt: null,
+        resolvedBy: null,
+        resolutionNote: null,
+      },
+      include: {
+        message: {
+          select: {
+            id: true,
+            threadId: true,
+            assistantText: true,
+            kind: true,
+          },
+        },
+      },
+    });
+
+    await this.invalidateOverviewCache();
+
+    return {
+      id: updated.id,
+      reason: updated.reason as PulsoReportReason,
+      comment: updated.comment,
+      createdAt: updated.createdAt,
+      userId: updated.userId,
+      messageId: updated.messageId,
+      threadId: updated.message.threadId,
+      messageKind: updated.message.kind as PulsoReportRow["messageKind"],
+      assistantTextSnippet: snippet(updated.message.assistantText, 240),
+      resolvedAt: updated.resolvedAt,
+      resolvedBy: updated.resolvedBy,
+      resolutionNote: updated.resolutionNote,
+    };
+  }
+
+  /**
+   * Sprint S49 — proactively invalidate the overview cache when the backlog
+   * count is likely to have changed (resolve/unresolve). Fire-and-forget;
+   * a failure here just means the admin sees stale data for up to 5min,
+   * which is acceptable.
+   */
+  private async invalidateOverviewCache(): Promise<void> {
+    try {
+      await this.redis.del(PulsoService.OVERVIEW_CACHE_KEY);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to invalidate pulso overview cache: ${(err as Error).message}`,
+      );
+    }
   }
 
   // ── GET /api/pulso/overview ─────────────────────────────────────────
@@ -216,11 +361,11 @@ export class PulsoService {
       }),
       this.prisma.readingSession.count({
         where: {
-          // Heartbeat (S6 lector) bumps updatedAt every 5s while the user
+          // Heartbeat (S6 lector) bumps `lastSeenAt` every 5s while the user
           // is actively reading — treat that as the "session happened"
-          // signal rather than createdAt (a started-but-abandoned session
+          // signal rather than startedAt (a started-but-abandoned session
           // shouldn't count).
-          updatedAt: { gte: week },
+          lastSeenAt: { gte: week },
         },
       }),
     ]);
@@ -239,9 +384,12 @@ export class PulsoService {
       this.prisma.user.count({
         where: { plan: { in: ["PRO", "ANNUAL", "B2B"] } },
       }),
-      // v1: backlog = total reports. When we add `resolvedAt`, narrow to
-      // `where: { resolvedAt: null }`.
-      this.prisma.ecoMessageReport.count(),
+      // Sprint S49 — backlog narrows to open (unresolved) reports. The
+      // resolvedAt column is null for triaged-pending rows; the index
+      // EcoMessageReport_resolvedAt_createdAt_idx makes this count cheap.
+      this.prisma.ecoMessageReport.count({
+        where: { resolvedAt: null },
+      }),
     ]);
     const business: PulsoOverviewBusinessBlock = {
       paidUsers,
@@ -300,7 +448,7 @@ export class PulsoService {
         distinct: ["userId"],
       }),
       this.prisma.readingSession.findMany({
-        where: { updatedAt: { gte: since } },
+        where: { lastSeenAt: { gte: since } },
         select: { userId: true },
         distinct: ["userId"],
       }),
@@ -323,4 +471,22 @@ function snippet(text: string | null, max: number): string {
   if (!text) return "";
   const t = text.trim().replace(/\s+/g, " ");
   return t.length > max ? `${t.slice(0, max)}…` : t;
+}
+
+/**
+ * Sprint S49 — translate a status filter into a Prisma where fragment.
+ *
+ *  - `open`     → resolvedAt IS NULL
+ *  - `resolved` → resolvedAt IS NOT NULL
+ *  - `all`      → no constraint (empty object spreads as a no-op)
+ *
+ * Returned as a partial object so callers can `...spread` it alongside
+ * other clauses without nullish checks.
+ */
+function statusWhereClause(status: PulsoReportStatus): {
+  resolvedAt?: null | { not: null };
+} {
+  if (status === "open") return { resolvedAt: null };
+  if (status === "resolved") return { resolvedAt: { not: null } };
+  return {};
 }

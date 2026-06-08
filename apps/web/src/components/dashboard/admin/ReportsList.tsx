@@ -1,4 +1,5 @@
 import type { PulsoReportListResponse, PulsoReportReason } from "@psico/types";
+import { ResolveRowActions } from "./ResolveRowActions";
 
 const REASON_LABEL: Record<PulsoReportReason, string> = {
   HALLUCINATION: "Inventó info",
@@ -90,6 +91,8 @@ export function ReportsList({ data }: { data: PulsoReportListResponse }) {
                 </span>
               )}
             </p>
+            {/* Sprint S49 — resolve / reabrir actions per row. */}
+            <ResolveRowActions row={row} />
           </li>
         ))}
       </ul>

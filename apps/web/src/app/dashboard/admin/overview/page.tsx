@@ -147,6 +147,8 @@ export default async function PulsoOverviewPage() {
             label="DAU"
             value={fmt(data.engagement.dau)}
             helper="Activos en las últimas 24h"
+            series={data.series.dau}
+            delta={data.deltas.dau}
           />
           <KpiCard
             label="WAU"
@@ -173,17 +175,22 @@ export default async function PulsoOverviewPage() {
           <KpiCard
             label="Entradas de diario"
             value={fmt(data.content.diaryEntriesThisWeek)}
+            series={data.series.diaryEntries}
+            delta={data.deltas.diaryEntries}
           />
           <KpiCard
             label="Mensajes Eco"
             value={fmt(data.content.ecoMessagesThisWeek)}
             helper="Solo USER · sin assistant"
+            series={data.series.ecoMessages}
+            delta={data.deltas.ecoMessages}
           />
           <KpiCard
             label="Crisis Eco"
             value={fmt(data.content.ecoCrisisThisWeek)}
             accent={data.content.ecoCrisisThisWeek > 0 ? "danger" : "default"}
             helper="Regex pre-LLM o sentinel del modelo"
+            series={data.series.ecoCrisis}
           />
           <KpiCard
             label="Voz transcrita"
@@ -212,11 +219,12 @@ export default async function PulsoOverviewPage() {
             value={fmt(data.business.paidUsers)}
             helper="PRO · ANNUAL · B2B"
             accent="success"
+            series={data.series.paidUsers}
           />
           <KpiCard
             label="Reports Eco en backlog"
             value={fmt(data.business.reportsBacklog)}
-            helper="Total acumulado · v1 sin marcar resueltos"
+            helper="Abiertos (resolvedAt IS NULL)"
             accent={
               data.business.reportsBacklog > 10
                 ? "warning"
@@ -224,6 +232,9 @@ export default async function PulsoOverviewPage() {
                   ? "default"
                   : "success"
             }
+            series={data.series.reportsOpened}
+            delta={data.deltas.reportsOpened}
+            deltaInverted
           />
         </div>
       </section>

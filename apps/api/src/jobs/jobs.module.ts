@@ -48,6 +48,8 @@ import type { Env } from "../config";
       { name: QueueName.INACTIVE_NUDGE },
       // Sprint S46 — pre-generate WeeklySummary so the Monday digest finds it.
       { name: QueueName.WEEKLY_SUMMARY_GENERATION },
+      // Sprint S50 — platform-wide daily snapshot for Pulso time series.
+      { name: QueueName.PLATFORM_SNAPSHOT },
     ),
   ],
   providers: [JobsService],

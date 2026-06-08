@@ -9,6 +9,7 @@ import {
   type DataExportJobPayload,
   type EmailJobPayload,
   type InactiveNudgeJobPayload,
+  type PlatformSnapshotJobPayload,
   type WeeklyDigestJobPayload,
   type WeeklySummaryGenerationJobPayload,
 } from "./queue-names";
@@ -32,6 +33,11 @@ const INACTIVE_NUDGE_SCHEDULER_ID = "inactive-nudge-18-utc";
 // buffer before the Monday 07:00 UTC digest cron — enough room for retries
 // if the LLM hits a transient 5xx.
 const WEEKLY_SUMMARY_SCHEDULER_ID = "weekly-summary-sunday-23-utc";
+
+// Sprint S50 — Platform-wide daily snapshot. 02:30 UTC so it lands after
+// the daily-usage rollup at 02:00 (no resource contention, billing data
+// settled). The snapshot writes ONE row per day, so the schedule is daily.
+const PLATFORM_SNAPSHOT_SCHEDULER_ID = "platform-snapshot-02-30-utc";
 
 /**
  * Producer-side API for enqueuing background work. Feature services inject
@@ -65,6 +71,9 @@ export class JobsService implements OnModuleInit {
     // Sprint S46 — weekly summary pre-generation.
     @InjectQueue(QueueName.WEEKLY_SUMMARY_GENERATION)
     private readonly weeklySummaryQueue: Queue<WeeklySummaryGenerationJobPayload>,
+    // Sprint S50 — platform-wide daily snapshot.
+    @InjectQueue(QueueName.PLATFORM_SNAPSHOT)
+    private readonly platformSnapshotQueue: Queue<PlatformSnapshotJobPayload>,
   ) {}
 
   /**
@@ -201,6 +210,33 @@ export class JobsService implements OnModuleInit {
     } catch (err) {
       this.logger.error(
         `Failed to register weekly-summary scheduler: ${(err as Error).message}`,
+      );
+    }
+
+    // Sprint S50 — Platform-wide daily snapshot cron. 02:30 UTC daily.
+    // Lands after the daily-usage rollup at 02:00 so the billing data is
+    // settled. Idempotent — upserts on `day`, so retries are safe.
+    try {
+      await this.platformSnapshotQueue.upsertJobScheduler(
+        PLATFORM_SNAPSHOT_SCHEDULER_ID,
+        { pattern: "30 2 * * *", tz: "UTC" }, // 02:30 UTC daily
+        {
+          name: JobName.RUN_PLATFORM_SNAPSHOT,
+          data: {},
+          opts: {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 5 * 60_000 },
+            removeOnComplete: { age: 30 * 24 * 60 * 60 },
+            removeOnFail: false,
+          },
+        },
+      );
+      this.logger.log(
+        `Platform snapshot scheduled · id=${PLATFORM_SNAPSHOT_SCHEDULER_ID} · cron=30 2 * * * UTC`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to register platform-snapshot scheduler: ${(err as Error).message}`,
       );
     }
   }

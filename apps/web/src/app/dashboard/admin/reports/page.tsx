@@ -3,12 +3,14 @@ import { redirect } from "next/navigation";
 import type {
   PulsoReportListResponse,
   PulsoReportReason,
+  PulsoReportStatus,
   PulsoReportSummary,
 } from "@psico/types";
 
 import { getSessionUser, isNextThrow, serverFetch } from "@/lib/api.server";
 import { ReasonChips } from "@/components/dashboard/admin/ReasonChips";
 import { ReportsList } from "@/components/dashboard/admin/ReportsList";
+import { StatusTabs } from "@/components/dashboard/admin/StatusTabs";
 
 export const metadata: Metadata = { title: "Pulso · Reports Eco" };
 export const dynamic = "force-dynamic";
@@ -21,16 +23,24 @@ const REASONS: PulsoReportReason[] = [
   "OTHER",
 ];
 
+const STATUSES: PulsoReportStatus[] = ["open", "resolved", "all"];
+
 function parseReason(raw: string | undefined): PulsoReportReason | null {
   return raw && (REASONS as string[]).includes(raw)
     ? (raw as PulsoReportReason)
     : null;
 }
 
+function parseStatus(raw: string | undefined): PulsoReportStatus {
+  return raw && (STATUSES as string[]).includes(raw)
+    ? (raw as PulsoReportStatus)
+    : "open";
+}
+
 export default async function PulsoReportsPage({
   searchParams,
 }: {
-  searchParams: { reason?: string };
+  searchParams: { reason?: string; status?: string };
 }) {
   // ADMIN-only. Frontend gate is defensive — the API enforces too.
   const user = getSessionUser();
@@ -39,14 +49,20 @@ export default async function PulsoReportsPage({
   }
 
   const reason = parseReason(searchParams.reason);
+  const status = parseStatus(searchParams.status);
 
   let summary: PulsoReportSummary | null = null;
   let data: PulsoReportListResponse | null = null;
   try {
+    const listParams = new URLSearchParams();
+    listParams.set("status", status);
+    if (reason) listParams.set("reason", reason);
     [summary, data] = await Promise.all([
-      serverFetch<PulsoReportSummary>("/pulso/reports/eco/summary"),
+      serverFetch<PulsoReportSummary>(
+        `/pulso/reports/eco/summary?status=${status}`,
+      ),
       serverFetch<PulsoReportListResponse>(
-        `/pulso/reports/eco${reason ? `?reason=${reason}` : ""}`,
+        `/pulso/reports/eco?${listParams.toString()}`,
       ),
     ]);
   } catch (err) {
@@ -98,6 +114,10 @@ export default async function PulsoReportsPage({
           los prompts del usuario son cifrados y no se descifran server-side.
         </p>
       </header>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <StatusTabs active={status} reason={reason ?? null} />
+      </div>
 
       <ReasonChips summary={summary} active={reason} />
       <ReportsList data={data} />

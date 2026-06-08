@@ -1583,6 +1583,12 @@ export interface PulsoReportRow {
   messageKind: "USER" | "ASSISTANT" | "CRISIS" | "SUGGESTION";
   /** Trimmed assistant text (plaintext from the LLM). */
   assistantTextSnippet: string;
+  // Sprint S49 — resolution flow. `resolvedAt` null means the row is open;
+  // a non-null timestamp marks it triaged. `resolvedBy` is the admin user
+  // that acted; `resolutionNote` is an optional short editorial.
+  resolvedAt: Date | null;
+  resolvedBy: string | null;
+  resolutionNote: string | null;
 }
 
 export interface PulsoReportListResponse {
@@ -1594,6 +1600,19 @@ export interface PulsoReportListResponse {
 export interface PulsoReportSummary {
   total: number;
   byReason: Record<PulsoReportReason, number>;
+}
+
+// Sprint S49 — list filter for resolution state.
+//   `open` (default) → resolvedAt IS NULL
+//   `resolved`        → resolvedAt IS NOT NULL
+//   `all`             → no filter
+export type PulsoReportStatus = "open" | "resolved" | "all";
+
+// Sprint S49 — body for POST /api/pulso/reports/eco/:id/resolve. The note
+// is optional and capped at 500 chars; the DTO on the server enforces the
+// validation.
+export interface PulsoMarkResolvedRequest {
+  note?: string;
 }
 
 // ─── Pulso v2 · Overview (Sprint S48) ───────────────────────────────────────

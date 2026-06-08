@@ -799,10 +799,23 @@ model EcoMessageReport {
   comment   String?
   createdAt DateTime               @default(now())
 
+  // Sprint S49 — resolution flow. NULL means "still open / awaiting review";
+  // a non-null timestamp marks the row as triaged. `resolvedBy` is the ADMIN
+  // userId that acted; `resolutionNote` is an optional short note explaining
+  // what was done (e.g. "False positive — message was sensitive but on-tone").
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  resolutionNote String?
+
   message EcoMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([reason])
+  // Sprint S49 — partial-ish index so `count(where: { resolvedAt: null })`
+  // (the Pulso Overview backlog metric) doesn't degrade as the table grows.
+  // Postgres supports proper partial indexes; the @@index here is a regular
+  // composite that already narrows on the most-selective column.
+  @@index([resolvedAt, createdAt])
 }
 
 // ─── Voice transcriptions (Sprint S8) ────────────────────────────────────────

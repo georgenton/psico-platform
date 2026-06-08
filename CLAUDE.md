@@ -2101,9 +2101,78 @@ Segunda surface de Pulso v2 después del reports inbox (S42). Admin tiene ahora 
 
 ---
 
-### Próximo paso — Sesión 49
+### Sesión 49 — 2026-06-06 ✅ COMPLETADA — Sprint S49 Pulso v2 · Reports resolution flow
 
-**🎉 Pulso v2 con Overview + Reports.** Tres caminos:
+**Rama sugerida:** `feature/sprint-49-reports-resolved`
+**Tests:** 411/412 API + 24 web + 34 crypto (404 → 411, +7 nuevos · 1 skipped sentinel)
+**Bitácora:** [docs/informes/sprint-49-reports-resolved.md](docs/informes/sprint-49-reports-resolved.md)
+
+**Lo que se construyó (cierre del loop S42 → S48 → S49):**
+
+Cierra el loop de admin operations sobre Pulso v2. Después de S42 (inbox) y S48 (overview), el admin podía VER reports pero no MARCAR nada. S49 entrega resolución idempotente + tabs de filtro + UI inline + cache invalidation.
+
+**Schema (`EcoMessageReport`):**
+- 3 columnas nuevas: `resolvedAt DateTime?`, `resolvedBy String?`, `resolutionNote String?`.
+- Índice compuesto `@@index([resolvedAt, createdAt])` para que el count del backlog (S48) se mantenga barato.
+- Migración aditiva `20260606000000_s49_report_resolution`. Rows existentes son implícitamente "open".
+
+**Backend:**
+- `markResolved(reportId, adminUserId, note?)` — idempotente (re-resolving sobreescribe). Throws `NotFoundException("REPORT_NOT_FOUND")` si no existe. Busta cache `pulso:overview`.
+- `markUnresolved(reportId)` — symmetric inverse, limpia los 3 campos.
+- `listEcoReports({ ..., status })` con default `open`. `statusWhereClause` helper module-level.
+- `getEcoReportSummary(status?)` propaga el filtro.
+- `getOverview.business.reportsBacklog` ahora narrow a `where: { resolvedAt: null }` — **cierra deuda S48**.
+- Bug-fix de paso: `readingSession` usaba `updatedAt` (no existe) — corregido a `lastSeenAt`.
+
+**2 endpoints nuevos** bajo `/api/pulso/reports/eco/:id/`:
+- `POST /resolve` (idempotente)
+- `POST /unresolve`
+
+ADMIN-only doble gate (heredado del controller).
+
+**Tipos compartidos:**
+- `PulsoReportRow` extendido con resolución.
+- `PulsoReportStatus = "open" | "resolved" | "all"`.
+- `PulsoMarkResolvedRequest { note?: string }`.
+
+**Cliente:** `pulsoApi.markResolved(id, body)` y `markUnresolved(id)`. `listEcoReports` con propagación de status.
+
+**Web:**
+- Server actions `markReportResolvedAction` y `markReportUnresolvedAction` con `revalidatePath` de reports + overview.
+- `StatusTabs.tsx` zero-JS tab strip (`<Link>` × 3).
+- `ResolveRowActions.tsx` Client Component con state machine: composer de nota opcional + botón "Marcar resuelto" / "Reabrir" + optimistic `useTransition` + inline error.
+- `ReportsList.tsx` extendido con `<ResolveRowActions row={row} />` por row.
+- `/dashboard/admin/reports/page.tsx` parsea `?status=…`, fetcha con filtro, renderiza `<StatusTabs>`.
+
+**Decisiones clave:**
+1. Resolución idempotente, no transición de estado — re-marking sobreescribe.
+2. Default `status=open` en list + summary. Admin landea en inbox accionable.
+3. `statusWhereClause` helper module-level → spread-able sin nullish checks.
+4. Cache invalidation post mutation (sin esto, KPI del backlog stale 5min).
+5. `revalidatePath` toca reports + overview (cierra el loop visual).
+6. UI server-driven con tabs + querystring (zero JS); composer de nota inline Client Component.
+7. Note inline, no modal — triage de muchos rows seguidos es más rápido.
+
+**Tests (+7):** backlog narrow · markResolved happy · markResolved 404 · markUnresolved · status filter open/resolved/all.
+
+**Privacy preservada:**
+- Doble gate ADMIN backend + frontend.
+- `resolutionNote` es texto admin-side; no toca cripto del Diario.
+- Privacy invariant del Overview NO afectado.
+
+**Deuda técnica abierta:**
+- Sin tests UI dedicados para ResolveRowActions / StatusTabs.
+- `resolvedBy` no se renderiza en UI (falta join al User).
+- Sin auditoría de cambios (admin A → B → A perdemos el historial).
+- Sin bulk resolve.
+- Mobile no tiene este flow.
+- Sin email "report nuevo" para admins.
+
+---
+
+### Próximo paso — Sesión 50
+
+**🎉 Pulso v2 con Overview + Reports + resolution flow.** Tres caminos:
 
 **Opción A — Deploy a Railway (recomendado):**
 ```bash

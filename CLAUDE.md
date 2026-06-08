@@ -2359,7 +2359,6 @@ S52 cierra todo esto:
 
 ---
 
-<<<<<<< HEAD
 ### Sesión 53 — 2026-06-08 ✅ COMPLETADA — Sprint S53 Notificaciones conscientes del huso horario
 
 **Rama sugerida:** `feature/sprint-53-timezone-aware`
@@ -2421,10 +2420,57 @@ Desde Sprint S44 los crons (WeeklyDigest, InactiveNudge) aterrizaban a horas dur
 
 ---
 
-### Próximo paso — Sesión 54
-=======
-### Próximo paso — Sesión 53
->>>>>>> origin/main
+### Sesión 54 — 2026-06-08 ✅ COMPLETADA — Sprint S54 TimezoneCard Settings UI + tests UI
+
+**Rama sugerida:** `feature/sprint-54-timezone-settings`
+**Tests:** 451/452 API + 34/34 crypto + 38/38 web + 20/20 mobile (525 → 543, +18 UI · 1 skipped sentinel)
+**Bitácora:** [docs/informes/sprint-54-timezone-settings.md](docs/informes/sprint-54-timezone-settings.md)
+
+**Lo que se construyó (cierra deuda S53 + deuda tests S39/S47/S53):**
+
+- Server action `setTimezoneActionStrict` además del silent `setTimezoneAction` para distinguir probe invisible vs UI explícita.
+- Web `TimezoneCard.tsx` — muestra stored vs browser TZ, botón "Usar la de mi dispositivo" en mismatch, `<select>` con todas las IANA del browser (fallback a 22 zonas LATAM/EU/Asia). Optimistic save + flash + inline error.
+- Mobile `TimezoneCard.tsx` — paridad con Modal + FlatList sobre `Intl.supportedValuesOf`. `onChanged` callback.
+- Wire web: `/dashboard/notifications/page.tsx`. Wire mobile: `(tabs)/notifications.tsx`.
+
+**Tests UI (+18):**
+- Web `TimezoneCard.test.tsx` (6) — null state, render, submit success, inline error, mismatch button branches.
+- Web `_TimezoneSync.test.tsx` (3) — fires on needsProbe, no-op false, one-shot useRef.
+- Web `WebPushToggle.test.tsx` (5) — unsupported, blocked, off, subscribe + flip, error VAPID.
+- Mobile `TimezoneCard.test.tsx` (4) — render, modal open, device row.
+
+**Decisiones:**
+1. Dos server actions (silent vs strict) — el strict throws para UI.
+2. Auto-submit en select change (sin botón Save).
+3. Fallback hardcoded de 22 TZs cuando `Intl.supportedValuesOf` no está.
+4. Mobile Modal + FlatList — sin picker libraries.
+5. Refactor `useTransition` → `useState(pending)` para tests determinísticos.
+6. Mobile test del "pick → commit" full flow saltado (jest-expo + Modal + FlatList frágil); cubierto por web test.
+
+**Bugs corregidos durante S54:**
+1. `useTransition` async no flusheaba en jsdom → refactor a useState plain.
+2. `navigator.serviceWorker` no en jsdom → `Object.defineProperty` stub.
+3. `Intl.DateTimeFormat` retorna TZ del host CI → spyOn pattern para pinear.
+4. Modal y FlatList no renderizan children en jest-expo → `jest.mock("react-native")` con stubs.
+
+**Smoke verification:**
+- API tests 451/452 (sin cambios).
+- @psico/crypto 34/34.
+- Web tests 38/38 (+14).
+- Mobile tests 20/20 (+4).
+- Typecheck + lint OK en web + mobile.
+
+**Privacy preservada:** `Profile.timezone` plaintext (ADR 0007 intacto). `TimezoneCard` no toca cripto del Diario.
+
+**Deuda técnica abierta:**
+- Mobile test del commit completo (pick → press → onChanged) — diferido hasta RN 0.77+.
+- Botón "Reset to auto-detect" en TimezoneCard si UX lo pide.
+- WebPushToggle "unsubscribe" path no testeado.
+- E2E real test del `TimezoneSync` con layout SC sigue siendo deuda.
+
+---
+
+### Próximo paso — Sesión 55 (deploy ops, no código)
 
 **🎉 Pulso v2 completo + audit cleanup ✅.** Tres caminos:
 

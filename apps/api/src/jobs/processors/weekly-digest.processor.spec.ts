@@ -31,7 +31,6 @@ function buildPush(
   } as never;
 }
 
-<<<<<<< HEAD
 /**
  * Sprint S53 — Tests pin `nowIso` to Monday 07:00 UTC so the per-user
  * TZ gate fires for users whose `profile.timezone` is null (the gate
@@ -49,10 +48,6 @@ function jobOf<T extends Record<string, unknown>>(
       ? ({ ...data, nowIso: LEGACY_MONDAY_07_UTC } as T)
       : data;
   return { name: JobName.RUN_WEEKLY_DIGEST, data: merged } as Job<T>;
-=======
-function jobOf<T>(data: T): Job<T> {
-  return { name: JobName.RUN_WEEKLY_DIGEST, data } as Job<T>;
->>>>>>> origin/main
 }
 
 describe("WeeklyDigestProcessor", () => {
@@ -295,7 +290,6 @@ describe("WeeklyDigestProcessor", () => {
       (resend as { send: ReturnType<typeof vi.fn> }).send,
     ).toHaveBeenCalledTimes(2);
   });
-<<<<<<< HEAD
 
   // ─── Sprint S53 — timezone-aware fan-out ──────────────────────────────────
 
@@ -389,6 +383,4 @@ describe("WeeklyDigestProcessor", () => {
       ).toHaveBeenCalledTimes(1);
     });
   });
-=======
->>>>>>> origin/main
 });

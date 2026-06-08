@@ -10,7 +10,6 @@ import {
   QueueName,
   type InactiveNudgeJobPayload,
 } from "../queue-names";
-<<<<<<< HEAD
 import { userLocalHour } from "../utils/timezone";
 
 /**
@@ -26,17 +25,6 @@ import { userLocalHour } from "../utils/timezone";
  *   2. Haven't written in 3+ days (silence signal).
  *   3. Has `NotificationSettings.dailyReminder === true`.
  *   4. Has `User.lastNudgedAt` null OR > 4 days ago (don't spam).
-=======
-
-/**
- * Sprint S44 — InactiveNudgeProcessor.
- *
- * Nightly 18:00 UTC. Finds users who:
- *   1. Have written ≥1 diary entry ever (engaged-before signal).
- *   2. Haven't written in 3+ days (silence signal).
- *   3. Have `NotificationSettings.dailyReminder === true`.
- *   4. Have `User.lastNudgedAt` null OR > 4 days ago (don't spam).
->>>>>>> origin/main
  *
  * Sends a single push and bumps `lastNudgedAt`. Email is NOT used here —
  * email re-engagement is the WeeklyDigest's job, not the daily nudge.
@@ -45,10 +33,7 @@ import { userLocalHour } from "../utils/timezone";
  */
 const SILENCE_DAYS = 3;
 const MIN_DAYS_BETWEEN_NUDGES = 4;
-<<<<<<< HEAD
 const NUDGE_TARGET_HOUR = 18; // Sprint S53
-=======
->>>>>>> origin/main
 
 @Processor(QueueName.INACTIVE_NUDGE)
 export class InactiveNudgeProcessor extends WorkerHost {
@@ -66,13 +51,9 @@ export class InactiveNudgeProcessor extends WorkerHost {
       throw new Error(`InactiveNudgeProcessor unknown job: ${job.name}`);
     }
 
-<<<<<<< HEAD
     // Sprint S53 — tests may override `now` to exercise the per-user
     // timezone gate at deterministic UTC moments.
     const now = job.data.nowIso ? new Date(job.data.nowIso) : new Date();
-=======
-    const now = new Date();
->>>>>>> origin/main
     const silenceCutoff = new Date(
       now.getTime() - SILENCE_DAYS * 24 * 60 * 60 * 1000,
     );
@@ -99,10 +80,7 @@ export class InactiveNudgeProcessor extends WorkerHost {
         id: true,
         firstName: true,
         deviceTokens: { select: { token: true } },
-<<<<<<< HEAD
         profile: { select: { timezone: true } },
-=======
->>>>>>> origin/main
       },
     });
 
@@ -113,7 +91,6 @@ export class InactiveNudgeProcessor extends WorkerHost {
     }
 
     let sent = 0;
-<<<<<<< HEAD
     let skippedByTz = 0;
     for (const c of candidates) {
       // Sprint S53 — Per-user TZ gate. The hourly cron fan-outs to ALL
@@ -124,9 +101,6 @@ export class InactiveNudgeProcessor extends WorkerHost {
         skippedByTz++;
         continue;
       }
-=======
-    for (const c of candidates) {
->>>>>>> origin/main
       if (c.deviceTokens.length === 0) continue; // no way to reach them
       try {
         const tokens = c.deviceTokens.map((d) => d.token);
@@ -163,12 +137,8 @@ export class InactiveNudgeProcessor extends WorkerHost {
         );
       }
     }
-<<<<<<< HEAD
     this.logger.log(
       `InactiveNudge done · sent=${sent} · skippedByTz=${skippedByTz} · total=${candidates.length}`,
     );
-=======
-    this.logger.log(`InactiveNudge done · sent=${sent}/${candidates.length}`);
->>>>>>> origin/main
   }
 }

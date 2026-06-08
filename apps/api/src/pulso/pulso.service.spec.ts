@@ -6,6 +6,8 @@ function buildPrisma(overrides: Partial<Record<string, unknown>> = {}) {
     ecoMessageReport: {
       groupBy: vi.fn().mockResolvedValue([]),
       findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      update: vi.fn(),
       count: vi.fn().mockResolvedValue(0),
     },
     user: {
@@ -41,6 +43,9 @@ function buildRedis() {
   return {
     get: vi.fn().mockResolvedValue(null),
     setex: vi.fn().mockResolvedValue("OK"),
+    // Sprint S49 — the service deletes the overview cache key after
+    // resolve/unresolve so the backlog count refreshes.
+    del: vi.fn().mockResolvedValue(1),
   } as unknown as ConstructorParameters<typeof PulsoService>[1];
 }
 
@@ -167,8 +172,14 @@ describe("PulsoService.listEcoReports", () => {
     await svc.listEcoReports({ reason: "CRISIS_MISHANDLED" });
 
     expect(findManySpy).toHaveBeenCalled();
-    const call = findManySpy.mock.calls[0]![0] as { where: { reason: string } };
-    expect(call.where).toEqual({ reason: "CRISIS_MISHANDLED" });
+    const call = findManySpy.mock.calls[0]![0] as { where: unknown };
+    // Sprint S49 — default status="open" adds resolvedAt: null next to the
+    // reason filter. We assert the shape with both clauses so future
+    // regressions on either are caught.
+    expect(call.where).toMatchObject({
+      reason: "CRISIS_MISHANDLED",
+      resolvedAt: null,
+    });
   });
 });
 
@@ -353,5 +364,212 @@ describe("PulsoService.getOverview (Sprint S48)", () => {
     expect(payload).not.toContain("real-user-id-4");
     expect(payload).not.toContain("userId");
     expect(payload).not.toContain("email");
+  });
+
+  it("backlog counts only OPEN reports (resolvedAt IS NULL) — closes S48 deuda", async () => {
+    const ecoMessageReportCountSpy = vi.fn().mockResolvedValue(5);
+    const prisma = buildPrisma({
+      ecoMessageReport: {
+        groupBy: vi.fn(),
+        findMany: vi.fn(),
+        findUnique: vi.fn(),
+        update: vi.fn(),
+        count: ecoMessageReportCountSpy,
+      } as never,
+    });
+    const svc = new PulsoService(prisma, buildRedis());
+    const res = await svc.getOverview();
+
+    expect(ecoMessageReportCountSpy).toHaveBeenCalledWith({
+      where: { resolvedAt: null },
+    });
+    expect(res.business.reportsBacklog).toBe(5);
+  });
+});
+
+// ─── Sprint S49 — resolution flow tests ──────────────────────────────────
+
+describe("PulsoService.markResolved", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("marks a report resolved, stamps the admin + note, and busts the overview cache", async () => {
+    const updateSpy = vi.fn().mockResolvedValue({
+      id: "r1",
+      reason: "OFF_TONE",
+      comment: "weird tone",
+      createdAt: new Date("2026-06-05T10:00:00Z"),
+      userId: "u1",
+      messageId: "m1",
+      resolvedAt: new Date("2026-06-06T08:00:00Z"),
+      resolvedBy: "admin-1",
+      resolutionNote: "false positive",
+      message: {
+        id: "m1",
+        threadId: "t1",
+        assistantText: "Hola",
+        kind: "ASSISTANT",
+      },
+    });
+    const prisma = buildPrisma({
+      ecoMessageReport: {
+        groupBy: vi.fn(),
+        findMany: vi.fn(),
+        findUnique: vi.fn().mockResolvedValue({ id: "r1" }),
+        update: updateSpy,
+        count: vi.fn(),
+      } as never,
+    });
+    const redis = buildRedis();
+    const svc = new PulsoService(prisma, redis);
+
+    const res = await svc.markResolved("r1", "admin-1", "false positive");
+
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "r1" },
+        data: expect.objectContaining({
+          resolvedBy: "admin-1",
+          resolutionNote: "false positive",
+          resolvedAt: expect.any(Date),
+        }),
+      }),
+    );
+    expect(res.resolvedBy).toBe("admin-1");
+    expect(res.resolutionNote).toBe("false positive");
+    expect(res.resolvedAt).not.toBeNull();
+    // Cache bust so the overview backlog refreshes.
+    expect(
+      (redis as unknown as { del: ReturnType<typeof vi.fn> }).del,
+    ).toHaveBeenCalledWith("pulso:overview");
+  });
+
+  it("throws NotFoundException when the report id doesn't exist", async () => {
+    const prisma = buildPrisma({
+      ecoMessageReport: {
+        groupBy: vi.fn(),
+        findMany: vi.fn(),
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn(),
+        count: vi.fn(),
+      } as never,
+    });
+    const svc = new PulsoService(prisma, buildRedis());
+    await expect(
+      svc.markResolved("nonexistent", "admin-1", null),
+    ).rejects.toThrow(/REPORT_NOT_FOUND/);
+  });
+});
+
+describe("PulsoService.markUnresolved", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("clears resolvedAt/By/Note and busts the overview cache", async () => {
+    const updateSpy = vi.fn().mockResolvedValue({
+      id: "r1",
+      reason: "OFF_TONE",
+      comment: null,
+      createdAt: new Date(),
+      userId: "u1",
+      messageId: "m1",
+      resolvedAt: null,
+      resolvedBy: null,
+      resolutionNote: null,
+      message: {
+        id: "m1",
+        threadId: "t1",
+        assistantText: "x",
+        kind: "ASSISTANT",
+      },
+    });
+    const prisma = buildPrisma({
+      ecoMessageReport: {
+        groupBy: vi.fn(),
+        findMany: vi.fn(),
+        findUnique: vi.fn().mockResolvedValue({ id: "r1" }),
+        update: updateSpy,
+        count: vi.fn(),
+      } as never,
+    });
+    const redis = buildRedis();
+    const svc = new PulsoService(prisma, redis);
+
+    const res = await svc.markUnresolved("r1");
+
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "r1" },
+        data: {
+          resolvedAt: null,
+          resolvedBy: null,
+          resolutionNote: null,
+        },
+      }),
+    );
+    expect(res.resolvedAt).toBeNull();
+    expect(res.resolvedBy).toBeNull();
+    expect(res.resolutionNote).toBeNull();
+    expect(
+      (redis as unknown as { del: ReturnType<typeof vi.fn> }).del,
+    ).toHaveBeenCalledWith("pulso:overview");
+  });
+});
+
+describe("PulsoService.listEcoReports — status filter (S49)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("defaults to status=open → where: { resolvedAt: null }", async () => {
+    const findManySpy = vi.fn().mockResolvedValue([]);
+    const prisma = buildPrisma({
+      ecoMessageReport: {
+        groupBy: vi.fn(),
+        findMany: findManySpy,
+        findUnique: vi.fn(),
+        update: vi.fn(),
+        count: vi.fn(),
+      } as never,
+    });
+    const svc = new PulsoService(prisma, buildRedis());
+    await svc.listEcoReports({});
+
+    const where = (findManySpy.mock.calls[0]![0] as { where: unknown }).where;
+    expect(where).toMatchObject({ resolvedAt: null });
+  });
+
+  it("status=resolved → where: { resolvedAt: { not: null } }", async () => {
+    const findManySpy = vi.fn().mockResolvedValue([]);
+    const prisma = buildPrisma({
+      ecoMessageReport: {
+        groupBy: vi.fn(),
+        findMany: findManySpy,
+        findUnique: vi.fn(),
+        update: vi.fn(),
+        count: vi.fn(),
+      } as never,
+    });
+    const svc = new PulsoService(prisma, buildRedis());
+    await svc.listEcoReports({ status: "resolved" });
+
+    const where = (findManySpy.mock.calls[0]![0] as { where: unknown }).where;
+    expect(where).toMatchObject({ resolvedAt: { not: null } });
+  });
+
+  it("status=all → no resolvedAt filter (combines cleanly with reason)", async () => {
+    const findManySpy = vi.fn().mockResolvedValue([]);
+    const prisma = buildPrisma({
+      ecoMessageReport: {
+        groupBy: vi.fn(),
+        findMany: findManySpy,
+        findUnique: vi.fn(),
+        update: vi.fn(),
+        count: vi.fn(),
+      } as never,
+    });
+    const svc = new PulsoService(prisma, buildRedis());
+    await svc.listEcoReports({ status: "all", reason: "HALLUCINATION" });
+
+    const where = (findManySpy.mock.calls[0]![0] as Record<string, unknown>)
+      .where as Record<string, unknown>;
+    expect(where.reason).toBe("HALLUCINATION");
+    expect(where).not.toHaveProperty("resolvedAt");
   });
 });

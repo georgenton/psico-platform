@@ -45,4 +45,23 @@ export class ListEcoReportsQueryDto {
   @IsString()
   @Length(1, 64)
   cursor?: string;
+
+  // Sprint S49 — filter by resolution state. Defaults to "open" so the
+  // admin lands on the actionable inbox.
+  @IsOptional()
+  @IsIn(["open", "resolved", "all"])
+  status?: "open" | "resolved" | "all" = "open";
+}
+
+/**
+ * Body for POST /api/pulso/reports/eco/:id/resolve — Sprint S49.
+ *
+ * `note` is an optional short editorial, capped at 500 chars (same as the
+ * user-submitted report comment), saved in `EcoMessageReport.resolutionNote`.
+ */
+export class MarkResolvedDto {
+  @IsOptional()
+  @IsString()
+  @Length(1, 500)
+  note?: string;
 }

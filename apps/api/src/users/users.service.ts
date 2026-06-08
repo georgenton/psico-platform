@@ -27,6 +27,8 @@ import { ConfigService } from "@nestjs/config";
 import type { Env } from "../config";
 import { emailShell, escape } from "../notifications/templates/base";
 import type { UpdateProfileDto } from "./dto/update-profile.dto";
+import type { UpdateTimezoneDto } from "./dto/update-timezone.dto";
+import { isValidTimezone } from "../jobs/utils/timezone";
 import type { UpdatePreferencesDto } from "./dto/update-preferences.dto";
 import type { UpdateReaderPreferencesDto } from "./dto/update-reader-preferences.dto";
 import type { UpdateNotificationsDto } from "./dto/update-notifications.dto";
@@ -111,6 +113,9 @@ export class UsersService {
         email: user.email,
         city: user.city,
         country: user.profile?.country ?? null,
+        // Sprint S53 — exposed so web/mobile can decide whether to
+        // auto-detect and PATCH `/user/timezone` on first dashboard load.
+        timezone: user.profile?.timezone ?? null,
         tier: user.plan === "FREE" ? "free" : "pro",
         joinedAt: user.createdAt,
         initials: this.computeInitials(user.firstName ?? user.name),
@@ -221,6 +226,31 @@ export class UsersService {
       }
     });
 
+    return this.getMe(userId);
+  }
+
+  // ── PATCH /api/user/timezone ───────────────────────────────────────────────
+  //
+  // Sprint S53 — Auto-set by the client right after login if the user's
+  // Profile.timezone is still null. Validated against `Intl.DateTimeFormat`
+  // — unknown IANA names → 400 INVALID_TIMEZONE.
+  //
+  // Idempotent. Re-PATCHing with the same value is a no-op DB-wise (upsert
+  // semantics on Profile by userId).
+
+  async updateTimezone(userId: string, dto: UpdateTimezoneDto) {
+    if (!isValidTimezone(dto.timezone)) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: "INVALID_TIMEZONE",
+        message: `Unknown IANA timezone "${dto.timezone}"`,
+      });
+    }
+    await this.prisma.profile.upsert({
+      where: { userId },
+      create: { userId, timezone: dto.timezone },
+      update: { timezone: dto.timezone },
+    });
     return this.getMe(userId);
   }
 

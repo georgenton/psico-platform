@@ -10,15 +10,21 @@ import {
   QueueName,
   type InactiveNudgeJobPayload,
 } from "../queue-names";
+import { userLocalHour } from "../utils/timezone";
 
 /**
- * Sprint S44 — InactiveNudgeProcessor.
+ * Sprint S44 → S53 — InactiveNudgeProcessor (now timezone-aware).
  *
- * Nightly 18:00 UTC. Finds users who:
- *   1. Have written ≥1 diary entry ever (engaged-before signal).
+ * HOURLY UTC. For each candidate user we compute their local hour using
+ * `Profile.timezone`. Only those whose local hour === 18 at the cron's
+ * `now` actually get a push. Users without a timezone fall back to UTC
+ * (preserves S44 behavior for legacy accounts).
+ *
+ * Candidate filter (unchanged from S44):
+ *   1. Has written ≥1 diary entry ever (engaged-before signal).
  *   2. Haven't written in 3+ days (silence signal).
- *   3. Have `NotificationSettings.dailyReminder === true`.
- *   4. Have `User.lastNudgedAt` null OR > 4 days ago (don't spam).
+ *   3. Has `NotificationSettings.dailyReminder === true`.
+ *   4. Has `User.lastNudgedAt` null OR > 4 days ago (don't spam).
  *
  * Sends a single push and bumps `lastNudgedAt`. Email is NOT used here —
  * email re-engagement is the WeeklyDigest's job, not the daily nudge.
@@ -27,6 +33,7 @@ import {
  */
 const SILENCE_DAYS = 3;
 const MIN_DAYS_BETWEEN_NUDGES = 4;
+const NUDGE_TARGET_HOUR = 18; // Sprint S53
 
 @Processor(QueueName.INACTIVE_NUDGE)
 export class InactiveNudgeProcessor extends WorkerHost {
@@ -44,7 +51,9 @@ export class InactiveNudgeProcessor extends WorkerHost {
       throw new Error(`InactiveNudgeProcessor unknown job: ${job.name}`);
     }
 
-    const now = new Date();
+    // Sprint S53 — tests may override `now` to exercise the per-user
+    // timezone gate at deterministic UTC moments.
+    const now = job.data.nowIso ? new Date(job.data.nowIso) : new Date();
     const silenceCutoff = new Date(
       now.getTime() - SILENCE_DAYS * 24 * 60 * 60 * 1000,
     );
@@ -71,6 +80,7 @@ export class InactiveNudgeProcessor extends WorkerHost {
         id: true,
         firstName: true,
         deviceTokens: { select: { token: true } },
+        profile: { select: { timezone: true } },
       },
     });
 
@@ -81,7 +91,16 @@ export class InactiveNudgeProcessor extends WorkerHost {
     }
 
     let sent = 0;
+    let skippedByTz = 0;
     for (const c of candidates) {
+      // Sprint S53 — Per-user TZ gate. The hourly cron fan-outs to ALL
+      // candidates; we filter here so each user only gets nudged at
+      // their local 18:00 (or UTC 18:00 if timezone is null).
+      const tz = c.profile?.timezone ?? null;
+      if (userLocalHour(now, tz) !== NUDGE_TARGET_HOUR) {
+        skippedByTz++;
+        continue;
+      }
       if (c.deviceTokens.length === 0) continue; // no way to reach them
       try {
         const tokens = c.deviceTokens.map((d) => d.token);
@@ -118,6 +137,8 @@ export class InactiveNudgeProcessor extends WorkerHost {
         );
       }
     }
-    this.logger.log(`InactiveNudge done · sent=${sent}/${candidates.length}`);
+    this.logger.log(
+      `InactiveNudge done · sent=${sent} · skippedByTz=${skippedByTz} · total=${candidates.length}`,
+    );
   }
 }

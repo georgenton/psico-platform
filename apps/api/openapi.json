@@ -1546,6 +1546,35 @@
         ]
       }
     },
+    "/api/user/timezone": {
+      "patch": {
+        "operationId": "UsersController_updateTimezone",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTimezoneDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
     "/api/user/avatar": {
       "post": {
         "operationId": "UsersController_uploadAvatar",
@@ -2625,13 +2654,22 @@
     "/api/pulso/reports/eco/summary": {
       "get": {
         "operationId": "PulsoController_getSummary",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
           }
         },
-        "summary": "Counts of Eco message reports grouped by reason",
+        "summary": "Counts of Eco message reports grouped by reason. Default scope: open reports only.",
         "tags": [
           "Pulso"
         ]
@@ -2646,7 +2684,95 @@
             "description": ""
           }
         },
-        "summary": "List Eco message reports, newest-first. Supports cursor pagination + reason filter.",
+        "summary": "List Eco message reports, newest-first. Supports cursor pagination, reason filter, and status (open|resolved|all).",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/reports/eco/{id}/resolve": {
+      "post": {
+        "operationId": "PulsoController_resolve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkResolvedDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Mark an Eco report as triaged. Idempotent: re-resolving overwrites the timestamp and admin/note.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/reports/eco/{id}/unresolve": {
+      "post": {
+        "operationId": "PulsoController_unresolve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Reopen a previously-resolved report. Clears resolvedAt/By/Note.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/overview": {
+      "get": {
+        "operationId": "PulsoController_getOverview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Platform overview — KPIs aggregated across users, engagement, content, and business. Cached 5min.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/cohorts": {
+      "get": {
+        "operationId": "PulsoController_getCohorts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Cohort retention triangle. Materialised by the Monday 03:00 UTC cron; cached 5min.",
         "tags": [
           "Pulso"
         ]
@@ -2800,6 +2926,10 @@
         "type": "object",
         "properties": {}
       },
+      "UpdateTimezoneDto": {
+        "type": "object",
+        "properties": {}
+      },
       "UpdatePreferencesDto": {
         "type": "object",
         "properties": {}
@@ -2881,6 +3011,10 @@
         "properties": {}
       },
       "ShareWithTherapistDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "MarkResolvedDto": {
         "type": "object",
         "properties": {}
       }

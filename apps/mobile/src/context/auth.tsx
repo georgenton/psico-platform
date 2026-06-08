@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
-import { apiClient, authApi } from "@psico/api-client";
+import { apiClient, authApi, usersApi } from "@psico/api-client";
 import type { AuthUser } from "@psico/types";
 import { tokenStore, pushIdStore } from "../store/secure-store";
 import { diaryKeyStore } from "../crypto/diary-key-store";
@@ -115,6 +115,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             };
             await saveTokens(pair);
             setUser(data.user);
+            // Sprint S53 — Cold-start TZ probe.
+            try {
+              const tz =
+                typeof Intl !== "undefined" &&
+                typeof Intl.DateTimeFormat === "function"
+                  ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                  : null;
+              if (typeof tz === "string" && tz.length > 0) {
+                void usersApi
+                  .updateTimezone({ timezone: tz })
+                  .catch(() => undefined);
+              }
+            } catch {
+              // Intl unsupported — skip silently.
+            }
           } else {
             handleUnauthenticated();
           }
@@ -127,6 +142,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, [handleUnauthenticated, saveTokens]);
 
+  // Sprint S53 — Fire-and-forget timezone probe. Triggers right after a
+  // successful auth event (login/register/cold-start refresh) so the
+  // notification crons can fan out to the user at their local hour
+  // instead of UTC. Idempotent on the backend (upsert on Profile by
+  // userId); failure here is silent — TZ defaults to UTC.
+  const probeTimezone = useCallback(() => {
+    try {
+      // RN Hermes supports Intl since SDK 50; fall back to UTC otherwise.
+      const tz =
+        typeof Intl !== "undefined" && typeof Intl.DateTimeFormat === "function"
+          ? Intl.DateTimeFormat().resolvedOptions().timeZone
+          : null;
+      if (typeof tz === "string" && tz.length > 0) {
+        void usersApi.updateTimezone({ timezone: tz }).catch(() => undefined);
+      }
+    } catch {
+      // Intl unsupported on very old engines — skip.
+    }
+  }, []);
+
   const login = useCallback(
     async (email: string, password: string) => {
       const res = await authApi.login(email, password);
@@ -136,8 +171,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
       await saveTokens(pair);
       setUser(res.user);
+      probeTimezone();
     },
-    [saveTokens],
+    [saveTokens, probeTimezone],
   );
 
   const register = useCallback(
@@ -149,8 +185,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
       await saveTokens(pair);
       setUser(res.user);
+      probeTimezone();
     },
-    [saveTokens],
+    [saveTokens, probeTimezone],
   );
 
   const logout = useCallback(async () => {

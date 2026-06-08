@@ -31,8 +31,23 @@ function buildPush(
   } as never;
 }
 
-function jobOf<T>(data: T): Job<T> {
-  return { name: JobName.RUN_WEEKLY_DIGEST, data } as Job<T>;
+/**
+ * Sprint S53 — Tests pin `nowIso` to Monday 07:00 UTC so the per-user
+ * TZ gate fires for users whose `profile.timezone` is null (the gate
+ * falls back to UTC for those, and Monday 07:00 UTC matches the digest
+ * target). Tests that exercise the gate itself override this.
+ */
+const LEGACY_MONDAY_07_UTC = "2026-06-08T07:00:00Z";
+
+function jobOf<T extends Record<string, unknown>>(
+  data: T,
+  opts: { defaultNow?: boolean } = { defaultNow: true },
+): Job<T> {
+  const merged =
+    opts.defaultNow && data.nowIso === undefined
+      ? ({ ...data, nowIso: LEGACY_MONDAY_07_UTC } as T)
+      : data;
+  return { name: JobName.RUN_WEEKLY_DIGEST, data: merged } as Job<T>;
 }
 
 describe("WeeklyDigestProcessor", () => {
@@ -274,5 +289,98 @@ describe("WeeklyDigestProcessor", () => {
     expect(
       (resend as { send: ReturnType<typeof vi.fn> }).send,
     ).toHaveBeenCalledTimes(2);
+  });
+
+  // ─── Sprint S53 — timezone-aware fan-out ──────────────────────────────────
+
+  describe("timezone gate (Sprint S53)", () => {
+    it("sends to a Guayaquil user when UTC is Monday 12:00 (local 07:00)", async () => {
+      const userRow = {
+        id: "u-ecu",
+        email: "ecu@test.com",
+        firstName: "Inés",
+        name: "Inés Q.",
+        notificationSettings: { dailyReminder: true },
+        deviceTokens: [],
+        profile: { timezone: "America/Guayaquil" },
+      };
+      const prisma = buildPrisma([userRow]);
+      const resend = buildResend();
+      const proc = new WeeklyDigestProcessor(prisma, resend, buildPush());
+
+      // Monday 12:00 UTC === Monday 07:00 Guayaquil
+      await proc.process(
+        jobOf({ nowIso: "2026-06-08T12:00:00Z" }, { defaultNow: false }),
+      );
+      expect(
+        (resend as { send: ReturnType<typeof vi.fn> }).send,
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    it("SKIPS a Guayaquil user when UTC is Monday 07:00 (local 02:00 Sunday — wrong hour AND day)", async () => {
+      const userRow = {
+        id: "u-ecu",
+        email: "ecu@test.com",
+        firstName: "Inés",
+        name: "Inés Q.",
+        notificationSettings: { dailyReminder: true },
+        deviceTokens: [],
+        profile: { timezone: "America/Guayaquil" },
+      };
+      const prisma = buildPrisma([userRow]);
+      const resend = buildResend();
+      const proc = new WeeklyDigestProcessor(prisma, resend, buildPush());
+
+      await proc.process(
+        jobOf({ nowIso: "2026-06-08T07:00:00Z" }, { defaultNow: false }),
+      );
+      expect(
+        (resend as { send: ReturnType<typeof vi.fn> }).send,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("sends to a Tokyo user when UTC is Sunday 22:00 (local Monday 07:00) — day rollover", async () => {
+      const userRow = {
+        id: "u-jpn",
+        email: "jpn@test.com",
+        firstName: "Yui",
+        name: "Yui K.",
+        notificationSettings: { dailyReminder: true },
+        deviceTokens: [],
+        profile: { timezone: "Asia/Tokyo" },
+      };
+      const prisma = buildPrisma([userRow]);
+      const resend = buildResend();
+      const proc = new WeeklyDigestProcessor(prisma, resend, buildPush());
+
+      await proc.process(
+        jobOf({ nowIso: "2026-06-07T22:00:00Z" }, { defaultNow: false }),
+      );
+      expect(
+        (resend as { send: ReturnType<typeof vi.fn> }).send,
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    it("legacy users without `profile.timezone` fall back to UTC — get sent at Monday 07:00 UTC", async () => {
+      const userRow = {
+        id: "u-legacy",
+        email: "legacy@test.com",
+        firstName: "Sam",
+        name: "Sam Legacy",
+        notificationSettings: { dailyReminder: true },
+        deviceTokens: [],
+        profile: null,
+      };
+      const prisma = buildPrisma([userRow]);
+      const resend = buildResend();
+      const proc = new WeeklyDigestProcessor(prisma, resend, buildPush());
+
+      await proc.process(
+        jobOf({ nowIso: "2026-06-08T07:00:00Z" }, { defaultNow: false }),
+      );
+      expect(
+        (resend as { send: ReturnType<typeof vi.fn> }).send,
+      ).toHaveBeenCalledTimes(1);
+    });
   });
 });

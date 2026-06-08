@@ -2359,7 +2359,68 @@ S52 cierra todo esto:
 
 ---
 
-### Próximo paso — Sesión 53
+### Sesión 53 — 2026-06-08 ✅ COMPLETADA — Sprint S53 Notificaciones conscientes del huso horario
+
+**Rama sugerida:** `feature/sprint-53-timezone-aware`
+**Tests:** 451/452 API + 34/34 crypto + 24/24 web + 16/16 mobile (433 → 451, +18 API · 1 skipped sentinel · total 525)
+**Bitácora:** [docs/informes/sprint-53-timezone-aware.md](docs/informes/sprint-53-timezone-aware.md)
+
+**Lo que se construyó (cierra deuda S44 + S46):**
+
+Desde Sprint S44 los crons (WeeklyDigest, InactiveNudge) aterrizaban a horas duras UTC. Los users en Ecuador recibían el digest semanal a las **2 am** local. S53 lo cierra.
+
+**Backend:**
+- Nuevo helper `apps/api/src/jobs/utils/timezone.ts` puro sobre `Intl.DateTimeFormat` (cero deps): `userLocalHour`, `userLocalWeekday`, `isUserLocalHour`, `isValidTimezone`.
+- Endpoint `PATCH /api/user/timezone` con `UpdateTimezoneDto`; valida IANA via constructor probe; 400 `INVALID_TIMEZONE` en garbage; idempotente (`Profile.upsert`).
+- `getMe` ahora expone `UserMeResponse.user.timezone` (desde `Profile.timezone`).
+- **WeeklyDigestProcessor** refactorizado: cron `0 7 * * 1 UTC` → `0 * * * * UTC` (hourly). Per-user gate: solo envía si `userLocalHour(now, tz) === 7 && userLocalWeekday(now, tz) === 1`.
+- **InactiveNudgeProcessor** idem: cron `0 18 * * *` → `0 * * * *`. Per-user gate: `userLocalHour(now, tz) === 18`.
+- **Backward compat:** users con `timezone === null` fallback a UTC (preserva S44 para legacy).
+- `nowIso` opcional en payload de ambos jobs (test-only escape hatch para fijar el instante UTC sin mockear `Date.now()`).
+
+**Tipos:** `@psico/types`: `UpdateTimezoneRequest`, `UserProfileSummary.timezone: string | null`.
+
+**Cliente:** `usersApi.updateTimezone({ timezone })`. `generated.ts` 96.1 KB → 101.0 KB.
+
+**Web:** Server action `setTimezoneAction(timezone)` con swallow-on-error. Client Component `_TimezoneSync.tsx` invisible (one-shot via `useRef`). Monteado en `dashboard/layout.tsx` cuando `me.user.timezone === null`.
+
+**Mobile:** `AuthContext.probeTimezone()` fire-and-forget. Disparado desde `login`, `register`, y el cold-start refresh path. RN Hermes soporta `Intl.DateTimeFormat` desde SDK 50.
+
+**Decisiones:**
+1. Hourly cron + per-user filter (no per-user cron jobs).
+2. `Intl.DateTimeFormat` puro — cero deps; Node 20 trae ICU completo.
+3. Fallback graceful a UTC para legacy.
+4. Auto-detect en cada login (no esperar settings UI explícito).
+5. `nowIso` en payload solo para tests deterministas.
+
+**Tests (+18):**
+- `timezone.spec.ts` (8): fallback UTC, IANA válidos, day-rollover Tokyo/Guayaquil, garbage handling.
+- `weekly-digest.processor.spec.ts` (4): Guayaquil-12UTC=07local, Guayaquil-07UTC skip, Tokyo Sun22UTC=Mon07JST, legacy null→UTC.
+- `inactive-nudge.processor.spec.ts` (3): Guayaquil-23UTC=18local, 18UTC=13local skip, legacy null→UTC.
+- `users.controller.spec.ts` (handler count 13 → 14).
+- Helpers `jobOf` updated en ambos specs legacy con `nowIso` injection por default.
+
+**Bugs corregidos (4):**
+1. Test handler list desactualizada.
+2-3. Tests legacy fallaban porque `now = new Date()` no caía en Mon 07:00 / 18:00 UTC.
+4. `@ts-expect-error` sin descripción → eslint error.
+
+**Smoke verification:**
+- API tests 451/452 + crypto 34/34 + web 24/24 + mobile 16/16 (525/526 total).
+- Typecheck + lint OK en API + web + mobile.
+- OpenAPI generate:check OK.
+
+**Privacy preservada:** `Profile.timezone` es plaintext (equivalente a `country` existente desde S15). ADR 0007 intacto.
+
+**Deuda técnica abierta:**
+- Settings UI explícito para fijar TZ manual.
+- Tests UI dedicados del `TimezoneSync` web.
+- DST transitions: cron hourly puede saltar/duplicar en spring-forward/fall-back. Mitigación: agregar `lastDigestSentAt` cuando duela.
+- Optimización SQL futura: filter por TZ-bucket en el `findMany` cuando user count crezca.
+
+---
+
+### Próximo paso — Sesión 54
 
 **🎉 Pulso v2 completo + audit cleanup ✅.** Tres caminos:
 

@@ -1,6 +1,6 @@
 {
   "name": "@psico/api-client",
-  "version": "0.0.7",
+  "version": "0.1.0",
   "private": true,
   "license": "MIT",
   "main": "./dist/index.js",

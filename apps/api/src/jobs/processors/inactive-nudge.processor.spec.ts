@@ -25,6 +25,10 @@ function buildPush(
   } as never;
 }
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 /**
  * Sprint S53 — Pin `nowIso` to 18:00 UTC so the per-user TZ gate fires
  * for users with `profile.timezone === null` (the gate falls back to
@@ -42,6 +46,13 @@ function jobOf<T extends Record<string, unknown>>(
       ? ({ ...data, nowIso: LEGACY_18_UTC } as T)
       : data;
   return { name: JobName.SEND_INACTIVE_NUDGE, data: merged } as Job<T>;
+<<<<<<< HEAD
+=======
+=======
+function jobOf<T>(data: T): Job<T> {
+  return { name: JobName.SEND_INACTIVE_NUDGE, data } as Job<T>;
+>>>>>>> origin/main
+>>>>>>> origin/main
 }
 
 describe("InactiveNudgeProcessor", () => {
@@ -183,6 +194,10 @@ describe("InactiveNudgeProcessor", () => {
     expect(push.sendToTokens).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
   });
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 
   // ─── Sprint S53 — timezone gate ─────────────────────────────────────────
 
@@ -239,4 +254,9 @@ describe("InactiveNudgeProcessor", () => {
       expect(push.sendToTokens).toHaveBeenCalledOnce();
     });
   });
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> origin/main
+>>>>>>> origin/main
 });

@@ -13,6 +13,10 @@ import {
   QueueName,
   type WeeklyDigestJobPayload,
 } from "../queue-names";
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 import { userLocalHour, userLocalWeekday } from "../utils/timezone";
 
 /**
@@ -33,6 +37,18 @@ const DIGEST_TARGET_WEEKDAY = 1; // Monday
  * the client auto-detects on next login.
  *
  * Sends:
+<<<<<<< HEAD
+=======
+=======
+
+/**
+ * Sprint S44 — WeeklyDigestProcessor.
+ *
+ * Mondays 07:00 UTC. Scans users with `NotificationSettings.weeklyReport
+ * === true`, computes last week's stats from plaintext metadata, and
+ * sends:
+>>>>>>> origin/main
+>>>>>>> origin/main
  *   - Email digest via Resend (always — every user has an email).
  *   - Push notification via Expo (only when the user has device tokens
  *     AND `dailyReminder === true` — we reuse dailyReminder as the
@@ -67,6 +83,10 @@ export class WeeklyDigestProcessor extends WorkerHost {
     const weekStart = this.resolveWeekStart(job.data.targetWeekStart);
     const weekEnd = new Date(weekStart);
     weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
     // Sprint S53 — Capture `now` once per run so all per-user TZ checks
     // use a consistent reference instant. Tests may inject `nowIso` to
     // exercise the TZ gate at arbitrary moments without wall-clock noise.
@@ -82,6 +102,17 @@ export class WeeklyDigestProcessor extends WorkerHost {
     // Fetch all users opted-in to the weekly report. We filter by JOIN
     // here so we don't iterate inactive accounts. `profile.timezone`
     // pulled in so the per-user TZ gate has what it needs.
+<<<<<<< HEAD
+=======
+=======
+    this.logger.log(
+      `WeeklyDigest start · weekStart=${weekStart.toISOString().slice(0, 10)}`,
+    );
+
+    // Fetch all users opted-in to the weekly report. We filter by JOIN
+    // here so we don't iterate inactive accounts.
+>>>>>>> origin/main
+>>>>>>> origin/main
     const users = await this.prisma.user.findMany({
       where: {
         isActive: true,
@@ -94,6 +125,10 @@ export class WeeklyDigestProcessor extends WorkerHost {
         name: true,
         notificationSettings: { select: { dailyReminder: true } },
         deviceTokens: { select: { token: true } },
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
         profile: { select: { timezone: true } },
       },
     });
@@ -120,6 +155,19 @@ export class WeeklyDigestProcessor extends WorkerHost {
             continue;
           }
         }
+<<<<<<< HEAD
+=======
+=======
+      },
+    });
+
+    this.logger.log(`WeeklyDigest fanout · users=${users.length}`);
+
+    let sent = 0;
+    for (const u of users) {
+      try {
+>>>>>>> origin/main
+>>>>>>> origin/main
         await this.sendDigestForUser(u, weekStart, weekEnd);
         sent++;
       } catch (err) {
@@ -129,9 +177,19 @@ export class WeeklyDigestProcessor extends WorkerHost {
         );
       }
     }
+<<<<<<< HEAD
     this.logger.log(
       `WeeklyDigest done · sent=${sent} · skippedByTz=${skipped} · total=${users.length}`,
     );
+=======
+<<<<<<< HEAD
+    this.logger.log(
+      `WeeklyDigest done · sent=${sent} · skippedByTz=${skipped} · total=${users.length}`,
+    );
+=======
+    this.logger.log(`WeeklyDigest done · sent=${sent}/${users.length}`);
+>>>>>>> origin/main
+>>>>>>> origin/main
   }
 
   // ─── Per-user processing ─────────────────────────────────────────────

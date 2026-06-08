@@ -2359,6 +2359,10 @@ S52 cierra todo esto:
 
 ---
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 ### Sesión 53 — 2026-06-08 ✅ COMPLETADA — Sprint S53 Notificaciones conscientes del huso horario
 
 **Rama sugerida:** `feature/sprint-53-timezone-aware`
@@ -2421,6 +2425,12 @@ Desde Sprint S44 los crons (WeeklyDigest, InactiveNudge) aterrizaban a horas dur
 ---
 
 ### Próximo paso — Sesión 54
+<<<<<<< HEAD
+=======
+=======
+### Próximo paso — Sesión 53
+>>>>>>> origin/main
+>>>>>>> origin/main
 
 **🎉 Pulso v2 completo + audit cleanup ✅.** Tres caminos:
 

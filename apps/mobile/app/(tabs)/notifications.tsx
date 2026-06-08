@@ -16,6 +16,7 @@ import type {
   UserNotificationSettings,
 } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
+import { TimezoneCard } from "@/components/dashboard/notifications/TimezoneCard";
 
 /**
  * Notifications settings — Sprint S45 (mobile).
@@ -63,6 +64,7 @@ const ROWS: Array<{
 
 export default function NotificationsScreen() {
   const [state, setState] = useState<UserNotificationSettings | null>(null);
+  const [timezone, setTimezone] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +75,7 @@ export default function NotificationsScreen() {
     try {
       const me = await usersApi.getMe();
       setState(me.notifications);
+      setTimezone(me.user.timezone ?? null);
     } catch {
       setError("No pudimos cargar tus preferencias. Reintenta.");
     } finally {
@@ -137,6 +140,11 @@ export default function NotificationsScreen() {
           <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : null}
+
+      <TimezoneCard
+        currentTimezone={timezone}
+        onChanged={(next) => setTimezone(next)}
+      />
 
       <View style={styles.card}>
         {ROWS.map((r, idx) => {

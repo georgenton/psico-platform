@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { type FormEvent, useState, useTransition } from "react";
 
 import { loginAction } from "@/actions/auth";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 export default function LoginForm() {
   const searchParams = useSearchParams();
@@ -130,6 +131,9 @@ export default function LoginForm() {
         </button>
       </form>
 
+      <Divider />
+      <GoogleSignInButton text="signin_with" from={from} />
+
       <p
         className="mt-6 text-center text-sm"
         style={{ color: "var(--color-warm-500)" }}
@@ -144,5 +148,23 @@ export default function LoginForm() {
         </Link>
       </p>
     </>
+  );
+}
+
+function Divider() {
+  return (
+    <div className="my-5 flex items-center gap-3">
+      <div
+        className="h-px flex-1"
+        style={{ background: "var(--color-warm-200)" }}
+      />
+      <span className="text-[11px]" style={{ color: "var(--color-warm-500)" }}>
+        o
+      </span>
+      <div
+        className="h-px flex-1"
+        style={{ background: "var(--color-warm-200)" }}
+      />
+    </div>
   );
 }

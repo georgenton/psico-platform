@@ -16,6 +16,7 @@ import type {
   CreateBookingResponse,
   CrisisResponse,
   CrisisTrigger,
+  RetryCheckoutResponse,
   SessionFeedbackRequest,
   SessionFeedbackResponse,
   SessionJoinResponse,
@@ -30,6 +31,11 @@ import type {
   TherapistSummary,
   TherapyFilters,
   TherapyHubResponse,
+  TherapyNotificationItem,
+  TherapyNotificationsListResponse,
+  TherapyPrescriptionItem,
+  TherapySessionListItem,
+  TherapySessionsListResponse,
   TherapyTechnicalIssue,
   UpdateSessionPrepRequest,
 } from "@psico/types";
@@ -753,6 +759,376 @@ export class TerapiaService {
 
   private slotKey(date: Date, durationMin: number): string {
     return `${date.toISOString()}::${durationMin}`;
+  }
+
+  // ── Lifecycle (Sprint S66.B) ────────────────────────────────────────────
+
+  /**
+   * GET /api/terapia/sessions?status=upcoming|past|all
+   *
+   * Devuelve siempre el envelope {upcoming, past}. El filtro `status`
+   * solo limita qué bucket se popula — el otro queda vacío. Esto le
+   * permite al front renderizar dos tabs sin segundo round-trip.
+   */
+  async listSessions(
+    userId: string,
+    status: "upcoming" | "past" | "all" = "all",
+  ): Promise<TherapySessionsListResponse> {
+    const now = new Date();
+    const upcomingWhere = {
+      userId,
+      status: { in: ["SCHEDULED", "IN_PROGRESS"] as ("SCHEDULED" | "IN_PROGRESS")[] },
+      scheduledAt: { gte: now },
+    };
+    const pastWhere = {
+      userId,
+      OR: [
+        { status: { in: ["COMPLETED", "CANCELLED", "NO_SHOW", "MISSED"] as ("COMPLETED" | "CANCELLED" | "NO_SHOW" | "MISSED")[] } },
+        { scheduledAt: { lt: now } },
+      ],
+    };
+
+    const upcomingPromise =
+      status === "past"
+        ? null
+        : this.prisma.therapySession.findMany({
+            where: upcomingWhere,
+            orderBy: { scheduledAt: "asc" },
+            include: { therapist: true },
+            take: 20,
+          });
+    const pastPromise =
+      status === "upcoming"
+        ? null
+        : this.prisma.therapySession.findMany({
+            where: pastWhere,
+            orderBy: { scheduledAt: "desc" },
+            include: { therapist: true },
+            take: 30,
+          });
+
+    const upcoming = upcomingPromise ? await upcomingPromise : [];
+    const past = pastPromise ? await pastPromise : [];
+
+    return {
+      upcoming: upcoming.map((s) => this.toSessionListItem(s)),
+      past: past.map((s) => this.toSessionListItem(s)),
+    };
+  }
+
+  /**
+   * GET /api/terapia/prescriptions
+   */
+  async listPrescriptions(userId: string): Promise<TherapyPrescriptionItem[]> {
+    const items = await this.prisma.therapyPrescription.findMany({
+      where: { userId },
+      orderBy: [
+        // Active (uncompleted) primero. Among them, due-soon first.
+        { completedAt: "asc" },
+        { dueBy: "asc" },
+        { createdAt: "desc" },
+      ],
+      take: 50,
+    });
+    return items.map((p) => ({
+      id: p.id,
+      kind: p.kind,
+      targetId: p.targetId,
+      dosage: p.dosage,
+      note: p.note,
+      dueBy: p.dueBy?.toISOString() ?? null,
+      completedAt: p.completedAt?.toISOString() ?? null,
+      createdAt: p.createdAt.toISOString(),
+      sessionId: p.sessionId,
+    }));
+  }
+
+  /**
+   * PATCH /api/terapia/prescriptions/:id { completed: true|false }
+   */
+  async updatePrescription(
+    userId: string,
+    prescriptionId: string,
+    completed: boolean | undefined,
+  ): Promise<TherapyPrescriptionItem> {
+    const existing = await this.prisma.therapyPrescription.findUnique({
+      where: { id: prescriptionId },
+      select: { id: true, userId: true },
+    });
+    if (!existing) throw new NotFoundException("PRESCRIPTION_NOT_FOUND");
+    if (existing.userId !== userId) {
+      throw new ForbiddenException("NOT_YOUR_PRESCRIPTION");
+    }
+
+    const updated = await this.prisma.therapyPrescription.update({
+      where: { id: prescriptionId },
+      data: {
+        completedAt: completed ? new Date() : completed === false ? null : undefined,
+      },
+    });
+
+    return {
+      id: updated.id,
+      kind: updated.kind,
+      targetId: updated.targetId,
+      dosage: updated.dosage,
+      note: updated.note,
+      dueBy: updated.dueBy?.toISOString() ?? null,
+      completedAt: updated.completedAt?.toISOString() ?? null,
+      createdAt: updated.createdAt.toISOString(),
+      sessionId: updated.sessionId,
+    };
+  }
+
+  /**
+   * GET /api/terapia/notifications?unread=true&limit=20
+   */
+  async listNotifications(
+    userId: string,
+    unread: boolean | undefined,
+    limit: number,
+  ): Promise<TherapyNotificationsListResponse> {
+    const where: Record<string, unknown> = { userId };
+    if (unread) where.readAt = null;
+
+    const [items, unreadCount] = await Promise.all([
+      this.prisma.therapyNotification.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      }),
+      this.prisma.therapyNotification.count({
+        where: { userId, readAt: null },
+      }),
+    ]);
+
+    return {
+      items: items.map((n): TherapyNotificationItem => ({
+        id: n.id,
+        kind: n.kind,
+        title: n.title,
+        body: n.body,
+        actionUrl: n.actionUrl,
+        createdAt: n.createdAt.toISOString(),
+        readAt: n.readAt?.toISOString() ?? null,
+        sessionId: n.sessionId,
+      })),
+      unreadCount,
+    };
+  }
+
+  /**
+   * PATCH /api/terapia/notifications/:id/read — idempotent.
+   */
+  async markNotificationRead(
+    userId: string,
+    notificationId: string,
+  ): Promise<{ ok: true }> {
+    const existing = await this.prisma.therapyNotification.findUnique({
+      where: { id: notificationId },
+      select: { id: true, userId: true },
+    });
+    if (!existing) throw new NotFoundException("NOTIFICATION_NOT_FOUND");
+    if (existing.userId !== userId) {
+      throw new ForbiddenException("NOT_YOUR_NOTIFICATION");
+    }
+    await this.prisma.therapyNotification.update({
+      where: { id: notificationId },
+      data: { readAt: new Date() },
+    });
+    return { ok: true };
+  }
+
+  /**
+   * POST /api/terapia/notifications/read-all
+   */
+  async markAllNotificationsRead(
+    userId: string,
+  ): Promise<{ ok: true; updated: number }> {
+    const res = await this.prisma.therapyNotification.updateMany({
+      where: { userId, readAt: null },
+      data: { readAt: new Date() },
+    });
+    return { ok: true, updated: res.count };
+  }
+
+  /**
+   * PATCH /api/terapia/sessions/:id/reschedule
+   *
+   * Lifecycle constraint: solo SCHEDULED sessions y solo si el nuevo slot
+   * está vacío en el calendario del terapeuta. Auditado vía
+   * `rescheduledFromId` que apunta al row original.
+   */
+  async rescheduleSession(
+    userId: string,
+    sessionId: string,
+    newSlotIso: string,
+  ): Promise<TherapySessionListItem> {
+    const session = await this.prisma.therapySession.findUnique({
+      where: { id: sessionId },
+      include: { therapist: true },
+    });
+    if (!session) throw new NotFoundException("SESSION_NOT_FOUND");
+    if (session.userId !== userId) {
+      throw new ForbiddenException("NOT_YOUR_SESSION");
+    }
+    if (session.status !== "SCHEDULED") {
+      throw new BadRequestException("RESCHEDULE_NOT_ALLOWED");
+    }
+    const newSlot = new Date(newSlotIso);
+    if (isNaN(newSlot.getTime()) || newSlot.getTime() < Date.now()) {
+      throw new BadRequestException("INVALID_SLOT");
+    }
+
+    const collision = await this.prisma.therapySession.findFirst({
+      where: {
+        therapistId: session.therapistId,
+        status: { in: ["SCHEDULED", "IN_PROGRESS"] },
+        scheduledAt: newSlot,
+        id: { not: sessionId },
+      },
+      select: { id: true },
+    });
+    if (collision) throw new ConflictException("SLOT_TAKEN");
+
+    const updated = await this.prisma.therapySession.update({
+      where: { id: sessionId },
+      data: {
+        scheduledAt: newSlot,
+        roomUrl: null, // Force re-creation in the new window
+        roomCreatedAt: null,
+      },
+      include: { therapist: true },
+    });
+    return this.toSessionListItem(updated);
+  }
+
+  /**
+   * POST /api/terapia/sessions/:id/cancel
+   *
+   * Mark CANCELLED + persists reason + refundRequested. Refund flow real
+   * (Stripe refunds.create) llega cuando ops valide policy de cada
+   * terapeuta — por ahora el flag queda como pedido al ops.
+   */
+  async cancelSession(
+    userId: string,
+    sessionId: string,
+    reason: string,
+    refundRequested: boolean | undefined,
+  ): Promise<{ ok: true; cancelledAt: string }> {
+    const session = await this.prisma.therapySession.findUnique({
+      where: { id: sessionId },
+      select: { id: true, userId: true, status: true, scheduledAt: true },
+    });
+    if (!session) throw new NotFoundException("SESSION_NOT_FOUND");
+    if (session.userId !== userId) {
+      throw new ForbiddenException("NOT_YOUR_SESSION");
+    }
+    if (session.status !== "SCHEDULED") {
+      throw new BadRequestException("CANCEL_NOT_ALLOWED");
+    }
+
+    const now = new Date();
+    await this.prisma.therapySession.update({
+      where: { id: sessionId },
+      data: {
+        status: "CANCELLED",
+        cancelledAt: now,
+        cancelReason: refundRequested
+          ? `${reason} [REFUND_REQUESTED]`
+          : reason,
+      },
+    });
+    return { ok: true, cancelledAt: now.toISOString() };
+  }
+
+  /**
+   * POST /api/terapia/bookings/:id/retry-checkout
+   *
+   * Issues a fresh Stripe Checkout for a PENDING session. Útil cuando la
+   * llamada inicial a Stripe falló en createBooking, o cuando el user
+   * cerró Checkout sin pagar y quiere re-intentar.
+   */
+  async retryCheckout(
+    userId: string,
+    sessionId: string,
+    successUrl: string,
+    cancelUrl: string,
+  ): Promise<RetryCheckoutResponse> {
+    const session = await this.prisma.therapySession.findUnique({
+      where: { id: sessionId },
+      include: { therapist: true },
+    });
+    if (!session) throw new NotFoundException("SESSION_NOT_FOUND");
+    if (session.userId !== userId) {
+      throw new ForbiddenException("NOT_YOUR_SESSION");
+    }
+    if (session.paymentStatus !== "PENDING") {
+      throw new BadRequestException("CHECKOUT_NOT_RETRYABLE");
+    }
+    if (session.status !== "SCHEDULED") {
+      throw new BadRequestException("CHECKOUT_NOT_RETRYABLE");
+    }
+
+    const checkout = await this.payments.createTherapyCheckout({
+      userId,
+      sessionId: session.id,
+      priceUsd: session.priceUsd,
+      currency: session.currency,
+      productName: `Sesión con ${session.therapist.name} · ${session.scheduledAt.toISOString().slice(0, 16).replace("T", " ")} UTC`,
+      successUrl,
+      cancelUrl,
+    });
+    await this.prisma.therapySession.update({
+      where: { id: session.id },
+      data: { stripeCheckoutSessionId: checkout.stripeCheckoutSessionId },
+    });
+    return {
+      sessionId: session.id,
+      checkoutUrl: checkout.url,
+      paymentStatus: session.paymentStatus,
+    };
+  }
+
+  private toSessionListItem(s: {
+    id: string;
+    therapist: {
+      id: string;
+      name: string;
+      initials: string;
+      title: string;
+      avatarUrl: string | null;
+      coverToken: string;
+      modalities: ("INDIVIDUAL" | "COUPLE" | "FAMILY")[];
+      specialties: string[];
+      priceUsd: number;
+      currency: string;
+      avgRating: number;
+      reviewsCount: number;
+    };
+    scheduledAt: Date;
+    durationMin: number;
+    modality: "INDIVIDUAL" | "COUPLE" | "FAMILY";
+    status:
+      | "SCHEDULED"
+      | "IN_PROGRESS"
+      | "COMPLETED"
+      | "CANCELLED"
+      | "NO_SHOW"
+      | "MISSED";
+    paymentStatus: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+    feedbackRating: number | null;
+  }): TherapySessionListItem {
+    return {
+      id: s.id,
+      therapist: this.toTherapistSummary(s.therapist),
+      scheduledAt: s.scheduledAt.toISOString(),
+      durationMin: s.durationMin,
+      modality: s.modality,
+      status: s.status,
+      paymentStatus: s.paymentStatus,
+      feedbackRating: s.feedbackRating,
+    };
   }
 
   // ── Sala video + Post-sesión + Technical report (Sprint S65) ────────────

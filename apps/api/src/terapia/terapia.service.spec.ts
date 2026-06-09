@@ -40,6 +40,14 @@ type PrismaMock = {
   therapyTechnicalReport: {
     create: ReturnType<typeof vi.fn>;
   };
+  therapyPrescription: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+  therapyNotification: {
+    findMany: ReturnType<typeof vi.fn>;
+    count: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    updateMany: ReturnType<typeof vi.fn>;
+  };
 };
 
 function makeVideo(overrides: Partial<IVideoProvider> = {}): IVideoProvider {
@@ -108,7 +116,18 @@ describe("TerapiaService", () => {
         create: vi.fn(),
         update: vi.fn(),
       },
-      therapyPrescription: { findMany: vi.fn().mockResolvedValue([]) },
+      therapyPrescription: {
+        findMany: vi.fn().mockResolvedValue([]),
+        findUnique: vi.fn(),
+        update: vi.fn(),
+      },
+      therapyNotification: {
+        findMany: vi.fn().mockResolvedValue([]),
+        count: vi.fn().mockResolvedValue(0),
+        findUnique: vi.fn(),
+        update: vi.fn(),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
       crisisLog: { create: vi.fn() },
       therapist: {
         findMany: vi.fn(),

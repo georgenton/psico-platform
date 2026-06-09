@@ -2,19 +2,27 @@ import { Module } from "@nestjs/common";
 import { PrismaModule } from "../prisma";
 import { TerapiaController } from "./terapia.controller";
 import { TerapiaService } from "./terapia.service";
+import { ConsoleVideoProvider } from "./providers/console-video.provider";
+import { VIDEO_PROVIDER } from "./tokens";
 
 /**
- * Terapia module — Sprint S62 (boundary v1: Crisis + Hub).
+ * Terapia module — Sprints S62 / S63 / S64 / S65.
  *
- * Sprint S62 ships endpoints públicos (crisis) + Hub para usuarios
- * autenticados. Las pantallas 2–7 del diseño (directorio, perfil,
- * reserva, pre-sesión, mis sesiones, post-sesión) llegan en sprints
- * S63–S66.
+ * Currently binds VIDEO_PROVIDER to ConsoleVideoProvider (stub). Cuando
+ * Daily.co credentials se provisionen, swap a DailyVideoProvider en una
+ * sola línea (mismo patrón que APNs, ADR 0014).
  */
 @Module({
   imports: [PrismaModule],
   controllers: [TerapiaController],
-  providers: [TerapiaService],
+  providers: [
+    TerapiaService,
+    ConsoleVideoProvider,
+    {
+      provide: VIDEO_PROVIDER,
+      useExisting: ConsoleVideoProvider,
+    },
+  ],
   exports: [TerapiaService],
 })
 export class TerapiaModule {}

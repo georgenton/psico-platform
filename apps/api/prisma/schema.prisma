@@ -139,6 +139,7 @@ model User {
   therapyPrescriptions    TherapyPrescription[]
   therapyNotifications    TherapyNotification[]
   crisisLogs              CrisisLog[]
+  therapyTechnicalReports TherapyTechnicalReport[]
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -1601,8 +1602,9 @@ model TherapySession {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   therapist Therapist @relation(fields: [therapistId], references: [id])
 
-  prescriptions TherapyPrescription[]
-  notifications TherapyNotification[]
+  prescriptions    TherapyPrescription[]
+  notifications    TherapyNotification[]
+  technicalReports TherapyTechnicalReport[]
 
   @@index([userId, scheduledAt])
   @@index([therapistId, scheduledAt])
@@ -1670,4 +1672,36 @@ model CrisisLog {
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
+}
+
+// ─── Terapia · Technical reports (Sprint S65) ──────────────────────────────
+//
+// User-side technical issues during a video session. Lets ops/QA see
+// patterns (audio fails on Android, etc) and gives the user a clear
+// channel to flag problems instead of just leaving the session.
+//
+// Privacy: description is plaintext but capped at 500 chars. No screenshots,
+// no logs. Ops curates a follow-up via email if needed (out of band).
+
+enum TherapyTechnicalIssue {
+  AUDIO_FAILED
+  VIDEO_FAILED
+  CONNECTION_DROPPED
+  THERAPIST_NO_SHOW
+  OTHER
+}
+
+model TherapyTechnicalReport {
+  id          String                @id @default(cuid())
+  sessionId   String
+  userId      String
+  issue       TherapyTechnicalIssue
+  description String                @db.VarChar(500)
+  createdAt   DateTime              @default(now())
+
+  session TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([issue, createdAt])
 }

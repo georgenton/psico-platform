@@ -4,8 +4,10 @@ import type { UserMeResponse } from "@psico/types";
 
 import { isNextThrow, serverFetch } from "@/lib/api.server";
 import { AchievementsGrid } from "@/components/dashboard/perfil/AchievementsGrid";
+import { AvatarUploadCard } from "@/components/dashboard/perfil/AvatarUploadCard";
 import { DangerZone } from "@/components/dashboard/perfil/DangerZone";
 import { EditProfileCard } from "@/components/dashboard/perfil/EditProfileCard";
+import { EmailChangeCard } from "@/components/dashboard/perfil/EmailChangeCard";
 import { ProfileHeader } from "@/components/dashboard/perfil/ProfileHeader";
 import { StatsGrid } from "@/components/dashboard/perfil/StatsGrid";
 
@@ -61,7 +63,9 @@ export default async function PerfilPage() {
 
       <ProfileHeader me={me} />
       <StatsGrid stats={me.stats} />
+      <AvatarUploadCard me={me} />
       <EditProfileCard me={me} />
+      <EmailChangeCard me={me} />
       <AchievementsGrid achievements={me.achievements} />
       <ShortcutsGrid />
       <DangerZone me={me} />

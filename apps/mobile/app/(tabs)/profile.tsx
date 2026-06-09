@@ -19,6 +19,7 @@ import { Colors, Radius, Spacing } from "@/theme";
 import { StatsGrid } from "@/components/dashboard/perfil/StatsGrid";
 import { AchievementsList } from "@/components/dashboard/perfil/AchievementsList";
 import { DangerZone } from "@/components/dashboard/perfil/DangerZone";
+import { EmailChangeCard } from "@/components/dashboard/perfil/EmailChangeCard";
 
 const PLAN_LABEL: Record<UserPlan, string> = {
   FREE: "Gratuito",
@@ -118,6 +119,9 @@ export default function ProfileScreen() {
 
       {/* Stats (Sprint S57) */}
       {me ? <StatsGrid stats={me.stats} /> : null}
+
+      {/* Email change (Sprint S59) */}
+      {me ? <EmailChangeCard me={me} /> : null}
 
       {/* Achievements (Sprint S57) */}
       {me ? <AchievementsList achievements={me.achievements} /> : null}

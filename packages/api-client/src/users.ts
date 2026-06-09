@@ -1,5 +1,8 @@
 import type {
 <<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
   DataExportRequestResponse,
   DeleteAccountRequest,
   DeleteAccountResponse,
@@ -7,8 +10,11 @@ import type {
   EmailChangeRequestResponse,
   UpdateNotificationsRequest,
   UpdateProfileRequest,
+<<<<<<< HEAD
+=======
 =======
   UpdateNotificationsRequest,
+>>>>>>> origin/main
 >>>>>>> origin/main
   UpdateTimezoneRequest,
   UserMeResponse,
@@ -43,6 +49,9 @@ export const usersApi = {
   updateTimezone: (body: UpdateTimezoneRequest) =>
     apiClient.patch<UserMeResponse>("/user/timezone", body),
 <<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 
   /** Sprint S57 — Update name/city/country (mobile profile). */
   updateProfile: (body: UpdateProfileRequest) =>
@@ -62,6 +71,9 @@ export const usersApi = {
   /** Sprint S57 — Schedule account deletion (30-day cooldown). */
   requestAccountDeletion: (body: DeleteAccountRequest) =>
     apiClient.post<DeleteAccountResponse>("/user/delete-request", body),
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> origin/main
 >>>>>>> origin/main
 };

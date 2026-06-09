@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type FormEvent, useState, useTransition } from "react";
 
 import { registerAction } from "@/actions/auth";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
@@ -198,6 +199,24 @@ export default function RegisterPage() {
           {isPending ? "Creando cuenta…" : "Crear cuenta gratis"}
         </button>
       </form>
+
+      <div className="my-5 flex items-center gap-3">
+        <div
+          className="h-px flex-1"
+          style={{ background: "var(--color-warm-200)" }}
+        />
+        <span
+          className="text-[11px]"
+          style={{ color: "var(--color-warm-500)" }}
+        >
+          o
+        </span>
+        <div
+          className="h-px flex-1"
+          style={{ background: "var(--color-warm-200)" }}
+        />
+      </div>
+      <GoogleSignInButton text="signup_with" />
 
       <p
         className="mt-6 text-center text-sm"

@@ -129,6 +129,14 @@ export const authApi = {
       method: "POST",
       body: { token },
     }),
+
+  // Sprint S58 — Google Sign-In. idToken comes from Google Identity Services
+  // in the browser (or `expo-auth-session` on mobile).
+  oauthGoogle: (idToken: string) =>
+    apiFetch<AuthResponse>("/auth/oauth/google", {
+      method: "POST",
+      body: { idToken },
+    }),
 };
 
 // ── Books ──────────────────────────────────────────────────────────────────

@@ -44,6 +44,9 @@
       "esbuild",
       "prisma",
       "unrs-resolver"
-    ]
+    ],
+    "overrides": {
+      "react-server-dom-webpack": "^19.0.2"
+    }
   }
 }

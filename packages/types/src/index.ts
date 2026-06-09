@@ -1993,3 +1993,40 @@ export interface UpdateSessionPrepRequest {
   checkInMood?: string;
   sharedEntryIds?: string[];
 }
+
+// ─── Terapia · Sala video + Post-sesión + Technical report (Sprint S65) ────
+
+export interface SessionJoinResponse {
+  joinToken: string;
+  roomUrl: string;
+  expiresAt: string;
+  isProviderConfigured: boolean;
+}
+
+export interface SessionFeedbackRequest {
+  rating: number;
+  tags?: string[];
+  noteCiphertext?: string;
+  noteNonce?: string;
+}
+
+export interface SessionFeedbackResponse {
+  ok: true;
+  status: "COMPLETED";
+}
+
+export type TherapyTechnicalIssue =
+  | "AUDIO_FAILED"
+  | "VIDEO_FAILED"
+  | "CONNECTION_DROPPED"
+  | "THERAPIST_NO_SHOW"
+  | "OTHER";
+
+export interface TechnicalReportRequest {
+  issue: TherapyTechnicalIssue;
+  description: string;
+}
+
+export interface TechnicalReportResponse {
+  id: string;
+}

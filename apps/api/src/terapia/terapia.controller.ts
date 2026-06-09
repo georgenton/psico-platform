@@ -16,7 +16,10 @@ import type { Request } from "express";
 import type {
   CreateBookingResponse,
   CrisisResponse,
+  SessionFeedbackResponse,
+  SessionJoinResponse,
   SessionPrepResponse,
+  TechnicalReportResponse,
   TherapistAvailabilityResponse,
   TherapistDetail,
   TherapistFavoriteToggleResponse,
@@ -34,6 +37,8 @@ import { ListReviewsDto } from "./dto/list-reviews.dto";
 import { AvailabilityDto } from "./dto/availability.dto";
 import { CreateBookingDto } from "./dto/create-booking.dto";
 import { UpdateSessionPrepDto } from "./dto/update-prep.dto";
+import { SessionFeedbackDto } from "./dto/feedback.dto";
+import { TechnicalReportDto } from "./dto/technical-report.dto";
 
 /**
  * Terapia controller — Sprint S62 + S63.
@@ -210,5 +215,50 @@ export class TerapiaController {
     @Body() dto: UpdateSessionPrepDto,
   ): Promise<SessionPrepResponse> {
     return this.service.updateSessionPrep(user.sub, id, dto);
+  }
+
+  // ── Sala video + Post-sesión + Technical (Sprint S65) ──────────────────
+
+  @Post("sessions/:id/join")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      "Emite token de sala. Solo válido en window [-5min, +duration+15min].",
+  })
+  @HttpCode(HttpStatus.OK)
+  async joinSession(
+    @CurrentUser() user: { sub: string; email: string },
+    @Param("id") id: string,
+  ): Promise<SessionJoinResponse> {
+    return this.service.joinSession(user.sub, id, user.email);
+  }
+
+  @Post("sessions/:id/feedback")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      "Cierra sesión con feedback. rating 1-5 + tags categóricos + noteCiphertext E2E opcional.",
+  })
+  @HttpCode(HttpStatus.OK)
+  async submitFeedback(
+    @CurrentUser() user: { sub: string },
+    @Param("id") id: string,
+    @Body() dto: SessionFeedbackDto,
+  ): Promise<SessionFeedbackResponse> {
+    return this.service.submitFeedback(user.sub, id, dto);
+  }
+
+  @Post("sessions/:id/technical-report")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: "Reportar un problema técnico durante (o después) de la sesión.",
+  })
+  @HttpCode(HttpStatus.CREATED)
+  async reportTechnical(
+    @CurrentUser() user: { sub: string },
+    @Param("id") id: string,
+    @Body() dto: TechnicalReportDto,
+  ): Promise<TechnicalReportResponse> {
+    return this.service.reportTechnical(user.sub, id, dto);
   }
 }

@@ -35,7 +35,6 @@ function buildMe(
       minutesTotal: 0,
       currentStreakDays: 0,
       longestStreakDays: 0,
-      entriesThisWeek: 0,
     },
     achievements: [],
     preferences: {

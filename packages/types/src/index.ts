@@ -1927,3 +1927,69 @@ export interface TherapistReviewsResponse {
 export interface TherapistFavoriteToggleResponse {
   isFavorite: boolean;
 }
+
+// ─── Terapia · Reserva + Pre-sesión (Sprint S64) ────────────────────────────
+
+export interface AvailabilitySlot {
+  iso: string; // start time UTC
+  durationMin: number;
+  priceUsd: number;
+  currency: string;
+  available: boolean;
+}
+
+export interface TherapistAvailabilityResponse {
+  therapistId: string;
+  days: number;
+  timezone: string;
+  slots: AvailabilitySlot[];
+}
+
+export type TherapyPaymentStatus =
+  | "PENDING"
+  | "PAID"
+  | "FAILED"
+  | "REFUNDED";
+
+export interface CreateBookingRequest {
+  therapistId: string;
+  slotIso: string;
+  modality: TherapyModality;
+  firstReasonId?: string;
+  durationMin?: number; // default 50
+  // Optional URLs for the Stripe Checkout return flow (S65 wires real Stripe).
+  successUrl?: string;
+  cancelUrl?: string;
+}
+
+export interface CreateBookingResponse {
+  sessionId: string;
+  paymentStatus: TherapyPaymentStatus;
+  checkoutUrl: string | null;
+  scheduledAt: string;
+}
+
+export interface SessionPrepResponse {
+  session: {
+    id: string;
+    therapist: TherapistSummary;
+    scheduledAt: string;
+    durationMin: number;
+    modality: TherapyModality;
+    joinUrl: string | null;
+    paymentStatus: TherapyPaymentStatus;
+  };
+  prep: {
+    intentionCiphertext: string | null;
+    intentionNonce: string | null;
+    checkInMood: string | null;
+    sharedEntryIds: string[];
+  };
+}
+
+export interface UpdateSessionPrepRequest {
+  intentionCiphertext?: string;
+  intentionNonce?: string;
+  checkInMood?: string;
+  sharedEntryIds?: string[];
+}

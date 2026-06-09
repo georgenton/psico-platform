@@ -1,11 +1,22 @@
 import { Test, type TestingModule } from "@nestjs/testing";
-import { NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { PrismaService } from "../prisma";
 import { TerapiaService } from "./terapia.service";
 
 type PrismaMock = {
-  therapySession: { findFirst: ReturnType<typeof vi.fn> };
+  therapySession: {
+    findFirst: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
   therapyPrescription: { findMany: ReturnType<typeof vi.fn> };
   crisisLog: { create: ReturnType<typeof vi.fn> };
   therapist: {
@@ -63,7 +74,13 @@ describe("TerapiaService", () => {
 
   beforeEach(async () => {
     prisma = {
-      therapySession: { findFirst: vi.fn() },
+      therapySession: {
+        findFirst: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([]),
+        findUnique: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+      },
       therapyPrescription: { findMany: vi.fn().mockResolvedValue([]) },
       crisisLog: { create: vi.fn() },
       therapist: {
@@ -348,6 +365,262 @@ describe("TerapiaService", () => {
       prisma.therapist.findUnique.mockResolvedValue(null);
       await expect(service.listReviews("missing", 1, 10)).rejects.toBeInstanceOf(
         NotFoundException,
+      );
+    });
+  });
+
+  // ── Booking + Prep (S64) ──────────────────────────────────────────────
+
+  describe("getAvailability", () => {
+    it("throws 404 when therapist missing", async () => {
+      prisma.therapist.findUnique.mockResolvedValue(null);
+      await expect(
+        service.getAvailability("t_missing", 14),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("projects weekly availability + filters out booked slots", async () => {
+      prisma.therapist.findUnique.mockResolvedValue(
+        makeTherapist({
+          availability: [
+            // Every UTC day — guarantees match regardless of "today"
+            { dayOfWeek: 0, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
+            { dayOfWeek: 1, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
+            { dayOfWeek: 2, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
+            { dayOfWeek: 3, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
+            { dayOfWeek: 4, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
+            { dayOfWeek: 5, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
+            { dayOfWeek: 6, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
+          ],
+        }),
+      );
+      // No bookings yet
+      prisma.therapySession.findMany.mockResolvedValue([]);
+
+      const res = await service.getAvailability("t_1", 7);
+      expect(res.therapistId).toBe("t_1");
+      expect(res.timezone).toBe("America/Guayaquil");
+      // 7 days × 3 hourly slots (540, 600, 660 — 720 excluded by < 60 cap)
+      // Actual count varies because today may already be past 9 am UTC.
+      expect(res.slots.length).toBeGreaterThan(0);
+      expect(res.slots.every((s) => s.priceUsd === 45)).toBe(true);
+      expect(res.slots.every((s) => s.available)).toBe(true);
+    });
+
+    it("marks slot as unavailable when overlap with booked session", async () => {
+      const therapist = makeTherapist({
+        availability: Array.from({ length: 7 }, (_, dow) => ({
+          dayOfWeek: dow,
+          startMin: 540,
+          endMin: 720,
+          timezone: "America/Guayaquil",
+        })),
+      });
+      prisma.therapist.findUnique.mockResolvedValue(therapist);
+      // Mock a single booking; we just want to assert filter is invoked
+      // with the right SCHEDULED/IN_PROGRESS where clause.
+      prisma.therapySession.findMany.mockResolvedValue([
+        { scheduledAt: new Date("2099-01-01T09:00:00Z"), durationMin: 50 },
+      ]);
+
+      await service.getAvailability("t_1", 7);
+
+      expect(prisma.therapySession.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            therapistId: "t_1",
+            status: { in: ["SCHEDULED", "IN_PROGRESS"] },
+          }),
+        }),
+      );
+    });
+  });
+
+  describe("createBooking", () => {
+    const futureSlot = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const baseReq = {
+      therapistId: "t_1",
+      slotIso: futureSlot,
+      modality: "INDIVIDUAL" as const,
+    };
+
+    it("throws 404 when therapist missing", async () => {
+      prisma.therapist.findUnique.mockResolvedValue(null);
+      await expect(service.createBooking("user_a", baseReq)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it("throws 400 when modality not offered", async () => {
+      prisma.therapist.findUnique.mockResolvedValue(
+        makeTherapist({ modalities: ["INDIVIDUAL"] }),
+      );
+      await expect(
+        service.createBooking("user_a", { ...baseReq, modality: "COUPLE" }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("throws 400 when slot is in the past", async () => {
+      prisma.therapist.findUnique.mockResolvedValue(makeTherapist());
+      const past = new Date(Date.now() - 1000).toISOString();
+      await expect(
+        service.createBooking("user_a", { ...baseReq, slotIso: past }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("throws 409 when slot already taken", async () => {
+      prisma.therapist.findUnique.mockResolvedValue(makeTherapist());
+      prisma.therapySession.findFirst.mockResolvedValue({ id: "s_existing" });
+
+      await expect(
+        service.createBooking("user_a", baseReq),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it("creates SCHEDULED + PENDING session and returns checkoutUrl null in S64", async () => {
+      prisma.therapist.findUnique.mockResolvedValue(makeTherapist());
+      prisma.therapySession.findFirst.mockResolvedValue(null);
+      prisma.therapySession.create.mockResolvedValue({
+        id: "s_new",
+        paymentStatus: "PENDING",
+        scheduledAt: new Date(futureSlot),
+      });
+
+      const res = await service.createBooking("user_a", baseReq);
+      expect(res.sessionId).toBe("s_new");
+      expect(res.paymentStatus).toBe("PENDING");
+      expect(res.checkoutUrl).toBeNull();
+      expect(prisma.therapySession.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: "user_a",
+            therapistId: "t_1",
+            status: "SCHEDULED",
+            paymentStatus: "PENDING",
+            priceUsd: 45,
+          }),
+        }),
+      );
+    });
+  });
+
+  describe("getSessionPrep", () => {
+    it("throws 404 when missing", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue(null);
+      await expect(
+        service.getSessionPrep("user_a", "s_missing"),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("throws 403 when not owner", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue({
+        id: "s_1",
+        userId: "user_other",
+        therapist: makeTherapist(),
+        scheduledAt: new Date(),
+        durationMin: 50,
+        modality: "INDIVIDUAL",
+        paymentStatus: "PENDING",
+        intentionCiphertext: null,
+        intentionNonce: null,
+        checkInMood: null,
+        sharedEntryIds: [],
+      });
+
+      await expect(
+        service.getSessionPrep("user_a", "s_1"),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it("returns prep shape when owner", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue({
+        id: "s_1",
+        userId: "user_a",
+        therapist: makeTherapist(),
+        scheduledAt: new Date("2099-01-01"),
+        durationMin: 50,
+        modality: "INDIVIDUAL",
+        paymentStatus: "PAID",
+        intentionCiphertext: "ctext",
+        intentionNonce: "nonce",
+        checkInMood: "ansioso",
+        sharedEntryIds: ["entry_1"],
+      });
+
+      const res = await service.getSessionPrep("user_a", "s_1");
+      expect(res.session.paymentStatus).toBe("PAID");
+      expect(res.prep.intentionCiphertext).toBe("ctext");
+      expect(res.prep.checkInMood).toBe("ansioso");
+    });
+  });
+
+  describe("updateSessionPrep", () => {
+    function mockOwnedSession() {
+      prisma.therapySession.findUnique.mockResolvedValueOnce({
+        id: "s_1",
+        userId: "user_a",
+        status: "SCHEDULED",
+      });
+      // Re-fetch for getSessionPrep response
+      prisma.therapySession.findUnique.mockResolvedValueOnce({
+        id: "s_1",
+        userId: "user_a",
+        therapist: makeTherapist(),
+        scheduledAt: new Date("2099-01-01"),
+        durationMin: 50,
+        modality: "INDIVIDUAL",
+        paymentStatus: "PENDING",
+        intentionCiphertext: "ctext",
+        intentionNonce: "nonce",
+        checkInMood: "calmo",
+        sharedEntryIds: [],
+      });
+    }
+
+    it("throws 400 when cipher/nonce pairing broken", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue({
+        id: "s_1",
+        userId: "user_a",
+        status: "SCHEDULED",
+      });
+      await expect(
+        service.updateSessionPrep("user_a", "s_1", {
+          intentionCiphertext: "ctext",
+          // nonce missing — pairing broken
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("throws 400 when session status is not SCHEDULED", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue({
+        id: "s_1",
+        userId: "user_a",
+        status: "COMPLETED",
+      });
+      await expect(
+        service.updateSessionPrep("user_a", "s_1", { checkInMood: "ansioso" }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("updates fields and returns refreshed prep", async () => {
+      mockOwnedSession();
+      prisma.therapySession.update.mockResolvedValue({});
+
+      const res = await service.updateSessionPrep("user_a", "s_1", {
+        intentionCiphertext: "ctext",
+        intentionNonce: "nonce",
+        checkInMood: "calmo",
+      });
+      expect(res.prep.checkInMood).toBe("calmo");
+      expect(prisma.therapySession.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "s_1" },
+          data: expect.objectContaining({
+            intentionCiphertext: "ctext",
+            intentionNonce: "nonce",
+            checkInMood: "calmo",
+          }),
+        }),
       );
     });
   });

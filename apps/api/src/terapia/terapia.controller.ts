@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -13,7 +14,10 @@ import {
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { Request } from "express";
 import type {
+  CreateBookingResponse,
   CrisisResponse,
+  SessionPrepResponse,
+  TherapistAvailabilityResponse,
   TherapistDetail,
   TherapistFavoriteToggleResponse,
   TherapistListResponse,
@@ -27,6 +31,9 @@ import { TerapiaService } from "./terapia.service";
 import { CrisisLogDto } from "./dto/crisis-log.dto";
 import { ListTherapistsDto } from "./dto/list-therapists.dto";
 import { ListReviewsDto } from "./dto/list-reviews.dto";
+import { AvailabilityDto } from "./dto/availability.dto";
+import { CreateBookingDto } from "./dto/create-booking.dto";
+import { UpdateSessionPrepDto } from "./dto/update-prep.dto";
 
 /**
  * Terapia controller — Sprint S62 + S63.
@@ -150,5 +157,58 @@ export class TerapiaController {
     @Param("id") id: string,
   ): Promise<TherapistFavoriteToggleResponse> {
     return this.service.toggleFavorite(user.sub, id);
+  }
+
+  // ── Reserva + Pre-sesión (Sprint S64) ──────────────────────────────────
+
+  @Get("therapists/:id/availability")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      "Slots disponibles del terapeuta proyectados sobre los próximos 14 días.",
+  })
+  async getAvailability(
+    @Param("id") id: string,
+    @Query() query: AvailabilityDto,
+  ): Promise<TherapistAvailabilityResponse> {
+    return this.service.getAvailability(id, query.days ?? 14);
+  }
+
+  @Post("bookings")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      "Reservar una sesión. v1: crea la session en SCHEDULED + PENDING; Stripe wiring llega en S65.",
+  })
+  @HttpCode(HttpStatus.CREATED)
+  async createBooking(
+    @CurrentUser() user: { sub: string },
+    @Body() dto: CreateBookingDto,
+  ): Promise<CreateBookingResponse> {
+    return this.service.createBooking(user.sub, dto);
+  }
+
+  @Get("sessions/:id/prep")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: "Estado de pre-sesión." })
+  async getSessionPrep(
+    @CurrentUser() user: { sub: string },
+    @Param("id") id: string,
+  ): Promise<SessionPrepResponse> {
+    return this.service.getSessionPrep(user.sub, id);
+  }
+
+  @Patch("sessions/:id/prep")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      "Actualizar pre-sesión (intentionCiphertext E2E, mood, entradas compartidas).",
+  })
+  async updateSessionPrep(
+    @CurrentUser() user: { sub: string },
+    @Param("id") id: string,
+    @Body() dto: UpdateSessionPrepDto,
+  ): Promise<SessionPrepResponse> {
+    return this.service.updateSessionPrep(user.sub, id, dto);
   }
 }

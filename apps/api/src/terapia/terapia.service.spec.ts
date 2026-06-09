@@ -8,6 +8,8 @@ import {
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { PrismaService } from "../prisma";
 import { TerapiaService } from "./terapia.service";
+import { VIDEO_PROVIDER } from "./tokens";
+import type { IVideoProvider } from "./providers/video-provider.interface";
 
 type PrismaMock = {
   therapySession: {
@@ -34,7 +36,31 @@ type PrismaMock = {
     findMany: ReturnType<typeof vi.fn>;
     count: ReturnType<typeof vi.fn>;
   };
+  therapyTechnicalReport: {
+    create: ReturnType<typeof vi.fn>;
+  };
 };
+
+function makeVideo(overrides: Partial<IVideoProvider> = {}): IVideoProvider {
+  return {
+    name: "stub",
+    isConfigured: vi.fn().mockReturnValue(false),
+    createRoom: vi
+      .fn()
+      .mockResolvedValue({
+        roomUrl: "fake-room://x",
+        expiresAt: new Date(Date.now() + 7200_000),
+      }),
+    createJoinToken: vi
+      .fn()
+      .mockResolvedValue({
+        joinToken: "fake-token",
+        expiresAt: new Date(Date.now() + 7200_000),
+      }),
+    destroyRoom: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  } as IVideoProvider;
+}
 
 function makeTherapist(overrides: Record<string, unknown> = {}) {
   return {
@@ -95,11 +121,13 @@ describe("TerapiaService", () => {
         delete: vi.fn(),
       },
       therapistReview: { findMany: vi.fn(), count: vi.fn() },
+      therapyTechnicalReport: { create: vi.fn() },
     };
     const mod: TestingModule = await Test.createTestingModule({
       providers: [
         TerapiaService,
         { provide: PrismaService, useValue: prisma },
+        { provide: VIDEO_PROVIDER, useValue: makeVideo() },
       ],
     }).compile();
     service = mod.get(TerapiaService);
@@ -622,6 +650,179 @@ describe("TerapiaService", () => {
           }),
         }),
       );
+    });
+  });
+
+  // ── Sala + Feedback + Technical (S65) ──────────────────────────────────
+
+  describe("joinSession", () => {
+    it("throws 404 when missing", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue(null);
+      await expect(
+        service.joinSession("user_a", "s_missing", "Test User"),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("throws 403 when not owner", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue({
+        id: "s_1",
+        userId: "user_other",
+        scheduledAt: new Date(),
+        durationMin: 50,
+        roomUrl: null,
+      });
+      await expect(
+        service.joinSession("user_a", "s_1", "x"),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it("throws 400 when too early", async () => {
+      const future = new Date(Date.now() + 60 * 60 * 1000); // 1h ahead
+      prisma.therapySession.findUnique.mockResolvedValue({
+        id: "s_1",
+        userId: "user_a",
+        scheduledAt: future,
+        durationMin: 50,
+        roomUrl: null,
+      });
+      await expect(
+        service.joinSession("user_a", "s_1", "x"),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("issues token when in window + lazy creates room", async () => {
+      const now = new Date(Date.now());
+      prisma.therapySession.findUnique.mockResolvedValue({
+        id: "s_1",
+        userId: "user_a",
+        scheduledAt: now,
+        durationMin: 50,
+        roomUrl: null,
+      });
+      prisma.therapySession.update.mockResolvedValue({});
+
+      const res = await service.joinSession("user_a", "s_1", "JD");
+      expect(res.roomUrl).toContain("fake-room");
+      expect(res.joinToken).toContain("fake-token");
+      expect(res.isProviderConfigured).toBe(false);
+      expect(prisma.therapySession.update).toHaveBeenCalled();
+    });
+  });
+
+  describe("submitFeedback", () => {
+    it("throws 404 when missing", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue(null);
+      await expect(
+        service.submitFeedback("user_a", "s_missing", { rating: 5 }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("throws 403 when not owner", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue({
+        id: "s_1",
+        userId: "user_other",
+        status: "COMPLETED",
+      });
+      await expect(
+        service.submitFeedback("user_a", "s_1", { rating: 5 }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it("throws 400 when status is CANCELLED", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue({
+        id: "s_1",
+        userId: "user_a",
+        status: "CANCELLED",
+      });
+      await expect(
+        service.submitFeedback("user_a", "s_1", { rating: 5 }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("throws 400 on cipher/nonce pairing broken", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue({
+        id: "s_1",
+        userId: "user_a",
+        status: "IN_PROGRESS",
+      });
+      await expect(
+        service.submitFeedback("user_a", "s_1", {
+          rating: 5,
+          noteCiphertext: "x",
+          // noteNonce missing
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("updates session and marks COMPLETED", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue({
+        id: "s_1",
+        userId: "user_a",
+        status: "IN_PROGRESS",
+      });
+      prisma.therapySession.update.mockResolvedValue({});
+
+      const res = await service.submitFeedback("user_a", "s_1", {
+        rating: 5,
+        tags: ["empático", "puntual"],
+      });
+      expect(res).toEqual({ ok: true, status: "COMPLETED" });
+      expect(prisma.therapySession.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: "COMPLETED",
+            feedbackRating: 5,
+            feedbackTags: ["empático", "puntual"],
+          }),
+        }),
+      );
+    });
+  });
+
+  describe("reportTechnical", () => {
+    it("throws 404 when missing", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue(null);
+      await expect(
+        service.reportTechnical("user_a", "s_missing", {
+          issue: "AUDIO_FAILED",
+          description: "no audio",
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("throws 403 when not owner", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue({
+        id: "s_1",
+        userId: "user_other",
+      });
+      await expect(
+        service.reportTechnical("user_a", "s_1", {
+          issue: "OTHER",
+          description: "x",
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it("creates report row and returns id", async () => {
+      prisma.therapySession.findUnique.mockResolvedValue({
+        id: "s_1",
+        userId: "user_a",
+      });
+      prisma.therapyTechnicalReport.create.mockResolvedValue({ id: "rep_1" });
+
+      const res = await service.reportTechnical("user_a", "s_1", {
+        issue: "VIDEO_FAILED",
+        description: "Cámara congelada todo el tiempo",
+      });
+      expect(res).toEqual({ id: "rep_1" });
+      expect(prisma.therapyTechnicalReport.create).toHaveBeenCalledWith({
+        data: {
+          sessionId: "s_1",
+          userId: "user_a",
+          issue: "VIDEO_FAILED",
+          description: "Cámara congelada todo el tiempo",
+        },
+      });
     });
   });
 });

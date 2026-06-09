@@ -2,17 +2,25 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma";
+import { VIDEO_PROVIDER } from "./tokens";
+import type { IVideoProvider } from "./providers/video-provider.interface";
 import type {
   AvailabilitySlot,
   CreateBookingRequest,
   CreateBookingResponse,
   CrisisResponse,
   CrisisTrigger,
+  SessionFeedbackRequest,
+  SessionFeedbackResponse,
+  SessionJoinResponse,
   SessionPrepResponse,
+  TechnicalReportRequest,
+  TechnicalReportResponse,
   TherapistAvailabilityResponse,
   TherapistDetail,
   TherapistListItem,
@@ -21,6 +29,7 @@ import type {
   TherapistSummary,
   TherapyFilters,
   TherapyHubResponse,
+  TherapyTechnicalIssue,
   UpdateSessionPrepRequest,
 } from "@psico/types";
 import { getCrisisFor } from "./crisis-catalog";
@@ -38,7 +47,10 @@ interface TherapistFilterParams {
 
 @Injectable()
 export class TerapiaService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(VIDEO_PROVIDER) private readonly video: IVideoProvider,
+  ) {}
 
   // ── Crisis (Sprint S62) ─────────────────────────────────────────────────
 
@@ -703,5 +715,150 @@ export class TerapiaService {
 
   private slotKey(date: Date, durationMin: number): string {
     return `${date.toISOString()}::${durationMin}`;
+  }
+
+  // ── Sala video + Post-sesión + Technical report (Sprint S65) ────────────
+
+  /**
+   * POST /api/terapia/sessions/:id/join — emite token de sala.
+   *
+   * Window check: solo dentro de `[scheduledAt - 5min, scheduledAt + duration + 15min]`.
+   * Outside → 400 SESSION_WINDOW_CLOSED. Lazy-creates the room if it
+   * doesn't exist yet. Token expires en 2h.
+   *
+   * Owner gate: solo el dueño (paciente) puede pedir su propio token.
+   * Cuando aterrice el panel del terapeuta (S19+ Author B2B) se relaja
+   * para que el therapist también lo pueda pedir como owner.
+   */
+  async joinSession(
+    userId: string,
+    sessionId: string,
+    userDisplayName: string,
+  ): Promise<SessionJoinResponse> {
+    const session = await this.prisma.therapySession.findUnique({
+      where: { id: sessionId },
+    });
+    if (!session) throw new NotFoundException("SESSION_NOT_FOUND");
+    if (session.userId !== userId) {
+      throw new ForbiddenException("NOT_YOUR_SESSION");
+    }
+
+    const now = Date.now();
+    const start = session.scheduledAt.getTime();
+    const end = start + session.durationMin * 60 * 1000;
+    const earlyWindow = 5 * 60 * 1000;
+    const lateWindow = 15 * 60 * 1000;
+    if (now < start - earlyWindow || now > end + lateWindow) {
+      throw new BadRequestException("SESSION_WINDOW_CLOSED");
+    }
+
+    // Lazy-create room
+    let roomUrl = session.roomUrl;
+    if (!roomUrl) {
+      const room = await this.video.createRoom({
+        sessionId,
+        expiresInSec: Math.ceil((end + lateWindow - now) / 1000),
+      });
+      roomUrl = room.roomUrl;
+      await this.prisma.therapySession.update({
+        where: { id: sessionId },
+        data: { roomUrl, roomCreatedAt: new Date() },
+      });
+    }
+
+    const token = await this.video.createJoinToken({
+      roomUrl,
+      userName: userDisplayName,
+      isOwner: false,
+      expiresInSec: 7200,
+    });
+
+    return {
+      joinToken: token.joinToken,
+      roomUrl,
+      expiresAt: token.expiresAt.toISOString(),
+      isProviderConfigured: this.video.isConfigured(),
+    };
+  }
+
+  /**
+   * POST /api/terapia/sessions/:id/feedback — owner only.
+   *
+   * Marks session as COMPLETED + persists rating/tags/note. Idempotent:
+   * subsequent calls overwrite the previous feedback (last-write-wins).
+   * Pairing on noteCiphertext/nonce enforced.
+   */
+  async submitFeedback(
+    userId: string,
+    sessionId: string,
+    body: SessionFeedbackRequest,
+  ): Promise<SessionFeedbackResponse> {
+    const session = await this.prisma.therapySession.findUnique({
+      where: { id: sessionId },
+      select: { id: true, userId: true, status: true },
+    });
+    if (!session) throw new NotFoundException("SESSION_NOT_FOUND");
+    if (session.userId !== userId) {
+      throw new ForbiddenException("NOT_YOUR_SESSION");
+    }
+    if (
+      session.status !== "IN_PROGRESS" &&
+      session.status !== "COMPLETED" &&
+      session.status !== "SCHEDULED"
+    ) {
+      throw new BadRequestException("FEEDBACK_NOT_ALLOWED");
+    }
+
+    const ctextProvided = body.noteCiphertext !== undefined;
+    const nonceProvided = body.noteNonce !== undefined;
+    if (ctextProvided !== nonceProvided) {
+      throw new BadRequestException("CIPHER_NONCE_PAIRING");
+    }
+
+    await this.prisma.therapySession.update({
+      where: { id: sessionId },
+      data: {
+        status: "COMPLETED",
+        endedAt: new Date(),
+        feedbackRating: body.rating,
+        feedbackTags: body.tags ?? [],
+        feedbackNoteCiphertext: body.noteCiphertext || null,
+        feedbackNoteNonce: body.noteNonce || null,
+      },
+    });
+
+    return { ok: true, status: "COMPLETED" };
+  }
+
+  /**
+   * POST /api/terapia/sessions/:id/technical-report — owner only.
+   *
+   * Free of `status` constraint: user can flag a problem AT ANY time
+   * (including before the call started, when therapist no-shows).
+   */
+  async reportTechnical(
+    userId: string,
+    sessionId: string,
+    body: TechnicalReportRequest,
+  ): Promise<TechnicalReportResponse> {
+    const session = await this.prisma.therapySession.findUnique({
+      where: { id: sessionId },
+      select: { id: true, userId: true },
+    });
+    if (!session) throw new NotFoundException("SESSION_NOT_FOUND");
+    if (session.userId !== userId) {
+      throw new ForbiddenException("NOT_YOUR_SESSION");
+    }
+
+    const created = await this.prisma.therapyTechnicalReport.create({
+      data: {
+        sessionId,
+        userId,
+        issue: body.issue as TherapyTechnicalIssue,
+        description: body.description,
+      },
+    });
+
+    return { id: created.id };
   }
 }

@@ -16,10 +16,13 @@ export const dynamic = "force-dynamic";
 
 export default async function PerfilPage() {
   let me: UserMeResponse | null = null;
+  let loadError: string | null = null;
   try {
     me = await serverFetch<UserMeResponse>("/user/me");
   } catch (err) {
     if (isNextThrow(err)) throw err;
+    loadError =
+      err instanceof Error ? err.message : "Error desconocido al cargar.";
   }
 
   if (!me) {
@@ -31,15 +34,44 @@ export default async function PerfilPage() {
         >
           Perfil
         </h1>
-        <p
-          className="rounded-2xl border-[1.5px] bg-white p-6 text-[13px]"
-          style={{
-            borderColor: "var(--color-warm-200)",
-            color: "var(--color-warm-500)",
-          }}
+        <div
+          className="rounded-2xl border-[1.5px] bg-white p-6"
+          style={{ borderColor: "var(--color-warm-200)" }}
         >
-          No pudimos cargar tu perfil. Reintenta en unos minutos.
-        </p>
+          <p
+            className="text-[13px]"
+            style={{ color: "var(--color-warm-700)" }}
+          >
+            No pudimos cargar tu perfil.
+          </p>
+          {loadError ? (
+            <p
+              className="mt-2 font-mono text-[12px]"
+              style={{ color: "var(--color-rose-600)" }}
+            >
+              {loadError}
+            </p>
+          ) : null}
+          <div className="mt-4 flex gap-2">
+            <Link
+              href="/dashboard/perfil"
+              className="rounded-xl border-[1.5px] bg-white px-3 py-1.5 text-[12px] font-medium"
+              style={{
+                borderColor: "var(--color-warm-300)",
+                color: "var(--color-warm-700)",
+              }}
+            >
+              Reintentar
+            </Link>
+            <Link
+              href="/logout"
+              className="rounded-xl px-3 py-1.5 text-[12px] font-medium text-white"
+              style={{ background: "var(--color-rose-600)" }}
+            >
+              Cerrar sesión y volver a entrar
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }

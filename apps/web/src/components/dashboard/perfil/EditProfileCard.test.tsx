@@ -35,6 +35,13 @@ function buildMe(
       minutesTotal: 0,
       currentStreakDays: 0,
       longestStreakDays: 0,
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+      entriesThisWeek: 0,
+>>>>>>> origin/main
+>>>>>>> origin/main
     },
     achievements: [],
     preferences: {

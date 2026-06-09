@@ -132,6 +132,13 @@ model User {
   weeklySummaries         WeeklySummary[]
   deviceTokens            DeviceToken[]
   liveActivityTokens      LiveActivityToken[]         @relation("UserLiveActivityTokens")
+  therapistProfile        Therapist?                  @relation("UserAsTherapist")
+  therapistFavorites      TherapistFavorite[]
+  therapistReviews        TherapistReview[]
+  therapySessions         TherapySession[]
+  therapyPrescriptions    TherapyPrescription[]
+  therapyNotifications    TherapyNotification[]
+  crisisLogs              CrisisLog[]
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -1383,4 +1390,267 @@ model LiveActivityToken {
   @@unique([userId, activityId])
   @@index([userId])
   @@index([dismissedAt])
+}
+
+// ─── Terapia (Sprint S62) ──────────────────────────────────────────────────
+//
+// Therapist directory + booking + session lifecycle for the Terapia vertical.
+// Design: docs/design/handoff/11-terapia.md (Pantallas 1–7 boundary v1).
+// Video provider: Daily.co (ADR 0014). Crisis endpoint is public (no auth).
+//
+// Privacy:
+//  - Pre-session intention is E2E encrypted (intentionCiphertext + nonce)
+//    following the same pattern as Diario (ADR 0007). Server never sees
+//    plaintext.
+//  - Post-session note from the user is also E2E encrypted.
+//  - Therapist notes (visible only to therapist) come later in B2B (S19+) —
+//    NOT in this sprint.
+//  - Crisis log is metadata-only (trigger + contactedLineId), no content.
+
+enum TherapyModality {
+  INDIVIDUAL
+  COUPLE
+  FAMILY
+}
+
+enum TherapySessionStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  MISSED
+}
+
+enum TherapyPrescriptionKind {
+  BOOK
+  AUDIO
+  EXERCISE
+  CARTA
+}
+
+enum TherapyNotificationKind {
+  SESSION_REMINDER_24H
+  SESSION_REMINDER_1H
+  SESSION_STARTED
+  SESSION_RESCHEDULED
+  SESSION_CANCELLED
+  PRESCRIPTION_NEW
+  PRESCRIPTION_DUE_SOON
+  CRISIS_FOLLOWUP
+}
+
+model Therapist {
+  id                   String            @id @default(cuid())
+  // Optional FK to a User row when the therapist also has a USER login. Most
+  // therapists in v1 don't have an app account — they're catalog rows curated
+  // by ops. Author dashboard (B2B v2) will make this FK required.
+  userId               String?           @unique
+  name                 String
+  initials             String
+  title                String
+  // Credential
+  licenseNumber        String            @unique
+  licenseVerified      Boolean           @default(false)
+  // Card data
+  avatarUrl            String?
+  coverToken           String            @default("warm")
+  bioShort             String
+  bioLong              String?
+  approach             String? // enfoque terapéutico (markdown short)
+  specialties          String[] // ["ansiedad", "duelo", "pareja"]
+  modalities           TherapyModality[]
+  languages            String[] // ["es-EC", "en"]
+  genderId             String? // self-declared ("femenino", "masculino", "no-binario", null)
+  // Pricing
+  priceUsd             Float
+  currency             String            @default("USD")
+  acceptsInsurance     Boolean           @default(false)
+  // Ratings (denormalized from TherapistReview)
+  avgRating            Float             @default(0)
+  reviewsCount         Int               @default(0)
+  // Discoverability
+  isActive             Boolean           @default(true)
+  popularity           Int               @default(0)
+  // Policies (short markdown)
+  firstSessionPolicy   String?
+  cancellationPolicy   String?
+  videoPresentationUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User?                   @relation("UserAsTherapist", fields: [userId], references: [id], onDelete: SetNull)
+  availability TherapistAvailability[]
+  sessions     TherapySession[]
+  favorites    TherapistFavorite[]
+  reviews      TherapistReview[]
+
+  @@index([isActive])
+  @@index([popularity])
+}
+
+// Recurring weekly availability slots. Bookings consume these via the
+// availability endpoint which projects them onto the next 14 days.
+model TherapistAvailability {
+  id          String @id @default(cuid())
+  therapistId String
+  // 0 = Sunday, 6 = Saturday (Postgres EXTRACT(DOW)).
+  dayOfWeek   Int
+  // Minutes since midnight in the therapist's local TZ.
+  startMin    Int
+  endMin      Int
+  // IANA TZ — independent of the user's. Crossfade in projection.
+  timezone    String
+
+  therapist Therapist @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+
+  @@index([therapistId, dayOfWeek])
+}
+
+model TherapistFavorite {
+  id          String   @id @default(cuid())
+  userId      String
+  therapistId String
+  createdAt   DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  therapist Therapist @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, therapistId])
+  @@index([userId])
+}
+
+model TherapistReview {
+  id          String   @id @default(cuid())
+  therapistId String
+  userId      String
+  rating      Int // 1-5
+  // Public review text (NOT E2E encrypted; this is what other users see).
+  text        String?
+  // Tags from a curated list ("escucha activa", "puntual", ...). Filterable.
+  tags        String[] @default([])
+  createdAt   DateTime @default(now())
+
+  therapist Therapist @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([therapistId, userId])
+  @@index([therapistId])
+}
+
+model TherapySession {
+  id          String               @id @default(cuid())
+  userId      String
+  therapistId String
+  scheduledAt DateTime
+  durationMin Int                  @default(50)
+  modality    TherapyModality
+  status      TherapySessionStatus @default(SCHEDULED)
+  priceUsd    Float
+  currency    String               @default("USD")
+
+  // Initial reason picked at booking (curated catalog id, no free text here)
+  firstReasonId String?
+
+  // Daily.co room (created lazily ~5 min before scheduledAt)
+  roomUrl       String?
+  roomCreatedAt DateTime?
+
+  // E2E encrypted pre-session intention (ADR 0007)
+  intentionCiphertext String?
+  intentionNonce      String?
+  // Mood at check-in (token, plaintext metadata)
+  checkInMood         String?
+  // Diary entries the user chose to share (re-encrypted ephemeral, stored
+  // as their IDs — the actual re-encrypt blob lives in SharedDiaryEntry).
+  sharedEntryIds      String[] @default([])
+
+  // Post-session feedback from the user
+  feedbackRating         Int? // 1-5
+  feedbackTags           String[] @default([])
+  feedbackNoteCiphertext String?
+  feedbackNoteNonce      String?
+
+  // Lifecycle audit
+  startedAt         DateTime?
+  endedAt           DateTime?
+  cancelledAt       DateTime?
+  cancelReason      String?
+  rescheduledFromId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  therapist Therapist @relation(fields: [therapistId], references: [id])
+
+  prescriptions TherapyPrescription[]
+  notifications TherapyNotification[]
+
+  @@index([userId, scheduledAt])
+  @@index([therapistId, scheduledAt])
+  @@index([status, scheduledAt])
+}
+
+model TherapyPrescription {
+  id          String                  @id @default(cuid())
+  sessionId   String? // optional: standalone prescriptions allowed
+  userId      String
+  therapistId String
+  kind        TherapyPrescriptionKind
+  // For BOOK: bookId. For AUDIO: contentId. For EXERCISE: exerciseId.
+  // For CARTA: free-form Cloudflare R2 URL (PDF or text snapshot).
+  targetId    String
+  dosage      String? // "1 capítulo / día"
+  note        String? // therapist's note to the user (plaintext, opt-in by terapeuta)
+  dueBy       DateTime?
+  completedAt DateTime?
+  createdAt   DateTime                @default(now())
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session TherapySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, completedAt])
+}
+
+model TherapyNotification {
+  id        String                  @id @default(cuid())
+  userId    String
+  sessionId String?
+  kind      TherapyNotificationKind
+  title     String
+  body      String
+  actionUrl String?
+  createdAt DateTime                @default(now())
+  readAt    DateTime?
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session TherapySession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+// Crisis log — auditoría sin contenido sensible. POST is opt-in for the
+// user; the public GET endpoint never requires the log.
+enum CrisisTrigger {
+  ECO_SAFETY_LAYER
+  HOME_BUTTON
+  PROFILE_LINK
+  THERAPIST_SUGGESTION
+}
+
+model CrisisLog {
+  id              String        @id @default(cuid())
+  userId          String?
+  trigger         CrisisTrigger
+  contactedLineId String?
+  country         String? // ISO 3166-1 alpha-2
+  createdAt       DateTime      @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
 }

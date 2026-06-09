@@ -1422,6 +1422,13 @@ enum TherapySessionStatus {
   MISSED
 }
 
+enum TherapyPaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
 enum TherapyPrescriptionKind {
   BOOK
   AUDIO
@@ -1557,6 +1564,15 @@ model TherapySession {
   roomUrl       String?
   roomCreatedAt DateTime?
 
+  // Payment (Sprint S64). Drives lifecycle:
+  // PENDING → just created, Stripe Checkout still open.
+  // PAID    → Stripe webhook confirmed. Therapist can rely on this.
+  // FAILED  → Stripe declined; sweeper auto-cancels.
+  // REFUNDED→ user cancelled within policy.
+  // stripeCheckoutSessionId correlates webhook events.
+  paymentStatus           TherapyPaymentStatus @default(PENDING)
+  stripeCheckoutSessionId String?
+
   // E2E encrypted pre-session intention (ADR 0007)
   intentionCiphertext String?
   intentionNonce      String?
@@ -1591,6 +1607,7 @@ model TherapySession {
   @@index([userId, scheduledAt])
   @@index([therapistId, scheduledAt])
   @@index([status, scheduledAt])
+  @@index([paymentStatus])
 }
 
 model TherapyPrescription {

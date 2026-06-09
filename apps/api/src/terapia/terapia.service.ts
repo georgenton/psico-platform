@@ -1,8 +1,19 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma";
 import type {
+  AvailabilitySlot,
+  CreateBookingRequest,
+  CreateBookingResponse,
   CrisisResponse,
   CrisisTrigger,
+  SessionPrepResponse,
+  TherapistAvailabilityResponse,
   TherapistDetail,
   TherapistListItem,
   TherapistListResponse,
@@ -10,6 +21,7 @@ import type {
   TherapistSummary,
   TherapyFilters,
   TherapyHubResponse,
+  UpdateSessionPrepRequest,
 } from "@psico/types";
 import { getCrisisFor } from "./crisis-catalog";
 
@@ -446,5 +458,250 @@ export class TerapiaService {
       .slice(0, 2)
       .map((p) => p[0]?.toUpperCase() ?? "")
       .join("");
+  }
+
+  // ── Reserva + Pre-sesión (Sprint S64) ───────────────────────────────────
+
+  /**
+   * GET /api/terapia/therapists/:id/availability?days=14
+   *
+   * Projects the therapist's recurring weekly availability onto the next
+   * `days` UTC days starting today, then subtracts slots overlapping with
+   * existing SCHEDULED/IN_PROGRESS sessions of that therapist.
+   *
+   * Slot cadence is 60 min from `startMin` to `endMin - 60`. The booking
+   * step picks 30 or 50 min duration; this only declares "you can START
+   * a session at iso X".
+   */
+  async getAvailability(
+    therapistId: string,
+    days: number,
+  ): Promise<TherapistAvailabilityResponse> {
+    const therapist = await this.prisma.therapist.findUnique({
+      where: { id: therapistId },
+      include: { availability: true },
+    });
+    if (!therapist || !therapist.isActive) {
+      throw new NotFoundException("THERAPIST_NOT_FOUND");
+    }
+
+    const horizon = new Date();
+    const endHorizon = new Date(
+      horizon.getTime() + days * 24 * 60 * 60 * 1000,
+    );
+
+    const booked = await this.prisma.therapySession.findMany({
+      where: {
+        therapistId,
+        status: { in: ["SCHEDULED", "IN_PROGRESS"] },
+        scheduledAt: { gte: horizon, lt: endHorizon },
+      },
+      select: { scheduledAt: true, durationMin: true },
+    });
+    const bookedKeys = new Set(
+      booked.map((b) => this.slotKey(b.scheduledAt, b.durationMin)),
+    );
+
+    const slots: AvailabilitySlot[] = [];
+    for (let dayOffset = 0; dayOffset < days; dayOffset++) {
+      const day = new Date(horizon.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+      const dow = day.getUTCDay();
+      const todaysSlots = therapist.availability.filter(
+        (a) => a.dayOfWeek === dow,
+      );
+      for (const a of todaysSlots) {
+        // Cadence: 60 min from startMin to endMin (inclusive of last full hour)
+        for (let m = a.startMin; m + 60 <= a.endMin; m += 60) {
+          const slotStart = new Date(
+            Date.UTC(
+              day.getUTCFullYear(),
+              day.getUTCMonth(),
+              day.getUTCDate(),
+              Math.floor(m / 60),
+              m % 60,
+            ),
+          );
+          // Skip past slots
+          if (slotStart.getTime() < horizon.getTime()) continue;
+          const isAvailable = !bookedKeys.has(this.slotKey(slotStart, 50));
+          slots.push({
+            iso: slotStart.toISOString(),
+            durationMin: 50,
+            priceUsd: therapist.priceUsd,
+            currency: therapist.currency,
+            available: isAvailable,
+          });
+        }
+      }
+    }
+
+    slots.sort((a, b) => a.iso.localeCompare(b.iso));
+
+    return {
+      therapistId,
+      days,
+      timezone:
+        therapist.availability[0]?.timezone ?? "America/Guayaquil",
+      slots,
+    };
+  }
+
+  /**
+   * POST /api/terapia/bookings
+   *
+   * Creates a TherapySession in SCHEDULED + PENDING. Stripe Checkout
+   * wiring lands in S65 — for now the response sends `checkoutUrl: null`
+   * + paymentStatus: PENDING. The session row exists so the front can
+   * navigate to /sessions/:id/preparar; the therapist sees it as
+   * "pendiente de pago" until S65 wires the webhook.
+   *
+   * Race detection: re-query `findFirst` for an overlapping SCHEDULED
+   * session right before insert. Returns 409 with code SLOT_TAKEN.
+   */
+  async createBooking(
+    userId: string,
+    req: CreateBookingRequest,
+  ): Promise<CreateBookingResponse> {
+    const therapist = await this.prisma.therapist.findUnique({
+      where: { id: req.therapistId },
+    });
+    if (!therapist || !therapist.isActive) {
+      throw new NotFoundException("THERAPIST_NOT_FOUND");
+    }
+    if (!therapist.modalities.includes(req.modality)) {
+      throw new BadRequestException("MODALITY_NOT_OFFERED");
+    }
+
+    const slot = new Date(req.slotIso);
+    if (isNaN(slot.getTime())) {
+      throw new BadRequestException("INVALID_SLOT");
+    }
+    if (slot.getTime() < Date.now()) {
+      throw new BadRequestException("SLOT_IN_THE_PAST");
+    }
+
+    const durationMin = req.durationMin ?? 50;
+
+    // Race detection
+    const collision = await this.prisma.therapySession.findFirst({
+      where: {
+        therapistId: req.therapistId,
+        status: { in: ["SCHEDULED", "IN_PROGRESS"] },
+        scheduledAt: slot,
+      },
+      select: { id: true },
+    });
+    if (collision) {
+      throw new ConflictException("SLOT_TAKEN");
+    }
+
+    const created = await this.prisma.therapySession.create({
+      data: {
+        userId,
+        therapistId: req.therapistId,
+        scheduledAt: slot,
+        durationMin,
+        modality: req.modality,
+        status: "SCHEDULED",
+        paymentStatus: "PENDING",
+        priceUsd: therapist.priceUsd,
+        currency: therapist.currency,
+        firstReasonId: req.firstReasonId,
+      },
+    });
+
+    return {
+      sessionId: created.id,
+      paymentStatus: created.paymentStatus,
+      // S65 wires Stripe Checkout. For now the front sees null and shows
+      // a "pendiente de pago" badge.
+      checkoutUrl: null,
+      scheduledAt: created.scheduledAt.toISOString(),
+    };
+  }
+
+  /**
+   * GET /api/terapia/sessions/:id/prep — only the owner can read.
+   * `joinUrl` stays null until S65 wires Daily.co token issuance.
+   */
+  async getSessionPrep(
+    userId: string,
+    sessionId: string,
+  ): Promise<SessionPrepResponse> {
+    const session = await this.prisma.therapySession.findUnique({
+      where: { id: sessionId },
+      include: { therapist: true },
+    });
+    if (!session) throw new NotFoundException("SESSION_NOT_FOUND");
+    if (session.userId !== userId) {
+      throw new ForbiddenException("NOT_YOUR_SESSION");
+    }
+
+    return {
+      session: {
+        id: session.id,
+        therapist: this.toTherapistSummary(session.therapist),
+        scheduledAt: session.scheduledAt.toISOString(),
+        durationMin: session.durationMin,
+        modality: session.modality,
+        joinUrl: null,
+        paymentStatus: session.paymentStatus,
+      },
+      prep: {
+        intentionCiphertext: session.intentionCiphertext,
+        intentionNonce: session.intentionNonce,
+        checkInMood: session.checkInMood,
+        sharedEntryIds: session.sharedEntryIds,
+      },
+    };
+  }
+
+  /**
+   * PATCH /api/terapia/sessions/:id/prep — owner only.
+   * Pairing: (intentionCiphertext, intentionNonce) must travel together.
+   */
+  async updateSessionPrep(
+    userId: string,
+    sessionId: string,
+    body: UpdateSessionPrepRequest,
+  ): Promise<SessionPrepResponse> {
+    const session = await this.prisma.therapySession.findUnique({
+      where: { id: sessionId },
+      select: { id: true, userId: true, status: true },
+    });
+    if (!session) throw new NotFoundException("SESSION_NOT_FOUND");
+    if (session.userId !== userId) {
+      throw new ForbiddenException("NOT_YOUR_SESSION");
+    }
+    if (session.status !== "SCHEDULED") {
+      throw new BadRequestException("PREP_LOCKED");
+    }
+
+    // Pairing enforcement (ADR 0007 §C)
+    const ctextProvided = body.intentionCiphertext !== undefined;
+    const nonceProvided = body.intentionNonce !== undefined;
+    if (ctextProvided !== nonceProvided) {
+      throw new BadRequestException("CIPHER_NONCE_PAIRING");
+    }
+
+    const data: Record<string, unknown> = {};
+    if (body.intentionCiphertext !== undefined) {
+      data.intentionCiphertext = body.intentionCiphertext || null;
+      data.intentionNonce = body.intentionNonce || null;
+    }
+    if (body.checkInMood !== undefined) data.checkInMood = body.checkInMood;
+    if (body.sharedEntryIds !== undefined)
+      data.sharedEntryIds = body.sharedEntryIds;
+
+    await this.prisma.therapySession.update({
+      where: { id: sessionId },
+      data,
+    });
+
+    return this.getSessionPrep(userId, sessionId);
+  }
+
+  private slotKey(date: Date, durationMin: number): string {
+    return `${date.toISOString()}::${durationMin}`;
   }
 }

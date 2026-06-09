@@ -58,12 +58,18 @@ function getTokens() {
 }
 
 // Sets new tokens after a successful refresh.
-// In Server Components (read-only context) this throws — that is expected
-// because the redirect() below will catch the authorisation failure anyway.
+// In Server Components (read-only context) `cookies().set()` throws. We
+// swallow that here — attemptRefresh still resolves with the new token so
+// the in-flight request can retry; the cookie itself rotates on the next
+// Server Action or Route Handler (middleware bumps it).
 function setTokens(accessToken: string, refreshToken: string) {
-  const store = cookies();
-  store.set(TOKEN_NAMES.access, accessToken, cookieOptions.access);
-  store.set(TOKEN_NAMES.refresh, refreshToken, cookieOptions.refresh);
+  try {
+    const store = cookies();
+    store.set(TOKEN_NAMES.access, accessToken, cookieOptions.access);
+    store.set(TOKEN_NAMES.refresh, refreshToken, cookieOptions.refresh);
+  } catch {
+    // Server Component context — cookies are read-only. Documented above.
+  }
 }
 
 function clearTokens() {
@@ -126,8 +132,22 @@ export async function serverFetch<T>(
     try {
       return await apiFetch<T>(path, { ...init, token: accessToken });
     } catch (err) {
-      // Propagate non-auth errors immediately
-      if (!(err instanceof ApiError) || err.status !== 401) throw err;
+      // Propagate non-auth errors immediately. Log first so 5xx /
+      // network failures show up in Vercel logs instead of silently
+      // turning into "Failed to load" placeholders downstream.
+      if (!(err instanceof ApiError) || err.status !== 401) {
+        if (err instanceof ApiError) {
+          console.error(
+            `[serverFetch] ${path} → ${err.status} ${err.message}`,
+          );
+        } else {
+          console.error(
+            `[serverFetch] ${path} network error:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+        throw err;
+      }
       // Fall through to refresh
     }
   }

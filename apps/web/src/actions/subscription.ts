@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import type {
   BillingInterval,
   CancelSubscriptionResponse,
@@ -12,19 +13,55 @@ import type {
 
 import { serverFetch } from "@/lib/api.server";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+/**
+ * Resolve the absolute origin (e.g. `https://psico-platform-web.vercel.app`)
+ * for the current request.
+ *
+ * Order of precedence:
+ *   1. `NEXT_PUBLIC_APP_URL` env var — explicit override, useful for
+ *      preview deploys that should redirect somewhere stable.
+ *   2. Request headers (`x-forwarded-proto` + `x-forwarded-host`) — set
+ *      by Vercel's edge and by Next.js in dev. This is what we want by
+ *      default: the user lands back wherever they came from.
+ *   3. Fallback to `http://localhost:3000` for tests / non-request
+ *      contexts. The backend rejects localhost via `@IsUrl()` so this
+ *      path should only fire in local development.
+ *
+ * Bug fix (2026-06-09): previously we hardcoded
+ * `process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"`. When the
+ * env var was missing on Vercel the localhost fallback got sent to the
+ * backend which rejected it with `VALIDATION_ERROR: successUrl must be a
+ * valid URL`. By deriving the origin from headers we make checkout work
+ * out of the box wherever it's deployed.
+ */
+async function resolveAppOrigin(): Promise<string> {
+  const explicit = process.env.NEXT_PUBLIC_APP_URL;
+  if (explicit && /^https?:\/\//i.test(explicit)) {
+    return explicit.replace(/\/$/, "");
+  }
+  try {
+    const h = await headers();
+    const host = h.get("x-forwarded-host") ?? h.get("host");
+    const proto = h.get("x-forwarded-proto") ?? "https";
+    if (host) return `${proto}://${host}`;
+  } catch {
+    // headers() throws outside of a request context (e.g. unit tests).
+  }
+  return "http://localhost:3000";
+}
 
 export async function createCheckoutAction(
   billingPlan: BillingInterval,
 ): Promise<void> {
+  const origin = await resolveAppOrigin();
   const { url } = await serverFetch<CheckoutSessionResponse>(
     "/subscriptions/checkout",
     {
       method: "POST",
       body: {
         billingPlan,
-        successUrl: `${APP_URL}/dashboard/plan?upgraded=true`,
-        cancelUrl: `${APP_URL}/dashboard/plan`,
+        successUrl: `${origin}/dashboard/plan?upgraded=true`,
+        cancelUrl: `${origin}/dashboard/plan`,
       },
     },
   );
@@ -32,11 +69,12 @@ export async function createCheckoutAction(
 }
 
 export async function createPortalAction(): Promise<void> {
+  const origin = await resolveAppOrigin();
   const { url } = await serverFetch<PortalSessionResponse>(
     "/subscriptions/portal",
     {
       method: "POST",
-      body: { returnUrl: `${APP_URL}/dashboard/plan` },
+      body: { returnUrl: `${origin}/dashboard/plan` },
     },
   );
   redirect(url);

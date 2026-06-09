@@ -1782,3 +1782,72 @@ export interface RegisterDeviceRequest {
 export interface RegisterDeviceResponse {
   id: string;
 }
+
+// ─── Terapia (Sprint S62) ──────────────────────────────────────────────────
+
+export type TherapyModality = "INDIVIDUAL" | "COUPLE" | "FAMILY";
+
+export interface CrisisLine {
+  id: string;
+  name: string;
+  phone: string;
+  whatsapp?: string;
+  chatUrl?: string;
+  availability: string;
+  languages: string[];
+}
+
+export interface CrisisResponse {
+  country: string;
+  lines: CrisisLine[];
+  safetyTipsShort: string[];
+  nextSteps: string[];
+}
+
+export type CrisisTrigger =
+  | "ECO_SAFETY_LAYER"
+  | "HOME_BUTTON"
+  | "PROFILE_LINK"
+  | "THERAPIST_SUGGESTION";
+
+export interface CrisisLogRequest {
+  trigger: CrisisTrigger;
+  contactedLineId?: string;
+  country?: string;
+}
+
+export interface TherapistSummary {
+  id: string;
+  name: string;
+  initials: string;
+  title: string;
+  avatarUrl: string | null;
+  coverToken: string;
+  modalities: TherapyModality[];
+  specialties: string[];
+  priceUsd: number;
+  currency: string;
+  avgRating: number;
+  reviewsCount: number;
+}
+
+export interface TherapyHubResponse {
+  intro: string;
+  activeTherapist: TherapistSummary | null;
+  nextSession: {
+    id: string;
+    therapist: TherapistSummary;
+    scheduledAt: string;
+    durationMin: number;
+    modality: TherapyModality;
+  } | null;
+  recentPrescriptions: Array<{
+    id: string;
+    kind: "BOOK" | "AUDIO" | "EXERCISE" | "CARTA";
+    targetId: string;
+    dosage: string | null;
+    note: string | null;
+    dueBy: string | null;
+    completedAt: string | null;
+  }>;
+}

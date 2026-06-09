@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma";
+import { PaymentService } from "../subscription";
 import { VIDEO_PROVIDER } from "./tokens";
 import type { IVideoProvider } from "./providers/video-provider.interface";
 import type {
@@ -50,6 +51,7 @@ export class TerapiaService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(VIDEO_PROVIDER) private readonly video: IVideoProvider,
+    private readonly payments: PaymentService,
   ) {}
 
   // ── Crisis (Sprint S62) ─────────────────────────────────────────────────
@@ -622,14 +624,50 @@ export class TerapiaService {
       },
     });
 
-    return {
-      sessionId: created.id,
-      paymentStatus: created.paymentStatus,
-      // S65 wires Stripe Checkout. For now the front sees null and shows
-      // a "pendiente de pago" badge.
-      checkoutUrl: null,
-      scheduledAt: created.scheduledAt.toISOString(),
-    };
+    // Sprint S66.A — Stripe Checkout one-time. If the front didn't pass
+    // successUrl/cancelUrl the booking still exists in PENDING; the front
+    // can request a checkout later (deferred-to-S66.B endpoint), or just
+    // tell the user the session is reserved pending payment.
+    if (!req.successUrl || !req.cancelUrl) {
+      return {
+        sessionId: created.id,
+        paymentStatus: created.paymentStatus,
+        checkoutUrl: null,
+        scheduledAt: created.scheduledAt.toISOString(),
+      };
+    }
+
+    try {
+      const checkout = await this.payments.createTherapyCheckout({
+        userId,
+        sessionId: created.id,
+        priceUsd: created.priceUsd,
+        currency: created.currency,
+        productName: `Sesión con ${therapist.name} · ${created.scheduledAt.toISOString().slice(0, 16).replace("T", " ")} UTC`,
+        successUrl: req.successUrl,
+        cancelUrl: req.cancelUrl,
+      });
+      await this.prisma.therapySession.update({
+        where: { id: created.id },
+        data: { stripeCheckoutSessionId: checkout.stripeCheckoutSessionId },
+      });
+      return {
+        sessionId: created.id,
+        paymentStatus: created.paymentStatus,
+        checkoutUrl: checkout.url,
+        scheduledAt: created.scheduledAt.toISOString(),
+      };
+    } catch (err) {
+      // Checkout failed — return the session anyway so the user sees their
+      // reservation. They can retry the checkout via a follow-up endpoint
+      // (S66.B). Cancel sweeper deals with abandoned PENDING rows.
+      return {
+        sessionId: created.id,
+        paymentStatus: created.paymentStatus,
+        checkoutUrl: null,
+        scheduledAt: created.scheduledAt.toISOString(),
+      };
+    }
   }
 
   /**

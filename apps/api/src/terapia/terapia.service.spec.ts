@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { PrismaService } from "../prisma";
+import { PaymentService } from "../subscription";
 import { TerapiaService } from "./terapia.service";
 import { VIDEO_PROVIDER } from "./tokens";
 import type { IVideoProvider } from "./providers/video-provider.interface";
@@ -128,6 +129,15 @@ describe("TerapiaService", () => {
         TerapiaService,
         { provide: PrismaService, useValue: prisma },
         { provide: VIDEO_PROVIDER, useValue: makeVideo() },
+        {
+          provide: PaymentService,
+          useValue: {
+            createTherapyCheckout: vi.fn().mockResolvedValue({
+              url: "https://checkout.stripe.com/cs_test",
+              stripeCheckoutSessionId: "cs_test_xxx",
+            }),
+          },
+        },
       ],
     }).compile();
     service = mod.get(TerapiaService);

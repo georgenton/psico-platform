@@ -20,6 +20,7 @@ export { patronesApi } from "./patrones";
 export { pulsoApi } from "./pulso";
 export { notificationsApi } from "./notifications";
 export { usersApi } from "./users";
+export { terapiaApi } from "./terapia";
 
 // Auto-generated OpenAPI types — see scripts/generate.mjs and ADR 0008.
 // Consumers can use:

@@ -111,6 +111,24 @@ export const authApi = {
       body: { refreshToken },
       token,
     }),
+
+  forgotPassword: (email: string) =>
+    apiFetch<{ ok: true }>("/auth/forgot-password", {
+      method: "POST",
+      body: { email },
+    }),
+
+  resetPassword: (token: string, newPassword: string) =>
+    apiFetch<{ ok: true }>("/auth/reset-password", {
+      method: "POST",
+      body: { token, newPassword },
+    }),
+
+  verifyEmail: (token: string) =>
+    apiFetch<{ ok: true; email: string }>("/auth/verify-email", {
+      method: "POST",
+      body: { token },
+    }),
 };
 
 // ── Books ──────────────────────────────────────────────────────────────────

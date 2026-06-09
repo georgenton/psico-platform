@@ -52,6 +52,13 @@ const NAV_ITEMS = [
     tourTarget: "patrones",
   },
   {
+    href: "/dashboard/terapia",
+    label: "Terapia",
+    icon: "💬",
+    exact: false,
+    tourTarget: null,
+  },
+  {
     href: "/dashboard/plan",
     label: "Mi plan",
     icon: "💳",

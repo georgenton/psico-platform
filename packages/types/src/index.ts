@@ -2030,3 +2030,97 @@ export interface TechnicalReportRequest {
 export interface TechnicalReportResponse {
   id: string;
 }
+
+// ─── Terapia · Lifecycle (Sprint S66.B) ────────────────────────────────────
+
+export type TherapySessionStatus =
+  | "SCHEDULED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "NO_SHOW"
+  | "MISSED";
+
+export interface TherapySessionListItem {
+  id: string;
+  therapist: TherapistSummary;
+  scheduledAt: string;
+  durationMin: number;
+  modality: TherapyModality;
+  status: TherapySessionStatus;
+  paymentStatus: TherapyPaymentStatus;
+  feedbackRating: number | null;
+}
+
+export interface TherapySessionsListResponse {
+  upcoming: TherapySessionListItem[];
+  past: TherapySessionListItem[];
+}
+
+export type TherapyPrescriptionKind =
+  | "BOOK"
+  | "AUDIO"
+  | "EXERCISE"
+  | "CARTA";
+
+export interface TherapyPrescriptionItem {
+  id: string;
+  kind: TherapyPrescriptionKind;
+  targetId: string;
+  dosage: string | null;
+  note: string | null;
+  dueBy: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  sessionId: string | null;
+}
+
+export interface PrescriptionUpdateRequest {
+  completed?: boolean;
+}
+
+export type TherapyNotificationKind =
+  | "SESSION_REMINDER_24H"
+  | "SESSION_REMINDER_1H"
+  | "SESSION_STARTED"
+  | "SESSION_RESCHEDULED"
+  | "SESSION_CANCELLED"
+  | "PRESCRIPTION_NEW"
+  | "PRESCRIPTION_DUE_SOON"
+  | "CRISIS_FOLLOWUP";
+
+export interface TherapyNotificationItem {
+  id: string;
+  kind: TherapyNotificationKind;
+  title: string;
+  body: string;
+  actionUrl: string | null;
+  createdAt: string;
+  readAt: string | null;
+  sessionId: string | null;
+}
+
+export interface TherapyNotificationsListResponse {
+  items: TherapyNotificationItem[];
+  unreadCount: number;
+}
+
+export interface RescheduleSessionRequest {
+  newSlotIso: string;
+}
+
+export interface CancelSessionRequest {
+  reason: string;
+  refundRequested?: boolean;
+}
+
+export interface RetryCheckoutRequest {
+  successUrl: string;
+  cancelUrl: string;
+}
+
+export interface RetryCheckoutResponse {
+  sessionId: string;
+  checkoutUrl: string;
+  paymentStatus: TherapyPaymentStatus;
+}

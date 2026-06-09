@@ -131,6 +131,7 @@ model User {
   readingSessions         ReadingSession[]
   weeklySummaries         WeeklySummary[]
   deviceTokens            DeviceToken[]
+  liveActivityTokens      LiveActivityToken[]         @relation("UserLiveActivityTokens")
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -959,11 +960,11 @@ model PlatformMetricDaily {
   dau        Int @default(0) // distinct active users in the day
 
   // Content block — created within the day
-  diaryEntries     Int   @default(0)
-  ecoMessages      Int   @default(0) // USER kind only
-  ecoCrisis        Int   @default(0)
-  voiceMinutes     Float @default(0) // sum of durationSec / 60
-  readingSessions  Int   @default(0) // ReadingSession.lastSeenAt within day
+  diaryEntries    Int   @default(0)
+  ecoMessages     Int   @default(0) // USER kind only
+  ecoCrisis       Int   @default(0)
+  voiceMinutes    Float @default(0) // sum of durationSec / 60
+  readingSessions Int   @default(0) // ReadingSession.lastSeenAt within day
 
   // Pulso operations block — events on EcoMessageReport within the day
   reportsOpened   Int @default(0) // rows created in the day
@@ -1334,4 +1335,52 @@ model DeviceToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// ─── Live Activities (Sprint E.5) ──────────────────────────────────────────
+//
+// iOS 16.1+ Live Activities (Dynamic Island) require a per-activity APNs
+// push token DISTINCT from the regular device token. The mobile app calls
+// `Activity.start()`, gets a token, and registers it here. The backend then
+// pushes contentState updates via APNs HTTP/2 with the `liveactivity` topic
+// suffix (`{bundleId}.push-type.liveactivity`).
+//
+// `activityId` is the mobile-side correlation ID (matches `EcoThread.id`,
+// `BookChapter.id`, or `TherapySession.id` depending on `kind`).
+//
+// `kind` tells the worker which contentState schema to send. Three kinds
+// in v1: TERAPIA_SESSION, LECTOR_ACTIVE, ECO_ACTIVE.
+//
+// `dismissedAt` is set when the mobile app or the server explicitly ends
+// the activity. Stale rows are pruned weekly (future sprint).
+//
+// Privacy: contentState NEVER includes Diario ciphertext, Eco message text,
+// or any seed-phrase-derived material — only opaque IDs + counters that the
+// mobile widget renders locally.
+
+enum LiveActivityKind {
+  TERAPIA_SESSION
+  LECTOR_ACTIVE
+  ECO_ACTIVE
+}
+
+model LiveActivityToken {
+  id          String           @id @default(cuid())
+  userId      String
+  activityId  String
+  kind        LiveActivityKind
+  // APNs push token specific to this activity instance (NOT the device's
+  // regular push token). 32–64 hex chars. Distinct from `DeviceToken.token`.
+  pushToken   String           @unique
+  // Bundle ID of the app that started the activity. Used to construct the
+  // APNs topic: `{bundleId}.push-type.liveactivity`.
+  bundleId    String
+  createdAt   DateTime         @default(now())
+  dismissedAt DateTime?
+
+  user User @relation("UserLiveActivityTokens", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, activityId])
+  @@index([userId])
+  @@index([dismissedAt])
 }

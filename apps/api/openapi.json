@@ -2777,6 +2777,70 @@
           "Pulso"
         ]
       }
+    },
+    "/api/push/live-activity": {
+      "post": {
+        "operationId": "LiveActivitiesController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterLiveActivityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Register a per-activity APNs push token from iOS ActivityKit. Idempotent on (userId, activityId).",
+        "tags": [
+          "LiveActivities"
+        ]
+      }
+    },
+    "/api/push/live-activity/active": {
+      "get": {
+        "operationId": "LiveActivitiesController_listActive",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List currently-active Live Activities.",
+        "tags": [
+          "LiveActivities"
+        ]
+      }
+    },
+    "/api/push/live-activity/{activityId}": {
+      "delete": {
+        "operationId": "LiveActivitiesController_dismiss",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Mark a Live Activity as dismissed. Sends APNs 'end' event if configured.",
+        "tags": [
+          "LiveActivities"
+        ]
+      }
     }
   },
   "info": {
@@ -3015,6 +3079,10 @@
         "properties": {}
       },
       "MarkResolvedDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RegisterLiveActivityDto": {
         "type": "object",
         "properties": {}
       }

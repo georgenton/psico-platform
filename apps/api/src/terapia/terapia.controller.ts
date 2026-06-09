@@ -16,6 +16,7 @@ import type { Request } from "express";
 import type {
   CreateBookingResponse,
   CrisisResponse,
+  RetryCheckoutResponse,
   SessionFeedbackResponse,
   SessionJoinResponse,
   SessionPrepResponse,
@@ -27,6 +28,10 @@ import type {
   TherapistReviewsResponse,
   TherapyFilters,
   TherapyHubResponse,
+  TherapyNotificationsListResponse,
+  TherapyPrescriptionItem,
+  TherapySessionListItem,
+  TherapySessionsListResponse,
 } from "@psico/types";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CurrentUser } from "../shared";
@@ -39,6 +44,12 @@ import { CreateBookingDto } from "./dto/create-booking.dto";
 import { UpdateSessionPrepDto } from "./dto/update-prep.dto";
 import { SessionFeedbackDto } from "./dto/feedback.dto";
 import { TechnicalReportDto } from "./dto/technical-report.dto";
+import { ListSessionsDto } from "./dto/list-sessions.dto";
+import { ListNotificationsDto } from "./dto/list-notifications.dto";
+import { UpdatePrescriptionDto } from "./dto/update-prescription.dto";
+import { RescheduleSessionDto } from "./dto/reschedule-session.dto";
+import { CancelSessionDto } from "./dto/cancel-session.dto";
+import { RetryCheckoutDto } from "./dto/retry-checkout.dto";
 
 /**
  * Terapia controller — Sprint S62 + S63.
@@ -260,5 +271,125 @@ export class TerapiaController {
     @Body() dto: TechnicalReportDto,
   ): Promise<TechnicalReportResponse> {
     return this.service.reportTechnical(user.sub, id, dto);
+  }
+
+  // ── Lifecycle (Sprint S66.B) ───────────────────────────────────────────
+
+  @Get("sessions")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: "Mis sesiones — envelope {upcoming, past}. Filtro opcional por status.",
+  })
+  async listSessions(
+    @CurrentUser() user: { sub: string },
+    @Query() query: ListSessionsDto,
+  ): Promise<TherapySessionsListResponse> {
+    return this.service.listSessions(user.sub, query.status);
+  }
+
+  @Get("prescriptions")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: "Mis recetas activas (lo que sugirió el terapeuta)." })
+  async listPrescriptions(
+    @CurrentUser() user: { sub: string },
+  ): Promise<TherapyPrescriptionItem[]> {
+    return this.service.listPrescriptions(user.sub);
+  }
+
+  @Patch("prescriptions/:id")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: "Marcar receta como completada / incompleta." })
+  async updatePrescription(
+    @CurrentUser() user: { sub: string },
+    @Param("id") id: string,
+    @Body() dto: UpdatePrescriptionDto,
+  ): Promise<TherapyPrescriptionItem> {
+    return this.service.updatePrescription(user.sub, id, dto.completed);
+  }
+
+  @Get("notifications")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: "Notificaciones del usuario en Terapia." })
+  async listNotifications(
+    @CurrentUser() user: { sub: string },
+    @Query() query: ListNotificationsDto,
+  ): Promise<TherapyNotificationsListResponse> {
+    return this.service.listNotifications(
+      user.sub,
+      query.unread,
+      query.limit ?? 20,
+    );
+  }
+
+  @Patch("notifications/:id/read")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: "Marcar una notificación como leída. Idempotente." })
+  @HttpCode(HttpStatus.OK)
+  async markNotificationRead(
+    @CurrentUser() user: { sub: string },
+    @Param("id") id: string,
+  ): Promise<{ ok: true }> {
+    return this.service.markNotificationRead(user.sub, id);
+  }
+
+  @Post("notifications/read-all")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: "Marcar todas las notificaciones como leídas." })
+  @HttpCode(HttpStatus.OK)
+  async markAllNotificationsRead(
+    @CurrentUser() user: { sub: string },
+  ): Promise<{ ok: true; updated: number }> {
+    return this.service.markAllNotificationsRead(user.sub);
+  }
+
+  @Patch("sessions/:id/reschedule")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      "Re-agendar sesión a un slot libre del mismo terapeuta. Solo SCHEDULED.",
+  })
+  async rescheduleSession(
+    @CurrentUser() user: { sub: string },
+    @Param("id") id: string,
+    @Body() dto: RescheduleSessionDto,
+  ): Promise<TherapySessionListItem> {
+    return this.service.rescheduleSession(user.sub, id, dto.newSlotIso);
+  }
+
+  @Post("sessions/:id/cancel")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: "Cancelar sesión SCHEDULED. Refund pedido al ops." })
+  @HttpCode(HttpStatus.OK)
+  async cancelSession(
+    @CurrentUser() user: { sub: string },
+    @Param("id") id: string,
+    @Body() dto: CancelSessionDto,
+  ): Promise<{ ok: true; cancelledAt: string }> {
+    return this.service.cancelSession(
+      user.sub,
+      id,
+      dto.reason,
+      dto.refundRequested,
+    );
+  }
+
+  @Post("bookings/:id/retry-checkout")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      "Emitir un nuevo Stripe Checkout para una session PENDING. Útil tras fallo o cierre del tab.",
+  })
+  @HttpCode(HttpStatus.OK)
+  async retryCheckout(
+    @CurrentUser() user: { sub: string },
+    @Param("id") id: string,
+    @Body() dto: RetryCheckoutDto,
+  ): Promise<RetryCheckoutResponse> {
+    return this.service.retryCheckout(
+      user.sub,
+      id,
+      dto.successUrl,
+      dto.cancelUrl,
+    );
   }
 }

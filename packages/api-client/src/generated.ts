@@ -1777,6 +1777,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/push/live-activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register a per-activity APNs push token from iOS ActivityKit. Idempotent on (userId, activityId). */
+        post: operations["LiveActivitiesController_register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/push/live-activity/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List currently-active Live Activities. */
+        get: operations["LiveActivitiesController_listActive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/push/live-activity/{activityId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Mark a Live Activity as dismissed. Sends APNs 'end' event if configured. */
+        delete: operations["LiveActivitiesController_dismiss"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1828,6 +1879,7 @@ export interface components {
         UpdateAnnotationDto: Record<string, never>;
         ShareWithTherapistDto: Record<string, never>;
         MarkResolvedDto: Record<string, never>;
+        RegisterLiveActivityDto: Record<string, never>;
     };
     responses: never;
     parameters: never;
@@ -4066,6 +4118,63 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    LiveActivitiesController_register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterLiveActivityDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    LiveActivitiesController_listActive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    LiveActivitiesController_dismiss: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activityId: string;
+            };
             cookie?: never;
         };
         requestBody?: never;

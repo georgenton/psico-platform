@@ -1851,3 +1851,79 @@ export interface TherapyHubResponse {
     completedAt: string | null;
   }>;
 }
+
+// ─── Terapia · Directorio (Sprint S63) ─────────────────────────────────────
+
+export interface TherapyFilters {
+  motivo: Array<{ id: string; label: string; count: number }>;
+  modalidad: Array<{ id: TherapyModality; label: string; count: number }>;
+  genero: Array<{ id: string; label: string; count: number }>;
+  precio: { min: number; max: number; currency: string };
+  language: Array<{ id: string; label: string; count: number }>;
+}
+
+export interface TherapistListItem {
+  id: string;
+  name: string;
+  initials: string;
+  title: string;
+  avatarUrl: string | null;
+  coverToken: string;
+  licenseNumber: string;
+  licenseVerified: boolean;
+  bioShort: string;
+  specialties: string[];
+  modalities: TherapyModality[];
+  languages: string[];
+  genderId: string | null;
+  priceUsd: number;
+  currency: string;
+  avgRating: number;
+  reviewsCount: number;
+  nextSlotIso: string | null;
+  acceptsInsurance: boolean;
+  isFavorite: boolean;
+}
+
+export interface TherapistListResponse {
+  items: TherapistListItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface TherapistDetail extends TherapistListItem {
+  bioLong: string | null;
+  approach: string | null;
+  firstSessionPolicy: string | null;
+  cancellationPolicy: string | null;
+  videoPresentationUrl: string | null;
+  availability: Array<{
+    dayOfWeek: number;
+    startMin: number;
+    endMin: number;
+    timezone: string;
+  }>;
+}
+
+export interface TherapistReviewItem {
+  id: string;
+  userInitials: string;
+  rating: number;
+  text: string | null;
+  tags: string[];
+  createdAt: string;
+}
+
+export interface TherapistReviewsResponse {
+  items: TherapistReviewItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface TherapistFavoriteToggleResponse {
+  isFavorite: boolean;
+}

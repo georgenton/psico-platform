@@ -101,6 +101,13 @@ export default function LoginForm() {
               (e.currentTarget.style.borderColor = "var(--color-warm-200)")
             }
           />
+          <Link
+            href="/forgot-password"
+            className="text-xs mt-1 self-end"
+            style={{ color: "var(--color-lavender-700)" }}
+          >
+            ¿Olvidaste tu contraseña?
+          </Link>
         </div>
 
         {error && (

@@ -1,18 +1,24 @@
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { useState } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import type { UserPlan } from "@psico/types";
+import { usersApi } from "@psico/api-client";
+import type { UserMeResponse, UserPlan } from "@psico/types";
+
 import { useAuth } from "@/context/auth";
 import { Colors, Radius, Spacing } from "@/theme";
+import { StatsGrid } from "@/components/dashboard/perfil/StatsGrid";
+import { AchievementsList } from "@/components/dashboard/perfil/AchievementsList";
+import { DangerZone } from "@/components/dashboard/perfil/DangerZone";
 
 const PLAN_LABEL: Record<UserPlan, string> = {
   FREE: "Gratuito",
@@ -28,20 +34,30 @@ const PLAN_COLOR: Record<UserPlan, string> = {
   B2B: Colors.sage[500],
 };
 
-function initials(name: string): string {
-  return name
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
+
+  const [me, setMe] = useState<UserMeResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
-  if (!user) return null;
+  const load = useCallback(async () => {
+    try {
+      const data = await usersApi.getMe();
+      setMe(data);
+    } catch {
+      // ignore; the header below still shows the cached `useAuth` user
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const handleLogout = () => {
     Alert.alert("Cerrar sesión", "¿Estás seguro que deseas salir?", [
@@ -52,11 +68,12 @@ export default function ProfileScreen() {
         onPress: async () => {
           setLoggingOut(true);
           await logout();
-          // AuthGate redirects to login automatically
         },
       },
     ]);
   };
+
+  if (!user) return null;
 
   const planColor = PLAN_COLOR[user.plan];
 
@@ -65,13 +82,24 @@ export default function ProfileScreen() {
       style={styles.root}
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            void load();
+          }}
+        />
+      }
     >
       {/* Avatar */}
       <View style={styles.avatarSection}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials(user.name)}</Text>
+          <Text style={styles.avatarText}>
+            {(me?.user.initials || user.name.slice(0, 2)).toUpperCase()}
+          </Text>
         </View>
-        <Text style={styles.name}>{user.name}</Text>
+        <Text style={styles.name}>{me?.user.firstName ?? user.name}</Text>
         <Text style={styles.email}>{user.email}</Text>
         <View style={[styles.planBadge, { backgroundColor: planColor + "20" }]}>
           <Ionicons name="diamond" size={12} color={planColor} />
@@ -81,105 +109,44 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Account section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Cuenta</Text>
-        <View style={styles.card}>
-          <SettingsRow icon="person-outline" label="Nombre" value={user.name} />
-          <View style={styles.divider} />
-          <SettingsRow icon="mail-outline" label="Correo" value={user.email} />
-          <View style={styles.divider} />
-          <SettingsRow
-            icon="shield-checkmark-outline"
-            label="Rol"
-            value={
-              user.role === "ADMIN"
-                ? "Administrador"
-                : user.role === "PSYCHOLOGIST"
-                  ? "Psicólogo"
-                  : "Usuario"
-            }
-          />
+      {/* Loading skeleton for stats/achievements section */}
+      {loading && !me ? (
+        <View style={styles.loading}>
+          <ActivityIndicator color={Colors.lavender[500]} />
         </View>
-      </View>
+      ) : null}
 
-      {/* Notifications shortcut — Sprint S45 */}
+      {/* Stats (Sprint S57) */}
+      {me ? <StatsGrid stats={me.stats} /> : null}
+
+      {/* Achievements (Sprint S57) */}
+      {me ? <AchievementsList achievements={me.achievements} /> : null}
+
+      {/* Shortcuts */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notificaciones</Text>
-        <Pressable
-          style={styles.card}
+        <Text style={styles.sectionTitle}>Ajustes</Text>
+        <ShortcutRow
+          icon="notifications-outline"
+          label="Notificaciones"
+          hint="Push, email digest, recordatorios"
           onPress={() => router.push("/(tabs)/notifications")}
-        >
-          <View style={rowStyles.row}>
-            <View style={rowStyles.iconWrap}>
-              <Ionicons
-                name="notifications-outline"
-                size={18}
-                color={Colors.lavender[500]}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={rowStyles.label}>
-                Push, email digest, recordatorios
-              </Text>
-              <Text style={rowStyles.value}>Controla qué te avisamos</Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={16}
-              color={Colors.warm[400]}
-            />
-          </View>
-        </Pressable>
-      </View>
-
-      {/* Security shortcut */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Seguridad</Text>
-        <Pressable
-          style={styles.card}
+        />
+        <ShortcutRow
+          icon="key-outline"
+          label="Seguridad"
+          hint="Contraseña, frase de respaldo"
           onPress={() => router.push("/(tabs)/security")}
-        >
-          <View style={rowStyles.row}>
-            <View style={rowStyles.iconWrap}>
-              <Ionicons
-                name="key-outline"
-                size={18}
-                color={Colors.lavender[500]}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={rowStyles.label}>
-                Contraseña y frase de respaldo
-              </Text>
-              <Text style={rowStyles.value}>Cambiar contraseña</Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={Colors.warm[400]}
-            />
-          </View>
-        </Pressable>
+        />
+        <ShortcutRow
+          icon="card-outline"
+          label="Mi plan"
+          hint="Suscripción, uso, facturas"
+          onPress={() => router.push("/(tabs)/plan")}
+        />
       </View>
 
-      {/* App section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>App</Text>
-        <View style={styles.card}>
-          <SettingsRow
-            icon="information-circle-outline"
-            label="Versión"
-            value="1.0.0"
-          />
-          <View style={styles.divider} />
-          <SettingsRow
-            icon="globe-outline"
-            label="Plataforma"
-            value="Psico Platform"
-          />
-        </View>
-      </View>
+      {/* Danger zone (Sprint S57) */}
+      {me ? <DangerZone me={me} onChanged={() => void load()} /> : null}
 
       {/* Logout */}
       <Pressable
@@ -200,34 +167,32 @@ export default function ProfileScreen() {
   );
 }
 
-type SettingsRowProps = {
+function ShortcutRow({
+  icon,
+  label,
+  hint,
+  onPress,
+}: {
   icon: React.ComponentProps<typeof Ionicons>["name"];
   label: string;
-  value: string;
-};
-
-function SettingsRow({ icon, label, value }: SettingsRowProps) {
+  hint: string;
+  onPress: () => void;
+}) {
   return (
-    <View style={rowStyles.row}>
-      <View style={rowStyles.iconWrap}>
+    <Pressable style={styles.shortcutCard} onPress={onPress}>
+      <View style={shortcutStyles.iconWrap}>
         <Ionicons name={icon} size={18} color={Colors.lavender[500]} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={rowStyles.label}>{label}</Text>
-        <Text style={rowStyles.value}>{value}</Text>
+        <Text style={shortcutStyles.label}>{label}</Text>
+        <Text style={shortcutStyles.hint}>{hint}</Text>
       </View>
-    </View>
+      <Ionicons name="chevron-forward" size={16} color={Colors.warm[400]} />
+    </Pressable>
   );
 }
 
-const rowStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
-  },
+const shortcutStyles = StyleSheet.create({
   iconWrap: {
     width: 32,
     height: 32,
@@ -236,22 +201,12 @@ const rowStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  label: {
-    fontSize: 12,
-    color: Colors.warm[500],
-  },
-  value: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Colors.warm[800],
-  },
+  label: { fontSize: 13, fontWeight: "600", color: Colors.warm[900] },
+  hint: { fontSize: 11, color: Colors.warm[500], marginTop: 2 },
 });
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: Colors.warm[50],
-  },
+  root: { flex: 1, backgroundColor: Colors.warm[50] },
   scroll: {
     padding: Spacing.lg,
     paddingBottom: Spacing.xxl,
@@ -271,20 +226,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: Spacing.xs,
   },
-  avatarText: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: Colors.white,
-  },
-  name: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: Colors.warm[800],
-  },
-  email: {
-    fontSize: 14,
-    color: Colors.warm[500],
-  },
+  avatarText: { fontSize: 32, fontWeight: "700", color: "#fff" },
+  name: { fontSize: 22, fontWeight: "700", color: Colors.warm[800] },
+  email: { fontSize: 14, color: Colors.warm[500] },
   planBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -294,13 +238,9 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     marginTop: Spacing.xs,
   },
-  planLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  section: {
-    gap: Spacing.sm,
-  },
+  planLabel: { fontSize: 12, fontWeight: "700" },
+  loading: { paddingVertical: Spacing.lg, alignItems: "center" },
+  section: { gap: Spacing.sm },
   sectionTitle: {
     fontSize: 13,
     fontWeight: "700",
@@ -309,39 +249,28 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     paddingHorizontal: Spacing.xs,
   },
-  card: {
-    backgroundColor: Colors.white,
+  shortcutCard: {
+    backgroundColor: "#fff",
     borderRadius: Radius.lg,
-    overflow: "hidden",
-    shadowColor: Colors.warm[900],
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.warm[100],
-    marginLeft: Spacing.lg + 32 + Spacing.sm,
+    borderWidth: 1.5,
+    borderColor: Colors.warm[200],
+    padding: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
   },
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.sm,
-    backgroundColor: Colors.white,
+    backgroundColor: "#fff",
     borderRadius: Radius.lg,
     paddingVertical: 16,
     borderWidth: 1.5,
     borderColor: "#fed7d7",
     marginTop: Spacing.sm,
   },
-  logoutBtnDisabled: {
-    opacity: 0.6,
-  },
-  logoutText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: Colors.error,
-  },
+  logoutBtnDisabled: { opacity: 0.6 },
+  logoutText: { fontSize: 15, fontWeight: "700", color: Colors.error },
 });

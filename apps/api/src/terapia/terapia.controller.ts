@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   Query,
   Req,
@@ -13,27 +14,37 @@ import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { Request } from "express";
 import type {
   CrisisResponse,
+  TherapistDetail,
+  TherapistFavoriteToggleResponse,
+  TherapistListResponse,
+  TherapistReviewsResponse,
+  TherapyFilters,
   TherapyHubResponse,
 } from "@psico/types";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CurrentUser } from "../shared";
 import { TerapiaService } from "./terapia.service";
 import { CrisisLogDto } from "./dto/crisis-log.dto";
+import { ListTherapistsDto } from "./dto/list-therapists.dto";
+import { ListReviewsDto } from "./dto/list-reviews.dto";
 
 /**
- * Terapia controller — Sprint S62 (boundary v1: Crisis + Hub).
+ * Terapia controller — Sprint S62 + S63.
  *
- * Routes split:
- *  - PÚBLICOS (no JwtAuthGuard):
- *      GET  /api/terapia/crisis           — líneas de crisis por país
- *      POST /api/terapia/crisis/log       — auditoría anónima
+ * Routes:
+ *  - PÚBLICOS:
+ *      GET  /api/terapia/crisis
+ *      POST /api/terapia/crisis/log
  *  - AUTH:
- *      GET  /api/terapia/hub              — landing del usuario
+ *      GET  /api/terapia/hub
+ *      GET  /api/terapia/therapists/filters         — catálogo de filtros
+ *      GET  /api/terapia/therapists                 — listado paginado
+ *      GET  /api/terapia/therapists/:id             — detalle
+ *      GET  /api/terapia/therapists/:id/reviews     — reviews paginado
+ *      POST /api/terapia/therapists/:id/favorite    — toggle
  *
- * Las siguientes pantallas (directorio, perfil terapeuta, reserva,
- * pre-sesión, mis sesiones, post-sesión, video room, prescriptions,
- * notifications, intake) aterrizan en sprints S63–S66 según
- * docs/design/handoff/11-terapia.md.
+ * Pantallas pendientes: Reserva (S64), Sala video + Post-sesión (S65),
+ * Mis sesiones / prescripciones / notifs (S66).
  */
 @ApiTags("Terapia")
 @Controller("terapia")
@@ -61,8 +72,6 @@ export class TerapiaController {
     @Req() req: Request,
     @Body() dto: CrisisLogDto,
   ): Promise<{ ok: true }> {
-    // Si el cliente envió un Bearer válido, el JwtStrategy lo habrá puesto
-    // en req.user; pero como NO usamos guard, puede ser undefined.
     const userId =
       (req.user as { sub?: string } | undefined)?.sub ?? null;
     return this.service.logCrisis(
@@ -77,13 +86,69 @@ export class TerapiaController {
 
   @Get("hub")
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({
-    summary:
-      "Landing del usuario en Terapia. Devuelve intro + activeTherapist + nextSession + recentPrescriptions.",
-  })
+  @ApiOperation({ summary: "Landing del usuario en Terapia." })
   async getHub(
     @CurrentUser() user: { sub: string },
   ): Promise<TherapyHubResponse> {
     return this.service.getHub(user.sub);
+  }
+
+  // S63 — directorio. /filters va ANTES de /:id para que el path matcher
+  // no caiga en el segmento dinámico.
+  @Get("therapists/filters")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: "Opciones disponibles para los filtros del directorio.",
+  })
+  async getFilters(): Promise<TherapyFilters> {
+    return this.service.getFilters();
+  }
+
+  @Get("therapists")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      "Directorio paginado de terapeutas activos. Soporta filtros + sort.",
+  })
+  async listTherapists(
+    @CurrentUser() user: { sub: string },
+    @Query() query: ListTherapistsDto,
+  ): Promise<TherapistListResponse> {
+    return this.service.listTherapists(user.sub, query);
+  }
+
+  @Get("therapists/:id")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: "Detalle de un terapeuta." })
+  async getTherapist(
+    @CurrentUser() user: { sub: string },
+    @Param("id") id: string,
+  ): Promise<TherapistDetail> {
+    return this.service.getTherapist(user.sub, id);
+  }
+
+  @Get("therapists/:id/reviews")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: "Reseñas paginadas de un terapeuta." })
+  async listReviews(
+    @Param("id") id: string,
+    @Query() query: ListReviewsDto,
+  ): Promise<TherapistReviewsResponse> {
+    return this.service.listReviews(
+      id,
+      query.page ?? 1,
+      query.pageSize ?? 10,
+    );
+  }
+
+  @Post("therapists/:id/favorite")
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: "Toggle de favorito sobre un terapeuta." })
+  @HttpCode(HttpStatus.OK)
+  async toggleFavorite(
+    @CurrentUser() user: { sub: string },
+    @Param("id") id: string,
+  ): Promise<TherapistFavoriteToggleResponse> {
+    return this.service.toggleFavorite(user.sub, id);
   }
 }

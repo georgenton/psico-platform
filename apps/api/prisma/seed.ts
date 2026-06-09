@@ -674,6 +674,203 @@ async function main() {
   }
   console.log(`✅  ChapterBlock catalog: ${chapterBlocks.length} entries`);
 
+  // ── Therapists (Sprint S63) ────────────────────────────────────────────
+  const therapists = [
+    {
+      id: "t_marina",
+      name: "Marina Quintana",
+      initials: "MQ",
+      title: "Psicóloga clínica · Senior Eco",
+      licenseNumber: "PSI-EC-2031",
+      licenseVerified: true,
+      coverToken: "warm",
+      bioShort:
+        "Acompaño procesos de ansiedad, duelo y reconfiguración de identidad después de cambios grandes.",
+      bioLong:
+        "Soy psicóloga clínica formada en la PUCE con maestría en psicoanálisis. Trabajo desde un enfoque integrador con foco en lo somático y en la narrativa.",
+      approach: "Integrativo · somático · narrativo",
+      specialties: ["ansiedad", "duelo", "identidad"],
+      modalities: ["INDIVIDUAL", "COUPLE"] as const,
+      languages: ["es-EC"],
+      genderId: "femenino",
+      priceUsd: 45,
+      acceptsInsurance: false,
+      avgRating: 4.8,
+      reviewsCount: 47,
+      popularity: 100,
+      firstSessionPolicy: "Primera sesión sin cargo si decides no continuar.",
+      cancellationPolicy: "Hasta 24h antes sin costo.",
+    },
+    {
+      id: "t_andrea",
+      name: "Andrea Ortiz",
+      initials: "AO",
+      title: "Psicóloga · Pareja y familia",
+      licenseNumber: "PSI-EC-1885",
+      licenseVerified: true,
+      coverToken: "lavender",
+      bioShort:
+        "Especializada en terapia de pareja y vínculos familiares. Trabajo desde el enfoque sistémico.",
+      bioLong:
+        "Soy psicóloga sistémica con 12 años de experiencia. Acompaño a parejas y familias en procesos de reconciliación, redefinición de roles y crisis.",
+      approach: "Sistémico · centrado en soluciones",
+      specialties: ["pareja", "familia", "comunicación"],
+      modalities: ["COUPLE", "FAMILY"] as const,
+      languages: ["es-EC"],
+      genderId: "femenino",
+      priceUsd: 55,
+      acceptsInsurance: true,
+      avgRating: 4.6,
+      reviewsCount: 31,
+      popularity: 80,
+      firstSessionPolicy: "Primera sesión: anamnesis + co-construcción de objetivos.",
+      cancellationPolicy: "Hasta 48h antes sin costo.",
+    },
+    {
+      id: "t_diego",
+      name: "Diego Velasco",
+      initials: "DV",
+      title: "Psicólogo · Adultos jóvenes",
+      licenseNumber: "PSI-EC-2104",
+      licenseVerified: true,
+      coverToken: "mixed",
+      bioShort:
+        "Trabajo con jóvenes adultos en transiciones de carrera, vínculos y proyectos de vida.",
+      bioLong:
+        "Psicólogo formado en la UCE con especialidad en TCC. Mi foco son las transiciones de los 20–35 años.",
+      approach: "Terapia cognitivo-conductual · TCC",
+      specialties: ["ansiedad", "vocacional", "proyecto-de-vida"],
+      modalities: ["INDIVIDUAL"] as const,
+      languages: ["es-EC", "en"],
+      genderId: "masculino",
+      priceUsd: 35,
+      acceptsInsurance: false,
+      avgRating: 4.5,
+      reviewsCount: 19,
+      popularity: 70,
+      firstSessionPolicy: "Primera sesión enfocada en establecer foco terapéutico.",
+      cancellationPolicy: "Hasta 24h antes sin costo.",
+    },
+    {
+      id: "t_lucia",
+      name: "Lucía Pérez",
+      initials: "LP",
+      title: "Psicóloga · Trauma y abuso",
+      licenseNumber: "PSI-EC-1992",
+      licenseVerified: true,
+      coverToken: "cool",
+      bioShort:
+        "Especialista en trauma complejo y supervivientes de abuso. Enfoque seguro y a tu ritmo.",
+      bioLong:
+        "Psicóloga formada en EMDR e ISST-D. Acompaño procesos de elaboración de trauma con técnicas validadas y a tu ritmo.",
+      approach: "EMDR · trauma-focused CBT",
+      specialties: ["trauma", "duelo", "abuso", "TEPT"],
+      modalities: ["INDIVIDUAL"] as const,
+      languages: ["es-EC"],
+      genderId: "femenino",
+      priceUsd: 60,
+      acceptsInsurance: true,
+      avgRating: 4.9,
+      reviewsCount: 64,
+      popularity: 95,
+      firstSessionPolicy: "Sesión 0 gratuita para evaluar fit y seguridad.",
+      cancellationPolicy: "Hasta 72h antes sin costo.",
+    },
+    {
+      id: "t_eduardo",
+      name: "Eduardo Salinas",
+      initials: "ES",
+      title: "Psicólogo · Adicciones",
+      licenseNumber: "PSI-EC-1721",
+      licenseVerified: true,
+      coverToken: "warm",
+      bioShort:
+        "20 años trabajando en adicciones químicas y conductuales. Enfoque cognitivo-conductual y mindfulness.",
+      bioLong:
+        "Psicólogo formado en Argentina, especializado en adicciones. Trabajé en CRA Quito durante 12 años.",
+      approach: "TCC + mindfulness · 12 pasos cuando aplica",
+      specialties: ["adicciones", "ansiedad", "depresión"],
+      modalities: ["INDIVIDUAL", "FAMILY"] as const,
+      languages: ["es-EC"],
+      genderId: "masculino",
+      priceUsd: 50,
+      acceptsInsurance: true,
+      avgRating: 4.7,
+      reviewsCount: 38,
+      popularity: 85,
+      firstSessionPolicy: "Evaluación inicial: motivacional + sistémica.",
+      cancellationPolicy: "Hasta 48h antes sin costo.",
+    },
+    {
+      id: "t_camila",
+      name: "Camila Torres",
+      initials: "CT",
+      title: "Psicóloga · Adolescentes y juventud",
+      licenseNumber: "PSI-EC-2240",
+      licenseVerified: true,
+      coverToken: "lavender",
+      bioShort:
+        "Trabajo con adolescentes y jóvenes en temas de identidad, ansiedad social, autoestima y bullying.",
+      bioLong:
+        "Magíster en psicología infantojuvenil. 8 años de experiencia en consultorio + colegios.",
+      approach: "Terapia narrativa + arte-terapia",
+      specialties: ["adolescentes", "autoestima", "ansiedad-social", "bullying"],
+      modalities: ["INDIVIDUAL", "FAMILY"] as const,
+      languages: ["es-EC", "en"],
+      genderId: "femenino",
+      priceUsd: 40,
+      acceptsInsurance: false,
+      avgRating: 4.7,
+      reviewsCount: 25,
+      popularity: 75,
+      firstSessionPolicy: "Primera sesión con padres + adolescente para alinear objetivos.",
+      cancellationPolicy: "Hasta 24h antes sin costo.",
+    },
+  ];
+
+  for (const t of therapists) {
+    await prisma.therapist.upsert({
+      where: { id: t.id },
+      create: {
+        ...t,
+        isActive: true,
+        currency: "USD",
+      },
+      update: {
+        ...t,
+        isActive: true,
+        currency: "USD",
+      },
+    });
+
+    // Default weekly availability — Mon/Wed/Fri 09:00–13:00 + 15:00–19:00
+    // Tue/Thu 14:00–19:00. Tunable per therapist later via ops UI.
+    const defaultSlots = [
+      { dayOfWeek: 1, startMin: 540, endMin: 780 },
+      { dayOfWeek: 1, startMin: 900, endMin: 1140 },
+      { dayOfWeek: 3, startMin: 540, endMin: 780 },
+      { dayOfWeek: 3, startMin: 900, endMin: 1140 },
+      { dayOfWeek: 5, startMin: 540, endMin: 780 },
+      { dayOfWeek: 5, startMin: 900, endMin: 1140 },
+      { dayOfWeek: 2, startMin: 840, endMin: 1140 },
+      { dayOfWeek: 4, startMin: 840, endMin: 1140 },
+    ];
+    // Wipe + reinsert to keep this idempotent.
+    await prisma.therapistAvailability.deleteMany({ where: { therapistId: t.id } });
+    for (const s of defaultSlots) {
+      await prisma.therapistAvailability.create({
+        data: {
+          therapistId: t.id,
+          dayOfWeek: s.dayOfWeek,
+          startMin: s.startMin,
+          endMin: s.endMin,
+          timezone: "America/Guayaquil",
+        },
+      });
+    }
+  }
+  console.log(`✅  Therapists: ${therapists.length} terapeutas + availability`);
+
   console.log("\n🌱 Seed completado.");
 }
 

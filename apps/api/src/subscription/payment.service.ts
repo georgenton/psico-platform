@@ -11,6 +11,8 @@ import type {
   IPaymentProvider,
   PortalSessionResult,
   ReactivateSubscriptionResult,
+  TherapyCheckoutOpts,
+  TherapyCheckoutResult,
 } from "./providers/payment-provider.interface";
 import {
   PAYPHONE_PROVIDER,
@@ -78,6 +80,14 @@ export class PaymentService {
 
   handleWebhook(rawBody: Buffer, signature: string): Promise<void> {
     return this.selectProvider().handleWebhook(rawBody, signature);
+  }
+
+  // ─── Sprint S66.A ─────────────────────────────────────────────────────────
+
+  createTherapyCheckout(
+    opts: TherapyCheckoutOpts,
+  ): Promise<TherapyCheckoutResult> {
+    return this.selectProvider().createTherapyCheckout(opts);
   }
 
   // ─── Sprint S7 ─────────────────────────────────────────────────────────────

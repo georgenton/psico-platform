@@ -8,6 +8,8 @@ import type {
   IPaymentProvider,
   PortalSessionResult,
   ReactivateSubscriptionResult,
+  TherapyCheckoutOpts,
+  TherapyCheckoutResult,
 } from "../payment-provider.interface";
 
 /**
@@ -90,6 +92,20 @@ export class PayphoneProvider implements IPaymentProvider {
   async reactivate(_userId: string): Promise<ReactivateSubscriptionResult> {
     throw new NotImplementedException(
       "Payphone does not support recurring billing — there is nothing to reactivate.",
+    );
+  }
+
+  // ─── Sprint S66.A — therapy one-time ────────────────────────────────────
+  //
+  // Payphone supports one-time payments natively, but we haven't wired the
+  // therapy flow yet. Phase 2 implementation would POST to the same
+  // /api/button/pay endpoint we use for subscriptions, with a metadata
+  // object that the webhook handler maps back to TherapySession.
+  async createTherapyCheckout(
+    _opts: TherapyCheckoutOpts,
+  ): Promise<TherapyCheckoutResult> {
+    throw new NotImplementedException(
+      "Payphone therapy checkout not yet implemented — Phase 2",
     );
   }
 

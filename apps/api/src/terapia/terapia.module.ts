@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { PrismaModule } from "../prisma";
+import { SubscriptionModule } from "../subscription";
 import { TerapiaController } from "./terapia.controller";
 import { TerapiaService } from "./terapia.service";
 import { ConsoleVideoProvider } from "./providers/console-video.provider";
@@ -13,7 +14,7 @@ import { VIDEO_PROVIDER } from "./tokens";
  * sola línea (mismo patrón que APNs, ADR 0014).
  */
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, SubscriptionModule],
   controllers: [TerapiaController],
   providers: [
     TerapiaService,

@@ -20,6 +20,23 @@ export interface ReactivateSubscriptionResult {
   cancelAtPeriodEnd: false;
 }
 
+export interface TherapyCheckoutOpts {
+  userId: string;
+  sessionId: string;
+  /** Final amount in `currency`. Stripe receives cents. */
+  priceUsd: number;
+  currency: string;
+  /** Free text shown in the Stripe Checkout product line. */
+  productName: string;
+  successUrl: string;
+  cancelUrl: string;
+}
+
+export interface TherapyCheckoutResult {
+  url: string;
+  stripeCheckoutSessionId: string;
+}
+
 export interface IPaymentProvider {
   readonly name: string;
 
@@ -55,6 +72,19 @@ export interface IPaymentProvider {
   ): Promise<CancelSubscriptionResult>;
 
   reactivate(userId: string): Promise<ReactivateSubscriptionResult>;
+
+  // ─── Sprint S66.A — one-time therapy payments ─────────────────────────────
+  //
+  // Stripe Checkout `mode: 'payment'`. Metadata `{ kind: 'therapy_booking',
+  // sessionId }` so the webhook handler recognizes this flow and updates
+  // `TherapySession.paymentStatus` instead of touching Subscription rows.
+  //
+  // Providers that legitimately cannot support one-time (e.g. PayphoneProvider
+  // phase 1) should throw `NotImplementedException`.
+
+  createTherapyCheckout(
+    opts: TherapyCheckoutOpts,
+  ): Promise<TherapyCheckoutResult>;
 
   // ─── Sprint S11 — checkout session lookup ──────────────────────────────────
   //

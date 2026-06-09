@@ -23,6 +23,8 @@ import type {
   IPaymentProvider,
   PortalSessionResult,
   ReactivateSubscriptionResult,
+  TherapyCheckoutOpts,
+  TherapyCheckoutResult,
 } from "../payment-provider.interface";
 
 // In Stripe v22 with CJS module resolution, instance type is Stripe.Stripe
@@ -36,6 +38,11 @@ type StripeSubscription = Awaited<
 type StripeInvoice = Awaited<
   ReturnType<StripeInstance["invoices"]["list"]>
 >["data"][number];
+// checkout.session.completed event payload — Stripe v22 CJS doesn't expose
+// `Stripe.Checkout.Session` as a usable type, so we derive it like invoices.
+type StripeCheckoutSession = Awaited<
+  ReturnType<StripeInstance["checkout"]["sessions"]["retrieve"]>
+>;
 
 @Injectable()
 export class StripeProvider implements IPaymentProvider {
@@ -79,6 +86,53 @@ export class StripeProvider implements IPaymentProvider {
     }
 
     return { url: session.url };
+  }
+
+  // ─── Sprint S66.A — one-time therapy payment ─────────────────────────────
+
+  async createTherapyCheckout(
+    opts: TherapyCheckoutOpts,
+  ): Promise<TherapyCheckoutResult> {
+    const stripeCustomerId = await this.getOrCreateStripeCustomer(opts.userId);
+
+    const amountInCents = Math.round(opts.priceUsd * 100);
+
+    const session = await this.stripe.checkout.sessions.create({
+      mode: "payment",
+      customer: stripeCustomerId,
+      line_items: [
+        {
+          price_data: {
+            currency: opts.currency.toLowerCase(),
+            unit_amount: amountInCents,
+            product_data: {
+              name: opts.productName,
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: opts.successUrl,
+      cancel_url: opts.cancelUrl,
+      metadata: {
+        userId: opts.userId,
+        kind: "therapy_booking",
+        sessionId: opts.sessionId,
+      },
+      payment_intent_data: {
+        metadata: {
+          userId: opts.userId,
+          kind: "therapy_booking",
+          sessionId: opts.sessionId,
+        },
+      },
+    });
+
+    if (!session.url) {
+      throw new BadRequestException("Failed to create therapy checkout session");
+    }
+
+    return { url: session.url, stripeCheckoutSessionId: session.id };
   }
 
   async createPortalSession(
@@ -307,9 +361,80 @@ export class StripeProvider implements IPaymentProvider {
         await this.cancelSubscription(event.data.object as StripeSubscription);
         break;
 
+      case "checkout.session.completed":
+        await this.handleCheckoutCompleted(
+          event.data.object as StripeCheckoutSession,
+        );
+        break;
+
+      case "checkout.session.expired":
+        await this.handleCheckoutExpired(
+          event.data.object as StripeCheckoutSession,
+        );
+        break;
+
       default:
         this.logger.log(`Unhandled Stripe event type: ${event.type}`);
     }
+  }
+
+  /**
+   * Sprint S66.A — branch the checkout.session.completed event by metadata.
+   *
+   * The subscription flow handles itself via customer.subscription.created
+   * (Stripe fires both when a subscription Checkout completes). For
+   * one-time therapy bookings we update the TherapySession row to PAID.
+   */
+  private async handleCheckoutCompleted(
+    session: StripeCheckoutSession,
+  ): Promise<void> {
+    if (session.metadata?.["kind"] !== "therapy_booking") {
+      // Subscription flow — owned by customer.subscription.created.
+      return;
+    }
+    const therapySessionId = session.metadata["sessionId"];
+    if (!therapySessionId) {
+      this.logger.warn(
+        `therapy_booking checkout ${session.id} has no sessionId metadata`,
+      );
+      return;
+    }
+    // Idempotent: subsequent firings of the same webhook just no-op.
+    await this.prisma.therapySession.updateMany({
+      where: {
+        id: therapySessionId,
+        paymentStatus: "PENDING",
+      },
+      data: {
+        paymentStatus: "PAID",
+        stripeCheckoutSessionId: session.id,
+      },
+    });
+    this.logger.log(
+      `TherapySession ${therapySessionId} marked PAID via checkout ${session.id}`,
+    );
+  }
+
+  private async handleCheckoutExpired(
+    session: StripeCheckoutSession,
+  ): Promise<void> {
+    if (session.metadata?.["kind"] !== "therapy_booking") return;
+    const therapySessionId = session.metadata["sessionId"];
+    if (!therapySessionId) return;
+    await this.prisma.therapySession.updateMany({
+      where: {
+        id: therapySessionId,
+        paymentStatus: "PENDING",
+      },
+      data: {
+        paymentStatus: "FAILED",
+        status: "CANCELLED",
+        cancelledAt: new Date(),
+      },
+    });
+    this.logger.log(
+      `TherapySession ${therapySessionId} CANCELLED (checkout expired ${session.id})`,
+    );
   }
 
   private async syncSubscription(sub: StripeSubscription): Promise<void> {

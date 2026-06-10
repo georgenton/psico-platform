@@ -156,12 +156,6 @@ export default function TerapeutaPerfilScreen() {
       >
         <Text style={styles.reserveButtonText}>Reservar sesión →</Text>
       </Pressable>
-
-      <Text style={styles.disclaimer}>
-        Por ahora, la reserva se hace desde la web. Abrí{" "}
-        <Text style={styles.disclaimerEmphasis}>psico.app</Text> en tu
-        navegador y buscá a {therapist.name}.
-      </Text>
     </ScrollView>
   );
 }

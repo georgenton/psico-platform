@@ -18,8 +18,20 @@ export default function TerapiaLayout() {
         options={{ title: "Terapeutas", headerBackTitle: "Atrás" }}
       />
       <Stack.Screen
-        name="terapeutas/[id]"
+        name="terapeutas/[id]/index"
         options={{ title: "Terapeuta", headerBackTitle: "Atrás" }}
+      />
+      <Stack.Screen
+        name="terapeutas/[id]/reservar"
+        options={{ title: "Reservar", headerBackTitle: "Atrás" }}
+      />
+      <Stack.Screen
+        name="notificaciones"
+        options={{ title: "Notificaciones", headerBackTitle: "Atrás" }}
+      />
+      <Stack.Screen
+        name="recetas"
+        options={{ title: "Recetas", headerBackTitle: "Atrás" }}
       />
       <Stack.Screen
         name="sesiones/index"

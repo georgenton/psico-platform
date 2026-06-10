@@ -14,10 +14,13 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CurrentUser, RequiredRole, RolesGuard } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PulsoService } from "./pulso.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { AuthorReviewService } from "./author-review.service";
 import {
   ListEcoReportsQueryDto,
   MarkResolvedDto,
 } from "./dto/list-reports.dto";
+import { RejectAuthorRequestDto } from "./dto/reject-author-request.dto";
 
 /**
  * PulsoController — Sprint S42 (reports inbox) + S48 (overview) + S49 (resolution).
@@ -30,7 +33,10 @@ import {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @RequiredRole("ADMIN")
 export class PulsoController {
-  constructor(private readonly pulso: PulsoService) {}
+  constructor(
+    private readonly pulso: PulsoService,
+    private readonly authorReview: AuthorReviewService,
+  ) {}
 
   @Get("reports/eco/summary")
   @ApiOperation({
@@ -100,5 +106,47 @@ export class PulsoController {
   })
   getCohorts() {
     return this.pulso.getCohortRetention();
+  }
+
+  // ── Sprint S71.B — Author publication review ────────────────────────
+
+  @Get("author-requests")
+  @ApiOperation({
+    summary:
+      "List author publication requests. Default scope: PENDING only.",
+  })
+  listAuthorRequests(
+    @Query("status") status?: "PENDING" | "ALL",
+    @Query("limit") limit?: string,
+  ) {
+    const lim = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    return this.authorReview.listRequests(status ?? "PENDING", lim);
+  }
+
+  @Post("author-requests/:id/approve")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Approve a pending author publication request. Triggers copy-on-publish AuthorBook → Book + Chapter + ChapterBlock.",
+  })
+  approveAuthorRequest(
+    @Param("id") id: string,
+    @CurrentUser() user: { userId: string },
+  ) {
+    return this.authorReview.approve(id, user.userId);
+  }
+
+  @Post("author-requests/:id/reject")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Reject a pending author publication request with optional editorial feedback. Sets AuthorBook back to DRAFT.",
+  })
+  rejectAuthorRequest(
+    @Param("id") id: string,
+    @CurrentUser() user: { userId: string },
+    @Body() dto: RejectAuthorRequestDto,
+  ) {
+    return this.authorReview.reject(id, user.userId, dto.feedback);
   }
 }

@@ -11,6 +11,7 @@ import {
   retryCheckoutAction,
   updateSessionPrepAction,
 } from "@/actions/terapia";
+import { FeedbackModal } from "@/components/dashboard/terapia/FeedbackModal";
 
 const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: "Programada",
@@ -48,6 +49,7 @@ export function SessionDetailShell({
   const [intentionLoaded, setIntentionLoaded] = useState(false);
   const [mood, setMood] = useState<string | null>(initial.prep.checkInMood);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const lastSavedIntention = useRef("");
@@ -164,6 +166,13 @@ export function SessionDetailShell({
   const nowMs = Date.now();
   const inJoinWindow =
     nowMs >= start.getTime() - 5 * 60 * 1000 && nowMs <= end.getTime() + 15 * 60 * 1000;
+  // Feedback button shown once we're past the session end (regardless of join)
+  // and status is still SCHEDULED or IN_PROGRESS.
+  const canCloseSession =
+    nowMs > end.getTime() &&
+    (data.session.status === "SCHEDULED" ||
+      data.session.status === "IN_PROGRESS") &&
+    data.session.paymentStatus === "PAID";
   const canEditPrep = data.session.paymentStatus === "PAID" && key !== null;
 
   return (
@@ -249,7 +258,7 @@ export function SessionDetailShell({
             </p>
           ) : null}
 
-          {data.session.status === "SCHEDULED" ? (
+          {data.session.status === "SCHEDULED" && !canCloseSession ? (
             <button
               type="button"
               onClick={handleCancel}
@@ -261,6 +270,18 @@ export function SessionDetailShell({
               }}
             >
               Cancelar
+            </button>
+          ) : null}
+
+          {canCloseSession ? (
+            <button
+              type="button"
+              onClick={() => setFeedbackOpen(true)}
+              disabled={pending}
+              className="rounded-xl px-4 py-2 text-[13px] font-medium text-white"
+              style={{ background: "var(--color-lavender-600)" }}
+            >
+              Cerrar y dejar feedback →
             </button>
           ) : null}
         </div>
@@ -386,6 +407,13 @@ export function SessionDetailShell({
             </>
           )}
         </section>
+      ) : null}
+
+      {feedbackOpen ? (
+        <FeedbackModal
+          sessionId={data.session.id}
+          onClose={() => setFeedbackOpen(false)}
+        />
       ) : null}
     </div>
   );

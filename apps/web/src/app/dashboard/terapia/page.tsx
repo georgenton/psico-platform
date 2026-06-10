@@ -141,6 +141,48 @@ export default async function TerapiaHubPage() {
             Líneas de crisis y primeros pasos.
           </p>
         </Link>
+        <Link
+          href="/dashboard/terapia/recetas"
+          className="rounded-2xl border-[1.5px] bg-white p-5 transition hover:border-[var(--color-sage-400)]"
+          style={{ borderColor: "var(--color-warm-200)" }}
+        >
+          <div className="text-[24px]" aria-hidden>
+            📋
+          </div>
+          <p
+            className="mt-2 text-[15px] font-semibold"
+            style={{ color: "var(--color-warm-900)" }}
+          >
+            Lo que tu terapeuta sugirió
+          </p>
+          <p
+            className="mt-0.5 text-[12px]"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            Libros, audios y ejercicios pendientes.
+          </p>
+        </Link>
+        <Link
+          href="/dashboard/terapia/notificaciones"
+          className="rounded-2xl border-[1.5px] bg-white p-5 transition hover:border-[var(--color-lavender-400)]"
+          style={{ borderColor: "var(--color-warm-200)" }}
+        >
+          <div className="text-[24px]" aria-hidden>
+            🔔
+          </div>
+          <p
+            className="mt-2 text-[15px] font-semibold"
+            style={{ color: "var(--color-warm-900)" }}
+          >
+            Notificaciones
+          </p>
+          <p
+            className="mt-0.5 text-[12px]"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            Recordatorios y avisos de tus sesiones.
+          </p>
+        </Link>
       </section>
 
       {/* Active therapist */}

@@ -6,10 +6,13 @@ import { redirect } from "next/navigation";
 import { serverFetch } from "@/lib/api.server";
 import type {
   CreateBookingResponse,
+  SessionFeedbackRequest,
+  SessionFeedbackResponse,
   SessionJoinResponse,
   SessionPrepResponse,
   TherapistFavoriteToggleResponse,
   TherapyModality,
+  TherapyPrescriptionItem,
   UpdateSessionPrepRequest,
 } from "@psico/types";
 
@@ -146,6 +149,67 @@ export async function joinSessionAction(
           : "No pudimos abrir la sala. Reintenta.",
     };
   }
+}
+
+/**
+ * Submit feedback post-sesión. rating + tags + noteCiphertext E2E.
+ * Marca la sesión COMPLETED en el backend.
+ */
+export async function submitFeedbackAction(
+  sessionId: string,
+  body: SessionFeedbackRequest,
+): Promise<SessionFeedbackResponse> {
+  const res = await serverFetch<SessionFeedbackResponse>(
+    `/terapia/sessions/${sessionId}/feedback`,
+    { method: "POST", body },
+  );
+  revalidatePath(`/dashboard/terapia/sesiones/${sessionId}`);
+  revalidatePath("/dashboard/terapia/sesiones");
+  return res;
+}
+
+/**
+ * Marcar receta como completada / re-abierta.
+ */
+export async function togglePrescriptionAction(
+  prescriptionId: string,
+  completed: boolean,
+): Promise<TherapyPrescriptionItem> {
+  const res = await serverFetch<TherapyPrescriptionItem>(
+    `/terapia/prescriptions/${prescriptionId}`,
+    { method: "PATCH", body: { completed } },
+  );
+  revalidatePath("/dashboard/terapia/recetas");
+  return res;
+}
+
+/**
+ * Marcar todas las notificaciones como leídas.
+ */
+export async function markAllNotificationsReadAction(): Promise<{
+  ok: true;
+  updated: number;
+}> {
+  const res = await serverFetch<{ ok: true; updated: number }>(
+    "/terapia/notifications/read-all",
+    { method: "POST", body: {} },
+  );
+  revalidatePath("/dashboard/terapia/notificaciones");
+  return res;
+}
+
+/**
+ * Marcar una notificación individual como leída.
+ */
+export async function markNotificationReadAction(
+  notificationId: string,
+): Promise<{ ok: true }> {
+  const res = await serverFetch<{ ok: true }>(
+    `/terapia/notifications/${notificationId}/read`,
+    { method: "PATCH", body: {} },
+  );
+  revalidatePath("/dashboard/terapia/notificaciones");
+  return res;
 }
 
 /**

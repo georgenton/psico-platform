@@ -1,3 +1,4 @@
+// S69 deploy trigger 2026-06-10
 import {
   Body,
   Controller,
@@ -111,9 +112,9 @@ export class TerapiaController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: "Landing del usuario en Terapia." })
   async getHub(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
   ): Promise<TherapyHubResponse> {
-    return this.service.getHub(user.sub);
+    return this.service.getHub(user.userId);
   }
 
   // S63 — directorio. /filters va ANTES de /:id para que el path matcher
@@ -134,20 +135,20 @@ export class TerapiaController {
       "Directorio paginado de terapeutas activos. Soporta filtros + sort.",
   })
   async listTherapists(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Query() query: ListTherapistsDto,
   ): Promise<TherapistListResponse> {
-    return this.service.listTherapists(user.sub, query);
+    return this.service.listTherapists(user.userId, query);
   }
 
   @Get("therapists/:id")
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: "Detalle de un terapeuta." })
   async getTherapist(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Param("id") id: string,
   ): Promise<TherapistDetail> {
-    return this.service.getTherapist(user.sub, id);
+    return this.service.getTherapist(user.userId, id);
   }
 
   @Get("therapists/:id/reviews")
@@ -169,10 +170,10 @@ export class TerapiaController {
   @ApiOperation({ summary: "Toggle de favorito sobre un terapeuta." })
   @HttpCode(HttpStatus.OK)
   async toggleFavorite(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Param("id") id: string,
   ): Promise<TherapistFavoriteToggleResponse> {
-    return this.service.toggleFavorite(user.sub, id);
+    return this.service.toggleFavorite(user.userId, id);
   }
 
   // ── Reserva + Pre-sesión (Sprint S64) ──────────────────────────────────
@@ -198,20 +199,20 @@ export class TerapiaController {
   })
   @HttpCode(HttpStatus.CREATED)
   async createBooking(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Body() dto: CreateBookingDto,
   ): Promise<CreateBookingResponse> {
-    return this.service.createBooking(user.sub, dto);
+    return this.service.createBooking(user.userId, dto);
   }
 
   @Get("sessions/:id/prep")
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: "Estado de pre-sesión." })
   async getSessionPrep(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Param("id") id: string,
   ): Promise<SessionPrepResponse> {
-    return this.service.getSessionPrep(user.sub, id);
+    return this.service.getSessionPrep(user.userId, id);
   }
 
   @Patch("sessions/:id/prep")
@@ -221,11 +222,11 @@ export class TerapiaController {
       "Actualizar pre-sesión (intentionCiphertext E2E, mood, entradas compartidas).",
   })
   async updateSessionPrep(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Param("id") id: string,
     @Body() dto: UpdateSessionPrepDto,
   ): Promise<SessionPrepResponse> {
-    return this.service.updateSessionPrep(user.sub, id, dto);
+    return this.service.updateSessionPrep(user.userId, id, dto);
   }
 
   // ── Sala video + Post-sesión + Technical (Sprint S65) ──────────────────
@@ -238,10 +239,10 @@ export class TerapiaController {
   })
   @HttpCode(HttpStatus.OK)
   async joinSession(
-    @CurrentUser() user: { sub: string; email: string },
+    @CurrentUser() user: { userId: string; email: string },
     @Param("id") id: string,
   ): Promise<SessionJoinResponse> {
-    return this.service.joinSession(user.sub, id, user.email);
+    return this.service.joinSession(user.userId, id, user.email);
   }
 
   @Post("sessions/:id/feedback")
@@ -252,11 +253,11 @@ export class TerapiaController {
   })
   @HttpCode(HttpStatus.OK)
   async submitFeedback(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Param("id") id: string,
     @Body() dto: SessionFeedbackDto,
   ): Promise<SessionFeedbackResponse> {
-    return this.service.submitFeedback(user.sub, id, dto);
+    return this.service.submitFeedback(user.userId, id, dto);
   }
 
   @Post("sessions/:id/technical-report")
@@ -266,11 +267,11 @@ export class TerapiaController {
   })
   @HttpCode(HttpStatus.CREATED)
   async reportTechnical(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Param("id") id: string,
     @Body() dto: TechnicalReportDto,
   ): Promise<TechnicalReportResponse> {
-    return this.service.reportTechnical(user.sub, id, dto);
+    return this.service.reportTechnical(user.userId, id, dto);
   }
 
   // ── Lifecycle (Sprint S66.B) ───────────────────────────────────────────
@@ -281,41 +282,41 @@ export class TerapiaController {
     summary: "Mis sesiones — envelope {upcoming, past}. Filtro opcional por status.",
   })
   async listSessions(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Query() query: ListSessionsDto,
   ): Promise<TherapySessionsListResponse> {
-    return this.service.listSessions(user.sub, query.status);
+    return this.service.listSessions(user.userId, query.status);
   }
 
   @Get("prescriptions")
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: "Mis recetas activas (lo que sugirió el terapeuta)." })
   async listPrescriptions(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
   ): Promise<TherapyPrescriptionItem[]> {
-    return this.service.listPrescriptions(user.sub);
+    return this.service.listPrescriptions(user.userId);
   }
 
   @Patch("prescriptions/:id")
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: "Marcar receta como completada / incompleta." })
   async updatePrescription(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Param("id") id: string,
     @Body() dto: UpdatePrescriptionDto,
   ): Promise<TherapyPrescriptionItem> {
-    return this.service.updatePrescription(user.sub, id, dto.completed);
+    return this.service.updatePrescription(user.userId, id, dto.completed);
   }
 
   @Get("notifications")
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: "Notificaciones del usuario en Terapia." })
   async listNotifications(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Query() query: ListNotificationsDto,
   ): Promise<TherapyNotificationsListResponse> {
     return this.service.listNotifications(
-      user.sub,
+      user.userId,
       query.unread,
       query.limit ?? 20,
     );
@@ -326,10 +327,10 @@ export class TerapiaController {
   @ApiOperation({ summary: "Marcar una notificación como leída. Idempotente." })
   @HttpCode(HttpStatus.OK)
   async markNotificationRead(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Param("id") id: string,
   ): Promise<{ ok: true }> {
-    return this.service.markNotificationRead(user.sub, id);
+    return this.service.markNotificationRead(user.userId, id);
   }
 
   @Post("notifications/read-all")
@@ -337,9 +338,9 @@ export class TerapiaController {
   @ApiOperation({ summary: "Marcar todas las notificaciones como leídas." })
   @HttpCode(HttpStatus.OK)
   async markAllNotificationsRead(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
   ): Promise<{ ok: true; updated: number }> {
-    return this.service.markAllNotificationsRead(user.sub);
+    return this.service.markAllNotificationsRead(user.userId);
   }
 
   @Patch("sessions/:id/reschedule")
@@ -349,11 +350,11 @@ export class TerapiaController {
       "Re-agendar sesión a un slot libre del mismo terapeuta. Solo SCHEDULED.",
   })
   async rescheduleSession(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Param("id") id: string,
     @Body() dto: RescheduleSessionDto,
   ): Promise<TherapySessionListItem> {
-    return this.service.rescheduleSession(user.sub, id, dto.newSlotIso);
+    return this.service.rescheduleSession(user.userId, id, dto.newSlotIso);
   }
 
   @Post("sessions/:id/cancel")
@@ -361,12 +362,12 @@ export class TerapiaController {
   @ApiOperation({ summary: "Cancelar sesión SCHEDULED. Refund pedido al ops." })
   @HttpCode(HttpStatus.OK)
   async cancelSession(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Param("id") id: string,
     @Body() dto: CancelSessionDto,
   ): Promise<{ ok: true; cancelledAt: string }> {
     return this.service.cancelSession(
-      user.sub,
+      user.userId,
       id,
       dto.reason,
       dto.refundRequested,
@@ -381,12 +382,12 @@ export class TerapiaController {
   })
   @HttpCode(HttpStatus.OK)
   async retryCheckout(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Param("id") id: string,
     @Body() dto: RetryCheckoutDto,
   ): Promise<RetryCheckoutResponse> {
     return this.service.retryCheckout(
-      user.sub,
+      user.userId,
       id,
       dto.successUrl,
       dto.cancelUrl,

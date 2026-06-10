@@ -64,11 +64,11 @@ export class PulsoController {
       "Mark an Eco report as triaged. Idempotent: re-resolving overwrites the timestamp and admin/note.",
   })
   resolve(
-    @CurrentUser() admin: { sub: string },
+    @CurrentUser() admin: { userId: string },
     @Param("id") id: string,
     @Body() body: MarkResolvedDto,
   ) {
-    return this.pulso.markResolved(id, admin.sub, body.note ?? null);
+    return this.pulso.markResolved(id, admin.userId, body.note ?? null);
   }
 
   @Post("reports/eco/:id/unresolve")

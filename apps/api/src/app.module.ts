@@ -26,6 +26,7 @@ import { PatronesModule } from "./patrones";
 import { PulsoModule } from "./pulso";
 import { LiveActivitiesModule } from "./live-activities";
 import { TerapiaModule } from "./terapia";
+import { AuthorModule } from "./author/author.module";
 import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
 
 @Module({
@@ -59,6 +60,7 @@ import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
     PulsoModule, // Sprint S42 — /api/pulso/* (ADMIN only)
     LiveActivitiesModule, // Sprint E.5 — /api/push/live-activity/* (iOS 16.1+)
     TerapiaModule, // Sprint S62 — /api/terapia/* (Crisis público + Hub auth)
+    AuthorModule, // Sprint S71 — /api/autor/* (Editor de autor B2B, AUTHOR role)
     // TODO senior: register remaining feature modules here
     // AnalyticsModule, TerapiaModule (S13)
   ],

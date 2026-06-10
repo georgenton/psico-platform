@@ -12,6 +12,7 @@ datasource db {
 
 enum Role {
   USER
+  AUTHOR
   PSYCHOLOGIST
   ADMIN
 }
@@ -140,6 +141,7 @@ model User {
   therapyNotifications    TherapyNotification[]
   crisisLogs              CrisisLog[]
   therapyTechnicalReports TherapyTechnicalReport[]
+  authorBooks             AuthorBook[]                @relation("AuthorBookOwner")
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -1707,4 +1709,94 @@ model TherapyTechnicalReport {
 
   @@index([sessionId])
   @@index([issue, createdAt])
+}
+
+// ─── Author module (Sprint S71 — B2B Editor de autor) ────────────────────────
+
+enum AuthorBookStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+// AuthorBook — the *authored* book (Author's workspace).
+// Distinct from `Book` (the catalog row consumed by readers). When status
+// transitions to PUBLISHED, the AuthorBook is copy-on-publish to Book +
+// ChapterBlock so the lector reads from the same models as the public catalog.
+// `publishedBookId` keeps the link for republish / unpublish flows.
+model AuthorBook {
+  id            String           @id @default(cuid())
+  authorUserId  String
+  title         String
+  subtitle      String?
+  summary       String?
+  status        AuthorBookStatus @default(DRAFT)
+  // Cover: same shape as Book.cover (warm/cool/mixed/custom).
+  cover         String           @default("warm")
+  coverArtUrl   String?
+  // Optional category/language target — set at publication.
+  categoryId    String?
+  language      String           @default("es")
+  // Link to public Book when published (null when DRAFT/IN_REVIEW/ARCHIVED).
+  publishedBookId String?        @unique
+  publishedAt   DateTime?
+  archivedAt    DateTime?
+  // Last submission to review (set at publish-request). Used by Pulso to
+  // count pending reviews and by the publication checklist UI.
+  submittedAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  author          User                       @relation("AuthorBookOwner", fields: [authorUserId], references: [id], onDelete: Cascade)
+  chapters        AuthorBookChapter[]
+  publicationLogs AuthorPublicationRequest[]
+
+  @@index([authorUserId, status])
+  @@index([status, submittedAt])
+}
+
+// AuthorBookChapter — chapter in editing. blocks: Json mirrors the
+// ChapterBlock[] shape used by the lector but pre-publication.
+// `version` increments each save so the editor can show concurrent-edit
+// conflict warnings (compare-and-swap).
+model AuthorBookChapter {
+  id        String   @id @default(cuid())
+  bookId    String
+  n         Int // 1-based ordering
+  title     String   @default("")
+  subtitle  String?
+  // Blocks: array of { kind, content, meta? } — same shape as ChapterBlock.
+  blocks    Json     @default("[]")
+  // Editor lifecycle. Authors can toggle a chapter's visibility per release.
+  isLocked  Boolean  @default(false) // visible to Pro only when locked
+  isHidden  Boolean  @default(false) // hide from readers entirely
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  book AuthorBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, n])
+  @@index([bookId])
+}
+
+// Audit trail of submissions to review. One row per submit; `reviewState`
+// tracks the current verdict.
+model AuthorPublicationRequest {
+  id          String   @id @default(cuid())
+  bookId      String
+  submittedAt DateTime @default(now())
+  // PENDING, APPROVED, REJECTED — string instead of enum for cheap evolution.
+  reviewState String   @default("PENDING")
+  // Admin's editorial feedback (Markdown short). Surfaces in the publication
+  // checklist on the editor side.
+  feedback    String?
+  reviewedAt  DateTime?
+  reviewedBy  String?
+
+  book AuthorBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([bookId, submittedAt])
+  @@index([reviewState, submittedAt])
 }

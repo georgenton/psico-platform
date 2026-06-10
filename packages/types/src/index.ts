@@ -1978,6 +1978,7 @@ export interface SessionPrepResponse {
     modality: TherapyModality;
     joinUrl: string | null;
     paymentStatus: TherapyPaymentStatus;
+    status: TherapySessionStatus;
   };
   prep: {
     intentionCiphertext: string | null;

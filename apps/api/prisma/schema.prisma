@@ -1592,6 +1592,9 @@ model TherapySession {
   // Lifecycle audit
   startedAt         DateTime?
   endedAt           DateTime?
+  // Sprint S70: real session length captured from Daily.co webhook
+  // (meeting.ended event). Distinct from `durationMin` (planned duration).
+  actualDurationSec Int?
   cancelledAt       DateTime?
   cancelReason      String?
   rescheduledFromId String?

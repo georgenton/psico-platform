@@ -40,16 +40,16 @@ export class LiveActivitiesController {
   })
   @HttpCode(HttpStatus.CREATED)
   async register(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Body() dto: RegisterLiveActivityDto,
   ): Promise<{ id: string; isProviderConfigured: boolean }> {
-    return this.service.register(user.sub, dto);
+    return this.service.register(user.userId, dto);
   }
 
   @Get("active")
   @ApiOperation({ summary: "List currently-active Live Activities." })
-  async listActive(@CurrentUser() user: { sub: string }) {
-    return { items: await this.service.listActive(user.sub) };
+  async listActive(@CurrentUser() user: { userId: string }) {
+    return { items: await this.service.listActive(user.userId) };
   }
 
   @Delete(":activityId")
@@ -59,9 +59,9 @@ export class LiveActivitiesController {
   })
   @HttpCode(HttpStatus.OK)
   async dismiss(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Param("activityId") activityId: string,
   ): Promise<{ ok: true }> {
-    return this.service.dismiss(user.sub, activityId);
+    return this.service.dismiss(user.userId, activityId);
   }
 }

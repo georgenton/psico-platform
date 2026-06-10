@@ -23,7 +23,7 @@ describe("DevicesController", () => {
     );
 
     const res = await ctrl.register(
-      { sub: "u-1" },
+      { userId: "u-1" },
       { platform: "EXPO", token: "ExponentPushToken[x]" },
     );
 
@@ -48,7 +48,7 @@ describe("DevicesController", () => {
       }),
     );
 
-    await ctrl.unregister({ sub: "u-1" }, "dt-1");
+    await ctrl.unregister({ userId: "u-1" }, "dt-1");
 
     expect(deleteMany).toHaveBeenCalledWith({
       where: { id: "dt-1", userId: "u-1" },

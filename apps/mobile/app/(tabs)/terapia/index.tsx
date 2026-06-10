@@ -135,6 +135,34 @@ export default function TerapiaHubScreen() {
         <Ionicons name="chevron-forward" size={18} color={Colors.rose[400]} />
       </Pressable>
 
+      <Pressable
+        onPress={() => router.push("/(tabs)/terapia/recetas")}
+        style={styles.actionCard}
+      >
+        <Ionicons name="clipboard" size={22} color={Colors.sage[600]} />
+        <View style={styles.actionContent}>
+          <Text style={styles.actionTitle}>Lo que tu terapeuta sugirió</Text>
+          <Text style={styles.actionDescription}>
+            Libros, audios y ejercicios pendientes.
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={Colors.warm[500]} />
+      </Pressable>
+
+      <Pressable
+        onPress={() => router.push("/(tabs)/terapia/notificaciones")}
+        style={styles.actionCard}
+      >
+        <Ionicons name="notifications" size={22} color={Colors.lavender[700]} />
+        <View style={styles.actionContent}>
+          <Text style={styles.actionTitle}>Notificaciones</Text>
+          <Text style={styles.actionDescription}>
+            Recordatorios y avisos de tus sesiones.
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={Colors.warm[500]} />
+      </Pressable>
+
       {hub?.activeTherapist ? (
         <>
           <Text style={styles.sectionLabel}>Tu terapeuta</Text>

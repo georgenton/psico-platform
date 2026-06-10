@@ -35,13 +35,13 @@ export class DevicesController {
   })
   @HttpCode(HttpStatus.CREATED)
   async register(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Body() dto: RegisterDeviceDto,
   ): Promise<{ id: string }> {
     const row = await this.prisma.deviceToken.upsert({
       where: { token: dto.token },
       create: {
-        userId: user.sub,
+        userId: user.userId,
         platform: dto.platform,
         token: dto.token,
         deviceLabel: dto.deviceLabel,
@@ -51,7 +51,7 @@ export class DevicesController {
         // If the same token is re-registered by a DIFFERENT user (account
         // switch on the same device), reassign it. Mobile expo tokens can
         // be reused across accounts on one device.
-        userId: user.sub,
+        userId: user.userId,
         platform: dto.platform,
         deviceLabel: dto.deviceLabel,
         lastSeenAt: new Date(),
@@ -64,11 +64,11 @@ export class DevicesController {
   @ApiOperation({ summary: "Revoke a push token. No-op if id doesn't exist." })
   @HttpCode(HttpStatus.NO_CONTENT)
   async unregister(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { userId: string },
     @Param("id") id: string,
   ): Promise<void> {
     await this.prisma.deviceToken.deleteMany({
-      where: { id, userId: user.sub },
+      where: { id, userId: user.userId },
     });
   }
 }

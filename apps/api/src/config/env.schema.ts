@@ -73,6 +73,15 @@ export const envSchema = z
     OPENAI_API_KEY: z.string().optional(),
     DEEPGRAM_API_KEY: z.string().optional(),
 
+    // Sprint S69 — Video provider (Terapia sala).
+    //
+    // VIDEO_PROVIDER selects between console (stub) and daily (real
+    // Daily.co API). For "daily", DAILY_API_KEY + DAILY_DOMAIN are
+    // required — gated by superRefine below to fail fast at boot.
+    VIDEO_PROVIDER: z.enum(["console", "daily"]).default("console"),
+    DAILY_API_KEY: z.string().optional(),
+    DAILY_DOMAIN: z.string().optional(),
+
     // Sprint S47 — Web Push (VAPID).
     //
     // VAPID = Voluntary Application Server Identification. Mozilla / Chrome /
@@ -124,6 +133,25 @@ export const envSchema = z
         message:
           "DEEPGRAM_API_KEY is required when VOICE_PROVIDER=deepgram. Set it or switch VOICE_PROVIDER to whisper.",
       });
+    }
+    // Sprint S69 — Daily.co video provider gating.
+    if (env.VIDEO_PROVIDER === "daily") {
+      if (!env.DAILY_API_KEY) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["DAILY_API_KEY"],
+          message:
+            "DAILY_API_KEY is required when VIDEO_PROVIDER=daily. Set it or switch VIDEO_PROVIDER to console.",
+        });
+      }
+      if (!env.DAILY_DOMAIN) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["DAILY_DOMAIN"],
+          message:
+            "DAILY_DOMAIN is required when VIDEO_PROVIDER=daily (e.g. 'psico.daily.co'). Set it or switch VIDEO_PROVIDER to console.",
+        });
+      }
     }
     // Sprint S47 — VAPID trio. We tolerate the all-unset state (web push
     // simply disabled), but reject the half-set states because they ALWAYS

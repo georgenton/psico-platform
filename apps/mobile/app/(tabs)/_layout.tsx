@@ -150,6 +150,16 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
+          name="terapia"
+          options={{
+            title: "Terapia",
+            headerShown: false,
+            tabBarIcon: ({ color, size }: IconProps) => (
+              <Ionicons name="chatbubbles" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="patrones"
           options={{
             title: "Patrones",

@@ -16,9 +16,22 @@ export const Colors = {
   sage: {
     50: "#f3f7f1",
     100: "#e4efe0",
+    200: "#cee0c4",
+    300: "#a8c89a",
     400: "#7fae76", // action
     500: "#5e9254", // action pressed
     600: "#4a7742",
+    700: "#36592f",
+  },
+  rose: {
+    50: "#fdf2f3",
+    100: "#fce4e7",
+    200: "#fac6cd",
+    300: "#f6a0aa",
+    400: "#ee6c7a",
+    500: "#e23e51",
+    600: "#c92a3d",
+    700: "#a01f2f",
   },
   warm: {
     50: "#fafaf8", // background

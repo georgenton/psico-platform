@@ -702,6 +702,7 @@ export class TerapiaService {
         modality: session.modality,
         joinUrl: null,
         paymentStatus: session.paymentStatus,
+        status: session.status,
       },
       prep: {
         intentionCiphertext: session.intentionCiphertext,

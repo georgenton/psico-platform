@@ -11,8 +11,10 @@ import type {
   SessionJoinResponse,
   SessionPrepResponse,
   TherapistFavoriteToggleResponse,
+  TherapistAvailabilityResponse,
   TherapyModality,
   TherapyPrescriptionItem,
+  TherapySessionListItem,
   UpdateSessionPrepRequest,
 } from "@psico/types";
 
@@ -181,6 +183,34 @@ export async function togglePrescriptionAction(
   );
   revalidatePath("/dashboard/terapia/recetas");
   return res;
+}
+
+/**
+ * Reschedule SCHEDULED session a un slot libre del mismo terapeuta.
+ */
+export async function rescheduleSessionAction(
+  sessionId: string,
+  newSlotIso: string,
+): Promise<TherapySessionListItem> {
+  const res = await serverFetch<TherapySessionListItem>(
+    `/terapia/sessions/${sessionId}/reschedule`,
+    { method: "PATCH", body: { newSlotIso } },
+  );
+  revalidatePath(`/dashboard/terapia/sesiones/${sessionId}`);
+  revalidatePath("/dashboard/terapia/sesiones");
+  return res;
+}
+
+/**
+ * Fetch availability del therapist asociado a una sesión, para reschedule.
+ */
+export async function getTherapistAvailabilityAction(
+  therapistId: string,
+  daysAhead: number = 14,
+): Promise<TherapistAvailabilityResponse> {
+  return serverFetch<TherapistAvailabilityResponse>(
+    `/terapia/therapists/${therapistId}/availability?daysAhead=${daysAhead}`,
+  );
 }
 
 /**

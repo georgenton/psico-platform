@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { decryptString, encryptString } from "@psico/crypto";
 import type { SessionPrepResponse } from "@psico/types";
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
 import {
   cancelSessionAction,
-  joinSessionAction,
   retryCheckoutAction,
   updateSessionPrepAction,
 } from "@/actions/terapia";
 import { FeedbackModal } from "@/components/dashboard/terapia/FeedbackModal";
+import { RescheduleModal } from "@/components/dashboard/terapia/RescheduleModal";
 
 const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: "Programada",
@@ -50,6 +51,7 @@ export function SessionDetailShell({
   const [mood, setMood] = useState<string | null>(initial.prep.checkInMood);
   const [savedFlash, setSavedFlash] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const lastSavedIntention = useRef("");
@@ -121,19 +123,6 @@ export function SessionDetailShell({
         setData(updated);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error guardando mood.");
-      }
-    });
-  }
-
-  function handleJoin() {
-    startTransition(async () => {
-      const res = await joinSessionAction(data.session.id);
-      if (res.error) {
-        setError(res.error);
-        return;
-      }
-      if (res.joinUrl) {
-        window.open(res.joinUrl, "_blank", "noopener,noreferrer");
       }
     });
   }
@@ -240,15 +229,13 @@ export function SessionDetailShell({
               Pagar ahora
             </button>
           ) : inJoinWindow && data.session.status === "SCHEDULED" ? (
-            <button
-              type="button"
-              onClick={handleJoin}
-              disabled={pending}
+            <Link
+              href={`/dashboard/terapia/sesiones/${data.session.id}/sala`}
               className="rounded-xl px-4 py-2 text-[13px] font-medium text-white"
               style={{ background: "var(--color-sage-600)" }}
             >
               Unirse a la sala →
-            </button>
+            </Link>
           ) : data.session.status === "SCHEDULED" ? (
             <p
               className="text-[12px]"
@@ -259,18 +246,32 @@ export function SessionDetailShell({
           ) : null}
 
           {data.session.status === "SCHEDULED" && !canCloseSession ? (
-            <button
-              type="button"
-              onClick={handleCancel}
-              disabled={pending}
-              className="rounded-xl border-[1.5px] bg-white px-4 py-2 text-[13px] font-medium"
-              style={{
-                borderColor: "var(--color-rose-300)",
-                color: "var(--color-rose-700)",
-              }}
-            >
-              Cancelar
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setRescheduleOpen(true)}
+                disabled={pending}
+                className="rounded-xl border-[1.5px] bg-white px-4 py-2 text-[13px] font-medium"
+                style={{
+                  borderColor: "var(--color-lavender-300)",
+                  color: "var(--color-lavender-700)",
+                }}
+              >
+                Re-agendar
+              </button>
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={pending}
+                className="rounded-xl border-[1.5px] bg-white px-4 py-2 text-[13px] font-medium"
+                style={{
+                  borderColor: "var(--color-rose-300)",
+                  color: "var(--color-rose-700)",
+                }}
+              >
+                Cancelar
+              </button>
+            </>
           ) : null}
 
           {canCloseSession ? (
@@ -413,6 +414,15 @@ export function SessionDetailShell({
         <FeedbackModal
           sessionId={data.session.id}
           onClose={() => setFeedbackOpen(false)}
+        />
+      ) : null}
+
+      {rescheduleOpen ? (
+        <RescheduleModal
+          sessionId={data.session.id}
+          therapistId={data.session.therapist.id}
+          currentSlotIso={data.session.scheduledAt}
+          onClose={() => setRescheduleOpen(false)}
         />
       ) : null}
     </div>

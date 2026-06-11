@@ -1,7 +1,11 @@
 import type {
+  AuthorRequestStatus,
+  PulsoApproveAuthorRequestResponse,
+  PulsoAuthorRequestListResponse,
   PulsoCohortRetentionResponse,
   PulsoMarkResolvedRequest,
   PulsoOverviewResponse,
+  PulsoRejectAuthorRequestBody,
   PulsoReportListResponse,
   PulsoReportReason,
   PulsoReportRow,
@@ -58,4 +62,28 @@ export const pulsoApi = {
   // weekOffset cells; cached 5min server-side.
   getCohorts: () =>
     apiClient.get<PulsoCohortRetentionResponse>("/pulso/cohorts"),
+
+  // ── Sprint S71.B — Author publication reviews (ADMIN) ───────────────
+
+  listAuthorRequests: (params: { status?: AuthorRequestStatus; limit?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set("status", params.status);
+    if (params.limit) qs.set("limit", String(params.limit));
+    const query = qs.toString();
+    return apiClient.get<PulsoAuthorRequestListResponse>(
+      `/pulso/author-requests${query ? `?${query}` : ""}`,
+    );
+  },
+
+  approveAuthorRequest: (id: string) =>
+    apiClient.post<PulsoApproveAuthorRequestResponse>(
+      `/pulso/author-requests/${id}/approve`,
+      {},
+    ),
+
+  rejectAuthorRequest: (id: string, body: PulsoRejectAuthorRequestBody = {}) =>
+    apiClient.post<{ ok: true }>(
+      `/pulso/author-requests/${id}/reject`,
+      body,
+    ),
 };

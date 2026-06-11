@@ -116,6 +116,14 @@ const ADMIN_NAV_ITEMS = [
     exact: false,
     tourTarget: null,
   },
+  // Sprint S71.B-front — Author publication review inbox.
+  {
+    href: "/dashboard/admin/author-requests",
+    label: "Pulso · Autores",
+    icon: "📚",
+    exact: false,
+    tourTarget: null,
+  },
 ] as const;
 
 function matchesRoute(href: string, pathname: string, exact: boolean): boolean {

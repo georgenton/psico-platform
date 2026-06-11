@@ -71,10 +71,14 @@ function makePrisma() {
 describe("AuthorReviewService", () => {
   let prisma: ReturnType<typeof makePrisma>;
   let svc: AuthorReviewService;
+  let jobs: { enqueueEmail: ReturnType<typeof vi.fn> };
+  let config: { get: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     prisma = makePrisma();
-    svc = new AuthorReviewService(prisma as never);
+    jobs = { enqueueEmail: vi.fn().mockResolvedValue(undefined) };
+    config = { get: vi.fn((key: string) => (key === "APP_URL" ? "https://app.test" : undefined)) };
+    svc = new AuthorReviewService(prisma as never, jobs as never, config as never);
   });
 
   describe("listRequests", () => {
@@ -321,15 +325,113 @@ describe("AuthorReviewService", () => {
       });
     });
 
-    it("transitions IN_REVIEW → DRAFT + REJECTED", async () => {
+    it("transitions IN_REVIEW → DRAFT + REJECTED + sends email", async () => {
       prisma.authorPublicationRequest.findUnique.mockResolvedValue({
         id: "r1",
         bookId: "ab1",
         reviewState: "PENDING",
+        book: {
+          id: "ab1",
+          title: "Mi Libro",
+          authorUserId: "u1",
+          author: {
+            id: "u1",
+            email: "autor@p.com",
+            name: "Alice",
+            firstName: "Alice",
+          },
+        },
       });
       const res = await svc.reject("r1", "admin1", "no apto");
       expect(res.ok).toBe(true);
       expect(prisma.$transaction).toHaveBeenCalled();
+      expect(jobs.enqueueEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: "autor@p.com",
+          subject: expect.stringContaining("borrador"),
+          tag: "author-publication-rejected",
+        }),
+      );
+    });
+  });
+
+  describe("notification side-effects", () => {
+    it("approve sends approval email to the author", async () => {
+      prisma.authorPublicationRequest.findUnique.mockResolvedValue({
+        id: "r1",
+        reviewState: "PENDING",
+        book: {
+          id: "ab1",
+          title: "Mi Libro",
+          subtitle: null,
+          summary: "Resumen suficientemente largo",
+          cover: "warm",
+          coverArtUrl: null,
+          status: "IN_REVIEW",
+          authorUserId: "u1",
+          categoryId: null,
+          publishedBookId: null,
+          chapters: [
+            { n: 1, title: "C1", subtitle: null, isHidden: false, blocks: [] },
+            { n: 2, title: "C2", subtitle: null, isHidden: false, blocks: [] },
+            { n: 3, title: "C3", subtitle: null, isHidden: false, blocks: [] },
+          ],
+        },
+      });
+      prisma.user.findUnique.mockResolvedValue({
+        id: "u1",
+        email: "autor@p.com",
+        firstName: "Alice",
+        name: "Alice",
+      });
+      prisma.book.findUnique.mockResolvedValue(null);
+      prisma.bookAuthor.findUnique.mockResolvedValue(null);
+      prisma.bookAuthor.upsert.mockResolvedValue({ id: "ba1" });
+      await svc.approve("r1", "admin1");
+      expect(jobs.enqueueEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: "autor@p.com",
+          subject: expect.stringContaining("publicado"),
+          tag: "author-publication-approved",
+          html: expect.stringContaining("Mi Libro"),
+        }),
+      );
+    });
+
+    it("approve still returns OK when enqueueEmail throws (fire-and-forget)", async () => {
+      jobs.enqueueEmail.mockRejectedValue(new Error("Redis down"));
+      prisma.authorPublicationRequest.findUnique.mockResolvedValue({
+        id: "r1",
+        reviewState: "PENDING",
+        book: {
+          id: "ab1",
+          title: "Libro X",
+          subtitle: null,
+          summary: "Resumen suficientemente largo",
+          cover: "warm",
+          coverArtUrl: null,
+          status: "IN_REVIEW",
+          authorUserId: "u1",
+          categoryId: null,
+          publishedBookId: null,
+          chapters: [
+            { n: 1, title: "C1", subtitle: null, isHidden: false, blocks: [] },
+            { n: 2, title: "C2", subtitle: null, isHidden: false, blocks: [] },
+            { n: 3, title: "C3", subtitle: null, isHidden: false, blocks: [] },
+          ],
+        },
+      });
+      prisma.user.findUnique.mockResolvedValue({
+        id: "u1",
+        email: "autor@p.com",
+        firstName: "Alice",
+        name: "Alice",
+      });
+      prisma.book.findUnique.mockResolvedValue(null);
+      prisma.bookAuthor.findUnique.mockResolvedValue(null);
+      prisma.bookAuthor.upsert.mockResolvedValue({ id: "ba1" });
+      const res = await svc.approve("r1", "admin1");
+      expect(res.ok).toBe(true);
     });
   });
 

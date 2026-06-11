@@ -5,10 +5,14 @@ import type {
   EmailChangeRequestPayload,
   EmailChangeRequestResponse,
   UpdateNotificationsRequest,
+  UpdatePreferencesRequest,
+  UpdatePrivacyRequest,
   UpdateProfileRequest,
   UpdateTimezoneRequest,
   UserMeResponse,
   UserNotificationSettings,
+  UserPreferences,
+  UserPrivacySettings,
 } from "@psico/types";
 import { apiClient } from "./client";
 
@@ -57,4 +61,12 @@ export const usersApi = {
   /** Sprint S57 — Schedule account deletion (30-day cooldown). */
   requestAccountDeletion: (body: DeleteAccountRequest) =>
     apiClient.post<DeleteAccountResponse>("/user/delete-request", body),
+
+  /** Sprint Perfil — Update voice/theme/bestTime/weeklyGoal/moodPrompts/language. */
+  updatePreferences: (body: UpdatePreferencesRequest) =>
+    apiClient.patch<UserPreferences>("/user/preferences", body),
+
+  /** Sprint Perfil — Toggle privacy switches (immediate effect). */
+  updatePrivacy: (body: UpdatePrivacyRequest) =>
+    apiClient.patch<UserPrivacySettings>("/user/privacy", body),
 };

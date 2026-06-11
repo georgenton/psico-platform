@@ -9,6 +9,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiClient, diarioApi } from "@psico/api-client";
+import { useAuth } from "@/context/auth";
+import { ShowSeedPhraseCard } from "@/components/dashboard/security/ShowSeedPhraseCard";
 import type {
   DiaryRawCipherEntry,
   PasswordChangeWithRekeyRequest,
@@ -41,6 +43,7 @@ import { Colors, Radius, Spacing } from "@/theme";
  * the master key on disk.
  */
 export default function SecurityScreen() {
+  const { user } = useAuth();
   const {
     masterKey,
     key: oldDiaryKey,
@@ -278,6 +281,8 @@ export default function SecurityScreen() {
           </View>
         )}
       </View>
+
+      <ShowSeedPhraseCard cryptoSalt={user?.cryptoSalt ?? null} />
     </ScrollView>
   );
 }

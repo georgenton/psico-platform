@@ -9,6 +9,24 @@ import { DiaryKeyProvider, useDiaryKey } from "@/lib/crypto/diary-key-context";
 import { UnlockGate } from "./UnlockGate";
 
 const EXCERPT_MAX_CHARS = 280;
+const TAGS_MAX = 12;
+const TAG_MAX_CHARS = 32;
+const MOODS: Array<{ id: string; emoji: string; label: string }> = [
+  { id: "calma", emoji: "😌", label: "Calma" },
+  { id: "foco", emoji: "🎯", label: "Foco" },
+  { id: "energia", emoji: "✨", label: "Energía" },
+  { id: "reflexion", emoji: "🕊", label: "Reflexión" },
+  { id: "alegria", emoji: "😊", label: "Alegría" },
+  { id: "ansiedad", emoji: "😟", label: "Ansiedad" },
+  { id: "tristeza", emoji: "😔", label: "Tristeza" },
+];
+
+function normalizeTag(raw: string): string | null {
+  const cleaned = raw.trim().replace(/^#+/, "").toLowerCase();
+  if (!cleaned) return null;
+  if (cleaned.length > TAG_MAX_CHARS) return null;
+  return cleaned;
+}
 
 /**
  * EntryDetailView — wraps the detail in a DiaryKeyProvider so the same
@@ -87,6 +105,9 @@ function DecryptedDetail({
   const [deleting, startDelete] = useTransition();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const [draftMood, setDraftMood] = useState<string>(detail.entry.mood);
+  const [draftTags, setDraftTags] = useState<string[]>(detail.entry.tags);
+  const [tagDraft, setTagDraft] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
   const [saving, startSave] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -128,6 +149,9 @@ function DecryptedDetail({
   function startEdit() {
     if (!decryption.ok) return;
     setDraft(decryption.text);
+    setDraftMood(detail.entry.mood);
+    setDraftTags(detail.entry.tags);
+    setTagDraft("");
     setEditing(true);
     setError(null);
   }
@@ -135,7 +159,24 @@ function DecryptedDetail({
   function cancelEdit() {
     setEditing(false);
     setDraft("");
+    setTagDraft("");
     setError(null);
+  }
+
+  function commitTag(raw: string) {
+    const cleaned = normalizeTag(raw);
+    if (!cleaned) return;
+    if (draftTags.includes(cleaned)) {
+      setTagDraft("");
+      return;
+    }
+    if (draftTags.length >= TAGS_MAX) return;
+    setDraftTags([...draftTags, cleaned]);
+    setTagDraft("");
+  }
+
+  function removeTag(t: string) {
+    setDraftTags(draftTags.filter((x) => x !== t));
   }
 
   async function handleSave() {
@@ -153,6 +194,18 @@ function DecryptedDetail({
           trimmed.slice(0, EXCERPT_MAX_CHARS),
           diaryKey,
         );
+        const payload: Record<string, unknown> = {
+          textCiphertext: body.ciphertext,
+          textNonce: body.nonce,
+          excerptCiphertext: excerpt.ciphertext,
+          excerptNonce: excerpt.nonce,
+        };
+        if (draftMood !== detail.entry.mood) payload.mood = draftMood;
+        // Send tags array whenever the user changed it (even to empty).
+        const tagsChanged =
+          draftTags.length !== detail.entry.tags.length ||
+          draftTags.some((t, i) => t !== detail.entry.tags[i]);
+        if (tagsChanged) payload.tags = draftTags;
         const res = await fetch(
           `${apiBase}/diario/entries/${encodeURIComponent(detail.entry.id)}`,
           {
@@ -161,12 +214,7 @@ function DecryptedDetail({
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-              textCiphertext: body.ciphertext,
-              textNonce: body.nonce,
-              excerptCiphertext: excerpt.ciphertext,
-              excerptNonce: excerpt.nonce,
-            }),
+            body: JSON.stringify(payload),
           },
         );
         if (!res.ok) {
@@ -288,9 +336,128 @@ function DecryptedDetail({
             className="mt-2 text-right text-[11px]"
             style={{ color: "var(--color-warm-500)" }}
           >
-            {draft.length.toLocaleString("es-EC")} / 20.000 caracteres ·
-            cifrado en tu dispositivo antes de salir
+            {draft.length.toLocaleString("es-EC")} / 20.000 caracteres · cifrado
+            en tu dispositivo antes de salir
           </p>
+
+          {/* Mood selector */}
+          <div className="mt-4">
+            <span
+              className="mb-2 block text-[11.5px] font-bold uppercase tracking-[0.12em]"
+              style={{ color: "var(--color-lavender-700)" }}
+            >
+              Mood
+            </span>
+            <div
+              className="flex flex-wrap gap-1.5"
+              role="radiogroup"
+              aria-label="Mood"
+            >
+              {MOODS.map((m) => {
+                const active = m.id === draftMood;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    disabled={saving}
+                    onClick={() => setDraftMood(m.id)}
+                    className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-semibold"
+                    style={{
+                      background: active
+                        ? "var(--color-lavender-100)"
+                        : "var(--color-warm-50)",
+                      borderColor: active
+                        ? "var(--color-lavender-400)"
+                        : "var(--color-warm-200)",
+                      color: active
+                        ? "var(--color-lavender-700)"
+                        : "var(--color-warm-700)",
+                    }}
+                  >
+                    <span aria-hidden>{m.emoji}</span>
+                    <span>{m.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div className="mt-4">
+            <span
+              className="mb-2 block text-[11.5px] font-bold uppercase tracking-[0.12em]"
+              style={{ color: "var(--color-lavender-700)" }}
+            >
+              Etiquetas
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {draftTags.map((t) => (
+                <span
+                  key={t}
+                  className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+                  style={{
+                    background: "var(--color-warm-100)",
+                    color: "var(--color-warm-700)",
+                  }}
+                >
+                  #{t}
+                  <button
+                    type="button"
+                    aria-label={`Quitar ${t}`}
+                    disabled={saving}
+                    onClick={() => removeTag(t)}
+                    className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-[11px] font-bold leading-none"
+                    style={{
+                      background: "var(--color-warm-200)",
+                      color: "var(--color-warm-700)",
+                    }}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              {draftTags.length < TAGS_MAX ? (
+                <input
+                  type="text"
+                  value={tagDraft}
+                  onChange={(e) => setTagDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === ",") {
+                      e.preventDefault();
+                      commitTag(tagDraft);
+                    } else if (
+                      e.key === "Backspace" &&
+                      tagDraft.length === 0 &&
+                      draftTags.length > 0
+                    ) {
+                      removeTag(draftTags[draftTags.length - 1]);
+                    }
+                  }}
+                  onBlur={() => {
+                    if (tagDraft.trim()) commitTag(tagDraft);
+                  }}
+                  disabled={saving}
+                  placeholder="añadir etiqueta…"
+                  maxLength={TAG_MAX_CHARS}
+                  className="rounded-full border-[1.5px] bg-white px-2.5 py-1 text-[12px] outline-none"
+                  style={{
+                    borderColor: "var(--color-warm-200)",
+                    color: "var(--color-warm-800)",
+                  }}
+                  aria-label="Añadir etiqueta"
+                />
+              ) : null}
+            </div>
+            <p
+              className="mt-1 text-[11px]"
+              style={{ color: "var(--color-warm-500)" }}
+            >
+              {draftTags.length}/{TAGS_MAX} · Enter o coma para añadir
+            </p>
+          </div>
+
           <div className="mt-3 flex flex-wrap justify-end gap-2">
             <button
               type="button"
@@ -353,8 +520,8 @@ function DecryptedDetail({
         </div>
       )}
 
-      {/* Tags */}
-      {detail.entry.tags.length > 0 ? (
+      {/* Tags — hidden in edit mode (chips live inside the editor) */}
+      {!editing && detail.entry.tags.length > 0 ? (
         <div className="mt-4 flex flex-wrap gap-1.5">
           {detail.entry.tags.map((t) => (
             <span

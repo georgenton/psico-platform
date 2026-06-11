@@ -9,6 +9,8 @@ import {
   Length,
   Min,
 } from "class-validator";
+import { DIARY_MOOD_IDS } from "@psico/types";
+import type { DiaryMoodId } from "@psico/types";
 import { IsBase64UrlCipher, IsBase64UrlNonce } from "./ciphertext-validators";
 
 const KINDS = ["free", "prompted", "voz"] as const;
@@ -22,10 +24,10 @@ const KINDS = ["free", "prompted", "voz"] as const;
  * once extracted — only the file URL travels.
  */
 export class CreateDiaryEntryDto {
-  // Mood token from OnboardingMood catalog (calma / foco / energia / …).
-  @IsString()
-  @Length(1, 32)
-  mood!: string;
+  // Mood token from the shared DIARY_MOODS catalog (calma / foco / energia / …).
+  // Narrowed at runtime by @IsIn so unknown moods are rejected with 400.
+  @IsIn(DIARY_MOOD_IDS)
+  mood!: DiaryMoodId;
 
   @IsOptional()
   @IsIn(KINDS)

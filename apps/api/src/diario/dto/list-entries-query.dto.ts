@@ -1,5 +1,6 @@
 import {
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -8,6 +9,8 @@ import {
   Min,
 } from "class-validator";
 import { Type } from "class-transformer";
+import { DIARY_MOOD_IDS } from "@psico/types";
+import type { DiaryMoodId } from "@psico/types";
 
 /**
  * GET /diario/entries query.
@@ -26,9 +29,8 @@ export class ListDiaryEntriesQueryDto {
   to?: string;
 
   @IsOptional()
-  @IsString()
-  @Length(1, 32)
-  mood?: string;
+  @IsIn(DIARY_MOOD_IDS)
+  mood?: DiaryMoodId;
 
   @IsOptional()
   @IsString()

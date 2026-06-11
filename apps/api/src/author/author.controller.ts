@@ -23,11 +23,14 @@ import { AuthorService } from "./author.service";
 import { AuthorAiService } from "./author-ai.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { AuthorUploadsService } from "./author-uploads.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { AuthorRevenueService } from "./author-revenue.service";
 import { CreateAuthorBookDto } from "./dto/create-book.dto";
 import { UpdateAuthorBookDto } from "./dto/update-book.dto";
 import { UpdateChapterDto } from "./dto/update-chapter.dto";
 import { UpdateStructureDto } from "./dto/update-structure.dto";
 import { AuthorAiHelpDto } from "./dto/ai-help.dto";
+import { UpdatePayoutSettingsDto } from "./dto/update-payout-settings.dto";
 
 /**
  * AuthorController — Editor de autor (B2B). Sprint S71.
@@ -45,6 +48,7 @@ export class AuthorController {
     private readonly service: AuthorService,
     private readonly ai: AuthorAiService,
     private readonly uploads: AuthorUploadsService,
+    private readonly revenue: AuthorRevenueService,
   ) {}
 
   // ── Dashboard ────────────────────────────────────────────────────────────
@@ -227,5 +231,29 @@ export class AuthorController {
     // endpoints use.
     await this.service.getBook(user.userId, id);
     return this.ai.generateSuggestion(dto.intent, dto.text, dto.context);
+  }
+
+  // ── Sprint S71.C-revenue — Cobros ───────────────────────────────────────
+
+  @Get("cobros")
+  @ApiOperation({
+    summary:
+      "Vista del autor sobre sus ingresos: YTD / último mes / pendiente + " +
+      "breakdown mensual + configuración de payout.",
+  })
+  async getCobros(@CurrentUser() user: { userId: string }) {
+    return this.revenue.getCobros(user.userId);
+  }
+
+  @Patch("cobros/configuracion")
+  @ApiOperation({
+    summary:
+      "Actualiza el método y datos de cobro del autor. Upsert idempotente.",
+  })
+  async updatePayoutSettings(
+    @CurrentUser() user: { userId: string },
+    @Body() dto: UpdatePayoutSettingsDto,
+  ) {
+    return this.revenue.updatePayoutSettings(user.userId, dto);
   }
 }

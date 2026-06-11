@@ -44,6 +44,12 @@ export default function AuthorLayout({ children }: { children: ReactNode }) {
               Mis libros
             </Link>
             <Link
+              href="/autor/cobros"
+              className="hover:underline"
+            >
+              Cobros
+            </Link>
+            <Link
               href="/dashboard"
               className="rounded-full px-3 py-1.5 font-medium"
               style={{

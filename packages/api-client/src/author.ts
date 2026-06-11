@@ -7,10 +7,13 @@ import type {
   AuthorCoverUploadResponse,
   AuthorDashboardResponse,
   AuthorPublicationState,
+  AuthorRevenueResponse,
   CreateAuthorBookRequest,
   CreateAuthorBookResponse,
   UpdateAuthorBookRequest,
   UpdateAuthorChapterRequest,
+  UpdateAuthorPayoutRequest,
+  UpdateAuthorPayoutResponse,
   UpdateAuthorStructureRequest,
 } from "@psico/types";
 import { apiClient } from "./client";
@@ -104,4 +107,12 @@ export const authorApi = {
       form,
     );
   },
+
+  getCobros: () => apiClient.get<AuthorRevenueResponse>("/autor/cobros"),
+
+  updatePayoutSettings: (body: UpdateAuthorPayoutRequest) =>
+    apiClient.patch<UpdateAuthorPayoutResponse>(
+      "/autor/cobros/configuracion",
+      body,
+    ),
 };

@@ -2002,6 +2002,59 @@ export interface AuthorPublicationState {
   feedback: string | null;
 }
 
+// Revenue (Sprint S71.C-revenue)
+export type AuthorPayoutMethod =
+  | "bank_ec"
+  | "paypal"
+  | "payphone"
+  | "manual";
+export type AuthorEarningStatus = "PENDING" | "PAID";
+
+export interface AuthorRevenueSummary {
+  ytdNetCents: number;
+  lastMonthNetCents: number;
+  pendingNetCents: number;
+  fiscalYear: number;
+}
+
+export interface AuthorMonthlyRevenueRow {
+  month: Date;
+  grossCents: number;
+  platformFeeCents: number;
+  netCents: number;
+  status: AuthorEarningStatus;
+  paidAt: Date | null;
+  paymentReference: string | null;
+}
+
+export interface AuthorPayoutSettings {
+  method: AuthorPayoutMethod;
+  details: Record<string, unknown>;
+  taxId: string | null;
+  legalName: string | null;
+  legalAddress: string | null;
+  updatedAt: Date | null;
+}
+
+export interface AuthorRevenueResponse {
+  summary: AuthorRevenueSummary;
+  monthly: AuthorMonthlyRevenueRow[];
+  settings: AuthorPayoutSettings;
+}
+
+export interface UpdateAuthorPayoutRequest {
+  method: AuthorPayoutMethod;
+  details?: Record<string, unknown>;
+  taxId?: string;
+  legalName?: string;
+  legalAddress?: string;
+}
+
+export interface UpdateAuthorPayoutResponse {
+  ok: true;
+  settings: AuthorPayoutSettings;
+}
+
 // Uploads (Sprint S71.C-uploads)
 export interface AuthorCoverUploadResponse {
   ok: true;

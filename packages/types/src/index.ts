@@ -1818,6 +1818,47 @@ export interface PulsoRejectAuthorRequestBody {
   feedback?: string;
 }
 
+// ─── Pulso · Admin users (Sprint S72) ───────────────────────────────────────
+
+export interface PulsoAdminUserRow {
+  id: string;
+  email: string;
+  name: string;
+  firstName: string | null;
+  role: UserRole;
+  plan: UserPlan;
+  isActive: boolean;
+  emailVerified: boolean;
+  createdAt: Date;
+}
+
+export interface PulsoAdminUserListResponse {
+  total: number;
+  items: PulsoAdminUserRow[];
+}
+
+export interface PulsoChangeRoleRequest {
+  role: UserRole;
+  reason?: string;
+}
+
+export interface PulsoChangeRoleResponse {
+  ok: true;
+  role: UserRole;
+  changed: boolean;
+  oldRole?: UserRole;
+}
+
+export interface PulsoRoleChangeLogRow {
+  id: string;
+  targetUserId: string;
+  oldRole: UserRole;
+  newRole: UserRole;
+  changedBy: string;
+  reason: string | null;
+  changedAt: Date;
+}
+
 // ─── Author module (Sprints S71 / S71.B / S71-front) ────────────────────────
 //
 // Wire types for /api/autor/* endpoints. The AuthorBook lives in the author

@@ -16,11 +16,15 @@ import { CurrentUser, RequiredRole, RolesGuard } from "../shared";
 import { PulsoService } from "./pulso.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { AuthorReviewService } from "./author-review.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { AdminUsersService } from "./admin-users.service";
 import {
   ListEcoReportsQueryDto,
   MarkResolvedDto,
 } from "./dto/list-reports.dto";
 import { RejectAuthorRequestDto } from "./dto/reject-author-request.dto";
+import { ListUsersQueryDto } from "./dto/list-users.dto";
+import { ChangeRoleDto } from "./dto/change-role.dto";
 
 /**
  * PulsoController — Sprint S42 (reports inbox) + S48 (overview) + S49 (resolution).
@@ -36,6 +40,7 @@ export class PulsoController {
   constructor(
     private readonly pulso: PulsoService,
     private readonly authorReview: AuthorReviewService,
+    private readonly adminUsers: AdminUsersService,
   ) {}
 
   @Get("reports/eco/summary")
@@ -148,5 +153,34 @@ export class PulsoController {
     @Body() dto: RejectAuthorRequestDto,
   ) {
     return this.authorReview.reject(id, user.userId, dto.feedback);
+  }
+
+  // ── Sprint S72 — Admin users (search + role promotion) ──────────────
+
+  @Get("users")
+  @ApiOperation({
+    summary: "Search users by email/name + optional role filter.",
+  })
+  listUsers(@Query() query: ListUsersQueryDto) {
+    return this.adminUsers.listUsers(query);
+  }
+
+  @Get("users/:id/role-changes")
+  @ApiOperation({ summary: "Last 20 role changes for a user (audit trail)." })
+  getRoleChanges(@Param("id") id: string) {
+    return this.adminUsers.getRecentRoleChanges(id);
+  }
+
+  @Post("users/:id/role")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Change a user's role. Logged in RoleChangeLog for audit.",
+  })
+  changeRole(
+    @Param("id") id: string,
+    @CurrentUser() user: { userId: string },
+    @Body() dto: ChangeRoleDto,
+  ) {
+    return this.adminUsers.changeRole(id, user.userId, dto.role, dto.reason);
   }
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { DIARY_MOODS } from "@psico/types";
 import type {
   CreateDiaryEntryRequest,
   DiaryPromptOfTheDay,
@@ -43,7 +44,7 @@ export function ActiveComposer({
   const [submitting, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const moods = MOODS;
+  const moods = DIARY_MOODS;
   const todayLabel = new Date().toLocaleDateString("es-EC", {
     weekday: "long",
     day: "numeric",
@@ -232,13 +233,3 @@ export function ActiveComposer({
     </section>
   );
 }
-
-const MOODS = [
-  { id: "calma", emoji: "😌", label: "Calma" },
-  { id: "foco", emoji: "🎯", label: "Foco" },
-  { id: "energia", emoji: "✨", label: "Energía" },
-  { id: "reflexion", emoji: "🕊", label: "Reflexión" },
-  { id: "alegria", emoji: "😊", label: "Alegría" },
-  { id: "ansiedad", emoji: "😟", label: "Ansiedad" },
-  { id: "tristeza", emoji: "😔", label: "Tristeza" },
-];

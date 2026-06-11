@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { DIARY_MOODS } from "@psico/types";
 import type { DiaryDetailResponse } from "@psico/types";
 import { decryptString, encryptString } from "@psico/crypto";
 import { DiaryKeyProvider, useDiaryKey } from "@/lib/crypto/diary-key-context";
@@ -11,15 +12,7 @@ import { UnlockGate } from "./UnlockGate";
 const EXCERPT_MAX_CHARS = 280;
 const TAGS_MAX = 12;
 const TAG_MAX_CHARS = 32;
-const MOODS: Array<{ id: string; emoji: string; label: string }> = [
-  { id: "calma", emoji: "😌", label: "Calma" },
-  { id: "foco", emoji: "🎯", label: "Foco" },
-  { id: "energia", emoji: "✨", label: "Energía" },
-  { id: "reflexion", emoji: "🕊", label: "Reflexión" },
-  { id: "alegria", emoji: "😊", label: "Alegría" },
-  { id: "ansiedad", emoji: "😟", label: "Ansiedad" },
-  { id: "tristeza", emoji: "😔", label: "Tristeza" },
-];
+const MOODS = DIARY_MOODS;
 
 function normalizeTag(raw: string): string | null {
   const cleaned = raw.trim().replace(/^#+/, "").toLowerCase();

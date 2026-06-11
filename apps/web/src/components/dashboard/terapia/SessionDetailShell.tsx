@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { decryptString, encryptString } from "@psico/crypto";
+import { THERAPY_MOODS } from "@psico/types";
 import type { SessionPrepResponse } from "@psico/types";
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
 import {
@@ -30,13 +31,7 @@ const PAYMENT_LABEL: Record<string, string> = {
   REFUNDED: "Reembolsado",
 };
 
-const MOODS = [
-  { id: "calmo", label: "🙂 Calmo" },
-  { id: "ansioso", label: "😰 Ansioso" },
-  { id: "triste", label: "😔 Triste" },
-  { id: "energico", label: "✨ Enérgico" },
-  { id: "cansado", label: "🥱 Cansado" },
-];
+const MOODS = THERAPY_MOODS;
 
 export function SessionDetailShell({
   initial,
@@ -128,10 +123,7 @@ export function SessionDetailShell({
   }
 
   function handleCancel() {
-    const reason = window.prompt(
-      "¿Por qué cancelas? (mínimo 1 caracter)",
-      "",
-    );
+    const reason = window.prompt("¿Por qué cancelas? (mínimo 1 caracter)", "");
     if (!reason) return;
     startTransition(async () => {
       try {
@@ -154,7 +146,8 @@ export function SessionDetailShell({
   const end = new Date(start.getTime() + data.session.durationMin * 60 * 1000);
   const nowMs = Date.now();
   const inJoinWindow =
-    nowMs >= start.getTime() - 5 * 60 * 1000 && nowMs <= end.getTime() + 15 * 60 * 1000;
+    nowMs >= start.getTime() - 5 * 60 * 1000 &&
+    nowMs <= end.getTime() + 15 * 60 * 1000;
   // Feedback button shown once we're past the session end (regardless of join)
   // and status is still SCHEDULED or IN_PROGRESS.
   const canCloseSession =
@@ -177,11 +170,14 @@ export function SessionDetailShell({
               className="text-[12px] font-semibold uppercase tracking-wide"
               style={{ color: "var(--color-lavender-700)" }}
             >
-              {STATUS_LABEL[data.session.paymentStatus === "PENDING"
-                ? "PENDING_PAYMENT"
-                : data.session.status === "SCHEDULED" && data.session.paymentStatus === "PAID"
-                  ? "SCHEDULED"
-                  : ""] ?? STATUS_LABEL[data.session.status]}
+              {STATUS_LABEL[
+                data.session.paymentStatus === "PENDING"
+                  ? "PENDING_PAYMENT"
+                  : data.session.status === "SCHEDULED" &&
+                      data.session.paymentStatus === "PAID"
+                    ? "SCHEDULED"
+                    : ""
+              ] ?? STATUS_LABEL[data.session.status]}
             </p>
             <p
               className="mt-1 text-[18px] font-semibold"

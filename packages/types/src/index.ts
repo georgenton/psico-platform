@@ -1168,6 +1168,55 @@ export interface DismissReflectionPromptResponse {
 
 export type DiaryEntryKind = "free" | "prompted" | "voz";
 
+/**
+ * Shared catalog of mood IDs used by the Diario composer + Inicio mood picker.
+ *
+ * The backend treats `User.mood` and `DiaryEntry.mood` as opaque strings (the
+ * column is `String`, not an enum), so adding a new mood here does NOT require
+ * a migration. The catalog ships in `@psico/types` so web + mobile render the
+ * same set without copy-paste drift.
+ *
+ * IDs match the Onboarding seed (`OnboardingMood.id` values).
+ */
+export interface DiaryMoodOption {
+  readonly id: string;
+  readonly emoji: string;
+  readonly label: string;
+}
+
+export const DIARY_MOODS: readonly DiaryMoodOption[] = [
+  { id: "calma", emoji: "😌", label: "Calma" },
+  { id: "foco", emoji: "🎯", label: "Foco" },
+  { id: "energia", emoji: "✨", label: "Energía" },
+  { id: "reflexion", emoji: "🕊", label: "Reflexión" },
+  { id: "alegria", emoji: "😊", label: "Alegría" },
+  { id: "ansiedad", emoji: "😟", label: "Ansiedad" },
+  { id: "tristeza", emoji: "😔", label: "Tristeza" },
+] as const;
+
+export type DiaryMoodId = (typeof DIARY_MOODS)[number]["id"];
+
+/**
+ * Shared catalog of post-session moods used by the Terapia feedback flow.
+ * Independent from Diary moods — sessions use a coarser 5-option grid because
+ * the user is rating their state right after therapy, not journaling.
+ */
+export interface TherapyMoodOption {
+  readonly id: string;
+  /** Already includes the emoji prefix (e.g. "🙂 Calmo") for inline rendering. */
+  readonly label: string;
+}
+
+export const THERAPY_MOODS: readonly TherapyMoodOption[] = [
+  { id: "calmo", label: "🙂 Calmo" },
+  { id: "ansioso", label: "😰 Ansioso" },
+  { id: "triste", label: "😔 Triste" },
+  { id: "energico", label: "✨ Enérgico" },
+  { id: "cansado", label: "🥱 Cansado" },
+] as const;
+
+export type TherapyMoodId = (typeof THERAPY_MOODS)[number]["id"];
+
 export interface DiaryEntrySummary {
   id: string;
   createdAt: Date;

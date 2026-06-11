@@ -13,6 +13,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { diarioApi } from "@psico/api-client";
 import { decryptString, encryptString } from "@psico/crypto";
+import { DIARY_MOODS } from "@psico/types";
 import type { DiaryDetailResponse } from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { DiaryKeyProvider, useDiaryKey } from "@/crypto/diary-key-context";
@@ -22,15 +23,7 @@ import { Colors, Radius, Spacing } from "@/theme";
 const EXCERPT_MAX_CHARS = 280;
 const TAGS_MAX = 12;
 const TAG_MAX_CHARS = 32;
-const MOODS: Array<{ id: string; emoji: string; label: string }> = [
-  { id: "calma", emoji: "😌", label: "Calma" },
-  { id: "foco", emoji: "🎯", label: "Foco" },
-  { id: "energia", emoji: "✨", label: "Energía" },
-  { id: "reflexion", emoji: "🕊", label: "Reflexión" },
-  { id: "alegria", emoji: "😊", label: "Alegría" },
-  { id: "ansiedad", emoji: "😟", label: "Ansiedad" },
-  { id: "tristeza", emoji: "😔", label: "Tristeza" },
-];
+const MOODS = DIARY_MOODS;
 
 function normalizeTag(raw: string): string | null {
   const cleaned = raw.trim().replace(/^#+/, "").toLowerCase();

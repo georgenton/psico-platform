@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { decryptString, encryptString } from "@psico/crypto";
 import { terapiaApi } from "@psico/api-client";
+import { THERAPY_MOODS } from "@psico/types";
 import type { SessionPrepResponse } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 import { useDiaryKey } from "@/crypto/diary-key-context";
@@ -36,13 +37,7 @@ const PAYMENT_LABEL: Record<string, string> = {
   REFUNDED: "Reembolsado",
 };
 
-const MOODS = [
-  { id: "calmo", label: "🙂 Calmo" },
-  { id: "ansioso", label: "😰 Ansioso" },
-  { id: "triste", label: "😔 Triste" },
-  { id: "energico", label: "✨ Enérgico" },
-  { id: "cansado", label: "🥱 Cansado" },
-];
+const MOODS = THERAPY_MOODS;
 
 export default function SesionDetalleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -195,9 +190,7 @@ export default function SesionDetalleScreen() {
             } catch (err) {
               Alert.alert(
                 "Error",
-                err instanceof Error
-                  ? err.message
-                  : "No pudimos cancelar.",
+                err instanceof Error ? err.message : "No pudimos cancelar.",
               );
             } finally {
               setActing(false);
@@ -219,13 +212,8 @@ export default function SesionDetalleScreen() {
   if (error || !data) {
     return (
       <View style={styles.center}>
-        <Text style={styles.errorText}>
-          {error ?? "Sesión no encontrada."}
-        </Text>
-        <Pressable
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
+        <Text style={styles.errorText}>{error ?? "Sesión no encontrada."}</Text>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Volver</Text>
         </Pressable>
       </View>

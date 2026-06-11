@@ -80,6 +80,14 @@ export class BooksService {
 
     const view = query.view ?? "catalogo";
 
+    // For favoritos/guardados the natural order is "when did the user mark it",
+    // newest first. Prisma can't order by the pivot's createdAt while filtering
+    // books by it, so we run a two-step query: pivot first (ordered + paged) →
+    // books second (preserving the pivot order in memory).
+    if ((view === "favoritos" || view === "guardados") && userId) {
+      return this.listFromUserPivot(userId, view, query, page, perPage, skip);
+    }
+
     const where = this.buildListWhere(userId, query, view);
     const orderBy = this.buildOrderBy(query.sort);
 
@@ -98,6 +106,106 @@ export class BooksService {
 
     return {
       books: rows.map((row) => this.toListItem(row, userId)),
+      pagination: { page, perPage, total } satisfies Pagination,
+      categories,
+      authors,
+    };
+  }
+
+  /**
+   * Two-step query for user-pivot views (favoritos, guardados):
+   *
+   * 1. Fetch pivot rows (BookFavorite / BookBookmark) ordered by createdAt desc,
+   *    paged via skip/take. The pivot is the source of truth for ordering.
+   * 2. Fetch the matching books with the same filters (q/categoryId/authorId).
+   *    A book may be filtered out (e.g. unpublished, category mismatch), so
+   *    the visible page can be < perPage even when there are more pivot rows.
+   * 3. Re-order books in memory to mirror the pivot order.
+   *
+   * Trade-off accepted: `total` reflects pivot count, not filtered book count.
+   * For v1 this is fine — favoritos/guardados counts are small (tens, not
+   * thousands), and the UX prioritizes "what did I mark recently?" over
+   * "give me a precise filtered total".
+   */
+  private async listFromUserPivot(
+    userId: string,
+    view: "favoritos" | "guardados",
+    query: ListBooksQueryDto,
+    page: number,
+    perPage: number,
+    skip: number,
+  ): Promise<BookListResponse> {
+    // Branch the queries instead of unioning the Prisma delegates — the union
+    // of overload signatures is not callable in TS.
+    const pivotPromise: Promise<{ bookId: string }[]> =
+      view === "favoritos"
+        ? this.prisma.bookFavorite.findMany({
+            where: { userId },
+            orderBy: { createdAt: "desc" },
+            skip,
+            take: perPage,
+            select: { bookId: true },
+          })
+        : this.prisma.bookBookmark.findMany({
+            where: { userId },
+            orderBy: { createdAt: "desc" },
+            skip,
+            take: perPage,
+            select: { bookId: true },
+          });
+    const countPromise: Promise<number> =
+      view === "favoritos"
+        ? this.prisma.bookFavorite.count({ where: { userId } })
+        : this.prisma.bookBookmark.count({ where: { userId } });
+
+    const [pivotRows, total, categories, authors] = await Promise.all([
+      pivotPromise,
+      countPromise,
+      this.fetchCategories(),
+      this.fetchAuthors(),
+    ]);
+
+    const orderedBookIds = pivotRows.map((r) => r.bookId);
+    if (orderedBookIds.length === 0) {
+      return {
+        books: [],
+        pagination: { page, perPage, total } satisfies Pagination,
+        categories,
+        authors,
+      };
+    }
+
+    // Apply the user's filters (q, categoryId, authorId) on top of the pivot's
+    // bookId set. Use AND clauses so a book that fails any filter is dropped.
+    const bookWhere: Record<string, unknown> = {
+      id: { in: orderedBookIds },
+      isPublished: true,
+    };
+    if (query.categoryId) bookWhere.categoryId = query.categoryId;
+    if (query.authorId) bookWhere.authorId = query.authorId;
+    if (query.q) {
+      bookWhere.OR = [
+        { title: { contains: query.q, mode: "insensitive" } },
+        { subtitle: { contains: query.q, mode: "insensitive" } },
+        { description: { contains: query.q, mode: "insensitive" } },
+      ];
+    }
+
+    const books = await this.prisma.book.findMany({
+      where: bookWhere,
+      include: this.bookCardInclude(userId),
+    });
+    type BookRow = (typeof books)[number];
+
+    // Re-order to match the pivot ordering. Filtered-out books are simply
+    // absent — we don't pad or shift.
+    const byId = new Map<string, BookRow>(books.map((b) => [b.id, b]));
+    const ordered: BookRow[] = orderedBookIds
+      .map((id) => byId.get(id))
+      .filter((b): b is BookRow => b !== undefined);
+
+    return {
+      books: ordered.map((row) => this.toListItem(row, userId)),
       pagination: { page, perPage, total } satisfies Pagination,
       categories,
       authors,

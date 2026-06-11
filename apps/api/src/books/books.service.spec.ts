@@ -122,13 +122,17 @@ function buildPrismaMock() {
     },
     bookFavorite: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),
+      count: vi.fn(),
     },
     bookBookmark: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),
+      count: vi.fn(),
     },
     audio: { findFirst: vi.fn().mockResolvedValue(null) },
     exercise: { findFirst: vi.fn().mockResolvedValue(null) },
@@ -216,35 +220,90 @@ describe("BooksService.list", () => {
     );
   });
 
-  it("filters by view=favoritos to books the user has favorited", async () => {
-    prisma.book.findMany.mockResolvedValue([]);
-    prisma.book.count.mockResolvedValue(0);
+  it("view=favoritos paginates from the favorites pivot sorted by most recent", async () => {
+    prisma.bookFavorite.findMany.mockResolvedValue([]);
+    prisma.bookFavorite.count.mockResolvedValue(0);
 
     await service.list("user-7", { view: "favoritos" });
+
+    expect(prisma.bookFavorite.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-7" },
+        orderBy: { createdAt: "desc" },
+        skip: 0,
+        take: expect.any(Number),
+        select: { bookId: true },
+      }),
+    );
+    expect(prisma.bookFavorite.count).toHaveBeenCalledWith({
+      where: { userId: "user-7" },
+    });
+  });
+
+  it("view=guardados paginates from the bookmarks pivot sorted by most recent", async () => {
+    prisma.bookBookmark.findMany.mockResolvedValue([]);
+    prisma.bookBookmark.count.mockResolvedValue(0);
+
+    await service.list("user-7", { view: "guardados" });
+
+    expect(prisma.bookBookmark.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-7" },
+        orderBy: { createdAt: "desc" },
+        select: { bookId: true },
+      }),
+    );
+  });
+
+  it("view=favoritos returns books in pivot (recency) order, not catalog order", async () => {
+    // Pivot order: book-newer first, book-older second.
+    prisma.bookFavorite.findMany.mockResolvedValue([
+      { bookId: "book-newer" },
+      { bookId: "book-older" },
+    ]);
+    prisma.bookFavorite.count.mockResolvedValue(2);
+    // Prisma may return books in any order; verify we re-sort to pivot order.
+    prisma.book.findMany.mockResolvedValue([
+      { ...baseFreeBook, id: "book-older", slug: "older" },
+      { ...baseFreeBook, id: "book-newer", slug: "newer" },
+    ]);
+
+    const result = await service.list("user-7", { view: "favoritos" });
+
+    expect(result.books.map((b) => b.id)).toEqual(["book-newer", "book-older"]);
+  });
+
+  it("view=guardados applies q/categoryId/authorId filters on top of the pivot", async () => {
+    prisma.bookBookmark.findMany.mockResolvedValue([{ bookId: "book-1" }]);
+    prisma.bookBookmark.count.mockResolvedValue(1);
+    prisma.book.findMany.mockResolvedValue([]);
+
+    await service.list("user-7", {
+      view: "guardados",
+      categoryId: "cat-ansiedad",
+      q: "duelo",
+    });
 
     expect(prisma.book.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
+          id: { in: ["book-1"] },
           isPublished: true,
-          favorites: { some: { userId: "user-7" } },
+          categoryId: "cat-ansiedad",
+          OR: expect.any(Array),
         }),
       }),
     );
   });
 
-  it("filters by view=guardados to books the user has bookmarked", async () => {
-    prisma.book.findMany.mockResolvedValue([]);
-    prisma.book.count.mockResolvedValue(0);
+  it("view=favoritos pivot pagination uses (page-1)*perPage as skip", async () => {
+    prisma.bookFavorite.findMany.mockResolvedValue([]);
+    prisma.bookFavorite.count.mockResolvedValue(0);
 
-    await service.list("user-7", { view: "guardados" });
+    await service.list("user-7", { view: "favoritos", page: 3, perPage: 5 });
 
-    expect(prisma.book.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          isPublished: true,
-          bookmarks: { some: { userId: "user-7" } },
-        }),
-      }),
+    expect(prisma.bookFavorite.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 10, take: 5 }),
     );
   });
 

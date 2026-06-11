@@ -1800,3 +1800,18 @@ model AuthorPublicationRequest {
   @@index([bookId, submittedAt])
   @@index([reviewState, submittedAt])
 }
+
+// Sprint S72 — Audit del cambio de rol de un usuario realizado por un admin
+// desde Pulso. Trail mínimo para responder "quién promovió a quién y cuándo".
+model RoleChangeLog {
+  id           String   @id @default(cuid())
+  targetUserId String
+  oldRole      Role
+  newRole      Role
+  changedBy    String // admin user id
+  reason       String?
+  changedAt    DateTime @default(now())
+
+  @@index([targetUserId, changedAt])
+  @@index([changedBy, changedAt])
+}

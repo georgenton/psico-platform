@@ -1,4 +1,13 @@
-import { ArrayMaxSize, IsArray, IsOptional, IsString, Length } from "class-validator";
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsIn,
+  IsOptional,
+  IsString,
+  Length,
+} from "class-validator";
+import { THERAPY_MOOD_IDS } from "@psico/types";
+import type { TherapyMoodId } from "@psico/types";
 
 /**
  * Body for PATCH /api/terapia/sessions/:id/prep — Sprint S64.
@@ -27,10 +36,11 @@ export class UpdateSessionPrepDto {
   @Length(0, 64)
   intentionNonce?: string;
 
+  // Narrowed to the shared THERAPY_MOODS catalog (calmo / ansioso / triste / ...).
+  // Plugin CLI surfaces el enum en OpenAPI desde el @IsIn.
   @IsOptional()
-  @IsString()
-  @Length(1, 64)
-  checkInMood?: string;
+  @IsIn(THERAPY_MOOD_IDS)
+  checkInMood?: TherapyMoodId;
 
   @IsOptional()
   @IsArray()

@@ -261,6 +261,45 @@ function BookGridCard({
   const started = (book.userProgress?.progressPct ?? 0) > 0;
   const pct = book.userProgress?.progressPct ?? 0;
 
+  const [favorite, setFavorite] = useState(book.isFavorite);
+  const [bookmark, setBookmark] = useState(book.isBookmarked);
+  const [pending, setPending] = useState<"favorite" | "bookmark" | null>(null);
+
+  // Card list re-fetches from server when filters change — sync local state if
+  // the underlying book row swaps (same component instance, different book).
+  useEffect(() => {
+    setFavorite(book.isFavorite);
+    setBookmark(book.isBookmarked);
+  }, [book.id, book.isFavorite, book.isBookmarked]);
+
+  async function toggleFavorite() {
+    const prev = favorite;
+    setFavorite(!prev);
+    setPending("favorite");
+    try {
+      const res = await booksApi.toggleFavorite(book.id);
+      setFavorite(res.active);
+    } catch {
+      setFavorite(prev);
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function toggleBookmark() {
+    const prev = bookmark;
+    setBookmark(!prev);
+    setPending("bookmark");
+    try {
+      const res = await booksApi.toggleBookmark(book.id);
+      setBookmark(res.active);
+    } catch {
+      setBookmark(prev);
+    } finally {
+      setPending(null);
+    }
+  }
+
   return (
     <Pressable style={styles.card} onPress={onPress}>
       <View
@@ -273,6 +312,48 @@ function BookGridCard({
             <Text style={styles.lockBadgeText}>Pro</Text>
           </View>
         ) : null}
+        <Pressable
+          style={[
+            styles.coverIconBtn,
+            styles.coverIconFav,
+            pending === "favorite" && { opacity: 0.6 },
+          ]}
+          onPress={toggleFavorite}
+          disabled={pending !== null}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityState={{ selected: favorite }}
+          accessibilityLabel={
+            favorite ? "Quitar de favoritos" : "Marcar como favorito"
+          }
+        >
+          <Ionicons
+            name={favorite ? "heart" : "heart-outline"}
+            size={14}
+            color={favorite ? Colors.lavender[600] : Colors.white}
+          />
+        </Pressable>
+        <Pressable
+          style={[
+            styles.coverIconBtn,
+            styles.coverIconBm,
+            pending === "bookmark" && { opacity: 0.6 },
+          ]}
+          onPress={toggleBookmark}
+          disabled={pending !== null}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityState={{ selected: bookmark }}
+          accessibilityLabel={
+            bookmark ? "Quitar de guardados" : "Guardar para después"
+          }
+        >
+          <Ionicons
+            name={bookmark ? "bookmark" : "bookmark-outline"}
+            size={13}
+            color={bookmark ? Colors.sage[700] : Colors.white}
+          />
+        </Pressable>
       </View>
       <View style={styles.cardBody}>
         <Text style={styles.cardTitle} numberOfLines={2}>
@@ -519,5 +600,23 @@ const styles = StyleSheet.create({
   cardProgressFill: {
     height: "100%",
     backgroundColor: Colors.lavender[500],
+  },
+
+  coverIconBtn: {
+    position: "absolute",
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: 14,
+  },
+  coverIconFav: {
+    top: 6,
+    right: 6,
+  },
+  coverIconBm: {
+    bottom: 6,
+    right: 6,
   },
 });

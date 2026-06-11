@@ -216,6 +216,48 @@ describe("BooksService.list", () => {
     );
   });
 
+  it("filters by view=favoritos to books the user has favorited", async () => {
+    prisma.book.findMany.mockResolvedValue([]);
+    prisma.book.count.mockResolvedValue(0);
+
+    await service.list("user-7", { view: "favoritos" });
+
+    expect(prisma.book.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          isPublished: true,
+          favorites: { some: { userId: "user-7" } },
+        }),
+      }),
+    );
+  });
+
+  it("filters by view=guardados to books the user has bookmarked", async () => {
+    prisma.book.findMany.mockResolvedValue([]);
+    prisma.book.count.mockResolvedValue(0);
+
+    await service.list("user-7", { view: "guardados" });
+
+    expect(prisma.book.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          isPublished: true,
+          bookmarks: { some: { userId: "user-7" } },
+        }),
+      }),
+    );
+  });
+
+  it("ignores view=favoritos for unauthenticated requests", async () => {
+    prisma.book.findMany.mockResolvedValue([]);
+    prisma.book.count.mockResolvedValue(0);
+
+    await service.list(null, { view: "favoritos" });
+
+    const call = prisma.book.findMany.mock.calls[0][0];
+    expect(call.where).not.toHaveProperty("favorites");
+  });
+
   it("applies q search across title/subtitle/description (insensitive)", async () => {
     prisma.book.findMany.mockResolvedValue([]);
     prisma.book.count.mockResolvedValue(0);

@@ -110,6 +110,8 @@ export default function BooksScreen() {
           [
             { id: "catalogo", label: "Catálogo" },
             { id: "mis", label: "Mis libros" },
+            { id: "favoritos", label: "Favoritos" },
+            { id: "guardados", label: "Guardados" },
             { id: "recos", label: "Sugerencias" },
           ] as const
         ).map((tab) => {
@@ -201,12 +203,20 @@ export default function BooksScreen() {
           <Text style={styles.emptyTitle}>
             {view === "mis"
               ? "Aún no has empezado ningún libro"
-              : "No encontramos libros"}
+              : view === "favoritos"
+                ? "Aún no tienes favoritos"
+                : view === "guardados"
+                  ? "Aún no tienes libros guardados"
+                  : "No encontramos libros"}
           </Text>
           <Text style={styles.emptySub}>
             {view === "mis"
               ? "Cuando abras tu primer capítulo, lo verás aquí."
-              : "Intenta sin filtros o cambia la búsqueda."}
+              : view === "favoritos"
+                ? "Marca el corazón en cualquier libro para que aparezca aquí."
+                : view === "guardados"
+                  ? "Toca Guardar en un libro para leerlo más tarde."
+                  : "Intenta sin filtros o cambia la búsqueda."}
           </Text>
         </View>
       ) : (

@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { MOOD_SEED_CATALOG } from "../src/onboarding/constants";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -245,15 +246,9 @@ async function main() {
   }
   console.log(`✅  Motivos catalog: ${motivos.length} entries`);
 
-  const moods = [
-    { id: "calma", label: "Calma", swatch: "#A8C7E4", order: 1 },
-    { id: "foco", label: "Foco", swatch: "#7C5BC4", order: 2 },
-    { id: "energia", label: "Energía", swatch: "#F2A65A", order: 3 },
-    { id: "reflexion", label: "Reflexión", swatch: "#8C9F7E", order: 4 },
-    { id: "alegria", label: "Alegría", swatch: "#F5C76B", order: 5 },
-    { id: "ansiedad", label: "Ansiedad", swatch: "#C97B7B", order: 6 },
-    { id: "tristeza", label: "Tristeza", swatch: "#6B7E8E", order: 7 },
-  ];
+  // Single source of truth: apps/api/src/onboarding/constants.ts.
+  // The alignment test enforces parity with DIARY_MOODS in @psico/types.
+  const moods = MOOD_SEED_CATALOG;
   for (const mo of moods) {
     await prisma.onboardingMood.upsert({
       where: { id: mo.id },
@@ -690,7 +685,11 @@ async function main() {
         "Soy psicóloga clínica formada en la PUCE con maestría en psicoanálisis. Trabajo desde un enfoque integrador con foco en lo somático y en la narrativa.",
       approach: "Integrativo · somático · narrativo",
       specialties: ["ansiedad", "duelo", "identidad"],
-      modalities: ["INDIVIDUAL", "COUPLE"] as ("INDIVIDUAL" | "COUPLE" | "FAMILY")[],
+      modalities: ["INDIVIDUAL", "COUPLE"] as (
+        | "INDIVIDUAL"
+        | "COUPLE"
+        | "FAMILY"
+      )[],
       languages: ["es-EC"],
       genderId: "femenino",
       priceUsd: 45,
@@ -715,7 +714,11 @@ async function main() {
         "Soy psicóloga sistémica con 12 años de experiencia. Acompaño a parejas y familias en procesos de reconciliación, redefinición de roles y crisis.",
       approach: "Sistémico · centrado en soluciones",
       specialties: ["pareja", "familia", "comunicación"],
-      modalities: ["COUPLE", "FAMILY"] as ("INDIVIDUAL" | "COUPLE" | "FAMILY")[],
+      modalities: ["COUPLE", "FAMILY"] as (
+        | "INDIVIDUAL"
+        | "COUPLE"
+        | "FAMILY"
+      )[],
       languages: ["es-EC"],
       genderId: "femenino",
       priceUsd: 55,
@@ -723,7 +726,8 @@ async function main() {
       avgRating: 4.6,
       reviewsCount: 31,
       popularity: 80,
-      firstSessionPolicy: "Primera sesión: anamnesis + co-construcción de objetivos.",
+      firstSessionPolicy:
+        "Primera sesión: anamnesis + co-construcción de objetivos.",
       cancellationPolicy: "Hasta 48h antes sin costo.",
     },
     {
@@ -748,7 +752,8 @@ async function main() {
       avgRating: 4.5,
       reviewsCount: 19,
       popularity: 70,
-      firstSessionPolicy: "Primera sesión enfocada en establecer foco terapéutico.",
+      firstSessionPolicy:
+        "Primera sesión enfocada en establecer foco terapéutico.",
       cancellationPolicy: "Hasta 24h antes sin costo.",
     },
     {
@@ -790,7 +795,11 @@ async function main() {
         "Psicólogo formado en Argentina, especializado en adicciones. Trabajé en CRA Quito durante 12 años.",
       approach: "TCC + mindfulness · 12 pasos cuando aplica",
       specialties: ["adicciones", "ansiedad", "depresión"],
-      modalities: ["INDIVIDUAL", "FAMILY"] as ("INDIVIDUAL" | "COUPLE" | "FAMILY")[],
+      modalities: ["INDIVIDUAL", "FAMILY"] as (
+        | "INDIVIDUAL"
+        | "COUPLE"
+        | "FAMILY"
+      )[],
       languages: ["es-EC"],
       genderId: "masculino",
       priceUsd: 50,
@@ -814,8 +823,17 @@ async function main() {
       bioLong:
         "Magíster en psicología infantojuvenil. 8 años de experiencia en consultorio + colegios.",
       approach: "Terapia narrativa + arte-terapia",
-      specialties: ["adolescentes", "autoestima", "ansiedad-social", "bullying"],
-      modalities: ["INDIVIDUAL", "FAMILY"] as ("INDIVIDUAL" | "COUPLE" | "FAMILY")[],
+      specialties: [
+        "adolescentes",
+        "autoestima",
+        "ansiedad-social",
+        "bullying",
+      ],
+      modalities: ["INDIVIDUAL", "FAMILY"] as (
+        | "INDIVIDUAL"
+        | "COUPLE"
+        | "FAMILY"
+      )[],
       languages: ["es-EC", "en"],
       genderId: "femenino",
       priceUsd: 40,
@@ -823,7 +841,8 @@ async function main() {
       avgRating: 4.7,
       reviewsCount: 25,
       popularity: 75,
-      firstSessionPolicy: "Primera sesión con padres + adolescente para alinear objetivos.",
+      firstSessionPolicy:
+        "Primera sesión con padres + adolescente para alinear objetivos.",
       cancellationPolicy: "Hasta 24h antes sin costo.",
     },
   ];
@@ -856,7 +875,9 @@ async function main() {
       { dayOfWeek: 4, startMin: 840, endMin: 1140 },
     ];
     // Wipe + reinsert to keep this idempotent.
-    await prisma.therapistAvailability.deleteMany({ where: { therapistId: t.id } });
+    await prisma.therapistAvailability.deleteMany({
+      where: { therapistId: t.id },
+    });
     for (const s of defaultSlots) {
       await prisma.therapistAvailability.create({
         data: {

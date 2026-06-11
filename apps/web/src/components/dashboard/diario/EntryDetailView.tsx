@@ -4,9 +4,11 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { DiaryDetailResponse } from "@psico/types";
-import { decryptString } from "@psico/crypto";
+import { decryptString, encryptString } from "@psico/crypto";
 import { DiaryKeyProvider, useDiaryKey } from "@/lib/crypto/diary-key-context";
 import { UnlockGate } from "./UnlockGate";
+
+const EXCERPT_MAX_CHARS = 280;
 
 /**
  * EntryDetailView — wraps the detail in a DiaryKeyProvider so the same
@@ -83,6 +85,10 @@ function DecryptedDetail({
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [deleting, startDelete] = useTransition();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [savedFlash, setSavedFlash] = useState(false);
+  const [saving, startSave] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   const decryption = useMemo(() => {
@@ -115,6 +121,71 @@ function DecryptedDetail({
         router.push("/dashboard/diario");
       } catch {
         setError("No pudimos borrar la entrada. Reintenta.");
+      }
+    });
+  }
+
+  function startEdit() {
+    if (!decryption.ok) return;
+    setDraft(decryption.text);
+    setEditing(true);
+    setError(null);
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    setDraft("");
+    setError(null);
+  }
+
+  async function handleSave() {
+    if (!token) return;
+    const trimmed = draft.trim();
+    if (trimmed.length < 1) {
+      setError("La entrada no puede quedar vacía.");
+      return;
+    }
+    setError(null);
+    startSave(async () => {
+      try {
+        const body = encryptString(trimmed, diaryKey);
+        const excerpt = encryptString(
+          trimmed.slice(0, EXCERPT_MAX_CHARS),
+          diaryKey,
+        );
+        const res = await fetch(
+          `${apiBase}/diario/entries/${encodeURIComponent(detail.entry.id)}`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              textCiphertext: body.ciphertext,
+              textNonce: body.nonce,
+              excerptCiphertext: excerpt.ciphertext,
+              excerptNonce: excerpt.nonce,
+            }),
+          },
+        );
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(txt || `HTTP ${res.status}`);
+        }
+        // Update local view + flash + close editor. We refresh server
+        // state via router.refresh so related cards (and the list when
+        // user navigates back) reload from source of truth.
+        setEditing(false);
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2500);
+        router.refresh();
+      } catch (e) {
+        setError(
+          e instanceof Error
+            ? `No pudimos guardar: ${e.message}`
+            : "No pudimos guardar los cambios.",
+        );
       }
     });
   }
@@ -186,8 +257,68 @@ function DecryptedDetail({
         </div>
       ) : null}
 
-      {/* Body — decrypted or failure */}
-      {decryption.ok ? (
+      {/* Body — decrypted or failure or editing */}
+      {decryption.ok && editing ? (
+        <article
+          className="rounded-2xl border-[1.5px] bg-white p-5"
+          style={{ borderColor: "var(--color-lavender-300)" }}
+        >
+          <label className="block">
+            <span
+              className="mb-2 block text-[12px] font-bold uppercase tracking-[0.14em]"
+              style={{ color: "var(--color-lavender-700)" }}
+            >
+              Editar entrada
+            </span>
+            <textarea
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={Math.max(8, Math.min(24, draft.split("\n").length + 1))}
+              maxLength={20000}
+              disabled={saving}
+              className="w-full resize-y rounded-xl border-[1.5px] bg-white px-3 py-2 text-[15px] leading-relaxed outline-none"
+              style={{
+                borderColor: "var(--color-warm-200)",
+                color: "var(--color-warm-800)",
+              }}
+            />
+          </label>
+          <p
+            className="mt-2 text-right text-[11px]"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            {draft.length.toLocaleString("es-EC")} / 20.000 caracteres ·
+            cifrado en tu dispositivo antes de salir
+          </p>
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={cancelEdit}
+              className="rounded-full px-4 py-2 text-[12.5px] font-medium"
+              style={{
+                background: "var(--color-warm-100)",
+                color: "var(--color-warm-700)",
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={handleSave}
+              className="rounded-full px-4 py-2 text-[12.5px] font-semibold disabled:opacity-50"
+              style={{
+                background: "var(--color-lavender-500)",
+                color: "white",
+              }}
+            >
+              {saving ? "Guardando…" : "Guardar cambios"}
+            </button>
+          </div>
+        </article>
+      ) : decryption.ok ? (
         <article
           className="rounded-2xl border-[1.5px] bg-white p-7"
           style={{ borderColor: "var(--color-warm-200)" }}
@@ -198,6 +329,14 @@ function DecryptedDetail({
           >
             {decryption.text}
           </p>
+          {savedFlash ? (
+            <p
+              className="mt-3 text-[11.5px] font-medium"
+              style={{ color: "var(--color-sage-700)" }}
+            >
+              ✓ Cambios guardados
+            </p>
+          ) : null}
         </article>
       ) : (
         <div
@@ -297,17 +436,33 @@ function DecryptedDetail({
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setConfirming(true)}
-            className="rounded-lg px-3 py-2 text-[12px] font-semibold"
-            style={{
-              background: "var(--color-warm-100)",
-              color: "var(--color-warm-700)",
-            }}
-          >
-            🗑 Borrar entrada
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {decryption.ok && !editing ? (
+              <button
+                type="button"
+                onClick={startEdit}
+                className="rounded-lg px-3 py-2 text-[12px] font-semibold"
+                style={{
+                  background: "var(--color-lavender-100)",
+                  color: "var(--color-lavender-700)",
+                }}
+              >
+                ✎ Editar
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              disabled={editing}
+              className="rounded-lg px-3 py-2 text-[12px] font-semibold disabled:opacity-50"
+              style={{
+                background: "var(--color-warm-100)",
+                color: "var(--color-warm-700)",
+              }}
+            >
+              🗑 Borrar entrada
+            </button>
+          </div>
         )}
       </footer>
 

@@ -9,7 +9,6 @@ import {
   Min,
 } from "class-validator";
 import { Type } from "class-transformer";
-import { ApiProperty } from "@nestjs/swagger";
 import { DIARY_MOOD_IDS } from "@psico/types";
 import type { DiaryMoodId } from "@psico/types";
 
@@ -29,7 +28,6 @@ export class ListDiaryEntriesQueryDto {
   @IsDateString()
   to?: string;
 
-  @ApiProperty({ enum: DIARY_MOOD_IDS, required: false, example: "calma" })
   @IsOptional()
   @IsIn(DIARY_MOOD_IDS)
   mood?: DiaryMoodId;

@@ -2629,10 +2629,7 @@ export interface components {
             moodId: string;
         };
         CreateDiaryEntryDto: {
-            /**
-             * @example calma
-             * @enum {string}
-             */
+            /** @enum {string} */
             mood: CreateDiaryEntryDtoMood;
             /** @enum {string} */
             kind?: CreateDiaryEntryDtoKind;
@@ -2647,10 +2644,7 @@ export interface components {
             audioDurationSec?: number;
         };
         UpdateDiaryEntryDto: {
-            /**
-             * @example calma
-             * @enum {string}
-             */
+            /** @enum {string} */
             mood?: UpdateDiaryEntryDtoMood;
             textCiphertext?: string;
             textNonce?: string;
@@ -3594,9 +3588,9 @@ export interface operations {
     DiarioController_list: {
         parameters: {
             query?: {
-                mood?: PathsApiDiarioEntriesGetParametersQueryMood;
                 from?: string;
                 to?: string;
+                mood?: PathsApiDiarioEntriesGetParametersQueryMood;
                 tag?: string;
                 page?: number;
                 perPage?: number;

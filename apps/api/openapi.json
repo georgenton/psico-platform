@@ -1013,24 +1013,6 @@
         "operationId": "DiarioController_list",
         "parameters": [
           {
-            "name": "mood",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "example": "calma",
-              "enum": [
-                "calma",
-                "foco",
-                "energia",
-                "reflexion",
-                "alegria",
-                "ansiedad",
-                "tristeza"
-              ],
-              "type": "string"
-            }
-          },
-          {
             "name": "from",
             "required": false,
             "in": "query",
@@ -1043,6 +1025,23 @@
             "required": false,
             "in": "query",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mood",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "calma",
+                "foco",
+                "energia",
+                "reflexion",
+                "alegria",
+                "ansiedad",
+                "tristeza"
+              ],
               "type": "string"
             }
           },
@@ -5565,8 +5564,7 @@
               "alegria",
               "ansiedad",
               "tristeza"
-            ],
-            "example": "calma"
+            ]
           },
           "kind": {
             "type": "string",
@@ -5630,8 +5628,7 @@
               "alegria",
               "ansiedad",
               "tristeza"
-            ],
-            "example": "calma"
+            ]
           },
           "textCiphertext": {
             "type": "string"

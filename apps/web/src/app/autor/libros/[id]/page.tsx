@@ -5,10 +5,13 @@ import type {
   AuthorBookDetail,
   AuthorPublicationState,
 } from "@psico/types";
-import { isNextThrow, serverFetch } from "@/lib/api.server";
+import { getAccessToken, isNextThrow, serverFetch } from "@/lib/api.server";
 import { BookMetaForm } from "./BookMetaForm";
 import { PublicationCard } from "./PublicationCard";
 import { ArchiveButton } from "./ArchiveButton";
+import { CoverImageUpload } from "./CoverImageUpload";
+
+const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001").replace(/\/$/, "")}/api`;
 
 export const metadata: Metadata = { title: "Libro · Editor" };
 export const dynamic = "force-dynamic";
@@ -86,6 +89,25 @@ export default async function AuthorBookPage({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
         <section className="space-y-6">
           <BookMetaForm book={book} disabled={isFrozen} />
+
+          <article
+            className="rounded-2xl border-[1.5px] bg-white p-5"
+            style={{ borderColor: "var(--color-warm-200)" }}
+          >
+            <h2
+              className="mb-3 text-[15px] font-bold tracking-tight"
+              style={{ color: "var(--color-warm-900)" }}
+            >
+              Imagen de portada
+            </h2>
+            <CoverImageUpload
+              bookId={book.id}
+              currentUrl={book.coverArtUrl}
+              disabled={isFrozen}
+              apiBase={API_BASE}
+              accessToken={getAccessToken() ?? ""}
+            />
+          </article>
 
           <article
             className="rounded-2xl border-[1.5px] bg-white p-5"

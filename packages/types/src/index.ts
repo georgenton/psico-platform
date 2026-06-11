@@ -1224,6 +1224,14 @@ export const THERAPY_MOODS: readonly TherapyMoodOption[] = [
 
 export type TherapyMoodId = (typeof THERAPY_MOODS)[number]["id"];
 
+/**
+ * Plain-string therapy mood IDs for runtime validators (`@IsIn`).
+ * Sourced from THERAPY_MOODS so adding a mood there propagates.
+ */
+export const THERAPY_MOOD_IDS: readonly string[] = THERAPY_MOODS.map(
+  (m) => m.id,
+);
+
 export interface DiaryEntrySummary {
   id: string;
   createdAt: Date;

@@ -6452,8 +6452,13 @@
           },
           "checkInMood": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 64
+            "enum": [
+              "calmo",
+              "ansioso",
+              "triste",
+              "energico",
+              "cansado"
+            ]
           },
           "sharedEntryIds": {
             "maxItems": 10,

@@ -1,6 +1,6 @@
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-export type UserRole = "USER" | "PSYCHOLOGIST" | "ADMIN";
+export type UserRole = "USER" | "AUTHOR" | "PSYCHOLOGIST" | "ADMIN";
 
 export type UserPlan = "FREE" | "PRO" | "ANNUAL" | "B2B";
 
@@ -1816,6 +1816,149 @@ export interface PulsoApproveAuthorRequestResponse {
 
 export interface PulsoRejectAuthorRequestBody {
   feedback?: string;
+}
+
+// ─── Author module (Sprints S71 / S71.B / S71-front) ────────────────────────
+//
+// Wire types for /api/autor/* endpoints. The AuthorBook lives in the author
+// workspace; it's promoted (copy-on-publish) to Book by admin approval.
+
+export type AuthorBookStatus =
+  | "DRAFT"
+  | "IN_REVIEW"
+  | "PUBLISHED"
+  | "ARCHIVED";
+
+export interface AuthorDashboardBook {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  status: AuthorBookStatus;
+  cover: string;
+  chapters: number;
+  lastEditedAt: Date;
+  publishedAt: Date | null;
+  archivedAt: Date | null;
+}
+
+export interface AuthorDashboardResponse {
+  author: {
+    id: string;
+    name: string;
+    title: string;
+    verified: boolean;
+    tier: "free" | "pro-autor";
+  };
+  books: AuthorDashboardBook[];
+  templates: Array<{ id: string; label: string }>;
+  aiHelpers: Array<{ id: string; label: string }>;
+  publicationSteps: Array<{
+    id: string;
+    label: string;
+    blocker: boolean;
+  }>;
+}
+
+export interface CreateAuthorBookRequest {
+  title: string;
+  templateId?: string;
+}
+
+export interface CreateAuthorBookResponse {
+  ok: true;
+  bookId: string;
+}
+
+export interface AuthorBookChapterSummary {
+  id: string;
+  n: number;
+  title: string;
+  subtitle: string | null;
+  isLocked: boolean;
+  isHidden: boolean;
+  version: number;
+  updatedAt: Date;
+}
+
+export interface AuthorBookDetail {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  summary: string | null;
+  status: AuthorBookStatus;
+  cover: string;
+  coverArtUrl: string | null;
+  categoryId: string | null;
+  language: string;
+  publishedAt: Date | null;
+  archivedAt: Date | null;
+  submittedAt: Date | null;
+  structure: AuthorBookChapterSummary[];
+}
+
+export interface UpdateAuthorBookRequest {
+  title?: string;
+  subtitle?: string;
+  summary?: string;
+  cover?: string;
+  coverArtUrl?: string;
+  categoryId?: string;
+  language?: string;
+}
+
+export interface AuthorChapterBlockDto {
+  kind: string;
+  content: string;
+  meta?: Record<string, unknown>;
+}
+
+export interface AuthorBookChapter {
+  id: string;
+  n: number;
+  title: string;
+  subtitle: string | null;
+  blocks: AuthorChapterBlockDto[];
+  isLocked: boolean;
+  isHidden: boolean;
+  version: number;
+  updatedAt: Date;
+}
+
+export interface UpdateAuthorChapterRequest {
+  title?: string;
+  subtitle?: string;
+  blocks?: AuthorChapterBlockDto[];
+  isLocked?: boolean;
+  isHidden?: boolean;
+  expectedVersion?: number;
+}
+
+export interface UpdateAuthorStructureItem {
+  n: number;
+  title?: string;
+  subtitle?: string;
+  isLocked?: boolean;
+  isHidden?: boolean;
+}
+
+export interface UpdateAuthorStructureRequest {
+  chapters: UpdateAuthorStructureItem[];
+}
+
+export interface AuthorPublicationStep {
+  id: string;
+  label: string;
+  done: boolean;
+  blocker: boolean;
+}
+
+export interface AuthorPublicationState {
+  bookId: string;
+  status: AuthorBookStatus;
+  steps: AuthorPublicationStep[];
+  reviewState: "PENDING" | "APPROVED" | "REJECTED" | null;
+  submittedAt: Date | null;
+  feedback: string | null;
 }
 
 // ─── Notifications (Sprint S43) ─────────────────────────────────────────────

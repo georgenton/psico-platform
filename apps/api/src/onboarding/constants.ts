@@ -151,3 +151,46 @@ export const MOOD_SEED_CATALOG: readonly OnboardingMoodSeed[] = [
   { id: "ansiedad", label: "Ansiedad", swatch: "#C97B7B", order: 6 },
   { id: "tristeza", label: "Tristeza", swatch: "#6B7E8E", order: 7 },
 ] as const;
+
+// ─── Motivo catalog (seeded into OnboardingMotivo) ───────────────────────────
+//
+// Single source of truth for the motivos catalog persisted in `OnboardingMotivo`.
+// The alignment test `motivos-alignment.spec.ts` enforces that:
+//   - Every motivo here has an entry in RECOMMENDATION_BY_MOTIVO.
+//   - Every recommended book slug is one of the known ancla books.
+//   - FALLBACK_BOOK_SLUG is one of the known slugs.
+//
+// `icon` names must match lucide-react icon ids (UI consumes them directly).
+
+export interface OnboardingMotivoSeed {
+  readonly id: string;
+  readonly label: string;
+  readonly icon: string;
+  readonly order: number;
+}
+
+export const MOTIVO_SEED_CATALOG: readonly OnboardingMotivoSeed[] = [
+  { id: "ansiedad", label: "Ansiedad", icon: "wind", order: 1 },
+  { id: "tristeza", label: "Tristeza", icon: "cloud-rain", order: 2 },
+  {
+    id: "relaciones",
+    label: "Mis relaciones",
+    icon: "heart-handshake",
+    order: 3,
+  },
+  { id: "vinculos", label: "Vínculos familiares", icon: "users", order: 4 },
+  { id: "trabajo", label: "Trabajo y burnout", icon: "briefcase", order: 5 },
+  { id: "duelo", label: "Estoy en un duelo", icon: "heart-crack", order: 6 },
+  { id: "explorar", label: "Solo explorando", icon: "compass", order: 7 },
+] as const;
+
+/**
+ * Known book slugs the onboarding recommender can return. Kept here to give
+ * the alignment test a closed set to validate against. The seed creates these
+ * two anchor books in `seed.ts`; any new book that should be recommendable from
+ * onboarding must be added here too.
+ */
+export const KNOWN_ANCHOR_BOOK_SLUGS: readonly string[] = [
+  "emociones-en-construccion",
+  "familias-ensambladas",
+] as const;

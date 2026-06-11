@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { AuthorBookChapter, AuthorBookDetail } from "@psico/types";
-import { isNextThrow, serverFetch } from "@/lib/api.server";
+import { getAccessToken, isNextThrow, serverFetch } from "@/lib/api.server";
 import { ChapterEditor } from "./ChapterEditor";
+
+const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001").replace(/\/$/, "")}/api`;
 
 export const metadata: Metadata = { title: "Capítulo · Editor" };
 export const dynamic = "force-dynamic";
@@ -60,6 +62,9 @@ export default async function AuthorChapterPage({
         bookId={params.id}
         chapter={chapter}
         disabled={isFrozen}
+        apiBase={API_BASE}
+        accessToken={getAccessToken() ?? ""}
+        bookContext={book.summary ?? book.title}
       />
 
       <nav className="flex items-center justify-between">

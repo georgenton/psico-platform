@@ -2002,6 +2002,29 @@ export interface AuthorPublicationState {
   feedback: string | null;
 }
 
+// Uploads (Sprint S71.C-uploads)
+export interface AuthorCoverUploadResponse {
+  ok: true;
+  coverArtUrl: string;
+}
+
+export interface AuthorAudioBlock {
+  kind: "audio";
+  content: string;
+  meta: {
+    url: string;
+    mimeType: string;
+    sizeBytes: number;
+  };
+}
+
+export interface AuthorAudioUploadResponse {
+  ok: true;
+  url: string;
+  version: number;
+  block: AuthorAudioBlock;
+}
+
 // AI helpers (Sprint S71.C-AI)
 export type AuthorAiIntent = "revisar" | "ejemplo" | "tono" | "simplificar";
 

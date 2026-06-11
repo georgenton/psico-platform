@@ -7,6 +7,7 @@ import type {
 } from "@psico/types";
 import { updateChapterAction } from "../../actions";
 import { AiHelperModal } from "./AiHelperModal";
+import { AudioUpload } from "./AudioUpload";
 
 const BLOCK_KINDS = [
   { value: "paragraph", label: "Párrafo" },
@@ -334,6 +335,20 @@ export function ChapterEditor({
           onAccept={(text) => setBlock(aiTarget, { content: text })}
         />
       ) : null}
+
+      <AudioUpload
+        bookId={bookId}
+        chapterN={chapter.n}
+        disabled={disabled}
+        apiBase={apiBase}
+        accessToken={accessToken}
+        onUploaded={(block, nextVersion) => {
+          setBlocks((prev) => [...prev, block]);
+          setVersion(nextVersion);
+          setFlash("Audio agregado al capítulo");
+          setTimeout(() => setFlash(null), 3000);
+        }}
+      />
     </div>
   );
 }

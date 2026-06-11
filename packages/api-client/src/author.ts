@@ -1,8 +1,10 @@
 import type {
   AuthorAiHelpRequest,
   AuthorAiHelpResponse,
+  AuthorAudioUploadResponse,
   AuthorBookChapter,
   AuthorBookDetail,
+  AuthorCoverUploadResponse,
   AuthorDashboardResponse,
   AuthorPublicationState,
   CreateAuthorBookRequest,
@@ -78,4 +80,28 @@ export const authorApi = {
       `/autor/libros/${bookId}/ai-help`,
       body,
     ),
+
+  uploadCover: (bookId: string, file: File | Blob) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiClient.postFormData<AuthorCoverUploadResponse>(
+      `/autor/libros/${bookId}/cover-image`,
+      form,
+    );
+  },
+
+  uploadChapterAudio: (
+    bookId: string,
+    n: number,
+    file: File | Blob,
+    title?: string,
+  ) => {
+    const form = new FormData();
+    form.append("file", file);
+    if (title) form.append("title", title);
+    return apiClient.postFormData<AuthorAudioUploadResponse>(
+      `/autor/libros/${bookId}/capitulos/${n}/audio`,
+      form,
+    );
+  },
 };

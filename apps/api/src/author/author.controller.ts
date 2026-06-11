@@ -9,15 +9,20 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
+import { FileInterceptor } from "@nestjs/platform-express";
 import { CurrentUser, RequiredRole, RolesGuard } from "../shared";
 import { JwtAuthGuard } from "../auth";
 import { AuthorService } from "./author.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { AuthorAiService } from "./author-ai.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { AuthorUploadsService } from "./author-uploads.service";
 import { CreateAuthorBookDto } from "./dto/create-book.dto";
 import { UpdateAuthorBookDto } from "./dto/update-book.dto";
 import { UpdateChapterDto } from "./dto/update-chapter.dto";
@@ -39,6 +44,7 @@ export class AuthorController {
   constructor(
     private readonly service: AuthorService,
     private readonly ai: AuthorAiService,
+    private readonly uploads: AuthorUploadsService,
   ) {}
 
   // ── Dashboard ────────────────────────────────────────────────────────────
@@ -162,6 +168,44 @@ export class AuthorController {
     @Param("id") id: string,
   ) {
     return this.service.unpublish(user.userId, id);
+  }
+
+  // ── Sprint S71.C-uploads — Cover image + audio ──────────────────────────
+
+  @Post("libros/:id/cover-image")
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @UseInterceptors(FileInterceptor("file"))
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Sube la portada del libro (JPG/PNG/WebP, máx 5MB) al storage R2 + " +
+      "guarda la URL en AuthorBook.coverArtUrl.",
+  })
+  async uploadCover(
+    @CurrentUser() user: { userId: string },
+    @Param("id") id: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    return this.uploads.uploadCoverImage(user.userId, id, file);
+  }
+
+  @Post("libros/:id/capitulos/:n/audio")
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @UseInterceptors(FileInterceptor("file"))
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Sube audio del capítulo (MP3/M4A/WAV/WEBM/OGG, máx 50MB) y lo " +
+      "agrega como bloque AUDIO al final del capítulo.",
+  })
+  async uploadChapterAudio(
+    @CurrentUser() user: { userId: string },
+    @Param("id") id: string,
+    @Param("n", ParseIntPipe) n: number,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body("title") title?: string,
+  ) {
+    return this.uploads.uploadChapterAudio(user.userId, id, n, file, title);
   }
 
   // ── Sprint S71.C-AI — AI helpers ─────────────────────────────────────────

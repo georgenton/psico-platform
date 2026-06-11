@@ -33,6 +33,19 @@ export default function BookDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [favorite, setFavorite] = useState(false);
+  const [bookmark, setBookmark] = useState(false);
+  const [togglePending, setTogglePending] = useState<
+    "favorite" | "bookmark" | null
+  >(null);
+
+  // Sync local toggles when detail loads (initial fetch and any refresh).
+  useEffect(() => {
+    if (detail) {
+      setFavorite(detail.isFavorite);
+      setBookmark(detail.isBookmarked);
+    }
+  }, [detail]);
 
   const load = useCallback(async () => {
     if (!slug) return;
@@ -85,6 +98,36 @@ export default function BookDetailScreen() {
       // Stays on the same screen; user can retry.
     } finally {
       setStarting(false);
+    }
+  }
+
+  async function toggleFavorite() {
+    if (!slug) return;
+    const prev = favorite;
+    setFavorite(!prev);
+    setTogglePending("favorite");
+    try {
+      const res = await booksApi.toggleFavorite(slug);
+      setFavorite(res.active);
+    } catch {
+      setFavorite(prev);
+    } finally {
+      setTogglePending(null);
+    }
+  }
+
+  async function toggleBookmark() {
+    if (!slug) return;
+    const prev = bookmark;
+    setBookmark(!prev);
+    setTogglePending("bookmark");
+    try {
+      const res = await booksApi.toggleBookmark(slug);
+      setBookmark(res.active);
+    } catch {
+      setBookmark(prev);
+    } finally {
+      setTogglePending(null);
     }
   }
 
@@ -196,6 +239,58 @@ export default function BookDetailScreen() {
                   : "Empezar capítulo 1"}
           </Text>
         </Pressable>
+
+        {/* Bookmark + Favorite chips */}
+        <View style={styles.actionsRow}>
+          <Pressable
+            style={[
+              styles.actionChip,
+              favorite && styles.actionChipFavActive,
+              togglePending === "favorite" && { opacity: 0.6 },
+            ]}
+            onPress={toggleFavorite}
+            disabled={togglePending !== null}
+            accessibilityRole="button"
+            accessibilityState={{ selected: favorite }}
+            accessibilityLabel={
+              favorite ? "Quitar de favoritos" : "Marcar como favorito"
+            }
+          >
+            <Text style={styles.actionChipEmoji}>{favorite ? "❤️" : "🤍"}</Text>
+            <Text
+              style={[
+                styles.actionChipText,
+                favorite && styles.actionChipFavActiveText,
+              ]}
+            >
+              {favorite ? "Favorito" : "Favorito"}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.actionChip,
+              bookmark && styles.actionChipBmActive,
+              togglePending === "bookmark" && { opacity: 0.6 },
+            ]}
+            onPress={toggleBookmark}
+            disabled={togglePending !== null}
+            accessibilityRole="button"
+            accessibilityState={{ selected: bookmark }}
+            accessibilityLabel={
+              bookmark ? "Quitar de guardados" : "Guardar para después"
+            }
+          >
+            <Text style={styles.actionChipEmoji}>{bookmark ? "🔖" : "📑"}</Text>
+            <Text
+              style={[
+                styles.actionChipText,
+                bookmark && styles.actionChipBmActiveText,
+              ]}
+            >
+              {bookmark ? "Guardado" : "Guardar"}
+            </Text>
+          </Pressable>
+        </View>
 
         {/* About */}
         {book.summary || book.description ? (
@@ -842,5 +937,44 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontWeight: "700",
     fontSize: 13,
+  },
+
+  actionsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: Spacing.sm + 2,
+  },
+  actionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    backgroundColor: Colors.warm[50],
+    borderWidth: 1.5,
+    borderColor: Colors.warm[200],
+    borderRadius: Radius.full,
+  },
+  actionChipFavActive: {
+    backgroundColor: Colors.lavender[100],
+    borderColor: Colors.lavender[400],
+  },
+  actionChipBmActive: {
+    backgroundColor: Colors.sage[100],
+    borderColor: Colors.sage[400],
+  },
+  actionChipEmoji: {
+    fontSize: 13,
+  },
+  actionChipText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: Colors.warm[700],
+  },
+  actionChipFavActiveText: {
+    color: Colors.lavender[700],
+  },
+  actionChipBmActiveText: {
+    color: Colors.sage[700],
   },
 });

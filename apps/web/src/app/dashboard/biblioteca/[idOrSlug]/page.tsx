@@ -10,6 +10,7 @@ import {
   isNextThrow,
   serverFetch,
 } from "@/lib/api.server";
+import { BookActionsBar } from "@/components/dashboard/detalle/BookActionsBar";
 import { BookHero } from "@/components/dashboard/detalle/BookHero";
 import { ChaptersList } from "@/components/dashboard/detalle/ChaptersList";
 import { ReviewsSection } from "@/components/dashboard/detalle/ReviewsSection";
@@ -82,6 +83,14 @@ export default async function BookDetailPage({ params }: { params: Params }) {
         apiBase={API_BASE}
         token={accessToken}
         idOrSlug={params.idOrSlug}
+      />
+
+      <BookActionsBar
+        idOrSlug={params.idOrSlug}
+        initialFavorite={detail.isFavorite}
+        initialBookmarked={detail.isBookmarked}
+        apiBase={API_BASE}
+        token={accessToken}
       />
 
       {/* About */}

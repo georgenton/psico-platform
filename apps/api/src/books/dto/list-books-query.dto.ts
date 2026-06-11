@@ -1,7 +1,7 @@
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 import { Type } from "class-transformer";
 
-const VIEWS = ["catalogo", "mis", "recos"] as const;
+const VIEWS = ["catalogo", "mis", "recos", "favoritos", "guardados"] as const;
 const SORTS = ["recent", "alpha", "marina"] as const;
 
 /**

@@ -81,6 +81,8 @@ export function Filters({
           [
             { id: "catalogo", label: "Catálogo" },
             { id: "mis", label: "Mis libros" },
+            { id: "favoritos", label: "Favoritos" },
+            { id: "guardados", label: "Guardados" },
             { id: "recos", label: "Sugerencias" },
           ] as const
         ).map((tab) => {

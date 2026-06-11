@@ -50,13 +50,19 @@ export default async function BibliotecaPage({
   const view = (searchParams.view ?? "catalogo") as
     | "catalogo"
     | "mis"
-    | "recos";
+    | "recos"
+    | "favoritos"
+    | "guardados";
   const sectionTitle =
     view === "mis"
       ? "Mis libros"
       : view === "recos"
         ? "Sugerencias para ti"
-        : "Todo el catálogo";
+        : view === "favoritos"
+          ? "Tus favoritos"
+          : view === "guardados"
+            ? "Guardados para después"
+            : "Todo el catálogo";
 
   return (
     <div className="mx-auto max-w-[1080px]">
@@ -124,7 +130,11 @@ export default async function BibliotecaPage({
   );
 }
 
-function EmptyResults({ view }: { view: "catalogo" | "mis" | "recos" }) {
+function EmptyResults({
+  view,
+}: {
+  view: "catalogo" | "mis" | "recos" | "favoritos" | "guardados";
+}) {
   const copy =
     view === "mis"
       ? {
@@ -136,10 +146,20 @@ function EmptyResults({ view }: { view: "catalogo" | "mis" | "recos" }) {
             title: "Tus sugerencias están en camino",
             sub: "Lee algunas páginas y Eco aprenderá qué recomendarte.",
           }
-        : {
-            title: "No encontramos libros con esos filtros",
-            sub: "Intenta sin filtros o cambia la búsqueda.",
-          };
+        : view === "favoritos"
+          ? {
+              title: "Aún no tienes libros favoritos",
+              sub: "Marca el corazón ❤️ en cualquier libro para que aparezca aquí.",
+            }
+          : view === "guardados"
+            ? {
+                title: "Aún no tienes libros guardados",
+                sub: "Toca 📑 Guardar en un libro para leerlo más tarde.",
+              }
+            : {
+                title: "No encontramos libros con esos filtros",
+                sub: "Intenta sin filtros o cambia la búsqueda.",
+              };
   return (
     <div
       className="rounded-2xl border-[1.5px] bg-white p-12 text-center"

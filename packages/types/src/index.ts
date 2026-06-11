@@ -1197,6 +1197,13 @@ export const DIARY_MOODS: readonly DiaryMoodOption[] = [
 export type DiaryMoodId = (typeof DIARY_MOODS)[number]["id"];
 
 /**
+ * Plain-string mood IDs for runtime validators that need a non-typed array
+ * (e.g. class-validator's `@IsIn`). Sourced from DIARY_MOODS so adding a mood
+ * there propagates automatically.
+ */
+export const DIARY_MOOD_IDS: readonly string[] = DIARY_MOODS.map((m) => m.id);
+
+/**
  * Shared catalog of post-session moods used by the Terapia feedback flow.
  * Independent from Diary moods — sessions use a coarser 5-option grid because
  * the user is rating their state right after therapy, not journaling.

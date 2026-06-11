@@ -46,6 +46,8 @@ const FALLBACK_BOOKS: BookListItem[] = [
     tierRequired: "free",
     isFavorite: false,
     isBookmarked: false,
+    favoritedAt: null,
+    bookmarkedAt: null,
     userProgress: null,
   },
   {
@@ -69,6 +71,8 @@ const FALLBACK_BOOKS: BookListItem[] = [
     tierRequired: "pro",
     isFavorite: false,
     isBookmarked: false,
+    favoritedAt: null,
+    bookmarkedAt: null,
     userProgress: null,
   },
 ];

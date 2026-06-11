@@ -520,10 +520,16 @@ export class BooksService {
       category: true,
       reviews: { select: { rating: true } },
       favorites: userId
-        ? ({ where: { userId }, select: { id: true } } as const)
+        ? ({
+            where: { userId },
+            select: { id: true, createdAt: true },
+          } as const)
         : (false as const),
       bookmarks: userId
-        ? ({ where: { userId }, select: { id: true } } as const)
+        ? ({
+            where: { userId },
+            select: { id: true, createdAt: true },
+          } as const)
         : (false as const),
       chapters: userId
         ? {
@@ -623,8 +629,10 @@ export class BooksService {
       reviewCount > 0
         ? reviews.reduce((acc, r) => acc + r.rating, 0) / reviewCount
         : 0;
-    const favorites = (row.favorites as { id: string }[] | undefined) ?? [];
-    const bookmarks = (row.bookmarks as { id: string }[] | undefined) ?? [];
+    const favorites =
+      (row.favorites as { id: string; createdAt: Date }[] | undefined) ?? [];
+    const bookmarks =
+      (row.bookmarks as { id: string; createdAt: Date }[] | undefined) ?? [];
     const chapters =
       (row.chapters as
         | {
@@ -654,6 +662,10 @@ export class BooksService {
       tierRequired: PLAN_TO_TIER[row.plan] ?? "free",
       isFavorite: userId ? favorites.length > 0 : false,
       isBookmarked: userId ? bookmarks.length > 0 : false,
+      favoritedAt:
+        userId && favorites.length > 0 ? favorites[0].createdAt : null,
+      bookmarkedAt:
+        userId && bookmarks.length > 0 ? bookmarks[0].createdAt : null,
       userProgress: userId ? this.computeProgressFromChapters(chapters) : null,
     };
   }

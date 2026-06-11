@@ -14,6 +14,7 @@ import { booksApi } from "@psico/api-client";
 import type { BookCategory, BookListItem, BookListView } from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { coverColor } from "@/components/dashboard/cover-colors";
+import { relativeTime } from "@/lib/relative-time";
 import { Colors, Radius, Spacing } from "@/theme";
 
 /**
@@ -385,8 +386,36 @@ function BookGridCard({
             />
           </View>
         ) : null}
+        <MarkedAtLabel
+          favoritedAt={book.favoritedAt}
+          bookmarkedAt={book.bookmarkedAt}
+        />
       </View>
     </Pressable>
+  );
+}
+
+/** Tiny "❤️ hace 3 días" / "🔖 hace 1 mes" label. Picks the more recent of the
+ * two markers. Null when the user hasn't marked the book at all. */
+function MarkedAtLabel({
+  favoritedAt,
+  bookmarkedAt,
+}: {
+  favoritedAt: Date | string | null;
+  bookmarkedAt: Date | string | null;
+}) {
+  const fav = favoritedAt ? new Date(favoritedAt) : null;
+  const bm = bookmarkedAt ? new Date(bookmarkedAt) : null;
+  const mostRecent = fav && bm ? (fav > bm ? fav : bm) : (fav ?? bm);
+  if (!mostRecent) return null;
+  const label = relativeTime(mostRecent);
+  if (!label) return null;
+  const icon = fav && (!bm || fav >= bm) ? "❤️" : "🔖";
+  return (
+    <View style={styles.markedAtRow}>
+      <Text style={styles.markedAtIcon}>{icon}</Text>
+      <Text style={styles.markedAtText}>{label}</Text>
+    </View>
   );
 }
 
@@ -600,6 +629,20 @@ const styles = StyleSheet.create({
   cardProgressFill: {
     height: "100%",
     backgroundColor: Colors.lavender[500],
+  },
+
+  markedAtRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 6,
+  },
+  markedAtIcon: {
+    fontSize: 10,
+  },
+  markedAtText: {
+    fontSize: 10.5,
+    color: Colors.warm[500],
   },
 
   coverIconBtn: {

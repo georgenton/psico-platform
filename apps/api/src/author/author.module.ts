@@ -5,11 +5,17 @@ import { AuthorController } from "./author.controller";
 import { AuthorService } from "./author.service";
 import { AuthorAiService } from "./author-ai.service";
 import { AuthorUploadsService } from "./author-uploads.service";
+import { AuthorRevenueService } from "./author-revenue.service";
 
 @Module({
   imports: [PrismaModule, ConfigModule],
   controllers: [AuthorController],
-  providers: [AuthorService, AuthorAiService, AuthorUploadsService],
+  providers: [
+    AuthorService,
+    AuthorAiService,
+    AuthorUploadsService,
+    AuthorRevenueService,
+  ],
   exports: [AuthorService],
 })
 export class AuthorModule {}

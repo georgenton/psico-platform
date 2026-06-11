@@ -1815,3 +1815,54 @@ model RoleChangeLog {
   @@index([targetUserId, changedAt])
   @@index([changedBy, changedAt])
 }
+
+// Sprint S71.C-revenue — earnings + payout settings para autores B2B.
+// Una fila por (autor, libro?, mes). bookId es opcional para earnings
+// agregadas (todos los libros del autor en ese mes). El servicio del
+// autor solo lee; el seed/inserción real viene de Pulso v2 o un job
+// futuro de agregación (deuda S71.D).
+
+enum EarningStatus {
+  PENDING
+  PAID
+}
+
+model AuthorEarning {
+  id               String        @id @default(cuid())
+  authorUserId     String
+  bookId           String?
+  // Mes representado como el día 1 a 00:00 UTC. Facilita queries por
+  // rango y aggregations YTD / lastMonth.
+  month            DateTime
+  // Todos los amounts en cents (USD por v1) para evitar float drift.
+  grossCents       Int
+  platformFeeCents Int
+  netCents         Int
+  status           EarningStatus @default(PENDING)
+  paidAt           DateTime?
+  paymentMethod    String?
+  paymentReference String?
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([authorUserId, month])
+  @@index([status, month])
+}
+
+// Settings de cobro del autor. Method es free-form porque varía mucho
+// por país (transferencia EC, PayPal, Payphone, manual). Los detalles
+// específicos van en `details` JSON.
+model AuthorPayoutSetting {
+  id           String   @id @default(cuid())
+  authorUserId String   @unique
+  // Una de: bank_ec | paypal | payphone | manual
+  method       String   @default("manual")
+  // JSON específico al método: { iban, accountHolder, bankName, ... }
+  details      Json     @default("{}")
+  taxId        String?
+  legalName    String?
+  legalAddress String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

@@ -2,7 +2,10 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
-import { MOOD_SEED_CATALOG } from "../src/onboarding/constants";
+import {
+  MOOD_SEED_CATALOG,
+  MOTIVO_SEED_CATALOG,
+} from "../src/onboarding/constants";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -223,20 +226,10 @@ async function main() {
 
   console.log("\n🧭 Onboarding catalogs…");
 
-  const motivos = [
-    { id: "ansiedad", label: "Ansiedad", icon: "wind", order: 1 },
-    { id: "tristeza", label: "Tristeza", icon: "cloud-rain", order: 2 },
-    {
-      id: "relaciones",
-      label: "Mis relaciones",
-      icon: "heart-handshake",
-      order: 3,
-    },
-    { id: "vinculos", label: "Vínculos familiares", icon: "users", order: 4 },
-    { id: "trabajo", label: "Trabajo y burnout", icon: "briefcase", order: 5 },
-    { id: "duelo", label: "Estoy en un duelo", icon: "heart-crack", order: 6 },
-    { id: "explorar", label: "Solo explorando", icon: "compass", order: 7 },
-  ];
+  // Single source of truth: apps/api/src/onboarding/constants.ts.
+  // The alignment test enforces that every motivo has a RECOMMENDATION_BY_MOTIVO
+  // entry pointing to a known anchor book.
+  const motivos = MOTIVO_SEED_CATALOG;
   for (const m of motivos) {
     await prisma.onboardingMotivo.upsert({
       where: { id: m.id },

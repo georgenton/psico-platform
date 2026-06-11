@@ -66,7 +66,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Register a new account (email + password)",
@@ -91,7 +98,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Login with email + password",
@@ -117,7 +131,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Rotate refresh token, get new access token",
@@ -248,7 +269,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Sign in / register with a Google ID token",
@@ -260,10 +288,89 @@
     "/api/books": {
       "get": {
         "operationId": "BooksController_list",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "view",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "catalogo",
+                "mis",
+                "recos",
+                "favoritos",
+                "guardados"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "recent",
+                "alpha",
+                "marina"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 60,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -304,7 +411,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -323,7 +437,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -360,7 +481,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -379,11 +507,37 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "type": "number"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -414,7 +568,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -442,7 +603,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -470,7 +638,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -498,7 +673,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -713,7 +895,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -732,7 +924,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -789,7 +988,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -823,11 +1029,63 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "type": "number"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -854,7 +1112,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -873,7 +1138,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -892,7 +1164,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -920,7 +1199,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -956,7 +1242,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -982,7 +1275,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1020,7 +1320,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1039,7 +1346,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1053,7 +1370,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1077,7 +1401,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1101,7 +1432,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1115,7 +1453,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1126,10 +1471,28 @@
     "/api/subscriptions/invoices": {
       "get": {
         "operationId": "SubscriptionController_listInvoices",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1153,7 +1516,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1167,7 +1537,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1195,7 +1572,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1209,7 +1596,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1223,7 +1617,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1234,10 +1635,28 @@
     "/api/billing/invoices": {
       "get": {
         "operationId": "BillingController_listInvoices",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1261,7 +1680,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1285,7 +1711,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1296,10 +1729,26 @@
     "/api/billing/return": {
       "get": {
         "operationId": "BillingController_getReturn",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "session_id",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1323,7 +1772,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1347,7 +1803,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1361,7 +1824,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1389,7 +1859,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1523,7 +2000,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1552,7 +2036,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1581,7 +2072,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1600,7 +2098,14 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1629,7 +2134,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1658,7 +2170,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1687,7 +2206,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1716,7 +2242,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1745,7 +2278,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1841,7 +2381,14 @@
         "parameters": [],
         "responses": {
           "202": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1870,7 +2417,14 @@
         },
         "responses": {
           "202": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1889,7 +2443,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2060,7 +2621,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2157,10 +2725,27 @@
     "/api/voz/transcribe": {
       "post": {
         "operationId": "VoiceController_transcribe",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 16,
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2179,7 +2764,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2198,7 +2790,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2217,7 +2816,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2234,7 +2840,14 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2270,7 +2883,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2325,7 +2945,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2399,7 +3026,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2430,7 +3064,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2454,7 +3095,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2485,7 +3133,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2509,7 +3164,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2556,7 +3218,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2589,7 +3258,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2621,10 +3297,31 @@
     "/api/patrones": {
       "get": {
         "operationId": "PatronesController_getPatrones",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "30d",
+                "90d",
+                "1y"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2638,7 +3335,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2662,7 +3366,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2685,7 +3396,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Counts of Eco message reports grouped by reason. Default scope: open reports only.",
@@ -2697,10 +3415,68 @@
     "/api/pulso/reports/eco": {
       "get": {
         "operationId": "PulsoController_list",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "reason",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "HALLUCINATION",
+                "OFF_TONE",
+                "SENSITIVE_CONTENT",
+                "CRISIS_MISHANDLED",
+                "OTHER"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "open",
+              "enum": [
+                "open",
+                "resolved",
+                "all"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "List Eco message reports, newest-first. Supports cursor pagination, reason filter, and status (open|resolved|all).",
@@ -2734,7 +3510,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Mark an Eco report as triaged. Idempotent: re-resolving overwrites the timestamp and admin/note.",
@@ -2758,7 +3541,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Reopen a previously-resolved report. Clears resolvedAt/By/Note.",
@@ -2773,7 +3563,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Platform overview — KPIs aggregated across users, engagement, content, and business. Cached 5min.",
@@ -2788,7 +3585,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Cohort retention triangle. Materialised by the Monday 03:00 UTC cron; cached 5min.",
@@ -2890,7 +3694,40 @@
     "/api/pulso/users": {
       "get": {
         "operationId": "PulsoController_listUsers",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "USER",
+                "AUTHOR",
+                "PSYCHOLOGIST",
+                "ADMIN"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -2951,7 +3788,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Change a user's role. Logged in RoleChangeLog for audit.",
@@ -3039,7 +3883,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Líneas de crisis por país. PÚBLICO sin auth (decisión ética del diseño).",
@@ -3079,7 +3930,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Landing del usuario en Terapia.",
@@ -3094,7 +3952,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Opciones disponibles para los filtros del directorio.",
@@ -3106,10 +3971,114 @@
     "/api/terapia/therapists": {
       "get": {
         "operationId": "TerapiaController_listTherapists",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "motivo",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "name": "modalidad",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "INDIVIDUAL",
+                "COUPLE",
+                "FAMILY"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "genero",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 8,
+              "type": "string"
+            }
+          },
+          {
+            "name": "priceMin",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "maximum": 10000,
+              "type": "number"
+            }
+          },
+          {
+            "name": "priceMax",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "maximum": 10000,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "rating",
+                "price-asc",
+                "price-desc",
+                "popular"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Directorio paginado de terapeutas activos. Soporta filtros + sort.",
@@ -3133,7 +4102,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Detalle de un terapeuta.",
@@ -3153,11 +4129,37 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "type": "number"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Reseñas paginadas de un terapeuta.",
@@ -3181,7 +4183,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Toggle de favorito sobre un terapeuta.",
@@ -3201,11 +4210,28 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "days",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 30,
+              "type": "number"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Slots disponibles del terapeuta proyectados sobre los próximos 14 días.",
@@ -3230,7 +4256,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Reservar una sesión. v1: crea la session en SCHEDULED + PENDING; Stripe wiring llega en S65.",
@@ -3254,7 +4287,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Estado de pre-sesión.",
@@ -3286,7 +4326,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Actualizar pre-sesión (intentionCiphertext E2E, mood, entradas compartidas).",
@@ -3310,7 +4357,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Emite token de sala. Solo válido en window [-5min, +duration+15min].",
@@ -3344,7 +4398,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Cierra sesión con feedback. rating 1-5 + tags categóricos + noteCiphertext E2E opcional.",
@@ -3378,7 +4439,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Reportar un problema técnico durante (o después) de la sesión.",
@@ -3390,10 +4458,31 @@
     "/api/terapia/sessions": {
       "get": {
         "operationId": "TerapiaController_listSessions",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "upcoming",
+                "past",
+                "all"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Mis sesiones — envelope {upcoming, past}. Filtro opcional por status.",
@@ -3408,7 +4497,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "Mis recetas activas (lo que sugirió el terapeuta).",
@@ -3442,7 +4541,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Marcar receta como completada / incompleta.",
@@ -3454,10 +4560,36 @@
     "/api/terapia/notifications": {
       "get": {
         "operationId": "TerapiaController_listNotifications",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "unread",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Notificaciones del usuario en Terapia.",
@@ -3530,7 +4662,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Re-agendar sesión a un slot libre del mismo terapeuta. Solo SCHEDULED.",
@@ -3598,7 +4737,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Emitir un nuevo Stripe Checkout para una session PENDING. Útil tras fallo o cierre del tab.",
@@ -3716,7 +4862,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Archivar libro (soft-delete).",
@@ -3984,7 +5137,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "AI helpers: revisar tono, sugerir ejemplo, cambiar tono, simplificar. Returns the suggested text as a single JSON response.",
@@ -3999,7 +5159,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Vista del autor sobre sus ingresos: YTD / último mes / pendiente + breakdown mensual + configuración de payout.",
@@ -4087,63 +5254,303 @@
     "schemas": {
       "RegisterDeviceDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "EXPO",
+              "WEB"
+            ]
+          },
+          "token": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 2048,
+            "pattern": "/^(ExponentPushToken\\[|ExpoPushToken\\[|web:).+/"
+          },
+          "deviceLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "platform",
+          "token"
+        ]
       },
       "RegisterDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 72
+          },
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "name"
+        ]
+      },
+      "AuthResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "plan": {
+                "type": "string"
+              },
+              "cryptoSalt": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "id",
+              "email",
+              "name",
+              "role",
+              "plan",
+              "cryptoSalt"
+            ]
+          }
+        },
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "user"
+        ]
       },
       "LoginDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
       },
       "RefreshDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
       },
       "ForgotPasswordDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": [
+          "email"
+        ]
       },
       "ResetPasswordDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "/^[a-zA-Z0-9_-]{32,128}$/"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 72
+          }
+        },
+        "required": [
+          "token",
+          "newPassword"
+        ]
       },
       "VerifyEmailDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "/^[a-zA-Z0-9_-]{32,128}$/"
+          }
+        },
+        "required": [
+          "token"
+        ]
       },
       "OAuthGoogleDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "idToken": {
+            "type": "string",
+            "minLength": 64
+          }
+        },
+        "required": [
+          "idToken"
+        ]
       },
       "CreateBookReviewDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "rating": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "rating",
+          "text"
+        ]
       },
       "CreateBookDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "slug": {
+            "type": "string",
+            "pattern": "/^[a-z0-9]+(?:-[a-z0-9]+)*$/"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "coverUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "plan": {
+            "type": "string",
+            "enum": [
+              "FREE",
+              "PRO",
+              "ANNUAL",
+              "B2B"
+            ]
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "plan"
+        ]
       },
       "UpdateBookDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "isPublished": {
+            "type": "boolean"
+          }
+        }
       },
       "CreateChapterDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "order": {
+            "type": "number",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "durationMinutes": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "order",
+          "title"
+        ]
       },
       "UploadAudioDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "durationSeconds": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "title",
+          "durationSeconds"
+        ]
       },
       "MarkProgressDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          }
+        }
       },
       "UpdateUserMoodBodyDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "moodId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "moodId"
+        ]
       },
       "CreateDiaryEntryDto": {
         "type": "object",
@@ -4160,10 +5567,54 @@
               "tristeza"
             ],
             "example": "calma"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "free",
+              "prompted",
+              "voz"
+            ]
+          },
+          "promptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "textCiphertext": {
+            "type": "string"
+          },
+          "textNonce": {
+            "type": "string"
+          },
+          "excerptCiphertext": {
+            "type": "string"
+          },
+          "excerptNonce": {
+            "type": "string"
+          },
+          "tags": {
+            "maxItems": 12,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 32,
+              "minLength": 1
+            }
+          },
+          "audioUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "audioDurationSec": {
+            "type": "number",
+            "minimum": 0
           }
         },
         "required": [
-          "mood"
+          "mood",
+          "textCiphertext",
+          "textNonce"
         ]
       },
       "UpdateDiaryEntryDto": {
@@ -4181,200 +5632,1156 @@
               "tristeza"
             ],
             "example": "calma"
+          },
+          "textCiphertext": {
+            "type": "string"
+          },
+          "textNonce": {
+            "type": "string"
+          },
+          "excerptCiphertext": {
+            "type": "string"
+          },
+          "excerptNonce": {
+            "type": "string"
+          },
+          "tags": {
+            "maxItems": 12,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 32,
+              "minLength": 1
+            }
           }
         }
       },
       "ShareDiaryEntryDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "therapistId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "ciphertextForTherapist": {
+            "type": "string"
+          },
+          "wrappedKey": {
+            "type": "string"
+          },
+          "userOneShotPubKey": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "therapistId",
+          "ciphertextForTherapist",
+          "wrappedKey",
+          "userOneShotPubKey"
+        ]
       },
       "CreateCheckoutSessionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "billingPlan": {
+            "enum": [
+              "PRO_MONTHLY",
+              "PRO_YEARLY",
+              "B2B"
+            ],
+            "type": "string"
+          },
+          "successUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "cancelUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "billingPlan",
+          "successUrl",
+          "cancelUrl"
+        ]
       },
       "CreatePortalSessionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "returnUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "returnUrl"
+        ]
       },
       "CancelSubscriptionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 480
+          }
+        }
       },
       "PatchSubscriptionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "action": {
+            "type": "object"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 480
+          },
+          "newPlanId": {
+            "type": "string",
+            "enum": [
+              "PRO_MONTHLY",
+              "PRO_YEARLY",
+              "B2B"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
       },
       "ChatRequestDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "conversationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ]
       },
       "UpdateProfileDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "city": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100
+          },
+          "country": {
+            "type": "string",
+            "nullable": true,
+            "minLength": 2,
+            "maxLength": 2
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri"
+          }
+        }
       },
       "UpdateTimezoneDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "timezone"
+        ]
       },
       "UpdatePreferencesDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "voicePreference": {
+            "type": "string",
+            "enum": [
+              "marina",
+              "tomas",
+              "none"
+            ]
+          },
+          "moodPrompts": {
+            "type": "boolean"
+          },
+          "bestTime": {
+            "type": "string",
+            "enum": [
+              "morning",
+              "noon",
+              "evening",
+              "any"
+            ]
+          },
+          "weeklyGoalMinutes": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10080
+          },
+          "theme": {
+            "type": "string",
+            "enum": [
+              "system",
+              "light",
+              "dark"
+            ]
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "es-419",
+              "es-ES"
+            ]
+          }
+        }
       },
       "UpdateReaderPreferencesDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "font": {
+            "type": "string",
+            "enum": [
+              "serif",
+              "sans"
+            ]
+          },
+          "fontSize": {
+            "type": "number",
+            "minimum": 12,
+            "maximum": 28
+          },
+          "theme": {
+            "type": "string",
+            "enum": [
+              "system",
+              "light",
+              "sepia",
+              "dark"
+            ]
+          },
+          "lineHeight": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2.5
+          }
+        }
       },
       "UpdateNotificationsDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "dailyReminder": {
+            "type": "boolean"
+          },
+          "reminderTime": {
+            "type": "string",
+            "pattern": "/^([01]\\d|2[0-3]):[0-5]\\d$/"
+          },
+          "streakReminders": {
+            "type": "boolean"
+          },
+          "ecoReplies": {
+            "type": "boolean"
+          },
+          "terapiaReminders": {
+            "type": "boolean"
+          },
+          "weeklyReport": {
+            "type": "boolean"
+          }
+        }
       },
       "UpdatePrivacyDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "shareDiaryWithTherapist": {
+            "type": "boolean"
+          },
+          "anonymizedAnalytics": {
+            "type": "boolean"
+          },
+          "marketingEmail": {
+            "type": "boolean"
+          }
+        }
       },
       "UpdateMoodDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "mood": {
+            "type": "string",
+            "enum": [
+              "great",
+              "good",
+              "calm",
+              "neutral",
+              "tired",
+              "anxious",
+              "sad",
+              "angry"
+            ]
+          }
+        },
+        "required": [
+          "mood"
+        ]
       },
       "EmailChangeRequestDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "newEmail": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": [
+          "newEmail"
+        ]
       },
       "PasswordChangeDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "currentPassword": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 72
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ]
+      },
+      "ReencryptedEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "textCiphertext": {
+            "type": "string",
+            "maxLength": 1400000,
+            "pattern": "BASE64URL"
+          },
+          "textNonce": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 36,
+            "pattern": "BASE64URL"
+          },
+          "excerptCiphertext": {
+            "type": "string",
+            "maxLength": 1400000,
+            "pattern": "BASE64URL"
+          },
+          "excerptNonce": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 36,
+            "pattern": "BASE64URL"
+          }
+        },
+        "required": [
+          "id",
+          "textCiphertext",
+          "textNonce"
+        ]
       },
       "PasswordChangeWithRekeyDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "minLength": 1
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 256
+          },
+          "newCryptoSalt": {
+            "type": "string",
+            "minLength": 24,
+            "maxLength": 28,
+            "pattern": "BASE64URL"
+          },
+          "reencryptedEntries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReencryptedEntryDto"
+            }
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword",
+          "newCryptoSalt",
+          "reencryptedEntries"
+        ]
       },
       "DeleteRequestDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "password"
+        ]
       },
       "OnboardingStep1Dto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "motivosIds": {
+            "minItems": 1,
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "motivosIds"
+        ]
       },
       "OnboardingStep2Dto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "moodId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "moodId"
+        ]
       },
       "OnboardingStep3Dto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 40,
+            "pattern": "/^[\\p{L}\\p{M}\\s'.-]+$/u"
+          },
+          "voicePreference": {
+            "type": "string",
+            "enum": [
+              "marina",
+              "tomas",
+              "none"
+            ]
+          }
+        },
+        "required": [
+          "firstName",
+          "voicePreference"
+        ]
       },
       "OnboardingCompleteDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "chosenBookId": {
+            "type": "string",
+            "nullable": true
+          }
+        }
       },
       "OnboardingTourCompleteDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "stepsCompleted": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 20
+          }
+        },
+        "required": [
+          "stepsCompleted"
+        ]
       },
       "SendEcoMessageDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "textPlaintext": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "textCiphertext": {
+            "type": "string",
+            "maxLength": 4096,
+            "format": "base64"
+          },
+          "textNonce": {
+            "type": "string",
+            "maxLength": 32,
+            "format": "base64"
+          },
+          "intent": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "threadId",
+          "textPlaintext",
+          "textCiphertext",
+          "textNonce"
+        ]
       },
       "ReportEcoMessageDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "reason": {
+            "type": "object"
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "reason"
+        ]
       },
       "LectorSessionHeartbeatDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "bookId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "chapterOrder": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 999
+          },
+          "lastBlockId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "timeSpentDeltaSec": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3600
+          },
+          "progressPct": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "bookId",
+          "chapterOrder",
+          "lastBlockId",
+          "timeSpentDeltaSec",
+          "progressPct"
+        ]
       },
       "CreateHighlightDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "blockId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "startOffset": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "endOffset": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "color": {
+            "type": "object"
+          },
+          "note": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 280
+          }
+        },
+        "required": [
+          "blockId",
+          "startOffset",
+          "endOffset"
+        ]
       },
       "CreateAnnotationDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "blockId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "blockId",
+          "text"
+        ]
       },
       "UpdateAnnotationDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "text"
+        ]
       },
       "ShareWithTherapistDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "therapistId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "therapistId"
+        ]
       },
       "MarkResolvedDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
       },
       "RejectAuthorRequestDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "feedback": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 2000
+          }
+        }
       },
       "ChangeRoleDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "AUTHOR",
+              "PSYCHOLOGIST",
+              "ADMIN"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "role"
+        ]
       },
       "RegisterLiveActivityDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "activityId": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 64
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "TERAPIA_SESSION",
+              "LECTOR_ACTIVE",
+              "ECO_ACTIVE"
+            ]
+          },
+          "pushToken": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 256,
+            "pattern": "/^[0-9a-fA-F]+$/"
+          },
+          "bundleId": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "activityId",
+          "kind",
+          "pushToken",
+          "bundleId"
+        ]
       },
       "CrisisLogDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "ECO_SAFETY_LAYER",
+              "HOME_BUTTON",
+              "PROFILE_LINK",
+              "THERAPIST_SUGGESTION"
+            ]
+          },
+          "contactedLineId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "country": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2
+          }
+        },
+        "required": [
+          "trigger"
+        ]
       },
       "CreateBookingDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "therapistId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "slotIso": {
+            "type": "string"
+          },
+          "modality": {
+            "type": "string",
+            "enum": [
+              "INDIVIDUAL",
+              "COUPLE",
+              "FAMILY"
+            ]
+          },
+          "firstReasonId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "durationMin": {
+            "type": "number",
+            "minimum": 15,
+            "maximum": 120
+          },
+          "successUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "cancelUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "therapistId",
+          "slotIso",
+          "modality"
+        ]
       },
       "UpdateSessionPrepDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "intentionCiphertext": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 8192
+          },
+          "intentionNonce": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 64
+          },
+          "checkInMood": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "sharedEntryIds": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       },
       "SessionFeedbackDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "rating": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "tags": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "noteCiphertext": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 8192
+          },
+          "noteNonce": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "rating"
+        ]
       },
       "TechnicalReportDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "issue": {
+            "type": "string",
+            "enum": [
+              "AUDIO_FAILED",
+              "VIDEO_FAILED",
+              "CONNECTION_DROPPED",
+              "THERAPIST_NO_SHOW",
+              "OTHER"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "issue",
+          "description"
+        ]
       },
       "UpdatePrescriptionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "completed": {
+            "type": "boolean"
+          }
+        }
       },
       "RescheduleSessionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "newSlotIso": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "newSlotIso"
+        ]
       },
       "CancelSessionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "refundRequested": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reason"
+        ]
       },
       "RetryCheckoutDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "successUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "cancelUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "successUrl",
+          "cancelUrl"
+        ]
       },
       "CreateAuthorBookDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "templateId": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "title"
+        ]
       },
       "UpdateAuthorBookDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "subtitle": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "cover": {
+            "type": "string",
+            "enum": [
+              "warm",
+              "cool",
+              "mixed"
+            ]
+          },
+          "coverArtUrl": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "categoryId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "language": {
+            "type": "string",
+            "maxLength": 8
+          }
+        }
+      },
+      "ChapterBlockDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 8000
+          },
+          "meta": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "kind",
+          "content"
+        ]
       },
       "UpdateChapterDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "subtitle": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "blocks": {
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChapterBlockDto"
+            }
+          },
+          "isLocked": {
+            "type": "boolean"
+          },
+          "isHidden": {
+            "type": "boolean"
+          },
+          "expectedVersion": {
+            "type": "number",
+            "minimum": 1
+          }
+        }
+      },
+      "StructureItemDto": {
+        "type": "object",
+        "properties": {
+          "n": {
+            "type": "number",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "subtitle": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "isLocked": {
+            "type": "boolean"
+          },
+          "isHidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "n"
+        ]
       },
       "UpdateStructureDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "chapters": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StructureItemDto"
+            }
+          }
+        },
+        "required": [
+          "chapters"
+        ]
       },
       "AuthorAiHelpDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "intent": {
+            "type": "string",
+            "enum": [
+              "revisar",
+              "ejemplo",
+              "tono",
+              "simplificar"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "blockId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "context": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "intent",
+          "text"
+        ]
       },
       "UpdatePayoutSettingsDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "bank_ec",
+              "paypal",
+              "payphone",
+              "manual"
+            ]
+          },
+          "details": {
+            "type": "object"
+          },
+          "taxId": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "legalName": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "legalAddress": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "method"
+        ]
       }
     }
   }

@@ -947,6 +947,10 @@ export interface BookListItem {
   tierRequired: UserTier;
   isFavorite: boolean;
   isBookmarked: boolean;
+  /** When the auth user favorited this book. Null if not favorited or unauth. */
+  favoritedAt: Date | null;
+  /** When the auth user bookmarked this book. Null if not bookmarked or unauth. */
+  bookmarkedAt: Date | null;
   userProgress: BookUserProgressSummary | null;
 }
 

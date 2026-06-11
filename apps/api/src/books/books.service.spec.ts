@@ -202,6 +202,38 @@ describe("BooksService.list", () => {
     expect(result.books[0].userProgress).toBeNull();
     expect(result.books[0].isFavorite).toBe(false);
     expect(result.books[0].isBookmarked).toBe(false);
+    expect(result.books[0].favoritedAt).toBeNull();
+    expect(result.books[0].bookmarkedAt).toBeNull();
+  });
+
+  it("exposes favoritedAt and bookmarkedAt from the pivot when present", async () => {
+    const favAt = new Date("2026-06-05T10:00:00Z");
+    const bmAt = new Date("2026-06-08T09:00:00Z");
+    prisma.book.findMany.mockResolvedValue([
+      {
+        ...baseFreeBook,
+        favorites: [{ id: "fav-1", createdAt: favAt }],
+        bookmarks: [{ id: "bm-1", createdAt: bmAt }],
+      },
+    ]);
+    prisma.book.count.mockResolvedValue(1);
+
+    const result = await service.list("user-1", {});
+
+    expect(result.books[0].favoritedAt).toEqual(favAt);
+    expect(result.books[0].bookmarkedAt).toEqual(bmAt);
+    expect(result.books[0].isFavorite).toBe(true);
+    expect(result.books[0].isBookmarked).toBe(true);
+  });
+
+  it("returns null favoritedAt when the pivot is empty", async () => {
+    prisma.book.findMany.mockResolvedValue([baseFreeBook]);
+    prisma.book.count.mockResolvedValue(1);
+
+    const result = await service.list("user-1", {});
+
+    expect(result.books[0].favoritedAt).toBeNull();
+    expect(result.books[0].bookmarkedAt).toBeNull();
   });
 
   it("applies categoryId filter to where clause", async () => {

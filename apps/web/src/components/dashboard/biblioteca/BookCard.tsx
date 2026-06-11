@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { BookListItem } from "@psico/types";
 import { coverGradient } from "../cover-gradients";
+import { relativeTime } from "@/lib/relative-time";
 
 /**
  * BookCard — grid card. Mirrors `web-card` from
@@ -148,6 +149,25 @@ export function BookCard({
           ) : null}
         </div>
 
+        {(() => {
+          // Prefer the more recent of the two markers. Whichever the user did
+          // last is the more relevant "I touched this recently" signal.
+          const fav = book.favoritedAt ? new Date(book.favoritedAt) : null;
+          const bm = book.bookmarkedAt ? new Date(book.bookmarkedAt) : null;
+          const mostRecent = fav && bm ? (fav > bm ? fav : bm) : (fav ?? bm);
+          if (!mostRecent) return null;
+          const label = relativeTime(mostRecent);
+          const icon = fav && (!bm || fav >= bm) ? "❤️" : "🔖";
+          return (
+            <div
+              className="mt-2.5 inline-flex items-center gap-1 text-[10.5px]"
+              style={{ color: "var(--color-warm-500)" }}
+            >
+              <span aria-hidden>{icon}</span>
+              <span>{label}</span>
+            </div>
+          );
+        })()}
         {started && book.tierRequired !== "pro" ? (
           <div className="mt-3 flex items-center gap-2">
             <div

@@ -3,6 +3,7 @@ import type { UserMeResponse } from "@psico/types";
 
 import { getAccessToken, serverFetch } from "@/lib/api.server";
 import { ChangePasswordCard } from "@/components/dashboard/security/ChangePasswordCard";
+import { ShowSeedPhraseCard } from "@/components/dashboard/security/ShowSeedPhraseCard";
 
 export const metadata: Metadata = { title: "Seguridad" };
 export const dynamic = "force-dynamic";
@@ -37,11 +38,14 @@ export default async function SecurityPage() {
         </p>
       </header>
 
-      <ChangePasswordCard
-        cryptoSalt={meResult.cryptoSalt}
-        apiBase={API_BASE}
-        token={token}
-      />
+      <div className="space-y-5">
+        <ChangePasswordCard
+          cryptoSalt={meResult.cryptoSalt}
+          apiBase={API_BASE}
+          token={token}
+        />
+        <ShowSeedPhraseCard cryptoSalt={meResult.cryptoSalt} />
+      </div>
     </div>
   );
 }

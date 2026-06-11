@@ -123,3 +123,31 @@ export const RECOMMENDATION_REASON: Record<string, string> = {
 
 export const FALLBACK_REASON =
   "Un comienzo amable, escrito por Marina para personas que están entrando a este camino.";
+
+// ─── Mood catalog (seeded into OnboardingMood) ───────────────────────────────
+//
+// Single source of truth for the moods catalog that lives in DB. Both `seed.ts`
+// and the alignment test in `apps/api/src/onboarding/moods-alignment.spec.ts`
+// read from here. The shared catalog used by web + mobile UI lives in
+// `@psico/types` as `DIARY_MOODS` — the alignment test verifies the two stay
+// in lockstep (same IDs, same labels). Adding a mood requires touching both
+// arrays + re-seeding.
+//
+// `swatch` and `order` are SEED-only metadata (UI uses emoji from DIARY_MOODS).
+
+export interface OnboardingMoodSeed {
+  readonly id: string;
+  readonly label: string;
+  readonly swatch: string;
+  readonly order: number;
+}
+
+export const MOOD_SEED_CATALOG: readonly OnboardingMoodSeed[] = [
+  { id: "calma", label: "Calma", swatch: "#A8C7E4", order: 1 },
+  { id: "foco", label: "Foco", swatch: "#7C5BC4", order: 2 },
+  { id: "energia", label: "Energía", swatch: "#F2A65A", order: 3 },
+  { id: "reflexion", label: "Reflexión", swatch: "#8C9F7E", order: 4 },
+  { id: "alegria", label: "Alegría", swatch: "#F5C76B", order: 5 },
+  { id: "ansiedad", label: "Ansiedad", swatch: "#C97B7B", order: 6 },
+  { id: "tristeza", label: "Tristeza", swatch: "#6B7E8E", order: 7 },
+] as const;

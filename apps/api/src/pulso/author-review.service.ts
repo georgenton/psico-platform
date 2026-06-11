@@ -6,7 +6,13 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ConfigService } from "@nestjs/config";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { JobsService } from "../jobs/jobs.service";
+import { authorPublicationApprovedEmail } from "../notifications/templates/author-publication-approved.template";
+import { authorPublicationRejectedEmail } from "../notifications/templates/author-publication-rejected.template";
 import type { ChapterBlockKind } from "@prisma/client";
 
 type ListStatus = "PENDING" | "ALL";
@@ -28,7 +34,11 @@ type ListStatus = "PENDING" | "ALL";
 export class AuthorReviewService {
   private readonly logger = new Logger("AuthorReviewService");
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jobs: JobsService,
+    private readonly config: ConfigService,
+  ) {}
 
   // ── List ─────────────────────────────────────────────────────────────────
 
@@ -235,6 +245,33 @@ export class AuthorReviewService {
     this.logger.log(
       `[author-review] approved request=${requestId} → book=${result.id} slug=${result.slug}`,
     );
+
+    // Fire-and-forget notification to author. The transaction already
+    // committed; even if the email enqueue fails, the publication stands.
+    try {
+      const rendered = authorPublicationApprovedEmail({
+        authorFirstName:
+          authorUser.firstName ?? authorUser.name ?? "hola",
+        bookTitle: authorBook.title,
+        bookSlug: result.slug,
+        chapters: visibleChapters.length,
+        appUrl: this.config.get<string>("APP_URL") ?? "http://localhost:3000",
+      });
+      await this.jobs.enqueueEmail({
+        to: authorUser.email,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tag: rendered.tag,
+      });
+    } catch (e) {
+      this.logger.warn(
+        `[author-review] failed to enqueue approval email for author=${authorUser.id}: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+    }
+
     return {
       ok: true as const,
       bookId: result.id,
@@ -252,6 +289,18 @@ export class AuthorReviewService {
   ) {
     const request = await this.prisma.authorPublicationRequest.findUnique({
       where: { id: requestId },
+      include: {
+        book: {
+          select: {
+            id: true,
+            title: true,
+            authorUserId: true,
+            author: {
+              select: { id: true, email: true, name: true, firstName: true },
+            },
+          },
+        },
+      },
     });
     if (!request) throw new NotFoundException("REQUEST_NOT_FOUND");
     if (request.reviewState !== "PENDING") {
@@ -276,6 +325,32 @@ export class AuthorReviewService {
         data: { status: "DRAFT" },
       }),
     ]);
+
+    // Fire-and-forget notification to author.
+    try {
+      const author = request.book.author;
+      const rendered = authorPublicationRejectedEmail({
+        authorFirstName: author.firstName ?? author.name ?? "hola",
+        bookTitle: request.book.title,
+        feedback: feedback ?? null,
+        bookId: request.book.id,
+        appUrl: this.config.get<string>("APP_URL") ?? "http://localhost:3000",
+      });
+      await this.jobs.enqueueEmail({
+        to: author.email,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tag: rendered.tag,
+      });
+    } catch (e) {
+      this.logger.warn(
+        `[author-review] failed to enqueue rejection email for request=${requestId}: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+    }
+
     return { ok: true as const };
   }
 

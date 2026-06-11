@@ -2849,7 +2849,8 @@ export interface components {
         UpdateSessionPrepDto: {
             intentionCiphertext?: string;
             intentionNonce?: string;
-            checkInMood?: string;
+            /** @enum {string} */
+            checkInMood?: UpdateSessionPrepDtoCheckInMood;
             sharedEntryIds?: string[];
         };
         SessionFeedbackDto: {
@@ -6589,6 +6590,13 @@ export enum CreateBookingDtoModality {
     INDIVIDUAL = "INDIVIDUAL",
     COUPLE = "COUPLE",
     FAMILY = "FAMILY"
+}
+export enum UpdateSessionPrepDtoCheckInMood {
+    calmo = "calmo",
+    ansioso = "ansioso",
+    triste = "triste",
+    energico = "energico",
+    cansado = "cansado"
 }
 export enum TechnicalReportDtoIssue {
     AUDIO_FAILED = "AUDIO_FAILED",

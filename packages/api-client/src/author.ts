@@ -1,4 +1,6 @@
 import type {
+  AuthorAiHelpRequest,
+  AuthorAiHelpResponse,
   AuthorBookChapter,
   AuthorBookDetail,
   AuthorDashboardResponse,
@@ -70,4 +72,10 @@ export const authorApi = {
 
   unpublish: (id: string) =>
     apiClient.post<{ ok: true }>(`/autor/libros/${id}/despublicar`, {}),
+
+  aiHelp: (bookId: string, body: AuthorAiHelpRequest) =>
+    apiClient.post<AuthorAiHelpResponse>(
+      `/autor/libros/${bookId}/ai-help`,
+      body,
+    ),
 };

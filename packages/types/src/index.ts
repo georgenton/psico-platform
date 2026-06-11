@@ -2002,6 +2002,26 @@ export interface AuthorPublicationState {
   feedback: string | null;
 }
 
+// AI helpers (Sprint S71.C-AI)
+export type AuthorAiIntent = "revisar" | "ejemplo" | "tono" | "simplificar";
+
+export interface AuthorAiHelpRequest {
+  intent: AuthorAiIntent;
+  text: string;
+  blockId?: string;
+  context?: string;
+}
+
+export interface AuthorAiHelpResponse {
+  intent: AuthorAiIntent;
+  suggestion: string;
+  /** "model" when Anthropic generated the text; "fallback" when the local
+   * rule-based path ran (no API key, 4xx, empty output). */
+  source: "model" | "fallback";
+  inputTokens?: number;
+  outputTokens?: number;
+}
+
 // ─── Notifications (Sprint S43) ─────────────────────────────────────────────
 //
 // Device tokens registered by the mobile app via expo-notifications. The

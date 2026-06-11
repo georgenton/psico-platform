@@ -12,6 +12,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { diarioApi } from "@psico/api-client";
 import { decryptString, encryptString } from "@psico/crypto";
+import { DIARY_MOODS } from "@psico/types";
 import type {
   CreateDiaryEntryRequest,
   DiaryEntrySummary,
@@ -435,15 +436,7 @@ function EntryCard({ entry }: { entry: DiaryEntrySummary }) {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const MOODS = [
-  { id: "calma", emoji: "😌", label: "Calma" },
-  { id: "foco", emoji: "🎯", label: "Foco" },
-  { id: "energia", emoji: "✨", label: "Energía" },
-  { id: "reflexion", emoji: "🕊", label: "Reflexión" },
-  { id: "alegria", emoji: "😊", label: "Alegría" },
-  { id: "ansiedad", emoji: "😟", label: "Ansiedad" },
-  { id: "tristeza", emoji: "😔", label: "Tristeza" },
-] as const;
+const MOODS = DIARY_MOODS;
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 

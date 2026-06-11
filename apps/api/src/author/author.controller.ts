@@ -12,13 +12,17 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
 import { CurrentUser, RequiredRole, RolesGuard } from "../shared";
 import { JwtAuthGuard } from "../auth";
 import { AuthorService } from "./author.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { AuthorAiService } from "./author-ai.service";
 import { CreateAuthorBookDto } from "./dto/create-book.dto";
 import { UpdateAuthorBookDto } from "./dto/update-book.dto";
 import { UpdateChapterDto } from "./dto/update-chapter.dto";
 import { UpdateStructureDto } from "./dto/update-structure.dto";
+import { AuthorAiHelpDto } from "./dto/ai-help.dto";
 
 /**
  * AuthorController — Editor de autor (B2B). Sprint S71.
@@ -32,7 +36,10 @@ import { UpdateStructureDto } from "./dto/update-structure.dto";
 @UseGuards(JwtAuthGuard, RolesGuard)
 @RequiredRole("AUTHOR")
 export class AuthorController {
-  constructor(private readonly service: AuthorService) {}
+  constructor(
+    private readonly service: AuthorService,
+    private readonly ai: AuthorAiService,
+  ) {}
 
   // ── Dashboard ────────────────────────────────────────────────────────────
 
@@ -155,5 +162,26 @@ export class AuthorController {
     @Param("id") id: string,
   ) {
     return this.service.unpublish(user.userId, id);
+  }
+
+  // ── Sprint S71.C-AI — AI helpers ─────────────────────────────────────────
+
+  @Post("libros/:id/ai-help")
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "AI helpers: revisar tono, sugerir ejemplo, cambiar tono, simplificar. " +
+      "Returns the suggested text as a single JSON response.",
+  })
+  async aiHelp(
+    @CurrentUser() user: { userId: string },
+    @Param("id") id: string,
+    @Body() dto: AuthorAiHelpDto,
+  ) {
+    // Ownership check via service (404 if not owner) — same guard the editor
+    // endpoints use.
+    await this.service.getBook(user.userId, id);
+    return this.ai.generateSuggestion(dto.intent, dto.text, dto.context);
   }
 }

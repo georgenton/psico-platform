@@ -6,6 +6,7 @@ import type {
   AuthorChapterBlockDto,
 } from "@psico/types";
 import { updateChapterAction } from "../../actions";
+import { AiHelperModal } from "./AiHelperModal";
 
 const BLOCK_KINDS = [
   { value: "paragraph", label: "Párrafo" },
@@ -28,10 +29,16 @@ export function ChapterEditor({
   bookId,
   chapter,
   disabled,
+  apiBase,
+  accessToken,
+  bookContext,
 }: {
   bookId: string;
   chapter: AuthorBookChapter;
   disabled: boolean;
+  apiBase: string;
+  accessToken: string;
+  bookContext: string;
 }) {
   const [title, setTitle] = useState(chapter.title);
   const [subtitle, setSubtitle] = useState(chapter.subtitle ?? "");
@@ -45,6 +52,7 @@ export function ChapterEditor({
   const [flash, setFlash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
+  const [aiTarget, setAiTarget] = useState<number | null>(null);
 
   function setBlock(idx: number, next: Partial<AuthorChapterBlockDto>) {
     setBlocks((prev) =>
@@ -190,6 +198,16 @@ export function ChapterEditor({
               >
                 <button
                   type="button"
+                  disabled={disabled || pending || !b.content.trim()}
+                  onClick={() => setAiTarget(idx)}
+                  className="rounded px-1.5 py-0.5 font-semibold disabled:opacity-30"
+                  style={{ color: "var(--color-lavender-600)" }}
+                  title="Asistente de edición (IA)"
+                >
+                  ✨
+                </button>
+                <button
+                  type="button"
                   disabled={disabled || pending || idx === 0}
                   onClick={() => moveBlock(idx, -1)}
                   className="rounded px-1.5 py-0.5 disabled:opacity-30"
@@ -303,6 +321,19 @@ export function ChapterEditor({
           </button>
         </div>
       </div>
+
+      {aiTarget !== null && blocks[aiTarget] ? (
+        <AiHelperModal
+          bookId={bookId}
+          blockId={`local-${aiTarget}`}
+          initialText={blocks[aiTarget].content}
+          contextText={bookContext}
+          apiBase={apiBase}
+          accessToken={accessToken}
+          onClose={() => setAiTarget(null)}
+          onAccept={(text) => setBlock(aiTarget, { content: text })}
+        />
+      ) : null}
     </div>
   );
 }

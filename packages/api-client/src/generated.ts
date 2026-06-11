@@ -2550,27 +2550,101 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        RegisterDeviceDto: Record<string, never>;
-        RegisterDto: Record<string, never>;
-        LoginDto: Record<string, never>;
-        RefreshDto: Record<string, never>;
-        ForgotPasswordDto: Record<string, never>;
-        ResetPasswordDto: Record<string, never>;
-        VerifyEmailDto: Record<string, never>;
-        OAuthGoogleDto: Record<string, never>;
-        CreateBookReviewDto: Record<string, never>;
-        CreateBookDto: Record<string, never>;
-        UpdateBookDto: Record<string, never>;
-        CreateChapterDto: Record<string, never>;
-        UploadAudioDto: Record<string, never>;
-        MarkProgressDto: Record<string, never>;
-        UpdateUserMoodBodyDto: Record<string, never>;
+        RegisterDeviceDto: {
+            /** @enum {string} */
+            platform: RegisterDeviceDtoPlatform;
+            token: string;
+            deviceLabel?: string;
+        };
+        RegisterDto: {
+            /** Format: email */
+            email: string;
+            password: string;
+            name: string;
+        };
+        AuthResponseDto: {
+            accessToken: string;
+            refreshToken: string;
+            user: {
+                id: string;
+                email: string;
+                name: string;
+                role: string;
+                plan: string;
+                cryptoSalt: string | null;
+            };
+        };
+        LoginDto: {
+            /** Format: email */
+            email: string;
+            password: string;
+        };
+        RefreshDto: {
+            refreshToken: string;
+        };
+        ForgotPasswordDto: {
+            /** Format: email */
+            email: string;
+        };
+        ResetPasswordDto: {
+            token: string;
+            newPassword: string;
+        };
+        VerifyEmailDto: {
+            token: string;
+        };
+        OAuthGoogleDto: {
+            idToken: string;
+        };
+        CreateBookReviewDto: {
+            rating: number;
+            text: string;
+        };
+        CreateBookDto: {
+            slug: string;
+            title: string;
+            description?: string;
+            /** Format: uri */
+            coverUrl?: string;
+            /** @enum {string} */
+            plan: CreateBookDtoPlan;
+        };
+        UpdateBookDto: {
+            isPublished?: boolean;
+        };
+        CreateChapterDto: {
+            order: number;
+            title: string;
+            description?: string;
+            durationMinutes?: number;
+        };
+        UploadAudioDto: {
+            title: string;
+            durationSeconds: number;
+        };
+        MarkProgressDto: {
+            score?: number;
+        };
+        UpdateUserMoodBodyDto: {
+            moodId: string;
+        };
         CreateDiaryEntryDto: {
             /**
              * @example calma
              * @enum {string}
              */
             mood: CreateDiaryEntryDtoMood;
+            /** @enum {string} */
+            kind?: CreateDiaryEntryDtoKind;
+            promptId?: string;
+            textCiphertext: string;
+            textNonce: string;
+            excerptCiphertext?: string;
+            excerptNonce?: string;
+            tags?: string[];
+            /** Format: uri */
+            audioUrl?: string;
+            audioDurationSec?: number;
         };
         UpdateDiaryEntryDto: {
             /**
@@ -2578,55 +2652,291 @@ export interface components {
              * @enum {string}
              */
             mood?: UpdateDiaryEntryDtoMood;
+            textCiphertext?: string;
+            textNonce?: string;
+            excerptCiphertext?: string;
+            excerptNonce?: string;
+            tags?: string[];
         };
-        ShareDiaryEntryDto: Record<string, never>;
-        CreateCheckoutSessionDto: Record<string, never>;
-        CreatePortalSessionDto: Record<string, never>;
-        CancelSubscriptionDto: Record<string, never>;
-        PatchSubscriptionDto: Record<string, never>;
-        ChatRequestDto: Record<string, never>;
-        UpdateProfileDto: Record<string, never>;
-        UpdateTimezoneDto: Record<string, never>;
-        UpdatePreferencesDto: Record<string, never>;
-        UpdateReaderPreferencesDto: Record<string, never>;
-        UpdateNotificationsDto: Record<string, never>;
-        UpdatePrivacyDto: Record<string, never>;
-        UpdateMoodDto: Record<string, never>;
-        EmailChangeRequestDto: Record<string, never>;
-        PasswordChangeDto: Record<string, never>;
-        PasswordChangeWithRekeyDto: Record<string, never>;
-        DeleteRequestDto: Record<string, never>;
-        OnboardingStep1Dto: Record<string, never>;
-        OnboardingStep2Dto: Record<string, never>;
-        OnboardingStep3Dto: Record<string, never>;
-        OnboardingCompleteDto: Record<string, never>;
-        OnboardingTourCompleteDto: Record<string, never>;
-        SendEcoMessageDto: Record<string, never>;
-        ReportEcoMessageDto: Record<string, never>;
-        LectorSessionHeartbeatDto: Record<string, never>;
-        CreateHighlightDto: Record<string, never>;
-        CreateAnnotationDto: Record<string, never>;
-        UpdateAnnotationDto: Record<string, never>;
-        ShareWithTherapistDto: Record<string, never>;
-        MarkResolvedDto: Record<string, never>;
-        RejectAuthorRequestDto: Record<string, never>;
-        ChangeRoleDto: Record<string, never>;
-        RegisterLiveActivityDto: Record<string, never>;
-        CrisisLogDto: Record<string, never>;
-        CreateBookingDto: Record<string, never>;
-        UpdateSessionPrepDto: Record<string, never>;
-        SessionFeedbackDto: Record<string, never>;
-        TechnicalReportDto: Record<string, never>;
-        UpdatePrescriptionDto: Record<string, never>;
-        RescheduleSessionDto: Record<string, never>;
-        CancelSessionDto: Record<string, never>;
-        RetryCheckoutDto: Record<string, never>;
-        CreateAuthorBookDto: Record<string, never>;
-        UpdateAuthorBookDto: Record<string, never>;
-        UpdateChapterDto: Record<string, never>;
-        UpdateStructureDto: Record<string, never>;
-        AuthorAiHelpDto: Record<string, never>;
-        UpdatePayoutSettingsDto: Record<string, never>;
+        ShareDiaryEntryDto: {
+            therapistId: string;
+            ciphertextForTherapist: string;
+            wrappedKey: string;
+            userOneShotPubKey: string;
+            expiresAt?: string;
+        };
+        CreateCheckoutSessionDto: {
+            /** @enum {string} */
+            billingPlan: CreateCheckoutSessionDtoBillingPlan;
+            /** Format: uri */
+            successUrl: string;
+            /** Format: uri */
+            cancelUrl: string;
+        };
+        CreatePortalSessionDto: {
+            /** Format: uri */
+            returnUrl: string;
+        };
+        CancelSubscriptionDto: {
+            reason?: string;
+        };
+        PatchSubscriptionDto: {
+            action: Record<string, never>;
+            reason?: string;
+            /** @enum {string} */
+            newPlanId?: PatchSubscriptionDtoNewPlanId;
+        };
+        ChatRequestDto: {
+            message: string;
+            conversationId?: string;
+        };
+        UpdateProfileDto: {
+            firstName?: string;
+            city?: string | null;
+            country?: string | null;
+            /** Format: uri */
+            avatarUrl?: string | null;
+        };
+        UpdateTimezoneDto: {
+            timezone: string;
+        };
+        UpdatePreferencesDto: {
+            /** @enum {string} */
+            voicePreference?: UpdatePreferencesDtoVoicePreference;
+            moodPrompts?: boolean;
+            /** @enum {string} */
+            bestTime?: UpdatePreferencesDtoBestTime;
+            weeklyGoalMinutes?: number;
+            /** @enum {string} */
+            theme?: UpdatePreferencesDtoTheme;
+            /** @enum {string} */
+            language?: UpdatePreferencesDtoLanguage;
+        };
+        UpdateReaderPreferencesDto: {
+            /** @enum {string} */
+            font?: UpdateReaderPreferencesDtoFont;
+            fontSize?: number;
+            /** @enum {string} */
+            theme?: UpdateReaderPreferencesDtoTheme;
+            lineHeight?: number;
+        };
+        UpdateNotificationsDto: {
+            dailyReminder?: boolean;
+            reminderTime?: string;
+            streakReminders?: boolean;
+            ecoReplies?: boolean;
+            terapiaReminders?: boolean;
+            weeklyReport?: boolean;
+        };
+        UpdatePrivacyDto: {
+            shareDiaryWithTherapist?: boolean;
+            anonymizedAnalytics?: boolean;
+            marketingEmail?: boolean;
+        };
+        UpdateMoodDto: {
+            /** @enum {string} */
+            mood: UpdateMoodDtoMood;
+        };
+        EmailChangeRequestDto: {
+            /** Format: email */
+            newEmail: string;
+        };
+        PasswordChangeDto: {
+            currentPassword: string;
+            newPassword: string;
+        };
+        ReencryptedEntryDto: {
+            id: string;
+            textCiphertext: string;
+            textNonce: string;
+            excerptCiphertext?: string;
+            excerptNonce?: string;
+        };
+        PasswordChangeWithRekeyDto: {
+            currentPassword: string;
+            newPassword: string;
+            newCryptoSalt: string;
+            reencryptedEntries: components["schemas"]["ReencryptedEntryDto"][];
+        };
+        DeleteRequestDto: {
+            password: string;
+            reason?: string;
+        };
+        OnboardingStep1Dto: {
+            motivosIds: string[];
+        };
+        OnboardingStep2Dto: {
+            moodId: string;
+        };
+        OnboardingStep3Dto: {
+            firstName: string;
+            /** @enum {string} */
+            voicePreference: OnboardingStep3DtoVoicePreference;
+        };
+        OnboardingCompleteDto: {
+            chosenBookId?: string | null;
+        };
+        OnboardingTourCompleteDto: {
+            stepsCompleted: number;
+        };
+        SendEcoMessageDto: {
+            threadId: string;
+            textPlaintext: string;
+            /** Format: base64 */
+            textCiphertext: string;
+            /** Format: base64 */
+            textNonce: string;
+            intent?: Record<string, never>;
+        };
+        ReportEcoMessageDto: {
+            reason: Record<string, never>;
+            comment?: string;
+        };
+        LectorSessionHeartbeatDto: {
+            bookId: string;
+            chapterOrder: number;
+            lastBlockId: string;
+            timeSpentDeltaSec: number;
+            progressPct: number;
+        };
+        CreateHighlightDto: {
+            blockId: string;
+            startOffset: number;
+            endOffset: number;
+            color?: Record<string, never>;
+            note?: string;
+        };
+        CreateAnnotationDto: {
+            blockId: string;
+            text: string;
+        };
+        UpdateAnnotationDto: {
+            text: string;
+        };
+        ShareWithTherapistDto: {
+            therapistId: string;
+        };
+        MarkResolvedDto: {
+            note?: string;
+        };
+        RejectAuthorRequestDto: {
+            feedback?: string;
+        };
+        ChangeRoleDto: {
+            /** @enum {string} */
+            role: ChangeRoleDtoRole;
+            reason?: string;
+        };
+        RegisterLiveActivityDto: {
+            activityId: string;
+            /** @enum {string} */
+            kind: RegisterLiveActivityDtoKind;
+            pushToken: string;
+            bundleId: string;
+        };
+        CrisisLogDto: {
+            /** @enum {string} */
+            trigger: CrisisLogDtoTrigger;
+            contactedLineId?: string;
+            country?: string;
+        };
+        CreateBookingDto: {
+            therapistId: string;
+            slotIso: string;
+            /** @enum {string} */
+            modality: CreateBookingDtoModality;
+            firstReasonId?: string;
+            durationMin?: number;
+            /** Format: uri */
+            successUrl?: string;
+            /** Format: uri */
+            cancelUrl?: string;
+        };
+        UpdateSessionPrepDto: {
+            intentionCiphertext?: string;
+            intentionNonce?: string;
+            checkInMood?: string;
+            sharedEntryIds?: string[];
+        };
+        SessionFeedbackDto: {
+            rating: number;
+            tags?: string[];
+            noteCiphertext?: string;
+            noteNonce?: string;
+        };
+        TechnicalReportDto: {
+            /** @enum {string} */
+            issue: TechnicalReportDtoIssue;
+            description: string;
+        };
+        UpdatePrescriptionDto: {
+            completed?: boolean;
+        };
+        RescheduleSessionDto: {
+            newSlotIso: string;
+        };
+        CancelSessionDto: {
+            reason: string;
+            refundRequested?: boolean;
+        };
+        RetryCheckoutDto: {
+            /** Format: uri */
+            successUrl: string;
+            /** Format: uri */
+            cancelUrl: string;
+        };
+        CreateAuthorBookDto: {
+            title: string;
+            templateId?: string;
+        };
+        UpdateAuthorBookDto: {
+            title?: string;
+            subtitle?: string;
+            summary?: string;
+            /** @enum {string} */
+            cover?: UpdateAuthorBookDtoCover;
+            coverArtUrl?: string;
+            categoryId?: string;
+            language?: string;
+        };
+        ChapterBlockDto: {
+            kind: string;
+            content: string;
+            meta?: Record<string, never>;
+        };
+        UpdateChapterDto: {
+            title?: string;
+            subtitle?: string;
+            blocks?: components["schemas"]["ChapterBlockDto"][];
+            isLocked?: boolean;
+            isHidden?: boolean;
+            expectedVersion?: number;
+        };
+        StructureItemDto: {
+            n: number;
+            title?: string;
+            subtitle?: string;
+            isLocked?: boolean;
+            isHidden?: boolean;
+        };
+        UpdateStructureDto: {
+            chapters: components["schemas"]["StructureItemDto"][];
+        };
+        AuthorAiHelpDto: {
+            /** @enum {string} */
+            intent: AuthorAiHelpDtoIntent;
+            text: string;
+            blockId?: string;
+            context?: string;
+        };
+        UpdatePayoutSettingsDto: {
+            /** @enum {string} */
+            method: UpdatePayoutSettingsDtoMethod;
+            details?: Record<string, never>;
+            taxId?: string;
+            legalName?: string;
+            legalAddress?: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -2693,7 +3003,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AuthResponseDto"];
+                };
             };
         };
     };
@@ -2714,7 +3026,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AuthResponseDto"];
+                };
             };
         };
     };
@@ -2735,7 +3049,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AuthResponseDto"];
+                };
             };
         };
     };
@@ -2840,13 +3156,23 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AuthResponseDto"];
+                };
             };
         };
     };
     BooksController_list: {
         parameters: {
-            query?: never;
+            query?: {
+                view?: PathsApiBooksGetParametersQueryView;
+                categoryId?: string;
+                authorId?: string;
+                sort?: PathsApiBooksGetParametersQuerySort;
+                q?: string;
+                page?: number;
+                perPage?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2857,7 +3183,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -2895,7 +3223,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -2912,7 +3242,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -2948,13 +3280,18 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
     BooksController_listReviews: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number;
+                perPage?: number;
+            };
             header?: never;
             path: {
                 idOrSlug: string;
@@ -2967,7 +3304,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -2990,7 +3329,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3009,7 +3350,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3028,7 +3371,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3047,7 +3392,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3177,7 +3524,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>[];
+                };
             };
         };
     };
@@ -3194,7 +3543,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3234,7 +3585,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3242,6 +3595,11 @@ export interface operations {
         parameters: {
             query?: {
                 mood?: PathsApiDiarioEntriesGetParametersQueryMood;
+                from?: string;
+                to?: string;
+                tag?: string;
+                page?: number;
+                perPage?: number;
             };
             header?: never;
             path?: never;
@@ -3253,7 +3611,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3274,7 +3634,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3291,7 +3653,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3308,7 +3672,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3327,7 +3693,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3346,7 +3714,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3369,7 +3739,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3392,7 +3764,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3409,7 +3783,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>[];
+                };
             };
         };
     };
@@ -3426,7 +3802,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3447,7 +3825,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3468,7 +3848,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3485,13 +3867,17 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
     SubscriptionController_listInvoices: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3502,7 +3888,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3523,7 +3911,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3540,7 +3930,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3574,7 +3966,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>[];
+                };
             };
         };
     };
@@ -3591,7 +3985,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3608,13 +4004,17 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
     BillingController_listInvoices: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3625,7 +4025,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3646,7 +4048,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3667,13 +4071,17 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
     BillingController_getReturn: {
         parameters: {
-            query?: never;
+            query: {
+                session_id: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3684,7 +4092,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3705,7 +4115,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3726,7 +4138,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3743,7 +4157,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3777,7 +4193,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3887,7 +4305,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3908,7 +4328,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3929,7 +4351,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3946,7 +4370,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3967,7 +4393,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3988,7 +4416,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4009,7 +4439,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4030,7 +4462,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4051,7 +4485,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4127,7 +4563,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4148,7 +4586,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4165,7 +4605,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4296,7 +4738,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4361,7 +4805,9 @@ export interface operations {
     };
     VoiceController_transcribe: {
         parameters: {
-            query?: never;
+            query?: {
+                language?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4372,7 +4818,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4389,7 +4837,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4406,7 +4856,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4423,7 +4875,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4440,7 +4894,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4461,7 +4917,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4501,7 +4959,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4544,7 +5004,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4564,7 +5026,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4585,7 +5049,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4605,7 +5071,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4626,7 +5094,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4666,7 +5136,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4708,13 +5180,17 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
     PatronesController_getPatrones: {
         parameters: {
-            query?: never;
+            query?: {
+                period?: PathsApiPatronesGetParametersQueryPeriod;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4725,7 +5201,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4742,7 +5220,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4763,7 +5243,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4782,13 +5264,20 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
     PulsoController_list: {
         parameters: {
-            query?: never;
+            query?: {
+                reason?: PathsApiPulsoReportsEcoGetParametersQueryReason;
+                limit?: number;
+                cursor?: string;
+                status?: PathsApiPulsoReportsEcoGetParametersQueryStatus;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4799,7 +5288,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4822,7 +5313,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4841,7 +5334,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4858,7 +5353,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4875,7 +5372,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -4943,7 +5442,11 @@ export interface operations {
     };
     PulsoController_listUsers: {
         parameters: {
-            query?: never;
+            query?: {
+                q?: string;
+                role?: PathsApiPulsoUsersGetParametersQueryRole;
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4996,7 +5499,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5072,7 +5577,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5110,7 +5617,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5127,13 +5636,25 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
     TerapiaController_listTherapists: {
         parameters: {
-            query?: never;
+            query?: {
+                motivo?: string;
+                modalidad?: PathsApiTerapiaTherapistsGetParametersQueryModalidad;
+                genero?: string;
+                language?: string;
+                priceMin?: number;
+                priceMax?: number;
+                sort?: PathsApiTerapiaTherapistsGetParametersQuerySort;
+                page?: number;
+                pageSize?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5144,7 +5665,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5163,13 +5686,18 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
     TerapiaController_listReviews: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number;
+                pageSize?: number;
+            };
             header?: never;
             path: {
                 id: string;
@@ -5182,7 +5710,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5201,13 +5731,17 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
     TerapiaController_getAvailability: {
         parameters: {
-            query?: never;
+            query?: {
+                days?: number;
+            };
             header?: never;
             path: {
                 id: string;
@@ -5220,7 +5754,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5241,7 +5777,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5260,7 +5798,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5283,7 +5823,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5302,7 +5844,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5325,7 +5869,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5348,13 +5894,17 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
     TerapiaController_listSessions: {
         parameters: {
-            query?: never;
+            query?: {
+                status?: PathsApiTerapiaSessionsGetParametersQueryStatus;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5365,7 +5915,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5382,7 +5934,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>[];
+                };
             };
         };
     };
@@ -5405,13 +5959,18 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
     TerapiaController_listNotifications: {
         parameters: {
-            query?: never;
+            query?: {
+                unread?: boolean;
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5422,7 +5981,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5481,7 +6042,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5527,7 +6090,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5603,7 +6168,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5812,7 +6379,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5829,7 +6398,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -5855,6 +6426,18 @@ export interface operations {
         };
     };
 }
+export enum PathsApiBooksGetParametersQueryView {
+    catalogo = "catalogo",
+    mis = "mis",
+    recos = "recos",
+    favoritos = "favoritos",
+    guardados = "guardados"
+}
+export enum PathsApiBooksGetParametersQuerySort {
+    recent = "recent",
+    alpha = "alpha",
+    marina = "marina"
+}
 export enum PathsApiDiarioEntriesGetParametersQueryMood {
     calma = "calma",
     foco = "foco",
@@ -5863,6 +6446,55 @@ export enum PathsApiDiarioEntriesGetParametersQueryMood {
     alegria = "alegria",
     ansiedad = "ansiedad",
     tristeza = "tristeza"
+}
+export enum PathsApiPatronesGetParametersQueryPeriod {
+    Value30d = "30d",
+    Value90d = "90d",
+    Value1y = "1y"
+}
+export enum PathsApiPulsoReportsEcoGetParametersQueryReason {
+    HALLUCINATION = "HALLUCINATION",
+    OFF_TONE = "OFF_TONE",
+    SENSITIVE_CONTENT = "SENSITIVE_CONTENT",
+    CRISIS_MISHANDLED = "CRISIS_MISHANDLED",
+    OTHER = "OTHER"
+}
+export enum PathsApiPulsoReportsEcoGetParametersQueryStatus {
+    open = "open",
+    resolved = "resolved",
+    all = "all"
+}
+export enum PathsApiPulsoUsersGetParametersQueryRole {
+    USER = "USER",
+    AUTHOR = "AUTHOR",
+    PSYCHOLOGIST = "PSYCHOLOGIST",
+    ADMIN = "ADMIN"
+}
+export enum PathsApiTerapiaTherapistsGetParametersQueryModalidad {
+    INDIVIDUAL = "INDIVIDUAL",
+    COUPLE = "COUPLE",
+    FAMILY = "FAMILY"
+}
+export enum PathsApiTerapiaTherapistsGetParametersQuerySort {
+    rating = "rating",
+    price_asc = "price-asc",
+    price_desc = "price-desc",
+    popular = "popular"
+}
+export enum PathsApiTerapiaSessionsGetParametersQueryStatus {
+    upcoming = "upcoming",
+    past = "past",
+    all = "all"
+}
+export enum RegisterDeviceDtoPlatform {
+    EXPO = "EXPO",
+    WEB = "WEB"
+}
+export enum CreateBookDtoPlan {
+    FREE = "FREE",
+    PRO = "PRO",
+    ANNUAL = "ANNUAL",
+    B2B = "B2B"
 }
 export enum CreateDiaryEntryDtoMood {
     calma = "calma",
@@ -5873,6 +6505,11 @@ export enum CreateDiaryEntryDtoMood {
     ansiedad = "ansiedad",
     tristeza = "tristeza"
 }
+export enum CreateDiaryEntryDtoKind {
+    free = "free",
+    prompted = "prompted",
+    voz = "voz"
+}
 export enum UpdateDiaryEntryDtoMood {
     calma = "calma",
     foco = "foco",
@@ -5881,4 +6518,105 @@ export enum UpdateDiaryEntryDtoMood {
     alegria = "alegria",
     ansiedad = "ansiedad",
     tristeza = "tristeza"
+}
+export enum CreateCheckoutSessionDtoBillingPlan {
+    PRO_MONTHLY = "PRO_MONTHLY",
+    PRO_YEARLY = "PRO_YEARLY",
+    B2B = "B2B"
+}
+export enum PatchSubscriptionDtoNewPlanId {
+    PRO_MONTHLY = "PRO_MONTHLY",
+    PRO_YEARLY = "PRO_YEARLY",
+    B2B = "B2B"
+}
+export enum UpdatePreferencesDtoVoicePreference {
+    marina = "marina",
+    tomas = "tomas",
+    none = "none"
+}
+export enum UpdatePreferencesDtoBestTime {
+    morning = "morning",
+    noon = "noon",
+    evening = "evening",
+    any = "any"
+}
+export enum UpdatePreferencesDtoTheme {
+    system = "system",
+    light = "light",
+    dark = "dark"
+}
+export enum UpdatePreferencesDtoLanguage {
+    es_419 = "es-419",
+    es_ES = "es-ES"
+}
+export enum UpdateReaderPreferencesDtoFont {
+    serif = "serif",
+    sans = "sans"
+}
+export enum UpdateReaderPreferencesDtoTheme {
+    system = "system",
+    light = "light",
+    sepia = "sepia",
+    dark = "dark"
+}
+export enum UpdateMoodDtoMood {
+    great = "great",
+    good = "good",
+    calm = "calm",
+    neutral = "neutral",
+    tired = "tired",
+    anxious = "anxious",
+    sad = "sad",
+    angry = "angry"
+}
+export enum OnboardingStep3DtoVoicePreference {
+    marina = "marina",
+    tomas = "tomas",
+    none = "none"
+}
+export enum ChangeRoleDtoRole {
+    USER = "USER",
+    AUTHOR = "AUTHOR",
+    PSYCHOLOGIST = "PSYCHOLOGIST",
+    ADMIN = "ADMIN"
+}
+export enum RegisterLiveActivityDtoKind {
+    TERAPIA_SESSION = "TERAPIA_SESSION",
+    LECTOR_ACTIVE = "LECTOR_ACTIVE",
+    ECO_ACTIVE = "ECO_ACTIVE"
+}
+export enum CrisisLogDtoTrigger {
+    ECO_SAFETY_LAYER = "ECO_SAFETY_LAYER",
+    HOME_BUTTON = "HOME_BUTTON",
+    PROFILE_LINK = "PROFILE_LINK",
+    THERAPIST_SUGGESTION = "THERAPIST_SUGGESTION"
+}
+export enum CreateBookingDtoModality {
+    INDIVIDUAL = "INDIVIDUAL",
+    COUPLE = "COUPLE",
+    FAMILY = "FAMILY"
+}
+export enum TechnicalReportDtoIssue {
+    AUDIO_FAILED = "AUDIO_FAILED",
+    VIDEO_FAILED = "VIDEO_FAILED",
+    CONNECTION_DROPPED = "CONNECTION_DROPPED",
+    THERAPIST_NO_SHOW = "THERAPIST_NO_SHOW",
+    OTHER = "OTHER"
+}
+export enum UpdateAuthorBookDtoCover {
+    warm = "warm",
+    cool = "cool",
+    mixed = "mixed"
+}
+export enum AuthorAiHelpDtoIntent {
+    revisar = "revisar",
+    ejemplo = "ejemplo",
+    tono = "tono",
+    simplificar = "simplificar"
+}
+export enum UpdatePayoutSettingsDtoMethod {
+    bank_ec = "bank_ec",
+    paypal = "paypal",
+    payphone = "payphone",
+    manual = "manual"
 }

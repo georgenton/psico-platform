@@ -6,17 +6,20 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { diarioApi } from "@psico/api-client";
-import { decryptString } from "@psico/crypto";
+import { decryptString, encryptString } from "@psico/crypto";
 import type { DiaryDetailResponse } from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { DiaryKeyProvider, useDiaryKey } from "@/crypto/diary-key-context";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
 import { Colors, Radius, Spacing } from "@/theme";
+
+const EXCERPT_MAX_CHARS = 280;
 
 /**
  * Diary entry detail — mobile.
@@ -98,6 +101,10 @@ function Decrypted({
 }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
 
   const decryption = useMemo(() => {
     try {
@@ -139,6 +146,52 @@ function Decrypted({
         },
       ],
     );
+  }
+
+  function startEdit() {
+    if (!decryption.ok) return;
+    setDraft(decryption.text);
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    setDraft("");
+  }
+
+  async function handleSave() {
+    const trimmed = draft.trim();
+    if (trimmed.length < 1) {
+      Alert.alert("Vacío", "La entrada no puede quedar vacía.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const body = encryptString(trimmed, diaryKey);
+      const excerpt = encryptString(
+        trimmed.slice(0, EXCERPT_MAX_CHARS),
+        diaryKey,
+      );
+      await diarioApi.update(detail.entry.id, {
+        textCiphertext: body.ciphertext,
+        textNonce: body.nonce,
+        excerptCiphertext: excerpt.ciphertext,
+        excerptNonce: excerpt.nonce,
+      });
+      // Mutate local detail so the body re-decrypts to the new cipher
+      detail.entry.textCiphertext = body.ciphertext;
+      detail.entry.textNonce = body.nonce;
+      setEditing(false);
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2500);
+    } catch (e) {
+      Alert.alert(
+        "No pudimos guardar",
+        e instanceof Error ? e.message : "Reintenta en un momento.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   const created = new Date(detail.entry.createdAt);
@@ -185,9 +238,47 @@ function Decrypted({
         </View>
       ) : null}
 
-      {decryption.ok ? (
+      {decryption.ok && editing ? (
+        <View style={styles.editorCard}>
+          <Text style={styles.editorLabel}>EDITAR ENTRADA</Text>
+          <TextInput
+            value={draft}
+            onChangeText={setDraft}
+            multiline
+            editable={!saving}
+            maxLength={20000}
+            placeholder="Escribe tu entrada…"
+            style={styles.editorInput}
+            textAlignVertical="top"
+          />
+          <Text style={styles.editorCount}>
+            {draft.length.toLocaleString("es-EC")} / 20.000 · cifrado en tu dispositivo
+          </Text>
+          <View style={styles.editorActions}>
+            <Pressable
+              onPress={cancelEdit}
+              disabled={saving}
+              style={[styles.cancelBtn, saving && { opacity: 0.5 }]}
+            >
+              <Text style={styles.cancelText}>Cancelar</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleSave}
+              disabled={saving}
+              style={[styles.saveBtn, saving && { opacity: 0.5 }]}
+            >
+              <Text style={styles.saveText}>
+                {saving ? "Guardando…" : "Guardar"}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : decryption.ok ? (
         <View style={styles.bodyCard}>
           <Text style={styles.bodyText}>{decryption.text}</Text>
+          {savedFlash ? (
+            <Text style={styles.savedFlashText}>✓ Cambios guardados</Text>
+          ) : null}
         </View>
       ) : (
         <View style={styles.cipherCard}>
@@ -212,16 +303,31 @@ function Decrypted({
         <Pressable onPress={() => router.back()}>
           <Text style={styles.backText}>← Volver al diario</Text>
         </Pressable>
-        <Pressable
-          onPress={handleDelete}
-          disabled={deleting}
-          style={[styles.deleteBtn, deleting && { opacity: 0.5 }]}
-        >
-          <Ionicons name="trash" size={13} color={Colors.white} />
-          <Text style={styles.deleteText}>
-            {deleting ? "Borrando…" : "Borrar"}
-          </Text>
-        </Pressable>
+        <View style={styles.footerRight}>
+          {decryption.ok && !editing ? (
+            <Pressable onPress={startEdit} style={styles.editBtn}>
+              <Ionicons
+                name="create-outline"
+                size={13}
+                color={Colors.lavender[700]}
+              />
+              <Text style={styles.editText}>Editar</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={handleDelete}
+            disabled={deleting || editing}
+            style={[
+              styles.deleteBtn,
+              (deleting || editing) && { opacity: 0.5 },
+            ]}
+          >
+            <Ionicons name="trash" size={13} color={Colors.white} />
+            <Text style={styles.deleteText}>
+              {deleting ? "Borrando…" : "Borrar"}
+            </Text>
+          </Pressable>
+        </View>
       </View>
     </ScrollView>
   );
@@ -373,5 +479,91 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: 12,
     fontWeight: "700",
+  },
+  footerRight: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  editBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    backgroundColor: Colors.lavender[100],
+    borderRadius: Radius.md,
+  },
+  editText: {
+    color: Colors.lavender[700],
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  editorCard: {
+    marginTop: Spacing.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.white,
+    borderWidth: 1.5,
+    borderColor: Colors.lavender[300],
+    borderRadius: Radius.lg,
+  },
+  editorLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    color: Colors.lavender[700],
+    marginBottom: 6,
+  },
+  editorInput: {
+    minHeight: 180,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 15,
+    lineHeight: 22,
+    color: Colors.warm[800],
+    backgroundColor: Colors.warm[50],
+    borderRadius: Radius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.warm[200],
+  },
+  editorCount: {
+    marginTop: 6,
+    fontSize: 11,
+    color: Colors.warm[500],
+    textAlign: "right",
+  },
+  editorActions: {
+    marginTop: Spacing.md,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+  },
+  cancelBtn: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    backgroundColor: Colors.warm[100],
+    borderRadius: Radius.md,
+  },
+  cancelText: {
+    color: Colors.warm[700],
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  saveBtn: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    backgroundColor: Colors.lavender[500],
+    borderRadius: Radius.md,
+  },
+  saveText: {
+    color: Colors.white,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  savedFlashText: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.sage[700],
   },
 });

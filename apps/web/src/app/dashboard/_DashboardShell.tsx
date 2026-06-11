@@ -124,6 +124,14 @@ const ADMIN_NAV_ITEMS = [
     exact: false,
     tourTarget: null,
   },
+  // Sprint S72 — Admin users search + role promotion.
+  {
+    href: "/dashboard/admin/users",
+    label: "Pulso · Usuarios",
+    icon: "👤",
+    exact: false,
+    tourTarget: null,
+  },
 ] as const;
 
 function matchesRoute(href: string, pathname: string, exact: boolean): boolean {

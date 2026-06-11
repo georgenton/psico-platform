@@ -1,7 +1,10 @@
 import type {
   AuthorRequestStatus,
+  PulsoAdminUserListResponse,
   PulsoApproveAuthorRequestResponse,
   PulsoAuthorRequestListResponse,
+  PulsoChangeRoleRequest,
+  PulsoChangeRoleResponse,
   PulsoCohortRetentionResponse,
   PulsoMarkResolvedRequest,
   PulsoOverviewResponse,
@@ -11,6 +14,8 @@ import type {
   PulsoReportRow,
   PulsoReportStatus,
   PulsoReportSummary,
+  PulsoRoleChangeLogRow,
+  UserRole,
 } from "@psico/types";
 import { apiClient } from "./client";
 
@@ -84,6 +89,30 @@ export const pulsoApi = {
   rejectAuthorRequest: (id: string, body: PulsoRejectAuthorRequestBody = {}) =>
     apiClient.post<{ ok: true }>(
       `/pulso/author-requests/${id}/reject`,
+      body,
+    ),
+
+  // ── Sprint S72 — Admin users (ADMIN) ────────────────────────────────
+
+  listUsers: (params: { q?: string; role?: UserRole; limit?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set("q", params.q);
+    if (params.role) qs.set("role", params.role);
+    if (params.limit) qs.set("limit", String(params.limit));
+    const query = qs.toString();
+    return apiClient.get<PulsoAdminUserListResponse>(
+      `/pulso/users${query ? `?${query}` : ""}`,
+    );
+  },
+
+  getUserRoleChanges: (id: string) =>
+    apiClient.get<PulsoRoleChangeLogRow[]>(
+      `/pulso/users/${id}/role-changes`,
+    ),
+
+  changeUserRole: (id: string, body: PulsoChangeRoleRequest) =>
+    apiClient.post<PulsoChangeRoleResponse>(
+      `/pulso/users/${id}/role`,
       body,
     ),
 };

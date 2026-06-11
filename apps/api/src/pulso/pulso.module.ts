@@ -4,6 +4,7 @@ import { RedisModule } from "../redis";
 import { PulsoController } from "./pulso.controller";
 import { PulsoService } from "./pulso.service";
 import { AuthorReviewService } from "./author-review.service";
+import { AdminUsersService } from "./admin-users.service";
 
 /**
  * PulsoModule — Sprint S42 (reports) + S48 (overview).
@@ -19,7 +20,7 @@ import { AuthorReviewService } from "./author-review.service";
 @Module({
   imports: [PrismaModule, RedisModule],
   controllers: [PulsoController],
-  providers: [PulsoService, AuthorReviewService],
-  exports: [PulsoService, AuthorReviewService],
+  providers: [PulsoService, AuthorReviewService, AdminUsersService],
+  exports: [PulsoService, AuthorReviewService, AdminUsersService],
 })
 export class PulsoModule {}

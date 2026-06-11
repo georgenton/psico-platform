@@ -6,6 +6,7 @@ import {
   IsString,
   Length,
 } from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
 import { DIARY_MOOD_IDS } from "@psico/types";
 import type { DiaryMoodId } from "@psico/types";
 import { IsBase64UrlCipher, IsBase64UrlNonce } from "./ciphertext-validators";
@@ -19,6 +20,7 @@ import { IsBase64UrlCipher, IsBase64UrlNonce } from "./ciphertext-validators";
  */
 export class UpdateDiaryEntryDto {
   // Mood token narrowed to the shared DIARY_MOODS catalog.
+  @ApiProperty({ enum: DIARY_MOOD_IDS, required: false, example: "calma" })
   @IsOptional()
   @IsIn(DIARY_MOOD_IDS)
   mood?: DiaryMoodId;

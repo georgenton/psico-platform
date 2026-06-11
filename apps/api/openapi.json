@@ -805,7 +805,26 @@
     "/api/diario/entries": {
       "get": {
         "operationId": "DiarioController_list",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "mood",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "calma",
+              "enum": [
+                "calma",
+                "foco",
+                "energia",
+                "reflexion",
+                "alegria",
+                "ansiedad",
+                "tristeza"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -2778,6 +2797,169 @@
         ]
       }
     },
+    "/api/pulso/author-requests": {
+      "get": {
+        "operationId": "PulsoController_listAuthorRequests",
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List author publication requests. Default scope: PENDING only.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/author-requests/{id}/approve": {
+      "post": {
+        "operationId": "PulsoController_approveAuthorRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Approve a pending author publication request. Triggers copy-on-publish AuthorBook → Book + Chapter + ChapterBlock.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/author-requests/{id}/reject": {
+      "post": {
+        "operationId": "PulsoController_rejectAuthorRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectAuthorRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Reject a pending author publication request with optional editorial feedback. Sets AuthorBook back to DRAFT.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/users": {
+      "get": {
+        "operationId": "PulsoController_listUsers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Search users by email/name + optional role filter.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/users/{id}/role-changes": {
+      "get": {
+        "operationId": "PulsoController_getRoleChanges",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Last 20 role changes for a user (audit trail).",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/users/{id}/role": {
+      "post": {
+        "operationId": "PulsoController_changeRole",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Change a user's role. Logged in RoleChangeLog for audit.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
     "/api/push/live-activity": {
       "post": {
         "operationId": "LiveActivitiesController_register",
@@ -2839,6 +3021,1015 @@
         "summary": "Mark a Live Activity as dismissed. Sends APNs 'end' event if configured.",
         "tags": [
           "LiveActivities"
+        ]
+      }
+    },
+    "/api/terapia/crisis": {
+      "get": {
+        "operationId": "TerapiaController_getCrisis",
+        "parameters": [
+          {
+            "name": "country",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Líneas de crisis por país. PÚBLICO sin auth (decisión ética del diseño).",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/crisis/log": {
+      "post": {
+        "operationId": "TerapiaController_logCrisis",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrisisLogDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Auditoría de uso del flujo de crisis. Sin contenido sensible. Auth opcional.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/hub": {
+      "get": {
+        "operationId": "TerapiaController_getHub",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Landing del usuario en Terapia.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/therapists/filters": {
+      "get": {
+        "operationId": "TerapiaController_getFilters",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Opciones disponibles para los filtros del directorio.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/therapists": {
+      "get": {
+        "operationId": "TerapiaController_listTherapists",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Directorio paginado de terapeutas activos. Soporta filtros + sort.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/therapists/{id}": {
+      "get": {
+        "operationId": "TerapiaController_getTherapist",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Detalle de un terapeuta.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/therapists/{id}/reviews": {
+      "get": {
+        "operationId": "TerapiaController_listReviews",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Reseñas paginadas de un terapeuta.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/therapists/{id}/favorite": {
+      "post": {
+        "operationId": "TerapiaController_toggleFavorite",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Toggle de favorito sobre un terapeuta.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/therapists/{id}/availability": {
+      "get": {
+        "operationId": "TerapiaController_getAvailability",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Slots disponibles del terapeuta proyectados sobre los próximos 14 días.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/bookings": {
+      "post": {
+        "operationId": "TerapiaController_createBooking",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBookingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Reservar una sesión. v1: crea la session en SCHEDULED + PENDING; Stripe wiring llega en S65.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/sessions/{id}/prep": {
+      "get": {
+        "operationId": "TerapiaController_getSessionPrep",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Estado de pre-sesión.",
+        "tags": [
+          "Terapia"
+        ]
+      },
+      "patch": {
+        "operationId": "TerapiaController_updateSessionPrep",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionPrepDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Actualizar pre-sesión (intentionCiphertext E2E, mood, entradas compartidas).",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/sessions/{id}/join": {
+      "post": {
+        "operationId": "TerapiaController_joinSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Emite token de sala. Solo válido en window [-5min, +duration+15min].",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/sessions/{id}/feedback": {
+      "post": {
+        "operationId": "TerapiaController_submitFeedback",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionFeedbackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Cierra sesión con feedback. rating 1-5 + tags categóricos + noteCiphertext E2E opcional.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/sessions/{id}/technical-report": {
+      "post": {
+        "operationId": "TerapiaController_reportTechnical",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TechnicalReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Reportar un problema técnico durante (o después) de la sesión.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/sessions": {
+      "get": {
+        "operationId": "TerapiaController_listSessions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Mis sesiones — envelope {upcoming, past}. Filtro opcional por status.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/prescriptions": {
+      "get": {
+        "operationId": "TerapiaController_listPrescriptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Mis recetas activas (lo que sugirió el terapeuta).",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/prescriptions/{id}": {
+      "patch": {
+        "operationId": "TerapiaController_updatePrescription",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePrescriptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Marcar receta como completada / incompleta.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/notifications": {
+      "get": {
+        "operationId": "TerapiaController_listNotifications",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Notificaciones del usuario en Terapia.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/notifications/{id}/read": {
+      "patch": {
+        "operationId": "TerapiaController_markNotificationRead",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Marcar una notificación como leída. Idempotente.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/notifications/read-all": {
+      "post": {
+        "operationId": "TerapiaController_markAllNotificationsRead",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Marcar todas las notificaciones como leídas.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/sessions/{id}/reschedule": {
+      "patch": {
+        "operationId": "TerapiaController_rescheduleSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RescheduleSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Re-agendar sesión a un slot libre del mismo terapeuta. Solo SCHEDULED.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/sessions/{id}/cancel": {
+      "post": {
+        "operationId": "TerapiaController_cancelSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Cancelar sesión SCHEDULED. Refund pedido al ops.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/terapia/bookings/{id}/retry-checkout": {
+      "post": {
+        "operationId": "TerapiaController_retryCheckout",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryCheckoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Emitir un nuevo Stripe Checkout para una session PENDING. Útil tras fallo o cierre del tab.",
+        "tags": [
+          "Terapia"
+        ]
+      }
+    },
+    "/api/autor/dashboard": {
+      "get": {
+        "operationId": "AuthorController_dashboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Dashboard del autor: libros, plantillas, IA.",
+        "tags": [
+          "autor"
+        ]
+      }
+    },
+    "/api/autor/libros": {
+      "post": {
+        "operationId": "AuthorController_createBook",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAuthorBookDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Crear un libro borrador.",
+        "tags": [
+          "autor"
+        ]
+      }
+    },
+    "/api/autor/libros/{id}": {
+      "get": {
+        "operationId": "AuthorController_getBook",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Meta del libro + estructura de capítulos.",
+        "tags": [
+          "autor"
+        ]
+      },
+      "patch": {
+        "operationId": "AuthorController_updateBook",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAuthorBookDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Editar meta del libro.",
+        "tags": [
+          "autor"
+        ]
+      },
+      "delete": {
+        "operationId": "AuthorController_archiveBook",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Archivar libro (soft-delete).",
+        "tags": [
+          "autor"
+        ]
+      }
+    },
+    "/api/autor/libros/{id}/capitulos/{n}": {
+      "get": {
+        "operationId": "AuthorController_getChapter",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "n",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Obtener capítulo en edición.",
+        "tags": [
+          "autor"
+        ]
+      },
+      "patch": {
+        "operationId": "AuthorController_updateChapter",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "n",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateChapterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Editar capítulo. Concurrency: envia expectedVersion para detectar conflicts.",
+        "tags": [
+          "autor"
+        ]
+      }
+    },
+    "/api/autor/libros/{id}/estructura": {
+      "patch": {
+        "operationId": "AuthorController_updateStructure",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStructureDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Reordenar / renombrar / eliminar capítulos en una sola operación atómica.",
+        "tags": [
+          "autor"
+        ]
+      }
+    },
+    "/api/autor/libros/{id}/publicacion": {
+      "get": {
+        "operationId": "AuthorController_getPublicationState",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Estado del checklist de publicación.",
+        "tags": [
+          "autor"
+        ]
+      }
+    },
+    "/api/autor/libros/{id}/publicar": {
+      "post": {
+        "operationId": "AuthorController_submit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Enviar el libro a revisión. Valida los blockers del checklist primero.",
+        "tags": [
+          "autor"
+        ]
+      }
+    },
+    "/api/autor/libros/{id}/despublicar": {
+      "post": {
+        "operationId": "AuthorController_unpublish",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Quitar el libro del catálogo (vuelve a DRAFT).",
+        "tags": [
+          "autor"
+        ]
+      }
+    },
+    "/api/autor/libros/{id}/cover-image": {
+      "post": {
+        "operationId": "AuthorController_uploadCover",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Sube la portada del libro (JPG/PNG/WebP, máx 5MB) al storage R2 + guarda la URL en AuthorBook.coverArtUrl.",
+        "tags": [
+          "autor"
+        ]
+      }
+    },
+    "/api/autor/libros/{id}/capitulos/{n}/audio": {
+      "post": {
+        "operationId": "AuthorController_uploadChapterAudio",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "n",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Sube audio del capítulo (MP3/M4A/WAV/WEBM/OGG, máx 50MB) y lo agrega como bloque AUDIO al final del capítulo.",
+        "tags": [
+          "autor"
+        ]
+      }
+    },
+    "/api/autor/libros/{id}/ai-help": {
+      "post": {
+        "operationId": "AuthorController_aiHelp",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorAiHelpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "AI helpers: revisar tono, sugerir ejemplo, cambiar tono, simplificar. Returns the suggested text as a single JSON response.",
+        "tags": [
+          "autor"
+        ]
+      }
+    },
+    "/api/autor/cobros": {
+      "get": {
+        "operationId": "AuthorController_getCobros",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Vista del autor sobre sus ingresos: YTD / último mes / pendiente + breakdown mensual + configuración de payout.",
+        "tags": [
+          "autor"
+        ]
+      }
+    },
+    "/api/autor/cobros/configuracion": {
+      "patch": {
+        "operationId": "AuthorController_updatePayoutSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePayoutSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Actualiza el método y datos de cobro del autor. Upsert idempotente.",
+        "tags": [
+          "autor"
         ]
       }
     }
@@ -2956,11 +4147,42 @@
       },
       "CreateDiaryEntryDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "mood": {
+            "type": "string",
+            "enum": [
+              "calma",
+              "foco",
+              "energia",
+              "reflexion",
+              "alegria",
+              "ansiedad",
+              "tristeza"
+            ],
+            "example": "calma"
+          }
+        },
+        "required": [
+          "mood"
+        ]
       },
       "UpdateDiaryEntryDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "mood": {
+            "type": "string",
+            "enum": [
+              "calma",
+              "foco",
+              "energia",
+              "reflexion",
+              "alegria",
+              "ansiedad",
+              "tristeza"
+            ],
+            "example": "calma"
+          }
+        }
       },
       "ShareDiaryEntryDto": {
         "type": "object",
@@ -3082,7 +4304,75 @@
         "type": "object",
         "properties": {}
       },
+      "RejectAuthorRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ChangeRoleDto": {
+        "type": "object",
+        "properties": {}
+      },
       "RegisterLiveActivityDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CrisisLogDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateBookingDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateSessionPrepDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "SessionFeedbackDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "TechnicalReportDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdatePrescriptionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RescheduleSessionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CancelSessionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RetryCheckoutDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateAuthorBookDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateAuthorBookDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateChapterDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateStructureDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AuthorAiHelpDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdatePayoutSettingsDto": {
         "type": "object",
         "properties": {}
       }

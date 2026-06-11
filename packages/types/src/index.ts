@@ -888,7 +888,12 @@ export type CoverToken = "cool" | "warm" | "mixed";
 export type BookListSort = "recent" | "alpha" | "marina";
 
 /** View tab accepted by GET /books?view=. */
-export type BookListView = "catalogo" | "mis" | "recos";
+export type BookListView =
+  | "catalogo"
+  | "mis"
+  | "recos"
+  | "favoritos"
+  | "guardados";
 
 export interface BookCategory {
   id: string;
@@ -1864,11 +1869,7 @@ export interface PulsoRoleChangeLogRow {
 // Wire types for /api/autor/* endpoints. The AuthorBook lives in the author
 // workspace; it's promoted (copy-on-publish) to Book by admin approval.
 
-export type AuthorBookStatus =
-  | "DRAFT"
-  | "IN_REVIEW"
-  | "PUBLISHED"
-  | "ARCHIVED";
+export type AuthorBookStatus = "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "ARCHIVED";
 
 export interface AuthorDashboardBook {
   id: string;
@@ -2003,11 +2004,7 @@ export interface AuthorPublicationState {
 }
 
 // Revenue (Sprint S71.C-revenue)
-export type AuthorPayoutMethod =
-  | "bank_ec"
-  | "paypal"
-  | "payphone"
-  | "manual";
+export type AuthorPayoutMethod = "bank_ec" | "paypal" | "payphone" | "manual";
 export type AuthorEarningStatus = "PENDING" | "PAID";
 
 export interface AuthorRevenueSummary {
@@ -2278,11 +2275,7 @@ export interface TherapistAvailabilityResponse {
   slots: AvailabilitySlot[];
 }
 
-export type TherapyPaymentStatus =
-  | "PENDING"
-  | "PAID"
-  | "FAILED"
-  | "REFUNDED";
+export type TherapyPaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED";
 
 export interface CreateBookingRequest {
   therapistId: string;
@@ -2391,11 +2384,7 @@ export interface TherapySessionsListResponse {
   past: TherapySessionListItem[];
 }
 
-export type TherapyPrescriptionKind =
-  | "BOOK"
-  | "AUDIO"
-  | "EXERCISE"
-  | "CARTA";
+export type TherapyPrescriptionKind = "BOOK" | "AUDIO" | "EXERCISE" | "CARTA";
 
 export interface TherapyPrescriptionItem {
   id: string;

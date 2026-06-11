@@ -445,7 +445,7 @@ export class BooksService {
   private buildListWhere(
     userId: string | null,
     query: ListBooksQueryDto,
-    view: "catalogo" | "mis" | "recos",
+    view: "catalogo" | "mis" | "recos" | "favoritos" | "guardados",
   ) {
     const base: Record<string, unknown> = { isPublished: true };
     if (query.categoryId) base.categoryId = query.categoryId;
@@ -459,6 +459,12 @@ export class BooksService {
     }
     if (view === "mis" && userId) {
       base.chapters = { some: { progress: { some: { userId } } } };
+    }
+    if (view === "favoritos" && userId) {
+      base.favorites = { some: { userId } };
+    }
+    if (view === "guardados" && userId) {
+      base.bookmarks = { some: { userId } };
     }
     return base;
   }

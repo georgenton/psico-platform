@@ -1765,6 +1765,59 @@ export interface PulsoCohortRetentionResponse {
   maxWeekOffset: number;
 }
 
+// ─── Pulso · Author publication reviews (Sprint S71.B) ──────────────────────
+//
+// Admin-only surface for approving / rejecting author book submissions.
+// Doesn't carry author email leakage to non-ADMIN tokens — the backend
+// gates with RolesGuard + @RequiredRole("ADMIN").
+
+export type AuthorRequestStatus = "PENDING" | "ALL";
+export type AuthorRequestReviewState = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface PulsoAuthorRequestBook {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  summary: string | null;
+  cover: string;
+  coverArtUrl: string | null;
+  status: "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "ARCHIVED";
+  language: string;
+  categoryId: string | null;
+  chapters: number;
+  author: {
+    id: string;
+    email: string;
+    name: string;
+  };
+}
+
+export interface PulsoAuthorRequestRow {
+  id: string;
+  bookId: string;
+  reviewState: AuthorRequestReviewState;
+  submittedAt: Date;
+  reviewedAt: Date | null;
+  feedback: string | null;
+  book: PulsoAuthorRequestBook;
+}
+
+export interface PulsoAuthorRequestListResponse {
+  total: number;
+  items: PulsoAuthorRequestRow[];
+}
+
+export interface PulsoApproveAuthorRequestResponse {
+  ok: true;
+  bookId: string;
+  slug: string;
+  chapters: number;
+}
+
+export interface PulsoRejectAuthorRequestBody {
+  feedback?: string;
+}
+
 // ─── Notifications (Sprint S43) ─────────────────────────────────────────────
 //
 // Device tokens registered by the mobile app via expo-notifications. The

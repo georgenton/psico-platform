@@ -9,7 +9,6 @@ import {
   Length,
   Min,
 } from "class-validator";
-import { ApiProperty } from "@nestjs/swagger";
 import { DIARY_MOOD_IDS } from "@psico/types";
 import type { DiaryMoodId } from "@psico/types";
 import { IsBase64UrlCipher, IsBase64UrlNonce } from "./ciphertext-validators";
@@ -26,10 +25,8 @@ const KINDS = ["free", "prompted", "voz"] as const;
  */
 export class CreateDiaryEntryDto {
   // Mood token from the shared DIARY_MOODS catalog (calma / foco / energia / …).
-  // Narrowed at runtime by @IsIn so unknown moods are rejected with 400.
-  // @ApiProperty surfaces the enum in OpenAPI so the generated client gets
-  // a literal-union type instead of a plain string.
-  @ApiProperty({ enum: DIARY_MOOD_IDS, example: "calma" })
+  // @IsIn narrows at runtime (400 on unknown); the @nestjs/swagger CLI plugin
+  // surfaces the enum in OpenAPI automatically (no manual @ApiProperty needed).
   @IsIn(DIARY_MOOD_IDS)
   mood!: DiaryMoodId;
 

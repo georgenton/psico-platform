@@ -11,7 +11,13 @@ import {
   UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
-import { ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { DeprecationInterceptor } from "./deprecation.interceptor";
 import type { Request } from "express";
 import { JwtAuthGuard } from "../auth";
@@ -34,6 +40,8 @@ import { SubscriptionService } from "./subscription.service";
  * emit and ADR 0006 for the 90-day deprecation policy.
  */
 @ApiTags("Subscription (deprecated)")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
 @Controller("subscriptions")
 @UseInterceptors(DeprecationInterceptor)
 export class SubscriptionController {

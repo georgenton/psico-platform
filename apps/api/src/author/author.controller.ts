@@ -13,7 +13,16 @@ import {
   UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
-import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiForbiddenResponse,
+  ApiOperation,
+  ApiTags,
+  ApiTooManyRequestsResponse,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { Throttle } from "@nestjs/throttler";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { CurrentUser, RequiredRole, RolesGuard } from "../shared";
@@ -40,6 +49,10 @@ import { UpdatePayoutSettingsDto } from "./dto/update-payout-settings.dto";
  * tocar libros de otro).
  */
 @ApiTags("autor")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+@ApiForbiddenResponse({ type: ErrorEnvelopeDto })
+@ApiTooManyRequestsResponse({ type: ErrorEnvelopeDto })
 @Controller("autor")
 @UseGuards(JwtAuthGuard, RolesGuard)
 @RequiredRole("AUTHOR")

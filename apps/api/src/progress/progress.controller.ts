@@ -8,7 +8,14 @@ import {
   Post,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ProgressService } from "./progress.service";
 import type { AuthenticatedUser } from "../auth";
@@ -24,6 +31,8 @@ import { MarkProgressDto } from "./dto/mark-progress.dto";
  */
 @ApiTags("Progress")
 @ApiBearerAuth("bearer")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
 @Controller("progress")
 @UseGuards(JwtAuthGuard)
 export class ProgressController {

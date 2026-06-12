@@ -9,7 +9,15 @@ import {
   UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { FileInterceptor } from "@nestjs/platform-express";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ChaptersService } from "./chapters.service";
@@ -28,6 +36,9 @@ import { UploadAudioDto } from "./dto/upload-audio.dto";
  * the new BooksModule top-level URL space. Behaviour unchanged.
  */
 @ApiTags("Chapters")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+@ApiForbiddenResponse({ type: ErrorEnvelopeDto })
 @Controller("books")
 export class ChaptersController {
   constructor(private readonly chaptersService: ChaptersService) {}

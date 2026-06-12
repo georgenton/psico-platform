@@ -2715,6 +2715,7 @@
             "name": "limit",
             "required": false,
             "in": "query",
+            "description": "Max number of invoices to fetch (1–50). Default 12 when omitted —\nmatches the row count of the Mi Plan invoice table.\n\nStripe returns newest-first; no cursor is exposed yet (single-page\nUX). When pagination is needed, add `starting_after`.",
             "schema": {
               "minimum": 1,
               "maximum": 50,
@@ -3019,6 +3020,7 @@
             "name": "limit",
             "required": false,
             "in": "query",
+            "description": "Max number of invoices to fetch (1–50). Default 12 when omitted —\nmatches the row count of the Mi Plan invoice table.\n\nStripe returns newest-first; no cursor is exposed yet (single-page\nUX). When pagination is needed, add `starting_after`.",
             "schema": {
               "minimum": 1,
               "maximum": 50,
@@ -4920,6 +4922,7 @@
             "name": "language",
             "required": false,
             "in": "query",
+            "description": "Optional language hint sent to the speech-to-text provider. Both\nWhisper and Deepgram accept ISO-639-1 codes (`\"es\"`, `\"en\"`) plus a\nfew extended tags (`\"es-419\"` for LATAM Spanish, recommended for\nEcuador users).\n\nCapped at 16 chars — defense against arbitrary attacker input\nreaching the third-party API. When omitted, the provider\nauto-detects (less accurate for short clips).",
             "schema": {
               "maxLength": 16,
               "type": "string"
@@ -10119,21 +10122,25 @@
         "properties": {
           "therapistId": {
             "type": "string",
+            "description": "Stable ID of the therapist the entry is being shared with. The\ntherapist must already be in the user's verified therapist list\n(v2 — surface lives in TherapyModule).",
             "minLength": 1,
             "maxLength": 64
           },
           "ciphertextForTherapist": {
-            "type": "string"
+            "type": "string",
+            "description": "XChaCha20-Poly1305 ciphertext of the plaintext entry, encrypted with\nthe ephemeralKey. base64url-encoded. Same bounds as Diary\nciphertext (`~1.4 MB` max)."
           },
           "wrappedKey": {
-            "type": "string"
+            "type": "string",
+            "description": "The ephemeralKey wrapped with the shared secret from\n`ECDH(userPriv, therapistPub)`. Short blob (≤ 1 KB) — separate cap\nfrom `ciphertextForTherapist` so a malformed payload here can't\nbypass the body ciphertext size check."
           },
           "userOneShotPubKey": {
-            "type": "string"
+            "type": "string",
+            "description": "X25519 public key the client generated SPECIFICALLY for this share.\n32 raw bytes → 43 base64url chars unpadded. Burned after this share\n— the therapist's app reads it to derive the shared secret, and the\nuser's app discards the matching private key."
           },
           "expiresAt": {
             "type": "string",
-            "description": "Optional shorter expiry. Server caps at 30 days; default 7."
+            "description": "Optional explicit expiry (ISO-8601). Server caps at 30 days from\nnow; default is 7 days when omitted. After expiry the share row is\ntombstoned by the sweeper job (v2) — the therapist can no longer\nread."
           }
         },
         "required": [
@@ -10147,6 +10154,7 @@
         "type": "object",
         "properties": {
           "billingPlan": {
+            "description": "Plan tier to purchase. Plugin emits the enum in OpenAPI.",
             "enum": [
               "PRO_MONTHLY",
               "PRO_YEARLY",
@@ -10156,10 +10164,12 @@
           },
           "successUrl": {
             "type": "string",
+            "description": "Where Stripe should redirect after successful payment. Stripe\nappends `?session_id=...` automatically. The front passes that to\n`/billing/return` to confirm.",
             "format": "uri"
           },
           "cancelUrl": {
             "type": "string",
+            "description": "Where Stripe should redirect if the user aborts payment. No state\nchange happens; the front can just return the user to the plan\npicker.",
             "format": "uri"
           }
         },
@@ -10186,6 +10196,7 @@
         "properties": {
           "reason": {
             "type": "string",
+            "description": "Optional free-text reason the user typed in the cancel modal.\nCapped at 480 chars (Stripe metadata cap). Not validated for\nsentiment / category — analytics teams categorize later.",
             "maxLength": 480
           }
         }
@@ -10542,7 +10553,7 @@
         "type": "object",
         "properties": {
           "motivosIds": {
-            "description": "Motivos chosen by the user. At least one is required. Max 5 keeps the\nrecommendation algorithm focused — picking everything is signal for\n\"I don't know\" which we treat the same as default.\n\nThe service validates each id exists in the OnboardingMotivo table.",
+            "description": "Catalog IDs of the chosen motives. At least one required, max 5 —\npicking everything is signal for \"I don't know\" which we treat the\nsame as default.\n\nThe service validates each id exists in the `OnboardingMotivo`\ntable and returns 400 `MOTIVOS_NOT_FOUND` with the bad IDs.",
             "minItems": 1,
             "maxItems": 5,
             "type": "array",
@@ -10571,13 +10582,14 @@
         "properties": {
           "firstName": {
             "type": "string",
-            "description": "Display name. 2-40 chars. Disallow emoji + control chars + leading/trailing\nwhitespace. The regex is permissive about accented characters so \"María\nJosé\" works.",
+            "description": "Display first name shown in the home greeting and the inactive-nudge\npush (e.g. \"Hola María, ¿cómo estás?\"). 2–40 chars. Disallows emoji,\nsymbols, control chars, and leading/trailing whitespace; permissive\nabout accented characters so `\"María José\"` works.\n\nPersisted to both `OnboardingState.firstName` (audit) and\n`User.firstName` (canonical).",
             "minLength": 2,
             "maxLength": 40,
             "pattern": "/^[\\p{L}\\p{M}\\s'.-]+$/u"
           },
           "voicePreference": {
             "type": "string",
+            "description": "Preferred narrator voice for audio playback:\n- `\"marina\"` — Marina Quintana voice (the anchor author's own)\n- `\"tomas\"` — Tomás voice (paired contributor)\n- `\"none\"` — opt out of audio entirely\n\nPersisted to `UserPreferences.voicePreference`. The audio file URL\nthe Lector serves picks the right track based on this preference.\nPlugin emits the enum in OpenAPI.",
             "enum": [
               "marina",
               "tomas",
@@ -10675,28 +10687,31 @@
         "properties": {
           "bookId": {
             "type": "string",
+            "description": "ID of the `Book` the reading session belongs to. The service\nresolves the `chapterId` from `(bookId, chapterOrder)` for the\nupsert; an unknown pair returns 404.",
             "minLength": 1,
             "maxLength": 64
           },
           "chapterOrder": {
             "type": "number",
+            "description": "Ordinal of the chapter being read (1-indexed). Combined with\n`bookId` to identify the active chapter.",
             "minimum": 1,
             "maximum": 999
           },
           "lastBlockId": {
             "type": "string",
+            "description": "ID of the last `ChapterBlock` the user has scrolled past. Used to\nresume the session on next open (UI scrolls back to this block).",
             "minLength": 1,
             "maxLength": 64
           },
           "timeSpentDeltaSec": {
             "type": "number",
-            "description": "Seconds since the previous heartbeat. Cap at 60 at the service layer:\na tab that wakes from suspend should not credit hours of \"reading\".",
+            "description": "Seconds since the previous heartbeat. Cap at 3600 in validation;\nservice further clamps to 60 to defend against suspend-and-resume\nspikes. The cumulative `timeSpentSec` on the row grows monotonically.",
             "minimum": 0,
             "maximum": 3600
           },
           "progressPct": {
             "type": "number",
-            "description": "0–1 ratio. Server clamps and never lets it decrease.",
+            "description": "0.0–1.0 ratio of how far the user has scrolled through the chapter.\nServer clamps to [0, 1] and never lets the stored value decrease —\nonce 0.78 has been observed, the next heartbeat with 0.42 is silently\nignored (likely a UI bug / refresh / scroll-back). Use `complete`\nendpoint to set 1.0 explicitly.",
             "minimum": 0,
             "maximum": 1
           }
@@ -10714,26 +10729,29 @@
         "properties": {
           "blockId": {
             "type": "string",
+            "description": "Stable ID of the `ChapterBlock` the highlight anchors to. Server\nverifies the block exists and belongs to a book the user has\naccess to (FREE plan can highlight in free chapters; PRO is\nunrestricted).",
             "minLength": 1,
             "maxLength": 64
           },
           "startOffset": {
             "type": "number",
-            "description": "UTF-16 code-unit offsets into the block's `content`. The service rejects\nwith 400 if `startOffset >= endOffset` or if `endOffset` exceeds the\nactual block length (the block is loaded server-side for verification).",
+            "description": "UTF-16 code-unit offset into the block's `content` where the\nhighlight starts. Inclusive. The service rejects with 400 if\n`startOffset >= endOffset` or if `endOffset` exceeds the actual\nblock length (the block is loaded server-side for verification).",
             "minimum": 0,
             "maximum": 100000
           },
           "endOffset": {
             "type": "number",
+            "description": "UTF-16 code-unit offset into the block's `content` where the\nhighlight ends. Exclusive. Must satisfy `startOffset < endOffset`\nand be `≤ block.content.length`.",
             "minimum": 0,
             "maximum": 100000
           },
           "color": {
-            "type": "object"
+            "type": "object",
+            "description": "Highlight color: `\"YELLOW\"` (default), `\"BLUE\"`, or `\"PINK\"`. The\nUI uses color to let users categorize visually (e.g. yellow = key\npassages, blue = quotes, pink = action items). Plugin emits the\nenum in OpenAPI."
           },
           "note": {
             "type": "string",
-            "description": "Optional one-line note. Reject long blobs — annotations are the right model for that.",
+            "description": "Optional one-line note attached to the highlight (up to 280 chars).\nFor longer commentary, use the Annotations API instead — annotations\nare the right model for paragraph-length reflection.",
             "minLength": 0,
             "maxLength": 280
           }
@@ -10749,12 +10767,13 @@
         "properties": {
           "blockId": {
             "type": "string",
+            "description": "Stable ID of the `ChapterBlock` the annotation anchors to. Same\nresilience as highlights: the annotation stays attached even if the\nblock content is later edited by the author.",
             "minLength": 1,
             "maxLength": 64
           },
           "text": {
             "type": "string",
-            "description": "Cap at 4 KB. Diary is the right place for longer reflection; the\nAnnotation model is for margin-style notes against a specific block.",
+            "description": "Annotation body. 1–4096 chars (~1000 words). Plaintext — annotations\nare NOT E2E encrypted because books are public content and the\nreflection here is contextual. Users who need privacy for personal\nreflection should use the Diary (which IS E2E).",
             "minLength": 1,
             "maxLength": 4096
           }
@@ -10769,6 +10788,7 @@
         "properties": {
           "text": {
             "type": "string",
+            "description": "New annotation body. Same constraints as creation (1–4096 chars).",
             "minLength": 1,
             "maxLength": 4096
           }

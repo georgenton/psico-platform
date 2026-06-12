@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -9,8 +9,14 @@ import {
 import { Audio, type AVPlaybackStatus } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
 import { lectorApi } from "@psico/api-client";
-import type { LectorAudioResponse } from "@psico/types";
+import type {
+  LectorAudioResponse,
+  LectorAudioTranscriptSegment,
+} from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
+
+const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5] as const;
+type SpeedRate = (typeof SPEED_OPTIONS)[number];
 
 /**
  * LectorAudioBar — collapsible audio playback strip for the chapter.
@@ -29,9 +35,16 @@ import { Colors, Radius, Spacing } from "@/theme";
 export function LectorAudioBar({
   bookId,
   chapterOrder,
+  onActiveBlockChange,
 }: {
   bookId: string;
   chapterOrder: number;
+  /**
+   * Called whenever the audio cursor crosses into / out of a transcript
+   * segment with a non-null blockId. The screen uses this to scroll the
+   * matching block into view.
+   */
+  onActiveBlockChange?: (blockId: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -42,15 +55,59 @@ export function LectorAudioBar({
   const [isPlaying, setIsPlaying] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
+  const [speed, setSpeed] = useState<SpeedRate>(1);
+  const [transcript, setTranscript] = useState<LectorAudioTranscriptSegment[]>(
+    [],
+  );
+  const activeBlockRef = useRef<string | null>(null);
 
-  const onStatus = useCallback((status: AVPlaybackStatus) => {
-    if (!status.isLoaded) return;
-    setIsPlaying(status.isPlaying);
-    setPositionMs(status.positionMillis);
-    if (typeof status.durationMillis === "number") {
-      setDurationMs(status.durationMillis);
+  // Defensive sort — backend may emit unsorted.
+  const sortedSegments = useMemo(
+    () => [...transcript].sort((a, b) => a.start - b.start),
+    [transcript],
+  );
+
+  function findSegmentIndex(t: number): number {
+    let lo = 0;
+    let hi = sortedSegments.length - 1;
+    let ans = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const s = sortedSegments[mid]!;
+      if (s.start <= t) {
+        ans = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
     }
-  }, []);
+    return ans;
+  }
+
+  const onStatus = useCallback(
+    (status: AVPlaybackStatus) => {
+      if (!status.isLoaded) return;
+      setIsPlaying(status.isPlaying);
+      setPositionMs(status.positionMillis);
+      if (typeof status.durationMillis === "number") {
+        setDurationMs(status.durationMillis);
+      }
+      // Transcript sync — server emits start/end in seconds.
+      if (sortedSegments.length === 0) return;
+      const t = status.positionMillis / 1000;
+      const idx = findSegmentIndex(t);
+      let target: string | null = null;
+      if (idx >= 0) {
+        const seg = sortedSegments[idx]!;
+        if (t < seg.end) target = seg.blockId;
+      }
+      if (target !== activeBlockRef.current) {
+        activeBlockRef.current = target;
+        onActiveBlockChange?.(target);
+      }
+    },
+    [sortedSegments, onActiveBlockChange],
+  );
 
   const loadAndOpen = useCallback(async () => {
     if (soundRef.current) {
@@ -71,6 +128,7 @@ export function LectorAudioBar({
       );
       soundRef.current = sound;
       setDurationMs(data.durationSec * 1000);
+      setTranscript(data.transcript);
       setOpen(true);
     } catch (err) {
       const status =
@@ -105,6 +163,13 @@ export function LectorAudioBar({
       await soundRef.current.playAsync();
     }
   }
+
+  // Apply speed change to the underlying sound. `shouldCorrectPitch: true`
+  // keeps voices natural at 1.25×/1.5× instead of chipmunk-ing them.
+  useEffect(() => {
+    if (!soundRef.current) return;
+    void soundRef.current.setRateAsync(speed, true);
+  }, [speed]);
 
   // Release the native audio session when the screen goes away.
   useEffect(() => {
@@ -162,26 +227,58 @@ export function LectorAudioBar({
               </Pressable>
             </View>
           ) : (
-            <View style={styles.row}>
-              <Pressable
-                onPress={() => void togglePlay()}
-                accessibilityLabel={
-                  isPlaying ? "Pausar audio" : "Reproducir audio"
-                }
-                style={({ pressed }) => [
-                  styles.playBtn,
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <Ionicons
-                  name={isPlaying ? "pause" : "play"}
-                  size={20}
-                  color={Colors.warm[50]}
-                />
-              </Pressable>
-              <Text style={styles.timeText}>
-                {fmt(positionMs)} / {fmt(durationMs)}
-              </Text>
+            <View>
+              <View style={styles.row}>
+                <Pressable
+                  onPress={() => void togglePlay()}
+                  accessibilityLabel={
+                    isPlaying ? "Pausar audio" : "Reproducir audio"
+                  }
+                  style={({ pressed }) => [
+                    styles.playBtn,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Ionicons
+                    name={isPlaying ? "pause" : "play"}
+                    size={20}
+                    color={Colors.warm[50]}
+                  />
+                </Pressable>
+                <Text style={styles.timeText}>
+                  {fmt(positionMs)} / {fmt(durationMs)}
+                </Text>
+              </View>
+              <View style={styles.speedRow}>
+                <Text style={styles.speedLabel}>Velocidad</Text>
+                <View style={styles.speedChips}>
+                  {SPEED_OPTIONS.map((opt) => {
+                    const active = speed === opt;
+                    return (
+                      <Pressable
+                        key={opt}
+                        onPress={() => setSpeed(opt)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                        style={({ pressed }) => [
+                          styles.speedChip,
+                          active && styles.speedChipActive,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.speedChipText,
+                            active && styles.speedChipTextActive,
+                          ]}
+                        >
+                          {opt}×
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
             </View>
           )}
         </View>
@@ -243,6 +340,37 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontVariant: ["tabular-nums"],
     color: Colors.warm[700],
+  },
+  speedRow: {
+    marginTop: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  speedLabel: {
+    fontSize: 11.5,
+    color: Colors.warm[500],
+  },
+  speedChips: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  speedChip: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.warm[100],
+  },
+  speedChipActive: {
+    backgroundColor: Colors.lavender[500],
+  },
+  speedChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.warm[700],
+  },
+  speedChipTextActive: {
+    color: "#fff",
   },
   proText: {
     fontSize: 13,

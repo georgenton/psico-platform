@@ -6,6 +6,8 @@ import { TerapiaController } from "./terapia.controller";
 import { TerapiaService } from "./terapia.service";
 import { ConsoleVideoProvider } from "./providers/console-video.provider";
 import { DailyVideoProvider } from "./providers/daily-video.provider";
+import { DailyWebhookController } from "./daily-webhook.controller";
+import { DailyWebhookService } from "./daily-webhook.service";
 import { VIDEO_PROVIDER } from "./tokens";
 
 /**
@@ -21,9 +23,10 @@ import { VIDEO_PROVIDER } from "./tokens";
  */
 @Module({
   imports: [PrismaModule, SubscriptionModule, ConfigModule],
-  controllers: [TerapiaController],
+  controllers: [TerapiaController, DailyWebhookController],
   providers: [
     TerapiaService,
+    DailyWebhookService,
     ConsoleVideoProvider,
     DailyVideoProvider,
     {

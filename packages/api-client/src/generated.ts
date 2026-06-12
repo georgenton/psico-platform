@@ -2600,26 +2600,81 @@ export interface components {
             path: string;
         };
         RegisterDto: {
-            /** Format: email */
+            /**
+             * Format: email
+             * @description The user's email address. Must be a valid RFC 5321 address. Used as
+             *     the unique login identifier and as the destination for verification
+             *     + password-reset emails.
+             */
             email: string;
+            /**
+             * @description Password (8–72 characters). Bcrypt silently truncates anything past
+             *     72 bytes, so the upper bound is enforced explicitly to surface that
+             *     truncation as a validation error instead of a silent confidence
+             *     downgrade.
+             *
+             *     The server hashes with bcrypt before persisting; the raw password
+             *     never reaches storage and never appears in any log.
+             */
             password: string;
+            /**
+             * @description Display name (2–100 chars). Shown in the UI and in transactional
+             *     emails. Not used for authentication.
+             */
             name: string;
         };
+        AuthUserDto: {
+            /** @description Stable opaque user ID (UUID v4). */
+            id: string;
+            /** @description Login email. Always lowercase as stored. */
+            email: string;
+            /** @description Display name shown in the UI and in transactional emails. */
+            name: string;
+            /**
+             * @description Authorization role: typically `"USER"`. Other values: `"AUTHOR"`,
+             *     `"PSYCHOLOGIST"`, `"ADMIN"`. Frontend uses this to show admin /
+             *     author surfaces.
+             */
+            role: string;
+            /**
+             * @description Active plan tier: `"FREE"`, `"PRO"`, `"ANNUAL"`, or `"B2B"`. Gates
+             *     Pro-only features in the UI; the API also re-enforces server-side.
+             */
+            plan: string;
+            /**
+             * @description base64url-encoded 16-byte Argon2id salt used by the client to derive
+             *     the E2E master key (ADR 0007 §A). NOT a secret — useless without the
+             *     password. `null` for legacy accounts created before Sprint S6-crypto;
+             *     the server backfills it on next login so this value stops being
+             *     `null` for an account after one successful login.
+             */
+            cryptoSalt: string | null;
+        };
         AuthResponseDto: {
+            /**
+             * @description Short-lived JWT (~15 min). Send as
+             *     `Authorization: Bearer <token>` on every authenticated request.
+             */
             accessToken: string;
+            /**
+             * @description Long-lived JWT (~30 days), single-use. POST to `/auth/refresh` to
+             *     exchange for a new access+refresh pair. The presented refresh token
+             *     is invalidated atomically on rotation.
+             */
             refreshToken: string;
-            user: {
-                id: string;
-                email: string;
-                name: string;
-                role: string;
-                plan: string;
-                cryptoSalt: string | null;
-            };
+            /** @description The authenticated user's public profile. */
+            user: components["schemas"]["AuthUserDto"];
         };
         LoginDto: {
-            /** Format: email */
+            /**
+             * Format: email
+             * @description The email used at registration.
+             */
             email: string;
+            /**
+             * @description The user's password. Never logged, never echoed back. The server
+             *     compares against the bcrypt hash and discards the plaintext after.
+             */
             password: string;
         };
         RefreshDto: {
@@ -2680,18 +2735,68 @@ export interface components {
             moodId: string;
         };
         CreateDiaryEntryDto: {
-            /** @enum {string} */
+            /**
+             * @description Mood token from the shared `DIARY_MOODS` catalog (calma / foco /
+             *     energia / …). Used for the patterns analytics (heatmap, hourly
+             *     distribution) — visible to the server in plaintext by design.
+             *
+             *     The plugin auto-emits the enum in OpenAPI from the `@IsIn`.
+             * @enum {string}
+             */
             mood: CreateDiaryEntryDtoMood;
-            /** @enum {string} */
+            /**
+             * @description Origin of the entry. `"free"` for user-initiated, `"prompted"` for a
+             *     journal-prompt response, `"voz"` for a voice-to-text dictation.
+             *     Default `"free"` if omitted.
+             * @enum {string}
+             */
             kind?: CreateDiaryEntryDtoKind;
+            /**
+             * @description The `DiaryPrompt.id` the user is responding to, when `kind="prompted"`.
+             *     Up to 64 chars to allow opaque server-side identifiers.
+             */
             promptId?: string;
+            /**
+             * @description The XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.
+             *     Encrypted client-side under a per-user subkey derived via HKDF from
+             *     the master key. Server never decrypts. Bounded at ~1.4 MB ciphertext
+             *     (≈1 MB plaintext) — anything bigger is a UI bug.
+             */
             textCiphertext: string;
+            /**
+             * @description The 24-byte XChaCha20 nonce that pairs with `textCiphertext`,
+             *     base64url-encoded. Must be unique per (key, write) — the client
+             *     generates a fresh random nonce on every encryption (server doesn't
+             *     enforce uniqueness; the client invariant is documented in ADR 0007 §C).
+             */
             textNonce: string;
+            /**
+             * @description Optional preview ciphertext, used by the list view to render a short
+             *     snippet without decrypting the full body. Bounded the same way as
+             *     `textCiphertext`. Short entries may omit it.
+             */
             excerptCiphertext?: string;
+            /**
+             * @description The 24-byte XChaCha20 nonce for `excerptCiphertext`. Required IF
+             *     `excerptCiphertext` is provided.
+             */
             excerptNonce?: string;
+            /**
+             * @description Up to 12 plain-text tags (each 1–32 chars). Plaintext by design — the
+             *     patterns module clusters by tag for the weekly summary. Users should
+             *     NOT include private info in tags (the UI nudges them toward
+             *     categorical labels like `trabajo` / `familia` / `sueño`).
+             */
             tags?: string[];
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description R2 signed URL for an attached voice recording. The audio itself is
+             *     NOT stored long-term — the Voice module discards it post-transcription
+             *     (07-voz.md). Persisted in the entry for replay during the active
+             *     session only.
+             */
             audioUrl?: string;
+            /** @description Duration in seconds of the attached voice recording, when present. */
             audioDurationSec?: number;
         };
         UpdateDiaryEntryDto: {
@@ -2784,7 +2889,11 @@ export interface components {
             marketingEmail?: boolean;
         };
         UpdateMoodDto: {
-            /** @enum {string} */
+            /**
+             * @description Wellness mood token (`great` / `good` / `meh` / `bad` / …). One of
+             *     `WELLNESS_MOOD_IDS`. Unknown tokens are rejected with 400 by `@IsIn`.
+             * @enum {string}
+             */
             mood: UpdateMoodDtoMood;
         };
         EmailChangeRequestDto: {

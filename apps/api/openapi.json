@@ -6334,15 +6334,18 @@
         "properties": {
           "email": {
             "type": "string",
+            "description": "The user's email address. Must be a valid RFC 5321 address. Used as\nthe unique login identifier and as the destination for verification\n+ password-reset emails.",
             "format": "email"
           },
           "password": {
             "type": "string",
+            "description": "Password (8–72 characters). Bcrypt silently truncates anything past\n72 bytes, so the upper bound is enforced explicitly to surface that\ntruncation as a validation error instead of a silent confidence\ndowngrade.\n\nThe server hashes with bcrypt before persisting; the raw password\nnever reaches storage and never appears in any log.",
             "minLength": 8,
             "maxLength": 72
           },
           "name": {
             "type": "string",
+            "description": "Display name (2–100 chars). Shown in the UI and in transactional\nemails. Not used for authentication.",
             "minLength": 2,
             "maxLength": 100
           }
@@ -6353,45 +6356,61 @@
           "name"
         ]
       },
+      "AuthUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable opaque user ID (UUID v4)."
+          },
+          "email": {
+            "type": "string",
+            "description": "Login email. Always lowercase as stored."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name shown in the UI and in transactional emails."
+          },
+          "role": {
+            "type": "string",
+            "description": "Authorization role: typically `\"USER\"`. Other values: `\"AUTHOR\"`,\n`\"PSYCHOLOGIST\"`, `\"ADMIN\"`. Frontend uses this to show admin /\nauthor surfaces."
+          },
+          "plan": {
+            "type": "string",
+            "description": "Active plan tier: `\"FREE\"`, `\"PRO\"`, `\"ANNUAL\"`, or `\"B2B\"`. Gates\nPro-only features in the UI; the API also re-enforces server-side."
+          },
+          "cryptoSalt": {
+            "type": "string",
+            "nullable": true,
+            "description": "base64url-encoded 16-byte Argon2id salt used by the client to derive\nthe E2E master key (ADR 0007 §A). NOT a secret — useless without the\npassword. `null` for legacy accounts created before Sprint S6-crypto;\nthe server backfills it on next login so this value stops being\n`null` for an account after one successful login."
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name",
+          "role",
+          "plan",
+          "cryptoSalt"
+        ]
+      },
       "AuthResponseDto": {
         "type": "object",
         "properties": {
           "accessToken": {
-            "type": "string"
+            "type": "string",
+            "description": "Short-lived JWT (~15 min). Send as\n`Authorization: Bearer <token>` on every authenticated request."
           },
           "refreshToken": {
-            "type": "string"
+            "type": "string",
+            "description": "Long-lived JWT (~30 days), single-use. POST to `/auth/refresh` to\nexchange for a new access+refresh pair. The presented refresh token\nis invalidated atomically on rotation."
           },
           "user": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "email": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "role": {
-                "type": "string"
-              },
-              "plan": {
-                "type": "string"
-              },
-              "cryptoSalt": {
-                "type": "string",
-                "nullable": true
+            "description": "The authenticated user's public profile.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuthUserDto"
               }
-            },
-            "required": [
-              "id",
-              "email",
-              "name",
-              "role",
-              "plan",
-              "cryptoSalt"
             ]
           }
         },
@@ -6406,10 +6425,12 @@
         "properties": {
           "email": {
             "type": "string",
+            "description": "The email used at registration.",
             "format": "email"
           },
           "password": {
-            "type": "string"
+            "type": "string",
+            "description": "The user's password. Never logged, never echoed back. The server\ncompares against the bcrypt hash and discards the plaintext after."
           }
         },
         "required": [
@@ -6609,6 +6630,7 @@
         "properties": {
           "mood": {
             "type": "string",
+            "description": "Mood token from the shared `DIARY_MOODS` catalog (calma / foco /\nenergia / …). Used for the patterns analytics (heatmap, hourly\ndistribution) — visible to the server in plaintext by design.\n\nThe plugin auto-emits the enum in OpenAPI from the `@IsIn`.",
             "enum": [
               "calma",
               "foco",
@@ -6621,6 +6643,7 @@
           },
           "kind": {
             "type": "string",
+            "description": "Origin of the entry. `\"free\"` for user-initiated, `\"prompted\"` for a\njournal-prompt response, `\"voz\"` for a voice-to-text dictation.\nDefault `\"free\"` if omitted.",
             "enum": [
               "free",
               "prompted",
@@ -6629,22 +6652,28 @@
           },
           "promptId": {
             "type": "string",
+            "description": "The `DiaryPrompt.id` the user is responding to, when `kind=\"prompted\"`.\nUp to 64 chars to allow opaque server-side identifiers.",
             "minLength": 1,
             "maxLength": 64
           },
           "textCiphertext": {
-            "type": "string"
+            "type": "string",
+            "description": "The XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.\nEncrypted client-side under a per-user subkey derived via HKDF from\nthe master key. Server never decrypts. Bounded at ~1.4 MB ciphertext\n(≈1 MB plaintext) — anything bigger is a UI bug."
           },
           "textNonce": {
-            "type": "string"
+            "type": "string",
+            "description": "The 24-byte XChaCha20 nonce that pairs with `textCiphertext`,\nbase64url-encoded. Must be unique per (key, write) — the client\ngenerates a fresh random nonce on every encryption (server doesn't\nenforce uniqueness; the client invariant is documented in ADR 0007 §C)."
           },
           "excerptCiphertext": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional preview ciphertext, used by the list view to render a short\nsnippet without decrypting the full body. Bounded the same way as\n`textCiphertext`. Short entries may omit it."
           },
           "excerptNonce": {
-            "type": "string"
+            "type": "string",
+            "description": "The 24-byte XChaCha20 nonce for `excerptCiphertext`. Required IF\n`excerptCiphertext` is provided."
           },
           "tags": {
+            "description": "Up to 12 plain-text tags (each 1–32 chars). Plaintext by design — the\npatterns module clusters by tag for the weekly summary. Users should\nNOT include private info in tags (the UI nudges them toward\ncategorical labels like `trabajo` / `familia` / `sueño`).",
             "maxItems": 12,
             "type": "array",
             "items": {
@@ -6655,10 +6684,12 @@
           },
           "audioUrl": {
             "type": "string",
+            "description": "R2 signed URL for an attached voice recording. The audio itself is\nNOT stored long-term — the Voice module discards it post-transcription\n(07-voz.md). Persisted in the entry for replay during the active\nsession only.",
             "format": "uri"
           },
           "audioDurationSec": {
             "type": "number",
+            "description": "Duration in seconds of the attached voice recording, when present.",
             "minimum": 0
           }
         },
@@ -6981,6 +7012,7 @@
         "properties": {
           "mood": {
             "type": "string",
+            "description": "Wellness mood token (`great` / `good` / `meh` / `bad` / …). One of\n`WELLNESS_MOOD_IDS`. Unknown tokens are rejected with 400 by `@IsIn`.",
             "enum": [
               "great",
               "good",

@@ -1232,6 +1232,29 @@ export const THERAPY_MOOD_IDS: readonly string[] = THERAPY_MOODS.map(
   (m) => m.id,
 );
 
+/**
+ * Wellness mood catalog — coarse english tokens used by the `PATCH /api/user/mood`
+ * endpoint (`User.mood` column). Distinct from DIARY_MOODS (spanish, 7 entries
+ * for journaling) and THERAPY_MOODS (spanish, 5 entries for post-session
+ * check-in). This is the "quick wellness ping" vocabulary.
+ *
+ * Restricted whitelist — keeps the backend agnostic about UI tokens but
+ * prevents free-form abuse. Frontend can use this to render a wellness mood
+ * picker if needed.
+ */
+export const WELLNESS_MOOD_IDS = [
+  "great",
+  "good",
+  "calm",
+  "neutral",
+  "tired",
+  "anxious",
+  "sad",
+  "angry",
+] as const;
+
+export type WellnessMoodId = (typeof WELLNESS_MOOD_IDS)[number];
+
 export interface DiaryEntrySummary {
   id: string;
   createdAt: Date;

@@ -12,6 +12,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiForbiddenResponse,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -60,6 +61,10 @@ export class ChaptersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequiredRole("ADMIN")
   @ApiBearerAuth("bearer")
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description: "Chapter ordinal `n` is already taken for this book.",
+  })
   createChapter(@Param("slug") slug: string, @Body() dto: CreateChapterDto) {
     return this.chaptersService.create(slug, dto);
   }

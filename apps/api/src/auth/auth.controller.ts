@@ -10,6 +10,8 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
+  ApiGoneResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -74,6 +76,10 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
   @ApiOperation({ summary: "Register a new account (email + password)" })
   @ApiOkResponse({ type: AuthResponseDto })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description: "Email is already registered.",
+  })
   register(@Body() dto: RegisterDto, @Req() req: Request) {
     return this.authService.register(dto, extractAuthContext(req));
   }
@@ -143,6 +149,10 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
   @ApiOperation({ summary: "Reset password using a token from email" })
+  @ApiGoneResponse({
+    type: ErrorEnvelopeDto,
+    description: "Reset token is invalid, expired, or already consumed.",
+  })
   async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
     await this.authService.resetPassword(dto, extractAuthContext(req));
   }
@@ -155,6 +165,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: "Verify email using a token from registration email",
+  })
+  @ApiGoneResponse({
+    type: ErrorEnvelopeDto,
+    description: "Verification token is invalid, expired, or already consumed.",
   })
   verifyEmail(@Body() dto: VerifyEmailDto, @Req() req: Request) {
     return this.authService.verifyEmail(dto, extractAuthContext(req));
@@ -183,6 +197,11 @@ export class AuthController {
       "Verifies the token against Google's public keys, then issues our own access + refresh pair.",
   })
   @ApiOkResponse({ type: AuthResponseDto })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description:
+      "Email is already registered with a different auth provider (LOCAL).",
+  })
   oauthGoogle(@Body() dto: OAuthGoogleDto, @Req() req: Request) {
     return this.authService.loginWithGoogle(dto, extractAuthContext(req));
   }

@@ -14,6 +14,7 @@ import {
   ApiForbiddenResponse,
   ApiTags,
   ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
 } from "@nestjs/swagger";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
@@ -53,6 +54,11 @@ export class PatronesController {
 
   @Post("weekly-summary/regenerate")
   @HttpCode(HttpStatus.OK)
+  @ApiUnprocessableEntityResponse({
+    type: ErrorEnvelopeDto,
+    description:
+      "User has less than 7 diary entries this week — not enough to regenerate the summary.",
+  })
   async regenerate(
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<PatronesRegenerateResponse> {

@@ -145,6 +145,16 @@
               }
             }
           },
+          "409": {
+            "description": "Email is already registered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
           "429": {
             "description": "",
             "content": {
@@ -440,6 +450,16 @@
               }
             }
           },
+          "410": {
+            "description": "Reset token is invalid, expired, or already consumed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
           "429": {
             "description": "",
             "content": {
@@ -487,6 +507,16 @@
           },
           "401": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Verification token is invalid, expired, or already consumed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -550,6 +580,16 @@
           },
           "401": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email is already registered with a different auth provider (LOCAL).",
             "content": {
               "application/json": {
                 "schema": {
@@ -736,6 +776,16 @@
           },
           "403": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Slug is already taken by another book.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1496,6 +1546,16 @@
           },
           "403": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Chapter ordinal `n` is already taken for this book.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4086,6 +4146,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Requested email is already in use by another account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5995,6 +6065,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "User has less than 7 diary entries this week — not enough to regenerate the summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -6571,6 +6651,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Request is not in PENDING state — already approved or rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
           }
         },
         "summary": "Approve a pending author publication request. Triggers copy-on-publish AuthorBook → Book + Chapter + ChapterBlock.",
@@ -6628,6 +6718,16 @@
           },
           "403": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request is not in PENDING state — already approved or rejected.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6833,6 +6933,16 @@
           },
           "403": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "User already has the requested role (no-op rejected).",
             "content": {
               "application/json": {
                 "schema": {
@@ -7568,6 +7678,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "The requested slot is already taken (SLOT_TAKEN).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
           }
         },
         "summary": "Reservar una sesión. v1: crea la session en SCHEDULED + PENDING; Stripe wiring llega en S65.",
@@ -8214,6 +8334,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "The new slot is already taken (SLOT_TAKEN).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
           }
         },
         "summary": "Re-agendar sesión a un slot libre del mismo terapeuta. Solo SCHEDULED.",
@@ -8797,6 +8927,16 @@
               }
             }
           },
+          "409": {
+            "description": "expectedVersion does not match the current chapter version (CHAPTER_VERSION_CONFLICT).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
           "429": {
             "description": "",
             "content": {
@@ -8999,6 +9139,16 @@
               }
             }
           },
+          "409": {
+            "description": "Book is not in DRAFT state — already PUBLISHED or IN_REVIEW (BOOK_NOT_DRAFT).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
           "429": {
             "description": "",
             "content": {
@@ -9055,6 +9205,16 @@
           },
           "403": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Book is not currently PUBLISHED (BOOK_NOT_PUBLISHED).",
             "content": {
               "application/json": {
                 "schema": {

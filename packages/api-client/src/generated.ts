@@ -2859,19 +2859,59 @@ export interface components {
             tags?: string[];
         };
         ShareDiaryEntryDto: {
+            /**
+             * @description Stable ID of the therapist the entry is being shared with. The
+             *     therapist must already be in the user's verified therapist list
+             *     (v2 — surface lives in TherapyModule).
+             */
             therapistId: string;
+            /**
+             * @description XChaCha20-Poly1305 ciphertext of the plaintext entry, encrypted with
+             *     the ephemeralKey. base64url-encoded. Same bounds as Diary
+             *     ciphertext (`~1.4 MB` max).
+             */
             ciphertextForTherapist: string;
+            /**
+             * @description The ephemeralKey wrapped with the shared secret from
+             *     `ECDH(userPriv, therapistPub)`. Short blob (≤ 1 KB) — separate cap
+             *     from `ciphertextForTherapist` so a malformed payload here can't
+             *     bypass the body ciphertext size check.
+             */
             wrappedKey: string;
+            /**
+             * @description X25519 public key the client generated SPECIFICALLY for this share.
+             *     32 raw bytes → 43 base64url chars unpadded. Burned after this share
+             *     — the therapist's app reads it to derive the shared secret, and the
+             *     user's app discards the matching private key.
+             */
             userOneShotPubKey: string;
-            /** @description Optional shorter expiry. Server caps at 30 days; default 7. */
+            /**
+             * @description Optional explicit expiry (ISO-8601). Server caps at 30 days from
+             *     now; default is 7 days when omitted. After expiry the share row is
+             *     tombstoned by the sweeper job (v2) — the therapist can no longer
+             *     read.
+             */
             expiresAt?: string;
         };
         CreateCheckoutSessionDto: {
-            /** @enum {string} */
+            /**
+             * @description Plan tier to purchase. Plugin emits the enum in OpenAPI.
+             * @enum {string}
+             */
             billingPlan: CreateCheckoutSessionDtoBillingPlan;
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description Where Stripe should redirect after successful payment. Stripe
+             *     appends `?session_id=...` automatically. The front passes that to
+             *     `/billing/return` to confirm.
+             */
             successUrl: string;
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description Where Stripe should redirect if the user aborts payment. No state
+             *     change happens; the front can just return the user to the plan
+             *     picker.
+             */
             cancelUrl: string;
         };
         CreatePortalSessionDto: {
@@ -2879,6 +2919,11 @@ export interface components {
             returnUrl: string;
         };
         CancelSubscriptionDto: {
+            /**
+             * @description Optional free-text reason the user typed in the cancel modal.
+             *     Capped at 480 chars (Stripe metadata cap). Not validated for
+             *     sentiment / category — analytics teams categorize later.
+             */
             reason?: string;
         };
         PatchSubscriptionDto: {
@@ -3070,11 +3115,12 @@ export interface components {
         };
         OnboardingStep1Dto: {
             /**
-             * @description Motivos chosen by the user. At least one is required. Max 5 keeps the
-             *     recommendation algorithm focused — picking everything is signal for
-             *     "I don't know" which we treat the same as default.
+             * @description Catalog IDs of the chosen motives. At least one required, max 5 —
+             *     picking everything is signal for "I don't know" which we treat the
+             *     same as default.
              *
-             *     The service validates each id exists in the OnboardingMotivo table.
+             *     The service validates each id exists in the `OnboardingMotivo`
+             *     table and returns 400 `MOTIVOS_NOT_FOUND` with the bad IDs.
              */
             motivosIds: string[];
         };
@@ -3083,12 +3129,26 @@ export interface components {
         };
         OnboardingStep3Dto: {
             /**
-             * @description Display name. 2-40 chars. Disallow emoji + control chars + leading/trailing
-             *     whitespace. The regex is permissive about accented characters so "María
-             *     José" works.
+             * @description Display first name shown in the home greeting and the inactive-nudge
+             *     push (e.g. "Hola María, ¿cómo estás?"). 2–40 chars. Disallows emoji,
+             *     symbols, control chars, and leading/trailing whitespace; permissive
+             *     about accented characters so `"María José"` works.
+             *
+             *     Persisted to both `OnboardingState.firstName` (audit) and
+             *     `User.firstName` (canonical).
              */
             firstName: string;
-            /** @enum {string} */
+            /**
+             * @description Preferred narrator voice for audio playback:
+             *     - `"marina"` — Marina Quintana voice (the anchor author's own)
+             *     - `"tomas"` — Tomás voice (paired contributor)
+             *     - `"none"` — opt out of audio entirely
+             *
+             *     Persisted to `UserPreferences.voicePreference`. The audio file URL
+             *     the Lector serves picks the right track based on this preference.
+             *     Plugin emits the enum in OpenAPI.
+             * @enum {string}
+             */
             voicePreference: OnboardingStep3DtoVoicePreference;
         };
         OnboardingCompleteDto: {
@@ -3164,39 +3224,89 @@ export interface components {
             comment?: string;
         };
         LectorSessionHeartbeatDto: {
+            /**
+             * @description ID of the `Book` the reading session belongs to. The service
+             *     resolves the `chapterId` from `(bookId, chapterOrder)` for the
+             *     upsert; an unknown pair returns 404.
+             */
             bookId: string;
+            /**
+             * @description Ordinal of the chapter being read (1-indexed). Combined with
+             *     `bookId` to identify the active chapter.
+             */
             chapterOrder: number;
+            /**
+             * @description ID of the last `ChapterBlock` the user has scrolled past. Used to
+             *     resume the session on next open (UI scrolls back to this block).
+             */
             lastBlockId: string;
             /**
-             * @description Seconds since the previous heartbeat. Cap at 60 at the service layer:
-             *     a tab that wakes from suspend should not credit hours of "reading".
+             * @description Seconds since the previous heartbeat. Cap at 3600 in validation;
+             *     service further clamps to 60 to defend against suspend-and-resume
+             *     spikes. The cumulative `timeSpentSec` on the row grows monotonically.
              */
             timeSpentDeltaSec: number;
-            /** @description 0–1 ratio. Server clamps and never lets it decrease. */
+            /**
+             * @description 0.0–1.0 ratio of how far the user has scrolled through the chapter.
+             *     Server clamps to [0, 1] and never lets the stored value decrease —
+             *     once 0.78 has been observed, the next heartbeat with 0.42 is silently
+             *     ignored (likely a UI bug / refresh / scroll-back). Use `complete`
+             *     endpoint to set 1.0 explicitly.
+             */
             progressPct: number;
         };
         CreateHighlightDto: {
+            /**
+             * @description Stable ID of the `ChapterBlock` the highlight anchors to. Server
+             *     verifies the block exists and belongs to a book the user has
+             *     access to (FREE plan can highlight in free chapters; PRO is
+             *     unrestricted).
+             */
             blockId: string;
             /**
-             * @description UTF-16 code-unit offsets into the block's `content`. The service rejects
-             *     with 400 if `startOffset >= endOffset` or if `endOffset` exceeds the
-             *     actual block length (the block is loaded server-side for verification).
+             * @description UTF-16 code-unit offset into the block's `content` where the
+             *     highlight starts. Inclusive. The service rejects with 400 if
+             *     `startOffset >= endOffset` or if `endOffset` exceeds the actual
+             *     block length (the block is loaded server-side for verification).
              */
             startOffset: number;
+            /**
+             * @description UTF-16 code-unit offset into the block's `content` where the
+             *     highlight ends. Exclusive. Must satisfy `startOffset < endOffset`
+             *     and be `≤ block.content.length`.
+             */
             endOffset: number;
+            /**
+             * @description Highlight color: `"YELLOW"` (default), `"BLUE"`, or `"PINK"`. The
+             *     UI uses color to let users categorize visually (e.g. yellow = key
+             *     passages, blue = quotes, pink = action items). Plugin emits the
+             *     enum in OpenAPI.
+             */
             color?: Record<string, never>;
-            /** @description Optional one-line note. Reject long blobs — annotations are the right model for that. */
+            /**
+             * @description Optional one-line note attached to the highlight (up to 280 chars).
+             *     For longer commentary, use the Annotations API instead — annotations
+             *     are the right model for paragraph-length reflection.
+             */
             note?: string;
         };
         CreateAnnotationDto: {
+            /**
+             * @description Stable ID of the `ChapterBlock` the annotation anchors to. Same
+             *     resilience as highlights: the annotation stays attached even if the
+             *     block content is later edited by the author.
+             */
             blockId: string;
             /**
-             * @description Cap at 4 KB. Diary is the right place for longer reflection; the
-             *     Annotation model is for margin-style notes against a specific block.
+             * @description Annotation body. 1–4096 chars (~1000 words). Plaintext — annotations
+             *     are NOT E2E encrypted because books are public content and the
+             *     reflection here is contextual. Users who need privacy for personal
+             *     reflection should use the Diary (which IS E2E).
              */
             text: string;
         };
         UpdateAnnotationDto: {
+            /** @description New annotation body. Same constraints as creation (1–4096 chars). */
             text: string;
         };
         ShareWithTherapistDto: {
@@ -5317,6 +5427,13 @@ export interface operations {
     SubscriptionController_listInvoices: {
         parameters: {
             query?: {
+                /**
+                 * @description Max number of invoices to fetch (1–50). Default 12 when omitted —
+                 *     matches the row count of the Mi Plan invoice table.
+                 *
+                 *     Stripe returns newest-first; no cursor is exposed yet (single-page
+                 *     UX). When pagination is needed, add `starting_after`.
+                 */
                 limit?: number;
             };
             header?: never;
@@ -5566,6 +5683,13 @@ export interface operations {
     BillingController_listInvoices: {
         parameters: {
             query?: {
+                /**
+                 * @description Max number of invoices to fetch (1–50). Default 12 when omitted —
+                 *     matches the row count of the Mi Plan invoice table.
+                 *
+                 *     Stripe returns newest-first; no cursor is exposed yet (single-page
+                 *     UX). When pagination is needed, add `starting_after`.
+                 */
                 limit?: number;
             };
             header?: never;
@@ -7008,6 +7132,16 @@ export interface operations {
     VoiceController_transcribe: {
         parameters: {
             query?: {
+                /**
+                 * @description Optional language hint sent to the speech-to-text provider. Both
+                 *     Whisper and Deepgram accept ISO-639-1 codes (`"es"`, `"en"`) plus a
+                 *     few extended tags (`"es-419"` for LATAM Spanish, recommended for
+                 *     Ecuador users).
+                 *
+                 *     Capped at 16 chars — defense against arbitrary attacker input
+                 *     reaching the third-party API. When omitted, the provider
+                 *     auto-detects (less accurate for short clips).
+                 */
                 language?: string;
             };
             header?: never;

@@ -52,6 +52,8 @@ export default function EcoScreen() {
 
   const [messages, setMessages] = useState<EcoMessage[]>([]);
   const [loadingThread, setLoadingThread] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [text, setText] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
@@ -124,12 +126,16 @@ export default function EcoScreen() {
     let active = true;
     setLoadingThread(true);
     setMessages([]);
+    setHasMore(false);
     setStreamingText("");
     setSendError(null);
     ecoApi
       .getThread(activeThreadId)
       .then((res: EcoThreadResponse) => {
-        if (active) setMessages(res.messages);
+        if (active) {
+          setMessages(res.messages);
+          setHasMore(res.hasMore);
+        }
       })
       .catch(() => {
         // Keep messages empty; the user can compose a new one.
@@ -141,6 +147,32 @@ export default function EcoScreen() {
       active = false;
     };
   }, [activeThreadId]);
+
+  // ─── Load older (pagination) ─────────────────────────────────────────────
+  //
+  // RN ScrollView doesn't expose scrollHeight/scrollTop like the web; we use
+  // `scrollToEnd({ animated: false })` after prepending to keep the user
+  // roughly anchored. They'll see their previous message at the bottom of
+  // the new page — closer to the web's "anchor by delta" UX than a top
+  // jump would be. Without the snapshot, an unbounded ScrollView would
+  // re-anchor to the top after prepending, which breaks the reading flow.
+
+  const loadOlder = useCallback(async () => {
+    if (!activeThreadId || !hasMore || loadingMore || messages.length === 0)
+      return;
+    const oldestId = messages[0]?.id;
+    if (!oldestId || oldestId.startsWith("local-")) return;
+    setLoadingMore(true);
+    try {
+      const res = await ecoApi.getThread(activeThreadId, oldestId);
+      setMessages((prev) => [...res.messages, ...prev]);
+      setHasMore(res.hasMore);
+    } catch {
+      // Silent fail — user can re-tap.
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [activeThreadId, hasMore, loadingMore, messages]);
 
   // ─── Send ────────────────────────────────────────────────────────────────
 
@@ -293,10 +325,30 @@ export default function EcoScreen() {
         ref={scrollRef}
         style={styles.body}
         contentContainerStyle={styles.bodyContent}
-        onContentSizeChange={() =>
-          scrollRef.current?.scrollToEnd({ animated: true })
-        }
+        onContentSizeChange={() => {
+          // Don't auto-scroll-to-end while paginating older messages —
+          // the user is reading at the top, not the bottom.
+          if (loadingMore) return;
+          scrollRef.current?.scrollToEnd({ animated: true });
+        }}
       >
+        {hasMore && messages.length > 0 ? (
+          <Pressable
+            onPress={() => void loadOlder()}
+            disabled={loadingMore}
+            style={({ pressed }) => [
+              styles.loadOlderBtn,
+              pressed && { opacity: 0.7 },
+              loadingMore && { opacity: 0.5 },
+            ]}
+          >
+            {loadingMore ? (
+              <ActivityIndicator color={Colors.lavender[600]} size="small" />
+            ) : (
+              <Text style={styles.loadOlderText}>↑ Mensajes anteriores</Text>
+            )}
+          </Pressable>
+        ) : null}
         {loadingThread ? (
           <ActivityIndicator color={Colors.lavender[500]} />
         ) : messages.length === 0 ? (
@@ -839,6 +891,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
     gap: Spacing.sm,
+  },
+  loadOlderBtn: {
+    alignSelf: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.lavender[50],
+    borderWidth: 1.5,
+    borderColor: Colors.lavender[200],
+    marginBottom: Spacing.sm,
+  },
+  loadOlderText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.lavender[700],
   },
   welcome: {
     paddingVertical: Spacing.xl,

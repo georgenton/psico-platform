@@ -7,7 +7,14 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { AuthResponseDto } from "./dto/auth-response.dto";
 import { Throttle } from "@nestjs/throttler";
 import type { Request } from "express";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -58,6 +65,7 @@ export class AuthController {
   @Post("register")
   @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
   @ApiOperation({ summary: "Register a new account (email + password)" })
+  @ApiOkResponse({ type: AuthResponseDto })
   register(@Body() dto: RegisterDto, @Req() req: Request) {
     return this.authService.register(dto, extractAuthContext(req));
   }
@@ -66,6 +74,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
   @ApiOperation({ summary: "Login with email + password" })
+  @ApiOkResponse({ type: AuthResponseDto })
   login(@Body() dto: LoginDto, @Req() req: Request) {
     return this.authService.login(dto, extractAuthContext(req));
   }
@@ -77,6 +86,7 @@ export class AuthController {
     description:
       "The presented refresh token is invalidated; a new pair is issued.",
   })
+  @ApiOkResponse({ type: AuthResponseDto })
   refresh(@Body() dto: RefreshDto, @Req() req: Request) {
     const ctx = extractAuthContext(req);
     return this.authService.refresh(
@@ -164,6 +174,7 @@ export class AuthController {
     description:
       "Verifies the token against Google's public keys, then issues our own access + refresh pair.",
   })
+  @ApiOkResponse({ type: AuthResponseDto })
   oauthGoogle(@Body() dto: OAuthGoogleDto, @Req() req: Request) {
     return this.authService.loginWithGoogle(dto, extractAuthContext(req));
   }

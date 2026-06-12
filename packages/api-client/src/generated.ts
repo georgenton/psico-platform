@@ -3301,6 +3301,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            /** @description Email is already registered. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -3530,6 +3539,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            /** @description Reset token is invalid, expired, or already consumed. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -3568,6 +3586,15 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description Verification token is invalid, expired, or already consumed. */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3615,6 +3642,15 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description Email is already registered with a different auth provider (LOCAL). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3719,6 +3755,15 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description Slug is already taken by another book. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4261,6 +4306,15 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description Chapter ordinal `n` is already taken for this book. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6167,6 +6221,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            /** @description Requested email is already in use by another account. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
         };
     };
     UsersController_changePassword: {
@@ -7582,6 +7645,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            /** @description User has less than 7 diary entries this week — not enough to regenerate the summary. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
         };
     };
     PatronesController_shareWithTherapist: {
@@ -7989,6 +8061,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            /** @description Request is not in PENDING state — already approved or rejected. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
         };
     };
     PulsoController_rejectAuthorRequest: {
@@ -8029,6 +8110,15 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description Request is not in PENDING state — already approved or rejected. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8168,6 +8258,15 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description User already has the requested role (no-op rejected). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8661,6 +8760,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            /** @description The requested slot is already taken (SLOT_TAKEN). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
         };
     };
     TerapiaController_getSessionPrep: {
@@ -9118,6 +9226,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            /** @description The new slot is already taken (SLOT_TAKEN). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
         };
     };
     TerapiaController_cancelSession: {
@@ -9559,6 +9676,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            /** @description expectedVersion does not match the current chapter version (CHAPTER_VERSION_CONFLICT). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -9716,6 +9842,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            /** @description Book is not in DRAFT state — already PUBLISHED or IN_REVIEW (BOOK_NOT_DRAFT). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -9760,6 +9895,15 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description Book is not currently PUBLISHED (BOOK_NOT_PUBLISHED). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

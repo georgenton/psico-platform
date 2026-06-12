@@ -13,6 +13,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -129,6 +130,10 @@ export class UsersController {
 
   @Post("email-change-request")
   @HttpCode(HttpStatus.OK)
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description: "Requested email is already in use by another account.",
+  })
   requestEmailChange(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: EmailChangeRequestDto,

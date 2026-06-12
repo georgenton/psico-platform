@@ -15,6 +15,7 @@ import {
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiForbiddenResponse,
   ApiOperation,
   ApiTags,
@@ -129,6 +130,11 @@ export class AuthorController {
     summary:
       "Editar capítulo. Concurrency: envia expectedVersion para detectar conflicts.",
   })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description:
+      "expectedVersion does not match the current chapter version (CHAPTER_VERSION_CONFLICT).",
+  })
   async updateChapter(
     @CurrentUser() user: { userId: string },
     @Param("id") id: string,
@@ -169,6 +175,11 @@ export class AuthorController {
     summary:
       "Enviar el libro a revisión. Valida los blockers del checklist primero.",
   })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description:
+      "Book is not in DRAFT state — already PUBLISHED or IN_REVIEW (BOOK_NOT_DRAFT).",
+  })
   @HttpCode(HttpStatus.OK)
   async submit(
     @CurrentUser() user: { userId: string },
@@ -179,6 +190,10 @@ export class AuthorController {
 
   @Post("libros/:id/despublicar")
   @ApiOperation({ summary: "Quitar el libro del catálogo (vuelve a DRAFT)." })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description: "Book is not currently PUBLISHED (BOOK_NOT_PUBLISHED).",
+  })
   @HttpCode(HttpStatus.OK)
   async unpublish(
     @CurrentUser() user: { userId: string },

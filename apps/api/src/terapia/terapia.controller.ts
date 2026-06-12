@@ -14,6 +14,7 @@ import {
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -201,6 +202,10 @@ export class TerapiaController {
     summary:
       "Reservar una sesión. v1: crea la session en SCHEDULED + PENDING; Stripe wiring llega en S65.",
   })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description: "The requested slot is already taken (SLOT_TAKEN).",
+  })
   @HttpCode(HttpStatus.CREATED)
   async createBooking(
     @CurrentUser() user: { userId: string },
@@ -355,6 +360,10 @@ export class TerapiaController {
   @ApiOperation({
     summary:
       "Re-agendar sesión a un slot libre del mismo terapeuta. Solo SCHEDULED.",
+  })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description: "The new slot is already taken (SLOT_TAKEN).",
   })
   async rescheduleSession(
     @CurrentUser() user: { userId: string },

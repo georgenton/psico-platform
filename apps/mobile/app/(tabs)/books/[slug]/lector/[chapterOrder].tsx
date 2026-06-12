@@ -22,6 +22,7 @@ import type {
   LectorChapterResponse,
 } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
+import { LectorAudioBar } from "@/components/dashboard/lector/LectorAudioBar";
 
 /**
  * Mobile reader screen — Sprint S6-front.
@@ -250,6 +251,15 @@ export default function LectorScreen() {
           Cap. {chapter.chapter.order} · {chapter.chapter.title}
         </Text>
 
+        {chapter.chapter.audioAvailable ? (
+          <View style={styles.audioWrap}>
+            <LectorAudioBar
+              bookId={chapter.book.id}
+              chapterOrder={chapter.chapter.order}
+            />
+          </View>
+        ) : null}
+
         {chapter.blocks.map((b) => (
           <BlockView
             key={b.id}
@@ -459,6 +469,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.warm[900],
     marginBottom: Spacing.lg,
+  },
+  audioWrap: {
+    marginBottom: Spacing.lg,
+    alignItems: "flex-start",
   },
   block: { marginBottom: Spacing.md },
   blockHeading: { marginTop: Spacing.lg },

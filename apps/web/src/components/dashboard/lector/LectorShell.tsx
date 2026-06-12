@@ -10,6 +10,7 @@ import type {
   LectorChapterResponse,
 } from "@psico/types";
 import { AnnotationsPanel } from "./AnnotationsPanel";
+import { AudioBar } from "./AudioBar";
 import { BlockRenderer } from "./BlockRenderer";
 import { HighlightPopover } from "./HighlightPopover";
 import {
@@ -397,6 +398,7 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
         style={{
           background: "var(--reader-bg-tint, rgba(250, 250, 248, 0.92))",
           borderBottom: "1px solid var(--reader-border, rgba(0,0,0,0.06))",
+          position: "sticky",
         }}
       >
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
@@ -435,6 +437,14 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
             >
               Aa
             </button>
+            {chapter.audioAvailable ? (
+              <AudioBar
+                apiBase={apiBase}
+                token={token}
+                bookId={book.id}
+                chapterOrder={chapter.order}
+              />
+            ) : null}
             <button
               type="button"
               onClick={() => {

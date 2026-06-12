@@ -8,13 +8,18 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
+  ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { AuthResponseDto } from "./dto/auth-response.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { Throttle } from "@nestjs/throttler";
 import type { Request } from "express";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -58,6 +63,9 @@ function extractAuthContext(req: Request): AuthRequestContext {
 }
 
 @ApiTags("Auth")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+@ApiTooManyRequestsResponse({ type: ErrorEnvelopeDto })
 @Controller("auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}

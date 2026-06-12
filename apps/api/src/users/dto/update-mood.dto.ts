@@ -1,20 +1,15 @@
 import { IsIn } from "class-validator";
+import { WELLNESS_MOOD_IDS } from "@psico/types";
+import type { WellnessMoodId } from "@psico/types";
 
-// Restricted whitelist — keeps the back agnostic about UI tokens but prevents free-form abuse.
-export const ALLOWED_MOODS = [
-  "great",
-  "good",
-  "calm",
-  "neutral",
-  "tired",
-  "anxious",
-  "sad",
-  "angry",
-] as const;
-
-export type AllowedMood = (typeof ALLOWED_MOODS)[number];
-
+/**
+ * Body for `PATCH /api/user/mood` — quick wellness ping.
+ *
+ * Vocabulary lives in `@psico/types` (`WELLNESS_MOOD_IDS`) — distinct from
+ * DIARY_MOODS (journaling) and THERAPY_MOODS (post-session check-in).
+ * The plugin CLI surfaces el enum en OpenAPI desde el @IsIn.
+ */
 export class UpdateMoodDto {
-  @IsIn(ALLOWED_MOODS as unknown as string[])
-  mood!: AllowedMood;
+  @IsIn(WELLNESS_MOOD_IDS as unknown as string[])
+  mood!: WellnessMoodId;
 }

@@ -67,6 +67,8 @@ export default function LectorScreen() {
   const lastBlockIdRef = useRef<string>("");
   const progressRef = useRef<number>(0);
   const lastTickRef = useRef<number>(Date.now());
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const lastAudioScrolledRef = useRef<string | null>(null);
 
   // ── Load chapter ──────────────────────────────────────────────────────
 
@@ -239,6 +241,7 @@ export default function LectorScreen() {
   return (
     <View style={styles.container}>
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={250}
@@ -256,6 +259,19 @@ export default function LectorScreen() {
             <LectorAudioBar
               bookId={chapter.book.id}
               chapterOrder={chapter.chapter.order}
+              onActiveBlockChange={(blockId) => {
+                if (!blockId) return;
+                if (lastAudioScrolledRef.current === blockId) return;
+                const y = blockOffsetsRef.current[blockId];
+                if (typeof y !== "number" || !scrollViewRef.current) return;
+                // Scroll a bit above the block so it sits comfortably in
+                // the viewport instead of at the very top edge.
+                scrollViewRef.current.scrollTo({
+                  y: Math.max(0, y - 64),
+                  animated: true,
+                });
+                lastAudioScrolledRef.current = blockId;
+              }}
             />
           </View>
         ) : null}

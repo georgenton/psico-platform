@@ -800,6 +800,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Callback the user's browser hits after Stripe Checkout. The front
+         *     passes back the `session_id` Stripe appended to `successUrl`.
+         *
+         *     We do NOT mutate the user's plan here — the Stripe webhook is the
+         *     canonical write path. This handler just confirms the result so the
+         *     front can show success/processing/failed immediately without polling.
+         */
         get: operations["BillingController_getReturn"];
         put?: never;
         post?: never;
@@ -1396,6 +1404,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Audio in (multipart `audio` field), transcript out. Plan-gated at the
+         *     service layer (FREE → 403 VOICE_REQUIRES_PRO; quota exhausted →
+         *     402 VOICE_QUOTA_EXCEEDED) and rate-limited here to 10/min/user — voice
+         *     transcription is expensive both server-side and at the provider, so
+         *     we cap aggressively even for Pro users.
+         */
         post: operations["VoiceController_transcribe"];
         delete?: never;
         options?: never;
@@ -1412,6 +1427,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * `/voz/usage` from docs/design/handoff/07-voz.md. v1 is informational —
+         *     the server already counted seconds on `/transcribe`. The client posts
+         *     its own measurement so the server can cross-check and return the
+         *     authoritative remaining-minutes value back.
+         */
         post: operations["VoiceController_reportUsage"];
         delete?: never;
         options?: never;
@@ -2587,6 +2608,7 @@ export interface components {
             email: string;
         };
         ResetPasswordDto: {
+            /** @description Raw token from the email link. Server hashes before lookup. */
             token: string;
             newPassword: string;
         };
@@ -2594,6 +2616,13 @@ export interface components {
             token: string;
         };
         OAuthGoogleDto: {
+            /**
+             * @description Google ID token (JWT) obtained from Google Identity Services in the
+             *     browser or from Google Sign-In SDK on mobile. The backend verifies the
+             *     signature against Google's public keys via google-auth-library.
+             *
+             *     Typical length: ~1000-1500 characters.
+             */
             idToken: string;
         };
         CreateBookReviewDto: {
@@ -2657,6 +2686,7 @@ export interface components {
             ciphertextForTherapist: string;
             wrappedKey: string;
             userOneShotPubKey: string;
+            /** @description Optional shorter expiry. Server caps at 30 days; default 7. */
             expiresAt?: string;
         };
         CreateCheckoutSessionDto: {
@@ -2676,8 +2706,12 @@ export interface components {
         };
         PatchSubscriptionDto: {
             action: Record<string, never>;
+            /** @description Free-text reason for cancellation. Captured for retention analytics. */
             reason?: string;
-            /** @enum {string} */
+            /**
+             * @description Only required when action === "switch-plan".
+             * @enum {string}
+             */
             newPlanId?: PatchSubscriptionDtoNewPlanId;
         };
         ChatRequestDto: {
@@ -2749,7 +2783,9 @@ export interface components {
         PasswordChangeWithRekeyDto: {
             currentPassword: string;
             newPassword: string;
+            /** @description Fresh Argon2id salt the client generated for the new master key. */
             newCryptoSalt: string;
+            /** @description Every active diary entry re-encrypted with the new key. */
             reencryptedEntries: components["schemas"]["ReencryptedEntryDto"][];
         };
         DeleteRequestDto: {
@@ -2757,29 +2793,67 @@ export interface components {
             reason?: string;
         };
         OnboardingStep1Dto: {
+            /**
+             * @description Motivos chosen by the user. At least one is required. Max 5 keeps the
+             *     recommendation algorithm focused — picking everything is signal for
+             *     "I don't know" which we treat the same as default.
+             *
+             *     The service validates each id exists in the OnboardingMotivo table.
+             */
             motivosIds: string[];
         };
         OnboardingStep2Dto: {
             moodId: string;
         };
         OnboardingStep3Dto: {
+            /**
+             * @description Display name. 2-40 chars. Disallow emoji + control chars + leading/trailing
+             *     whitespace. The regex is permissive about accented characters so "María
+             *     José" works.
+             */
             firstName: string;
             /** @enum {string} */
             voicePreference: OnboardingStep3DtoVoicePreference;
         };
         OnboardingCompleteDto: {
+            /**
+             * @description Book the user picked to start with. `null` is valid → user finished
+             *     onboarding without committing to a book ("terminar" button).
+             */
             chosenBookId?: string | null;
         };
         OnboardingTourCompleteDto: {
+            /** @description Number of tour steps the user actually saw. 0 = skipped after opening. */
             stepsCompleted: number;
         };
         SendEcoMessageDto: {
+            /**
+             * @description Server-side identifier of the thread. The user must own the thread or
+             *     the service returns 404 — we do not 403 (would leak existence).
+             */
             threadId: string;
+            /**
+             * @description Ephemeral plaintext. The server uses it for the LLM call + layer-1
+             *     crisis detection, and NEVER persists it. The privacy spec enforces no
+             *     logger.* / console.* statement may reference this field.
+             */
             textPlaintext: string;
-            /** Format: base64 */
+            /**
+             * Format: base64
+             * @description base64url cipher. Persisted as-is.
+             */
             textCiphertext: string;
-            /** Format: base64 */
+            /**
+             * Format: base64
+             * @description base64url 24-byte nonce.
+             */
             textNonce: string;
+            /**
+             * @description Optional intent hint. `suggest` asks Eco to recommend a book or
+             *     exercise instead of free-form chat. v1 routes both through the same
+             *     LLM call with intent included in the prompt — explicit dispatch can
+             *     come later if recommendation tuning needs it.
+             */
             intent?: Record<string, never>;
         };
         ReportEcoMessageDto: {
@@ -2790,18 +2864,33 @@ export interface components {
             bookId: string;
             chapterOrder: number;
             lastBlockId: string;
+            /**
+             * @description Seconds since the previous heartbeat. Cap at 60 at the service layer:
+             *     a tab that wakes from suspend should not credit hours of "reading".
+             */
             timeSpentDeltaSec: number;
+            /** @description 0–1 ratio. Server clamps and never lets it decrease. */
             progressPct: number;
         };
         CreateHighlightDto: {
             blockId: string;
+            /**
+             * @description UTF-16 code-unit offsets into the block's `content`. The service rejects
+             *     with 400 if `startOffset >= endOffset` or if `endOffset` exceeds the
+             *     actual block length (the block is loaded server-side for verification).
+             */
             startOffset: number;
             endOffset: number;
             color?: Record<string, never>;
+            /** @description Optional one-line note. Reject long blobs — annotations are the right model for that. */
             note?: string;
         };
         CreateAnnotationDto: {
             blockId: string;
+            /**
+             * @description Cap at 4 KB. Diary is the right place for longer reflection; the
+             *     Annotation model is for margin-style notes against a specific block.
+             */
             text: string;
         };
         UpdateAnnotationDto: {
@@ -2814,11 +2903,17 @@ export interface components {
             note?: string;
         };
         RejectAuthorRequestDto: {
+            /**
+             * @description Editorial feedback shown to the author in the publication checklist UI.
+             *     Empty allowed (e.g. generic "no apto"), but ops should write something
+             *     actionable.
+             */
             feedback?: string;
         };
         ChangeRoleDto: {
             /** @enum {string} */
             role: ChangeRoleDtoRole;
+            /** @description Optional reason captured for audit. */
             reason?: string;
         };
         RegisterLiveActivityDto: {
@@ -2905,6 +3000,11 @@ export interface components {
             blocks?: components["schemas"]["ChapterBlockDto"][];
             isLocked?: boolean;
             isHidden?: boolean;
+            /**
+             * @description Optimistic concurrency: client sends the version it loaded with. If the
+             *     server sees a newer version, returns 409 with the latest version so the
+             *     editor can show a conflict modal.
+             */
             expectedVersion?: number;
         };
         StructureItemDto: {
@@ -2920,13 +3020,25 @@ export interface components {
         AuthorAiHelpDto: {
             /** @enum {string} */
             intent: AuthorAiHelpDtoIntent;
+            /** @description Texto sobre el cual operar (el bloque del editor). */
             text: string;
+            /** @description ID opcional del bloque para audit / instrumentation futura. */
             blockId?: string;
+            /** @description Contexto del capítulo o del libro completo (1000 chars). */
             context?: string;
         };
         UpdatePayoutSettingsDto: {
             /** @enum {string} */
             method: UpdatePayoutSettingsDtoMethod;
+            /**
+             * @description Detalles libres por método. Ejemplos:
+             *      - bank_ec: { bankName, accountType: "ahorros|corriente", accountNumber, accountHolder }
+             *      - paypal:  { email }
+             *      - payphone: { phone, accountHolder }
+             *      - manual:  { instructions }
+             *     Nada se valida server-side aquí — finanzas confirma manualmente
+             *     antes de pagar. Cap 4000 chars en JSON.stringify para evitar spam.
+             */
             details?: Record<string, never>;
             taxId?: string;
             legalName?: string;
@@ -5438,7 +5550,9 @@ export interface operations {
     PulsoController_listUsers: {
         parameters: {
             query?: {
+                /** @description Substring match on email or name (case-insensitive). */
                 q?: string;
+                /** @description Filter by exact role. */
                 role?: PathsApiPulsoUsersGetParametersQueryRole;
                 limit?: number;
             };

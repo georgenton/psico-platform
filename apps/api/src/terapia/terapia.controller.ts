@@ -12,7 +12,14 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import type { Request } from "express";
 import type {
   CreateBookingResponse,
@@ -71,6 +78,8 @@ import { RetryCheckoutDto } from "./dto/retry-checkout.dto";
  * Mis sesiones / prescripciones / notifs (S66).
  */
 @ApiTags("Terapia")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
 @Controller("terapia")
 export class TerapiaController {
   constructor(private readonly service: TerapiaService) {}
@@ -96,8 +105,7 @@ export class TerapiaController {
     @Req() req: Request,
     @Body() dto: CrisisLogDto,
   ): Promise<{ ok: true }> {
-    const userId =
-      (req.user as { sub?: string } | undefined)?.sub ?? null;
+    const userId = (req.user as { sub?: string } | undefined)?.sub ?? null;
     return this.service.logCrisis(
       userId,
       dto.trigger,
@@ -158,11 +166,7 @@ export class TerapiaController {
     @Param("id") id: string,
     @Query() query: ListReviewsDto,
   ): Promise<TherapistReviewsResponse> {
-    return this.service.listReviews(
-      id,
-      query.page ?? 1,
-      query.pageSize ?? 10,
-    );
+    return this.service.listReviews(id, query.page ?? 1, query.pageSize ?? 10);
   }
 
   @Post("therapists/:id/favorite")
@@ -279,7 +283,8 @@ export class TerapiaController {
   @Get("sessions")
   @UseGuards(JwtAuthGuard)
   @ApiOperation({
-    summary: "Mis sesiones — envelope {upcoming, past}. Filtro opcional por status.",
+    summary:
+      "Mis sesiones — envelope {upcoming, past}. Filtro opcional por status.",
   })
   async listSessions(
     @CurrentUser() user: { userId: string },
@@ -290,7 +295,9 @@ export class TerapiaController {
 
   @Get("prescriptions")
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: "Mis recetas activas (lo que sugirió el terapeuta)." })
+  @ApiOperation({
+    summary: "Mis recetas activas (lo que sugirió el terapeuta).",
+  })
   async listPrescriptions(
     @CurrentUser() user: { userId: string },
   ): Promise<TherapyPrescriptionItem[]> {

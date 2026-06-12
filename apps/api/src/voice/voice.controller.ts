@@ -13,7 +13,16 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiTags,
+  ApiTooManyRequestsResponse,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { Throttle } from "@nestjs/throttler";
 import { JwtAuthGuard } from "../auth";
 import type { AuthenticatedUser } from "../auth";
@@ -51,6 +60,10 @@ const ALLOWED_MIME_PREFIXES = [
 
 @ApiTags("Voice")
 @ApiBearerAuth("bearer")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+@ApiForbiddenResponse({ type: ErrorEnvelopeDto })
+@ApiTooManyRequestsResponse({ type: ErrorEnvelopeDto })
 @Controller("voz")
 @UseGuards(JwtAuthGuard)
 export class VoiceController {

@@ -10,7 +10,13 @@ import {
   Post,
   UseGuards,
 } from "@nestjs/common";
-import { ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import type {
   LectorAudioResponse,
   LectorChapterResponse,
@@ -25,6 +31,8 @@ import { LectorSessionHeartbeatDto } from "./dto/heartbeat.dto";
 import { LectorService } from "./lector.service";
 
 @ApiTags("Lector")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
 @Controller("lector")
 @UseGuards(JwtAuthGuard)
 export class LectorController {

@@ -9,7 +9,14 @@ import {
   Post,
   UseGuards,
 } from "@nestjs/common";
-import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CurrentUser } from "../shared";
 import { LiveActivitiesService } from "./live-activities.service";
@@ -28,6 +35,8 @@ import { RegisterLiveActivityDto } from "./dto/register-live-activity.dto";
  * BookChapter, TherapySession) that the mobile widget renders locally.
  */
 @ApiTags("LiveActivities")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
 @Controller("push/live-activity")
 @UseGuards(JwtAuthGuard)
 export class LiveActivitiesController {

@@ -65,6 +65,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
+          },
           "201": {
             "description": "",
             "content": {

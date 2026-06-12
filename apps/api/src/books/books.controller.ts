@@ -14,6 +14,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiForbiddenResponse,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -161,6 +162,10 @@ export class BooksController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequiredRole("ADMIN")
   @ApiBearerAuth("bearer")
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description: "Slug is already taken by another book.",
+  })
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateBookDto) {
     return this.booksService.create(dto);

@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiForbiddenResponse,
   ApiOperation,
   ApiTags,
@@ -144,6 +145,11 @@ export class PulsoController {
     summary:
       "Approve a pending author publication request. Triggers copy-on-publish AuthorBook → Book + Chapter + ChapterBlock.",
   })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description:
+      "Request is not in PENDING state — already approved or rejected.",
+  })
   approveAuthorRequest(
     @Param("id") id: string,
     @CurrentUser() user: { userId: string },
@@ -156,6 +162,11 @@ export class PulsoController {
   @ApiOperation({
     summary:
       "Reject a pending author publication request with optional editorial feedback. Sets AuthorBook back to DRAFT.",
+  })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description:
+      "Request is not in PENDING state — already approved or rejected.",
   })
   rejectAuthorRequest(
     @Param("id") id: string,
@@ -185,6 +196,10 @@ export class PulsoController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: "Change a user's role. Logged in RoleChangeLog for audit.",
+  })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description: "User already has the requested role (no-op rejected).",
   })
   changeRole(
     @Param("id") id: string,

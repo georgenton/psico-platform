@@ -7273,6 +7273,7 @@
             "name": "motivo",
             "required": false,
             "in": "query",
+            "description": "Catalog ID of a primary motive (e.g. `\"anxiety\"`). Filters to\ntherapists who declare expertise in that motive. Max 32 chars\nfor opaque IDs.",
             "schema": {
               "minLength": 1,
               "maxLength": 32,
@@ -7283,6 +7284,7 @@
             "name": "modalidad",
             "required": false,
             "in": "query",
+            "description": "Therapy modality the user wants: `\"INDIVIDUAL\"`, `\"COUPLE\"`, or\n`\"FAMILY\"`. Filters to therapists who offer that modality.\nPlugin emits the enum in OpenAPI.",
             "schema": {
               "enum": [
                 "INDIVIDUAL",
@@ -7296,6 +7298,7 @@
             "name": "genero",
             "required": false,
             "in": "query",
+            "description": "Catalog ID of a preferred therapist gender (e.g. `\"female\"`,\n`\"male\"`, `\"non-binary\"`). Surfaces in the design as \"preferencia\nde género del terapeuta\".",
             "schema": {
               "minLength": 1,
               "maxLength": 32,
@@ -7306,6 +7309,7 @@
             "name": "language",
             "required": false,
             "in": "query",
+            "description": "ISO-639-1 language code (e.g. `\"es\"`, `\"en\"`) the therapist\nspeaks. 2–8 chars to accept variants like `\"es-419\"`.",
             "schema": {
               "minLength": 2,
               "maxLength": 8,
@@ -7316,6 +7320,7 @@
             "name": "priceMin",
             "required": false,
             "in": "query",
+            "description": "Minimum session price in USD cents-resolved-to-units (0–10000).\nCombined with `priceMax` for ranges.",
             "schema": {
               "minimum": 0,
               "maximum": 10000,
@@ -7326,6 +7331,7 @@
             "name": "priceMax",
             "required": false,
             "in": "query",
+            "description": "Maximum session price in USD (0–10000). Combined with `priceMin`\nfor ranges.",
             "schema": {
               "minimum": 0,
               "maximum": 10000,
@@ -7336,6 +7342,7 @@
             "name": "sort",
             "required": false,
             "in": "query",
+            "description": "Sort order for the result set. Defaults to `\"rating\"`.",
             "schema": {
               "enum": [
                 "rating",
@@ -7350,6 +7357,7 @@
             "name": "page",
             "required": false,
             "in": "query",
+            "description": "Page number (1-indexed). Default 1 via the `Transform` decorator\nthat coerces query string to number and applies the default.",
             "schema": {
               "minimum": 1,
               "type": "number"
@@ -7359,6 +7367,7 @@
             "name": "pageSize",
             "required": false,
             "in": "query",
+            "description": "Items per page (1–100). Default 20.",
             "schema": {
               "minimum": 1,
               "maximum": 100,
@@ -7592,6 +7601,7 @@
             "name": "days",
             "required": false,
             "in": "query",
+            "description": "How many calendar days forward to project (1–30). Default 14 when\nomitted — matches the 2-week therapist booking horizon in the\ndesign. The `Transform` decorator coerces the query string to a\nnumber and applies the default if absent.",
             "schema": {
               "minimum": 1,
               "maximum": 30,
@@ -10593,7 +10603,8 @@
         "type": "object",
         "properties": {
           "moodId": {
-            "type": "string"
+            "type": "string",
+            "description": "Catalog ID from `OnboardingMood` (separate vocabulary from\n`WELLNESS_MOODS` and `DIARY_MOODS`). Service validates the ID\nexists; unknown IDs return 400 `MOOD_NOT_FOUND` with the bad\nvalue echoed back for actionable error display."
           }
         },
         "required": [
@@ -10631,7 +10642,7 @@
           "chosenBookId": {
             "type": "string",
             "nullable": true,
-            "description": "Book the user picked to start with. `null` is valid → user finished\nonboarding without committing to a book (\"terminar\" button)."
+            "description": "ID of the book the user chose to start with. `null` is valid — the\nuser finished onboarding without committing to a specific book\n(the \"terminar\" / skip-book option in step 4). When set, the\nchoice is mirrored to `OnboardingState.chosenBookId` for audit and\nthe front auto-starts that book on the next dashboard visit."
           }
         }
       },
@@ -10640,7 +10651,7 @@
         "properties": {
           "stepsCompleted": {
             "type": "number",
-            "description": "Number of tour steps the user actually saw. 0 = skipped after opening.",
+            "description": "Number of tour steps the user actually saw before closing. `0` =\nskipped right after opening; the catalog max is 5 today but the\nupper bound is 20 to allow future growth without a contract bump.\n\n\"Terminar\" (clicked through all) sends `stepsCompleted = N` (total\ncatalog size); \"Saltar\" sends the current step index.",
             "minimum": 0,
             "maximum": 20
           }
@@ -10916,6 +10927,7 @@
         "properties": {
           "trigger": {
             "type": "string",
+            "description": "Where the crisis surface was triggered from:\n- `ECO_SAFETY_LAYER` — Eco's layer-1 regex / layer-2 LLM sentinel\n  fired and we routed the user to the hotline.\n- `HOME_BUTTON` — explicit \"Necesito ayuda\" tile on the home screen.\n- `PROFILE_LINK` — link in the profile / settings menu.\n- `THERAPIST_SUGGESTION` — a therapist's reply suggested the\n  user contact a hotline.\n\nPlugin emits the enum in OpenAPI.",
             "enum": [
               "ECO_SAFETY_LAYER",
               "HOME_BUTTON",
@@ -10925,11 +10937,13 @@
           },
           "contactedLineId": {
             "type": "string",
+            "description": "Optional ID of the hotline the user tapped to call/visit from\nthe crisis screen's list. Useful to know which lines are\neffective for which countries. Up to 64 chars to allow opaque\ncatalog IDs.",
             "minLength": 1,
             "maxLength": 64
           },
           "country": {
             "type": "string",
+            "description": "ISO 3166-1 alpha-2 country code, 2 chars. Inferred client-side\nfrom the user's profile / IP geolocation. Drives which set of\nhotlines was shown at the moment of the event.",
             "minLength": 2,
             "maxLength": 2
           }
@@ -11026,10 +11040,12 @@
         "properties": {
           "rating": {
             "type": "number",
+            "description": "1–5 star rating of the session. Public to the therapist for\nreflection + Pulso aggregates. 1 = worst, 5 = best.",
             "minimum": 1,
             "maximum": 5
           },
           "tags": {
+            "description": "Up to 8 categorical tags (e.g. `\"util\"`, `\"empatico\"`,\n`\"poca-conexion\"`) from a curated picker on the post-session\nscreen. Plaintext — same analytics-safe contract as Diary tags.",
             "maxItems": 8,
             "type": "array",
             "items": {
@@ -11038,11 +11054,13 @@
           },
           "noteCiphertext": {
             "type": "string",
+            "description": "XChaCha20-Poly1305 ciphertext of the user's free-form note,\nbase64url-encoded. Encrypted client-side under the therapy subkey\nderived from the master key (ADR 0007 §A). Server never decrypts.\nRequired if `noteNonce` is provided.",
             "minLength": 0,
             "maxLength": 8192
           },
           "noteNonce": {
             "type": "string",
+            "description": "24-byte XChaCha20 nonce paired with `noteCiphertext`,\nbase64url-encoded. Required if `noteCiphertext` is provided.\nServer enforces pairing → 400 `CIPHER_NONCE_PAIRING` on\nmismatch.",
             "minLength": 0,
             "maxLength": 64
           }
@@ -11087,7 +11105,8 @@
         "type": "object",
         "properties": {
           "newSlotIso": {
-            "type": "string"
+            "type": "string",
+            "description": "ISO-8601 UTC timestamp of the new slot start (e.g.\n`\"2026-06-20T15:00:00.000Z\"`). Must be a slot that exists in the\ntherapist's published availability + isn't already taken."
           }
         },
         "required": [
@@ -11196,14 +11215,17 @@
         "properties": {
           "kind": {
             "type": "string",
+            "description": "Block kind: `paragraph` (body text), `heading` (section anchor),\n`quote` (offset quote), `pause` (mindful pause), `exercise`\n(interactive prompt). Max 32 chars to allow future variants\nwithout breaking the schema.",
             "maxLength": 32
           },
           "content": {
             "type": "string",
+            "description": "Block plain-text content. Max 8000 chars per block — long\nparagraphs should be split into multiple blocks for better\nreading rhythm.",
             "maxLength": 8000
           },
           "meta": {
-            "type": "object"
+            "type": "object",
+            "description": "Optional kind-specific metadata. Examples:\n- `exercise`: `{ promptId, type: \"scale\" }`\n- `pause`: `{ durationSec: 30 }`\n\nServer does not validate the shape — it's the editor's\nresponsibility. Stored as Prisma `Json`."
           }
         },
         "required": [
@@ -11216,13 +11238,16 @@
         "properties": {
           "title": {
             "type": "string",
+            "description": "New chapter title (up to 200 chars). Shown in the reader header\nand the chapters list.",
             "maxLength": 200
           },
           "subtitle": {
             "type": "string",
+            "description": "Optional subtitle (up to 300 chars). Shown below the title.",
             "maxLength": 300
           },
           "blocks": {
+            "description": "Full block list. The server REPLACES the existing block array\nentirely (not a diff). Max 500 blocks per chapter — well above\nany organic content.\n\nIf you only want to update meta (title/locked/hidden) without\ntouching the body, omit this field.",
             "maxItems": 500,
             "type": "array",
             "items": {
@@ -11230,14 +11255,16 @@
             }
           },
           "isLocked": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the chapter is locked behind the book's plan tier. `true`\n= Pro readers only. `false` = all readers (default for chapter 1\nof each book per the funnel design)."
           },
           "isHidden": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the chapter is hidden from the public reader. Used during\neditorial work-in-progress — author can edit without exposing\nhalf-done content. `false` = visible."
           },
           "expectedVersion": {
             "type": "number",
-            "description": "Optimistic concurrency: client sends the version it loaded with. If the\nserver sees a newer version, returns 409 with the latest version so the\neditor can show a conflict modal.",
+            "description": "Optimistic concurrency: the chapter version the client loaded\nwith. If a save happened in between, the server returns 409\n`CHAPTER_VERSION_CONFLICT` with the current version + the most\nrecent saved blocks so the editor can render a diff modal.\n\nOmit to opt out of conflict detection (last-write-wins).",
             "minimum": 1
           }
         }
@@ -11289,6 +11316,7 @@
         "properties": {
           "intent": {
             "type": "string",
+            "description": "Which transform to apply. Plugin emits the enum in OpenAPI from\n`@IsIn`.",
             "enum": [
               "revisar",
               "ejemplo",
@@ -11298,18 +11326,18 @@
           },
           "text": {
             "type": "string",
-            "description": "Texto sobre el cual operar (el bloque del editor).",
+            "description": "Source text from the editor block (1–8000 chars). The LLM\nreceives this verbatim. Author keeps full control — server never\nautosaves the LLM output back into the book.",
             "minLength": 1,
             "maxLength": 8000
           },
           "blockId": {
             "type": "string",
-            "description": "ID opcional del bloque para audit / instrumentation futura.",
+            "description": "Optional `AuthorBookChapterBlock.id` the text was selected from.\nUsed for the AI usage audit row + future per-block instrumentation.\nOmit if the helper is invoked over a free-form selection.",
             "maxLength": 64
           },
           "context": {
             "type": "string",
-            "description": "Contexto del capítulo o del libro completo (1000 chars).",
+            "description": "Optional chapter / book context (up to 1000 chars). Injected into\nthe system prompt as \"el lector ha leído hasta este punto\" so the\nLLM keeps tone consistent. Typically the chapter summary + the\nprevious block.",
             "maxLength": 1000
           }
         },

@@ -3249,6 +3249,12 @@ export interface components {
             motivosIds: string[];
         };
         OnboardingStep2Dto: {
+            /**
+             * @description Catalog ID from `OnboardingMood` (separate vocabulary from
+             *     `WELLNESS_MOODS` and `DIARY_MOODS`). Service validates the ID
+             *     exists; unknown IDs return 400 `MOOD_NOT_FOUND` with the bad
+             *     value echoed back for actionable error display.
+             */
             moodId: string;
         };
         OnboardingStep3Dto: {
@@ -3277,13 +3283,23 @@ export interface components {
         };
         OnboardingCompleteDto: {
             /**
-             * @description Book the user picked to start with. `null` is valid → user finished
-             *     onboarding without committing to a book ("terminar" button).
+             * @description ID of the book the user chose to start with. `null` is valid — the
+             *     user finished onboarding without committing to a specific book
+             *     (the "terminar" / skip-book option in step 4). When set, the
+             *     choice is mirrored to `OnboardingState.chosenBookId` for audit and
+             *     the front auto-starts that book on the next dashboard visit.
              */
             chosenBookId?: string | null;
         };
         OnboardingTourCompleteDto: {
-            /** @description Number of tour steps the user actually saw. 0 = skipped after opening. */
+            /**
+             * @description Number of tour steps the user actually saw before closing. `0` =
+             *     skipped right after opening; the catalog max is 5 today but the
+             *     upper bound is 20 to allow future growth without a contract bump.
+             *
+             *     "Terminar" (clicked through all) sends `stepsCompleted = N` (total
+             *     catalog size); "Saltar" sends the current step index.
+             */
             stepsCompleted: number;
         };
         SendEcoMessageDto: {
@@ -3461,9 +3477,31 @@ export interface components {
             bundleId: string;
         };
         CrisisLogDto: {
-            /** @enum {string} */
+            /**
+             * @description Where the crisis surface was triggered from:
+             *     - `ECO_SAFETY_LAYER` — Eco's layer-1 regex / layer-2 LLM sentinel
+             *       fired and we routed the user to the hotline.
+             *     - `HOME_BUTTON` — explicit "Necesito ayuda" tile on the home screen.
+             *     - `PROFILE_LINK` — link in the profile / settings menu.
+             *     - `THERAPIST_SUGGESTION` — a therapist's reply suggested the
+             *       user contact a hotline.
+             *
+             *     Plugin emits the enum in OpenAPI.
+             * @enum {string}
+             */
             trigger: CrisisLogDtoTrigger;
+            /**
+             * @description Optional ID of the hotline the user tapped to call/visit from
+             *     the crisis screen's list. Useful to know which lines are
+             *     effective for which countries. Up to 64 chars to allow opaque
+             *     catalog IDs.
+             */
             contactedLineId?: string;
+            /**
+             * @description ISO 3166-1 alpha-2 country code, 2 chars. Inferred client-side
+             *     from the user's profile / IP geolocation. Drives which set of
+             *     hotlines was shown at the moment of the event.
+             */
             country?: string;
         };
         CreateBookingDto: {
@@ -3519,9 +3557,30 @@ export interface components {
             sharedEntryIds?: string[];
         };
         SessionFeedbackDto: {
+            /**
+             * @description 1–5 star rating of the session. Public to the therapist for
+             *     reflection + Pulso aggregates. 1 = worst, 5 = best.
+             */
             rating: number;
+            /**
+             * @description Up to 8 categorical tags (e.g. `"util"`, `"empatico"`,
+             *     `"poca-conexion"`) from a curated picker on the post-session
+             *     screen. Plaintext — same analytics-safe contract as Diary tags.
+             */
             tags?: string[];
+            /**
+             * @description XChaCha20-Poly1305 ciphertext of the user's free-form note,
+             *     base64url-encoded. Encrypted client-side under the therapy subkey
+             *     derived from the master key (ADR 0007 §A). Server never decrypts.
+             *     Required if `noteNonce` is provided.
+             */
             noteCiphertext?: string;
+            /**
+             * @description 24-byte XChaCha20 nonce paired with `noteCiphertext`,
+             *     base64url-encoded. Required if `noteCiphertext` is provided.
+             *     Server enforces pairing → 400 `CIPHER_NONCE_PAIRING` on
+             *     mismatch.
+             */
             noteNonce?: string;
         };
         TechnicalReportDto: {
@@ -3533,6 +3592,11 @@ export interface components {
             completed?: boolean;
         };
         RescheduleSessionDto: {
+            /**
+             * @description ISO-8601 UTC timestamp of the new slot start (e.g.
+             *     `"2026-06-20T15:00:00.000Z"`). Must be a slot that exists in the
+             *     therapist's published availability + isn't already taken.
+             */
             newSlotIso: string;
         };
         CancelSessionDto: {
@@ -3601,20 +3665,65 @@ export interface components {
             language?: string;
         };
         ChapterBlockDto: {
+            /**
+             * @description Block kind: `paragraph` (body text), `heading` (section anchor),
+             *     `quote` (offset quote), `pause` (mindful pause), `exercise`
+             *     (interactive prompt). Max 32 chars to allow future variants
+             *     without breaking the schema.
+             */
             kind: string;
+            /**
+             * @description Block plain-text content. Max 8000 chars per block — long
+             *     paragraphs should be split into multiple blocks for better
+             *     reading rhythm.
+             */
             content: string;
+            /**
+             * @description Optional kind-specific metadata. Examples:
+             *     - `exercise`: `{ promptId, type: "scale" }`
+             *     - `pause`: `{ durationSec: 30 }`
+             *
+             *     Server does not validate the shape — it's the editor's
+             *     responsibility. Stored as Prisma `Json`.
+             */
             meta?: Record<string, never>;
         };
         UpdateChapterDto: {
+            /**
+             * @description New chapter title (up to 200 chars). Shown in the reader header
+             *     and the chapters list.
+             */
             title?: string;
+            /** @description Optional subtitle (up to 300 chars). Shown below the title. */
             subtitle?: string;
+            /**
+             * @description Full block list. The server REPLACES the existing block array
+             *     entirely (not a diff). Max 500 blocks per chapter — well above
+             *     any organic content.
+             *
+             *     If you only want to update meta (title/locked/hidden) without
+             *     touching the body, omit this field.
+             */
             blocks?: components["schemas"]["ChapterBlockDto"][];
+            /**
+             * @description Whether the chapter is locked behind the book's plan tier. `true`
+             *     = Pro readers only. `false` = all readers (default for chapter 1
+             *     of each book per the funnel design).
+             */
             isLocked?: boolean;
+            /**
+             * @description Whether the chapter is hidden from the public reader. Used during
+             *     editorial work-in-progress — author can edit without exposing
+             *     half-done content. `false` = visible.
+             */
             isHidden?: boolean;
             /**
-             * @description Optimistic concurrency: client sends the version it loaded with. If the
-             *     server sees a newer version, returns 409 with the latest version so the
-             *     editor can show a conflict modal.
+             * @description Optimistic concurrency: the chapter version the client loaded
+             *     with. If a save happened in between, the server returns 409
+             *     `CHAPTER_VERSION_CONFLICT` with the current version + the most
+             *     recent saved blocks so the editor can render a diff modal.
+             *
+             *     Omit to opt out of conflict detection (last-write-wins).
              */
             expectedVersion?: number;
         };
@@ -3629,13 +3738,30 @@ export interface components {
             chapters: components["schemas"]["StructureItemDto"][];
         };
         AuthorAiHelpDto: {
-            /** @enum {string} */
+            /**
+             * @description Which transform to apply. Plugin emits the enum in OpenAPI from
+             *     `@IsIn`.
+             * @enum {string}
+             */
             intent: AuthorAiHelpDtoIntent;
-            /** @description Texto sobre el cual operar (el bloque del editor). */
+            /**
+             * @description Source text from the editor block (1–8000 chars). The LLM
+             *     receives this verbatim. Author keeps full control — server never
+             *     autosaves the LLM output back into the book.
+             */
             text: string;
-            /** @description ID opcional del bloque para audit / instrumentation futura. */
+            /**
+             * @description Optional `AuthorBookChapterBlock.id` the text was selected from.
+             *     Used for the AI usage audit row + future per-block instrumentation.
+             *     Omit if the helper is invoked over a free-form selection.
+             */
             blockId?: string;
-            /** @description Contexto del capítulo o del libro completo (1000 chars). */
+            /**
+             * @description Optional chapter / book context (up to 1000 chars). Injected into
+             *     the system prompt as "el lector ha leído hasta este punto" so the
+             *     LLM keeps tone consistent. Typically the chapter summary + the
+             *     previous block.
+             */
             context?: string;
         };
         UpdatePayoutSettingsDto: {
@@ -9032,14 +9158,47 @@ export interface operations {
     TerapiaController_listTherapists: {
         parameters: {
             query?: {
+                /**
+                 * @description Catalog ID of a primary motive (e.g. `"anxiety"`). Filters to
+                 *     therapists who declare expertise in that motive. Max 32 chars
+                 *     for opaque IDs.
+                 */
                 motivo?: string;
+                /**
+                 * @description Therapy modality the user wants: `"INDIVIDUAL"`, `"COUPLE"`, or
+                 *     `"FAMILY"`. Filters to therapists who offer that modality.
+                 *     Plugin emits the enum in OpenAPI.
+                 */
                 modalidad?: PathsApiTerapiaTherapistsGetParametersQueryModalidad;
+                /**
+                 * @description Catalog ID of a preferred therapist gender (e.g. `"female"`,
+                 *     `"male"`, `"non-binary"`). Surfaces in the design as "preferencia
+                 *     de género del terapeuta".
+                 */
                 genero?: string;
+                /**
+                 * @description ISO-639-1 language code (e.g. `"es"`, `"en"`) the therapist
+                 *     speaks. 2–8 chars to accept variants like `"es-419"`.
+                 */
                 language?: string;
+                /**
+                 * @description Minimum session price in USD cents-resolved-to-units (0–10000).
+                 *     Combined with `priceMax` for ranges.
+                 */
                 priceMin?: number;
+                /**
+                 * @description Maximum session price in USD (0–10000). Combined with `priceMin`
+                 *     for ranges.
+                 */
                 priceMax?: number;
+                /** @description Sort order for the result set. Defaults to `"rating"`. */
                 sort?: PathsApiTerapiaTherapistsGetParametersQuerySort;
+                /**
+                 * @description Page number (1-indexed). Default 1 via the `Transform` decorator
+                 *     that coerces query string to number and applies the default.
+                 */
                 page?: number;
+                /** @description Items per page (1–100). Default 20. */
                 pageSize?: number;
             };
             header?: never;
@@ -9191,6 +9350,12 @@ export interface operations {
     TerapiaController_getAvailability: {
         parameters: {
             query?: {
+                /**
+                 * @description How many calendar days forward to project (1–30). Default 14 when
+                 *     omitted — matches the 2-week therapist booking horizon in the
+                 *     design. The `Transform` decorator coerces the query string to a
+                 *     number and applies the default if absent.
+                 */
                 days?: number;
             };
             header?: never;

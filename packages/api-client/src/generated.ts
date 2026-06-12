@@ -2685,8 +2685,21 @@ export interface components {
             email: string;
         };
         ResetPasswordDto: {
-            /** @description Raw token from the email link. Server hashes before lookup. */
+            /**
+             * @description Raw reset token from the email link, base64url 32–128 chars. The
+             *     server hashes (SHA-256) before lookup — the raw token only ever
+             *     touches the email and this request body.
+             */
             token: string;
+            /**
+             * @description New password (8–72 characters). Bcrypt silently truncates anything
+             *     past 72 bytes, so the upper bound is enforced explicitly to surface
+             *     that as a validation error.
+             *
+             *     The server hashes with bcrypt before persisting; raw plaintext never
+             *     touches storage or logs. The previous password hash is overwritten —
+             *     there is no history.
+             */
             newPassword: string;
         };
         VerifyEmailDto: {
@@ -2694,11 +2707,13 @@ export interface components {
         };
         OAuthGoogleDto: {
             /**
-             * @description Google ID token (JWT) obtained from Google Identity Services in the
-             *     browser or from Google Sign-In SDK on mobile. The backend verifies the
-             *     signature against Google's public keys via google-auth-library.
+             * @description Google ID token (JWT) obtained client-side from Google Identity
+             *     Services (web) or Google Sign-In SDK (mobile). The backend verifies
+             *     the signature against Google's public keys via `google-auth-library`
+             *     — no Passport redirect flow.
              *
-             *     Typical length: ~1000-1500 characters.
+             *     Typical length: ~1000–1500 characters. The token is single-use from
+             *     our perspective: we extract identity claims and discard.
              */
             idToken: string;
         };
@@ -2800,12 +2815,47 @@ export interface components {
             audioDurationSec?: number;
         };
         UpdateDiaryEntryDto: {
-            /** @enum {string} */
+            /**
+             * @description New mood token from the shared `DIARY_MOODS` catalog. Server uses
+             *     it for the patterns analytics — visible in plaintext by design.
+             *     Plugin emits the enum in OpenAPI from `@IsIn`.
+             * @enum {string}
+             */
             mood?: UpdateDiaryEntryDtoMood;
+            /**
+             * @description New XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.
+             *     Encrypted client-side under the diary subkey derived via HKDF from
+             *     the master key. Server never decrypts.
+             *
+             *     If sent, `textNonce` MUST also be sent (paired write).
+             */
             textCiphertext?: string;
+            /**
+             * @description Fresh 24-byte XChaCha20 nonce paired with `textCiphertext`,
+             *     base64url-encoded. Must be a new random nonce — reusing the previous
+             *     nonce under the same key catastrophically breaks confidentiality
+             *     (XChaCha20 invariant).
+             *
+             *     If sent, `textCiphertext` MUST also be sent.
+             */
             textNonce?: string;
+            /**
+             * @description New preview ciphertext for the list view. Same pairing rules as
+             *     `textCiphertext`/`textNonce` — sending one requires sending the other.
+             */
             excerptCiphertext?: string;
+            /**
+             * @description Fresh 24-byte XChaCha20 nonce paired with `excerptCiphertext`. Required
+             *     if `excerptCiphertext` is sent.
+             */
             excerptNonce?: string;
+            /**
+             * @description Replacement tag set (up to 12, each 1–32 chars). Plaintext by
+             *     design — used by the patterns module to cluster entries for the
+             *     weekly summary. The UI nudges users to categorical labels (e.g.
+             *     `trabajo` / `familia` / `sueño`) and explicitly NOT to put private
+             *     info here.
+             */
             tags?: string[];
         };
         ShareDiaryEntryDto: {
@@ -2846,10 +2896,30 @@ export interface components {
             conversationId?: string;
         };
         UpdateProfileDto: {
+            /**
+             * @description Display first name shown in the home greeting and in transactional
+             *     emails. 1–100 chars. The `name` field (legacy full display name) is
+             *     not editable here.
+             */
             firstName?: string;
+            /**
+             * @description Free-text city. Plaintext — used to size therapy listings by
+             *     proximity. Pass `null` to clear. Max 100 chars.
+             */
             city?: string | null;
+            /**
+             * @description ISO 3166-1 alpha-2 country code (exactly 2 chars, e.g. `"EC"`,
+             *     `"PE"`). Used by `/terapia/crisis` to pick the right hotline. Pass
+             *     `null` to clear — the service then falls back to a generic
+             *     international list.
+             */
             country?: string | null;
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description R2 signed URL to the user's avatar image. Set by the avatar upload
+             *     endpoint (`POST /user/avatar`); callers can also pass `null` to
+             *     clear and revert to initials-based fallback.
+             */
             avatarUrl?: string | null;
         };
         UpdateTimezoneDto: {
@@ -2876,11 +2946,43 @@ export interface components {
             lineHeight?: number;
         };
         UpdateNotificationsDto: {
+            /**
+             * @description If `true`, the inactive-nudge processor may push a daily reminder at
+             *     `reminderTime` local. Also gates the weekly-digest push companion
+             *     (the email itself is governed by `weeklyReport`).
+             */
             dailyReminder?: boolean;
+            /**
+             * @description Local hour for daily/weekly notifications, format `HH:MM` 24h
+             *     (e.g. `"07:00"`, `"19:30"`). Interpreted in the user's
+             *     `Profile.timezone` (Sprint S53); legacy users without a timezone
+             *     fall back to UTC.
+             */
             reminderTime?: string;
+            /**
+             * @description Push notifications celebrating streak milestones (3-day, 7-day,
+             *     30-day, etc). Separate from `dailyReminder` so users can keep the
+             *     habit nudge but mute the celebrations.
+             */
             streakReminders?: boolean;
+            /**
+             * @description Push notifications when Eco posts a reply (e.g. async LLM finishes
+             *     a long generation). v1 SSE streams to the live tab, so this only
+             *     fires for closed-app + Live Activities flows.
+             */
             ecoReplies?: boolean;
+            /**
+             * @description Push + email reminders for upcoming therapy sessions (24h, 1h before
+             *     the slot). Only firing while the user has at least one SCHEDULED
+             *     session.
+             */
             terapiaReminders?: boolean;
+            /**
+             * @description Monday-morning email digest summarising the prior week (entries
+             *     count, mood distribution, top tags, optional LLM-backed narrative
+             *     if available). Push companion to the digest is gated by
+             *     `dailyReminder` — the email itself flips with this flag alone.
+             */
             weeklyReport?: boolean;
         };
         UpdatePrivacyDto: {
@@ -2905,18 +3007,61 @@ export interface components {
             newPassword: string;
         };
         ReencryptedEntryDto: {
+            /**
+             * @description Server ID of the existing `DiaryEntry`. Must belong to the
+             *     authenticated user — service enforces ownership and throws
+             *     400 ENTRY_NOT_OWNED if any ID in the array doesn't match.
+             */
             id: string;
+            /**
+             * @description New XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.
+             *     Replaces the entry's `textCiphertext` atomically inside the
+             *     transaction.
+             */
             textCiphertext: string;
+            /**
+             * @description Fresh 24-byte XChaCha20 nonce for `textCiphertext`. Must be a new
+             *     random value — reusing the old nonce under the new key would still
+             *     be fine cryptographically (different key) but loses the nonce-uniqueness
+             *     habit clients should keep.
+             */
             textNonce: string;
+            /**
+             * @description Optional re-encrypted preview ciphertext (used by the list view).
+             *     Required if the entry had an excerpt cipher before; the client
+             *     decides based on the existing entry.
+             */
             excerptCiphertext?: string;
+            /**
+             * @description Fresh nonce for `excerptCiphertext`. Required if `excerptCiphertext`
+             *     is provided.
+             */
             excerptNonce?: string;
         };
         PasswordChangeWithRekeyDto: {
+            /**
+             * @description Current password (plaintext, used only to verify bcrypt match before
+             *     the rekey). Never logged. Not the same as `newPassword`.
+             */
             currentPassword: string;
+            /**
+             * @description New password (10–256 chars). Tighter min than register (which is 8)
+             *     because rekey is a destructive operation — we nudge users toward a
+             *     password they actually remember.
+             */
             newPassword: string;
-            /** @description Fresh Argon2id salt the client generated for the new master key. */
+            /**
+             * @description Fresh 16-byte Argon2id salt the client generated for the new master
+             *     key, base64url-encoded (24 chars). Distinct from the old salt — the
+             *     client throws away the old master key entirely and starts over.
+             */
             newCryptoSalt: string;
-            /** @description Every active diary entry re-encrypted with the new key. */
+            /**
+             * @description Every active diary entry re-encrypted with the new diary subkey
+             *     (HKDF from the new master key). Cap of 500 entries per request to
+             *     keep the transaction bounded; if the user has more, the UI chunks
+             *     across multiple requests.
+             */
             reencryptedEntries: components["schemas"]["ReencryptedEntryDto"][];
         };
         DeleteRequestDto: {
@@ -2959,36 +3104,63 @@ export interface components {
         };
         SendEcoMessageDto: {
             /**
-             * @description Server-side identifier of the thread. The user must own the thread or
-             *     the service returns 404 — we do not 403 (would leak existence).
+             * @description Server-side ID of the thread the message belongs to. The user must
+             *     own the thread or the service returns 404 (we do not 403 — would
+             *     leak existence). Max length 128 to allow opaque IDs.
              */
             threadId: string;
             /**
-             * @description Ephemeral plaintext. The server uses it for the LLM call + layer-1
-             *     crisis detection, and NEVER persists it. The privacy spec enforces no
-             *     logger.* / console.* statement may reference this field.
+             * @description Ephemeral plaintext of the user's message. Server uses it for the
+             *     LLM prompt + layer-1 crisis regex detection, then drops it. NEVER
+             *     persists, NEVER logs, NEVER returns in any response. The privacy
+             *     spec enforces this at CI time.
+             *
+             *     Hard cap 2000 chars (~500 tokens) to control LLM cost and stay
+             *     under the design's "respuestas cortas" voice.
              */
             textPlaintext: string;
             /**
              * Format: base64
-             * @description base64url cipher. Persisted as-is.
+             * @description XChaCha20-Poly1305 ciphertext of the same message, base64url-encoded.
+             *     Encrypted client-side under the eco subkey (HKDF from master key
+             *     with `ECO_KEY_INFO`). Server persists as-is, decrypts never.
+             *
+             *     For replays / history reads, this is what the client decrypts
+             *     locally to render the message bubble.
              */
             textCiphertext: string;
             /**
              * Format: base64
-             * @description base64url 24-byte nonce.
+             * @description Fresh 24-byte XChaCha20 nonce paired with `textCiphertext`,
+             *     base64url-encoded (32 chars exactly). Must be a new random nonce on
+             *     every send — reuse under the same key breaks confidentiality.
              */
             textNonce: string;
             /**
-             * @description Optional intent hint. `suggest` asks Eco to recommend a book or
+             * @description Optional intent hint. `"suggest"` nudges Eco to recommend a book or
              *     exercise instead of free-form chat. v1 routes both through the same
-             *     LLM call with intent included in the prompt — explicit dispatch can
-             *     come later if recommendation tuning needs it.
+             *     LLM call with the intent injected into the system prompt — explicit
+             *     dispatch can come later if recommendation tuning needs it.
              */
             intent?: Record<string, never>;
         };
         ReportEcoMessageDto: {
+            /**
+             * @description Category of the issue. One of:
+             *     - `HALLUCINATION` — Eco invented facts or sources
+             *     - `OFF_TONE` — wrong register (too clinical, too casual, etc)
+             *     - `SENSITIVE_CONTENT` — produced content that crosses safety lines
+             *     - `CRISIS_MISHANDLED` — failed to detect or respond appropriately to a crisis signal
+             *     - `OTHER` — falls outside the above (description in `comment`)
+             *
+             *     Plugin emits the enum in OpenAPI from `@IsEnum`.
+             */
             reason: Record<string, never>;
+            /**
+             * @description Optional free-text explanation, up to 500 chars. Recommended when
+             *     `reason === "OTHER"`. Stored as-is — the user is signaling intent,
+             *     not entering encrypted content.
+             */
             comment?: string;
         };
         LectorSessionHeartbeatDto: {
@@ -3061,15 +3233,48 @@ export interface components {
             country?: string;
         };
         CreateBookingDto: {
+            /**
+             * @description Stable opaque ID of the therapist (UUID). The client gets it from
+             *     the directory or detail screens.
+             */
             therapistId: string;
+            /**
+             * @description ISO-8601 UTC timestamp of the slot start (e.g.
+             *     `"2026-06-15T14:30:00.000Z"`). The server validates the slot
+             *     exists in the therapist's published availability + isn't already
+             *     booked.
+             */
             slotIso: string;
-            /** @enum {string} */
+            /**
+             * @description Session modality: `"INDIVIDUAL"` (1 client), `"COUPLE"` (2), or
+             *     `"FAMILY"` (3+). Affects the Stripe price + the video room
+             *     configuration (S65).
+             * @enum {string}
+             */
             modality: CreateBookingDtoModality;
+            /**
+             * @description Optional ID from the catalog of first-time reasons (e.g.
+             *     "anxiety", "couples-counselling"). Helps the therapist prep before
+             *     the first session. Subsequent bookings can omit it.
+             */
             firstReasonId?: string;
+            /**
+             * @description Session length in minutes (15–120). Defaults to the therapist's
+             *     default if omitted. Must match an available slot length.
+             */
             durationMin?: number;
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description Stripe Checkout success redirect URL. Not used in S64 (Stripe
+             *     wiring lands in S65); when present, S65's StripeProvider passes it
+             *     to `checkout.sessions.create`.
+             */
             successUrl?: string;
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description Stripe Checkout cancel redirect URL. Same v1 status as
+             *     `successUrl` — passed through to Stripe in S65 when wired.
+             */
             cancelUrl?: string;
         };
         UpdateSessionPrepDto: {

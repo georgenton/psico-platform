@@ -9836,11 +9836,12 @@
         "properties": {
           "token": {
             "type": "string",
-            "description": "Raw token from the email link. Server hashes before lookup.",
+            "description": "Raw reset token from the email link, base64url 32–128 chars. The\nserver hashes (SHA-256) before lookup — the raw token only ever\ntouches the email and this request body.",
             "pattern": "/^[a-zA-Z0-9_-]{32,128}$/"
           },
           "newPassword": {
             "type": "string",
+            "description": "New password (8–72 characters). Bcrypt silently truncates anything\npast 72 bytes, so the upper bound is enforced explicitly to surface\nthat as a validation error.\n\nThe server hashes with bcrypt before persisting; raw plaintext never\ntouches storage or logs. The previous password hash is overwritten —\nthere is no history.",
             "minLength": 8,
             "maxLength": 72
           }
@@ -9867,7 +9868,7 @@
         "properties": {
           "idToken": {
             "type": "string",
-            "description": "Google ID token (JWT) obtained from Google Identity Services in the\nbrowser or from Google Sign-In SDK on mobile. The backend verifies the\nsignature against Google's public keys via google-auth-library.\n\nTypical length: ~1000-1500 characters.",
+            "description": "Google ID token (JWT) obtained client-side from Google Identity\nServices (web) or Google Sign-In SDK (mobile). The backend verifies\nthe signature against Google's public keys via `google-auth-library`\n— no Passport redirect flow.\n\nTypical length: ~1000–1500 characters. The token is single-use from\nour perspective: we extract identity claims and discard.",
             "minLength": 64
           }
         },
@@ -10074,6 +10075,7 @@
         "properties": {
           "mood": {
             "type": "string",
+            "description": "New mood token from the shared `DIARY_MOODS` catalog. Server uses\nit for the patterns analytics — visible in plaintext by design.\nPlugin emits the enum in OpenAPI from `@IsIn`.",
             "enum": [
               "calma",
               "foco",
@@ -10085,18 +10087,23 @@
             ]
           },
           "textCiphertext": {
-            "type": "string"
+            "type": "string",
+            "description": "New XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.\nEncrypted client-side under the diary subkey derived via HKDF from\nthe master key. Server never decrypts.\n\nIf sent, `textNonce` MUST also be sent (paired write)."
           },
           "textNonce": {
-            "type": "string"
+            "type": "string",
+            "description": "Fresh 24-byte XChaCha20 nonce paired with `textCiphertext`,\nbase64url-encoded. Must be a new random nonce — reusing the previous\nnonce under the same key catastrophically breaks confidentiality\n(XChaCha20 invariant).\n\nIf sent, `textCiphertext` MUST also be sent."
           },
           "excerptCiphertext": {
-            "type": "string"
+            "type": "string",
+            "description": "New preview ciphertext for the list view. Same pairing rules as\n`textCiphertext`/`textNonce` — sending one requires sending the other."
           },
           "excerptNonce": {
-            "type": "string"
+            "type": "string",
+            "description": "Fresh 24-byte XChaCha20 nonce paired with `excerptCiphertext`. Required\nif `excerptCiphertext` is sent."
           },
           "tags": {
+            "description": "Replacement tag set (up to 12, each 1–32 chars). Plaintext by\ndesign — used by the patterns module to cluster entries for the\nweekly summary. The UI nudges users to categorical labels (e.g.\n`trabajo` / `familia` / `sueño`) and explicitly NOT to put private\ninfo here.",
             "maxItems": 12,
             "type": "array",
             "items": {
@@ -10229,23 +10236,27 @@
         "properties": {
           "firstName": {
             "type": "string",
+            "description": "Display first name shown in the home greeting and in transactional\nemails. 1–100 chars. The `name` field (legacy full display name) is\nnot editable here.",
             "minLength": 1,
             "maxLength": 100
           },
           "city": {
             "type": "string",
             "nullable": true,
+            "description": "Free-text city. Plaintext — used to size therapy listings by\nproximity. Pass `null` to clear. Max 100 chars.",
             "maxLength": 100
           },
           "country": {
             "type": "string",
             "nullable": true,
+            "description": "ISO 3166-1 alpha-2 country code (exactly 2 chars, e.g. `\"EC\"`,\n`\"PE\"`). Used by `/terapia/crisis` to pick the right hotline. Pass\n`null` to clear — the service then falls back to a generic\ninternational list.",
             "minLength": 2,
             "maxLength": 2
           },
           "avatarUrl": {
             "type": "string",
             "nullable": true,
+            "description": "R2 signed URL to the user's avatar image. Set by the avatar upload\nendpoint (`POST /user/avatar`); callers can also pass `null` to\nclear and revert to initials-based fallback.",
             "format": "uri"
           }
         }
@@ -10343,23 +10354,29 @@
         "type": "object",
         "properties": {
           "dailyReminder": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "If `true`, the inactive-nudge processor may push a daily reminder at\n`reminderTime` local. Also gates the weekly-digest push companion\n(the email itself is governed by `weeklyReport`)."
           },
           "reminderTime": {
             "type": "string",
+            "description": "Local hour for daily/weekly notifications, format `HH:MM` 24h\n(e.g. `\"07:00\"`, `\"19:30\"`). Interpreted in the user's\n`Profile.timezone` (Sprint S53); legacy users without a timezone\nfall back to UTC.",
             "pattern": "/^([01]\\d|2[0-3]):[0-5]\\d$/"
           },
           "streakReminders": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Push notifications celebrating streak milestones (3-day, 7-day,\n30-day, etc). Separate from `dailyReminder` so users can keep the\nhabit nudge but mute the celebrations."
           },
           "ecoReplies": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Push notifications when Eco posts a reply (e.g. async LLM finishes\na long generation). v1 SSE streams to the live tab, so this only\nfires for closed-app + Live Activities flows."
           },
           "terapiaReminders": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Push + email reminders for upcoming therapy sessions (24h, 1h before\nthe slot). Only firing while the user has at least one SCHEDULED\nsession."
           },
           "weeklyReport": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Monday-morning email digest summarising the prior week (entries\ncount, mood distribution, top tags, optional LLM-backed narrative\nif available). Push companion to the digest is gated by\n`dailyReminder` — the email itself flips with this flag alone."
           }
         }
       },
@@ -10433,27 +10450,32 @@
         "properties": {
           "id": {
             "type": "string",
+            "description": "Server ID of the existing `DiaryEntry`. Must belong to the\nauthenticated user — service enforces ownership and throws\n400 ENTRY_NOT_OWNED if any ID in the array doesn't match.",
             "minLength": 1,
             "maxLength": 64
           },
           "textCiphertext": {
             "type": "string",
+            "description": "New XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.\nReplaces the entry's `textCiphertext` atomically inside the\ntransaction.",
             "maxLength": 1400000,
             "pattern": "BASE64URL"
           },
           "textNonce": {
             "type": "string",
+            "description": "Fresh 24-byte XChaCha20 nonce for `textCiphertext`. Must be a new\nrandom value — reusing the old nonce under the new key would still\nbe fine cryptographically (different key) but loses the nonce-uniqueness\nhabit clients should keep.",
             "minLength": 32,
             "maxLength": 36,
             "pattern": "BASE64URL"
           },
           "excerptCiphertext": {
             "type": "string",
+            "description": "Optional re-encrypted preview ciphertext (used by the list view).\nRequired if the entry had an excerpt cipher before; the client\ndecides based on the existing entry.",
             "maxLength": 1400000,
             "pattern": "BASE64URL"
           },
           "excerptNonce": {
             "type": "string",
+            "description": "Fresh nonce for `excerptCiphertext`. Required if `excerptCiphertext`\nis provided.",
             "minLength": 32,
             "maxLength": 36,
             "pattern": "BASE64URL"
@@ -10470,22 +10492,24 @@
         "properties": {
           "currentPassword": {
             "type": "string",
+            "description": "Current password (plaintext, used only to verify bcrypt match before\nthe rekey). Never logged. Not the same as `newPassword`.",
             "minLength": 1
           },
           "newPassword": {
             "type": "string",
+            "description": "New password (10–256 chars). Tighter min than register (which is 8)\nbecause rekey is a destructive operation — we nudge users toward a\npassword they actually remember.",
             "minLength": 10,
             "maxLength": 256
           },
           "newCryptoSalt": {
             "type": "string",
-            "description": "Fresh Argon2id salt the client generated for the new master key.",
+            "description": "Fresh 16-byte Argon2id salt the client generated for the new master\nkey, base64url-encoded (24 chars). Distinct from the old salt — the\nclient throws away the old master key entirely and starts over.",
             "minLength": 24,
             "maxLength": 28,
             "pattern": "BASE64URL"
           },
           "reencryptedEntries": {
-            "description": "Every active diary entry re-encrypted with the new key.",
+            "description": "Every active diary entry re-encrypted with the new diary subkey\n(HKDF from the new master key). Cap of 500 entries per request to\nkeep the transaction bounded; if the user has more, the UI chunks\nacross multiple requests.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ReencryptedEntryDto"
@@ -10595,31 +10619,31 @@
         "properties": {
           "threadId": {
             "type": "string",
-            "description": "Server-side identifier of the thread. The user must own the thread or\nthe service returns 404 — we do not 403 (would leak existence).",
+            "description": "Server-side ID of the thread the message belongs to. The user must\nown the thread or the service returns 404 (we do not 403 — would\nleak existence). Max length 128 to allow opaque IDs.",
             "minLength": 1,
             "maxLength": 128
           },
           "textPlaintext": {
             "type": "string",
-            "description": "Ephemeral plaintext. The server uses it for the LLM call + layer-1\ncrisis detection, and NEVER persists it. The privacy spec enforces no\nlogger.* / console.* statement may reference this field.",
+            "description": "Ephemeral plaintext of the user's message. Server uses it for the\nLLM prompt + layer-1 crisis regex detection, then drops it. NEVER\npersists, NEVER logs, NEVER returns in any response. The privacy\nspec enforces this at CI time.\n\nHard cap 2000 chars (~500 tokens) to control LLM cost and stay\nunder the design's \"respuestas cortas\" voice.",
             "minLength": 1,
             "maxLength": 2000
           },
           "textCiphertext": {
             "type": "string",
-            "description": "base64url cipher. Persisted as-is.",
+            "description": "XChaCha20-Poly1305 ciphertext of the same message, base64url-encoded.\nEncrypted client-side under the eco subkey (HKDF from master key\nwith `ECO_KEY_INFO`). Server persists as-is, decrypts never.\n\nFor replays / history reads, this is what the client decrypts\nlocally to render the message bubble.",
             "maxLength": 4096,
             "format": "base64"
           },
           "textNonce": {
             "type": "string",
-            "description": "base64url 24-byte nonce.",
+            "description": "Fresh 24-byte XChaCha20 nonce paired with `textCiphertext`,\nbase64url-encoded (32 chars exactly). Must be a new random nonce on\nevery send — reuse under the same key breaks confidentiality.",
             "maxLength": 32,
             "format": "base64"
           },
           "intent": {
             "type": "object",
-            "description": "Optional intent hint. `suggest` asks Eco to recommend a book or\nexercise instead of free-form chat. v1 routes both through the same\nLLM call with intent included in the prompt — explicit dispatch can\ncome later if recommendation tuning needs it."
+            "description": "Optional intent hint. `\"suggest\"` nudges Eco to recommend a book or\nexercise instead of free-form chat. v1 routes both through the same\nLLM call with the intent injected into the system prompt — explicit\ndispatch can come later if recommendation tuning needs it."
           }
         },
         "required": [
@@ -10633,10 +10657,12 @@
         "type": "object",
         "properties": {
           "reason": {
-            "type": "object"
+            "type": "object",
+            "description": "Category of the issue. One of:\n- `HALLUCINATION` — Eco invented facts or sources\n- `OFF_TONE` — wrong register (too clinical, too casual, etc)\n- `SENSITIVE_CONTENT` — produced content that crosses safety lines\n- `CRISIS_MISHANDLED` — failed to detect or respond appropriately to a crisis signal\n- `OTHER` — falls outside the above (description in `comment`)\n\nPlugin emits the enum in OpenAPI from `@IsEnum`."
           },
           "comment": {
             "type": "string",
+            "description": "Optional free-text explanation, up to 500 chars. Recommended when\n`reason === \"OTHER\"`. Stored as-is — the user is signaling intent,\nnot entering encrypted content.",
             "maxLength": 500
           }
         },
@@ -10874,14 +10900,17 @@
         "properties": {
           "therapistId": {
             "type": "string",
+            "description": "Stable opaque ID of the therapist (UUID). The client gets it from\nthe directory or detail screens.",
             "minLength": 1,
             "maxLength": 64
           },
           "slotIso": {
-            "type": "string"
+            "type": "string",
+            "description": "ISO-8601 UTC timestamp of the slot start (e.g.\n`\"2026-06-15T14:30:00.000Z\"`). The server validates the slot\nexists in the therapist's published availability + isn't already\nbooked."
           },
           "modality": {
             "type": "string",
+            "description": "Session modality: `\"INDIVIDUAL\"` (1 client), `\"COUPLE\"` (2), or\n`\"FAMILY\"` (3+). Affects the Stripe price + the video room\nconfiguration (S65).",
             "enum": [
               "INDIVIDUAL",
               "COUPLE",
@@ -10890,20 +10919,24 @@
           },
           "firstReasonId": {
             "type": "string",
+            "description": "Optional ID from the catalog of first-time reasons (e.g.\n\"anxiety\", \"couples-counselling\"). Helps the therapist prep before\nthe first session. Subsequent bookings can omit it.",
             "minLength": 1,
             "maxLength": 64
           },
           "durationMin": {
             "type": "number",
+            "description": "Session length in minutes (15–120). Defaults to the therapist's\ndefault if omitted. Must match an available slot length.",
             "minimum": 15,
             "maximum": 120
           },
           "successUrl": {
             "type": "string",
+            "description": "Stripe Checkout success redirect URL. Not used in S64 (Stripe\nwiring lands in S65); when present, S65's StripeProvider passes it\nto `checkout.sessions.create`.",
             "format": "uri"
           },
           "cancelUrl": {
             "type": "string",
+            "description": "Stripe Checkout cancel redirect URL. Same v1 status as\n`successUrl` — passed through to Stripe in S65 when wired.",
             "format": "uri"
           }
         },

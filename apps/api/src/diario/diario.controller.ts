@@ -11,7 +11,15 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import type { AuthenticatedUser } from "../auth";
 import { JwtAuthGuard } from "../auth";
 import { CurrentUser } from "../shared";
@@ -37,6 +45,9 @@ import { ShareDiaryEntryDto } from "./dto/share-entry.dto";
  */
 @ApiTags("Diario")
 @ApiBearerAuth("bearer")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+@ApiForbiddenResponse({ type: ErrorEnvelopeDto })
 @Controller("diario")
 @UseGuards(JwtAuthGuard)
 export class DiarioController {

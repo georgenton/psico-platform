@@ -10,7 +10,14 @@ import {
   UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { JwtAuthGuard } from "../auth";
 import type { AuthenticatedUser } from "../auth";
@@ -42,6 +49,8 @@ import { DeleteRequestDto } from "./dto/delete-request.dto";
 
 @ApiTags("Users")
 @ApiBearerAuth("bearer")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
 @Controller("user")
 @UseGuards(JwtAuthGuard)
 export class UsersController {

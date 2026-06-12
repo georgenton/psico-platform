@@ -11,7 +11,13 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import { ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import type { Request } from "express";
 
 import { JwtAuthGuard } from "../auth";
@@ -50,6 +56,8 @@ import { BillingReturnQueryDto } from "./dto/return-query.dto";
  *   POST  /billing/webhook          — Stripe webhook (same handler as legacy)
  */
 @ApiTags("Billing")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
 @Controller("billing")
 export class BillingController {
   constructor(

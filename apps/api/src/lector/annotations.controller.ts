@@ -9,7 +9,13 @@ import {
   Post,
   UseGuards,
 } from "@nestjs/common";
-import { ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import type {
   CreateAnnotationResponse,
   UpdateAnnotationResponse,
@@ -24,6 +30,8 @@ import {
 } from "./dto/create-annotation.dto";
 
 @ApiTags("Annotations")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
 @Controller("annotations")
 @UseGuards(JwtAuthGuard)
 export class AnnotationsController {

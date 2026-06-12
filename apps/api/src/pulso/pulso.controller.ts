@@ -9,7 +9,15 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiForbiddenResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CurrentUser, RequiredRole, RolesGuard } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -33,6 +41,9 @@ import { ChangeRoleDto } from "./dto/change-role.dto";
  * is NOT enough — Pulso is operational back-office, not clinical access.
  */
 @ApiTags("Pulso")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+@ApiForbiddenResponse({ type: ErrorEnvelopeDto })
 @Controller("pulso")
 @UseGuards(JwtAuthGuard, RolesGuard)
 @RequiredRole("ADMIN")
@@ -117,8 +128,7 @@ export class PulsoController {
 
   @Get("author-requests")
   @ApiOperation({
-    summary:
-      "List author publication requests. Default scope: PENDING only.",
+    summary: "List author publication requests. Default scope: PENDING only.",
   })
   listAuthorRequests(
     @Query("status") status?: "PENDING" | "ALL",

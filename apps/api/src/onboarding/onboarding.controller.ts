@@ -7,7 +7,15 @@ import {
   Post,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { JwtAuthGuard } from "../auth";
 import type { AuthenticatedUser } from "../auth";
 import { CurrentUser } from "../shared";
@@ -26,6 +34,8 @@ import { OnboardingTourCompleteDto } from "./dto/tour-complete.dto";
 
 @ApiTags("Onboarding")
 @ApiBearerAuth("bearer")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
 @Controller("onboarding")
 @UseGuards(JwtAuthGuard)
 export class OnboardingController {

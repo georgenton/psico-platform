@@ -9,7 +9,14 @@ import {
   Post,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import type { AuthenticatedUser } from "../auth";
 import { JwtAuthGuard } from "../auth";
 import { CurrentUser } from "../shared";
@@ -30,6 +37,8 @@ import { UpdateUserMoodBodyDto } from "./dto/update-mood.dto";
  * the alternative is a HomeModule that only owns `/home`.
  */
 @ApiTags("Home")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
 @ApiBearerAuth("bearer")
 @UseGuards(JwtAuthGuard)
 @Controller()

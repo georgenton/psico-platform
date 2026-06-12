@@ -11,7 +11,15 @@ import {
   Sse,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiTags,
+  ApiTooManyRequestsResponse,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { Throttle } from "@nestjs/throttler";
 import type { Observable } from "rxjs";
 import { JwtAuthGuard } from "../auth";
@@ -38,6 +46,9 @@ import { SendEcoMessageDto } from "./dto/send-message.dto";
  */
 @ApiTags("Eco")
 @ApiBearerAuth("bearer")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+@ApiTooManyRequestsResponse({ type: ErrorEnvelopeDto })
 @Controller("eco")
 @UseGuards(JwtAuthGuard)
 export class EcoController {

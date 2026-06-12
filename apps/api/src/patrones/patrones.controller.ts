@@ -9,7 +9,14 @@ import {
   UnprocessableEntityException,
   UseGuards,
 } from "@nestjs/common";
-import { ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiForbiddenResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { Plan } from "@prisma/client";
 import type {
   PatronesRegenerateResponse,
@@ -24,6 +31,9 @@ import { ShareWithTherapistDto } from "./dto/share-with-therapist.dto";
 import { PatronesService } from "./patrones.service";
 
 @ApiTags("Patrones")
+@ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+@ApiForbiddenResponse({ type: ErrorEnvelopeDto })
 @Controller("patrones")
 @UseGuards(JwtAuthGuard)
 export class PatronesController {

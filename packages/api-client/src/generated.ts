@@ -2722,21 +2722,70 @@ export interface components {
             text: string;
         };
         CreateBookDto: {
+            /**
+             * @description URL slug for the book — must be lowercase kebab-case (matches
+             *     `/^[a-z0-9]+(?:-[a-z0-9]+)*$/`). Used in `/dashboard/biblioteca/[slug]`
+             *     and as the canonical identifier. Pick carefully: changing it later
+             *     breaks bookmarks and shared links.
+             */
             slug: string;
+            /**
+             * @description Display title. Shown in the book card, the detail header, and the
+             *     reader chrome. No length cap because Spanish titles can run long
+             *     ("Familias Ensambladas: un manual para…").
+             */
             title: string;
+            /**
+             * @description Long-form description shown on the detail screen + meta tags. Plain
+             *     text; markdown not interpreted in v1.
+             */
             description?: string;
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description R2 URL of the cover image. Optional — when omitted, the front uses
+             *     the `coverToken`-based gradient fallback.
+             */
             coverUrl?: string;
-            /** @enum {string} */
+            /**
+             * @description Minimum plan tier required to access the book. `"FREE"` means the
+             *     book shows in the catalog for all users; higher tiers gate it
+             *     behind the paywall. Plugin emits the enum in OpenAPI.
+             * @enum {string}
+             */
             plan: CreateBookDtoPlan;
         };
         UpdateBookDto: {
+            /**
+             * @description Toggle catalog visibility. `false` hides the book from
+             *     `GET /api/books` (the public list) without deleting it; admins can
+             *     still read the detail by direct slug. Use to soft-retire books or
+             *     to stage new ones before launch.
+             */
             isPublished?: boolean;
         };
         CreateChapterDto: {
+            /**
+             * @description Display order within the book (1-indexed). Used as the chapter
+             *     identifier in `/dashboard/biblioteca/[slug]/lector/[order]`.
+             *     Collision with an existing chapter returns 409 `ORDINAL_TAKEN`.
+             */
             order: number;
+            /**
+             * @description Display title of the chapter. Shown in the reader header + the
+             *     chapter list on the book detail page.
+             */
             title: string;
+            /**
+             * @description Optional short description shown in the chapter list (1-2 lines
+             *     preview). Plain text.
+             */
             description?: string;
+            /**
+             * @description Optional estimated reading time in minutes. Used to roll up the
+             *     book's `durationMinutes` on the detail screen and to size session
+             *     progress. Author's best guess — server doesn't validate against
+             *     actual content.
+             */
             durationMinutes?: number;
         };
         UploadAudioDto: {
@@ -2915,7 +2964,13 @@ export interface components {
             cancelUrl: string;
         };
         CreatePortalSessionDto: {
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description Where Stripe should redirect after the user closes the portal.
+             *     Web: `/dashboard/plan`. Mobile: a Universal Link / deep link back
+             *     to `(tabs)/plan`. The session is single-use — Stripe burns it
+             *     when the user finishes.
+             */
             returnUrl: string;
         };
         CancelSubscriptionDto: {
@@ -2927,11 +2982,27 @@ export interface components {
             reason?: string;
         };
         PatchSubscriptionDto: {
+            /**
+             * @description What to do with the subscription:
+             *     - `"cancel"` — mark cancel-at-period-end; the user keeps Pro
+             *       until the period closes
+             *     - `"reactivate"` — undo a pending cancellation (no-op if not pending)
+             *     - `"switch-plan"` — move to a different plan with proration. Currently
+             *       501 — server-side TODO.
+             *
+             *     Plugin emits the enum in OpenAPI.
+             */
             action: Record<string, never>;
-            /** @description Free-text reason for cancellation. Captured for retention analytics. */
+            /**
+             * @description Free-text reason for cancellation (up to 480 chars). Captured for
+             *     retention analytics; sent to Stripe metadata. Only meaningful when
+             *     `action === "cancel"` — ignored for the other actions.
+             */
             reason?: string;
             /**
-             * @description Only required when action === "switch-plan".
+             * @description Target plan tier for `action: "switch-plan"`. Required for that
+             *     action; ignored otherwise. Until the server implements the switch,
+             *     the request returns 501.
              * @enum {string}
              */
             newPlanId?: PatchSubscriptionDtoNewPlanId;
@@ -2971,15 +3042,45 @@ export interface components {
             timezone: string;
         };
         UpdatePreferencesDto: {
-            /** @enum {string} */
+            /**
+             * @description Preferred narrator voice for audio chapters. Mirrors the
+             *     onboarding step 3 choice. Plugin emits the enum in OpenAPI.
+             * @enum {string}
+             */
             voicePreference?: UpdatePreferencesDtoVoicePreference;
+            /**
+             * @description Whether the home screen should prompt for a mood ping in the
+             *     morning if not already pinged today. Disable for users who find
+             *     the nudges noisy.
+             */
             moodPrompts?: boolean;
-            /** @enum {string} */
+            /**
+             * @description The time of day the user prefers to engage. Drives the inactive-nudge
+             *     scheduler + future smart-reminder timing. `"any"` opts out of the
+             *     heuristic.
+             * @enum {string}
+             */
             bestTime?: UpdatePreferencesDtoBestTime;
+            /**
+             * @description Self-set weekly reading goal in minutes (0–10080 = max 1 week). The
+             *     patterns module surfaces progress against this in the weekly
+             *     summary email. 0 = no goal set; UI hides the progress bar.
+             */
             weeklyGoalMinutes?: number;
-            /** @enum {string} */
+            /**
+             * @description UI theme preference. `"system"` follows OS dark-mode setting (web
+             *     + mobile); `"light"`/`"dark"` force the corresponding palette.
+             *     Client renders the change instantly.
+             * @enum {string}
+             */
             theme?: UpdatePreferencesDtoTheme;
-            /** @enum {string} */
+            /**
+             * @description UI language. v1 only has Spanish flavours: `"es-419"` (LATAM,
+             *     neutral / Ecuadorian) and `"es-ES"` (peninsular). User input
+             *     normalized to the Ecuadorian "tú" register either way — this just
+             *     picks copy tweaks.
+             * @enum {string}
+             */
             language?: UpdatePreferencesDtoLanguage;
         };
         UpdateReaderPreferencesDto: {
@@ -3044,11 +3145,25 @@ export interface components {
             mood: UpdateMoodDtoMood;
         };
         EmailChangeRequestDto: {
-            /** Format: email */
+            /**
+             * Format: email
+             * @description Target email the user wants to switch to. Must be a valid RFC 5321
+             *     address and NOT already registered (409 `EMAIL_ALREADY_REGISTERED`
+             *     on conflict). Case is normalized server-side.
+             */
             newEmail: string;
         };
         PasswordChangeDto: {
+            /**
+             * @description The user's current password. Verified against the bcrypt hash
+             *     before any write. Never logged.
+             */
             currentPassword: string;
+            /**
+             * @description New password (8–72 chars). Bcrypt silently truncates anything past
+             *     72 bytes, so the upper bound is enforced explicitly. Same rules as
+             *     register — picking weak passwords is the user's choice.
+             */
             newPassword: string;
         };
         ReencryptedEntryDto: {
@@ -3110,7 +3225,16 @@ export interface components {
             reencryptedEntries: components["schemas"]["ReencryptedEntryDto"][];
         };
         DeleteRequestDto: {
+            /**
+             * @description Current password — required to confirm intent. The 30-day cooldown
+             *     + email confirmation is the second factor. Verified against
+             *     bcrypt; never logged.
+             */
             password: string;
+            /**
+             * @description Optional reason for leaving (up to 500 chars). Captured for
+             *     retention analytics. Not surfaced anywhere user-facing.
+             */
             reason?: string;
         };
         OnboardingStep1Dto: {
@@ -3422,17 +3546,58 @@ export interface components {
             cancelUrl: string;
         };
         CreateAuthorBookDto: {
+            /**
+             * @description Draft title (2–120 chars). Editable later via `PATCH .../libros/:id`
+             *     up until the book is published. Bound to author's choice — no
+             *     uniqueness check, since drafts are private.
+             */
             title: string;
+            /**
+             * @description Optional ID of a template to scaffold the book with. v1 templates
+             *     include `"emociones-12"` (12-chapter emotion-mapping arc) and
+             *     `"familia-8"` (8-chapter family-systems arc). When omitted the
+             *     book starts empty with a single placeholder chapter.
+             */
             templateId?: string;
         };
         UpdateAuthorBookDto: {
+            /** @description New title (2–120 chars). Same constraints as `CreateAuthorBookDto`. */
             title?: string;
+            /**
+             * @description Optional subtitle (up to 200 chars). Shown below the title on the
+             *     cover and detail header. Often a clarifying second line —
+             *     "Un manual para…" style.
+             */
             subtitle?: string;
+            /**
+             * @description Long-form summary shown on the book detail screen. Up to 2000 chars
+             *     (~400 words). Plain text — markdown not interpreted in v1.
+             */
             summary?: string;
-            /** @enum {string} */
+            /**
+             * @description Cover palette token used as fallback when no `coverArtUrl` is set.
+             *     One of `"warm"` / `"cool"` / `"mixed"` — drives the gradient the
+             *     front renders. Plugin emits the enum in OpenAPI.
+             * @enum {string}
+             */
             cover?: UpdateAuthorBookDtoCover;
+            /**
+             * @description R2 URL of a custom cover image. When present, takes precedence
+             *     over `cover` (the palette token). Set via the cover-image upload
+             *     endpoint, then this PATCH wires it.
+             */
             coverArtUrl?: string;
+            /**
+             * @description Optional `BookCategory.id` (max 64 chars). Shown in the catalog
+             *     filter chips on `Mi Biblioteca`. Service validates the ID exists
+             *     in the category table.
+             */
             categoryId?: string;
+            /**
+             * @description ISO-639-1 language code (e.g. `"es"`, `"en"`). v1 only Spanish is
+             *     surfaced in the catalog, but author can mark drafts as English for
+             *     future expansion.
+             */
             language?: string;
         };
         ChapterBlockDto: {

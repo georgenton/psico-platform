@@ -2470,7 +2470,48 @@ Desde Sprint S44 los crons (WeeklyDigest, InactiveNudge) aterrizaban a horas dur
 
 ---
 
-### Próximo paso — Sesión 55 (deploy ops, no código)
+### Sesión 55 — 2026-06-13 ✅ COMPLETADA — Sprint Lector Audio Metadata
+
+**Rama sugerida:** `feature/sprint-lector-audio-metadata`
+**Tests:** 654/655 API + 122/122 web + 20/20 mobile + 34/34 crypto (sin nuevos)
+**Bitácora:** [docs/informes/sprint-lector-audio-metadata.md](docs/informes/sprint-lector-audio-metadata.md)
+
+**Lo que se construyó (cierra deuda de `sprint-lector-audio-background`):**
+
+Hasta hoy el lock-screen en iOS y los controles MediaSession en Android mostraban "Sin título" porque `expo-av` 15 no permite setear metadata dinámica desde JavaScript. Este sprint extiende `LectorAudioResponse` con `metadata: { title, subtitle, artist, artworkUrl }` para que (a) el audio bar renderee artwork + título en ambos clientes; (b) cuando ops embeba tags ID3v2/m4a al subir archivos (receta `ffmpeg` documentada en el nuevo `apps/api/src/lector/README.md`), el lock-screen leerá los tags del archivo directamente; (c) cuando llegue el día de migrar a `expo-audio` o `react-native-track-player`, el `LectorAudioMetadata` ya está en el contrato.
+
+**Backend:**
+- `LectorService.getAudio()` extiende la query de `book` con `title`, `cover`, `coverArtUrl`, `author: { name }`.
+- Return añade `metadata` con resolución de artwork: `book.coverArtUrl ?? book.cover ?? ""` (URL real PNG → token gradient).
+- `title` se compone server-side como `Cap. N · Título`.
+- 1 test nuevo: "uses coverArtUrl when present and falls back to cover token otherwise".
+
+**Web:** fila nueva en `AudioBar.tsx` arriba de los controles nativos. `<img>` cuando `artworkUrl` empieza por `http`, `<div>` con `linear-gradient` cuando es token.
+
+**Mobile:** mismo header en `LectorAudioBar.tsx`. `<Image>` con `uri` o `<View>` con `coverColor()` del helper de S5-front-mobile.
+
+**Decisiones:**
+1. Embed file-tags + API contract en mismo sprint (vs migrar a expo-audio — ~3-5 días).
+2. `title = "Cap. N · Título"` server-side (centraliza el formato).
+3. `artworkUrl` puede ser URL real o token de gradient (forward-compat con `coverArtUrl` cuando llegue Author B2B).
+4. Sin endpoint nuevo + sin migración Prisma — solo derivar campos existentes.
+
+**Cliente:** `generated.ts` regenerado (323 KB → 327 KB). `getAudio()` castea explícitamente a `LectorAudioResponse` así que la tipización fluye.
+
+**Smoke verification:**
+- API 654/655 + crypto 34/34 + web 122/122 + mobile 20/20.
+- typecheck + lint OK en los 3 workspaces.
+- OpenAPI `generate:check` in sync.
+
+**Deuda técnica abierta:**
+- Migrar a `expo-audio` o `react-native-track-player` para metadata dinámica desde JS.
+- Re-ejecutar embed ffmpeg para archivos m4a ya subidos a R2.
+- Sin validación cover ≤ 500×500 server-side (sprint Author B2B).
+- Sin tests UI dedicados del LectorAudioBar.
+
+---
+
+### Próximo paso — Sesión 56 (deploy ops, no código)
 
 **🎉 Pulso v2 completo + audit cleanup ✅.** Tres caminos:
 

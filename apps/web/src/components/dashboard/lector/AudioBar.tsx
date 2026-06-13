@@ -290,6 +290,48 @@ export function AudioBar({
               </div>
             ) : data ? (
               <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-3">
+                  {/* Artwork: real PNG when coverArtUrl set, gradient
+                      fallback otherwise (same look as the book covers). */}
+                  {data.metadata.artworkUrl.startsWith("http") ? (
+                    <img
+                      src={data.metadata.artworkUrl}
+                      alt={`Portada de ${data.metadata.subtitle}`}
+                      className="h-12 w-12 rounded-md object-cover"
+                    />
+                  ) : (
+                    <div
+                      aria-hidden
+                      className="h-12 w-12 rounded-md"
+                      style={{
+                        background:
+                          data.metadata.artworkUrl === "warm"
+                            ? "linear-gradient(135deg, var(--color-warm-200), var(--color-warm-400))"
+                            : data.metadata.artworkUrl === "mixed"
+                              ? "linear-gradient(135deg, var(--color-lavender-200), var(--color-warm-300))"
+                              : "linear-gradient(135deg, var(--color-lavender-200), var(--color-lavender-500))",
+                      }}
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className="truncate text-[13px] font-semibold"
+                      style={{
+                        color: "var(--reader-text, var(--color-warm-700))",
+                      }}
+                    >
+                      {data.metadata.title}
+                    </p>
+                    <p
+                      className="truncate text-[11.5px]"
+                      style={{
+                        color: "var(--reader-muted, var(--color-warm-500))",
+                      }}
+                    >
+                      {data.metadata.subtitle} · {data.metadata.artist}
+                    </p>
+                  </div>
+                </div>
                 <audio
                   ref={audioRef}
                   controls

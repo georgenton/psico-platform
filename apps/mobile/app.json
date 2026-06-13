@@ -11,11 +11,15 @@
       "package": "com.psico.platform",
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": ["FOREGROUND_SERVICE", "FOREGROUND_SERVICE_MEDIA_PLAYBACK"]
     },
     "ios": {
       "bundleIdentifier": "com.psico.platform",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
     },
     "plugins": ["expo-router", "expo-secure-store"],
     "experiments": {

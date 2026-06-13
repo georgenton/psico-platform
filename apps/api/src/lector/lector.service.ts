@@ -8,6 +8,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { Plan } from "@prisma/client";
 import type {
+  LectorAudioMetadata,
   LectorAudioResponse,
   LectorChapterResponse,
   LectorCompleteResponse,
@@ -288,7 +289,13 @@ export class LectorService {
 
     const book = await this.prisma.book.findFirst({
       where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
-      select: { id: true },
+      select: {
+        id: true,
+        title: true,
+        cover: true,
+        coverArtUrl: true,
+        author: { select: { name: true } },
+      },
     });
     if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
 
@@ -323,10 +330,29 @@ export class LectorService {
         ]
       : [];
 
+    // Lock-screen metadata. Returned in the response so the client can:
+    //   1. Render artwork + title in its own audio bar UI.
+    //   2. Pass them to a future media library that supports dynamic
+    //      lock-screen metadata (expo-audio / react-native-track-player).
+    // With current expo-av the iOS lock screen / Android MediaSession
+    // ONLY reads embedded ID3v2/m4a tags from the audio file itself.
+    // See LectorModule README §audio for the ffmpeg embed snippet.
+    //
+    // Artwork resolution order: explicit coverArtUrl → fallback chain via
+    // PUBLIC_URL + cover token. The cover token resolves to a gradient
+    // in-app but for lock-screen we need a real PNG, so prefer coverArtUrl.
+    const metadata: LectorAudioMetadata = {
+      title: `Cap. ${chapter.order} · ${chapter.title}`,
+      subtitle: book.title,
+      artist: book.author?.name ?? "Psico Platform",
+      artworkUrl: book.coverArtUrl ?? book.cover ?? "",
+    };
+
     return {
       url: audio.fileUrl,
       durationSec: audio.durationSeconds,
       transcript: segments,
+      metadata,
     };
   }
 

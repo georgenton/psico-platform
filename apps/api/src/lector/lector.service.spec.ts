@@ -14,6 +14,7 @@ const freeBook = {
   slug: "emociones-en-construccion",
   title: "Emociones en Construcción",
   cover: "warm",
+  coverArtUrl: null as string | null,
   totalChapters: 2,
   plan: "FREE" as const,
   author: { name: "Marina Quintana" },
@@ -307,6 +308,42 @@ describe("LectorService.getAudio (Pro gate)", () => {
     expect(result.durationSec).toBe(600);
     expect(result.transcript).toHaveLength(1);
     expect(result.transcript[0]?.text).toBe("transcript text");
+    // Metadata for lock-screen / audio bar display. Format is
+    // "Cap. <order> · <title>" + book title + author + coverArtUrl OR
+    // fallback to the cover gradient token.
+    expect(result.metadata).toEqual({
+      title: "Cap. 1 · Capítulo 1",
+      subtitle: "Emociones en Construcción",
+      artist: "Marina Quintana",
+      artworkUrl: "warm",
+    });
+  });
+
+  it("uses coverArtUrl when present and falls back to cover token otherwise", async () => {
+    const prisma = makePrisma({
+      book: {
+        findFirst: vi.fn().mockResolvedValue({
+          ...freeBook,
+          coverArtUrl: "https://cdn.example/cover.png",
+        }),
+      } as never,
+      chapter: {
+        findUnique: vi.fn().mockResolvedValue({
+          ...baseChapter,
+          audios: [
+            {
+              id: "a-1",
+              fileUrl: "https://r2.example/audio.m4a",
+              durationSeconds: 600,
+              transcription: "transcript text",
+            },
+          ],
+        }),
+      } as never,
+    });
+    const svc = new LectorService(prisma, config);
+    const result = await svc.getAudio("PRO" as Plan, "any", 1);
+    expect(result.metadata.artworkUrl).toBe("https://cdn.example/cover.png");
   });
 });
 

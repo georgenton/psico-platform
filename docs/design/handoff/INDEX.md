@@ -28,25 +28,29 @@ Documentación de implementación para todas las pantallas del producto. Un arch
 
 ## Índice de pantallas
 
-| #   | Pantalla / Área                         | Archivo                                        | HTML                              |
-| --- | --------------------------------------- | ---------------------------------------------- | --------------------------------- |
-| 01  | Onboarding (4 pasos + tour)             | [01-onboarding.md](./01-onboarding.md)         | `Onboarding.html`                 |
-| 02  | Inicio (home dashboard)                 | [02-inicio.md](./02-inicio.md)                 | `Inicio.html`                     |
-| 03  | Mi Biblioteca (catálogo + Mis libros)   | [03-biblioteca.md](./03-biblioteca.md)         | `Mi Biblioteca.html`              |
-| 04  | Detalle de libro                        | [04-detalle.md](./04-detalle.md)               | `Detalle de libro.html`           |
-| 05  | Lector (Modo Libro + Modo Guía + RISE)  | [05-lector.md](./05-lector.md)                 | `Lector.html`, `Lector RISE.html` |
-| 06  | Diario (lista, nueva entrada, entrada)  | [06-diario.md](./06-diario.md)                 | `Diario.html`                     |
-| 07  | Voz · dictado                           | [07-voz.md](./07-voz.md)                       | `Voice-to-text.html`              |
-| 08  | Eco (compañero IA)                      | [08-eco.md](./08-eco.md)                       | `Eco.html`                        |
-| 09  | Mi Plan (planes, suscripción, facturas) | [09-plan.md](./09-plan.md)                     | `Mi Plan.html`                    |
-| 10  | Perfil                                  | [10-perfil.md](./10-perfil.md)                 | `Perfil.html`                     |
-| 11  | Terapia (18 sub-pantallas)              | [11-terapia.md](./11-terapia.md)               | `Terapia.html`                    |
-| 12  | Patrones (insights del diario)          | [12-patrones.md](./12-patrones.md)             | `Patrones.html`                   |
-| 13  | Rutas (bundles de libros)               | [13-rutas.md](./13-rutas.md)                   | `Rutas.html`                      |
-| 14  | Dynamic Island (live activities iOS)    | [14-dynamic-island.md](./14-dynamic-island.md) | `Dynamic Island.html`             |
-| 15  | Wallpapers (fondos descargables)        | [15-wallpapers.md](./15-wallpapers.md)         | `Wallpapers.html`                 |
-| 16  | Editor de autor (B2B)                   | [16-author.md](./16-author.md)                 | `Editor de autor.html`            |
-| 17  | Pulso (back-office)                     | [../pulso/HANDOFF.md](../pulso/HANDOFF.md)     | `Pulso.html`                      |
+**Estado actualizado 2026-06-13 tras audit completo.** Backend / Web / Mobile reflejan la implementación real verificada contra módulos NestJS, rutas y schema Prisma.
+
+| #   | Pantalla / Área                         | Archivo                                        | Backend            | Web | Mobile                           |
+| --- | --------------------------------------- | ---------------------------------------------- | ------------------ | --- | -------------------------------- |
+| 01  | Onboarding (4 pasos + tour)             | [01-onboarding.md](./01-onboarding.md)         | ✅                 | ✅  | ✅                               |
+| 02  | Inicio (home dashboard)                 | [02-inicio.md](./02-inicio.md)                 | ✅                 | ✅  | ✅                               |
+| 03  | Mi Biblioteca (catálogo + Mis libros)   | [03-biblioteca.md](./03-biblioteca.md)         | ✅                 | ✅  | ✅                               |
+| 04  | Detalle de libro                        | [04-detalle.md](./04-detalle.md)               | ✅                 | ✅  | ✅                               |
+| 05  | Lector (Modo Libro + Modo Guía + RISE)  | [05-lector.md](./05-lector.md)                 | ✅                 | ✅  | ⚠️ view-only (text-selection v2) |
+| 06  | Diario (lista, nueva entrada, entrada)  | [06-diario.md](./06-diario.md)                 | ✅ E2E             | ✅  | ✅                               |
+| 07  | Voz · dictado                           | [07-voz.md](./07-voz.md)                       | ✅                 | ✅  | ✅                               |
+| 08  | Eco (compañero IA)                      | [08-eco.md](./08-eco.md)                       | ✅ E2E + SSE       | ✅  | ✅                               |
+| 09  | Mi Plan (planes, suscripción, facturas) | [09-plan.md](./09-plan.md)                     | ✅                 | ✅  | ✅                               |
+| 10  | Perfil                                  | [10-perfil.md](./10-perfil.md)                 | ✅                 | ✅  | ✅                               |
+| 11  | Terapia (18 sub-pantallas)              | [11-terapia.md](./11-terapia.md)               | ✅ gated           | ✅  | ✅                               |
+| 12  | Patrones (insights del diario)          | [12-patrones.md](./12-patrones.md)             | ✅ LLM             | ✅  | ✅                               |
+| 13  | Rutas (bundles de libros)               | [13-rutas.md](./13-rutas.md)                   | ❌                 | ❌  | ❌                               |
+| 14  | Dynamic Island (live activities iOS)    | [14-dynamic-island.md](./14-dynamic-island.md) | ⚠️ stub (ADR-0012) | —   | ❌ iOS surface                   |
+| 15  | Wallpapers (fondos descargables)        | [15-wallpapers.md](./15-wallpapers.md)         | ❌                 | ❌  | ❌                               |
+| 16  | Editor de autor (B2B)                   | [16-author.md](./16-author.md)                 | ✅                 | ✅  | — web-only                       |
+| 17  | Pulso (back-office)                     | [../pulso/HANDOFF.md](../pulso/HANDOFF.md)     | ✅                 | ✅  | — web-only                       |
+
+**Resumen:** 14/17 áreas completas. 1 backend-stub (Dynamic Island). 2 no priorizadas v1 (Rutas, Wallpapers).
 
 ---
 

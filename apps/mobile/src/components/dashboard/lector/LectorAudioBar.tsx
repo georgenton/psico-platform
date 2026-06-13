@@ -6,7 +6,12 @@ import {
   Text,
   View,
 } from "react-native";
-import { Audio, type AVPlaybackStatus } from "expo-av";
+import {
+  Audio,
+  InterruptionModeAndroid,
+  InterruptionModeIOS,
+  type AVPlaybackStatus,
+} from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
 import { lectorApi } from "@psico/api-client";
 import type {
@@ -17,6 +22,18 @@ import { Colors, Radius, Spacing } from "@/theme";
 
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5] as const;
 type SpeedRate = (typeof SPEED_OPTIONS)[number];
+
+/**
+ * Sleep timer presets. `null` means "off"; numbers are minutes. The
+ * user can pause earlier — the timer just guarantees auto-pause by N.
+ */
+const SLEEP_OPTIONS = [null, 15, 30, 60] as const;
+type SleepMinutes = (typeof SLEEP_OPTIONS)[number];
+
+function sleepLabel(opt: SleepMinutes): string {
+  if (opt === null) return "Off";
+  return `${opt}m`;
+}
 
 /**
  * LectorAudioBar — collapsible audio playback strip for the chapter.
@@ -56,6 +73,10 @@ export function LectorAudioBar({
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [speed, setSpeed] = useState<SpeedRate>(1);
+  const [sleepMin, setSleepMin] = useState<SleepMinutes>(null);
+  const sleepHandleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [sleepEndAt, setSleepEndAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
   const [transcript, setTranscript] = useState<LectorAudioTranscriptSegment[]>(
     [],
   );
@@ -121,6 +142,19 @@ export function LectorAudioBar({
         bookId,
         chapterOrder,
       )) as LectorAudioResponse;
+      // Background playback: stays alive when the user locks the
+      // screen or switches apps. Configured BEFORE Sound.createAsync
+      // so the session inherits the mode. Requires the iOS
+      // UIBackgroundModes + Android FOREGROUND_SERVICE perms set in
+      // app.json — without those, this call is a silent no-op.
+      await Audio.setAudioModeAsync({
+        staysActiveInBackground: true,
+        playsInSilentModeIOS: true,
+        interruptionModeIOS: InterruptionModeIOS.DuckOthers,
+        interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
       const { sound } = await Audio.Sound.createAsync(
         { uri: data.url },
         { shouldPlay: false, progressUpdateIntervalMillis: 500 },
@@ -171,12 +205,50 @@ export function LectorAudioBar({
     void soundRef.current.setRateAsync(speed, true);
   }, [speed]);
 
+  // Sleep timer: when the user picks a preset, arm a setTimeout. When
+  // it fires, pause the sound. Selecting "Off" or picking another
+  // preset clears the previous timer.
+  useEffect(() => {
+    if (sleepHandleRef.current) {
+      clearTimeout(sleepHandleRef.current);
+      sleepHandleRef.current = null;
+    }
+    if (sleepMin === null) {
+      setSleepEndAt(null);
+      return;
+    }
+    const endAt = Date.now() + sleepMin * 60_000;
+    setSleepEndAt(endAt);
+    sleepHandleRef.current = setTimeout(() => {
+      void soundRef.current?.pauseAsync();
+      setSleepMin(null);
+      setSleepEndAt(null);
+    }, sleepMin * 60_000);
+    return () => {
+      if (sleepHandleRef.current) {
+        clearTimeout(sleepHandleRef.current);
+        sleepHandleRef.current = null;
+      }
+    };
+  }, [sleepMin]);
+
+  // 1-second tick so the countdown label updates while a timer is armed.
+  // Stopped when no timer to avoid pointless re-renders.
+  useEffect(() => {
+    if (sleepEndAt === null) return;
+    const handle = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(handle);
+  }, [sleepEndAt]);
+
   // Release the native audio session when the screen goes away.
   useEffect(() => {
     return () => {
       if (soundRef.current) {
         void soundRef.current.unloadAsync();
         soundRef.current = null;
+      }
+      if (sleepHandleRef.current) {
+        clearTimeout(sleepHandleRef.current);
       }
     };
   }, []);
@@ -273,6 +345,39 @@ export function LectorAudioBar({
                           ]}
                         >
                           {opt}×
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+              <View style={styles.speedRow}>
+                <Text style={styles.speedLabel}>
+                  Temporizador
+                  {sleepEndAt ? ` · ${fmt(Math.max(0, sleepEndAt - now))}` : ""}
+                </Text>
+                <View style={styles.speedChips}>
+                  {SLEEP_OPTIONS.map((opt) => {
+                    const active = sleepMin === opt;
+                    return (
+                      <Pressable
+                        key={String(opt)}
+                        onPress={() => setSleepMin(opt)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                        style={({ pressed }) => [
+                          styles.speedChip,
+                          active && styles.speedChipActive,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.speedChipText,
+                            active && styles.speedChipTextActive,
+                          ]}
+                        >
+                          {sleepLabel(opt)}
                         </Text>
                       </Pressable>
                     );

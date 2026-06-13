@@ -25,25 +25,29 @@ Psico Platform is a psychoeducation SaaS. The repo is a Turborepo monorepo manag
 
 ### Mapeo de áreas de diseño → módulos NestJS actuales
 
-| Área de diseño | Módulo NestJS | Estado |
-|---|---|---|
-| Onboarding (`01-onboarding.md`) | `OnboardingModule` (nuevo) | Por hacer |
-| Inicio (`02-inicio.md`) | `HomeModule` (nuevo, agrega de varios) | Por hacer |
-| Mi Biblioteca (`03-biblioteca.md`) | `ContentModule` | ✅ Parcial — falta favorites/bookmarks |
-| Detalle de libro (`04-detalle.md`) | `ContentModule` | ✅ Parcial — falta reviews |
-| Lector (`05-lector.md`) | `ContentModule` + `ProgressModule` | ✅ Parcial — falta highlights/annotations |
-| Diario (`06-diario.md`) | `DiaryModule` (nuevo, **E2E**) | Por hacer |
-| Voz (`07-voz.md`) | `VoiceModule` (nuevo) | Por hacer |
-| Eco (`08-eco.md`) | `AIModule` (extender con threads/messages **E2E**) | ✅ RAG built — falta capa conversacional |
-| Mi Plan (`09-plan.md`) | `SubscriptionModule` | ✅ Hecho — falta usage + customer-portal |
-| Perfil (`10-perfil.md`) | `UsersModule` | Por hacer (estructura existe, falta surface) |
-| Terapia (`11-terapia.md`) | `TherapyModule` (nuevo, **gated**) | v2 — esperar a que cierren los gates de Pulso |
-| Patrones (`12-patrones.md`) | `PatternsModule` (nuevo, Pro) | Por hacer |
-| Rutas (`13-rutas.md`) | `SubscriptionModule` o `ContentModule` | Probablemente no implementar en v1 |
-| Dynamic Island (`14-dynamic-island.md`) | `NotificationsModule` | Por hacer (Live Activities) |
-| Wallpapers (`15-wallpapers.md`) | `ContentModule` o nuevo | No prioridad v1 |
-| Editor de autor (`16-author.md`) | `AuthorModule` (nuevo, rol B2B) | v2 |
-| Pulso (`17-pulso.md`) | `PulsoModule` (nuevo, rol admin) | v2 — tras validar v1 |
+**Actualizado 2026-06-13 tras audit completo.** Estado real verificado contra schema Prisma, módulos NestJS, web routes, mobile routes.
+
+| Área de diseño | Backend | Web | Mobile | Estado |
+|---|---|---|---|---|
+| 01 — Onboarding (4 pasos + tour) | `OnboardingModule` (11 endpoints) | ✅ `/onboarding/*` (5 pantallas) | ✅ `(onboarding)/*` | ✅ **Completo** |
+| 02 — Inicio (home) | `HomeModule` (3 endpoints) | ✅ `/dashboard` | ✅ `(tabs)/index.tsx` | ✅ **Completo** |
+| 03 — Mi Biblioteca (catálogo) | `BooksModule` (12 endpoints) | ✅ `/dashboard/biblioteca` | ✅ `(tabs)/books/*` | ✅ **Completo** |
+| 04 — Detalle de libro | `BooksModule` + `BookReview`/`BookFavorite`/`BookBookmark` | ✅ `/dashboard/biblioteca/[idOrSlug]` | ✅ `(tabs)/books/[slug]` | ✅ **Completo** |
+| 05 — Lector + audio | `LectorModule` + `HighlightsModule` + `AnnotationsModule` (10 endpoints) | ✅ `/dashboard/biblioteca/[idOrSlug]/lector/[chapterOrder]` (full editor) | ✅ `(tabs)/books/[slug]/lector/[chapterOrder]` (view-only + heartbeat + annotations) | ✅ **Completo** (mobile text-selection diferido v2) |
+| 06 — Diario (E2E) | `DiarioModule` (8 endpoints, cipher+nonce) + `@psico/crypto` | ✅ `/dashboard/diario` + `/dashboard/diario/[id]` (edit + delete) | ✅ `(tabs)/diario` + `(tabs)/diario/[id]` (edit + delete) | ✅ **Completo** |
+| 07 — Voz (dictado) | `VoiceModule` (2 endpoints, Whisper + Deepgram providers) | ✅ `/dashboard/voz` (MediaRecorder) | ✅ `(tabs)/voz` (expo-av) | ✅ **Completo** |
+| 08 — Eco (compañero IA) | `EcoModule` (7 endpoints, SSE streaming, crisis layers, cipher+nonce) | ✅ `/dashboard/eco` (chat + ThreadRail + crisis modal + reports) | ✅ `(tabs)/eco` (paridad + long-press reports) | ✅ **Completo** |
+| 09 — Mi Plan (billing) | `BillingModule` (11 endpoints, doble exposure 90d con `SubscriptionModule` legacy) | ✅ `/dashboard/plan` | ✅ `(tabs)/plan` | ✅ **Completo** |
+| 10 — Perfil | `UsersModule` (15 endpoints — profile, prefs, notifs, privacy, timezone, password rekey, data export, delete) | ✅ `/dashboard/perfil` + `/dashboard/security` + `/dashboard/notifications` | ✅ `(tabs)/profile` + `(tabs)/security` + `(tabs)/notifications` (deep-link only) | ✅ **Completo** |
+| 11 — Terapia (18 sub-pantallas) | `TerapiaModule` (24 endpoints — Therapist, Sessions, Prescriptions, Crisis, Notifications, Reports) + `CrisisLog` público sin auth | ✅ `/dashboard/terapia/*` (10 rutas: hub, terapeutas, perfil, reservar, sesiones, sala, recetas, notificaciones, crisis) | ✅ `(tabs)/terapia/*` (paridad excepto admin) | ✅ **Completo** (gated por flag) |
+| 12 — Patrones (insights) | `PatronesModule` (3 endpoints) + `WeeklySummary` (LLM-backed) + cron domingo | ✅ `/dashboard/patrones` (paywall FREE) | ✅ `(tabs)/patrones` (paywall FREE) | ✅ **Completo** |
+| 13 — Rutas (bundles) | — | — | — | ❌ **No implementado** (no priorizado v1 — bundles de libros temáticos) |
+| 14 — Dynamic Island | `LiveActivitiesModule` (stub backend con `LiveActivityToken` schema + APNs strategy ADR-0012) | — | — | ⚠️ **Backend stub solo** — falta iOS Live Activity surface + sesión activa cliente |
+| 15 — Wallpapers | — | — | — | ❌ **No implementado** (no priorizado v1 — fondos descargables) |
+| 16 — Editor de autor (B2B) | `AuthorModule` (16 endpoints — AuthorBook/Chapter/PublicationRequest/Earning/PayoutSetting) | ✅ `/autor/*` (dashboard, libros, capítulos, cobros) | — | ✅ **Completo** (web-only por diseño) |
+| 17 — Pulso (back-office admin) | `PulsoModule` (12 endpoints — Overview con sparklines+deltas, Reports resolution, Cohort retention) + `PlatformMetricDaily` cron + `CohortRetentionWeek` cron | ✅ `/dashboard/admin/*` (overview, users, author-requests, reports, cohorts) | — | ✅ **Completo** (web-only por diseño) |
+
+**Resumen:** 14/17 áreas completas (82 %). 1 área backend-stub (Dynamic Island). 2 áreas no implementadas y no priorizadas para v1 (Rutas, Wallpapers).
 
 ### Boundary v1 (lo que sí va al backend ahora)
 

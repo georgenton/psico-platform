@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -15,10 +16,24 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { lectorApi } from "@psico/api-client";
 import type {
+  LectorAudioMetadata,
   LectorAudioResponse,
   LectorAudioTranscriptSegment,
 } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
+import { coverColor } from "../cover-colors";
+
+/**
+ * The metadata.artworkUrl field can hold either:
+ *   - a real PNG/JPG URL (http(s)://…) → render <Image>
+ *   - a gradient token ("warm" | "cool" | "mixed") → solid color box
+ * The distinction matters because RN <Image> with a non-URL string
+ * will throw; the gradient case falls back to the same color helper
+ * used by BookGridCard so the audio bar matches the book covers.
+ */
+function isHttpUrl(s: string): boolean {
+  return s.startsWith("http://") || s.startsWith("https://");
+}
 
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5] as const;
 type SpeedRate = (typeof SPEED_OPTIONS)[number];
@@ -80,6 +95,7 @@ export function LectorAudioBar({
   const [transcript, setTranscript] = useState<LectorAudioTranscriptSegment[]>(
     [],
   );
+  const [metadata, setMetadata] = useState<LectorAudioMetadata | null>(null);
   const activeBlockRef = useRef<string | null>(null);
 
   // Defensive sort — backend may emit unsorted.
@@ -163,6 +179,7 @@ export function LectorAudioBar({
       soundRef.current = sound;
       setDurationMs(data.durationSec * 1000);
       setTranscript(data.transcript);
+      setMetadata(data.metadata);
       setOpen(true);
     } catch (err) {
       const status =
@@ -300,6 +317,32 @@ export function LectorAudioBar({
             </View>
           ) : (
             <View>
+              {metadata ? (
+                <View style={styles.metaRow}>
+                  {isHttpUrl(metadata.artworkUrl) ? (
+                    <Image
+                      source={{ uri: metadata.artworkUrl }}
+                      style={styles.artwork}
+                      accessibilityLabel={`Portada de ${metadata.subtitle}`}
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.artwork,
+                        { backgroundColor: coverColor(metadata.artworkUrl) },
+                      ]}
+                    />
+                  )}
+                  <View style={styles.metaText}>
+                    <Text style={styles.metaTitle} numberOfLines={1}>
+                      {metadata.title}
+                    </Text>
+                    <Text style={styles.metaSubtitle} numberOfLines={1}>
+                      {metadata.subtitle} · {metadata.artist}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
               <View style={styles.row}>
                 <Pressable
                   onPress={() => void togglePlay()}
@@ -432,6 +475,30 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  artwork: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.md,
+  },
+  metaText: {
+    flex: 1,
+  },
+  metaTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.warm[700],
+  },
+  metaSubtitle: {
+    fontSize: 11.5,
+    color: Colors.warm[500],
+    marginTop: 1,
   },
   playBtn: {
     width: 40,

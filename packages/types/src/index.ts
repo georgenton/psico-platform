@@ -1500,11 +1500,37 @@ export interface LectorAudioTranscriptSegment {
   blockId: string | null;
 }
 
+/**
+ * Display metadata for the chapter audio. The client shows it inside the
+ * audio bar (artwork + title + subtitle). It is ALSO embedded in the
+ * audio file itself via ID3v2 (MP3) / m4a atoms when the file is uploaded
+ * — that's the only path through which iOS lock screen and Android
+ * MediaSession can pick up the artwork. See the LectorModule README §audio.
+ */
+export interface LectorAudioMetadata {
+  /** Track title — typically "Cap. N · Título del capítulo". */
+  title: string;
+  /** Track subtitle — typically the book title. */
+  subtitle: string;
+  /** Track artist — author name. Falls back to "Psico Platform". */
+  artist: string;
+  /** Album-art URL (book cover). PNG/JPG, ≥300×300 recommended. */
+  artworkUrl: string;
+}
+
 export interface LectorAudioResponse {
   /** Signed R2 URL, expires in 1h. */
   url: string;
   durationSec: number;
   transcript: LectorAudioTranscriptSegment[];
+  /**
+   * Display metadata for the bar UI + the contract clients will use when
+   * they migrate to a media library that supports dynamic lock-screen
+   * metadata (expo-audio / react-native-track-player). With current
+   * expo-av the lock-screen still reads embedded file tags — see
+   * LectorModule README for the ffmpeg embed snippet.
+   */
+  metadata: LectorAudioMetadata;
 }
 
 // ─── Lector · complete ───────────────────────────────────────────────────────

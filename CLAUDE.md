@@ -2511,7 +2511,51 @@ Hasta hoy el lock-screen en iOS y los controles MediaSession en Android mostraba
 
 ---
 
-### Próximo paso — Sesión 56 (deploy ops, no código)
+### Sesión 56 — 2026-06-13 ✅ COMPLETADA — Sprint Lector Audio Tests UI
+
+**Rama sugerida:** `feature/sprint-lector-audio-tests`
+**Tests:** 135/135 web (+13 nuevos) · 29/29 mobile (+9 nuevos) · 654/655 API + 34/34 crypto (sin cambios)
+**Bitácora:** [docs/informes/sprint-lector-audio-tests.md](docs/informes/sprint-lector-audio-tests.md)
+
+**Lo que se construyó (cierra deuda del sprint anterior):**
+
+Hasta hoy el AudioBar — web y mobile — no tenía tests propios, era el componente más complejo del Lector sin coverage. 22 tests nuevos cubriendo:
+
+**Web (`AudioBar.test.tsx`, 13 tests):**
+- Pill toggle: cerrada en mount sin fetch; primer fetch con Bearer al abrir.
+- Fetch state branches: 403 upsell Pro + link a `/dashboard/plan`; 404 not-found; network error + retry.
+- Metadata rendering: `<img>` cuando artworkUrl es URL; gradient `<div>` cuando es token; subtitle + artist; `<audio>` con URL signed.
+- Speed control: 4 chips con 1× activo; flip aria-pressed al picar 1.5×.
+- Sleep timer (`vi.useFakeTimers`): Off activo por default; picar 15m arma countdown.
+
+**Mobile (`LectorAudioBar.test.tsx`, 9 tests):**
+- Mock de `expo-av` con `mock*` prefix (requisito del Jest hoister).
+- Pill toggle: sin llamadas en mount; `setAudioModeAsync` ANTES de `Sound.createAsync` (verifica orden de background-audio).
+- Fetch state branches: `{ statusCode: 403/404 }` + error genérico.
+- Metadata rendering: título + subtitle/artist; play button + 4 speed chips; Off + 1× como únicos selected.
+
+**Decisiones clave:**
+1. Mock `fetch` global (web) vs mock `lectorApi.getAudio` (mobile) — cada cliente consume su propia capa.
+2. `mock*` prefix en mobile (única forma de referenciar vars en factory de `jest.mock`).
+3. `MockInstance<typeof fetch>` (Vitest) en lugar de `ReturnType<typeof vi.spyOn>` (colapsa a `unknown`).
+4. `useFakeTimers` solo en el group de sleep timer — fuera bloquea `waitFor`.
+5. Sleep chip "Off active" via filter sobre `getAllByRole("button")` con `accessibilityState.selected===true`.
+
+**Smoke verification:**
+- Web tests 135/135 (+13). Mobile tests 29/29 (+9).
+- Web typecheck + lint OK. Mobile typecheck + lint OK.
+- API + crypto sin cambios.
+
+**Deuda técnica abierta:**
+- Audio playback lifecycle (play/pause/onStatus) no cubierto — requiere mock de audio nativo.
+- Transcript sync no probado — depende de `currentTime` que avanza con audio real.
+- Speed `setRateAsync` mobile sin verificar `shouldCorrectPitch`.
+- Web sleep timer fire (pause después N min) sin tests del HTMLAudioElement mock.
+- Tests del LectorShell (block render + highlights + annotations + heartbeat) siguen sin cobertura.
+
+---
+
+### Próximo paso — Sesión 57 (deploy ops, no código)
 
 **🎉 Pulso v2 completo + audit cleanup ✅.** Tres caminos:
 

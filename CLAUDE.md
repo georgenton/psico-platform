@@ -2559,7 +2559,20 @@ Hasta hoy el AudioBar — web y mobile — no tenía tests propios, era el compo
 
 ---
 
-### Próximo paso — Sesión 57 (deploy ops, no código)
+### Próximo paso — Roadmap v1 freeze + validación
+
+📖 **El plan completo de los próximos sprints y el congelamiento de v1 vive en [docs/ROADMAP.md](docs/ROADMAP.md).** Ese documento es el source of truth para:
+
+1. Saber dónde estamos sin volver a hacer el audit (cobertura de las 17 áreas, estado de tests, deploy).
+2. Plan de sprints 1–7 para cerrar v1.
+3. Protocolo de freeze + validación profunda con users reales.
+4. v2 gate (Therapy enable, Dynamic Island, LATAM expand).
+
+**Próximo paso sugerido:** sprint **Ops bundle** (orden 1 en §4 del roadmap) — Stripe price IDs + API keys + ffmpeg embed. Desbloquea revenue y deja los servicios externos vivos en prod.
+
+---
+
+### Histórico — Sesión 57 (deploy ops, no código)
 
 **🎉 Pulso v2 completo + audit cleanup ✅.** Tres caminos:
 

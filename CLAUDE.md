@@ -2706,11 +2706,49 @@ Mobile lector tenía paridad funcional pendiente con web: read + annotations OK,
 
 ---
 
-### Próximo paso — Sprint 5 (Seed phrase UI wire + Edit entry mobile)
+### Sesión 61 — 2026-06-17 ✅ COMPLETADA — Sprint 5 audit + fix salt-length DTO
 
-📖 **El roadmap maestro vive en [docs/ROADMAP.md](docs/ROADMAP.md).** Sprints 1, 2, 3 y 4 cubiertos.
+**Rama sugerida:** `fix/salt-length-dto`
+**Tests:** 674/675 API (+6 nuevos DTO · 1 skipped sentinel) · web/mobile/crypto sin cambios
+**Bitácora:** [docs/informes/sprint-fix-salt-length.md](docs/informes/sprint-fix-salt-length.md)
 
-**Próximo sprint sugerido:** **Sprint 5** — Recovery seed phrase UI wire (modal del Diario en primer-unlock para users legacy) + Edit entry mobile (parity con web).
+**Lo que se descubrió:**
+
+Empezamos Sprint 5 del roadmap (Recovery seed phrase + Edit entry mobile). Auditoría con agent reveló que **ambos flows ya estaban wireados** desde sprints anteriores:
+
+- **Seed phrase modal web** — montado en `DiarioShell.tsx:69` con gate `!seedAlreadyShown && !ackInThisSession && masterKey`.
+- **Seed phrase modal mobile** — `(tabs)/diario/index.tsx:121-126` con lazy-fetch de `/user/me` post-unlock + POST `/api/user/crypto-seed-acknowledged`.
+- **Edit entry mobile** — `(tabs)/diario/[id].tsx` con state machine completo + PATCH a `/api/diario/entries/:id`.
+
+El roadmap del 2026-06-13 listaba esos items como pendientes basándose en una auditoría que no miró el detalle de los archivos. Honesto reflejarlo en el doc.
+
+**Lo que sí se construyó: fix del salt-length DTO**
+
+Cierra deuda explícita del Sprint 3 (`sprint-e2e-rekey-lectorshell`): el DTO validaba `Length(24, 28)` para `newCryptoSalt` pero `auth.service.ts` produce salts de 22 chars (16 bytes b64url). Cualquier rekey real fallaba con 400.
+
+1. `apps/api/src/users/dto/password-change-with-rekey.dto.ts` — `SALT_B64_LEN = 24` reemplazado por `SALT_B64_MIN = 22 / MAX = 28`. Comment corregido (era erróneo: 16 bytes b64url unpadded son 22 chars, no 24).
+2. `apps/api/src/users/rekey.e2e-spec.ts` — el E2E de Sprint 3 usaba `randomBytes(18)` como workaround. Reemplazado por `randomBytes(16)` (idéntico a auth.service). Convierte el test en regression guard real.
+3. `apps/api/src/users/dto/password-change-with-rekey.dto.spec.ts` (nuevo) — 6 tests del DTO cubriendo: acepta 22/24/28, rechaza 21/29, rechaza chars no-b64url.
+
+**Decisiones:**
+1. Fix solo el DTO, no cambiar auth.service. Razones: cuentas legacy ya tienen salts de 22 chars; no hay security benefit subir a 18 bytes (encima del floor de 128 bits); single-point fix.
+2. Mantener rango 22-28 — forward-compat con clientes futuros que generen salts ligeramente más grandes.
+
+**Smoke verification:**
+- API tests 674/675 + typecheck + lint OK.
+- E2E rekey corre con salts de 22 chars idénticos a auth real.
+
+---
+
+### Próximo paso — polish o freeze
+
+📖 **El roadmap maestro vive en [docs/ROADMAP.md](docs/ROADMAP.md).** Sprints 1-5 cerrados + el bug de Sprint 3.
+
+**Opciones:**
+- **Settings UI: explicit TZ selector** (~½ día) — polish #13.
+- **`expo-av` → `expo-audio`** (3-5 días) — polish #10, metadata dinámica lock-screen.
+- **Testcontainers para E2E API** — migrar de Prisma mock.
+- **Freeze v1 + validación** — todos los items críticos del código están cerrados; solo faltan los 3 items ops (Stripe price IDs + API keys + ffmpeg embed real).
 
 ---
 

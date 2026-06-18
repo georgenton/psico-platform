@@ -2559,16 +2559,48 @@ Hasta hoy el AudioBar — web y mobile — no tenía tests propios, era el compo
 
 ---
 
-### Próximo paso — Roadmap v1 freeze + validación
+### Sesión 57 — 2026-06-17 ✅ COMPLETADA — Sprint Ops Bundle (código de Sprint 1)
 
-📖 **El plan completo de los próximos sprints y el congelamiento de v1 vive en [docs/ROADMAP.md](docs/ROADMAP.md).** Ese documento es el source of truth para:
+**Rama sugerida:** `feature/sprint-ops-bundle`
+**Tests:** 660/661 API (+6 nuevos · 1 skipped sentinel) + 34 crypto + 135 web + 29 mobile
+**Bitácora:** [docs/informes/sprint-ops-bundle.md](docs/informes/sprint-ops-bundle.md)
+**Roadmap:** [docs/ROADMAP.md §3-4 — Sprint 1](docs/ROADMAP.md)
 
-1. Saber dónde estamos sin volver a hacer el audit (cobertura de las 17 áreas, estado de tests, deploy).
-2. Plan de sprints 1–7 para cerrar v1.
-3. Protocolo de freeze + validación profunda con users reales.
-4. v2 gate (Therapy enable, Dynamic Island, LATAM expand).
+**Lo que se construyó:**
 
-**Próximo paso sugerido:** sprint **Ops bundle** (orden 1 en §4 del roadmap) — Stripe price IDs + API keys + ffmpeg embed. Desbloquea revenue y deja los servicios externos vivos en prod.
+Cierra la parte código de Sprint 1 del roadmap. Las tareas ops puras (Stripe price IDs en Railway, API keys en Railway, embed real de audio files) quedan en backlog del usuario.
+
+1. **`scripts/embed-audio-metadata.mjs`** — Node 20+ bulk ffmpeg embed para tags ID3v2/m4a. Manifest JSON, idempotente, `--dry-run`. Sin deps externas.
+2. **`GET /api/health/integrations`** ADMIN-only — reporta `{configured: boolean, stub?: true}` por cada integración (Stripe, Anthropic, Voice, Resend, Google, Redis, VAPID, R2). NO leak de valores.
+3. **Boot-time banner** en `main.ts` — lista `[MISSING]`/`[STUB]` por item al arrancar. Silente en prod cuando todo OK.
+4. **6 unit tests** del `IntegrationsService` cubriendo empty env, stubs, voice routing, bootIssues shape.
+
+**Decisiones:**
+1. Endpoint ADMIN-only (no público) — el shape revela qué integraciones espera el sistema.
+2. `stub` detection heurística por regex `/stub|test/i`.
+3. Sin breaking change al `/health` simple — los monitores externos siguen igual.
+4. `require()` dinámico en main.ts para resolver el servicio sin circularidad.
+5. Banner silente en prod cuando OK — solo informa si hay issues.
+
+**Smoke verification:**
+- API tests 660/661 + crypto 34 + web 135 + mobile 29.
+- typecheck + lint OK.
+- Boot banner detecta 11 issues con env stubs reales.
+- Script ffmpeg `--dry-run` válido con manifest sample.
+- OpenAPI `generate:check` in sync.
+
+**Deuda ops (no código — usuario en Railway/Stripe):**
+- Stripe price IDs reales (Pro mensual, Pro anual, B2B).
+- API keys: Anthropic, OpenAI, Resend, Google Client ID, VAPID trio.
+- Embed real con ffmpeg + subir a R2 los 4 archivos m4a.
+
+---
+
+### Próximo paso — Sprint 2 (Sentry wire)
+
+📖 **El roadmap maestro vive en [docs/ROADMAP.md](docs/ROADMAP.md).** El Sprint 1 (Ops bundle) está cubierto en su parte código; las 3 tareas ops pendientes quedan en backlog del usuario.
+
+**Próximo sprint sugerido:** **Sentry wire** (Sprint 2 del roadmap) — instrumentar API + worker + web + mobile. Bloqueante para visibility en prod.
 
 ---
 

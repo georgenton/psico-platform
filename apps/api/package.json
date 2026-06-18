@@ -63,6 +63,7 @@
     "@nestjs/cli": "^10.3.2",
     "@nestjs/schematics": "^10.1.1",
     "@nestjs/testing": "^10.3.9",
+    "@psico/crypto": "workspace:*",
     "@psico/eslint-config": "workspace:*",
     "@psico/typescript-config": "workspace:*",
     "@swc/core": "^1.15.40",

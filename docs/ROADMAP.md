@@ -70,8 +70,8 @@ Ver [docs/design/handoff/INDEX.md](design/handoff/INDEX.md) para el mapeo exacto
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 4   | **Mobile text-selection en el Lector** — único feature significativo del core que está diferido (web tiene highlights inline funcionando). Necesita libraries adicionales RN. |
 | 5   | ✅ **Observability (Sentry)** — código wireado en los 4 surfaces. Falta solo configurar DSNs en Railway/Vercel/EAS.                                                           |
-| 6   | **Tests UI del LectorShell** — el container del lector (block render + highlights + annotations + heartbeat) no tiene tests. El AudioBar sí (sprint anterior).                |
-| 7   | **E2E full-circle tests del re-encrypt del Diario** — encrypt → POST → password change → decrypt con nueva key. Solo unit tests hoy.                                          |
+| 6   | ✅ **Tests UI del LectorShell** — cubierto con `sprint-e2e-rekey-lectorshell` (7 tests). Text-selection flow sigue diferido.                                                  |
+| 7   | ✅ **E2E full-circle del re-encrypt del Diario** — cubierto con `sprint-e2e-rekey-lectorshell` (1 test que pasa por cripto real + HTTP real).                                 |
 | 8   | **Sunset 2026-08-31 del path `/api/subscriptions/*` legacy** — eliminar el doble exposure cuando cierre la ventana 90d (Sprint S11).                                          |
 | 9   | **Migración de tests E2E API a Postgres real (testcontainers)** — actualmente usan mock de Prisma. No captura bugs de queries reales.                                         |
 

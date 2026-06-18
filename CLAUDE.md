@@ -2638,11 +2638,46 @@ Wire de Sentry en los 4 surfaces para tener traza de bugs en prod sin recrear el
 
 ---
 
-### Próximo paso — Sprint 3 (E2E re-encrypt + LectorShell UI tests)
+### Sesión 59 — 2026-06-17 ✅ COMPLETADA — Sprint 3 (E2E re-encrypt + LectorShell UI)
 
-📖 **El roadmap maestro vive en [docs/ROADMAP.md](docs/ROADMAP.md).** Sprints 1 y 2 cubiertos en su parte código.
+**Rama sugerida:** `feature/sprint-e2e-rekey-lectorshell`
+**Tests:** 668/669 API (+1 E2E rekey) + 142/142 web (+7 LectorShell) + 34 crypto + 29 mobile
+**Bitácora:** [docs/informes/sprint-e2e-rekey-lectorshell.md](docs/informes/sprint-e2e-rekey-lectorshell.md)
 
-**Próximo sprint sugerido:** **Sprint 3** — E2E full-circle test del re-encrypt del Diario (encrypt → POST → password change → decrypt con nueva key) + tests UI del `LectorShell` (block render + highlights + annotations + heartbeat).
+**Lo que se construyó (cierra Sprint 3 del roadmap):**
+
+1. **E2E full-circle del re-encrypt del Diario** — `apps/api/src/users/rekey.e2e-spec.ts`. Ejerce: derive key₁ → encrypt cipher₁ → login HTTP → POST entry → derive key₂ → re-encrypt → POST rekey → decrypt cipher₂ con key₂ ✅. Plus negative control (key₁ no decrypta cipher₂) + assertion atómica de refresh tokens revocados. ~8s por dos Argon2id derivations + HTTP real.
+2. **LectorShell UI tests** — 7 tests cubriendo: header (book + chapter title), blocks render en orden, botones aria-label, progress bar style width, annotations panel toggle (cerrado por default + revela annotations al abrir), conditional copy del complete CTA ("sigue leyendo" vs "casi al final" cuando ≥0.9). Mocks: `next/navigation`, `AudioBar`, IntersectionObserver.
+3. **Harness extendido** — `apps/api/src/test/e2e-app.ts` ahora incluye `diaryEntry` mock.
+
+**Bug descubierto:**
+- **Salt length DTO mismatch:** `password-change-with-rekey.dto.ts` valida `Length(24, 28)` para `newCryptoSalt`, pero `auth.service.ts` produce salts de 22 chars (16 bytes b64url). Cualquier rekey real falla con 400. Mitigado en el E2E con 18-byte salts. **Fix queda como sprint propio** porque cambia el comportamiento de cuentas legacy.
+
+**Decisiones:**
+1. E2E con Prisma mock — coherente con harness existente. La cripto es real; la cuenta cripto es lo que se garantiza.
+2. `AudioBar` mockeado — tiene su propio test desde el sprint anterior.
+3. IntersectionObserver stub global — jsdom no lo implementa.
+4. Conditional copy en lugar de button presence — el botón siempre renderiza por decisión UX.
+5. Text-selection flow NO cubierto — diferido a Sprint 4.
+
+**Smoke verification:**
+- API tests 668/669 + web 142/142 + crypto 34/34 + mobile 29/29.
+- typecheck + lint OK en API + Web.
+
+**Deuda técnica abierta:**
+- Salt length DTO mismatch — sprint propio para reconciliar.
+- Testcontainers para E2E API.
+- Text-selection en LectorShell test — Sprint 4.
+- `use-heartbeat` hook sin test propio.
+- Annotations CRUD en LectorShell no cubierto.
+
+---
+
+### Próximo paso — Sprint 4 (Mobile text-selection)
+
+📖 **El roadmap maestro vive en [docs/ROADMAP.md](docs/ROADMAP.md).** Sprints 1, 2 y 3 cubiertos.
+
+**Próximo sprint sugerido:** **Sprint 4** — Mobile text-selection en el Lector. Único feature del core diferido (~2 días). Web tiene highlights inline funcionando; mobile es view-only.
 
 ---
 

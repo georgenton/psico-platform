@@ -89,6 +89,15 @@ function makePrismaMock() {
     profile: {
       upsert: fn(),
     },
+    diaryEntry: {
+      findMany: fn(),
+      findFirst: fn(),
+      findUnique: fn(),
+      create: fn(),
+      update: fn(),
+      delete: fn(),
+      count: fn(),
+    },
     // Other models added on demand by future sprints.
     $transaction: vi.fn(async (arg: unknown) => {
       if (typeof arg === "function") {

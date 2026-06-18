@@ -2673,11 +2673,44 @@ Wire de Sentry en los 4 surfaces para tener traza de bugs en prod sin recrear el
 
 ---
 
-### Próximo paso — Sprint 4 (Mobile text-selection)
+### Sesión 60 — 2026-06-17 ✅ COMPLETADA — Sprint 4 (Mobile highlights v1)
 
-📖 **El roadmap maestro vive en [docs/ROADMAP.md](docs/ROADMAP.md).** Sprints 1, 2 y 3 cubiertos.
+**Rama sugerida:** `feature/sprint-mobile-highlights`
+**Tests:** 37/37 mobile (+8 BlockActionsSheet) + 668 API + 142 web + 34 crypto
+**Bitácora:** [docs/informes/sprint-mobile-highlights.md](docs/informes/sprint-mobile-highlights.md)
 
-**Próximo sprint sugerido:** **Sprint 4** — Mobile text-selection en el Lector. Único feature del core diferido (~2 días). Web tiene highlights inline funcionando; mobile es view-only.
+**Lo que se construyó (cierra Sprint 4 del roadmap):**
+
+Mobile lector tenía paridad funcional pendiente con web: read + annotations OK, pero **no se podía resaltar**. Este sprint cierra esa deuda con la decisión pragmática de **block-level highlights v1**: long-press en el párrafo marca el bloque entero (`startOffset:0, endOffset:content.length`), reusa el mismo contrato server, ship hoy. Character-level queda diferido hasta que RN tenga selection API estable.
+
+1. **Pantalla mobile** — long-press abre `BlockActionsSheet` con 3 swatches (Amarillo/Azul/Rosa), "Añadir nota" y "Cancelar". Cuarta acción destructiva "Quitar resaltado" gated por `hasHighlight`. Optimistic insert/remove con temp ID. BlockView aplica tint (bg + borderLeft) del primer highlight del block.
+2. **`BlockActionsSheet`** extraído a `apps/mobile/src/components/dashboard/lector/` para testabilidad. Componente 100% presentacional + helper `highlightStyleFor(color)`.
+3. **8 tests nuevos** del sheet: render, gating del destructive row, callbacks (3 colores + nota + quitar + cancel), `highlightStyleFor` retorna paleta correcta.
+
+**Decisiones:**
+1. Block-level v1 vs character-level — RN no tiene selection API first-party; libraries unmaintained para SDK 52.
+2. Tint del primer highlight (no merged) — design no define multi-color overlap.
+3. Optimistic UI con temp ID — feedback visual instantáneo + rollback al error.
+4. TestID en BlockView `block-${id}-${color?}` — útil para tests integrados.
+5. Long-press substituye al prompt directo de annotation — gestures unificados.
+
+**Smoke verification:**
+- Mobile tests 37/37 + typecheck + lint OK.
+- API + web + crypto sin cambios.
+
+**Deuda técnica abierta:**
+- Character-level highlights — esperar RN 0.78+ con selection API.
+- Multi-color en mismo block — char-level lo resuelve naturalmente.
+- Sin test integrado del flow completo (long-press → sheet → POST).
+- `note?` en highlight no se setea — feature separada de annotation v1.
+
+---
+
+### Próximo paso — Sprint 5 (Seed phrase UI wire + Edit entry mobile)
+
+📖 **El roadmap maestro vive en [docs/ROADMAP.md](docs/ROADMAP.md).** Sprints 1, 2, 3 y 4 cubiertos.
+
+**Próximo sprint sugerido:** **Sprint 5** — Recovery seed phrase UI wire (modal del Diario en primer-unlock para users legacy) + Edit entry mobile (parity con web).
 
 ---
 

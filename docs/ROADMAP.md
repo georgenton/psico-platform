@@ -54,6 +54,8 @@ Ver [docs/design/handoff/INDEX.md](design/handoff/INDEX.md) para el mapeo exacto
 
 ### 🔴 Bloqueantes para revenue (ops, no código)
 
+> **Update 2026-06-17:** parte código del Sprint 1 cerrada con `sprint-ops-bundle` — script ffmpeg + `GET /api/health/integrations` (ADMIN-only) + boot banner. Las 3 tareas debajo siguen abiertas porque dependen de credenciales en Railway/Stripe. Validación en prod: `curl -H "Authorization: Bearer <admin-jwt>" .../api/health/integrations`.
+
 | #   | Tarea                                                                                                                                                                                                                | Effort     |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | 1   | **Stripe price IDs reales en Railway** — `STRIPE_PRO_MONTHLY_PRICE_ID`, `STRIPE_PRO_YEARLY_PRICE_ID`, `STRIPE_B2B_PRICE_ID`. Sin esto el checkout no funciona en prod. Deuda desde Sesión 30.                        | 30 min     |

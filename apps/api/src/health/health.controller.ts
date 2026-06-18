@@ -1,6 +1,17 @@
-import { Controller, Get } from "@nestjs/common";
-import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Controller, Get, UseGuards } from "@nestjs/common";
+import {
+  ApiForbiddenResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
 import { SkipThrottle } from "@nestjs/throttler";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RequiredRole, RolesGuard } from "../shared";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { IntegrationsService } from "./integrations.service";
 
 @ApiTags("Health")
 @Controller("health")
@@ -10,6 +21,8 @@ import { SkipThrottle } from "@nestjs/throttler";
 // always-available — opting out of throttling is the safe choice.
 @SkipThrottle()
 export class HealthController {
+  constructor(private readonly integrations: IntegrationsService) {}
+
   @Get()
   @ApiOperation({
     summary: "Liveness check",
@@ -18,5 +31,19 @@ export class HealthController {
   })
   check() {
     return { status: "ok", timestamp: new Date() };
+  }
+
+  @Get("integrations")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequiredRole("ADMIN")
+  @ApiOperation({
+    summary: "Integrations status (ADMIN only)",
+    description:
+      "Reports which external services are configured in the running environment. Booleans only — no env values are leaked. The `stub` flag is true when a value matches a placeholder pattern (test/stub) so ops can spot mis-configured prod boxes. Use this to sanity-check a Railway deploy before running smoke tests.",
+  })
+  @ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+  @ApiForbiddenResponse({ type: ErrorEnvelopeDto })
+  integrationsReport() {
+    return this.integrations.report();
   }
 }

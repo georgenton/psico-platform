@@ -64,10 +64,12 @@ Ver [docs/design/handoff/INDEX.md](design/handoff/INDEX.md) para el mapeo exacto
 
 ### 🟡 Deuda técnica para cerrar v1 con calidad
 
+> **Update 2026-06-17:** Sentry wire (item 5) cerrado con `sprint-sentry`. Falta solo configurar DSNs en Railway/Vercel/EAS Build + validar con un throw 500 controlado.
+
 | #   | Tarea                                                                                                                                                                         |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 4   | **Mobile text-selection en el Lector** — único feature significativo del core que está diferido (web tiene highlights inline funcionando). Necesita libraries adicionales RN. |
-| 5   | **Observability (Sentry)** — wire API + worker + web + mobile. Sin esto los bugs en prod son ciegos.                                                                          |
+| 5   | ✅ **Observability (Sentry)** — código wireado en los 4 surfaces. Falta solo configurar DSNs en Railway/Vercel/EAS.                                                           |
 | 6   | **Tests UI del LectorShell** — el container del lector (block render + highlights + annotations + heartbeat) no tiene tests. El AudioBar sí (sprint anterior).                |
 | 7   | **E2E full-circle tests del re-encrypt del Diario** — encrypt → POST → password change → decrypt con nueva key. Solo unit tests hoy.                                          |
 | 8   | **Sunset 2026-08-31 del path `/api/subscriptions/*` legacy** — eliminar el doble exposure cuando cierre la ventana 90d (Sprint S11).                                          |

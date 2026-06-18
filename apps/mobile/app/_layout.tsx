@@ -2,7 +2,12 @@ import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { Slot, useRouter, useSegments } from "expo-router";
 import { AuthProvider, useAuth } from "@/context/auth";
+import { initSentry } from "@/observability/sentry";
 import { Colors } from "@/theme";
+
+// Boot Sentry once at module load — before any screen renders. No-op
+// when EXPO_PUBLIC_SENTRY_DSN is not set.
+initSentry();
 
 function AuthGate() {
   const { isAuthenticated, isLoading } = useAuth();

@@ -21,6 +21,7 @@
     "@psico/api-client": "workspace:*",
     "@psico/crypto": "workspace:*",
     "@psico/types": "workspace:*",
+    "@sentry/react-native": "^6.22.0",
     "expo": "~52.0.0",
     "expo-av": "~15.0.2",
     "expo-device": "~7.0.3",

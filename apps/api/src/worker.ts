@@ -1,4 +1,8 @@
 import "reflect-metadata";
+// Sentry first — same rationale as main.ts.
+import { initSentry } from "./observability/sentry";
+initSentry();
+
 import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { WorkerAppModule } from "./jobs/worker.module";

@@ -67,10 +67,10 @@ describe("Diario rekey · E2E (real crypto)", () => {
     // ── Step 1 · derive key₁ and encrypt the plaintext ─────────────────
     // deriveMasterKey expects the salt already encoded as base64url —
     // that mirrors the wire format the backend stores in User.cryptoSalt.
-    // The rekey DTO validates the b64url len in [24, 28] (see
-    // password-change-with-rekey.dto.ts SALT_B64_LEN), so 18 raw bytes
-    // (b64url unpadded = 24 chars) keeps us inside the bounds.
-    const salt1B64 = bytesToBase64Url(randomBytes(18));
+    // 16 raw bytes → 22 chars b64url unpadded, exactly what
+    // auth.service.ts produces via Node `randomBytes(16).toString("base64url")`.
+    // The rekey DTO accepts 22–28 chars (loosened by `fix-salt-length-dto`).
+    const salt1B64 = bytesToBase64Url(randomBytes(16));
     const masterKey1 = await deriveMasterKey(PASSWORD_1, salt1B64);
     const diaryKey1 = deriveSubKey(masterKey1, DIARY_KEY_INFO);
     const envelope1 = encryptString(PLAINTEXT, diaryKey1);
@@ -135,7 +135,7 @@ describe("Diario rekey · E2E (real crypto)", () => {
     // In real life the client decrypts cipher₁ in-memory with key₁ and
     // re-encrypts the plaintext with key₂. The plaintext never touches
     // the wire. We mirror that here.
-    const salt2B64 = bytesToBase64Url(randomBytes(18));
+    const salt2B64 = bytesToBase64Url(randomBytes(16));
     const masterKey2 = await deriveMasterKey(PASSWORD_2, salt2B64);
     const diaryKey2 = deriveSubKey(masterKey2, DIARY_KEY_INFO);
     const recovered = decryptString(envelope1, diaryKey1);

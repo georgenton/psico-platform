@@ -65,6 +65,7 @@ Ver [docs/design/handoff/INDEX.md](design/handoff/INDEX.md) para el mapeo exacto
 ### 🟡 Deuda técnica para cerrar v1 con calidad
 
 > **Update 2026-06-17:** Sentry wire (item 5) cerrado con `sprint-sentry`. Falta solo configurar DSNs en Railway/Vercel/EAS Build + validar con un throw 500 controlado.
+> **Update 2026-06-17 (2):** Sprint `fix-salt-length-dto` arregla el bug descubierto en Sprint 3 — el DTO ahora acepta salts de 22 chars (lo que auth produce realmente). Rekey real funciona en prod después de este merge.
 
 | #   | Tarea                                                                                                                                                                                         |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -77,13 +78,13 @@ Ver [docs/design/handoff/INDEX.md](design/handoff/INDEX.md) para el mapeo exacto
 
 ### 🟢 Polish y mejoras incrementales (priorizado por impacto)
 
-| #   | Tarea                                                                                                                                                                |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 10  | **Migración `expo-av` → `expo-audio` o `react-native-track-player`** — metadata dinámica de lock-screen desde JS. Sprint largo (~3-5 días).                          |
-| 11  | **Recovery seed phrase del Diario** — backend ready desde S6, UI cliente escrita en S23 (`SeedPhraseModal`). Falta wire del modal a primer-unlock para users legacy. |
-| 12  | **Web Push toggle UI testing real** — el toggle existe (S47), pero sin VAPID keys en Vercel está latente. Provisionar y validar.                                     |
-| 13  | **Settings UI: explicit TZ selector** — auto-detect funciona, pero no hay forma manual de cambiar TZ si el browser miente.                                           |
-| 14  | **Edit entry Diario web ↔ mobile parity** — web tiene edit, mobile solo create/delete.                                                                               |
+| #   | Tarea                                                                                                                                                                                                                       |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 10  | **Migración `expo-av` → `expo-audio` o `react-native-track-player`** — metadata dinámica de lock-screen desde JS. Sprint largo (~3-5 días).                                                                                 |
+| 11  | ✅ **Recovery seed phrase del Diario** — verificado wireado en ambos clients (web `DiarioShell.tsx:69`, mobile `(tabs)/diario/index.tsx:121-126`). POST `/api/user/crypto-seed-acknowledged` activo. (Auditado 2026-06-17.) |
+| 12  | **Web Push toggle UI testing real** — el toggle existe (S47), pero sin VAPID keys en Vercel está latente. Provisionar y validar.                                                                                            |
+| 13  | **Settings UI: explicit TZ selector** — auto-detect funciona, pero no hay forma manual de cambiar TZ si el browser miente.                                                                                                  |
+| 14  | ✅ **Edit entry Diario mobile parity** — verificado implementado en `(tabs)/diario/[id].tsx` con state machine completo (editing/draft/draftMood/draftTags) + PATCH al endpoint. (Auditado 2026-06-17.)                     |
 
 ### 🔵 Áreas restantes del diseño (decisión: ship o cortar)
 

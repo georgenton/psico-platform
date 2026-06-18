@@ -33,7 +33,19 @@ import { Type } from "class-transformer";
 const BASE64URL = /^[A-Za-z0-9_-]+={0,2}$/;
 const NEW_PASSWORD_MIN = 10;
 const NEW_PASSWORD_MAX = 256;
-const SALT_B64_LEN = 24; // 16 bytes b64url unpadded
+// Salt size on the wire (base64url, no padding).
+//
+// Auth produces 16-byte salts via Node's `randomBytes(16).toString("base64url")`
+// which yields 22 chars unpadded. We accept 22–28 to also let clients
+// generating slightly larger salts (e.g. 18-byte, 24 chars) pass — both
+// are cryptographically equivalent above the 128-bit floor and the wire
+// format is the same. Anything outside this range is a client bug.
+//
+// Pre-2026-06-17 this was Length(24, 28), which silently broke every real
+// rekey in prod since auth always shipped 22-char salts. Sprint
+// `fix-salt-length-dto` widened the lower bound.
+const SALT_B64_MIN = 22;
+const SALT_B64_MAX = 28;
 const MAX_ENTRIES_PER_REKEY = 500;
 const MAX_CIPHER_LEN = 1_400_000; // ~1MB plaintext + tag (matches diario DTO)
 const NONCE_B64_LEN = 32; // 24-byte XChaCha20 nonce in base64url
@@ -123,12 +135,13 @@ export class PasswordChangeWithRekeyDto {
   newPassword!: string;
 
   /**
-   * Fresh 16-byte Argon2id salt the client generated for the new master
-   * key, base64url-encoded (24 chars). Distinct from the old salt — the
-   * client throws away the old master key entirely and starts over.
+   * Fresh 16-byte (or up to 21-byte) Argon2id salt the client generated
+   * for the new master key, base64url-encoded (22–28 chars). Distinct
+   * from the old salt — the client throws away the old master key entirely
+   * and starts over.
    */
   @IsString()
-  @Length(SALT_B64_LEN, SALT_B64_LEN + 4)
+  @Length(SALT_B64_MIN, SALT_B64_MAX)
   @Matches(BASE64URL)
   newCryptoSalt!: string;
 

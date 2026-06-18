@@ -126,6 +126,36 @@ async function bootstrap(): Promise<void> {
   if (process.env.NODE_ENV !== "production") {
     console.log(`  Swagger UI: http://localhost:${port}/api/docs`);
   }
+
+  // ── 6. Integration banner ─────────────────────────────────────────────────
+  // Surfaces every external service that's NOT configured or that has a
+  // stub-looking value (e.g. `price_stub_monthly`). Helps ops spot a
+  // misconfigured Railway box without having to curl /api/health/integrations.
+  // Silent when everything is wired correctly.
+  try {
+    // Dynamic import avoids a circular dep with HealthModule at bootstrap.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const { IntegrationsService } = require("./health/integrations.service");
+    const svc = app.get(IntegrationsService);
+    const issues: Array<{ key: string; reason: "missing" | "stub" }> =
+      svc.bootIssues();
+    if (issues.length > 0) {
+      console.warn(
+        `\n⚠️  Integration check · ${issues.length} item(s) need attention:`,
+      );
+      for (const { key, reason } of issues) {
+        const tag = reason === "missing" ? "MISSING" : "STUB";
+        console.warn(`   [${tag}] ${key}`);
+      }
+      console.warn(
+        "   Fix in Railway / Vercel env panel. See docs/ROADMAP.md §3.\n",
+      );
+    } else if (process.env.NODE_ENV !== "production") {
+      console.log("  All external integrations configured ✅");
+    }
+  } catch {
+    // Non-fatal — the banner is observability, not a contract.
+  }
 }
 
 bootstrap();

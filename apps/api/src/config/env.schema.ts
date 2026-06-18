@@ -106,6 +106,13 @@ export const envSchema = z
     VAPID_PUBLIC_KEY: z.string().optional(),
     VAPID_PRIVATE_KEY: z.string().optional(),
     VAPID_SUBJECT: z.string().optional(),
+
+    // Sentry observability (Sprint 2 del roadmap). When unset, the SDK
+    // init is a no-op and `captureException` swallows the call. Both
+    // API and worker share the same DSN — same project from a triage
+    // standpoint.
+    SENTRY_DSN: z.string().url().optional(),
+    SENTRY_RELEASE: z.string().optional(),
   })
   // Cross-field validation: in production, certain optional fields become
   // required. Keeping the rule here (instead of separate per-env schemas)

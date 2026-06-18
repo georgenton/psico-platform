@@ -2596,11 +2596,53 @@ Cierra la parte código de Sprint 1 del roadmap. Las tareas ops puras (Stripe pr
 
 ---
 
-### Próximo paso — Sprint 2 (Sentry wire)
+### Sesión 58 — 2026-06-17 ✅ COMPLETADA — Sprint Sentry (Sprint 2 del roadmap)
 
-📖 **El roadmap maestro vive en [docs/ROADMAP.md](docs/ROADMAP.md).** El Sprint 1 (Ops bundle) está cubierto en su parte código; las 3 tareas ops pendientes quedan en backlog del usuario.
+**Rama sugerida:** `feature/sprint-sentry`
+**Tests:** 667/668 API (+7 nuevos · 1 skipped sentinel) + 34 crypto + 135 web + 29 mobile
+**Bitácora:** [docs/informes/sprint-sentry.md](docs/informes/sprint-sentry.md)
 
-**Próximo sprint sugerido:** **Sentry wire** (Sprint 2 del roadmap) — instrumentar API + worker + web + mobile. Bloqueante para visibility en prod.
+**Lo que se construyó (cierra Sprint 2 del roadmap):**
+
+Wire de Sentry en los 4 surfaces para tener traza de bugs en prod sin recrear el ambiente.
+
+1. **API NestJS** — `@sentry/node@^8`, helper `apps/api/src/observability/sentry.ts` con `initSentry()` + `captureException()`. Init en `main.ts` antes de todo. Hook al `HttpExceptionFilter` para reportar 5xx con `{method, path, statusCode, code}` context.
+2. **Worker** — mismo SDK, init en `worker.ts`. Idempotent flag previene doble-init.
+3. **Web Next.js** — `@sentry/nextjs@^8` con `instrumentation.ts` + `sentry.server.config.ts` + `sentry.client.config.ts` + `sentry.edge.config.ts`. **Session Replay HARD-OFF** porque grabaría el composer del Diario abierto (plaintext on screen).
+4. **Mobile Expo** — `@sentry/react-native@^6`, init en `app/_layout.tsx` al module load. **attachScreenshot/attachViewHierarchy HARD-OFF** por la misma razón.
+
+**Decisiones clave:**
+1. `sentryEnabled` flag separado de `initialised` — distingue "init corrió como no-op (sin DSN)" de "init wired al SDK real".
+2. `beforeSend` scrubea `authorization`/`cookie`/`x-api-key`/`stripe-signature` — Sentry default solo cubre `authorization`.
+3. Session replay + screenshots HARD-OFF en cliente — defensive privacy contra plaintext del Diario.
+4. `tracesSampleRate: 0.1` prod / 1.0 dev. Edge 0.05 porque middleware corre por request.
+5. DSN cliente vs server separado en web.
+6. No corrí `npx @sentry/wizard` — wire mínimo controlable.
+
+**7 tests nuevos** en `apps/api/src/observability/sentry.spec.ts`: empty DSN no-op, init con DSN, idempotencia, header scrubbing, `captureException` con/sin context, no-op cuando init nunca corrió.
+
+**Smoke verification:**
+- API tests 667/668 (+7) · crypto 34 · web 135 · mobile 29.
+- typecheck + lint OK en los 4 surfaces.
+
+**Qué queda para activar en prod (ops):**
+- Crear proyecto Sentry y obtener DSNs.
+- Configurar en Railway (API + worker), Vercel (web), EAS Build (mobile).
+- Validar con throw 500 controlado post-deploy.
+
+**Deuda técnica abierta:**
+- Source maps web no se suben (correr wizard cuando importe).
+- Mobile config plugin (`app.json`) no añadido — necesario antes de submit a App Store para dSYM/ProGuard.
+- BullMQ `worker.on("failed")` no wireado explícitamente.
+- Tests UI dedicados del wire web/mobile diferidos.
+
+---
+
+### Próximo paso — Sprint 3 (E2E re-encrypt + LectorShell UI tests)
+
+📖 **El roadmap maestro vive en [docs/ROADMAP.md](docs/ROADMAP.md).** Sprints 1 y 2 cubiertos en su parte código.
+
+**Próximo sprint sugerido:** **Sprint 3** — E2E full-circle test del re-encrypt del Diario (encrypt → POST → password change → decrypt con nueva key) + tests UI del `LectorShell` (block render + highlights + annotations + heartbeat).
 
 ---
 

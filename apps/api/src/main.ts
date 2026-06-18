@@ -1,4 +1,10 @@
 import "reflect-metadata";
+// Sentry init must run BEFORE any other import so the SDK's HTTP/PG
+// instrumentation can patch those modules at require time. Splitting it
+// from the rest of the imports below is deliberate.
+import { initSentry } from "./observability/sentry";
+initSentry();
+
 import { writeFileSync } from "fs";
 import { join } from "path";
 import { NestFactory } from "@nestjs/core";

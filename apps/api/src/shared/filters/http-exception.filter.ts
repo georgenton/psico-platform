@@ -1,6 +1,7 @@
 import type { ArgumentsHost, ExceptionFilter } from "@nestjs/common";
 import { Catch, HttpException, HttpStatus, Logger } from "@nestjs/common";
 import type { Request, Response } from "express";
+import { captureException } from "../../observability/sentry";
 
 /**
  * Unified error envelope for the entire API.
@@ -50,6 +51,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
         `${request.method} ${request.url} → ${statusCode} ${code}: ${message}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
+      // Surface to Sentry. 4xx are user-input issues — noise; 5xx is the
+      // signal we actually want a triaging alert on.
+      captureException(exception, {
+        method: request.method,
+        path: request.url,
+        statusCode,
+        code,
+      });
     } else if (statusCode >= 400) {
       this.logger.warn(
         `${request.method} ${request.url} → ${statusCode} ${code}: ${message}`,

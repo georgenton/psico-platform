@@ -81,6 +81,11 @@ export const envSchema = z
     VIDEO_PROVIDER: z.enum(["console", "daily"]).default("console"),
     DAILY_API_KEY: z.string().optional(),
     DAILY_DOMAIN: z.string().optional(),
+    // Sprint S70 — HMAC signature secret to verify Daily.co webhook events.
+    // Set when configuring the webhook in Daily's dashboard (Developers →
+    // Webhooks). If unset, /webhooks/daily rejects ALL incoming events with
+    // 503 (fail-closed) — safer than accepting unauthenticated state changes.
+    DAILY_WEBHOOK_SECRET: z.string().optional(),
 
     // Sprint S47 — Web Push (VAPID).
     //

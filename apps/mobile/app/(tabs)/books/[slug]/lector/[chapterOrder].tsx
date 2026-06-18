@@ -15,14 +15,20 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { lectorApi, annotationsApi } from "@psico/api-client";
+import { lectorApi, annotationsApi, highlightsApi } from "@psico/api-client";
 import type {
   AnnotationSummary,
   ChapterBlockSummary,
+  HighlightColor,
+  HighlightSummary,
   LectorChapterResponse,
 } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 import { LectorAudioBar } from "@/components/dashboard/lector/LectorAudioBar";
+import {
+  BlockActionsSheet,
+  highlightStyleFor,
+} from "@/components/dashboard/lector/BlockActionsSheet";
 
 /**
  * Mobile reader screen — Sprint S6-front.
@@ -61,6 +67,16 @@ export default function LectorScreen() {
   const [annotations, setAnnotations] = useState<AnnotationSummary[]>([]);
   const [pendingBlockId, setPendingBlockId] = useState<string | null>(null);
 
+  // Highlight state — Sprint mobile-highlights v1.
+  //
+  // We ship "block-level" highlights: a long-press marks the entire block
+  // (startOffset=0, endOffset=block.content.length). Character-level
+  // selection in RN would require maintained libraries that don't exist
+  // for RN 0.76 / Expo SDK 52 — block-level is the pragmatic compromise.
+  const [highlights, setHighlights] = useState<HighlightSummary[]>([]);
+  // The block currently driving the action sheet (long-pressed).
+  const [actionBlockId, setActionBlockId] = useState<string | null>(null);
+
   // Block layout tracking for scroll → currentBlock inference.
   const blockOffsetsRef = useRef<Record<string, number>>({});
   const scrollOffsetRef = useRef<number>(0);
@@ -82,6 +98,7 @@ export default function LectorScreen() {
         if (cancelled) return;
         setChapter(data);
         setAnnotations(data.annotations);
+        setHighlights(data.highlights);
         lastBlockIdRef.current =
           data.session.lastBlockId ?? data.blocks[0]?.id ?? "";
         progressRef.current = data.session.progressPct;
@@ -156,10 +173,55 @@ export default function LectorScreen() {
     }
   }
 
-  function promptAnnotation(blockId: string) {
-    // RN's Alert.prompt is iOS-only; we use a controlled modal pattern via
-    // state. Setting pendingBlockId opens the composer rendered below.
-    setPendingBlockId(blockId);
+  // ── Highlight CRUD ────────────────────────────────────────────────────
+
+  async function createHighlight(blockId: string, color: HighlightColor) {
+    const block = chapter?.blocks.find((b) => b.id === blockId);
+    if (!block) return;
+    // Block-level v1: span the whole block content. The backend validates
+    // 0 ≤ startOffset < endOffset ≤ content.length so we land exactly at
+    // the bounds.
+    const startOffset = 0;
+    const endOffset = block.content.length;
+
+    // Optimistic insert with a temp ID so the UI tints immediately. We
+    // swap to the server ID once create() resolves; on failure we drop
+    // the temp row.
+    const tempId = `temp-${Date.now()}`;
+    const optimistic: HighlightSummary = {
+      id: tempId,
+      blockId,
+      startOffset,
+      endOffset,
+      color,
+      note: null,
+      createdAt: new Date() as unknown as HighlightSummary["createdAt"],
+    };
+    setHighlights((prev) => [...prev, optimistic]);
+    try {
+      const res = await highlightsApi.create({
+        blockId,
+        startOffset,
+        endOffset,
+        color,
+      });
+      setHighlights((prev) =>
+        prev.map((h) => (h.id === tempId ? res.highlight : h)),
+      );
+    } catch {
+      setHighlights((prev) => prev.filter((h) => h.id !== tempId));
+      Alert.alert("Error", "No pudimos guardar el resaltado.");
+    }
+  }
+
+  async function deleteHighlight(id: string) {
+    const snapshot = highlights.find((h) => h.id === id);
+    setHighlights((prev) => prev.filter((h) => h.id !== id));
+    try {
+      await highlightsApi.delete(id);
+    } catch {
+      if (snapshot) setHighlights((prev) => [...prev, snapshot]);
+    }
   }
 
   // ── Complete handler ──────────────────────────────────────────────────
@@ -238,6 +300,13 @@ export default function LectorScreen() {
     annotationsByBlock.set(a.blockId, list);
   }
 
+  const highlightsByBlock = new Map<string, HighlightSummary[]>();
+  for (const h of highlights) {
+    const list = highlightsByBlock.get(h.blockId) ?? [];
+    list.push(h);
+    highlightsByBlock.set(h.blockId, list);
+  }
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -281,7 +350,8 @@ export default function LectorScreen() {
             key={b.id}
             block={b}
             annotations={annotationsByBlock.get(b.id) ?? []}
-            onLongPress={() => promptAnnotation(b.id)}
+            highlights={highlightsByBlock.get(b.id) ?? []}
+            onLongPress={() => setActionBlockId(b.id)}
             onDeleteAnnotation={deleteAnnotation}
             onLayout={(y) => {
               blockOffsetsRef.current[b.id] = y;
@@ -295,6 +365,27 @@ export default function LectorScreen() {
           </Pressable>
         </View>
       </ScrollView>
+
+      {/* Block actions sheet — long-press menu (Sprint mobile-highlights) */}
+      {actionBlockId && (
+        <BlockActionsSheet
+          hasHighlight={(highlightsByBlock.get(actionBlockId) ?? []).length > 0}
+          onPickColor={async (color) => {
+            setActionBlockId(null);
+            await createHighlight(actionBlockId, color);
+          }}
+          onAddNote={() => {
+            setPendingBlockId(actionBlockId);
+            setActionBlockId(null);
+          }}
+          onRemoveHighlights={async () => {
+            const list = highlightsByBlock.get(actionBlockId) ?? [];
+            setActionBlockId(null);
+            await Promise.all(list.map((h) => deleteHighlight(h.id)));
+          }}
+          onCancel={() => setActionBlockId(null)}
+        />
+      )}
 
       {/* Annotation composer modal */}
       {pendingBlockId && (
@@ -317,12 +408,14 @@ export default function LectorScreen() {
 function BlockView({
   block,
   annotations,
+  highlights,
   onLongPress,
   onDeleteAnnotation,
   onLayout,
 }: {
   block: ChapterBlockSummary;
   annotations: AnnotationSummary[];
+  highlights: HighlightSummary[];
   onLongPress: () => void;
   onDeleteAnnotation: (id: string) => void;
   onLayout: (y: number) => void;
@@ -342,10 +435,17 @@ function BlockView({
     }
   })();
 
+  // First highlight wins for the visual tint (block-level v1 — usually
+  // there's only one anyway). Multi-color overlap is rare and the design
+  // doesn't define what should happen; we just use the earliest one.
+  const tintColor = highlights[0]?.color;
+  const highlightStyle = tintColor ? highlightStyleFor(tintColor) : null;
+
   return (
     <View
       onLayout={(e) => onLayout(e.nativeEvent.layout.y)}
-      style={[styles.block, blockStyle]}
+      style={[styles.block, blockStyle, highlightStyle]}
+      testID={`block-${block.id}${tintColor ? `-${tintColor.toLowerCase()}` : ""}`}
     >
       {block.kind === "PAUSE" && (
         <Text style={styles.specialLabel}>🌿 PAUSA</Text>

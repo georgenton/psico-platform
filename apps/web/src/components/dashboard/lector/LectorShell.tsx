@@ -78,6 +78,23 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
   const [prefs, setPrefs] = useState<ReaderPrefs>(preferences);
   const prefsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Reader mode — "libro" (default, text-only) vs "guia" (audio prominent).
+  // Persisted in localStorage so the user's choice survives reloads of the
+  // same chapter. Per design `docs/design/handoff/05-lector.md`, Modo Guía
+  // is the audio-narrated experience.
+  type ReaderMode = "libro" | "guia";
+  const [mode, setMode] = useState<ReaderMode>(() => {
+    if (typeof window === "undefined") return "libro";
+    const stored = window.localStorage.getItem("psico:lector:mode");
+    return stored === "guia" ? "guia" : "libro";
+  });
+  function changeMode(next: ReaderMode) {
+    setMode(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("psico:lector:mode", next);
+    }
+  }
+
   // Text selection state for the popover.
   const [selection, setSelection] = useState<{
     blockId: string;
@@ -437,7 +454,11 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
             >
               Aa
             </button>
-            {chapter.audioAvailable ? (
+            {/* Mini-pill audio entry kept in Modo Libro for users who
+                want a quick listen without switching the whole reading
+                experience. In Modo Guía the audio lives in the banner
+                below, so we hide the pill to avoid duplicating it. */}
+            {chapter.audioAvailable && mode === "libro" ? (
               <AudioBar
                 apiBase={apiBase}
                 token={token}
@@ -476,6 +497,114 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
           />
         </div>
       </header>
+
+      {/* Mode toggle — Modo Libro vs Modo Guía. The toggle lives right
+          below the sticky header so the user can always switch without
+          scrolling, and so the choice is visible (it's the flagship feature
+          per the design source-of-truth, docs/design/handoff/05-lector.md). */}
+      <div
+        className="mx-auto mt-4 flex max-w-3xl items-center justify-center gap-1 rounded-full p-1"
+        style={{
+          background: "var(--reader-chip-bg, var(--color-warm-100))",
+          width: "fit-content",
+        }}
+        role="tablist"
+        aria-label="Modo de lectura"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "libro"}
+          onClick={() => changeMode("libro")}
+          className="rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
+          style={
+            mode === "libro"
+              ? {
+                  background: "var(--reader-bg, var(--color-warm-50))",
+                  color: "var(--reader-text, var(--color-warm-900))",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                }
+              : {
+                  background: "transparent",
+                  color: "var(--reader-muted, var(--color-warm-600))",
+                }
+          }
+        >
+          📖 Modo Libro
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "guia"}
+          onClick={() => changeMode("guia")}
+          className="rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
+          style={
+            mode === "guia"
+              ? {
+                  background: "var(--reader-bg, var(--color-warm-50))",
+                  color: "var(--reader-text, var(--color-warm-900))",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                }
+              : {
+                  background: "transparent",
+                  color: "var(--reader-muted, var(--color-warm-600))",
+                }
+          }
+        >
+          🎧 Modo Guía
+        </button>
+      </div>
+
+      {/* Modo Guía banner — audio player area or empty state when the audio
+          isn't published yet. The author's audio rollout is happening in
+          batches (ffmpeg embed + R2 upload, see docs/v1-freeze-ops-checklist.md
+          §3), so chapters can land in production before their audio does. */}
+      {mode === "guia" ? (
+        <div className="mx-auto mt-4 max-w-3xl px-4">
+          {chapter.audioAvailable ? (
+            <div
+              className="rounded-2xl border-[1.5px] bg-white p-4"
+              style={{ borderColor: "var(--color-warm-200)" }}
+            >
+              <AudioBar
+                apiBase={apiBase}
+                token={token}
+                bookId={book.id}
+                chapterOrder={chapter.order}
+              />
+            </div>
+          ) : (
+            <div
+              className="rounded-2xl border-[1.5px] p-5 text-center"
+              style={{
+                background: "var(--color-warm-50)",
+                borderColor: "var(--color-warm-200)",
+              }}
+            >
+              <p
+                className="text-[20px]"
+                style={{ color: "var(--color-warm-500)" }}
+                aria-hidden
+              >
+                🎧
+              </p>
+              <p
+                className="mt-2 text-[13.5px] font-semibold"
+                style={{ color: "var(--color-warm-800)" }}
+              >
+                Audio en producción
+              </p>
+              <p
+                className="mt-1 text-[12.5px]"
+                style={{ color: "var(--color-warm-500)" }}
+              >
+                Este capítulo aún no tiene narración disponible. Puedes cambiar
+                a Modo Libro mientras tanto.
+              </p>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {/* Reading area */}
       <main className="mx-auto max-w-3xl px-4 py-8" style={proseStyle}>

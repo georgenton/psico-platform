@@ -7,6 +7,7 @@ import {
   isNextThrow,
   serverFetch,
 } from "@/lib/api.server";
+import { getDiaryWrapKey } from "@/actions/diary-session";
 import { ApiClientBootstrap } from "./_ApiClientBootstrap";
 import { DashboardShell } from "./_DashboardShell";
 import { TimezoneSync } from "./_TimezoneSync";
@@ -69,9 +70,18 @@ export default async function DashboardLayout({
   const needsTimezoneProbe = Boolean(me && me.user.timezone === null);
 
   const accessToken = getAccessToken();
+  // Diary session persistence (Option C). Wrap key arrives via HttpOnly
+  // cookie; the client reunites it with the localStorage bundle to restore
+  // the master key without a password prompt.
+  const initialWrapKey = await getDiaryWrapKey();
 
   return (
-    <DashboardShell user={user} cryptoSalt={cryptoSalt} showTour={showTour}>
+    <DashboardShell
+      user={user}
+      cryptoSalt={cryptoSalt}
+      showTour={showTour}
+      initialDiaryWrapKey={initialWrapKey}
+    >
       <ApiClientBootstrap apiBase={API_ROOT} accessToken={accessToken} />
       <TimezoneSync needsProbe={needsTimezoneProbe} />
       {children}

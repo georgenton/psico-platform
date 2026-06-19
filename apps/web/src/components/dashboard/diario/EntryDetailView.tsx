@@ -46,7 +46,11 @@ export function EntryDetailView({
   token: string | null;
 }) {
   return (
-    <DiaryKeyProvider cryptoSalt={cryptoSalt}>
+    // Standalone provider used by the detail-page tests + the route's own
+    // standalone unlock prompt. The dashboard layout's provider handles the
+    // shared unlock — this nested one keeps the test path simple by
+    // skipping persistence (initialWrapKey={null}).
+    <DiaryKeyProvider cryptoSalt={cryptoSalt} initialWrapKey={null}>
       <EntryDetailInner detail={detail} apiBase={apiBase} token={token} />
     </DiaryKeyProvider>
   );

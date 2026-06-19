@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type {
   BookAuthorDetail,
   BookDetail,
@@ -11,9 +12,11 @@ import { coverGradient } from "../cover-gradients";
 /**
  * BookHero — top section of /dashboard/biblioteca/[idOrSlug].
  *
- * Mirrors `web-hero` from docs/design/detalle/detalle.css. The CTA dispatches
- * POST /api/books/:idOrSlug/start to mark the book as touched, then the
- * future reader page (Sprint S7+) takes over.
+ * Mirrors `web-hero` from docs/design/detalle/detalle.css. The CTA does two
+ * things in one transition:
+ *  1. POST /api/books/:idOrSlug/start to register the touch on the backend.
+ *  2. Navigate to the reader at the right chapter (1 for new readers, the
+ *     last touched chapter for returning ones).
  *
  * `isLocked` is computed by the page (server-side) so we can render the
  * paywall variant straight away — no client-side network call to know it.
@@ -35,29 +38,47 @@ export function BookHero({
   token: string | null;
   idOrSlug: string;
 }) {
+  const router = useRouter();
   const [starting, startTransition] = useTransition();
   const [started, setStarted] = useState(userProgress !== null);
   const pct = userProgress?.progressPct ?? 0;
+
+  // Compute the chapter to open: completed → last chapter; in-progress →
+  // proportional to pct; not started → 1.
+  function resolveStartChapter(): number {
+    if (pct >= 100) return book.chapters;
+    if (started && pct > 0) {
+      return Math.max(1, Math.ceil((pct / 100) * book.chapters));
+    }
+    return 1;
+  }
 
   async function handleStart() {
     if (!token || isLocked) return;
     startTransition(async () => {
       try {
+        // Fire-and-track: POST /start so progress gets registered.
         const res = await fetch(
           `${apiBase}/books/${encodeURIComponent(idOrSlug)}/start`,
           { method: "POST", headers: { Authorization: `Bearer ${token}` } },
         );
         if (res.ok) setStarted(true);
       } catch {
-        // Silent — the CTA stays clickable and the user can retry.
+        // Silent — we still navigate to the reader. The user can also retry
+        // via the chapter list if start failed.
       }
+      // Navigate to the reader regardless of the /start outcome. The reader
+      // itself does NOT depend on the start record — it reads chapter blocks
+      // directly. Worst case, the /start record syncs on the next visit.
+      const chapter = resolveStartChapter();
+      router.push(`/dashboard/biblioteca/${book.slug}/lector/${chapter}`);
     });
   }
 
   const ctaLabel = isLocked
     ? "Hazte Pro para leer"
     : started
-      ? `Continuar capítulo ${pct >= 100 ? book.chapters : Math.max(1, Math.ceil((pct / 100) * book.chapters))}`
+      ? `Continuar capítulo ${resolveStartChapter()}`
       : "Empezar capítulo 1";
 
   return (

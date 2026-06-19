@@ -9,11 +9,14 @@ import { skipOnboarding } from "@/actions/onboarding";
 export const metadata: Metadata = { title: "Bienvenida" };
 export const dynamic = "force-dynamic";
 
+// Fallback rendered when /api/onboarding/intro is unreachable. Kept in sync
+// with the canonical copy in `apps/api/src/onboarding/constants.ts` so the
+// experience is the same offline vs online.
 const FALLBACK: OnboardingIntro = {
-  title: "Te doy la bienvenida.",
-  subtitle: "Soy Marina Quintana, autora ancla.",
-  body: "Este lugar no es una app más: es un acompañamiento que se ajusta a tu ritmo, a tus emociones, y a lo que necesitas hoy. Te haré 4 preguntas cortas para empezar a entendernos.",
-  signature: "— Marina",
+  title: "Empecemos.",
+  subtitle: "Antes de leer, queremos conocerte un poco.",
+  body: "Te haremos tres preguntas cortas para entender qué te trae aquí y cómo te sientes hoy. Con eso vas a recibir una recomendación de por dónde empezar a leer. Si prefieres saltar este paso, puedes hacerlo y explorar a tu ritmo.",
+  signature: "— Psico Platform",
   avatarUrl: null,
 };
 

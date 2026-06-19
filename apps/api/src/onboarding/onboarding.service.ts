@@ -22,7 +22,7 @@ import type { OnboardingTourCompleteDto } from "./dto/tour-complete.dto";
 import {
   FALLBACK_BOOK_SLUG,
   FALLBACK_REASON,
-  MARINA_INTRO,
+  ONBOARDING_INTRO,
   RECOMMENDATION_BY_MOTIVO,
   RECOMMENDATION_REASON,
   TOUR_STEPS,
@@ -57,7 +57,7 @@ export class OnboardingService {
   // ── GET /api/onboarding/intro ─────────────────────────────────────────────
 
   getIntro(): OnboardingIntro {
-    return MARINA_INTRO;
+    return ONBOARDING_INTRO;
   }
 
   // ── POST /api/onboarding/skip ─────────────────────────────────────────────

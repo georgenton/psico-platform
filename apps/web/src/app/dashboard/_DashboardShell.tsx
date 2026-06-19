@@ -286,6 +286,7 @@ export function DashboardShell({
   user,
   cryptoSalt,
   showTour,
+  initialDiaryWrapKey,
   children,
 }: {
   user: SessionUser | null;
@@ -302,6 +303,13 @@ export function DashboardShell({
    * so the check happens once per nav, not per render.
    */
   showTour: boolean;
+  /**
+   * Diary session wrap key read by the server layout from the
+   * `psico_diary_wrap` HttpOnly cookie (Option C persistence). When non-null
+   * the client tries to restore the master key from localStorage silently
+   * — no password prompt. Null means cold start / locked.
+   */
+  initialDiaryWrapKey: string | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -312,7 +320,10 @@ export function DashboardShell({
   }
 
   return (
-    <DiaryKeyProvider cryptoSalt={cryptoSalt}>
+    <DiaryKeyProvider
+      cryptoSalt={cryptoSalt}
+      initialWrapKey={initialDiaryWrapKey}
+    >
       <div className="flex h-screen overflow-hidden">
         {/* Mobile overlay */}
         {sidebarOpen && (

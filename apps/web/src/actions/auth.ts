@@ -161,5 +161,11 @@ export async function logoutAction(): Promise<void> {
   }
 
   clearAuthCookies();
+  // Wipe the diary session wrap cookie too. We can't reach localStorage from
+  // a server action, so the client-side `lock()` (called when the diary
+  // provider sees the user is logged out) is what clears the encrypted
+  // bundle. The combination is enough — an empty cookie makes the next
+  // restore short-circuit before touching localStorage anyway.
+  cookies().delete("psico_diary_wrap");
   redirect("/login");
 }

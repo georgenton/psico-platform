@@ -2,10 +2,7 @@
 
 import { useState } from "react";
 import { masterKeyToSeedPhrase } from "@psico/crypto";
-import {
-  DiaryKeyProvider,
-  useDiaryKey,
-} from "@/lib/crypto/diary-key-context";
+import { DiaryKeyProvider, useDiaryKey } from "@/lib/crypto/diary-key-context";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
 
 /**
@@ -26,8 +23,14 @@ export function ShowSeedPhraseCard({
 }: {
   cryptoSalt: string | null;
 }) {
+  // Standalone provider for the seed phrase card. It lives on a page nested
+  // INSIDE the dashboard layout, but the layout's provider already owns the
+  // unlocked state for the rest of the dashboard. This local provider gives
+  // the card its own unlock prompt without leaking state to siblings.
+  // `initialWrapKey={null}` keeps the cross-card persistence semantics
+  // simple — the only way to unlock here is the password prompt.
   return (
-    <DiaryKeyProvider cryptoSalt={cryptoSalt}>
+    <DiaryKeyProvider cryptoSalt={cryptoSalt} initialWrapKey={null}>
       <Inner />
     </DiaryKeyProvider>
   );
@@ -123,10 +126,7 @@ function Inner() {
         <RevealedSeed words={revealed} onHide={hide} />
       ) : (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <p
-            className="text-[12px]"
-            style={{ color: "var(--color-warm-500)" }}
-          >
+          <p className="text-[12px]" style={{ color: "var(--color-warm-500)" }}>
             {masterKey
               ? "Tu Diario está desbloqueado. Listo para mostrar."
               : "Necesitas desbloquear tu Diario primero."}
@@ -153,8 +153,8 @@ function Inner() {
         }}
       >
         ⚠️ Cualquiera con estas 24 palabras puede descifrar todo tu Diario para
-        siempre. Tratálas como tu password — no las compartas, no las saques
-        de tu dispositivo sin precauciones.
+        siempre. Tratálas como tu password — no las compartas, no las saques de
+        tu dispositivo sin precauciones.
       </footer>
     </section>
   );
@@ -210,9 +210,7 @@ function RevealedSeed({
             background: copied
               ? "var(--color-sage-100)"
               : "var(--color-warm-100)",
-            color: copied
-              ? "var(--color-sage-700)"
-              : "var(--color-warm-700)",
+            color: copied ? "var(--color-sage-700)" : "var(--color-warm-700)",
           }}
         >
           {copied ? "✓ Copiado" : "Copiar las 24 palabras"}

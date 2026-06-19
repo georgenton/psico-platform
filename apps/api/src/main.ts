@@ -17,6 +17,22 @@ async function bootstrap(): Promise<void> {
   // rawBody: true enables req.rawBody for Stripe webhook signature verification.
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
+  // ── 0. Trust proxy ────────────────────────────────────────────────────────
+  // Behind Railway, the actual client IP is in `X-Forwarded-For` — without
+  // this setting Express returns the IP of Railway's internal proxy for every
+  // request, which collapses all global traffic into ONE bucket from the
+  // throttler's perspective (5 logins worldwide in 15 min would 429 the
+  // entire planet).
+  //
+  // `1` means "trust ONE hop" — only the immediate upstream proxy can set
+  // `X-Forwarded-For`. Setting `true` would trust any number of hops, which
+  // lets a malicious client spoof the header (`X-Forwarded-For: <victim-ip>`)
+  // and frame another user for the rate-limit hit.
+  //
+  // Railway sits exactly one hop in front of the Node process, so `1` is the
+  // correct value.
+  app.getHttpAdapter().getInstance().set("trust proxy", 1);
+
   // ── 1. Global API prefix ──────────────────────────────────────────────────
   // Every route lands under /api/* per ADR 0006.
   //

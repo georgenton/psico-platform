@@ -4,6 +4,27 @@ import { useState, useTransition } from "react";
 import type { OnboardingMood } from "@psico/types";
 import { saveStep2 } from "@/actions/onboarding";
 
+/**
+ * Emoji glyph rendered above each mood label. The mood catalog persists a
+ * `swatch` (color hex) used downstream by PatronesModule heatmap, but the
+ * onboarding UI needs an explicit visual cue — emojis are kept here as a
+ * presentation-only mapping so we don't need a schema migration to add a
+ * column the rest of the system doesn't consume.
+ *
+ * Falls back gracefully (empty string) when an unknown id appears, so a
+ * future mood added by a backend deploy doesn't crash the UI before the web
+ * follows.
+ */
+const MOOD_EMOJI: Record<string, string> = {
+  calma: "😌",
+  foco: "🎯",
+  energia: "⚡",
+  reflexion: "🌿",
+  alegria: "☀️",
+  ansiedad: "😟",
+  tristeza: "🌧️",
+};
+
 export function MoodPicker({ moods }: { moods: OnboardingMood[] }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [submitting, startTransition] = useTransition();
@@ -77,8 +98,11 @@ export function MoodPicker({ moods }: { moods: OnboardingMood[] }) {
                         }
                   }
                 >
+                  <span className="text-[28px] leading-none" aria-hidden>
+                    {MOOD_EMOJI[m.id] ?? ""}
+                  </span>
                   <span
-                    className="h-8 w-8 rounded-full"
+                    className="h-1.5 w-8 rounded-full"
                     style={{ background: m.swatch }}
                     aria-hidden
                   />

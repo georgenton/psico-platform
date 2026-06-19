@@ -1,12 +1,18 @@
+import Link from "next/link";
 import type { HomeEcoMoment } from "@psico/types";
 
 /**
  * EcoMomentCard — mirrors `web-marina` from docs/design/inicio/inicio.css.
  *
  * Surfaces the daily prompt and the last AI activity. The "pendingMessages"
- * badge stays at 0 until AIModule conversational layer lands (Sprint S10).
- * The CTA is a placeholder link to /dashboard/eco that does not exist yet —
- * we render it so the visual hierarchy is honest about where this goes.
+ * badge fills once the conversational layer (S10) has wired threads to the
+ * Home aggregator.
+ *
+ * The two CTAs deep-link straight to `/dashboard/eco` — the conversational
+ * surface that landed in S10. Earlier revisions of this card had the buttons
+ * hardcoded to `disabled` with a "Sprint S10 llega" tooltip; that
+ * placeholder survived the Eco rollout and confused QA into thinking the
+ * feature was broken on the dashboard. Live anchors now.
  */
 export function EcoMomentCard({ moment }: { moment: HomeEcoMoment }) {
   return (
@@ -76,24 +82,20 @@ export function EcoMomentCard({ moment }: { moment: HomeEcoMoment }) {
       ) : null}
 
       <div className="relative mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
+        <Link
+          href="/dashboard/eco"
           className="inline-flex items-center gap-1.5 rounded-[10px] px-4 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
           style={{ background: "var(--color-lavender-700)" }}
-          disabled
-          title="Eco conversacional llega en Sprint S10"
         >
           ✦ Hablar con Eco
-        </button>
-        <button
-          type="button"
+        </Link>
+        <Link
+          href="/dashboard/eco"
           className="inline-flex items-center gap-1.5 rounded-[10px] bg-transparent px-4 py-2.5 text-[13px] font-semibold transition-colors hover:opacity-100"
           style={{ color: "var(--color-warm-600)" }}
-          disabled
-          title="Eco conversacional llega en Sprint S10"
         >
           Ver historial →
-        </button>
+        </Link>
       </div>
     </article>
   );

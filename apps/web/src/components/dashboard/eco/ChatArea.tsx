@@ -362,7 +362,13 @@ export function ChatArea({
               />
             ))
           )}
-          {streamingText ? (
+          {/* While we're waiting for Eco we need *some* visible feedback even
+              when the first SSE delta hasn't arrived yet (Anthropic typically
+              takes 1–3s to emit its first token, longer over a flaky link).
+              Without this bubble the chat looked frozen and QA reported "no
+              response" even when the request was in flight. Once any chunk
+              lands we swap to the live-text variant; on `done` both clear. */}
+          {streaming ? (
             <MessageBubble
               key="streaming"
               message={{
@@ -370,7 +376,7 @@ export function ChatArea({
                 kind: "assistant",
                 textCiphertext: null,
                 textNonce: null,
-                assistantText: streamingText,
+                assistantText: streamingText || "Eco está pensando…",
                 suggestedBookId: null,
                 createdAt: new Date(),
               }}

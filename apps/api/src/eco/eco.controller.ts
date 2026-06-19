@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -109,6 +110,15 @@ export class EcoController {
    */
   @Post("messages")
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  // NestJS @Sse() sets `Content-Type: text/event-stream` but not the headers
+  // that tell reverse proxies and compression middleware to flush each frame
+  // immediately. Without these, Railway's edge + any nginx-style layer can
+  // hold the response until the stream completes — which makes Anthropic's
+  // first delta appear only after the whole reply is ready. QA reported
+  // exactly that symptom: "no indicator the chat is working, then the
+  // response materialises seconds later". These headers force live framing.
+  @Header("Cache-Control", "no-cache, no-transform")
+  @Header("X-Accel-Buffering", "no")
   @Sse()
   sendMessage(
     @CurrentUser() user: AuthenticatedUser,

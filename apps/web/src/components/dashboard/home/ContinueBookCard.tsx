@@ -5,10 +5,13 @@ import { coverGradient } from "../cover-gradients";
 /**
  * ContinueBookCard — hero card showing the user's last-touched book.
  *
- * Mirrors `web-continue` from docs/design/inicio/inicio.css. The CTA links to
- * the book detail page (S5-front) which then dispatches the reader (future
- * sprint). For now: clicking takes the user to /dashboard/biblioteca/:bookId
- * where they can resume from chapter N.
+ * Mirrors `web-continue` from docs/design/inicio/inicio.css. The CTA deep
+ * links straight into the reader at `chapterN` so "Seguir leyendo" lands the
+ * user one click away from picking up where they left off. Previously the
+ * link bounced through the book detail page, which felt broken to QA.
+ *
+ * The reader route accepts `[idOrSlug]`, so `bookId` works as the URL
+ * parameter — no slug round-trip needed.
  */
 export function ContinueBookCard({ book }: { book: HomeContinueBook }) {
   const pct = Math.max(0, Math.min(100, Math.round(book.progressPct)));
@@ -89,7 +92,7 @@ export function ContinueBookCard({ book }: { book: HomeContinueBook }) {
 
       {/* CTA */}
       <Link
-        href={`/dashboard/biblioteca/${book.bookId}`}
+        href={`/dashboard/biblioteca/${book.bookId}/lector/${book.chapterN}`}
         className="inline-flex items-center gap-1.5 self-start rounded-xl px-5 py-3 text-[13px] font-semibold text-white transition-colors sm:self-center"
         style={{ background: "var(--color-sage-400)" }}
       >

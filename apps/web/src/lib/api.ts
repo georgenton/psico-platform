@@ -21,6 +21,20 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    /**
+     * Machine-readable error code from the API envelope (e.g.
+     * `RATE_LIMIT_EXCEEDED`, `EMAIL_ALREADY_REGISTERED`,
+     * `VALIDATION_ERROR`). Use this in server actions instead of the
+     * human-readable `message` — copy in `message` can change without
+     * breaking the contract, but `code` is stable.
+     */
+    public readonly code?: string,
+    /**
+     * Per-field validation details when the API returns
+     * `VALIDATION_ERROR`. Shape matches the class-validator output:
+     * `{ field: ["constraint"] }`. Undefined for other errors.
+     */
+    public readonly details?: Record<string, string[]>,
   ) {
     super(message);
     this.name = "ApiError";
@@ -60,12 +74,18 @@ export async function apiFetch<T>(
   });
 
   if (!response.ok) {
-    const payload = await response
+    const payload = (await response
       .json()
-      .catch(() => ({ message: response.statusText }));
+      .catch(() => ({ message: response.statusText }))) as {
+      message?: string;
+      code?: string;
+      details?: Record<string, string[]>;
+    };
     throw new ApiError(
       response.status,
-      (payload as { message?: string }).message ?? "Request failed",
+      payload.message ?? "Request failed",
+      payload.code,
+      payload.details,
     );
   }
 

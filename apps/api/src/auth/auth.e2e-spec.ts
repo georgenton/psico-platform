@@ -324,5 +324,36 @@ describe("Auth · E2E", () => {
 
       expect(firstBlockAt).toBe(6);
     });
+
+    it("counts the throttler per X-Forwarded-For IP (trust proxy enabled)", async () => {
+      // Without `app.set("trust proxy", 1)` Express would return the IP of
+      // Railway's internal proxy for every request — meaning 5 logins
+      // anywhere in the world would 429 the entire planet. This test guards
+      // that wiring.
+      h.prisma.user.findUnique.mockResolvedValue(null);
+
+      // 5 hits from IP A — all should succeed (not throttled).
+      for (let i = 1; i <= 5; i++) {
+        const res = await request(h.app.getHttpServer())
+          .post("/api/auth/login")
+          .set("X-Forwarded-For", "203.0.113.10")
+          .send({ email: `a${i}@x.y`, password: "any" });
+        expect(res.status).not.toBe(429);
+      }
+
+      // IP A's 6th hit IS throttled.
+      const ipAOver = await request(h.app.getHttpServer())
+        .post("/api/auth/login")
+        .set("X-Forwarded-For", "203.0.113.10")
+        .send({ email: `a6@x.y`, password: "any" });
+      expect(ipAOver.status).toBe(429);
+
+      // But a DIFFERENT IP must NOT be affected — its counter starts at zero.
+      const ipBFresh = await request(h.app.getHttpServer())
+        .post("/api/auth/login")
+        .set("X-Forwarded-For", "198.51.100.20")
+        .send({ email: "b@x.y", password: "any" });
+      expect(ipBFresh.status).not.toBe(429);
+    });
   });
 });

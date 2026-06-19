@@ -137,6 +137,9 @@ export async function createE2EApp(): Promise<E2EHarness> {
   const app = moduleRef.createNestApplication();
 
   // Mirror main.ts — keep this in sync as production wiring evolves.
+  // Trust the first proxy hop so `req.ip` reflects `X-Forwarded-For` in tests
+  // and matches production behaviour behind Railway.
+  app.getHttpAdapter().getInstance().set("trust proxy", 1);
   app.setGlobalPrefix("api", {
     exclude: [
       { path: "health", method: RequestMethod.ALL },

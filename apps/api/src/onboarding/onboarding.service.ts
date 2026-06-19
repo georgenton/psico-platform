@@ -273,18 +273,22 @@ export class OnboardingService {
 
     const chosenBookId = dto.chosenBookId ?? null;
 
-    // If they picked a book, verify it exists + is published.
+    // If they picked a book, verify it exists + is published AND grab the
+    // slug. We need the slug because the web's reader route is keyed by
+    // slug (or id), and the design's URL convention is slug-first.
+    let chosenBookSlug: string | null = null;
     if (chosenBookId) {
-      const exists = await this.prisma.book.findFirst({
+      const book = await this.prisma.book.findFirst({
         where: { id: chosenBookId, isPublished: true },
-        select: { id: true },
+        select: { id: true, slug: true },
       });
-      if (!exists) {
+      if (!book) {
         throw new BadRequestException({
           code: "UNKNOWN_BOOK_ID",
           message: `Unknown or unpublished book: ${chosenBookId}`,
         });
       }
+      chosenBookSlug = book.slug;
     }
 
     await this.prisma.onboardingState.upsert({
@@ -297,9 +301,13 @@ export class OnboardingService {
       update: { chosenBookId, onboardingCompletedAt: new Date() },
     });
 
-    // Redirect target: if they picked a book, send them to /lector/<id>; else
-    // to the home screen.
-    const redirectTo = chosenBookId ? `/lector/${chosenBookId}` : "/inicio";
+    // Redirect target — must match the web's actual route tree, not legacy
+    // paths from earlier sprints:
+    //   - Picked a book → straight into chapter 1 of the reader.
+    //   - No pick     → dashboard home (tour overlay fires there).
+    const redirectTo = chosenBookSlug
+      ? `/dashboard/biblioteca/${chosenBookSlug}/lector/1`
+      : "/dashboard";
 
     return { ok: true as const, redirectTo };
   }

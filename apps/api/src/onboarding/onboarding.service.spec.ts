@@ -312,18 +312,28 @@ describe("OnboardingService", () => {
       mockPrisma.onboardingState.findUnique.mockResolvedValue(null);
     });
 
-    it("with chosenBookId → validates the book exists and redirects to /lector", async () => {
-      mockPrisma.book.findFirst.mockResolvedValue({ id: "book-1" });
+    it("with chosenBookId → returns the slug-based reader path that the web actually serves", async () => {
+      // The redirect target must match the web route tree
+      // `/dashboard/biblioteca/[slug]/lector/[chapterOrder]`. Legacy targets
+      // (`/lector/<id>`, `/inicio`) returned a 404 in production — this test
+      // guards the fix.
+      mockPrisma.book.findFirst.mockResolvedValue({
+        id: "book-1",
+        slug: "emociones-en-construccion",
+      });
 
       const res = await service.complete(userId, { chosenBookId: "book-1" });
 
-      expect(res).toEqual({ ok: true, redirectTo: "/lector/book-1" });
+      expect(res).toEqual({
+        ok: true,
+        redirectTo: "/dashboard/biblioteca/emociones-en-construccion/lector/1",
+      });
     });
 
-    it("with null chosenBookId → redirects to /inicio", async () => {
+    it("with null chosenBookId → redirects to /dashboard (home of the web app)", async () => {
       const res = await service.complete(userId, { chosenBookId: null });
 
-      expect(res).toEqual({ ok: true, redirectTo: "/inicio" });
+      expect(res).toEqual({ ok: true, redirectTo: "/dashboard" });
       expect(mockPrisma.book.findFirst).not.toHaveBeenCalled();
     });
 

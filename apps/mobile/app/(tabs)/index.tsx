@@ -146,12 +146,17 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Continue book */}
+      {/* Continue book — deep link straight to the reader at the chapter the
+          backend returned. Previously this bounced through the book detail
+          page, which made "Seguir leyendo" feel broken in QA. The reader
+          route accepts id-or-slug so passing `bookId` works as-is. */}
       {home.continueBook ? (
         <Pressable
           style={styles.card}
           onPress={() =>
-            router.push(`/(tabs)/books/${home.continueBook!.bookId}`)
+            router.push(
+              `/(tabs)/books/${home.continueBook!.bookId}/lector/${home.continueBook!.chapterN}`,
+            )
           }
         >
           <View style={styles.continueRow}>

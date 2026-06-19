@@ -108,4 +108,37 @@ describe("WebPushToggle", () => {
       expect(screen.getByText(/VAPID/i)).toBeInTheDocument();
     });
   });
+
+  it("unsubscribes and flips back to 'off' when the user clicks Desactivar", async () => {
+    // Cold-start state: feature supported, permission already granted,
+    // a subscription already exists on the SW registration (so the
+    // initial effect resolves to phase "on" without going through
+    // subscribe). This mirrors the typical session: the user opted in
+    // last time, comes back, sees the toggle as Activated, and clicks
+    // Desactivar to opt out.
+    vi.mocked(detectWebPushSupport).mockReturnValue({
+      supported: true,
+      permission: "granted",
+    });
+    vi.mocked(unsubscribeWebPush).mockResolvedValue(undefined);
+    stubServiceWorker(true);
+    const user = userEvent.setup();
+    render(<WebPushToggle apiBase="/api" accessToken="tok" />);
+    // Wait for the cold-start effect to flip to phase "on" — the button
+    // label switches to "Desactivar".
+    const desactivar = await screen.findByRole("button", {
+      name: /desactivar/i,
+    });
+    await user.click(desactivar);
+    await waitFor(() => {
+      expect(unsubscribeWebPush).toHaveBeenCalledWith("/api", "tok", "");
+    });
+    // After the unsubscribe resolves the toggle returns to the off state,
+    // which exposes the "Activar" CTA instead.
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /activar/i }),
+      ).toBeInTheDocument();
+    });
+  });
 });

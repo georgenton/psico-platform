@@ -1,9 +1,17 @@
 import { redirect } from "next/navigation";
 import type { UserMeResponse } from "@psico/types";
 
-import { getSessionUser, isNextThrow, serverFetch } from "@/lib/api.server";
+import {
+  getAccessToken,
+  getSessionUser,
+  isNextThrow,
+  serverFetch,
+} from "@/lib/api.server";
+import { ApiClientBootstrap } from "./_ApiClientBootstrap";
 import { DashboardShell } from "./_DashboardShell";
 import { TimezoneSync } from "./_TimezoneSync";
+
+const API_ROOT = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 export default async function DashboardLayout({
   children,
@@ -60,8 +68,11 @@ export default async function DashboardLayout({
   // the user just keeps receiving notifications in UTC.
   const needsTimezoneProbe = Boolean(me && me.user.timezone === null);
 
+  const accessToken = getAccessToken();
+
   return (
     <DashboardShell user={user} cryptoSalt={cryptoSalt} showTour={showTour}>
+      <ApiClientBootstrap apiBase={API_ROOT} accessToken={accessToken} />
       <TimezoneSync needsProbe={needsTimezoneProbe} />
       {children}
     </DashboardShell>

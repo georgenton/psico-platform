@@ -4,34 +4,63 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
+  base64UrlToBytes,
+  bytesToBase64Url,
+  decryptString,
   deriveMasterKey,
   deriveSubKey,
   DIARY_KEY_INFO,
   ECO_KEY_INFO,
+  encryptString,
+  randomBytes,
 } from "@psico/crypto";
+import { clearDiaryWrapKey, saveDiaryWrapKey } from "@/actions/diary-session";
 
 /**
  * DiaryKeyContext — provides the user's derived diary key during a session.
  *
- * Lifecycle:
- *   - Initial state: `key = null` (locked). The Diario UI shows an unlock form.
- *   - User enters their password → derive masterKey (Argon2id) + diaryKey (HKDF).
- *   - Key stays in memory (React state) until the tab closes or user signs out.
+ * Lifecycle (Option C persistence — ADR 0007 §G v2):
+ *   - Initial render: if the layout already passed `initialWrapKey` AND the
+ *     browser has a `psico:diary:wrapped` entry in localStorage, we try to
+ *     decrypt the wrapped master key. Success → context fills in silently,
+ *     UI never asks for the password.
+ *   - First-time / failed restore: `key = null` (locked). The Diario UI
+ *     shows an unlock form. After unlock we both keep the key in memory
+ *     AND persist a fresh wrap pair (cookie + localStorage).
+ *   - On password change: the rekey flow calls `adoptMasterKey(newKey)`
+ *     which automatically writes a fresh wrap pair so the next reload
+ *     restores against the new master.
+ *   - On manual `lock()` or `logout`: we wipe RAM, localStorage, and the
+ *     wrap-key cookie.
  *
- * Why not persist:
- *   - localStorage exposes the key to any successful XSS (no recovery).
- *   - IndexedDB with wrapKey is safer but requires a device-secret cookie
- *     handshake — deferred to Sprint S6-crypto-v2.
- *   - For v1: re-derive per tab session. UX cost = one password prompt per
- *     diary visit; security upside = key never touches disk.
+ * Why this design (vs RAM-only):
+ *   - Friction. Asking for the password on every full navigation makes the
+ *     diary feel hostile, especially since the iOS reload behaviour wipes
+ *     in-memory key on swipe-back too.
+ *   - Same theft surface as a normal session cookie. An attacker needs
+ *     BOTH the HttpOnly cookie (server-side) AND the localStorage payload
+ *     (client-side) to recover the master key. Either half alone is junk.
+ *   - The master key itself never touches JS-accessible storage. Only the
+ *     ciphertext does, and the wrap key never leaves the server.
  *
- * The provider is mounted on the diary subtree only — no need to derive
- * for users who never open the diario.
+ * The provider is hoisted to the dashboard layout so the unlock survives
+ * navigation between Diario / Eco / Patrones / Seguridad.
  */
+
+const LOCAL_STORAGE_KEY = "psico:diary:wrapped";
+
+interface WrappedPayload {
+  ciphertext: string;
+  nonce: string;
+  /** ISO timestamp when the bundle was written. Helps debug stale entries. */
+  savedAt: string;
+}
 
 export interface DiaryKeyState {
   /** 32-byte diary subkey. null = locked. */
@@ -57,16 +86,18 @@ export interface DiaryKeyState {
    *   2. The password-change-with-rekey flow needs to derive sub-keys
    *      (DIARY_KEY_INFO) from the OLD master key while re-encrypting
    *      entries with the NEW one.
-   *
-   * Security note: holding masterKey alongside diaryKey adds 32 B to the
-   * heap; the attack surface is unchanged (an attacker with read-memory
-   * access already has the diaryKey). On lock() we zero both.
    */
   masterKey: Uint8Array | null;
   /** Whether `cryptoSalt` is null on the user (legacy account, no E2E). */
   isLegacyAccount: boolean;
   /** Derivation is in flight (Argon2id ~500ms on desktop). */
   unlocking: boolean;
+  /**
+   * Restore attempt from the persisted wrap pair is in flight. The Diario
+   * UI uses this to render a tiny "Restaurando sesión…" skeleton instead
+   * of flashing the unlock form on every reload.
+   */
+  restoring: boolean;
   /** Last unlock error message, or null. */
   error: string | null;
 }
@@ -78,9 +109,11 @@ export interface DiaryKeyActions {
    * Adopt a master key that the caller already has (e.g. from BIP39 seed
    * phrase recovery, or right after a password change). Derives the
    * diaryKey and seeds it into the context, exactly as `unlock` would.
+   * Also re-persists a fresh wrap pair so the next reload restores
+   * against this new master.
    */
   adoptMasterKey: (masterKey: Uint8Array) => void;
-  /** Forget the key (e.g. user logs out or hits "lock again"). */
+  /** Forget the key + clear persisted wrap pair (RAM + storage + cookie). */
   lock: () => void;
 }
 
@@ -91,6 +124,7 @@ const DiaryKeyContext = createContext<DiaryKeyContextValue | null>(null);
 export function DiaryKeyProvider({
   children,
   cryptoSalt,
+  initialWrapKey,
 }: {
   children: React.ReactNode;
   /**
@@ -99,12 +133,115 @@ export function DiaryKeyProvider({
    * unavailable" path instead of the unlock form.
    */
   cryptoSalt: string | null;
+  /**
+   * Wrap key read by the server layout from the `psico_diary_wrap` cookie.
+   * When non-null AND the browser has a matching localStorage payload we
+   * restore the master key silently. `null` (no cookie) means the user is
+   * either fresh or chose to lock — show the password prompt.
+   */
+  initialWrapKey: string | null;
 }) {
   const [key, setKey] = useState<Uint8Array | null>(null);
   const [ecoKey, setEcoKey] = useState<Uint8Array | null>(null);
   const [masterKey, setMasterKey] = useState<Uint8Array | null>(null);
   const [unlocking, setUnlocking] = useState(false);
+  const [restoring, setRestoring] = useState<boolean>(
+    () => initialWrapKey !== null && cryptoSalt !== null,
+  );
   const [error, setError] = useState<string | null>(null);
+
+  // We persist the wrap pair every time we adopt a new master key, but the
+  // localStorage write only matters in the browser. This ref keeps the most
+  // recent wrap key around without re-reading the cookie.
+  const wrapKeyRef = useRef<string | null>(initialWrapKey);
+
+  // ── Persistence helpers ────────────────────────────────────────────────
+
+  /**
+   * Wrap the master key with a freshly generated K_wrap, write the
+   * ciphertext to localStorage and the K_wrap to the diary session cookie.
+   * Best-effort: a single failure (cookie blocked, storage quota) falls
+   * back to RAM-only behaviour without crashing the unlock.
+   */
+  const persistMasterKey = useCallback(async (master: Uint8Array) => {
+    if (typeof window === "undefined") return;
+    try {
+      const wrap = randomBytes(32);
+      const masterB64u = bytesToBase64Url(master);
+      const envelope = encryptString(masterB64u, wrap);
+      const payload: WrappedPayload = {
+        ciphertext: envelope.ciphertext,
+        nonce: envelope.nonce,
+        savedAt: new Date().toISOString(),
+      };
+      window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
+      const wrapB64u = bytesToBase64Url(wrap);
+      wrapKeyRef.current = wrapB64u;
+      // Server Action runs over fetch — fire-and-forget; the cookie is set
+      // on the response and the browser persists it automatically.
+      void saveDiaryWrapKey(wrapB64u);
+      wrap.fill(0);
+    } catch {
+      // Persistence failed; the in-memory keys still work for this session.
+    }
+  }, []);
+
+  /**
+   * Wipe localStorage + cookie. Safe to call multiple times.
+   */
+  const wipePersistence = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch {
+      // Quota / private mode — ignore.
+    }
+    wrapKeyRef.current = null;
+    void clearDiaryWrapKey();
+  }, []);
+
+  // ── Cold-start restore ─────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!restoring) return;
+    if (cryptoSalt === null || initialWrapKey === null) {
+      setRestoring(false);
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (!raw) {
+        // Cookie says we should be unlocked, but localStorage is gone
+        // (probably cleared in privacy settings). Drop the cookie too so
+        // subsequent loads don't keep retrying.
+        wipePersistence();
+        setRestoring(false);
+        return;
+      }
+      const payload = JSON.parse(raw) as WrappedPayload;
+      const wrap = base64UrlToBytes(initialWrapKey);
+      const masterB64u = decryptString(
+        { ciphertext: payload.ciphertext, nonce: payload.nonce },
+        wrap,
+      );
+      wrap.fill(0);
+      const master = base64UrlToBytes(masterB64u);
+      if (master.length !== 32) throw new Error("INVALID_LENGTH");
+      const diaryKey = deriveSubKey(master, DIARY_KEY_INFO);
+      const ecoSub = deriveSubKey(master, ECO_KEY_INFO);
+      setMasterKey(master);
+      setKey(diaryKey);
+      setEcoKey(ecoSub);
+    } catch {
+      // Stale wrap (password changed elsewhere) or tampered storage. Reset
+      // both sides so the next interaction prompts for the password.
+      wipePersistence();
+    } finally {
+      setRestoring(false);
+    }
+  }, [restoring, cryptoSalt, initialWrapKey, wipePersistence]);
+
+  // ── Actions ────────────────────────────────────────────────────────────
 
   const unlock = useCallback(
     async (password: string) => {
@@ -121,6 +258,7 @@ export function DiaryKeyProvider({
         setMasterKey(derivedMaster);
         setKey(diaryKey);
         setEcoKey(ecoSub);
+        await persistMasterKey(derivedMaster);
       } catch (err) {
         const code =
           err instanceof Error ? err.message : "CRYPTO_UNKNOWN_ERROR";
@@ -133,23 +271,27 @@ export function DiaryKeyProvider({
         setUnlocking(false);
       }
     },
-    [cryptoSalt],
+    [cryptoSalt, persistMasterKey],
   );
 
-  const adoptMasterKey = useCallback((nextMaster: Uint8Array) => {
-    if (nextMaster.length !== 32) {
-      setError("La clave maestra tiene un tamaño inválido.");
-      return;
-    }
-    const diaryKey = deriveSubKey(nextMaster, DIARY_KEY_INFO);
-    const ecoSub = deriveSubKey(nextMaster, ECO_KEY_INFO);
-    // We copy `nextMaster` so the caller can safely zero its own buffer.
-    const owned = new Uint8Array(nextMaster);
-    setMasterKey(owned);
-    setKey(diaryKey);
-    setEcoKey(ecoSub);
-    setError(null);
-  }, []);
+  const adoptMasterKey = useCallback(
+    (nextMaster: Uint8Array) => {
+      if (nextMaster.length !== 32) {
+        setError("La clave maestra tiene un tamaño inválido.");
+        return;
+      }
+      const diaryKey = deriveSubKey(nextMaster, DIARY_KEY_INFO);
+      const ecoSub = deriveSubKey(nextMaster, ECO_KEY_INFO);
+      // We copy `nextMaster` so the caller can safely zero its own buffer.
+      const owned = new Uint8Array(nextMaster);
+      setMasterKey(owned);
+      setKey(diaryKey);
+      setEcoKey(ecoSub);
+      setError(null);
+      void persistMasterKey(owned);
+    },
+    [persistMasterKey],
+  );
 
   const lock = useCallback(() => {
     if (key) key.fill(0);
@@ -159,7 +301,8 @@ export function DiaryKeyProvider({
     setEcoKey(null);
     setMasterKey(null);
     setError(null);
-  }, [key, ecoKey, masterKey]);
+    wipePersistence();
+  }, [key, ecoKey, masterKey, wipePersistence]);
 
   const value = useMemo<DiaryKeyContextValue>(
     () => ({
@@ -168,6 +311,7 @@ export function DiaryKeyProvider({
       masterKey,
       isLegacyAccount: cryptoSalt === null,
       unlocking,
+      restoring,
       error,
       unlock,
       adoptMasterKey,
@@ -179,6 +323,7 @@ export function DiaryKeyProvider({
       masterKey,
       cryptoSalt,
       unlocking,
+      restoring,
       error,
       unlock,
       adoptMasterKey,

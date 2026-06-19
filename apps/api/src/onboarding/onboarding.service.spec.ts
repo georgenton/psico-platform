@@ -50,10 +50,17 @@ describe("OnboardingService", () => {
   // ── intro / motivos / moods / tour — pure reads + constants ───────────────
 
   describe("read endpoints", () => {
-    it("getIntro returns the editorial constant", () => {
+    it("getIntro returns the editorial constant with a brand-neutral signature", () => {
       const intro = service.getIntro();
-      expect(intro.title).toMatch(/Marina/);
+      // Title and body are warm prose; signature is the platform itself so
+      // the welcome stays neutral as more authors get onboarded via the
+      // Author B2B module (S22+).
+      expect(intro.title.length).toBeGreaterThan(0);
       expect(intro.body.length).toBeGreaterThan(50);
+      expect(intro.signature).toBe("— Psico Platform");
+      // Guard against accidental re-introduction of personal-name copy.
+      expect(intro.title).not.toMatch(/Marina|Jorge|Tomás/);
+      expect(intro.signature).not.toMatch(/Marina|Jorge|Tomás/);
     });
 
     it("getMotivos returns only active rows in `order` asc", async () => {

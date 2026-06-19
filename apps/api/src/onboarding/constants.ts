@@ -11,15 +11,21 @@ import type { OnboardingIntro, OnboardingTourStep } from "@psico/types";
  * `OnboardingIntro { id, isActive, ... }`. Today YAGNI.
  */
 
-export const MARINA_INTRO: OnboardingIntro = {
-  title: "Hola, soy Marina",
-  subtitle: "Tu compañera en este camino",
+/**
+ * Onboarding welcome copy. Generic voice (no personal name) so the intro
+ * stays brand-neutral as more authors get onboarded via Author B2B (S22+).
+ * If we later need per-author intros, swap this constant for a function
+ * keyed by the recommendedBookId or current featured author.
+ */
+export const ONBOARDING_INTRO: OnboardingIntro = {
+  title: "Empecemos.",
+  subtitle: "Antes de leer, queremos conocerte un poco.",
   body:
-    "Antes de empezar quiero conocerte un poco. Te haré tres preguntas " +
-    "sencillas para entender qué te trae aquí y cómo te sientes hoy. " +
-    "Con eso te sugeriré por dónde empezar a leer. " +
+    "Te haremos tres preguntas cortas para entender qué te trae aquí y " +
+    "cómo te sientes hoy. Con eso vas a recibir una recomendación de por " +
+    "dónde empezar a leer. " +
     "Si prefieres saltar este paso, puedes hacerlo y explorar a tu ritmo.",
-  signature: "— Marina, psicóloga y autora de Emociones en Construcción",
+  signature: "— Psico Platform",
   avatarUrl: null,
 };
 

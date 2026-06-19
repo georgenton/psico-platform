@@ -160,7 +160,10 @@ export const MOOD_SEED_CATALOG: readonly OnboardingMoodSeed[] = [
 //   - Every recommended book slug is one of the known ancla books.
 //   - FALLBACK_BOOK_SLUG is one of the known slugs.
 //
-// `icon` names must match lucide-react icon ids (UI consumes them directly).
+// `icon` stores the literal glyph rendered by the UI. Emojis were chosen over
+// a separate icon library (lucide-react) to keep the bundle thin and ensure
+// the value is self-contained — the frontend just renders whatever string the
+// backend persists. Re-seed after edits so existing rows pick up new glyphs.
 
 export interface OnboardingMotivoSeed {
   readonly id: string;
@@ -170,18 +173,18 @@ export interface OnboardingMotivoSeed {
 }
 
 export const MOTIVO_SEED_CATALOG: readonly OnboardingMotivoSeed[] = [
-  { id: "ansiedad", label: "Ansiedad", icon: "wind", order: 1 },
-  { id: "tristeza", label: "Tristeza", icon: "cloud-rain", order: 2 },
+  { id: "ansiedad", label: "Ansiedad", icon: "🌬️", order: 1 },
+  { id: "tristeza", label: "Tristeza", icon: "🌧️", order: 2 },
   {
     id: "relaciones",
     label: "Mis relaciones",
-    icon: "heart-handshake",
+    icon: "🤝",
     order: 3,
   },
-  { id: "vinculos", label: "Vínculos familiares", icon: "users", order: 4 },
-  { id: "trabajo", label: "Trabajo y burnout", icon: "briefcase", order: 5 },
-  { id: "duelo", label: "Estoy en un duelo", icon: "heart-crack", order: 6 },
-  { id: "explorar", label: "Solo explorando", icon: "compass", order: 7 },
+  { id: "vinculos", label: "Vínculos familiares", icon: "👥", order: 4 },
+  { id: "trabajo", label: "Trabajo y burnout", icon: "💼", order: 5 },
+  { id: "duelo", label: "Estoy en un duelo", icon: "💔", order: 6 },
+  { id: "explorar", label: "Solo explorando", icon: "🧭", order: 7 },
 ] as const;
 
 /**

@@ -39,8 +39,12 @@ const VOICE_OPTIONS: Array<{
   label: string;
   hint: string;
 }> = [
-  { value: "marina", label: "Marina", hint: "Voz cálida, ritmo pausado" },
-  { value: "tomas", label: "Tomás", hint: "Voz cercana, ritmo natural" },
+  { value: "marina", label: "Cálida", hint: "Voz suave, ritmo pausado" },
+  {
+    value: "tomas",
+    label: "Cercana",
+    hint: "Voz natural, ritmo conversacional",
+  },
   { value: "none", label: "Sin voz", hint: "Solo texto, por ahora" },
 ];
 

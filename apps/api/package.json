@@ -17,7 +17,9 @@
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "migrate:deploy": "prisma migrate deploy",
-    "gen:vapid": "node scripts/gen-vapid.mjs"
+    "gen:vapid": "node scripts/gen-vapid.mjs",
+    "seed:test": "ts-node prisma/seed-test.ts",
+    "seed:test:wipe": "ts-node prisma/seed-test.ts --wipe"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

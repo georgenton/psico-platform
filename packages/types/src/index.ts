@@ -634,6 +634,13 @@ export interface UserPreferences {
   weeklyGoalMinutes: number;
   theme: ThemePreference;
   language: Language;
+  /**
+   * Sprint B1 — ambient theme picker. One of "calma" | "enfoque" | "energia"
+   * | "noche". The dashboard `<AmbientThemeApplier>` reads this and sets
+   * `body.amb-{ambient}` on every load so the page renders with the chosen
+   * palette before the first paint.
+   */
+  ambient: AmbientId;
 }
 
 export interface UserReaderPreferences {

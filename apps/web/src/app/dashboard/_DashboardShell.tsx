@@ -4,18 +4,40 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
+import type { AmbientId, DiaryMoodId } from "@psico/types";
+
 import { logoutAction } from "@/actions/auth";
 import type { SessionUser } from "@/lib/api.server";
 import { DiaryKeyProvider } from "@/lib/crypto/diary-key-context";
+import { MoodChip } from "@/components/dashboard/shell/MoodChip";
+import { AmbiencePicker } from "@/components/dashboard/shell/AmbiencePicker";
+import { AmbientThemeApplier } from "@/components/dashboard/shell/AmbientThemeApplier";
 import { TourOverlay } from "./_TourOverlay";
 
 // ── Nav config ─────────────────────────────────────────────────────────────
+//
+// Sprint B2: the sidebar is rewritten to match the redesign v2 dashboard. Order
+// + labels lifted from `docs/design/redesign-v2/dashboard/README.md` §7. The
+// "Recursos" divider visually separates the transformation track (top half)
+// from the supporting resources (bottom half).
+//
+// Routes that don't have a real page yet (Mi Evolución, Mapa Emocional,
+// Exploraciones) point at "Próximamente" placeholders shipped in this PR
+// so the nav is always navigable — no dead links.
+//
+// Profile / Mi Plan / Seguridad / Notificaciones move to deep-link-only —
+// they're surfaced from inside the user menu (logout area) instead of the
+// main rail.
 
-// Sprint S5-front: nav lines up with the design system's sidebar order from
-// docs/design/inicio/web.jsx and docs/design/biblioteca/web.jsx. Diary appears
-// because the backend (Sprint S6) ships the endpoints; the page below renders
-// a placeholder until the crypto module is wired client-side.
-const NAV_ITEMS = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: string;
+  exact: boolean;
+  tourTarget: string | null;
+};
+
+const NAV_ITEMS: readonly NavItem[] = [
   {
     href: "/dashboard",
     label: "Inicio",
@@ -24,18 +46,49 @@ const NAV_ITEMS = [
     tourTarget: "inicio",
   },
   {
-    href: "/dashboard/biblioteca",
-    label: "Mi biblioteca",
-    icon: "📚",
+    href: "/dashboard/evolucion",
+    label: "Mi Evolución",
+    icon: "📈",
     exact: false,
-    tourTarget: "biblioteca",
+    tourTarget: null,
   },
   {
-    href: "/dashboard/diario",
-    label: "Diario",
+    href: "/dashboard/mapa",
+    label: "Mapa Emocional",
+    icon: "🗺️",
+    exact: false,
+    tourTarget: null,
+  },
+  {
+    href: "/dashboard/patrones",
+    label: "Patrones IA",
+    icon: "📊",
+    exact: false,
+    tourTarget: "patrones",
+  },
+  {
+    href: "/dashboard/reflexiones",
+    label: "Reflexiones",
     icon: "✎",
     exact: false,
     tourTarget: "diario",
+  },
+  {
+    href: "/dashboard/exploraciones",
+    label: "Exploraciones",
+    icon: "🧭",
+    exact: false,
+    tourTarget: null,
+  },
+];
+
+const RESOURCE_NAV_ITEMS: readonly NavItem[] = [
+  {
+    href: "/dashboard/biblioteca",
+    label: "Biblioteca",
+    icon: "📚",
+    exact: false,
+    tourTarget: "biblioteca",
   },
   {
     href: "/dashboard/eco",
@@ -44,17 +97,56 @@ const NAV_ITEMS = [
     exact: false,
     tourTarget: "eco",
   },
+];
+
+// Sprint S42: admin-only nav appended when `user.role === "ADMIN"`.
+const ADMIN_NAV_ITEMS: readonly NavItem[] = [
   {
-    href: "/dashboard/patrones",
-    label: "Patrones",
+    href: "/dashboard/admin/overview",
+    label: "Pulso · Overview",
     icon: "📊",
     exact: false,
-    tourTarget: "patrones",
+    tourTarget: null,
   },
   {
-    href: "/dashboard/terapia",
-    label: "Terapia",
-    icon: "💬",
+    href: "/dashboard/admin/reports",
+    label: "Pulso · Reports",
+    icon: "📋",
+    exact: false,
+    tourTarget: null,
+  },
+  {
+    href: "/dashboard/admin/cohorts",
+    label: "Pulso · Cohorts",
+    icon: "📐",
+    exact: false,
+    tourTarget: null,
+  },
+  {
+    href: "/dashboard/admin/author-requests",
+    label: "Pulso · Autores",
+    icon: "📚",
+    exact: false,
+    tourTarget: null,
+  },
+  {
+    href: "/dashboard/admin/users",
+    label: "Pulso · Usuarios",
+    icon: "👤",
+    exact: false,
+    tourTarget: null,
+  },
+];
+
+// Deep-link items kept out of the rail but reachable from the user menu in
+// the footer. Plus the legacy /dashboard/diario path which now redirects to
+// /dashboard/reflexiones — listed here so the path matcher recognises it
+// during transitions.
+const USER_MENU_ITEMS: readonly NavItem[] = [
+  {
+    href: "/dashboard/perfil",
+    label: "Perfil",
+    icon: "👤",
     exact: false,
     tourTarget: null,
   },
@@ -62,13 +154,6 @@ const NAV_ITEMS = [
     href: "/dashboard/plan",
     label: "Mi plan",
     icon: "💳",
-    exact: false,
-    tourTarget: null,
-  },
-  {
-    href: "/dashboard/perfil",
-    label: "Perfil",
-    icon: "👤",
     exact: false,
     tourTarget: null,
   },
@@ -86,67 +171,67 @@ const NAV_ITEMS = [
     exact: false,
     tourTarget: null,
   },
-] as const;
-
-// Sprint S42: admin-only nav item appended at render time when
-// `user.role === "ADMIN"`. Lives in its own array so it never leaks into
-// the regular tour catalog or analytics.
-const ADMIN_NAV_ITEMS = [
-  // Sprint S48 — overview goes first so it's the natural landing for admins.
   {
-    href: "/dashboard/admin/overview",
-    label: "Pulso · Overview",
-    icon: "📊",
+    href: "/dashboard/terapia",
+    label: "Terapia",
+    icon: "💬",
     exact: false,
     tourTarget: null,
   },
-  {
-    href: "/dashboard/admin/reports",
-    label: "Pulso · Reports",
-    icon: "📋",
-    exact: false,
-    tourTarget: null,
-  },
-  // Sprint S51 — cohort retention heatmap. Sits last among admin items
-  // because it's the most "analytics-deep" view.
-  {
-    href: "/dashboard/admin/cohorts",
-    label: "Pulso · Cohorts",
-    icon: "📐",
-    exact: false,
-    tourTarget: null,
-  },
-  // Sprint S71.B-front — Author publication review inbox.
-  {
-    href: "/dashboard/admin/author-requests",
-    label: "Pulso · Autores",
-    icon: "📚",
-    exact: false,
-    tourTarget: null,
-  },
-  // Sprint S72 — Admin users search + role promotion.
-  {
-    href: "/dashboard/admin/users",
-    label: "Pulso · Usuarios",
-    icon: "👤",
-    exact: false,
-    tourTarget: null,
-  },
-] as const;
+];
 
 function matchesRoute(href: string, pathname: string, exact: boolean): boolean {
   return exact ? pathname === href : pathname.startsWith(href);
 }
 
 function getPageTitle(pathname: string): string {
+  const all = [
+    ...NAV_ITEMS,
+    ...RESOURCE_NAV_ITEMS,
+    ...ADMIN_NAV_ITEMS,
+    ...USER_MENU_ITEMS,
+  ];
   return (
-    NAV_ITEMS.find((item) => matchesRoute(item.href, pathname, item.exact))
-      ?.label ?? "Dashboard"
+    all.find((item) => matchesRoute(item.href, pathname, item.exact))?.label ??
+    "Dashboard"
   );
 }
 
 function getInitials(email: string): string {
   return email.charAt(0).toUpperCase();
+}
+
+// ── NavRow ─────────────────────────────────────────────────────────────────
+
+function NavRow({
+  item,
+  pathname,
+  onNav,
+}: {
+  item: NavItem;
+  pathname: string;
+  onNav: () => void;
+}) {
+  const active = matchesRoute(item.href, pathname, item.exact);
+  return (
+    <Link
+      href={item.href}
+      onClick={onNav}
+      data-tour-target={item.tourTarget ?? undefined}
+      className="mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all"
+      style={
+        active
+          ? {
+              background: "var(--color-lavender-100)",
+              color: "var(--color-lavender-700)",
+            }
+          : { color: "var(--color-warm-600)" }
+      }
+    >
+      <span className="text-base">{item.icon}</span>
+      {item.label}
+    </Link>
+  );
 }
 
 // ── Sidebar content ────────────────────────────────────────────────────────
@@ -155,10 +240,14 @@ function SidebarContent({
   user,
   pathname,
   onNav,
+  userMenuOpen,
+  onToggleUserMenu,
 }: {
   user: SessionUser | null;
   pathname: string;
   onNav: () => void;
+  userMenuOpen: boolean;
+  onToggleUserMenu: () => void;
 }) {
   return (
     <div className="flex h-full flex-col">
@@ -175,32 +264,31 @@ function SidebarContent({
       </div>
 
       {/* Nav links */}
-      <nav className="flex-1 px-3 pb-4">
-        {NAV_ITEMS.map((item) => {
-          const active = matchesRoute(item.href, pathname, item.exact);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNav}
-              data-tour-target={item.tourTarget ?? undefined}
-              className="mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all"
-              style={
-                active
-                  ? {
-                      background: "var(--color-lavender-100)",
-                      color: "var(--color-lavender-700)",
-                    }
-                  : { color: "var(--color-warm-600)" }
-              }
-            >
-              <span className="text-base">{item.icon}</span>
-              {item.label}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 overflow-y-auto px-3 pb-4">
+        {NAV_ITEMS.map((item) => (
+          <NavRow
+            key={item.href}
+            item={item}
+            pathname={pathname}
+            onNav={onNav}
+          />
+        ))}
 
-        {/* Sprint S42: admin section — visible only to ADMIN users. */}
+        <p
+          className="mt-4 mb-1 px-3 text-[10.5px] font-bold uppercase tracking-[0.14em]"
+          style={{ color: "var(--color-warm-400)" }}
+        >
+          Recursos
+        </p>
+        {RESOURCE_NAV_ITEMS.map((item) => (
+          <NavRow
+            key={item.href}
+            item={item}
+            pathname={pathname}
+            onNav={onNav}
+          />
+        ))}
+
         {user?.role === "ADMIN" ? (
           <>
             <p
@@ -209,28 +297,14 @@ function SidebarContent({
             >
               Pulso · Admin
             </p>
-            {ADMIN_NAV_ITEMS.map((item) => {
-              const active = matchesRoute(item.href, pathname, item.exact);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onNav}
-                  className="mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all"
-                  style={
-                    active
-                      ? {
-                          background: "var(--color-lavender-100)",
-                          color: "var(--color-lavender-700)",
-                        }
-                      : { color: "var(--color-warm-600)" }
-                  }
-                >
-                  <span className="text-base">{item.icon}</span>
-                  {item.label}
-                </Link>
-              );
-            })}
+            {ADMIN_NAV_ITEMS.map((item) => (
+              <NavRow
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                onNav={onNav}
+              />
+            ))}
           </>
         ) : null}
       </nav>
@@ -240,9 +314,11 @@ function SidebarContent({
         className="border-t p-3"
         style={{ borderColor: "var(--color-warm-200)" }}
       >
-        {/* Avatar + info */}
-        <div
-          className="mb-2 flex items-center gap-3 rounded-xl px-3 py-2.5"
+        <button
+          type="button"
+          onClick={onToggleUserMenu}
+          aria-expanded={userMenuOpen}
+          className="mb-2 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition-opacity hover:opacity-80"
           style={{ background: "var(--color-warm-100)" }}
         >
           <div
@@ -251,7 +327,7 @@ function SidebarContent({
           >
             {user ? getInitials(user.email) : "?"}
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 text-left">
             <p
               className="truncate text-xs font-medium"
               style={{ color: "var(--color-warm-800)" }}
@@ -262,9 +338,28 @@ function SidebarContent({
               Plan {user?.plan ?? "FREE"}
             </p>
           </div>
-        </div>
+          <span
+            aria-hidden
+            className="text-xs"
+            style={{ color: "var(--color-warm-400)" }}
+          >
+            {userMenuOpen ? "▾" : "▸"}
+          </span>
+        </button>
 
-        {/* Logout */}
+        {userMenuOpen ? (
+          <div className="mb-2">
+            {USER_MENU_ITEMS.map((item) => (
+              <NavRow
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                onNav={onNav}
+              />
+            ))}
+          </div>
+        ) : null}
+
         <form action={logoutAction}>
           <button
             type="submit"
@@ -287,33 +382,30 @@ export function DashboardShell({
   cryptoSalt,
   showTour,
   initialDiaryWrapKey,
+  initialMood,
+  initialAmbient,
   children,
 }: {
   user: SessionUser | null;
-  /**
-   * User's base64url Argon2id salt (or null for legacy accounts). Sourced
-   * from /user/me at the layout level so the DiaryKeyProvider is hoisted
-   * above every /dashboard/* page — that's what lets the diary unlock
-   * survive navigation, which the security page needs.
-   */
   cryptoSalt: string | null;
-  /**
-   * Sprint S37: when true, mounts the post-onboarding TourOverlay on top
-   * of the dashboard. Computed at the layout level from `onboardingState`
-   * so the check happens once per nav, not per render.
-   */
   showTour: boolean;
-  /**
-   * Diary session wrap key read by the server layout from the
-   * `psico_diary_wrap` HttpOnly cookie (Option C persistence). When non-null
-   * the client tries to restore the master key from localStorage silently
-   * — no password prompt. Null means cold start / locked.
-   */
   initialDiaryWrapKey: string | null;
+  /**
+   * Sprint B2: current mood from `/user/me` so the Topbar MoodChip renders
+   * the right state on first paint. `null` when no mood was ever logged.
+   */
+  initialMood: DiaryMoodId | null;
+  /**
+   * Sprint B2: active ambient theme from `UserPreferences.ambient`. Drives
+   * both the Topbar AmbiencePicker initial state AND the AmbientThemeApplier
+   * that sets `body.amb-{ambient}` on every dashboard mount.
+   */
+  initialAmbient: AmbientId;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   function closeSidebar() {
     setSidebarOpen(false);
@@ -324,8 +416,8 @@ export function DashboardShell({
       cryptoSalt={cryptoSalt}
       initialWrapKey={initialDiaryWrapKey}
     >
+      <AmbientThemeApplier ambient={initialAmbient} />
       <div className="flex h-screen overflow-hidden">
-        {/* Mobile overlay */}
         {sidebarOpen && (
           <div
             aria-hidden
@@ -334,7 +426,6 @@ export function DashboardShell({
           />
         )}
 
-        {/* Sidebar */}
         <aside
           className={`fixed inset-y-0 left-0 z-30 w-60 shrink-0 transition-transform duration-200 ease-in-out lg:relative lg:translate-x-0 ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -348,23 +439,22 @@ export function DashboardShell({
             user={user}
             pathname={pathname}
             onNav={closeSidebar}
+            userMenuOpen={userMenuOpen}
+            onToggleUserMenu={() => setUserMenuOpen((v) => !v)}
           />
         </aside>
 
-        {/* Main column */}
         <div
           className="flex min-w-0 flex-1 flex-col overflow-hidden"
           style={{ background: "var(--color-warm-100)" }}
         >
-          {/* Top bar */}
           <header
-            className="flex h-16 shrink-0 items-center gap-4 px-4 sm:px-6"
+            className="flex h-16 shrink-0 items-center gap-3 px-4 sm:px-6"
             style={{
               background: "white",
               borderBottom: "1px solid var(--color-warm-200)",
             }}
           >
-            {/* Hamburger — mobile only */}
             <button
               onClick={() => setSidebarOpen((v) => !v)}
               className="rounded-lg p-2 transition-opacity hover:opacity-70 lg:hidden"
@@ -388,20 +478,21 @@ export function DashboardShell({
             </button>
 
             <h1
-              className="text-base font-semibold"
+              className="flex-1 truncate text-base font-semibold"
               style={{ color: "var(--color-warm-800)" }}
             >
               {getPageTitle(pathname)}
             </h1>
+
+            <div className="hidden items-center gap-2 sm:flex">
+              <MoodChip initialMood={initialMood} />
+              <AmbiencePicker initialAmbient={initialAmbient} />
+            </div>
           </header>
 
-          {/* Page content */}
           <main className="flex-1 overflow-auto p-4 sm:p-6">{children}</main>
         </div>
 
-        {/* Sprint S37: post-onboarding tour overlay. Mounts after the rest
-            of the dashboard so target nav items exist in the DOM when the
-            overlay queries for them. */}
         {showTour ? <TourOverlay /> : null}
       </div>
     </DiaryKeyProvider>

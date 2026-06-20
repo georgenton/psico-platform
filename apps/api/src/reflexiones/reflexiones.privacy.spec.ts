@@ -5,8 +5,8 @@ import { join } from "path";
 /**
  * Privacy regression test (ADR 0007 §verification).
  *
- * The DiarioModule promises the backend NEVER logs ciphertext. This spec
- * walks every file under apps/api/src/diario/ and apps/api/src/home/ (the
+ * The ReflexionesModule promises the backend NEVER logs ciphertext. This spec
+ * walks every file under apps/api/src/reflexiones/ and apps/api/src/home/ (the
  * two modules that touch DiaryEntry rows) and fails the build if any
  * source line passes `textCiphertext` into a logger/console call.
  *

@@ -48,6 +48,7 @@ const DEFAULT_PREFERENCES = {
   weeklyGoalMinutes: 60,
   theme: "system" as const,
   language: "es-419" as const,
+  ambient: "calma" as const,
 };
 
 const DEFAULT_READER_PREFERENCES = {
@@ -147,6 +148,11 @@ export class UsersService {
             weeklyGoalMinutes: user.preferences.weeklyGoalMinutes,
             theme: user.preferences.theme as "system" | "light" | "dark",
             language: user.preferences.language as "es-419" | "es-ES",
+            ambient: (["calma", "enfoque", "energia", "noche"].includes(
+              user.preferences.ambient,
+            )
+              ? user.preferences.ambient
+              : "calma") as "calma" | "enfoque" | "energia" | "noche",
           }
         : DEFAULT_PREFERENCES,
       readerPreferences: user.readerPreferences

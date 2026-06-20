@@ -44,6 +44,7 @@ function buildMe(
       weeklyGoalMinutes: 60,
       theme: "system",
       language: "es-419",
+      ambient: "calma",
     },
     readerPreferences: {
       theme: "sepia",

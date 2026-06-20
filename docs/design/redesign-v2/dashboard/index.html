@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Psico — Producto · Panel de Evolución</title>
+<link rel="stylesheet" href="tokens.css" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Spline+Sans:wght@400;500;600;700&display=swap" />
+<!-- styles moved to styles.css -->
+</head>
+<body class="psico amb-calma">
+
+  <!-- ── PROTOTYPE BAR ──────────────────────────────────────────── -->
+  <div class="proto-bar">
+    <div class="proto-title"><span class="d"></span><span>Psico · Prototipo de producto</span></div>
+    <div class="seg" id="seg">
+      <button class="on" data-surface="web"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="1.5"/><path d="M8 20h8M12 17v3"/></svg>Escritorio</button>
+      <button data-surface="mobile"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></svg>Móvil</button>
+    </div>
+    <div class="proto-hint">3 pantallas · Inicio · Mapa · Patrones</div>
+  </div>
+
+  <!-- ════════════════════ WEB SURFACE ════════════════════ -->
+  <div class="surface on" id="surface-web">
+    <div class="app">
+      <!-- Sidebar -->
+      <aside class="side">
+        <div class="side-mark"><span class="mk"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span>Psico</div>
+        <button class="nav-item on" data-screen="inicio"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 L12 3.5 L21 11"/><path d="M5.5 9.5 V19.5 a1 1 0 0 0 1 1 H17.5 a1 1 0 0 0 1-1 V9.5"/><path d="M10 20.5 V14 H14 V20.5"/></svg>Inicio</button>
+        <button class="nav-item" data-screen="evolucion"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18 C 6.5 18, 7 12, 10 12 C 13 12, 13.5 6, 16 6 L 20 6"/><circle cx="4" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="20" cy="6" r="1.4" fill="currentColor" stroke="none"/></svg>Mi Evolución</button>
+        <button class="nav-item" data-screen="mapa"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L13.7 10.3 L21 12 L13.7 13.7 L12 21 L10.3 13.7 L3 12 L10.3 10.3 Z"/></svg>Mapa Emocional</button>
+        <button class="nav-item" data-screen="patrones"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>Patrones IA<span class="nav-badge">2</span></button>
+        <button class="nav-item" data-screen="reflexiones"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4 H18 a1 1 0 0 1 1 1 V19 a1 1 0 0 1-1 1 H7 Z"/><path d="M11 9 H16" opacity="0.6"/><path d="M11 13 H16" opacity="0.6"/><circle cx="7" cy="9" r="0.9" fill="currentColor" stroke="none"/><circle cx="7" cy="13" r="0.9" fill="currentColor" stroke="none"/></svg>Reflexiones</button>
+        <button class="nav-item" data-screen="exploraciones"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21 L16.7 16.7"/></svg>Exploraciones</button>
+        <div class="side-eyebrow">Recursos</div>
+        <button class="nav-item" data-screen="biblioteca"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5 C6 4.2 9 4.2 12 5.5 C15 4.2 18 4.2 20.5 5 V18.5 C18 17.7 15 17.7 12 19 C9 17.7 6 17.7 3.5 18.5 Z"/><path d="M12 5.5 V19"/></svg>Biblioteca</button>
+        <button class="nav-item" data-screen="eco"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12 a7 7 0 1 0 4.5 -6.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg>Eco</button>
+        <div class="side-spacer"></div>
+        <div class="side-comp">
+          <div class="sc-h"><span>Comprensión emocional</span></div>
+          <div class="sc-val"><b>74%</b><span>+12 este mes</span></div>
+          <div class="sc-bar"><i></i></div>
+          <div class="sc-foot">Tu mapa creció con 9 reflexiones esta semana.</div>
+        </div>
+      </aside>
+
+      <!-- Main -->
+      <div class="main">
+        <div class="topbar">
+          <div class="tb-search"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21 L16.7 16.7"/></svg><span>Busca un patrón, un libro, una reflexión…</span></div>
+          <div class="tb-spacer"></div>
+          <div class="mood-wrap">
+            <button class="mood-chip" id="moodChip" title="Tu ánimo de hoy">
+              <span class="mc-face" id="moodChipFace"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9 14.5 H15"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg></span>
+              <span class="mc-txt" id="moodChipText">¿Cómo estás?</span>
+              <svg class="ic mc-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="mood-pop" id="moodPop">
+              <div class="amb-mh">Tu ánimo de hoy · alimenta tu mapa</div>
+              <div class="mood-pop-row">
+                <button class="mp-opt" data-mood="great"><svg class="ic face" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8 13.5 a4 4 0 0 0 8 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Muy bien</span></button>
+                <button class="mp-opt" data-mood="good"><svg class="ic face" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9 13.8 a3.2 3.2 0 0 0 6 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Bien</span></button>
+                <button class="mp-opt" data-mood="ok"><svg class="ic face" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9 14.5 H15"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Neutral</span></button>
+                <button class="mp-opt" data-mood="low"><svg class="ic face" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.2 15 a3 3 0 0 1 5.6 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Bajo</span></button>
+                <button class="mp-opt" data-mood="hard"><svg class="ic face" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.4 15.5 a4 4 0 0 1 7.2 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Difícil</span></button>
+              </div>
+            </div>
+          </div>
+          <div class="amb">
+            <button class="amb-btn" id="ambBtn"><span class="sw" id="ambSw" style="background:linear-gradient(135deg,#8b71f5,#7fae76)"></span><span id="ambLabel">Calma</span><svg class="ic chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+            <div class="amb-menu" id="ambMenu">
+              <div class="amb-mh">Ambiente · cambia el tono de tu espacio</div>
+              <button class="amb-opt on" data-amb="calma"><span class="sw" style="background:linear-gradient(135deg,#8b71f5,#7fae76)"></span><span class="at"><b>Calma</b><span>Lavanda sereno · Geist</span></span><svg class="ic chk" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 L10 17.5 L19 6.5"/></svg></button>
+              <button class="amb-opt" data-amb="enfoque"><span class="sw" style="background:linear-gradient(135deg,#4f57e0,#2c9586)"></span><span class="at"><b>Enfoque</b><span>Índigo frío · Spline Sans</span></span><svg class="ic chk" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 L10 17.5 L19 6.5"/></svg></button>
+              <button class="amb-opt" data-amb="energia"><span class="sw" style="background:linear-gradient(135deg,#f2602f,#e3a423)"></span><span class="at"><b>Energía</b><span>Terracota cálido · Bricolage</span></span><svg class="ic chk" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 L10 17.5 L19 6.5"/></svg></button>
+              <button class="amb-opt" data-amb="noche"><span class="sw" style="background:linear-gradient(135deg,#2a1c66,#8b71f5)"></span><span class="at"><b>Noche</b><span>Modo oscuro · profundo</span></span><svg class="ic chk" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 L10 17.5 L19 6.5"/></svg></button>
+            </div>
+          </div>
+          <button class="tb-icon"><span class="dot"></span><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 16.5 C 7 14.5, 7 12, 7 10 a5 5 0 0 1 10 0 c0 2, 0 4.5, 1.5 6.5 Z"/><path d="M10 19.5 a2 2 0 0 0 4 0"/></svg></button>
+          <div class="tb-ava">AV</div>
+        </div>
+
+        <!-- ═══ SCREEN: INICIO ═══ -->
+        <section class="screen on" id="s-inicio" data-screen-label="Inicio">
+          <div style="margin-bottom:24px;">
+            <div class="greet-eyebrow">Jueves · 19 jun · Quito</div>
+            <div class="greet">Buenas tardes, Ana.</div>
+            <div class="greet-sub">A esta hora suele venir bien una pausa para mirar hacia adentro.</div>
+          </div>
+
+          <div class="card mood-checkin">
+            <div class="mc-left">
+              <span class="mc-eyebrow">Check-in de hoy</span>
+              <h3>¿Cómo llegas hoy, Ana?</h3>
+              <div class="mc-sub">Tu ánimo le da forma a tu mapa — nadie más lo ve.</div>
+              <div class="mc-week">
+                <div class="mc-day"><i style="background:var(--color-lavender-300)"></i><b>V</b></div>
+                <div class="mc-day"><i style="background:var(--color-warm-300)"></i><b>S</b></div>
+                <div class="mc-day"><i style="background:var(--color-sage-300)"></i><b>D</b></div>
+                <div class="mc-day"><i style="background:var(--color-sage-300)"></i><b>L</b></div>
+                <div class="mc-day"><i style="background:var(--color-sage-400)"></i><b>M</b></div>
+                <div class="mc-day"><i style="background:var(--color-sage-300)"></i><b>M</b></div>
+                <div class="mc-day today"><i></i><b>Hoy</b></div>
+              </div>
+            </div>
+            <div>
+              <div class="mood-row" id="moodRow">
+                <button class="mood" data-mood="great"><svg class="ic face" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8 13.5 a4 4 0 0 0 8 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Muy bien</span></button>
+                <button class="mood" data-mood="good"><svg class="ic face" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9 13.8 a3.2 3.2 0 0 0 6 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Bien</span></button>
+                <button class="mood" data-mood="ok"><svg class="ic face" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9 14.5 H15"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Neutral</span></button>
+                <button class="mood" data-mood="low"><svg class="ic face" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.2 15 a3 3 0 0 1 5.6 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Bajo</span></button>
+                <button class="mood" data-mood="hard"><svg class="ic face" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.4 15.5 a4 4 0 0 1 7.2 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Difícil</span></button>
+              </div>
+              <div class="mc-confirm" id="moodConfirm"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 L10 17.5 L19 6.5"/></svg>Eco lo registró · sumado a tu mapa</div>
+            </div>
+          </div>
+
+          <div class="home-hero">
+            <div class="card insight">
+              <div class="ins-top"><span class="card-tag">Insight del día</span><span class="ins-date">Generado por Eco</span></div>
+              <q>Durante las últimas semanas, tus reflexiones muestran una tendencia recurrente hacia la <b>autoexigencia</b>. Y, sin embargo, cada vez la nombras con más calma — eso también es crecimiento.</q>
+              <div class="ins-foot"><span class="av"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12 a7 7 0 1 0 4.5 -6.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg></span><span>A partir de tu actividad reciente · solo tú puedes verlo</span></div>
+            </div>
+            <div class="card mini-map">
+              <div class="mm-head"><div class="mm-title"><span class="d"></span>Tu Mapa Emocional</div><button class="mm-link" data-goto="mapa">Ver completo →</button></div>
+              <div class="radar-holder" id="radar-home"></div>
+              <div class="mm-foot"><b>74%</b><span>Comprensión<br>emocional</span></div>
+            </div>
+          </div>
+
+          <div class="sec-label">Tu progreso de comprensión</div>
+          <div class="metrics">
+            <div class="metric"><span class="mg"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 H21"/><path d="M16.5 3.5 a2.1 2.1 0 0 1 3 3 L7 19 l-4 1 1-4 Z"/></svg></span><b>128</b><span class="lbl">Reflexiones</span><span class="trend"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19 L12 8 L16 13 L21 6"/></svg>+9 esta semana</span></div>
+            <div class="metric"><span class="mg"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L13.7 10.3 L21 12 L13.7 13.7 L12 21 L10.3 13.7 L3 12 L10.3 10.3 Z"/></svg></span><b>41</b><span class="lbl">Insights</span><span class="trend"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19 L12 8 L16 13 L21 6"/></svg>+4</span></div>
+            <div class="metric"><span class="mg"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span><b>8</b><span class="lbl">Patrones</span><span class="trend"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19 L12 8 L16 13 L21 6"/></svg>+1 nuevo</span></div>
+            <div class="metric"><span class="mg"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8 19.6 A2 2 0 1 0 14 16 H2"/><path d="M17.5 8 A2.5 2.5 0 1 1 19.5 12 H2"/><path d="M9.8 4.4 A2 2 0 1 1 11 8 H2"/></svg></span><b>23</b><span class="lbl">Ejercicios</span><span class="trend"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19 L12 8 L16 13 L21 6"/></svg>+3</span></div>
+            <div class="metric"><span class="mg"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5 A2.5 2.5 0 0 0 11 12 c0-1.4-.5-2-1-3-1.1-2.1-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5 a7 7 0 1 1-14 0 c0-1.2.4-2.3 1-3 a2.5 2.5 0 0 0 2.5 2.5 Z"/></svg></span><b>21</b><span class="lbl">Días seguidos</span><span class="trend"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19 L12 8 L16 13 L21 6"/></svg>tu mejor racha</span></div>
+          </div>
+
+          <div class="home-cols">
+            <div class="card continue">
+              <span class="card-tag">Continúa tu recorrido</span>
+              <div class="c-row" style="margin-top:16px;">
+                <div class="cover"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5 C6 4.2 9 4.2 12 5.5 C15 4.2 18 4.2 20.5 5 V18.5 C18 17.7 15 17.7 12 19 C9 17.7 6 17.7 3.5 18.5 Z"/><path d="M12 5.5 V19"/></svg></div>
+                <div class="c-meta">
+                  <div class="c-eyebrow">Capítulo 3 de 12</div>
+                  <div class="c-title">Emociones en Construcción — La pausa antes de responder</div>
+                  <div class="bar"><i></i></div>
+                  <div class="c-pct">34% completado · ~8 min para terminar</div>
+                </div>
+              </div>
+              <div class="c-foot"><span class="note"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L13.7 10.3 L21 12 L13.7 13.7 L12 21 L10.3 13.7 L3 12 L10.3 10.3 Z"/></svg>Este capítulo conecta con tu patrón de autoexigencia</span><span class="btn primary">Seguir leyendo →</span></div>
+            </div>
+
+            <div class="card eco-rec">
+              <div class="er-head"><span class="er-glyph"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12 a7 7 0 1 0 4.5 -6.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg></span><div><div class="er-name">Eco te sugiere</div><div class="er-status">Disponible ahora</div></div></div>
+              <div class="er-body">Hoy podrías mirar de cerca tu <b>nueva conexión</b>: perfeccionismo y miedo al juicio. Tengo un ejercicio breve de 4 minutos para explorarla con calma.</div>
+              <div class="er-actions"><button class="er-btn w" data-goto="patrones">Ver la conexión</button><button class="er-btn o">Ahora no</button></div>
+            </div>
+          </div>
+
+          <div class="card continue activity">
+            <div class="r-head"><span class="card-tag sage">Tu hilo de reflexión · todo alimenta tu mapa</span><button class="r-all" data-goto="inicio">Ver todas →</button></div>
+            <div class="r-capture"><span class="rc-ava">A</span><span class="rc-prompt">¿Qué notaste sobre ti hoy?</span><span class="rc-btn"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 H21"/><path d="M16.5 3.5 a2.1 2.1 0 0 1 3 3 L7 19 l-4 1 1-4 Z"/></svg>Escribir</span></div>
+            <div class="act-list" style="margin-top:8px;">
+              <div class="act"><span class="ag lav"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 H21"/><path d="M16.5 3.5 a2.1 2.1 0 0 1 3 3 L7 19 l-4 1 1-4 Z"/></svg></span><div class="a-meta"><div class="a-title">Reflexión guardada en tu diario</div><div class="a-sub">"Hoy noté que me cuesta delegar…"</div></div><span class="a-fed">+ mapa</span><span class="a-time">hoy · 14:20</span></div>
+              <div class="act"><span class="ag"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12 a7 7 0 1 0 4.5 -6.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg></span><div class="a-meta"><div class="a-title">Conversación con Eco</div><div class="a-sub">Detectó el patrón "asocio error con pérdida de valor"</div></div><span class="a-fed">+ patrón</span><span class="a-time">ayer</span></div>
+              <div class="act"><span class="ag sage"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8 19.6 A2 2 0 1 0 14 16 H2"/><path d="M17.5 8 A2.5 2.5 0 1 1 19.5 12 H2"/><path d="M9.8 4.4 A2 2 0 1 1 11 8 H2"/></svg></span><div class="a-meta"><div class="a-title">Ejercicio de respiración completado</div><div class="a-sub">3 minutos · antes de una reunión difícil</div></div><span class="a-fed">+ calma</span><span class="a-time">ayer</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══ SCREEN: MAPA ═══ -->
+        <section class="screen" id="s-mapa" data-screen-label="Mapa Emocional">
+          <div class="screen-head">
+            <div class="screen-title"><span class="eb">El corazón de tu experiencia</span>Tu Mapa Emocional</div>
+            <button class="btn ghost"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 V15"/><path d="M7.5 10.5 L12 15 L16.5 10.5"/><path d="M4 20 H20"/></svg>Exportar</button>
+          </div>
+          <p class="screen-sub" style="margin:-14px 0 26px;">Una representación viva de tu mundo interior. Se actualiza sola a medida que lees, escribes y conversas. No mide cuánto haces — refleja cuánto te comprendes.</p>
+
+          <div class="map-grid">
+            <div class="map-stage">
+              <div class="ms-head"><div class="ms-title"><span class="d"></span>Dimensiones del autoconocimiento</div><div class="ms-meta">Actualizado hoy · 14:20</div></div>
+              <div class="radar-holder" id="radar-mapa"></div>
+              <div class="ms-score"><div><b>74%</b><div class="lbl">Comprensión emocional</div></div><span class="delta"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19 L12 8 L16 13 L21 6"/></svg>+12 pts este mes</span></div>
+            </div>
+
+            <div>
+              <div class="map-dims">
+                <div class="dim"><div class="d-top"><div class="d-name"><span class="dg"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20 A7 7 0 0 1 9.8 6.1 C15.5 5 17 4.5 19 2 c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10 Z"/><path d="M2 21 c0-3 1.9-5.4 5.1-6"/></svg></span>Claridad</div><span class="d-trend up"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15 L12 9 L18 15"/></svg>+8%</span></div><div class="d-bar"><i style="width:72%"></i></div></div>
+                <div class="dim"><div class="d-top"><div class="d-name"><span class="dg"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 C13.5 7 13.5 9.5 12 12 C10.5 9.5 10.5 7 12 4 Z"/><path d="M12 12 C9 11 6.5 9.5 5 7 C7.5 7 10 8.5 12 12 Z"/><path d="M12 12 C15 11 17.5 9.5 19 7 C16.5 7 14 8.5 12 12 Z"/><path d="M5 14.5 C7.5 16 10 16.5 12 16.5 C14 16.5 16.5 16 19 14.5"/></svg></span>Autocompasión</div><span class="d-trend up"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15 L12 9 L18 15"/></svg>+18%</span></div><div class="d-bar"><i style="width:50%"></i></div></div>
+                <div class="dim"><div class="d-top"><div class="d-name"><span class="dg"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="2.8"/><circle cx="16.5" cy="9" r="2.3"/><path d="M3.5 19.5 C4 16 6.5 14.5 9 14.5 C11 14.5 13 15.5 14 17.5"/><path d="M14.5 19.5 C15 16.5 17 15 19 15.5 C20 15.8 20.5 16.5 20.5 17.5" opacity="0.7"/></svg></span>Conexión</div><span class="d-trend up"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15 L12 9 L18 15"/></svg>+5%</span></div><div class="d-bar"><i style="width:80%"></i></div></div>
+                <div class="dim"><div class="d-top"><div class="d-name"><span class="dg"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 V11"/><path d="M12 13 C12 9 9 7 5 7 c0 4 3 6 7 6 Z"/><path d="M12 11 C12 8 14.5 6.5 18 6.5 c0 3.5-2.5 5-6 5 Z"/></svg></span>Propósito</div><span class="d-trend flat">estable</span></div><div class="d-bar"><i style="width:62%"></i></div></div>
+                <div class="dim"><div class="d-top"><div class="d-name"><span class="dg"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8 19.6 A2 2 0 1 0 14 16 H2"/><path d="M17.5 8 A2.5 2.5 0 1 1 19.5 12 H2"/><path d="M9.8 4.4 A2 2 0 1 1 11 8 H2"/></svg></span>Calma</div><span class="d-trend up"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15 L12 9 L18 15"/></svg>+6%</span></div><div class="d-bar"><i style="width:58%"></i></div></div>
+                <div class="dim"><div class="d-top"><div class="d-name"><span class="dg"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span>Consciencia</div><span class="d-trend up"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15 L12 9 L18 15"/></svg>+10%</span></div><div class="d-bar"><i style="width:74%"></i></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="map-feed">
+            <div class="sec-label">Qué está alimentando tu mapa</div>
+            <div class="feed-chips">
+              <span class="feed-chip"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5 C6 4.2 9 4.2 12 5.5 C15 4.2 18 4.2 20.5 5 V18.5 C18 17.7 15 17.7 12 19 C9 17.7 6 17.7 3.5 18.5 Z"/><path d="M12 5.5 V19"/></svg>Lecturas<span class="n">12</span></span>
+              <span class="feed-chip"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4 H18 a1 1 0 0 1 1 1 V19 a1 1 0 0 1-1 1 H7 Z"/><path d="M11 9 H16" opacity="0.6"/><path d="M11 13 H16" opacity="0.6"/><circle cx="7" cy="9" r="0.9" fill="currentColor" stroke="none"/><circle cx="7" cy="13" r="0.9" fill="currentColor" stroke="none"/></svg>Reflexiones<span class="n">128</span></span>
+              <span class="feed-chip"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12 a7 7 0 1 0 4.5 -6.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg>Conversaciones con Eco<span class="n">37</span></span>
+              <span class="feed-chip"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8 19.6 A2 2 0 1 0 14 16 H2"/><path d="M17.5 8 A2.5 2.5 0 1 1 19.5 12 H2"/><path d="M9.8 4.4 A2 2 0 1 1 11 8 H2"/></svg>Ejercicios<span class="n">23</span></span>
+              <span class="feed-chip"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14 a4 4 0 0 0 7 0"/><circle cx="9" cy="10" r="0.6" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.6" fill="currentColor" stroke="none"/></svg>Estados de ánimo<span class="n">54</span></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══ SCREEN: PATRONES ═══ -->
+        <section class="screen" id="s-patrones" data-screen-label="Patrones IA">
+          <div class="screen-head">
+            <div class="screen-title"><span class="eb">Lo más valioso que descubrirás</span>Patrones IA</div>
+          </div>
+          <p class="screen-sub" style="margin:-14px 0 22px;">Tendencias, conexiones y fortalezas que Eco detecta en tu actividad. Tócalas para explorar de dónde vienen y hacia dónde te llevan.</p>
+
+          <div class="pat-toolbar">
+            <button class="chip on">Todos<span></span></button>
+            <button class="chip">Predominantes</button>
+            <button class="chip">Conexiones</button>
+            <button class="chip">Disparadores</button>
+            <button class="chip">Fortalezas</button>
+            <button class="chip">Creencias</button>
+          </div>
+
+          <div class="pat-grid">
+            <div class="card pat-wide">
+              <div class="pw-body">
+                <span class="pw-tag">Insight de la semana</span>
+                <h3>Tu autoexigencia y tu miedo al juicio se alimentan entre sí</h3>
+                <p>Eco encontró un lazo entre dos de tus patrones más fuertes. Reconocerlo es el primer paso para aflojarlo — preparé un recorrido de 3 pasos para explorarlo juntos.</p>
+              </div>
+              <button class="pw-cta">Explorar el recorrido →</button>
+            </div>
+
+            <div class="card pat">
+              <span class="card-tag">Patrón predominante</span>
+              <div class="p-head"><span class="pg"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span><div><h3>Autoexigencia</h3><div class="sub">6 de tus últimas 8 reflexiones</div></div></div>
+              <p class="p-desc">Asocias el error con una pérdida de valor personal. Aparece sobre todo al hablar de trabajo y productividad.</p>
+              <div class="p-meter"><div class="bar"><i style="width:82%"></i></div><span class="pct">82%</span></div>
+              <div class="p-link"><span>Explorar este patrón</span><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+            </div>
+
+            <div class="card pat">
+              <span class="card-tag">Nueva conexión</span>
+              <div class="p-head"><span class="pg"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 L12 3.5 L21 11"/><path d="M5 12 a7 7 0 1 0 4.5 -6.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg></span><div><h3>Un lazo invisible</h3><div class="sub">Detectado hace 2 días</div></div></div>
+              <p class="p-desc">Cuando temes ser juzgada, subes tus estándares. Y cuando no los alcanzas, el miedo crece.</p>
+              <div class="p-connect"><span class="node">Perfeccionismo</span><span class="plus"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="node">Miedo al juicio</span></div>
+              <div class="p-link"><span>Ver la conexión</span><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+            </div>
+
+            <div class="card pat">
+              <span class="card-tag">Disparador recurrente</span>
+              <div class="p-head"><span class="pg"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18 a4 4 0 0 1 1-7.9 a5 5 0 0 1 9.6 1.4 A3.5 3.5 0 0 1 16 18 Z"/></svg></span><div><h3>Validación externa</h3><div class="sub">Activa tu atención</div></div></div>
+              <p class="p-desc">Los temas que más te detienen giran en torno a la aprobación de los demás y la autoestima.</p>
+              <div class="p-meter"><div class="bar"><i style="width:64%"></i></div><span class="pct">64%</span></div>
+              <div class="p-link"><span>Profundizar</span><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+            </div>
+
+            <div class="card pat sage">
+              <span class="card-tag sage">Fortaleza emergente</span>
+              <div class="p-head"><span class="pg"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 V11"/><path d="M12 13 C12 9 9 7 5 7 c0 4 3 6 7 6 Z"/><path d="M12 11 C12 8 14.5 6.5 18 6.5 c0 3.5-2.5 5-6 5 Z"/></svg></span><div><h3>Autocompasión</h3><div class="sub">+18% en 3 semanas</div></div></div>
+              <p class="p-desc">Cada vez te hablas con más amabilidad. La autocrítica empieza a transformarse en comprensión.</p>
+              <div class="p-meter"><div class="bar"><i style="width:71%"></i></div><span class="pct">71%</span></div>
+              <div class="p-link"><span>Ver tu progreso</span><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+            </div>
+
+            <div class="card pat sage">
+              <span class="card-tag sage">Creencia recurrente</span>
+              <div class="p-head"><span class="pg"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18 a4 4 0 0 1 1-7.9 a5 5 0 0 1 9.6 1.4 A3.5 3.5 0 0 1 16 18 Z"/></svg></span><div><h3>"Descansar es perder el tiempo"</h3><div class="sub">Aparece bajo presión</div></div></div>
+              <p class="p-desc">Una idea automática que Eco notó varias veces. Cuestionarla podría darte más permiso para parar.</p>
+              <div class="p-meter"><div class="bar"><i style="width:48%"></i></div><span class="pct">48%</span></div>
+              <div class="p-link"><span>Desafiar esta creencia</span><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══ SCREEN: MI EVOLUCIÓN ═══ -->
+        <section class="screen" id="s-evolucion" data-screen-label="Mi Evolución">
+          <div class="screen-head">
+            <div class="screen-title"><span class="eb">Tu transformación en el tiempo</span>Mi Evolución</div>
+            <button class="btn ghost"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 V15"/><path d="M7.5 10.5 L12 15 L16.5 10.5"/><path d="M4 20 H20"/></svg>Exportar</button>
+          </div>
+          <p class="screen-sub" style="margin:-14px 0 26px;">No es un registro de cuánto leíste, sino de cómo fuiste cambiando. Cada hito es un momento en que entendiste algo nuevo sobre ti.</p>
+
+          <div class="evo-top">
+            <div class="card evo-chart">
+              <span class="card-tag">Comprensión emocional · 6 meses</span>
+              <div class="ec-score"><b>74%</b><span class="delta"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19 L12 8 L16 13 L21 6"/></svg>+12 pts este trimestre</span></div>
+              <svg viewBox="0 0 640 210" preserveAspectRatio="none" style="max-height:230px;">
+                <defs><linearGradient id="evoFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--color-lavender-400)" stop-opacity="0.28"/><stop offset="1" stop-color="var(--color-lavender-400)" stop-opacity="0"/></linearGradient></defs>
+                <line class="ec-grid" x1="40" y1="152.5" x2="600" y2="152.5"/>
+                <line class="ec-grid" x1="40" y1="115" x2="600" y2="115"/>
+                <line class="ec-grid" x1="40" y1="77.5" x2="600" y2="77.5"/>
+                <path d="M40 133 L152 122.5 L264 112 L376 103 L488 91 L600 79 L600 190 L40 190 Z" fill="url(#evoFill)"/>
+                <path class="ec-line" d="M40 133 L152 122.5 L264 112 L376 103 L488 91 L600 79"/>
+                <circle class="ec-dot" cx="40" cy="133" r="4"/>
+                <circle class="ec-dot" cx="152" cy="122.5" r="4"/>
+                <circle class="ec-dot" cx="264" cy="112" r="4"/>
+                <circle class="ec-dot" cx="376" cy="103" r="4"/>
+                <circle class="ec-dot" cx="488" cy="91" r="4"/>
+                <circle class="ec-dot last" cx="600" cy="79" r="5.5"/>
+              </svg>
+              <div class="ec-x"><span>Ene</span><span>Feb</span><span>Mar</span><span>Abr</span><span>May</span><span>Jun</span></div>
+            </div>
+            <div class="card evo-quarter">
+              <span class="card-tag sage">Este trimestre</span>
+              <div class="eq-list">
+                <div class="eq-row"><span class="eqg"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span><div class="eqm"><div class="eqv">3 patrones</div><div class="eql">nuevos reconocidos</div></div></div>
+                <div class="eq-row"><span class="eqg"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L13.7 10.3 L21 12 L13.7 13.7 L12 21 L10.3 13.7 L3 12 L10.3 10.3 Z"/></svg></span><div class="eqm"><div class="eqv">17 insights</div><div class="eql">descubiertos contigo</div></div></div>
+                <div class="eq-row"><span class="eqg"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 V11"/><path d="M12 13 C12 9 9 7 5 7 c0 4 3 6 7 6 Z"/><path d="M12 11 C12 8 14.5 6.5 18 6.5 c0 3.5-2.5 5-6 5 Z"/></svg></span><div class="eqm"><div class="eqv">+18% autocompasión</div><div class="eql">tu mayor salto</div></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="padding:26px 28px;">
+            <span class="card-tag" style="margin-bottom:22px; display:inline-flex;">Hitos de tu transformación</span>
+            <div class="tl">
+              <div class="tl-item">
+                <span class="tl-dot"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span>
+                <div class="tl-body"><div class="tl-month">Abril</div><h4>Identificaste tu patrón de perfeccionismo</h4><p>Por primera vez le pusiste nombre a esa voz que te exige más de lo que pides a los demás.</p><span class="tl-tag">+ patrón reconocido</span></div>
+              </div>
+              <div class="tl-item sage">
+                <span class="tl-dot"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18 a4 4 0 0 1 1-7.9 a5 5 0 0 1 9.6 1.4 A3.5 3.5 0 0 1 16 18 Z"/></svg></span>
+                <div class="tl-body"><div class="tl-month">Mayo</div><h4>Reconociste tus principales disparadores emocionales</h4><p>Empezaste a anticipar qué situaciones te activan — y eso te dio margen para responder en vez de reaccionar.</p><span class="tl-tag">+ disparadores mapeados</span></div>
+              </div>
+              <div class="tl-item">
+                <span class="tl-dot"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 V11"/><path d="M12 13 C12 9 9 7 5 7 c0 4 3 6 7 6 Z"/><path d="M12 11 C12 8 14.5 6.5 18 6.5 c0 3.5-2.5 5-6 5 Z"/></svg></span>
+                <div class="tl-body"><div class="tl-month">Junio</div><h4>Mejoraste tu autocompasión de forma notable</h4><p>El tono con el que te hablas cambió. Tu Mapa Emocional registró el mayor salto del trimestre.</p><span class="tl-tag">+ 18% en tu mapa</span></div>
+              </div>
+              <div class="tl-item next">
+                <span class="tl-dot"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L7 10 H10 L6 16 H18 L14 10 H17 Z"/><path d="M12 16 V21"/></svg></span>
+                <div class="tl-body"><div class="tl-month">Próximo paso</div><h4>Desafiar tus pensamientos automáticos</h4><p>Eco preparó un recorrido para cuestionar esas ideas que aparecen solas. Cuando quieras, está listo.</p><span class="tl-tag">recorrido sugerido</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══ SCREEN: REFLEXIONES ═══ -->
+        <section class="screen" id="s-reflexiones" data-screen-label="Reflexiones">
+          <div class="screen-head">
+            <div class="screen-title"><span class="eb">Tu hilo de autoconocimiento</span>Reflexiones</div>
+            <button class="btn primary"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Nueva reflexión</button>
+          </div>
+          <p class="screen-sub" style="margin:-14px 0 26px;">Cada cosa que escribes aquí le da forma a tu Mapa Emocional. No es un diario que se archiva — es la materia prima de tu evolución.</p>
+
+          <div class="refl-grid">
+            <div>
+              <div class="card refl-capture">
+                <div class="rcc-top">
+                  <span class="rcc-ava">A</span>
+                  <span class="rcc-field">¿Qué notaste sobre ti hoy? Escribe sin filtro…</span>
+                </div>
+                <div class="rcc-actions">
+                  <div class="rcc-tools">
+                    <button class="rcc-tool" title="Asociar ánimo"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14 a4 4 0 0 0 7 0"/><circle cx="9" cy="10" r="0.6" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.6" fill="currentColor" stroke="none"/></svg></button>
+                    <button class="rcc-tool" title="Dictar por voz"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 a3 3 0 0 0-3 3 v7 a3 3 0 0 0 6 0 V5 a3 3 0 0 0-3-3 Z"/><path d="M19 10 v2 a7 7 0 0 1-14 0 v-2"/><path d="M12 19 v3"/></svg></button>
+                    <button class="rcc-tool" title="Reflexionar con Eco"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12 a7 7 0 1 0 4.5 -6.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg></button>
+                  </div>
+                  <button class="btn primary">Guardar reflexión</button>
+                </div>
+              </div>
+
+              <div class="refl-filter">
+                <button class="chip on">Todas</button>
+                <button class="chip">Por ánimo</button>
+                <button class="chip">Por patrón</button>
+                <button class="chip">Con Eco</button>
+                <button class="chip">Destacadas</button>
+              </div>
+
+              <div class="refl-thread">
+                <div class="card refl-entry">
+                  <span class="refl-mood low"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.2 15 a3 3 0 0 1 5.6 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg></span>
+                  <div class="re-body"><div class="re-top"><span class="re-date">Hoy · 14:20</span><span class="re-moodlbl low">Bajo</span></div><p class="re-text">Hoy noté que me cuesta delegar — siento que si no lo hago yo, no va a estar bien. Terminé agotada otra vez.</p><div class="re-tags"><span class="re-tag">alimentó: autoexigencia</span><span class="re-src"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12 a7 7 0 1 0 4.5 -6.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg>Eco respondió</span></div></div>
+                </div>
+                <div class="card refl-entry">
+                  <span class="refl-mood good"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9 13.8 a3.2 3.2 0 0 0 6 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg></span>
+                  <div class="re-body"><div class="re-top"><span class="re-date">Ayer · 21:05</span><span class="re-moodlbl good">Bien</span></div><p class="re-text">Me tomé la tarde sin hacer nada “productivo” y, por una vez, no me sentí culpable. Pequeño, pero se sintió enorme.</p><div class="re-tags"><span class="re-tag sage">alimentó: autocompasión</span></div></div>
+                </div>
+                <div class="card refl-entry">
+                  <span class="refl-mood ok"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9 14.5 H15"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg></span>
+                  <div class="re-body"><div class="re-top"><span class="re-date">Hace 2 días</span><span class="re-moodlbl ok">Neutral</span></div><p class="re-text">La charla con mi hermana me dejó pensando en mis límites. Me cuesta decir que no sin dar mil explicaciones.</p><div class="re-tags"><span class="re-tag">alimentó: límites</span><span class="re-src"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4 H18 a1 1 0 0 1 1 1 V19 a1 1 0 0 1-1 1 H7 Z"/><path d="M11 9 H16" opacity="0.6"/><circle cx="7" cy="9" r="0.9" fill="currentColor" stroke="none"/></svg>Desde el diario</span></div></div>
+                </div>
+                <div class="card refl-entry">
+                  <span class="refl-mood hard"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.4 15.5 a4 4 0 0 1 7.2 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg></span>
+                  <div class="re-body"><div class="re-top"><span class="re-date">Hace 3 días</span><span class="re-moodlbl hard">Difícil</span></div><p class="re-text">Un comentario en el trabajo me activó toda la tarde. Reaccioné antes de pensar y después me arrepentí.</p><div class="re-tags"><span class="re-tag">alimentó: validación externa</span><span class="re-src"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12 a7 7 0 1 0 4.5 -6.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg>Eco respondió</span></div></div>
+                </div>
+                <div class="card refl-entry">
+                  <span class="refl-mood great"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8 13.5 a4 4 0 0 0 8 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg></span>
+                  <div class="re-body"><div class="re-top"><span class="re-date">Hace 5 días</span><span class="re-moodlbl great">Muy bien</span></div><p class="re-text">Leí el capítulo sobre la pausa antes de responder y, por primera vez, la apliqué de verdad en una discusión. Funcionó.</p><div class="re-tags"><span class="re-tag sage">alimentó: calma</span><span class="re-src"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5 C6 4.2 9 4.2 12 5.5 C15 4.2 18 4.2 20.5 5 V18.5 C18 17.7 15 17.7 12 19 C9 17.7 6 17.7 3.5 18.5 Z"/><path d="M12 5.5 V19"/></svg>Desde la lectura</span></div></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="refl-side">
+              <div class="card rs-card">
+                <span class="card-tag">Tu mes en reflexiones</span>
+                <div class="rs-count"><b>24</b><span>reflexiones este mes · 21 días seguidos</span></div>
+                <div class="rs-moodbar">
+                  <i style="width:25%; background:var(--color-sage-400)"></i>
+                  <i style="width:29%; background:var(--color-sage-300)"></i>
+                  <i style="width:21%; background:var(--color-warm-300)"></i>
+                  <i style="width:17%; background:var(--color-lavender-300)"></i>
+                  <i style="width:8%; background:var(--color-lavender-500)"></i>
+                </div>
+                <div class="rs-legend">
+                  <span class="rs-leg"><i style="background:var(--color-sage-400)"></i>Muy bien</span>
+                  <span class="rs-leg"><i style="background:var(--color-sage-300)"></i>Bien</span>
+                  <span class="rs-leg"><i style="background:var(--color-warm-300)"></i>Neutral</span>
+                  <span class="rs-leg"><i style="background:var(--color-lavender-300)"></i>Bajo</span>
+                  <span class="rs-leg"><i style="background:var(--color-lavender-500)"></i>Difícil</span>
+                </div>
+              </div>
+              <div class="card rs-card">
+                <span class="card-tag" style="margin-bottom:6px; display:inline-flex;">Temas recurrentes</span>
+                <div style="margin-top:8px;">
+                  <div class="rs-theme"><span class="t-name">Autoexigencia</span><span class="t-bar"><i style="width:100%"></i></span><span class="t-count">12</span></div>
+                  <div class="rs-theme"><span class="t-name">Autocompasión</span><span class="t-bar"><i style="width:67%"></i></span><span class="t-count">8</span></div>
+                  <div class="rs-theme"><span class="t-name">Validación externa</span><span class="t-bar"><i style="width:50%"></i></span><span class="t-count">6</span></div>
+                  <div class="rs-theme"><span class="t-name">Límites</span><span class="t-bar"><i style="width:33%"></i></span><span class="t-count">4</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══ SCREEN: EXPLORACIONES ═══ -->
+        <section class="screen" id="s-exploraciones" data-screen-label="Exploraciones">
+          <div class="screen-head">
+            <div class="screen-title"><span class="eb">Recorridos de transformación</span>Exploraciones</div>
+          </div>
+          <p class="screen-sub" style="margin:-14px 0 26px;">No son cursos ni libros sueltos — son recorridos guiados hacia algo que quieres trabajar en ti. Cada uno combina lectura, ejercicios y reflexión, y alimenta tu mapa.</p>
+
+          <div class="card ex-feature">
+            <div class="exf-cover"><svg class="ic" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18 C 6.5 18, 7 12, 10 12 C 13 12, 13.5 6, 16 6 L 20 6"/><circle cx="4" cy="18" r="1.6" fill="currentColor" stroke="none"/><circle cx="20" cy="6" r="1.6" fill="currentColor" stroke="none"/></svg></div>
+            <div class="exf-body">
+              <span class="exf-tag">Continúa tu exploración</span>
+              <h3>Domar la autoexigencia</h3>
+              <p>Un recorrido para aflojar esa voz que te exige más de lo que pides a los demás. Vas por el paso 3 de 7 — el ejercicio de "el error como dato, no como veredicto".</p>
+              <div class="exf-foot">
+                <div class="exf-prog"><div class="bar"><i></i></div><div class="lbl">40% completado · ~12 min para el próximo hito</div></div>
+                <span class="btn primary">Continuar →</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="sec-label">Recomendadas para ti · según tus patrones</div>
+          <div class="explore-grid">
+            <div class="card ex-card">
+              <div class="ex-cover c3"><svg class="ic" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 L12 3.5 L21 11"/><path d="M5 12 a7 7 0 1 0 4.5 -6.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg></div>
+              <div class="ex-cbody">
+                <span class="ex-link-pat"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>Conecta con: Perfeccionismo</span>
+                <h4>Del perfeccionismo a lo suficiente</h4>
+                <p class="ex-desc">Aprende a soltar el "todo o nada" y a reconocer cuándo algo ya está bien.</p>
+                <div class="ex-steps"><span class="ex-step"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5 C6 4.2 9 4.2 12 5.5 C15 4.2 18 4.2 20.5 5 V18.5 C18 17.7 15 17.7 12 19 C9 17.7 6 17.7 3.5 18.5 Z"/><path d="M12 5.5 V19"/></svg>2 lecturas</span><span class="ex-step"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8 19.6 A2 2 0 1 0 14 16 H2"/><path d="M17.5 8 A2.5 2.5 0 1 1 19.5 12 H2"/></svg>4 ejercicios</span></div>
+                <div class="ex-cfoot"><span class="b-meta" style="font:500 11.5px/1 var(--font-sans); color:var(--color-warm-500);">7 pasos · ~3 semanas</span><span class="ex-go">Empezar →</span></div>
+              </div>
+            </div>
+            <div class="card ex-card">
+              <div class="ex-cover c2"><svg class="ic" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20 A7 7 0 0 1 9.8 6.1 C15.5 5 17 4.5 19 2 c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10 Z"/><path d="M2 21 c0-3 1.9-5.4 5.1-6"/></svg></div>
+              <div class="ex-cbody">
+                <span class="ex-link-pat"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18 a4 4 0 0 1 1-7.9 a5 5 0 0 1 9.6 1.4 A3.5 3.5 0 0 1 16 18 Z"/></svg>Conecta con: Validación externa</span>
+                <h4>Poner límites sin culpa</h4>
+                <p class="ex-desc">Decir que no sin dar mil explicaciones — y sin sentir que fallas a alguien.</p>
+                <div class="ex-steps"><span class="ex-step"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5 C6 4.2 9 4.2 12 5.5 C15 4.2 18 4.2 20.5 5 V18.5 C18 17.7 15 17.7 12 19 C9 17.7 6 17.7 3.5 18.5 Z"/><path d="M12 5.5 V19"/></svg>3 lecturas</span><span class="ex-step"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8 19.6 A2 2 0 1 0 14 16 H2"/><path d="M17.5 8 A2.5 2.5 0 1 1 19.5 12 H2"/></svg>3 ejercicios</span></div>
+                <div class="ex-cfoot"><span style="font:500 11.5px/1 var(--font-sans); color:var(--color-warm-500);">6 pasos · ~2 semanas</span><span class="ex-go">Empezar →</span></div>
+              </div>
+            </div>
+            <div class="card ex-card">
+              <div class="ex-cover c1"><svg class="ic" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5 A2.5 2.5 0 0 0 11 12 c0-1.4-.5-2-1-3-1.1-2.1-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5 a7 7 0 1 1-14 0 c0-1.2.4-2.3 1-3 a2.5 2.5 0 0 0 2.5 2.5 Z"/></svg></div>
+              <div class="ex-cbody">
+                <span class="ex-link-pat"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 V11"/><path d="M12 13 C12 9 9 7 5 7 c0 4 3 6 7 6 Z"/><path d="M12 11 C12 8 14.5 6.5 18 6.5 c0 3.5-2.5 5-6 5 Z"/></svg>Fortalece: Autocompasión</span>
+                <h4>Reconciliarte con el descanso</h4>
+                <p class="ex-desc">Desafía la creencia "descansar es perder el tiempo" y reaprende a parar sin culpa.</p>
+                <div class="ex-steps"><span class="ex-step"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5 C6 4.2 9 4.2 12 5.5 C15 4.2 18 4.2 20.5 5 V18.5 C18 17.7 15 17.7 12 19 C9 17.7 6 17.7 3.5 18.5 Z"/><path d="M12 5.5 V19"/></svg>2 lecturas</span><span class="ex-step"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8 19.6 A2 2 0 1 0 14 16 H2"/><path d="M17.5 8 A2.5 2.5 0 1 1 19.5 12 H2"/></svg>5 ejercicios</span></div>
+                <div class="ex-cfoot"><span style="font:500 11.5px/1 var(--font-sans); color:var(--color-warm-500);">5 pasos · ~2 semanas</span><span class="ex-go">Empezar →</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══ SCREEN: BIBLIOTECA ═══ -->
+        <section class="screen" id="s-biblioteca" data-screen-label="Biblioteca">
+          <div class="screen-head">
+            <div class="screen-title"><span class="eb">El vehículo, no el destino</span>Biblioteca</div>
+          </div>
+          <div class="lib-note"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L13.7 10.3 L21 12 L13.7 13.7 L12 21 L10.3 13.7 L3 12 L10.3 10.3 Z"/></svg>Aquí los libros son una herramienta de tu crecimiento. Cada lectura alimenta tu Mapa Emocional — no se trata de cuántos terminas, sino de qué descubres en ellos.</div>
+
+          <div class="refl-filter">
+            <button class="chip on">Todos</button>
+            <button class="chip">En curso</button>
+            <button class="chip">Gratuitos</button>
+            <button class="chip">Pro</button>
+            <button class="chip">Recomendados</button>
+          </div>
+
+          <div class="lib-grid">
+            <div class="card book">
+              <div class="book-cover c1"><span class="b-badge free">Gratis</span><svg class="ic" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5 C6 4.2 9 4.2 12 5.5 C15 4.2 18 4.2 20.5 5 V18.5 C18 17.7 15 17.7 12 19 C9 17.7 6 17.7 3.5 18.5 Z"/><path d="M12 5.5 V19"/></svg></div>
+              <div class="book-body">
+                <h4>Emociones en Construcción</h4>
+                <div class="b-author">Dra. Valeria Núñez</div>
+                <span class="b-nourish">nutre: claridad emocional</span>
+                <div class="b-foot"><div class="bar"><i style="width:34%"></i></div><div class="b-row"><span class="b-meta">Cap. 3 de 12</span><span class="b-read">Continuar →</span></div></div>
+              </div>
+            </div>
+            <div class="card book">
+              <div class="book-cover c3"><span class="b-badge pro">Pro</span><svg class="ic" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5 C6 4.2 9 4.2 12 5.5 C15 4.2 18 4.2 20.5 5 V18.5 C18 17.7 15 17.7 12 19 C9 17.7 6 17.7 3.5 18.5 Z"/><path d="M12 5.5 V19"/></svg></div>
+              <div class="book-body">
+                <h4>La pausa antes de responder</h4>
+                <div class="b-author">Mtro. Andrés Salcedo</div>
+                <span class="b-nourish">nutre: calma</span>
+                <div class="b-foot"><div class="b-row"><span class="b-meta">8 capítulos</span><span class="b-read">Leer →</span></div></div>
+              </div>
+            </div>
+            <div class="card book">
+              <div class="book-cover c2"><span class="b-badge pro">Pro</span><svg class="ic" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5 C6 4.2 9 4.2 12 5.5 C15 4.2 18 4.2 20.5 5 V18.5 C18 17.7 15 17.7 12 19 C9 17.7 6 17.7 3.5 18.5 Z"/><path d="M12 5.5 V19"/></svg></div>
+              <div class="book-body">
+                <h4>El arte de la autocompasión</h4>
+                <div class="b-author">Dra. Lucía Hernández</div>
+                <span class="b-nourish">nutre: autocompasión</span>
+                <div class="b-foot"><div class="b-row"><span class="b-meta">10 capítulos</span><span class="b-read">Leer →</span></div></div>
+              </div>
+            </div>
+            <div class="card book">
+              <div class="book-cover c1"><span class="b-badge pro">Pro</span><svg class="ic" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5 C6 4.2 9 4.2 12 5.5 C15 4.2 18 4.2 20.5 5 V18.5 C18 17.7 15 17.7 12 19 C9 17.7 6 17.7 3.5 18.5 Z"/><path d="M12 5.5 V19"/></svg></div>
+              <div class="book-body">
+                <h4>Vivir sin el peso de la culpa</h4>
+                <div class="b-author">Dr. Marco Ribadeneira</div>
+                <span class="b-nourish">nutre: límites</span>
+                <div class="b-foot"><div class="b-row"><span class="b-meta">9 capítulos</span><span class="b-read">Leer →</span></div></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══ SCREEN: ECO ═══ -->
+        <section class="screen" id="s-eco" data-screen-label="Eco">
+          <div class="eco-layout">
+            <div class="card eco-chat">
+              <div class="eco-chead">
+                <span class="eav"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12 a7 7 0 1 0 4.5 -6.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg></span>
+                <div><div class="en">Eco</div><div class="es">Construyendo tu mapa · responde en segundos</div></div>
+              </div>
+              <div class="eco-msgs">
+                <div class="e-bubble eco">Buenas tardes, Ana. Releyendo lo que escribiste esta semana, noté algo. ¿Te late explorarlo juntos?</div>
+                <div class="e-bubble me">Sí, dime.</div>
+                <span class="e-tag">Patrón detectado</span>
+                <div class="e-bubble eco">Cuando hablas de tu trabajo, casi siempre aparece la palabra "debería". Tiendes a medir tu valor por lo que produces.</div>
+                <div class="e-bubble me">…nunca lo había visto así. Es bastante exacto.</div>
+                <div class="e-bubble eco">Es un descubrimiento valioso — lo agregué a tu Mapa Emocional. ¿Probamos un ejercicio breve para mirarlo con más calma?</div>
+                <div class="e-exercise">
+                  <div class="ee-h"><span class="ee-g"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8 19.6 A2 2 0 1 0 14 16 H2"/><path d="M17.5 8 A2.5 2.5 0 1 1 19.5 12 H2"/><path d="M9.8 4.4 A2 2 0 1 1 11 8 H2"/></svg></span><div><div class="ee-t">El error como dato, no como veredicto</div><div class="ee-s">Ejercicio reflexivo · 4 min</div></div></div>
+                  <p>Piensa en un error reciente. ¿Qué te dijiste? Ahora reescríbelo como se lo dirías a alguien que quieres.</p>
+                  <button class="ee-cta">Empezar ejercicio →</button>
+                </div>
+              </div>
+              <div class="eco-prompts">
+                <button class="eco-prompt">Me siento abrumada hoy</button>
+                <button class="eco-prompt">Háblame de mi patrón</button>
+                <button class="eco-prompt">Quiero entender algo que sentí</button>
+              </div>
+              <div class="eco-composer">
+                <input type="text" placeholder="Comparte lo que estás sintiendo…" />
+                <button class="ec-mic"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 a3 3 0 0 0-3 3 v7 a3 3 0 0 0 6 0 V5 a3 3 0 0 0-3-3 Z"/><path d="M19 10 v2 a7 7 0 0 1-14 0 v-2"/><path d="M12 19 v3"/></svg></button>
+                <button class="ec-send"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+              </div>
+            </div>
+
+            <div class="eco-rail">
+              <div class="card erc">
+                <div class="erc-h"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 V11"/><path d="M12 13 C12 9 9 7 5 7 c0 4 3 6 7 6 Z"/><path d="M12 11 C12 8 14.5 6.5 18 6.5 c0 3.5-2.5 5-6 5 Z"/></svg>Lo que Eco sabe de ti</div>
+                <div class="erc-row"><span class="erl">Patrón predominante</span><span class="erv">Autoexigencia</span></div>
+                <div class="erc-row"><span class="erl">Ánimo de hoy</span><span class="erv">Neutral</span></div>
+                <div class="erc-row"><span class="erl">Comprensión emocional</span><span class="erv">74%</span></div>
+                <div class="erc-row"><span class="erl">Práctica</span><span class="erv">21 días seguidos</span></div>
+              </div>
+              <div class="card erc erc-explore">
+                <div class="erc-h"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18 C 6.5 18, 7 12, 10 12 C 13 12, 13.5 6, 16 6 L 20 6"/><circle cx="4" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="20" cy="6" r="1.4" fill="currentColor" stroke="none"/></svg>Explorando ahora</div>
+                <h4>Domar la autoexigencia</h4>
+                <p>El recorrido que Eco está acompañando contigo.</p>
+                <div class="bar"><i></i></div>
+                <div class="lbl">Paso 3 de 7 · 40%</div>
+              </div>
+              <div class="eco-disclaimer"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10 H18 a1 1 0 0 1 1 1 V19 a1 1 0 0 1-1 1 H6 a1 1 0 0 1-1-1 V11 a1 1 0 0 1 1-1 Z"/><path d="M8 10 V7 a4 4 0 0 1 8 0 V10"/></svg>Eco es un acompañante de autoconocimiento — complementa, no reemplaza, la terapia profesional.</div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════ MOBILE SURFACE ════════════════════ -->
+  <div class="surface" id="surface-mobile">
+    <div class="mobile-stage">
+      <div class="mobile-rail">
+        <!-- PHONE 1: INICIO -->
+        <div class="phone-wrap">
+          <div class="phone-label">Inicio · Panel de Evolución</div>
+          <div class="phone"><div class="phone-screen">
+            <div class="island"></div>
+            <div class="phone-scroll" data-screen-label="Inicio (móvil)">
+              <div class="status"><span>9:41</span><span class="sr"><svg class="ic" width="17" height="12" viewBox="0 0 24 16" fill="currentColor"><rect x="0" y="9" width="4" height="6" rx="1"/><rect x="6" y="6" width="4" height="9" rx="1"/><rect x="12" y="3" width="4" height="12" rx="1"/><rect x="18" y="0" width="4" height="15" rx="1" opacity="0.4"/></svg><svg class="ic" width="20" height="12" viewBox="0 0 26 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="20" height="10" rx="2.5"/><rect x="3" y="4" width="14" height="6" rx="1" fill="currentColor" stroke="none"/><path d="M23 5.5 v3" stroke-linecap="round"/></svg></span></div>
+              <div class="m-head"><div class="m-eyebrow">Jueves · 19 jun</div><div class="m-greet">Buenas tardes, Ana.</div><div class="m-sub">Una pausa para mirar hacia adentro.</div></div>
+              <div class="m-body">
+                <div class="m-card m-mood">
+                  <div class="m-mood-q">¿Cómo llegas hoy?</div>
+                  <div class="m-mood-row" id="mMoodRow">
+                    <div class="m-mood-opt" data-mood="great"><svg class="ic face" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8 13.5 a4 4 0 0 0 8 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Muy bien</span></div>
+                    <div class="m-mood-opt" data-mood="good"><svg class="ic face" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9 13.8 a3.2 3.2 0 0 0 6 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Bien</span></div>
+                    <div class="m-mood-opt" data-mood="ok"><svg class="ic face" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9 14.5 H15"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Neutral</span></div>
+                    <div class="m-mood-opt" data-mood="low"><svg class="ic face" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.2 15 a3 3 0 0 1 5.6 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Bajo</span></div>
+                    <div class="m-mood-opt" data-mood="hard"><svg class="ic face" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.4 15.5 a4 4 0 0 1 7.2 0"/><circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none"/></svg><span>Difícil</span></div>
+                  </div>
+                  <div class="m-mood-done" id="mMoodDone"><span class="mf" id="mMoodDoneFace"></span><span>Hoy te sientes <b id="mMoodDoneLabel">Bien</b></span><span class="chg">Cambiar</span></div>
+                </div>
+                <div class="m-card m-insight">
+                  <span class="m-card-tag">Insight del día</span>
+                  <q>Tus reflexiones muestran una tendencia hacia la <b>autoexigencia</b> — y cada vez la nombras con más calma.</q>
+                  <div class="mi-foot"><span class="av"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12 a7 7 0 1 0 4.5 -6.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg></span>Generado por Eco · privado</div>
+                </div>
+                <div class="m-metrics">
+                  <div class="m-metric"><span class="mg"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 H21"/><path d="M16.5 3.5 a2.1 2.1 0 0 1 3 3 L7 19 l-4 1 1-4 Z"/></svg></span><b>128</b><span>Reflexiones</span></div>
+                  <div class="m-metric"><span class="mg"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L13.7 10.3 L21 12 L13.7 13.7 L12 21 L10.3 13.7 L3 12 L10.3 10.3 Z"/></svg></span><b>41</b><span>Insights</span></div>
+                  <div class="m-metric"><span class="mg"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span><b>8</b><span>Patrones</span></div>
+                  <div class="m-metric"><span class="mg"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5 A2.5 2.5 0 0 0 11 12 c0-1.4-.5-2-1-3-1.1-2.1-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5 a7 7 0 1 1-14 0 c0-1.2.4-2.3 1-3 a2.5 2.5 0 0 0 2.5 2.5 Z"/></svg></span><b>21</b><span>Días seguidos</span></div>
+                </div>
+                <div class="m-card m-continue-wrap">
+                  <span class="m-card-tag">Continúa tu recorrido</span>
+                  <div class="m-continue" style="margin-top:12px;"><div class="cover"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5 C6 4.2 9 4.2 12 5.5 C15 4.2 18 4.2 20.5 5 V18.5 C18 17.7 15 17.7 12 19 C9 17.7 6 17.7 3.5 18.5 Z"/><path d="M12 5.5 V19"/></svg></div><div class="cm"><div class="ce">Cap. 3</div><div class="ct">La pausa antes de responder</div><div class="bar"><i></i></div></div></div>
+                </div>
+                <div class="m-card m-eco">
+                  <div class="me-h"><span class="me-g"><svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12 a7 7 0 1 0 4.5 -6.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg></span><div><div class="me-n">Eco te sugiere</div><div class="me-s">Disponible ahora</div></div></div>
+                  <div class="me-body">Mira de cerca tu <b>nueva conexión</b>: perfeccionismo + miedo al juicio. 4 min.</div>
+                  <span class="me-btn">Ver la conexión</span>
+                </div>
+              </div>
+              <div class="m-tabbar">
+                <div class="m-tab on"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 L12 3.5 L21 11"/><path d="M5.5 9.5 V19.5 a1 1 0 0 0 1 1 H17.5 a1 1 0 0 0 1-1 V9.5"/><path d="M10 20.5 V14 H14 V20.5"/></svg>Inicio</div>
+                <div class="m-tab"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L13.7 10.3 L21 12 L13.7 13.7 L12 21 L10.3 13.7 L3 12 L10.3 10.3 Z"/></svg>Mapa</div>
+                <div class="m-tab"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>Patrones</div>
+                <div class="m-tab"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M4.5 20 C5 16 8 14 12 14 C16 14 19 16 19.5 20"/></svg>Perfil</div>
+              </div>
+            </div>
+          </div></div>
+        </div>
+
+        <!-- PHONE 2: MAPA -->
+        <div class="phone-wrap">
+          <div class="phone-label">Mapa Emocional</div>
+          <div class="phone"><div class="phone-screen">
+            <div class="island"></div>
+            <div class="phone-scroll" data-screen-label="Mapa (móvil)">
+              <div class="status"><span>9:41</span><span class="sr"><svg class="ic" width="17" height="12" viewBox="0 0 24 16" fill="currentColor"><rect x="0" y="9" width="4" height="6" rx="1"/><rect x="6" y="6" width="4" height="9" rx="1"/><rect x="12" y="3" width="4" height="12" rx="1"/><rect x="18" y="0" width="4" height="15" rx="1" opacity="0.4"/></svg><svg class="ic" width="20" height="12" viewBox="0 0 26 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="20" height="10" rx="2.5"/><rect x="3" y="4" width="14" height="6" rx="1" fill="currentColor" stroke="none"/><path d="M23 5.5 v3" stroke-linecap="round"/></svg></span></div>
+              <div class="m-head"><div class="m-eyebrow">El corazón de tu experiencia</div><div class="m-greet">Tu Mapa Emocional</div><div class="m-sub">Una representación viva de ti.</div></div>
+              <div class="m-body">
+                <div class="m-mapstage">
+                  <div class="radar-holder" id="radar-mobile"></div>
+                  <div class="ms-score"><div><b>74%</b><div class="lbl">Comprensión emocional</div></div><span class="delta">+12 pts</span></div>
+                </div>
+                <div class="m-card">
+                  <span class="m-card-tag">Dimensiones</span>
+                  <div style="margin-top:6px;">
+                    <div class="m-dim"><span class="dg"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20 A7 7 0 0 1 9.8 6.1 C15.5 5 17 4.5 19 2 c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10 Z"/><path d="M2 21 c0-3 1.9-5.4 5.1-6"/></svg></span><div class="dm"><div class="dn">Claridad</div><div class="db"><i style="width:72%"></i></div></div><span class="dt">+8%</span></div>
+                    <div class="m-dim"><span class="dg"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 C13.5 7 13.5 9.5 12 12 C10.5 9.5 10.5 7 12 4 Z"/><path d="M12 12 C9 11 6.5 9.5 5 7 C7.5 7 10 8.5 12 12 Z"/><path d="M12 12 C15 11 17.5 9.5 19 7 C16.5 7 14 8.5 12 12 Z"/><path d="M5 14.5 C7.5 16 10 16.5 12 16.5 C14 16.5 16.5 16 19 14.5"/></svg></span><div class="dm"><div class="dn">Autocompasión</div><div class="db"><i style="width:50%"></i></div></div><span class="dt">+18%</span></div>
+                    <div class="m-dim"><span class="dg"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span><div class="dm"><div class="dn">Consciencia</div><div class="db"><i style="width:74%"></i></div></div><span class="dt">+10%</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="m-tabbar">
+                <div class="m-tab"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 L12 3.5 L21 11"/><path d="M5.5 9.5 V19.5 a1 1 0 0 0 1 1 H17.5 a1 1 0 0 0 1-1 V9.5"/><path d="M10 20.5 V14 H14 V20.5"/></svg>Inicio</div>
+                <div class="m-tab on"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L13.7 10.3 L21 12 L13.7 13.7 L12 21 L10.3 13.7 L3 12 L10.3 10.3 Z"/></svg>Mapa</div>
+                <div class="m-tab"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>Patrones</div>
+                <div class="m-tab"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M4.5 20 C5 16 8 14 12 14 C16 14 19 16 19.5 20"/></svg>Perfil</div>
+              </div>
+            </div>
+          </div></div>
+        </div>
+
+        <!-- PHONE 3: PATRONES -->
+        <div class="phone-wrap">
+          <div class="phone-label">Patrones IA</div>
+          <div class="phone"><div class="phone-screen">
+            <div class="island"></div>
+            <div class="phone-scroll" data-screen-label="Patrones (móvil)">
+              <div class="status"><span>9:41</span><span class="sr"><svg class="ic" width="17" height="12" viewBox="0 0 24 16" fill="currentColor"><rect x="0" y="9" width="4" height="6" rx="1"/><rect x="6" y="6" width="4" height="9" rx="1"/><rect x="12" y="3" width="4" height="12" rx="1"/><rect x="18" y="0" width="4" height="15" rx="1" opacity="0.4"/></svg><svg class="ic" width="20" height="12" viewBox="0 0 26 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="20" height="10" rx="2.5"/><rect x="3" y="4" width="14" height="6" rx="1" fill="currentColor" stroke="none"/><path d="M23 5.5 v3" stroke-linecap="round"/></svg></span></div>
+              <div class="m-head"><div class="m-eyebrow">Lo más valioso</div><div class="m-greet">Patrones IA</div><div class="m-sub">Lo que Eco descubre sobre ti.</div></div>
+              <div class="m-body">
+                <div class="m-card m-eco" style="background:linear-gradient(150deg,var(--color-lavender-600),var(--color-lavender-950));">
+                  <span class="m-card-tag" style="color:var(--color-lavender-200);">Insight de la semana</span>
+                  <div class="me-body" style="font-size:14.5px; font-weight:500; color:#fff;">Tu autoexigencia y tu miedo al juicio se alimentan entre sí.</div>
+                  <span class="me-btn">Explorar recorrido</span>
+                </div>
+                <div class="m-card m-pat">
+                  <span class="m-card-tag">Patrón predominante</span>
+                  <div class="mp-head"><span class="mpg"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span><div><h4>Autoexigencia</h4><div class="s">6 de 8 reflexiones</div></div></div>
+                  <p>Asocias el error con pérdida de valor personal.</p>
+                  <div class="mp-meter"><div class="bar"><i style="width:82%"></i></div><span class="pct">82%</span></div>
+                </div>
+                <div class="m-card m-pat sage">
+                  <span class="m-card-tag" style="color:var(--color-sage-600);">Fortaleza emergente</span>
+                  <div class="mp-head"><span class="mpg"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 V11"/><path d="M12 13 C12 9 9 7 5 7 c0 4 3 6 7 6 Z"/><path d="M12 11 C12 8 14.5 6.5 18 6.5 c0 3.5-2.5 5-6 5 Z"/></svg></span><div><h4>Autocompasión</h4><div class="s">+18% en 3 semanas</div></div></div>
+                  <p>Cada vez te hablas con más amabilidad.</p>
+                  <div class="mp-meter"><div class="bar"><i style="width:71%"></i></div><span class="pct">71%</span></div>
+                </div>
+              </div>
+              <div class="m-tabbar">
+                <div class="m-tab"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 L12 3.5 L21 11"/><path d="M5.5 9.5 V19.5 a1 1 0 0 0 1 1 H17.5 a1 1 0 0 0 1-1 V9.5"/><path d="M10 20.5 V14 H14 V20.5"/></svg>Inicio</div>
+                <div class="m-tab"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L13.7 10.3 L21 12 L13.7 13.7 L12 21 L10.3 13.7 L3 12 L10.3 10.3 Z"/></svg>Mapa</div>
+                <div class="m-tab on"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>Patrones</div>
+                <div class="m-tab"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M4.5 20 C5 16 8 14 12 14 C16 14 19 16 19.5 20"/></svg>Perfil</div>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="scripts.js"></script>
+</body>
+</html>

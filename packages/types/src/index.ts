@@ -1144,6 +1144,16 @@ export interface HomeResponse {
   stats: HomeStats;
   reflectionPrompt: HomeReflectionPrompt | null;
   shortcuts: HomeShortcut[];
+  // ─── Sprint B1 redesign additions ────────────────────────────────────────
+  /** Active ambient theme from UserPreferences.ambient. Defaults to "calma". */
+  ambient: AmbientId;
+  /**
+   * Daily insight surfaced at the top of the new dashboard. `null` when nothing
+   * notable was detected — clients render a neutral placeholder in that case.
+   * v1 is rule-based (see `composeInsightToday` in HomeService); v2 will be
+   * LLM-backed analog to WeeklySummary.
+   */
+  insightToday: InsightToday | null;
 }
 
 export interface UpdateUserMoodRequest {
@@ -1158,6 +1168,85 @@ export interface UpdateUserMoodResponse {
 
 export interface DismissReflectionPromptResponse {
   ok: true;
+}
+
+// ─── Sprint B1 — Mood time series + ambient + insight ─────────────────────────
+//
+// MoodLog rows are written by POST /api/mood whenever the user picks a mood
+// in the Topbar MoodChip or finishes a Diario entry. They drive Patrones IA
+// and the InsightToday rule engine. See ADR-pending B1 for the rationale.
+
+/**
+ * Identifier for an ambient (UI theme) the user can pick from the AmbiencePicker.
+ *   - calma   — default lavender palette
+ *   - enfoque — cooler indigo, deeper focus
+ *   - energia — warmer terracotta, daytime drive
+ *   - noche   — dark mode for late sessions
+ *
+ * The token is validated at the backend with `AMBIENT_IDS` (runtime) and at
+ * the frontend with `body.amb-{calma|enfoque|energia|noche}` CSS overrides.
+ */
+export type AmbientId = "calma" | "enfoque" | "energia" | "noche";
+
+export const AMBIENT_IDS: readonly AmbientId[] = [
+  "calma",
+  "enfoque",
+  "energia",
+  "noche",
+] as const;
+
+export interface UpdateAmbientRequest {
+  ambient: AmbientId;
+}
+
+export interface UpdateAmbientResponse {
+  ok: true;
+  ambient: AmbientId;
+}
+
+/**
+ * One mood check-in. Persisted to MoodLog rows.
+ *
+ * `mood` is one of `DIARY_MOOD_IDS`; we ship the literal token (not an emoji
+ * or swatch) so adding moods later does not require a wire migration.
+ */
+export interface MoodLogEntry {
+  id: string;
+  mood: DiaryMoodId;
+  createdAt: Date;
+}
+
+export interface LogMoodRequest {
+  mood: string;
+}
+
+export interface LogMoodResponse {
+  ok: true;
+  /** The just-created MoodLog row, returned so optimistic UIs can confirm. */
+  entry: MoodLogEntry;
+  /** Latest known mood across history (always equals `entry.mood` for new logs). */
+  currentMood: DiaryMoodId;
+  /** Hex/swatch hint for the badge — same source the Diario uses. */
+  swatch: string;
+}
+
+/**
+ * Daily insight surfaced in HomeResponse.insightToday. Rule-based v1: see the
+ * `kind` discriminator for the four shapes the engine emits.
+ */
+export type InsightKind =
+  | "mood-trend" // detected a streak of similar moods in the last 3 days
+  | "book-progress" // user is mid-book; nudge to keep going
+  | "streak" // celebrate currentStreakDays
+  | "neutral"; // fallback — generic encouragement
+
+export interface InsightToday {
+  kind: InsightKind;
+  headline: string;
+  body: string;
+  /** Optional CTA. When present, the dashboard renders a link with this href. */
+  ctaHref?: string;
+  ctaLabel?: string;
 }
 
 // ─── Diary · E2E-encrypted entries (Sprint S6) ───────────────────────────────

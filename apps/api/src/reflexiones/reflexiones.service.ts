@@ -32,7 +32,7 @@ const RELATED_LIMIT = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
-export class DiarioService {
+export class ReflexionesService {
   constructor(private readonly prisma: PrismaService) {}
 
   // ─── List ──────────────────────────────────────────────────────────────────

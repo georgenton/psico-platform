@@ -142,6 +142,7 @@ model User {
   crisisLogs              CrisisLog[]
   therapyTechnicalReports TherapyTechnicalReport[]
   authorBooks             AuthorBook[]                @relation("AuthorBookOwner")
+  moodLogs                MoodLog[]
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -1094,9 +1095,29 @@ model UserPreferences {
   theme             String   @default("system")
   // BCP 47: "es-419" | "es-ES"
   language          String   @default("es-419")
+  // Sprint B1 — ambient theme picker. One of "calma" | "enfoque" | "energia" | "noche".
+  // Defaults to "calma" (the base palette). Free for all plans (decisión B1).
+  ambient           String   @default("calma")
   updatedAt         DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Sprint B1 — mood time series. One row per mood check-in from the Topbar
+// MoodChip or the Diario composer. Source-of-truth for Patrones, Insight del
+// día, and weekly digests. User.mood + User.moodUpdatedAt stay as denormalized
+// "current mood" cache so the existing /api/home payload doesn't need to JOIN
+// MoodLog on every request.
+model MoodLog {
+  id        String   @id @default(cuid())
+  userId    String
+  // Token validated against DIARY_MOODS catalog at the DTO layer.
+  mood      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 model ReaderPreferences {

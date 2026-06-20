@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import type {
+  AmbientId,
   CoverToken,
   DismissReflectionPromptResponse,
   HomeContinueBook,
@@ -13,8 +14,10 @@ import type {
   HomeShortcut,
   HomeStats,
   HomeUser,
+  InsightToday,
   UpdateUserMoodResponse,
 } from "@psico/types";
+import { AMBIENT_IDS } from "@psico/types";
 
 // ─── Greeting rules ──────────────────────────────────────────────────────────
 //
@@ -80,7 +83,7 @@ export class HomeService {
    * Total query cost stays bounded even as we add concerns (target ≤ 1s).
    */
   async getHome(userId: string): Promise<HomeResponse> {
-    const [user, continueBook, ecoMoment, recos, stats, prompt] =
+    const [user, continueBook, ecoMoment, recos, stats, prompt, ambient] =
       await Promise.all([
         this.fetchUser(userId),
         this.fetchContinueBook(userId),
@@ -88,11 +91,18 @@ export class HomeService {
         this.fetchRecos(userId),
         this.fetchStats(userId),
         this.fetchReflectionPrompt(userId),
+        this.fetchAmbient(userId),
       ]);
 
     if (!user) throw new NotFoundException("User not found");
 
     const greeting = this.buildGreeting(user.mood);
+    const insightToday = await this.composeInsightToday(
+      userId,
+      user,
+      continueBook,
+      stats,
+    );
 
     return {
       user,
@@ -103,7 +113,108 @@ export class HomeService {
       stats,
       reflectionPrompt: prompt,
       shortcuts: SHORTCUTS_DEFAULT,
+      ambient,
+      insightToday,
     };
+  }
+
+  /**
+   * Active ambient theme — Sprint B1.
+   *
+   * Falls back to `"calma"` when the user has never opened the AmbiencePicker
+   * (no UserPreferences row yet, or row exists with default value).
+   */
+  private async fetchAmbient(userId: string): Promise<AmbientId> {
+    const prefs = await this.prisma.userPreferences.findUnique({
+      where: { userId },
+      select: { ambient: true },
+    });
+    const raw = prefs?.ambient ?? "calma";
+    return AMBIENT_IDS.includes(raw as AmbientId)
+      ? (raw as AmbientId)
+      : "calma";
+  }
+
+  /**
+   * Insight del día — Sprint B1 rule-based v1.
+   *
+   * Picks the first rule that matches in priority order:
+   *   1. `streak` — celebrate a current streak of 3+ days.
+   *   2. `mood-trend` — same mood logged ≥3 times in the last 3 days.
+   *   3. `book-progress` — user is mid-book (1% < progress < 99%).
+   *   4. `neutral` — generic encouragement when nothing fires.
+   *
+   * v2 swaps this for an LLM call against the same input shape (analog to
+   * PatronesService.composeNarrative). Keep the shape stable.
+   */
+  private async composeInsightToday(
+    userId: string,
+    user: HomeUser,
+    continueBook: HomeContinueBook | null,
+    stats: HomeStats,
+  ): Promise<InsightToday | null> {
+    // Rule 1: streak celebration.
+    if (user.streakDays >= 3) {
+      return {
+        kind: "streak",
+        headline: `Llevas ${user.streakDays} días seguidos`,
+        body: "Tu constancia es la práctica. Hoy puedes hacer una entrada corta para mantener el ritmo.",
+        ctaHref: "/dashboard/reflexiones",
+        ctaLabel: "Escribir una reflexión",
+      };
+    }
+
+    // Rule 2: mood trend over the last 3 days.
+    const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const recentMoods = await this.prisma.moodLog.findMany({
+      where: { userId, createdAt: { gte: since } },
+      select: { mood: true },
+      take: 10,
+    });
+    if (recentMoods.length >= 3) {
+      const counts = new Map<string, number>();
+      for (const m of recentMoods)
+        counts.set(m.mood, (counts.get(m.mood) ?? 0) + 1);
+      const [dominant, n] = [...counts.entries()].sort(
+        (a, b) => b[1] - a[1],
+      )[0]!;
+      if (n >= 3) {
+        return {
+          kind: "mood-trend",
+          headline: `Has registrado "${dominant}" varias veces esta semana`,
+          body: "Cuando un mismo estado se repite, suele tener algo que decirte. ¿Lo exploramos en una reflexión?",
+          ctaHref: "/dashboard/reflexiones",
+          ctaLabel: "Escribir sobre esto",
+        };
+      }
+    }
+
+    // Rule 3: mid-book nudge.
+    if (
+      continueBook &&
+      continueBook.progressPct > 1 &&
+      continueBook.progressPct < 99
+    ) {
+      return {
+        kind: "book-progress",
+        headline: `Estás a la mitad de "${continueBook.title}"`,
+        body: `Un capítulo de hoy te acerca al cierre del libro. Capítulo ${continueBook.chapterN}: ${continueBook.chapterTitle}.`,
+        ctaHref: "/dashboard/biblioteca",
+        ctaLabel: "Seguir leyendo",
+      };
+    }
+
+    // Rule 4: neutral fallback — but only if the user has any activity.
+    if (stats.minutesThisWeek > 0 || stats.entriesThisWeek > 0) {
+      return {
+        kind: "neutral",
+        headline: "Hoy es un buen día para mirarte con calma",
+        body: "Un par de minutos contigo mismo es suficiente. Eco está aquí si necesitas conversar.",
+      };
+    }
+
+    // No insight when there's nothing to say — let the UI render its empty state.
+    return null;
   }
 
   /**

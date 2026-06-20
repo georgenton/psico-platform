@@ -38,20 +38,20 @@ export const diarioApi = {
       if (v !== undefined && v !== null) qs.set(k, String(v));
     }
     const path = qs.toString()
-      ? `/diario/entries?${qs.toString()}`
-      : "/diario/entries";
+      ? `/reflexiones/entries?${qs.toString()}`
+      : "/reflexiones/entries";
     return apiClient.get<DiaryListResponse>(path);
   },
   getDetail: (id: string) =>
-    apiClient.get<DiaryDetailResponse>(`/diario/entries/${id}`),
+    apiClient.get<DiaryDetailResponse>(`/reflexiones/entries/${id}`),
   create: (body: CreateDiaryEntryRequest) =>
-    apiClient.post<CreateDiaryEntryResponse>("/diario/entries", body),
+    apiClient.post<CreateDiaryEntryResponse>("/reflexiones/entries", body),
   update: (id: string, body: UpdateDiaryEntryRequest) =>
-    apiClient.patch<DiaryDetailResponse>(`/diario/entries/${id}`, body),
+    apiClient.patch<DiaryDetailResponse>(`/reflexiones/entries/${id}`, body),
   remove: (id: string) =>
-    apiClient.delete<DeleteDiaryEntryResponse>(`/diario/entries/${id}`),
+    apiClient.delete<DeleteDiaryEntryResponse>(`/reflexiones/entries/${id}`),
   getPromptOfTheDay: () =>
-    apiClient.get<DiaryPromptOfTheDay | null>("/diario/prompt-of-the-day"),
+    apiClient.get<DiaryPromptOfTheDay | null>("/reflexiones/prompt-of-the-day"),
   /**
    * Pull every entry's raw cipher payload — used by the password-change-
    * with-rekey flow. The server never sees plaintext: the client decrypts
@@ -59,10 +59,10 @@ export const diarioApi = {
    * rekeyed bundle back.
    */
   listRawCiphers: () =>
-    apiClient.get<DiaryRawCiphersResponse>("/diario/entries/raw-ciphers"),
+    apiClient.get<DiaryRawCiphersResponse>("/reflexiones/entries/raw-ciphers"),
   share: (id: string, body: ShareDiaryEntryRequest) =>
     apiClient.post<ShareDiaryEntryResponse>(
-      `/diario/entries/${id}/share`,
+      `/reflexiones/entries/${id}/share`,
       body,
     ),
 };

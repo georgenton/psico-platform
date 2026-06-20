@@ -26,7 +26,7 @@ import { createE2EApp, closeE2EApp, type E2EHarness } from "../test/e2e-app";
  * What this exercises end-to-end:
  *   1. Real @psico/crypto: derive masterKey₁ from password₁+salt₁, derive
  *      the per-feature diaryKey₁, encrypt a plaintext with XChaCha20.
- *   2. Real HTTP through Nest: POST /api/diario/entries lands the cipher₁
+ *   2. Real HTTP through Nest: POST /api/reflexiones/entries lands the cipher₁
  *      in the validated DTO (base64url, length).
  *   3. Real HTTP for the rekey: POST /api/user/password-change-with-rekey
  *      with password₂+salt₂ and a NEW cipher₂ produced with diaryKey₂.
@@ -112,7 +112,7 @@ describe("Diario rekey · E2E (real crypto)", () => {
     });
 
     const postRes = await request(h.app.getHttpServer())
-      .post("/api/diario/entries")
+      .post("/api/reflexiones/entries")
       .set("Authorization", `Bearer ${accessToken}`)
       .send({
         mood: "calma",

@@ -10,7 +10,8 @@ import { BooksModule } from "./books";
 import { ChaptersModule } from "./chapters";
 import { ProgressModule } from "./progress";
 import { HomeModule } from "./home";
-import { DiarioModule } from "./diario";
+import { ReflexionesModule } from "./reflexiones";
+import { MoodModule } from "./mood";
 import { SubscriptionModule } from "./subscription";
 import { BillingModule } from "./billing";
 import { HealthModule } from "./health";
@@ -46,7 +47,8 @@ import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
     ChaptersModule,
     ProgressModule,
     HomeModule,
-    DiarioModule,
+    ReflexionesModule,
+    MoodModule, // Sprint B1 — POST /api/mood (global time series)
     SubscriptionModule,
     BillingModule, // Sprint S11 — /api/billing/* + /api/plan, depends on SubscriptionModule
     HealthModule,

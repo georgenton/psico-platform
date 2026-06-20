@@ -1,4 +1,6 @@
 import { IsBoolean, IsIn, IsInt, IsOptional, Max, Min } from "class-validator";
+import { AMBIENT_IDS } from "@psico/types";
+import type { AmbientId } from "@psico/types";
 
 /**
  * Body for `PATCH /api/user/preferences` — update behavioural prefs
@@ -65,4 +67,13 @@ export class UpdatePreferencesDto {
   @IsOptional()
   @IsIn(["es-419", "es-ES"])
   language?: "es-419" | "es-ES";
+
+  /**
+   * Ambient theme (Sprint B1). Re-skins the dashboard with a different
+   * palette + typography. All ambients are free regardless of plan — purely
+   * cosmetic, no functional gating.
+   */
+  @IsOptional()
+  @IsIn(AMBIENT_IDS as readonly string[])
+  ambient?: AmbientId;
 }

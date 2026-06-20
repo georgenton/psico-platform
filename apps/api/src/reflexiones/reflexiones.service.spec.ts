@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
-import { DiarioService } from "./diario.service";
+import { ReflexionesService } from "./reflexiones.service";
 
 // 32 chars unpadded base64url → 24 bytes (XChaCha20 nonce length).
 const NONCE_B64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
@@ -52,15 +52,15 @@ function buildEntryRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-// ─── DiarioService.list ──────────────────────────────────────────────────────
+// ─── ReflexionesService.list ──────────────────────────────────────────────────────
 
-describe("DiarioService.list", () => {
-  let service: DiarioService;
+describe("ReflexionesService.list", () => {
+  let service: ReflexionesService;
   let prisma: ReturnType<typeof buildPrismaMock>;
 
   beforeEach(() => {
     prisma = buildPrismaMock();
-    service = new DiarioService(prisma as never);
+    service = new ReflexionesService(prisma as never);
   });
 
   it("returns entries summary + moodMap + tags + pagination", async () => {
@@ -134,15 +134,15 @@ describe("DiarioService.list", () => {
   });
 });
 
-// ─── DiarioService.create ────────────────────────────────────────────────────
+// ─── ReflexionesService.create ────────────────────────────────────────────────────
 
-describe("DiarioService.create", () => {
-  let service: DiarioService;
+describe("ReflexionesService.create", () => {
+  let service: ReflexionesService;
   let prisma: ReturnType<typeof buildPrismaMock>;
 
   beforeEach(() => {
     prisma = buildPrismaMock();
-    service = new DiarioService(prisma as never);
+    service = new ReflexionesService(prisma as never);
   });
 
   it("rejects when excerpt cipher is sent without nonce (and vice versa)", async () => {
@@ -200,15 +200,15 @@ describe("DiarioService.create", () => {
   });
 });
 
-// ─── DiarioService.update ────────────────────────────────────────────────────
+// ─── ReflexionesService.update ────────────────────────────────────────────────────
 
-describe("DiarioService.update", () => {
-  let service: DiarioService;
+describe("ReflexionesService.update", () => {
+  let service: ReflexionesService;
   let prisma: ReturnType<typeof buildPrismaMock>;
 
   beforeEach(() => {
     prisma = buildPrismaMock();
-    service = new DiarioService(prisma as never);
+    service = new ReflexionesService(prisma as never);
   });
 
   it("rejects updating ciphertext without a fresh nonce", async () => {
@@ -238,15 +238,15 @@ describe("DiarioService.update", () => {
   });
 });
 
-// ─── DiarioService.share ─────────────────────────────────────────────────────
+// ─── ReflexionesService.share ─────────────────────────────────────────────────────
 
-describe("DiarioService.share", () => {
-  let service: DiarioService;
+describe("ReflexionesService.share", () => {
+  let service: ReflexionesService;
   let prisma: ReturnType<typeof buildPrismaMock>;
 
   beforeEach(() => {
     prisma = buildPrismaMock();
-    service = new DiarioService(prisma as never);
+    service = new ReflexionesService(prisma as never);
   });
 
   it("returns 404 when entry not owned by user", async () => {
@@ -298,15 +298,15 @@ describe("DiarioService.share", () => {
   });
 });
 
-// ─── DiarioService.getPromptOfTheDay ─────────────────────────────────────────
+// ─── ReflexionesService.getPromptOfTheDay ─────────────────────────────────────────
 
-describe("DiarioService.getPromptOfTheDay", () => {
-  let service: DiarioService;
+describe("ReflexionesService.getPromptOfTheDay", () => {
+  let service: ReflexionesService;
   let prisma: ReturnType<typeof buildPrismaMock>;
 
   beforeEach(() => {
     prisma = buildPrismaMock();
-    service = new DiarioService(prisma as never);
+    service = new ReflexionesService(prisma as never);
   });
 
   it("returns null when no active prompts exist", async () => {

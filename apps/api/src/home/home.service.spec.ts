@@ -19,6 +19,11 @@ function buildPrisma() {
     dismissedReflectionPrompt: { findMany: vi.fn(), upsert: vi.fn() },
     onboardingMood: { findUnique: vi.fn() },
     diaryEntry: { count: vi.fn().mockResolvedValue(0) },
+    // Sprint B1 — MoodLog drives the mood-trend insight rule + ambient comes
+    // from UserPreferences. Default: empty time series, no preferences row
+    // (HomeService falls back to "calma" + returns null insightToday).
+    moodLog: { findMany: vi.fn().mockResolvedValue([]) },
+    userPreferences: { findUnique: vi.fn().mockResolvedValue(null) },
   };
 }
 

@@ -7,6 +7,8 @@ import { ContinueBookCard } from "@/components/dashboard/home/ContinueBookCard";
 import { EcoMomentCard } from "@/components/dashboard/home/EcoMomentCard";
 import { EmptyHomeState } from "@/components/dashboard/home/EmptyHomeState";
 import { GreetingHero } from "@/components/dashboard/home/GreetingHero";
+import { InsightTodayCard } from "@/components/dashboard/home/InsightTodayCard";
+import { MapaPreviewCard } from "@/components/dashboard/home/MapaPreviewCard";
 import { RecosRow } from "@/components/dashboard/home/RecosRow";
 import { ReflectionPromptCard } from "@/components/dashboard/home/ReflectionPromptCard";
 import { SideRail } from "@/components/dashboard/home/SideRail";
@@ -89,6 +91,12 @@ export default async function DashboardPage() {
         todayLabel={todayLabel()}
       />
 
+      {/* Sprint B3: insight del día — siempre arriba, antes que cualquier
+          card específica del producto. La narrativa de la jornada manda. */}
+      <div className="mb-5">
+        <InsightTodayCard insight={home.insightToday} />
+      </div>
+
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_300px] lg:items-start">
         {/* Main column */}
         <div className="flex flex-col gap-5">
@@ -107,12 +115,15 @@ export default async function DashboardPage() {
           ) : null}
         </div>
 
-        {/* Side rail */}
-        <SideRail
-          user={home.user}
-          stats={home.stats}
-          shortcuts={home.shortcuts}
-        />
+        {/* Side rail — Sprint B3: agrega MapaPreviewCard arriba del rail. */}
+        <div className="flex flex-col gap-5">
+          <MapaPreviewCard />
+          <SideRail
+            user={home.user}
+            stats={home.stats}
+            shortcuts={home.shortcuts}
+          />
+        </div>
       </div>
     </div>
   );

@@ -1,8 +1,13 @@
 @import "tailwindcss";
 
-/* ── Design system tokens ── */
+/* ============================================================
+   Design system tokens — Sprint A redesign (foundations)
+   Mirrored from docs/design/redesign-v2/{landing,dashboard}/tokens.css.
+   The dashboard tokens.css README marks THIS file as the source of truth;
+   keep them in sync when either side moves.
+   ============================================================ */
 @theme {
-  /* Primary: Lavender/Purple — calming, trust, psychology */
+  /* ── Color · Lavender (primary — calm, trust, psychology) ── */
   --color-lavender-50: #f7f5ff;
   --color-lavender-100: #eeebff;
   --color-lavender-200: #ddd8ff;
@@ -15,7 +20,7 @@
   --color-lavender-900: #3c2a80;
   --color-lavender-950: #25185c;
 
-  /* Accent: Sage Green — growth, calm action, nature */
+  /* ── Color · Sage (action — growth, calm CTA, nature) ── */
   --color-sage-50: #f3f7f1;
   --color-sage-100: #e4efe0;
   --color-sage-200: #c8dfc3;
@@ -28,7 +33,7 @@
   --color-sage-900: #273f23;
   --color-sage-950: #132211;
 
-  /* Neutral: warm off-whites and warm grays */
+  /* ── Color · Warm neutrals (text + surfaces) ── */
   --color-warm-50: #fafaf8;
   --color-warm-100: #f5f4f1;
   --color-warm-200: #eceae5;
@@ -40,18 +45,132 @@
   --color-warm-800: #3d3730;
   --color-warm-900: #2a2420;
 
-  /* Typography */
+  /* ── Semantic foreground (text colors) ──
+     Use these in components instead of raw warm-*** so we can re-skin
+     the system later (Sprint B introduces ambient themes that swap
+     these mappings). */
+  --fg-strong: var(--color-warm-900);
+  --fg-heading: var(--color-warm-800);
+  --fg-body: var(--color-warm-700);
+  --fg-nav: var(--color-warm-600);
+  --fg-muted: var(--color-warm-600); /* AA contrast bump from 500 → 600 */
+  --fg-tertiary: var(--color-warm-400);
+  --fg-on-brand: #ffffff;
+  --fg-link: var(--color-lavender-600);
+  --fg-link-strong: var(--color-lavender-700);
+
+  /* ── Semantic background ── */
+  --bg-page: var(--color-warm-50);
+  --bg-surface: #ffffff;
+  --bg-subtle: var(--color-warm-100);
+  --bg-divider: var(--color-warm-200);
+  --bg-brand: var(--color-lavender-500);
+  --bg-brand-soft: var(--color-lavender-100);
+  --bg-brand-tint: var(--color-lavender-50);
+  --bg-action: var(--color-sage-600); /* AA contrast bump from 400 → 600 */
+  --bg-action-hover: var(--color-sage-700);
+  --bg-action-soft: var(--color-sage-100);
+
+  /* ── Typography · families ──
+     Geist is the default. Spline Sans + Bricolage Grotesque are loaded
+     on demand by the ambient themes (Sprint B) and stay dormant on the
+     base theme — they cost a single preconnect, no FOIT/FOUT. */
   --font-family-sans: var(--font-geist-sans), system-ui, sans-serif;
   --font-family-mono: var(--font-geist-mono), monospace;
+  /* Alias the design source-of-truth name so partials migrating from the
+     design ZIP work without renaming. */
+  --font-sans: var(--font-family-sans);
+  --font-mono: var(--font-family-mono);
 
-  /* Shadows */
+  /* ── Typography · scale (px) ── */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 36px;
+  --text-5xl: 48px;
+  --text-6xl: 60px;
+
+  /* ── Typography · weights ── */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ── Typography · line-height ── */
+  --leading-tight: 1.1;
+  --leading-snug: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  /* ── Spacing (mirrors mobile theme) ── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* ── Radius ── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 32px;
+  --radius-full: 9999px;
+
+  /* ── Shadows / elevation ── */
   --shadow-soft: 0 2px 16px 0 rgb(139 113 245 / 0.08);
-  --shadow-card: 0 1px 4px 0 rgb(42 36 32 / 0.06),
-    0 4px 24px 0 rgb(42 36 32 / 0.04);
+  --shadow-card:
+    0 1px 4px 0 rgb(42 36 32 / 0.06), 0 4px 24px 0 rgb(42 36 32 / 0.04);
+  --shadow-card-sm: 0 1px 4px 0 rgb(42 36 32 / 0.05);
+  --shadow-cover: 0 8px 20px 0 rgb(37 24 92 / 0.15);
 
-  /* Border radius */
-  --radius-2xl: 1rem;
-  --radius-3xl: 1.5rem;
+  /* ── Gradients ── */
+  --gradient-hero: linear-gradient(
+    145deg,
+    var(--color-lavender-50) 0%,
+    var(--color-warm-50) 65%
+  );
+  --gradient-cta: linear-gradient(
+    135deg,
+    var(--color-lavender-600) 0%,
+    var(--color-lavender-900) 100%
+  );
+  --gradient-cover-lavender: linear-gradient(
+    135deg,
+    var(--color-lavender-400) 0%,
+    var(--color-lavender-700) 100%
+  );
+  --gradient-cover-sage: linear-gradient(
+    135deg,
+    var(--color-sage-400) 0%,
+    var(--color-sage-700) 100%
+  );
+  --gradient-cover-mixed: linear-gradient(
+    135deg,
+    var(--color-lavender-300) 0%,
+    var(--color-sage-500) 100%
+  );
+  --gradient-upgrade-banner: linear-gradient(
+    135deg,
+    var(--color-lavender-500) 0%,
+    var(--color-lavender-800) 100%
+  );
+
+  /* ── Glass surface (sticky navbars) ── */
+  --surface-glass-bg: rgba(250, 250, 248, 0.88);
+  --surface-glass-blur: blur(12px);
+
+  /* ── Motion ── */
+  --easing-default: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
 }
 
 /* ── Base styles ── */
@@ -61,8 +180,8 @@
   }
 
   body {
-    background-color: var(--color-warm-50);
-    color: var(--color-warm-700);
+    background-color: var(--bg-page);
+    color: var(--fg-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -73,7 +192,7 @@
   h4,
   h5,
   h6 {
-    color: var(--color-warm-800);
+    color: var(--fg-heading);
     font-weight: 600;
   }
 
@@ -84,6 +203,8 @@
 
 /* ── Shared button components ── */
 @layer components {
+  /* Primary CTA — sage-600 default for AA contrast with white text.
+     Previously sage-400; bump documented in the dashboard design handoff. */
   .btn-sage {
     display: inline-flex;
     align-items: center;
@@ -93,11 +214,11 @@
     font-size: 0.875rem;
     font-weight: 600;
     color: white;
-    background-color: var(--color-sage-400);
+    background-color: var(--bg-action);
     transition: background-color 0.15s ease;
     text-decoration: none;
     &:hover {
-      background-color: var(--color-sage-500);
+      background-color: var(--bg-action-hover);
     }
   }
 
@@ -121,9 +242,93 @@
   }
 }
 
-/* ── Utility: text-balance ── */
+/* ── Utility ── */
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+/* ============================================================
+   Ambient themes — Sprint A (foundation), AmbiencePicker UI in Sprint B
+   ============================================================
+   The user picks an "ambient" that re-skins the dashboard. Each ambient
+   overrides a small set of semantic tokens so the rest of the UI keeps
+   working unchanged. Persisted in localStorage as `psico:ambient`.
+   ── Calma (default) — keep all defaults from :root above.
+   ── Enfoque — indigo + cooler surfaces, deeper focus.
+   ── Energía — terracotta + warmer surfaces, daytime drive.
+   ── Noche — dark mode for late sessions.
+   ============================================================ */
+
+body.amb-enfoque {
+  --color-lavender-50: #f0f4ff;
+  --color-lavender-100: #dde7ff;
+  --color-lavender-500: #5b6cf0;
+  --color-lavender-600: #4554dc;
+  --color-lavender-700: #3640b8;
+  --bg-page: #fafbff;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f0f4ff;
+  --bg-brand: var(--color-lavender-500);
+  --bg-brand-soft: var(--color-lavender-100);
+}
+
+body.amb-energia {
+  --color-sage-400: #d97b4b;
+  --color-sage-500: #c66238;
+  --color-sage-600: #a84d27;
+  --color-sage-700: #8a3b1c;
+  --bg-action: var(--color-sage-600);
+  --bg-action-hover: var(--color-sage-700);
+  --bg-page: #fdf7f3;
+  --bg-subtle: #f9eee4;
+  --bg-brand-soft: #fde6d4;
+}
+
+body.amb-noche {
+  --color-warm-50: #15131a;
+  --color-warm-100: #1d1a23;
+  --color-warm-200: #2a2530;
+  --color-warm-300: #3a3340;
+  --color-warm-400: #5a5260;
+  --color-warm-500: #8a8190;
+  --color-warm-600: #b6acbe;
+  --color-warm-700: #d4ccd9;
+  --color-warm-800: #ebe4ee;
+  --color-warm-900: #f7f3fa;
+
+  --fg-strong: var(--color-warm-900);
+  --fg-heading: var(--color-warm-800);
+  --fg-body: var(--color-warm-700);
+  --fg-nav: var(--color-warm-600);
+  --fg-muted: var(--color-warm-500);
+  --fg-tertiary: var(--color-warm-400);
+
+  --bg-page: var(--color-warm-50);
+  --bg-surface: var(--color-warm-100);
+  --bg-subtle: var(--color-warm-100);
+  --bg-divider: var(--color-warm-300);
+  --bg-brand-soft: rgba(139, 113, 245, 0.15);
+  --bg-brand-tint: rgba(139, 113, 245, 0.08);
+
+  --surface-glass-bg: rgba(21, 19, 26, 0.86);
+
+  /* Soften lavender so it doesn't blow out against dark surfaces. */
+  --color-lavender-50: #1c1729;
+  --color-lavender-100: #251d36;
+  --color-lavender-700: #b0a0ff;
+  --color-lavender-600: #9c8af0;
+}
+
+/* Respect users who asked the OS to reduce motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

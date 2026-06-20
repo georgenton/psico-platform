@@ -48,7 +48,7 @@ async function ecoFetch<T>(
  * The provider (`DiaryKeyProvider`) lives in the dashboard layout — we
  * only consume it here. If the user lands directly on /dashboard/eco
  * without unlocking the diary first, we render a minimal CTA pointing
- * them to /dashboard/diario to unlock once.
+ * them to /dashboard/reflexiones to unlock once.
  */
 export function EcoShell({
   caps,
@@ -193,7 +193,7 @@ function LockedFallback() {
         dispositivo. Ve a Diario, ingresa tu contraseña una vez, y vuelve aquí.
       </p>
       <a
-        href="/dashboard/diario"
+        href="/dashboard/reflexiones"
         className="mt-4 inline-block rounded-2xl px-5 py-2.5 text-sm font-semibold text-white"
         style={{ background: "var(--color-sage-400)" }}
       >

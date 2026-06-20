@@ -1082,7 +1082,19 @@ export interface StartBookResponse {
 // ─── Home dashboard (Sprint S5) ──────────────────────────────────────────────
 
 export type RecoKind = "book" | "audio" | "exercise" | "carta";
-export type ShortcutId = "diario" | "eco" | "biblioteca" | "terapia";
+/**
+ * Sprint B4 — Diario → Reflexiones rename. The shortcut id moved to
+ * `"reflexiones"` to match the new dashboard label + URL (`/dashboard/
+ * reflexiones`). `"diario"` is kept as a deprecated alias so clients that
+ * cached an older HomeResponse don't blow up; the backend stops emitting
+ * it after this sprint.
+ */
+export type ShortcutId =
+  | "reflexiones"
+  | "eco"
+  | "biblioteca"
+  | "terapia"
+  | "diario";
 
 export interface HomeUser {
   firstName: string;

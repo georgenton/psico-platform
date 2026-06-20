@@ -134,23 +134,29 @@ function StreakCard({ streakDays }: { streakDays: number }) {
 }
 
 function ShortcutsCard({ shortcuts }: { shortcuts: HomeShortcut[] }) {
+  // Sprint B4: ShortcutId rename diario→reflexiones. `"diario"` stays as
+  // a deprecated alias so a stale HomeResponse from cache doesn't crash —
+  // its label/icon/href mirror the new key.
   const ICONS: Record<HomeShortcut["id"], string> = {
-    diario: "✎",
+    reflexiones: "✎",
     eco: "✦",
     biblioteca: "📚",
     terapia: "🎧",
+    diario: "✎",
   };
   const SUBS: Record<HomeShortcut["id"], string> = {
-    diario: "Anota cómo te sientes",
+    reflexiones: "Anota cómo te sientes",
     eco: "Pregúntale lo que sea",
     biblioteca: "Tus libros",
     terapia: "Sesiones de terapia",
+    diario: "Anota cómo te sientes",
   };
   const HREFS: Record<HomeShortcut["id"], string> = {
-    diario: "/dashboard/diario",
+    reflexiones: "/dashboard/reflexiones",
     eco: "/dashboard", // placeholder — Eco UI lands in S10-front
     biblioteca: "/dashboard/biblioteca",
     terapia: "/dashboard/plan", // placeholder — Terapia is v2
+    diario: "/dashboard/reflexiones",
   };
 
   return (

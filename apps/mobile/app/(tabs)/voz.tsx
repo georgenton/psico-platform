@@ -209,7 +209,7 @@ export default function VozScreen() {
   function handleUseTranscript() {
     if (!transcript.trim()) return;
     setVoiceHandoff(transcript);
-    const returnTo = (params.return as string) ?? "/(tabs)/diario";
+    const returnTo = (params.return as string) ?? "/(tabs)/reflexiones";
     if (router.canGoBack()) {
       router.back();
     } else {

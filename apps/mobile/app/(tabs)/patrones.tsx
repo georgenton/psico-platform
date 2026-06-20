@@ -99,7 +99,7 @@ export default function PatronesScreen() {
       ) : data.entryCount < 7 ? (
         <EmptyState
           entryCount={data.entryCount}
-          onCta={() => router.push("/diario")}
+          onCta={() => router.push("/(tabs)/reflexiones")}
         />
       ) : (
         <ProView data={data} onChanged={() => load(period)} />

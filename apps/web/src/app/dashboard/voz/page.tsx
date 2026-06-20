@@ -14,9 +14,9 @@ const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001")
  * access token; all the recording / transcription / UX state lives in the
  * client `VozRecorder` component.
  *
- * URL contract: `?return=/dashboard/diario` lets any caller redirect back
+ * URL contract: `?return=/dashboard/reflexiones` lets any caller redirect back
  * to the right place after the user clicks "Usar este texto". Defaults to
- * /dashboard/diario if absent.
+ * /dashboard/reflexiones if absent.
  */
 export default function VozPage() {
   const accessToken = getAccessToken();

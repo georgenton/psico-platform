@@ -84,7 +84,7 @@ describe("HomeService.getHome", () => {
     expect(result.recos).toEqual([]);
     expect(result.shortcuts).toHaveLength(4);
     expect(result.shortcuts.map((s) => s.id)).toEqual([
-      "diario",
+      "reflexiones",
       "eco",
       "biblioteca",
       "terapia",

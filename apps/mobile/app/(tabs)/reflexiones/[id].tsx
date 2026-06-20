@@ -150,7 +150,7 @@ function Decrypted({
             setDeleting(true);
             try {
               await diarioApi.remove(detail.entry.id);
-              router.replace("/(tabs)/diario");
+              router.replace("/(tabs)/reflexiones");
             } catch {
               Alert.alert("No pudimos borrar", "Reintenta en un momento.");
             } finally {

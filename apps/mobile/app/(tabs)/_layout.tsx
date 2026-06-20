@@ -130,9 +130,9 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
-          name="diario"
+          name="reflexiones"
           options={{
-            title: "Diario",
+            title: "Reflexiones",
             headerShown: false,
             tabBarIcon: ({ color, size }: IconProps) => (
               <Ionicons name="create" size={size} color={color} />

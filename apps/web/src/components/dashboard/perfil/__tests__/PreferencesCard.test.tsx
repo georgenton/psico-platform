@@ -22,6 +22,7 @@ function basePrefs(): UserPreferences {
     weeklyGoalMinutes: 60,
     theme: "system",
     language: "es-419",
+    ambient: "calma",
   };
 }
 
@@ -41,7 +42,9 @@ describe("PreferencesCard", () => {
     render(<PreferencesCard initial={basePrefs()} />);
     await user.click(screen.getByRole("button", { name: /Editar/i }));
     // Form is visible now
-    expect(screen.getByRole("button", { name: /Guardar/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Guardar/i }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Cancelar/i }),
     ).toBeInTheDocument();

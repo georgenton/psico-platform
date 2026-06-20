@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import type { UserMeResponse } from "@psico/types";
+import type { AmbientId, DiaryMoodId, UserMeResponse } from "@psico/types";
+import { AMBIENT_IDS, DIARY_MOOD_IDS } from "@psico/types";
 
 import {
   getAccessToken,
@@ -75,12 +76,28 @@ export default async function DashboardLayout({
   // the master key without a password prompt.
   const initialWrapKey = await getDiaryWrapKey();
 
+  // Sprint B2: hydrate Topbar widgets from /user/me so first paint matches
+  // server state without a follow-up fetch. Both lookups are tolerant — an
+  // unknown token from the DB falls back to the safest default ("calma" /
+  // null) instead of crashing the dashboard.
+  const rawMood = me?.user.mood ?? null;
+  const initialMood: DiaryMoodId | null =
+    rawMood && DIARY_MOOD_IDS.includes(rawMood)
+      ? (rawMood as DiaryMoodId)
+      : null;
+  const rawAmbient = me?.preferences.ambient ?? "calma";
+  const initialAmbient: AmbientId = AMBIENT_IDS.includes(rawAmbient)
+    ? rawAmbient
+    : "calma";
+
   return (
     <DashboardShell
       user={user}
       cryptoSalt={cryptoSalt}
       showTour={showTour}
       initialDiaryWrapKey={initialWrapKey}
+      initialMood={initialMood}
+      initialAmbient={initialAmbient}
     >
       <ApiClientBootstrap apiBase={API_ROOT} accessToken={accessToken} />
       <TimezoneSync needsProbe={needsTimezoneProbe} />

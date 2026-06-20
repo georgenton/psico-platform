@@ -209,7 +209,7 @@ export function ActiveComposer({
           </button>
           {/* Sprint front-voz: voice-to-text entry point. */}
           <Link
-            href="/dashboard/voz?return=/dashboard/diario"
+            href="/dashboard/voz?return=/dashboard/reflexiones"
             className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] px-3 py-1 text-[11.5px] font-semibold transition-colors hover:bg-[var(--color-warm-50)]"
             style={{
               borderColor: "var(--color-warm-200)",

@@ -40,7 +40,7 @@ export function EmptyHomeState({ firstName }: { firstName: string }) {
           📚 Explorar biblioteca
         </Link>
         <Link
-          href="/dashboard/diario"
+          href="/dashboard/reflexiones"
           className="inline-flex items-center gap-1.5 rounded-xl px-5 py-3 text-[13px] font-semibold"
           style={{
             color: "var(--color-warm-700)",

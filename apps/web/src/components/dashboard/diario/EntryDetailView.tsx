@@ -31,7 +31,7 @@ function normalizeTag(raw: string): string | null {
  * shown.
  *
  * Delete: simple confirm + DELETE /api/diario/entries/:id, then redirect
- * to /dashboard/diario. router.refresh() is not enough because we navigate
+ * to /dashboard/reflexiones. router.refresh() is not enough because we navigate
  * away — router.push handles that.
  */
 export function EntryDetailView({
@@ -136,7 +136,7 @@ function DecryptedDetail({
           { method: "DELETE", headers: { Authorization: `Bearer ${token}` } },
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        router.push("/dashboard/diario");
+        router.push("/dashboard/reflexiones");
       } catch {
         setError("No pudimos borrar la entrada. Reintenta.");
       }
@@ -548,7 +548,7 @@ function DecryptedDetail({
             {detail.relatedEntryIds.map((id) => (
               <li key={id}>
                 <Link
-                  href={`/dashboard/diario/${id}`}
+                  href={`/dashboard/reflexiones/${id}`}
                   className="text-[13px] font-semibold underline-offset-2 hover:underline"
                   style={{ color: "var(--color-lavender-700)" }}
                 >
@@ -563,7 +563,7 @@ function DecryptedDetail({
       {/* Actions */}
       <footer className="mt-8 flex flex-wrap items-center justify-between gap-3">
         <Link
-          href="/dashboard/diario"
+          href="/dashboard/reflexiones"
           className="text-[13px] font-semibold underline-offset-2 hover:underline"
           style={{ color: "var(--color-warm-600)" }}
         >
@@ -651,7 +651,7 @@ function BreadcrumbBack() {
       style={{ color: "var(--color-warm-500)" }}
     >
       <Link
-        href="/dashboard/diario"
+        href="/dashboard/reflexiones"
         className="hover:underline"
         style={{ color: "var(--color-lavender-700)" }}
       >

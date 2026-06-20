@@ -18,7 +18,7 @@ import { setVoiceHandoff } from "@/lib/voice/handoff";
  *
  * When the user clicks "Usar este texto" we stash the transcript in
  * sessionStorage and navigate back to `?return=…` (defaults to
- * `/dashboard/diario`). The destination page reads + clears the key.
+ * `/dashboard/reflexiones`). The destination page reads + clears the key.
  *
  * Error states the server can return:
  *   - 403 VOICE_REQUIRES_PRO  → upgrade banner
@@ -35,7 +35,7 @@ export function VozRecorder({
 }) {
   const router = useRouter();
   const params = useSearchParams();
-  const returnPath = params.get("return") ?? "/dashboard/diario";
+  const returnPath = params.get("return") ?? "/dashboard/reflexiones";
 
   const { state: recorderState, start, stop, reset } = useRecorder();
   const [transcribing, setTranscribing] = useState(false);

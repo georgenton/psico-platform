@@ -314,9 +314,9 @@ export default function HomeScreen() {
           </Text>
           <Pressable
             style={styles.reflexCta}
-            onPress={() => router.push("/(tabs)/diario")}
+            onPress={() => router.push("/(tabs)/reflexiones")}
           >
-            <Text style={styles.reflexCtaText}>Abrir diario →</Text>
+            <Text style={styles.reflexCtaText}>Abrir reflexiones →</Text>
           </Pressable>
         </View>
       ) : null}
@@ -379,15 +379,23 @@ export default function HomeScreen() {
 
 // ─── Shortcuts mapping ───────────────────────────────────────────────────────
 
-type ShortcutId = "diario" | "eco" | "biblioteca" | "terapia";
+// Sprint B4: mirror @psico/types ShortcutId rename. `"diario"` stays as
+// a deprecated alias so a stale HomeResponse from cache doesn't crash —
+// its config mirrors the new `"reflexiones"` entry.
+type ShortcutId = "reflexiones" | "eco" | "biblioteca" | "terapia" | "diario";
 const SHORTCUT_CONFIG: Record<
   ShortcutId,
   { icon: keyof typeof Ionicons.glyphMap; sub: string; href: string }
 > = {
+  reflexiones: {
+    icon: "create",
+    sub: "Anota cómo te sientes",
+    href: "/(tabs)/reflexiones",
+  },
   diario: {
     icon: "create",
     sub: "Anota cómo te sientes",
-    href: "/(tabs)/diario",
+    href: "/(tabs)/reflexiones",
   },
   eco: {
     icon: "sparkles",

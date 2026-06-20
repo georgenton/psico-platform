@@ -266,7 +266,7 @@ function ActiveDiarioBody({
             {/* Sprint front-voz: voice-to-text entry. */}
             <Pressable
               onPress={() =>
-                router.push("/(tabs)/voz?return=/(tabs)/diario" as never)
+                router.push("/(tabs)/voz?return=/(tabs)/reflexiones" as never)
               }
               style={styles.dictateBtn}
               accessibilityLabel="Dictar por voz"
@@ -362,7 +362,7 @@ function EntryCard({ entry }: { entry: DiaryEntrySummary }) {
   return (
     <Pressable
       style={styles.entryCard}
-      onPress={() => router.push(`/(tabs)/diario/${entry.id}`)}
+      onPress={() => router.push(`/(tabs)/reflexiones/${entry.id}`)}
     >
       <View style={styles.entryHead}>
         <View style={styles.kindBadge}>

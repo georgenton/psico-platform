@@ -100,7 +100,7 @@ export default async function PatronesPage({
             <strong>{data.entryCount}</strong> hasta ahora.
           </p>
           <Link
-            href="/dashboard/diario"
+            href="/dashboard/reflexiones"
             className="mt-5 inline-flex items-center gap-1.5 rounded-2xl px-5 py-2.5 text-[13px] font-semibold text-white"
             style={{ background: "var(--color-lavender-500)" }}
           >

@@ -139,7 +139,7 @@ const ADMIN_NAV_ITEMS: readonly NavItem[] = [
 ];
 
 // Deep-link items kept out of the rail but reachable from the user menu in
-// the footer. Plus the legacy /dashboard/diario path which now redirects to
+// the footer. Plus the legacy /dashboard/reflexiones path which now redirects to
 // /dashboard/reflexiones — listed here so the path matcher recognises it
 // during transitions.
 const USER_MENU_ITEMS: readonly NavItem[] = [

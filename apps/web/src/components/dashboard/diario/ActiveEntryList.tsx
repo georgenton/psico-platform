@@ -138,7 +138,7 @@ function EntryCard({
       style={{ borderColor: "var(--color-warm-200)" }}
     >
       <Link
-        href={`/dashboard/diario/${entry.id}`}
+        href={`/dashboard/reflexiones/${entry.id}`}
         className="block no-underline"
         aria-label={`Abrir entrada del ${date}`}
       >

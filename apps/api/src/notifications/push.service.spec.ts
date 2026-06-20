@@ -149,7 +149,11 @@ describe("PushService.sendToTokens", () => {
 
     const res = await svc.sendToTokens(
       [`web:${buildSub("a")}`, `web:${buildSub("b")}`],
-      { title: "Hola", body: "Tu pregunta del día", url: "/dashboard/diario" },
+      {
+        title: "Hola",
+        body: "Tu pregunta del día",
+        url: "/dashboard/reflexiones",
+      },
     );
 
     expect(webpushMocks.setVapidDetails).toHaveBeenCalledWith(
@@ -164,7 +168,7 @@ describe("PushService.sendToTokens", () => {
     expect(payload).toMatchObject({
       title: "Hola",
       body: "Tu pregunta del día",
-      url: "/dashboard/diario",
+      url: "/dashboard/reflexiones",
     });
 
     expect(res).toEqual([{ status: "ok" }, { status: "ok" }]);

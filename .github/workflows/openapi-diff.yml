@@ -56,11 +56,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build types package
-        run: pnpm --filter @psico/types build
-
-      - name: Build API
-        run: pnpm --filter @psico/api build
+      # Use turbo so transitive workspace deps (`@psico/types`, `@psico/crypto`)
+      # build in topological order — `apps/api` consumes `@psico/crypto` types
+      # in `rekey.e2e-spec.ts` (Sprint 3) and won't compile without them.
+      # turbo.json declares `build: { dependsOn: ["^build"] }` so this single
+      # command builds the whole chain.
+      - name: Build @psico/api + transitive workspace deps
+        run: pnpm turbo run build --filter=@psico/api
 
       - name: Boot API briefly to emit openapi.json
         working-directory: apps/api

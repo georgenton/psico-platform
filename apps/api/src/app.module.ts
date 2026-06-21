@@ -12,6 +12,7 @@ import { ProgressModule } from "./progress";
 import { HomeModule } from "./home";
 import { ReflexionesModule } from "./reflexiones";
 import { MoodModule } from "./mood";
+import { JourneysModule } from "./journeys";
 import { SubscriptionModule } from "./subscription";
 import { BillingModule } from "./billing";
 import { HealthModule } from "./health";
@@ -49,6 +50,7 @@ import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
     HomeModule,
     ReflexionesModule,
     MoodModule, // Sprint B1 — POST /api/mood (global time series)
+    JourneysModule, // Sprint B5 — GET /api/journeys (curated Exploraciones)
     SubscriptionModule,
     BillingModule, // Sprint S11 — /api/billing/* + /api/plan, depends on SubscriptionModule
     HealthModule,

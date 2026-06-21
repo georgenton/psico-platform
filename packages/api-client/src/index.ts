@@ -8,6 +8,8 @@ export { diarioApi } from "./diario";
 export { homeApi } from "./home";
 // Sprint B1 — POST /api/mood time series for the Topbar MoodChip.
 export { moodApi } from "./mood";
+// Sprint B5 — GET /api/journeys curated Exploraciones catalog.
+export { journeysApi } from "./journeys";
 // Sprint S11 — canonical billing client. Prefer this over `subscriptionApi`.
 export { billingApi } from "./billing";
 export type { BillingInterval, CheckoutSession } from "./billing";

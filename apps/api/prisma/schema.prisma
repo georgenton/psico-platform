@@ -1887,3 +1887,46 @@ model AuthorPayoutSetting {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+// ─── Exploraciones · Journeys (Sprint B5) ─────────────────────────────────────
+//
+// A "journey" is a curated bundle: a sequence of books (and, in v2, audios
+// + reflections) around one transformation arc — e.g. "Reconectar después
+// de una pérdida". The user browses them at /dashboard/exploraciones and
+// taps into them to land on the first book of the journey with the rest
+// queued in a side rail.
+//
+// v1 keeps the model intentionally narrow: book slugs only (no audios, no
+// progress tracking yet) and a single curated set seeded by ops. Once
+// validated with users we can add `JourneyProgress` per user, weights,
+// reorderability from an admin UI, etc.
+//
+// `bookSlugs` is a `String[]` instead of a join table because:
+//   1. The order matters (book #1 comes before book #2 in the arc).
+//   2. We never need to query journeys-by-book, so a many-to-many table
+//      would be cost without benefit.
+//   3. Postgres native arrays survive `\d+` and `pg_dump` cleanly.
+model Journey {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  title           String
+  subtitle        String
+  description     String?
+  // Cover gradient token: "cool" | "warm" | "mixed" — same vocabulary as
+  // Book.cover so the dashboard cards render with the cover-gradient helper.
+  coverToken      String    @default("mixed")
+  // Estimated total reading time. Ops compute this offline from the
+  // sum of `Book.durationMinutes` of the bundled books.
+  durationMinutes Int       @default(0)
+  // Ordered list of `Book.slug` that compose the journey. Renderer joins
+  // against the Book catalog on demand.
+  bookSlugs       String[]
+  // Order in the catalog. Lower = surfaced earlier.
+  order           Int       @default(0)
+  // `null` means draft. The list endpoint filters `publishedAt != null`.
+  publishedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([publishedAt, order])
+}

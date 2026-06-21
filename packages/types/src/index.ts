@@ -2672,3 +2672,40 @@ export interface RetryCheckoutResponse {
   checkoutUrl: string;
   paymentStatus: TherapyPaymentStatus;
 }
+
+// ─── Exploraciones · Journeys (Sprint B5) ─────────────────────────────────────
+//
+// Curated bundles of books around a transformation arc. Listed at
+// /dashboard/exploraciones. v1 returns a flat list; v2 will add per-user
+// progress + recommended ordering.
+
+export type JourneyCoverToken = "cool" | "warm" | "mixed";
+
+export interface JourneyBookSummary {
+  /** Slug of the book — same key used by /books/:idOrSlug. */
+  slug: string;
+  title: string;
+  /** Human-friendly author name. `null` if the catalog row has no author. */
+  authorName: string | null;
+  cover: CoverToken;
+  /** Estimated reading time of this specific book, in minutes. */
+  durationMinutes: number;
+}
+
+export interface JourneyListItem {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle: string;
+  description: string | null;
+  coverToken: JourneyCoverToken;
+  /** Sum of `Book.durationMinutes` of the bundled books, cached. */
+  durationMinutes: number;
+  /** Books in arc order. */
+  books: JourneyBookSummary[];
+  publishedAt: Date;
+}
+
+export interface JourneyListResponse {
+  journeys: JourneyListItem[];
+}

@@ -44,7 +44,25 @@ describe("HomeService.getHome", () => {
 
   beforeEach(() => {
     prisma = buildPrisma();
-    service = new HomeService(prisma as never);
+    service = new HomeService(
+      prisma as never,
+      {
+        getForUser: async () => ({
+          values: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5] as [
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+          ],
+          pct: 50,
+          computedAt: new Date(0).toISOString(),
+          provider: "fallback",
+        }),
+      } as never,
+      { feed: async () => ({ items: [] }) } as never,
+    );
   });
 
   it("throws when user does not exist", async () => {
@@ -169,7 +187,25 @@ describe("HomeService.updateMood", () => {
 
   beforeEach(() => {
     prisma = buildPrisma();
-    service = new HomeService(prisma as never);
+    service = new HomeService(
+      prisma as never,
+      {
+        getForUser: async () => ({
+          values: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5] as [
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+          ],
+          pct: 50,
+          computedAt: new Date(0).toISOString(),
+          provider: "fallback",
+        }),
+      } as never,
+      { feed: async () => ({ items: [] }) } as never,
+    );
   });
 
   it("throws 404 on unknown mood", async () => {
@@ -207,7 +243,25 @@ describe("HomeService.dismissPrompt", () => {
 
   beforeEach(() => {
     prisma = buildPrisma();
-    service = new HomeService(prisma as never);
+    service = new HomeService(
+      prisma as never,
+      {
+        getForUser: async () => ({
+          values: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5] as [
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+          ],
+          pct: 50,
+          computedAt: new Date(0).toISOString(),
+          provider: "fallback",
+        }),
+      } as never,
+      { feed: async () => ({ items: [] }) } as never,
+    );
   });
 
   it("returns 404 when prompt not found", async () => {

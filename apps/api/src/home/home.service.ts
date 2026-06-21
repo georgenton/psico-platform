@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+import { EmotionalMapService } from "../emotional-map";
+import { ActivityService } from "../activity";
 import type {
   AmbientId,
   CoverToken,
@@ -76,23 +78,42 @@ const SHORTCUTS_DEFAULT: HomeShortcut[] = [
 
 @Injectable()
 export class HomeService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emotionalMap: EmotionalMapService,
+    private readonly activity: ActivityService,
+  ) {}
 
   /**
    * GET /home — aggregator. One DB round-trip per concern, in parallel.
    * Total query cost stays bounded even as we add concerns (target ≤ 1s).
+   *
+   * Sprint D added `emotionalMap` (cached 24h, mostly free) and `activity`
+   * (top 5 interleaved). Both run in the same Promise.all so adding them
+   * costs only what the slowest concern costs.
    */
   async getHome(userId: string): Promise<HomeResponse> {
-    const [user, continueBook, ecoMoment, recos, stats, prompt, ambient] =
-      await Promise.all([
-        this.fetchUser(userId),
-        this.fetchContinueBook(userId),
-        this.fetchEcoMoment(userId),
-        this.fetchRecos(userId),
-        this.fetchStats(userId),
-        this.fetchReflectionPrompt(userId),
-        this.fetchAmbient(userId),
-      ]);
+    const [
+      user,
+      continueBook,
+      ecoMoment,
+      recos,
+      stats,
+      prompt,
+      ambient,
+      emotionalMap,
+      activity,
+    ] = await Promise.all([
+      this.fetchUser(userId),
+      this.fetchContinueBook(userId),
+      this.fetchEcoMoment(userId),
+      this.fetchRecos(userId),
+      this.fetchStats(userId),
+      this.fetchReflectionPrompt(userId),
+      this.fetchAmbient(userId),
+      this.emotionalMap.getForUser(userId),
+      this.activity.feed(userId),
+    ]);
 
     if (!user) throw new NotFoundException("User not found");
 
@@ -115,6 +136,8 @@ export class HomeService {
       shortcuts: SHORTCUTS_DEFAULT,
       ambient,
       insightToday,
+      emotionalMap,
+      activity,
     };
   }
 

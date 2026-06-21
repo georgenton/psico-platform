@@ -473,30 +473,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/diario/entries": {
+    "/api/emotional-map": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["DiarioController_list"];
-        put?: never;
-        post: operations["DiarioController_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/diario/prompt-of-the-day": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["DiarioController_getPromptOfTheDay"];
+        get: operations["EmotionalMapController_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -505,14 +489,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/diario/entries/raw-ciphers": {
+    "/api/activity": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["DiarioController_listRawCiphers"];
+        get: operations["ActivityController_feed"];
         put?: never;
         post?: never;
         delete?: never;
@@ -521,23 +505,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/diario/entries/{id}": {
+    "/api/reflexiones/entries": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["DiarioController_getDetail"];
+        get: operations["ReflexionesController_list"];
         put?: never;
-        post?: never;
-        delete: operations["DiarioController_remove"];
+        post: operations["ReflexionesController_create"];
+        delete?: never;
         options?: never;
         head?: never;
-        patch: operations["DiarioController_update"];
+        patch?: never;
         trace?: never;
     };
-    "/api/diario/entries/{id}/share": {
+    "/api/reflexiones/prompt-of-the-day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReflexionesController_getPromptOfTheDay"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reflexiones/entries/raw-ciphers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReflexionesController_listRawCiphers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reflexiones/entries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReflexionesController_getDetail"];
+        put?: never;
+        post?: never;
+        delete: operations["ReflexionesController_remove"];
+        options?: never;
+        head?: never;
+        patch: operations["ReflexionesController_update"];
+        trace?: never;
+    };
+    "/api/reflexiones/entries/{id}/share": {
         parameters: {
             query?: never;
             header?: never;
@@ -546,7 +578,39 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["DiarioController_share"];
+        post: operations["ReflexionesController_share"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mood": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["MoodController_log"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/journeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["JourneysController_list"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2363,6 +2427,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/terapia/webhooks/daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recibe eventos de Daily.co (meeting.started, meeting.ended). */
+        post: operations["DailyWebhookController_receive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/autor/dashboard": {
         parameters: {
             query?: never;
@@ -2962,6 +3043,14 @@ export interface components {
              */
             expiresAt?: string;
         };
+        LogMoodDto: {
+            /**
+             * @description Mood token from the shared catalog.
+             * @example good
+             * @enum {string}
+             */
+            mood: LogMoodDtoMood;
+        };
         CreateCheckoutSessionDto: {
             /**
              * @description Plan tier to purchase. Plugin emits the enum in OpenAPI.
@@ -3102,6 +3191,13 @@ export interface components {
              * @enum {string}
              */
             language?: UpdatePreferencesDtoLanguage;
+            /**
+             * @description Ambient theme (Sprint B1). Re-skins the dashboard with a different
+             *     palette + typography. All ambients are free regardless of plan — purely
+             *     cosmetic, no functional gating.
+             * @enum {string}
+             */
+            ambient?: UpdatePreferencesDtoAmbient;
         };
         UpdateReaderPreferencesDto: {
             /** @enum {string} */
@@ -3231,9 +3327,10 @@ export interface components {
              */
             newPassword: string;
             /**
-             * @description Fresh 16-byte Argon2id salt the client generated for the new master
-             *     key, base64url-encoded (24 chars). Distinct from the old salt — the
-             *     client throws away the old master key entirely and starts over.
+             * @description Fresh 16-byte (or up to 21-byte) Argon2id salt the client generated
+             *     for the new master key, base64url-encoded (22–28 chars). Distinct
+             *     from the old salt — the client throws away the old master key entirely
+             *     and starts over.
              */
             newCryptoSalt: string;
             /**
@@ -5181,12 +5278,53 @@ export interface operations {
             };
         };
     };
-    DiarioController_list: {
+    EmotionalMapController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    ActivityController_feed: {
+        parameters: {
+            query?: {
+                /** @description Items to return. 1–20. Default 5. */
+                limit?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    ReflexionesController_list: {
         parameters: {
             query?: {
                 from?: string;
                 to?: string;
-                mood?: PathsApiDiarioEntriesGetParametersQueryMood;
+                mood?: PathsApiReflexionesEntriesGetParametersQueryMood;
                 tag?: string;
                 page?: number;
                 perPage?: number;
@@ -5231,7 +5369,7 @@ export interface operations {
             };
         };
     };
-    DiarioController_create: {
+    ReflexionesController_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -5278,7 +5416,7 @@ export interface operations {
             };
         };
     };
-    DiarioController_getPromptOfTheDay: {
+    ReflexionesController_getPromptOfTheDay: {
         parameters: {
             query?: never;
             header?: never;
@@ -5321,7 +5459,7 @@ export interface operations {
             };
         };
     };
-    DiarioController_listRawCiphers: {
+    ReflexionesController_listRawCiphers: {
         parameters: {
             query?: never;
             header?: never;
@@ -5364,7 +5502,7 @@ export interface operations {
             };
         };
     };
-    DiarioController_getDetail: {
+    ReflexionesController_getDetail: {
         parameters: {
             query?: never;
             header?: never;
@@ -5409,7 +5547,7 @@ export interface operations {
             };
         };
     };
-    DiarioController_remove: {
+    ReflexionesController_remove: {
         parameters: {
             query?: never;
             header?: never;
@@ -5454,7 +5592,7 @@ export interface operations {
             };
         };
     };
-    DiarioController_update: {
+    ReflexionesController_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -5503,7 +5641,7 @@ export interface operations {
             };
         };
     };
-    DiarioController_share: {
+    ReflexionesController_share: {
         parameters: {
             query?: never;
             header?: never;
@@ -5543,6 +5681,88 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    MoodController_log: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogMoodDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    JourneysController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10041,6 +10261,23 @@ export interface operations {
             };
         };
     };
+    DailyWebhookController_receive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     AuthorController_dashboard: {
         parameters: {
             query?: never;
@@ -10922,7 +11159,7 @@ export enum PathsApiBooksGetParametersQuerySort {
     alpha = "alpha",
     marina = "marina"
 }
-export enum PathsApiDiarioEntriesGetParametersQueryMood {
+export enum PathsApiReflexionesEntriesGetParametersQueryMood {
     great = "great",
     good = "good",
     ok = "ok",
@@ -10997,6 +11234,13 @@ export enum UpdateDiaryEntryDtoMood {
     low = "low",
     hard = "hard"
 }
+export enum LogMoodDtoMood {
+    great = "great",
+    good = "good",
+    ok = "ok",
+    low = "low",
+    hard = "hard"
+}
 export enum CreateCheckoutSessionDtoBillingPlan {
     PRO_MONTHLY = "PRO_MONTHLY",
     PRO_YEARLY = "PRO_YEARLY",
@@ -11026,6 +11270,12 @@ export enum UpdatePreferencesDtoTheme {
 export enum UpdatePreferencesDtoLanguage {
     es_419 = "es-419",
     es_ES = "es-ES"
+}
+export enum UpdatePreferencesDtoAmbient {
+    calma = "calma",
+    enfoque = "enfoque",
+    energia = "energia",
+    noche = "noche"
 }
 export enum UpdateReaderPreferencesDtoFont {
     serif = "serif",

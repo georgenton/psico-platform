@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 
 import { PrismaService } from "../prisma";
+import { ACHIEVEMENT_CATALOG } from "./achievement-catalog";
+import type { AchievementSeed, ProgressKey } from "./achievement-catalog";
 
 export interface EvolucionMilestone {
   /** Stable Achievement.id from the catalog. */
@@ -44,25 +46,21 @@ export class EvolucionService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getForUser(userId: string): Promise<EvolucionResponse> {
-    const [user, achievementCatalog, userAchievements] = await Promise.all([
+    const [user, existingUserAchievements] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: userId },
         select: { currentStreakDays: true, longestStreakDays: true },
       }),
-      this.prisma.achievement.findMany({
-        orderBy: { progressTarget: "asc" },
-      }),
-      this.prisma.userAchievement.findMany({
-        where: { userId },
-      }),
+      this.prisma.userAchievement.findMany({ where: { userId } }),
     ]);
 
     if (!user) throw new NotFoundException("USER_NOT_FOUND");
 
     const stats = await this.computeStats(userId, user);
-    const milestones = this.buildMilestones(
-      achievementCatalog,
-      userAchievements,
+    const milestones = await this.syncAndBuildMilestones(
+      userId,
+      stats,
+      existingUserAchievements,
     );
 
     return { stats, milestones };
@@ -78,10 +76,7 @@ export class EvolucionService {
       this.prisma.diaryEntry.count({ where: { userId } }),
       this.prisma.readingSession.findMany({
         where: { userId },
-        select: {
-          completedAt: true,
-          timeSpentSec: true,
-        },
+        select: { completedAt: true, timeSpentSec: true },
       }),
       this.prisma.diaryEntry.findMany({
         where: { userId, createdAt: { gte: since30 } },
@@ -109,36 +104,86 @@ export class EvolucionService {
     };
   }
 
-  private buildMilestones(
-    catalog: Array<{
-      id: string;
-      label: string;
-      description: string;
-      icon: string;
-      progressTarget: number;
-      category: string | null;
-    }>,
-    userRows: Array<{
+  /**
+   * Sprint E2 — write-on-read auto-unlock.
+   *
+   * For each catalog entry, look up the user's current progress against the
+   * matching stat. If `progressCurrent` differs from the stored row, upsert
+   * it. If the user just crossed the target, set `unlockedAt = now`.
+   *
+   * Side effects on a GET are normally a smell, but they're acceptable here:
+   *   - Idempotent (same input → same output, same DB end-state).
+   *   - The writes are tiny (1 row per achievement, at most 12 today).
+   *   - Avoids an event bus + hooks across DiaryService / LectorService /
+   *     etc. that would otherwise need to fan out on every write.
+   */
+  private async syncAndBuildMilestones(
+    userId: string,
+    stats: EvolucionStats,
+    existing: Array<{
       achievementId: string;
       progressCurrent: number;
       unlockedAt: Date | null;
     }>,
-  ): EvolucionMilestone[] {
-    const byId = new Map(userRows.map((u) => [u.achievementId, u]));
-    const items: EvolucionMilestone[] = catalog.map((a) => {
-      const u = byId.get(a.id);
-      return {
-        id: a.id,
-        label: a.label,
-        description: a.description,
-        icon: a.icon,
-        progressTarget: a.progressTarget,
-        progressCurrent: u?.progressCurrent ?? 0,
-        unlockedAt: u?.unlockedAt?.toISOString() ?? null,
-        category: a.category,
-      };
-    });
-    // Unlocked first (most recent first), then in-progress by completion %.
+  ): Promise<EvolucionMilestone[]> {
+    const existingById = new Map(existing.map((e) => [e.achievementId, e]));
+    const now = new Date();
+
+    // Build the desired state per catalog entry. Then upsert only the ones
+    // that drift (progress changed) or just unlocked.
+    const updates: Promise<unknown>[] = [];
+    const items: EvolucionMilestone[] = [];
+
+    for (const entry of ACHIEVEMENT_CATALOG) {
+      const progressCurrent = readStat(stats, entry.progressKey);
+      const reachedNow = progressCurrent >= entry.progressTarget;
+      const prior = existingById.get(entry.id);
+      const unlockedAt = prior?.unlockedAt
+        ? prior.unlockedAt
+        : reachedNow
+          ? now
+          : null;
+
+      const drift =
+        !prior ||
+        prior.progressCurrent !== progressCurrent ||
+        (unlockedAt !== null && prior.unlockedAt === null);
+
+      if (drift) {
+        updates.push(
+          this.prisma.userAchievement.upsert({
+            where: {
+              userId_achievementId: { userId, achievementId: entry.id },
+            },
+            create: {
+              userId,
+              achievementId: entry.id,
+              progressCurrent,
+              unlockedAt,
+            },
+            update: { progressCurrent, unlockedAt: unlockedAt ?? null },
+          }),
+        );
+      }
+
+      items.push({
+        id: entry.id,
+        label: entry.label,
+        description: entry.description,
+        icon: entry.icon,
+        progressTarget: entry.progressTarget,
+        progressCurrent,
+        unlockedAt: unlockedAt?.toISOString() ?? null,
+        category: entry.category,
+      });
+    }
+
+    // Fire-and-forget would be tempting, but we await to keep the DB
+    // consistent before the response goes out (avoid stale read on a
+    // follow-up call within the same second).
+    if (updates.length > 0) await Promise.all(updates);
+
+    // Sort: unlocked first (most recent), then in-progress by completion %.
     items.sort((a, b) => {
       if (a.unlockedAt && b.unlockedAt) {
         return b.unlockedAt.localeCompare(a.unlockedAt);
@@ -152,3 +197,12 @@ export class EvolucionService {
     return items;
   }
 }
+
+function readStat(stats: EvolucionStats, key: ProgressKey): number {
+  return stats[key];
+}
+
+// Re-export so callers (web client, seed scripts) can stay typed without
+// crossing module boundaries.
+export type { AchievementSeed, ProgressKey };
+export { ACHIEVEMENT_CATALOG };

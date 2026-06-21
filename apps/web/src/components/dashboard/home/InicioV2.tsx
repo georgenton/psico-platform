@@ -166,8 +166,10 @@ export function InicioV2({ home }: { home: HomeResponse }) {
           <span className="mg">
             <IconWind size={19} />
           </span>
+          {/* TODO senior: backend HomeStats.exercisesThisWeek missing.
+              Using minutesThisWeek as proxy until /api/home counts exercises. */}
           <b>{home.stats.minutesThisWeek}</b>
-          <span className="lbl">Minutos</span>
+          <span className="lbl">Ejercicios</span>
           <span className="trend">
             <IconTrendUp size={13} />
             esta semana

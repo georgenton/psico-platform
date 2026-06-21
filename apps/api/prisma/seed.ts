@@ -885,6 +885,57 @@ async function main() {
   }
   console.log(`✅  Therapists: ${therapists.length} terapeutas + availability`);
 
+  // ─── Exploraciones · Journeys (Sprint B5) ────────────────────────────────
+  //
+  // Curated bundles of books around transformation arcs. Idempotent via slug.
+  // v1 ships two journeys built from the two anchor books — the page renders
+  // with content from day one. Ops can add more rows directly in DB.
+
+  console.log("\n🧭 Journeys…");
+  const now = new Date();
+  const journeys = [
+    {
+      slug: "asentar-las-emociones",
+      title: "Asentar las emociones",
+      subtitle: "Un camino para mirar lo que sientes sin pelear con ello.",
+      description:
+        "Empieza por nombrar lo que pasa adentro y termina con una práctica diaria para sostenerlo.",
+      coverToken: "cool" as const,
+      durationMinutes: 96,
+      bookSlugs: ["emociones-en-construccion"],
+      order: 0,
+    },
+    {
+      slug: "familia-y-vinculos",
+      title: "Familia y vínculos",
+      subtitle:
+        "Para conversaciones que llevan tiempo sin tener un buen lugar.",
+      description:
+        "Lecturas que ayudan a entender las dinámicas que cargamos desde casa y a abrir espacio para nuevas.",
+      coverToken: "warm" as const,
+      durationMinutes: 140,
+      bookSlugs: ["familias-ensambladas"],
+      order: 1,
+    },
+  ];
+  for (const j of journeys) {
+    await prisma.journey.upsert({
+      where: { slug: j.slug },
+      create: { ...j, publishedAt: now },
+      update: {
+        title: j.title,
+        subtitle: j.subtitle,
+        description: j.description,
+        coverToken: j.coverToken,
+        durationMinutes: j.durationMinutes,
+        bookSlugs: j.bookSlugs,
+        order: j.order,
+        publishedAt: now,
+      },
+    });
+  }
+  console.log(`✅  Journeys: ${journeys.length} exploraciones curadas`);
+
   console.log("\n🌱 Seed completado.");
 }
 

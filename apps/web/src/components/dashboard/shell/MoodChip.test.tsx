@@ -11,7 +11,7 @@ import { MoodChip } from "./MoodChip";
 
 const mockedMoodApi = vi.mocked(moodApi);
 
-describe("MoodChip", () => {
+describe("MoodChip — Sprint B6b (5 wellness levels)", () => {
   beforeEach(() => {
     mockedMoodApi.log.mockReset();
   });
@@ -22,19 +22,24 @@ describe("MoodChip", () => {
   });
 
   it("renders the active mood label when initialMood is set", () => {
-    render(<MoodChip initialMood="calma" />);
-    expect(screen.getByText(/Hoy: Calma/)).toBeInTheDocument();
+    render(<MoodChip initialMood="low" />);
+    expect(
+      screen.getByRole("button", { name: /Tu ánimo: Bajo. Cambiar/i }),
+    ).toBeInTheDocument();
   });
 
-  it("opens the popover on click and lists every mood swatch", async () => {
+  it("opens the popover on click and renders the 5 wellness faces", async () => {
     const user = userEvent.setup();
     render(<MoodChip initialMood={null} />);
-    await user.click(screen.getByRole("button", { name: /Cómo estás/ }));
+    await user.click(screen.getByRole("button", { name: /Marcar tu ánimo/ }));
     expect(
       screen.getByRole("dialog", { name: /estado de ánimo/i }),
     ).toBeInTheDocument();
-    // 7 swatch buttons inside the popover.
-    expect(screen.getAllByRole("button").length).toBeGreaterThanOrEqual(8);
+    expect(screen.getByRole("button", { name: "Muy bien" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Bien" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Neutral" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Bajo" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Difícil" })).toBeVisible();
   });
 
   it("logs the picked mood + closes the popover + fires onMoodChange", async () => {
@@ -43,16 +48,18 @@ describe("MoodChip", () => {
     const onChange = vi.fn();
     render(<MoodChip initialMood={null} onMoodChange={onChange} />);
 
-    await user.click(screen.getByRole("button", { name: /Cómo estás/ }));
-    await user.click(screen.getByRole("button", { name: "Calma" }));
+    await user.click(screen.getByRole("button", { name: /Marcar tu ánimo/ }));
+    await user.click(screen.getByRole("button", { name: "Bien" }));
 
     await waitFor(() => {
-      expect(mockedMoodApi.log).toHaveBeenCalledWith({ mood: "calma" });
+      expect(mockedMoodApi.log).toHaveBeenCalledWith({ mood: "good" });
     });
     await waitFor(() => {
-      expect(onChange).toHaveBeenCalledWith("calma");
+      expect(onChange).toHaveBeenCalledWith("good");
     });
-    expect(screen.getByText(/Hoy: Calma/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Tu ánimo: Bien/i }),
+    ).toBeInTheDocument();
   });
 
   it("rolls back optimistic state when the API call fails", async () => {
@@ -60,15 +67,14 @@ describe("MoodChip", () => {
     mockedMoodApi.log.mockRejectedValueOnce(new Error("boom"));
     render(<MoodChip initialMood={null} />);
 
-    await user.click(screen.getByRole("button", { name: /Cómo estás/ }));
-    await user.click(screen.getByRole("button", { name: "Calma" }));
+    await user.click(screen.getByRole("button", { name: /Marcar tu ánimo/ }));
+    await user.click(screen.getByRole("button", { name: "Bien" }));
 
     await waitFor(() => {
       expect(screen.getByRole("alert", { name: undefined })).toHaveTextContent(
         /No se pudo guardar/,
       );
     });
-    // The chip rolls back to the empty state.
     expect(screen.getByText("¿Cómo estás?")).toBeInTheDocument();
   });
 });

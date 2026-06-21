@@ -144,7 +144,7 @@ function ActiveDiarioBody({
   const { key, lock } = useDiaryKey();
   const router = useRouter();
   const [text, setText] = useState("");
-  const [mood, setMood] = useState("calma");
+  const [mood, setMood] = useState("ok");
   const [submitting, setSubmitting] = useState(false);
 
   // Sprint front-voz: when the Diario screen regains focus (i.e. the user

@@ -152,15 +152,36 @@ export function IconChevronDown(p: IconProps) {
   );
 }
 
-export function IconMoodNeutral(p: IconProps) {
+// Sprint B6b — five wellness faces (great/good/ok/low/hard). Mouth path is
+// the only differentiator; eyes + circle stay constant. Paths are taken
+// verbatim from `docs/design/redesign-v2/dashboard/index.html`.
+export function IconMoodFace({
+  variant,
+  size,
+  className,
+}: { variant: "great" | "good" | "ok" | "low" | "hard" } & IconProps) {
+  const mouth =
+    variant === "great"
+      ? "M8 13.5 a4 4 0 0 0 8 0"
+      : variant === "good"
+        ? "M9 13.8 a3.2 3.2 0 0 0 6 0"
+        : variant === "ok"
+          ? "M9 14.5 H15"
+          : variant === "low"
+            ? "M9.2 15 a3 3 0 0 1 5.6 0"
+            : "M8.4 15.5 a4 4 0 0 1 7.2 0";
   return (
-    <Base {...p} strokeWidth={1.7}>
+    <Base size={size} className={className} strokeWidth={1.6}>
       <circle cx="12" cy="12" r="8.5" />
-      <path d="M9 14.5 H15" />
+      <path d={mouth} />
       <circle cx="9" cy="10" r="0.7" fill="currentColor" stroke="none" />
       <circle cx="15" cy="10" r="0.7" fill="currentColor" stroke="none" />
     </Base>
   );
+}
+
+export function IconMoodNeutral(p: IconProps) {
+  return <IconMoodFace variant="ok" {...p} />;
 }
 
 export function IconPencil(p: IconProps) {

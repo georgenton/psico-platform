@@ -5,9 +5,10 @@ import type { PatronesPeriod, PatronesResponse } from "@psico/types";
 import { getAccessToken, isNextThrow, serverFetch } from "@/lib/api.server";
 import { HourMoodChart } from "@/components/dashboard/patrones/HourMoodChart";
 import { MoodHeatmap } from "@/components/dashboard/patrones/MoodHeatmap";
-import { WeeklySummaryCard } from "@/components/dashboard/patrones/WeeklySummaryCard";
+import { PatTopTagsGrid } from "@/components/dashboard/patrones/PatTopTagsGrid";
+import { PatRegenerateCta } from "@/components/dashboard/patrones/PatRegenerateCta";
 
-export const metadata: Metadata = { title: "Patrones" };
+export const metadata: Metadata = { title: "Patrones IA" };
 export const dynamic = "force-dynamic";
 
 const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001").replace(/\/$/, "")}/api`;
@@ -18,6 +19,24 @@ function parsePeriod(raw: string | undefined): PatronesPeriod {
     ? (raw as PatronesPeriod)
     : "30d";
 }
+
+// Sprint F1 — toolbar chips. Today only "Todos" is wired; the rest are
+// visual placeholders for future Patrones features (Predominantes,
+// Conexiones, Disparadores, Fortalezas, Creencias). Disabled rather than
+// hidden so the user sees the roadmap.
+interface ToolbarChip {
+  id: string;
+  label: string;
+  active?: boolean;
+}
+const TOOLBAR_CHIPS: ToolbarChip[] = [
+  { id: "todos", label: "Todos", active: true },
+  { id: "predominantes", label: "Predominantes" },
+  { id: "conexiones", label: "Conexiones" },
+  { id: "disparadores", label: "Disparadores" },
+  { id: "fortalezas", label: "Fortalezas" },
+  { id: "creencias", label: "Creencias" },
+];
 
 export default async function PatronesPage({
   searchParams,
@@ -36,28 +55,19 @@ export default async function PatronesPage({
 
   if (!data) {
     return (
-      <div className="mx-auto max-w-4xl">
-        <h1
-          className="mb-3 text-[26px] font-bold tracking-tight"
-          style={{ color: "var(--color-warm-900)" }}
-        >
-          Patrones
-        </h1>
-        <p
-          className="rounded-2xl border-[1.5px] bg-white p-6 text-[13px]"
-          style={{
-            borderColor: "var(--color-warm-200)",
-            color: "var(--color-warm-500)",
-          }}
-        >
-          No pudimos cargar tus patrones. Reintenta en unos minutos.
-        </p>
-      </div>
+      <>
+        <ScreenHead period={period} />
+        <div className="card">
+          <p
+            style={{ margin: 0, color: "var(--color-warm-500)", fontSize: 14 }}
+          >
+            No pudimos cargar tus patrones. Reintenta en unos minutos.
+          </p>
+        </div>
+      </>
     );
   }
 
-  // Compute the swatch lookup for the hour chart. We pick one swatch per
-  // mood id from the heatmap days (already resolved server-side).
   const swatchByMood: Record<string, string> = {};
   for (const d of data.moodMap) {
     if (!swatchByMood[d.moodId]) swatchByMood[d.moodId] = d.swatch;
@@ -66,166 +76,285 @@ export default async function PatronesPage({
   // ── FREE paywall ───────────────────────────────────────────────────
   if (data.locked) {
     return (
-      <div className="mx-auto max-w-4xl">
-        <Header period={period} />
+      <>
+        <ScreenHead period={period} />
         <PaywallCard entryCount={data.entryCount} />
-      </div>
+      </>
     );
   }
 
   // ── Empty state — Pro with too few entries ─────────────────────────
   if (data.entryCount < 7) {
     return (
-      <div className="mx-auto max-w-4xl">
-        <Header period={period} />
-        <section
-          className="mt-6 rounded-2xl border-[1.5px] bg-white p-8 text-center"
-          style={{ borderColor: "var(--color-warm-200)" }}
+      <>
+        <ScreenHead period={period} />
+        <Toolbar />
+        <div
+          className="card"
+          style={{ textAlign: "center", padding: "32px 24px" }}
         >
-          <p className="mb-2 text-[20px]" aria-hidden>
+          <p style={{ margin: "0 0 8px", fontSize: 22 }} aria-hidden>
             🌱
           </p>
           <h2
-            className="mb-2 text-[18px] font-bold"
-            style={{ color: "var(--color-warm-900)" }}
+            style={{
+              font: "700 18px/1.1 var(--font-sans)",
+              color: "var(--color-warm-900)",
+              margin: "0 0 8px",
+            }}
           >
             Aún estamos juntando data
           </h2>
           <p
-            className="mx-auto max-w-md text-[13.5px] leading-relaxed"
-            style={{ color: "var(--color-warm-600)" }}
+            style={{
+              maxWidth: 460,
+              margin: "0 auto",
+              color: "var(--color-warm-600)",
+              fontSize: 13.5,
+              lineHeight: 1.5,
+            }}
           >
-            Necesitas al menos 7 entradas de diario en este período para que los
-            patrones tengan algo real que mostrarte. Llevas{" "}
+            Necesitas al menos 7 entradas en este período para que los patrones
+            tengan algo real que mostrarte. Llevas{" "}
             <strong>{data.entryCount}</strong> hasta ahora.
           </p>
           <Link
             href="/dashboard/reflexiones"
-            className="mt-5 inline-flex items-center gap-1.5 rounded-2xl px-5 py-2.5 text-[13px] font-semibold text-white"
-            style={{ background: "var(--color-lavender-500)" }}
+            className="btn primary"
+            style={{ marginTop: 20, textDecoration: "none" }}
           >
-            ✎ Ir al Diario
+            Ir a Reflexiones →
           </Link>
-        </section>
-      </div>
+        </div>
+      </>
     );
   }
 
   // ── Pro full view ──────────────────────────────────────────────────
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <Header period={period} />
-      <WeeklySummaryCard
-        summary={data.weeklySummary}
-        apiBase={API_BASE}
-        token={accessToken ?? ""}
-      />
-      <MoodHeatmap days={data.moodMap} />
-      <HourMoodChart hourMood={data.hourMood} swatchByMood={swatchByMood} />
+    <>
+      <ScreenHead period={period} />
+      <Toolbar />
+
+      <div className="pat-grid">
+        <div className="card pat-wide">
+          <div className="pw-body">
+            <span className="pw-tag">Insight de la semana</span>
+            <h3 style={{ margin: "8px 0 8px" }}>
+              {data.weeklySummary?.headline ??
+                "Aún no tenemos un insight para esta semana"}
+            </h3>
+            <p style={{ margin: 0 }}>
+              {data.weeklySummary?.narrative ??
+                "Cuando tengas un puñado de reflexiones más, Eco va a tejer las conexiones que aparecen entre tus moods, tus temas y tus rachas."}
+            </p>
+          </div>
+          <PatRegenerateCta
+            hasSummary={data.weeklySummary !== null}
+            apiBase={API_BASE}
+            token={accessToken ?? ""}
+          />
+        </div>
+
+        <PatTopTagsGrid
+          themes={data.themes}
+          entryCount={data.entryCount}
+          period={period}
+        />
+      </div>
+
+      <div className="sec-label" style={{ marginTop: 36 }}>
+        Tu mes en detalle
+      </div>
+      <div style={{ display: "grid", gap: 16 }}>
+        <MoodHeatmap days={data.moodMap} />
+        <HourMoodChart hourMood={data.hourMood} swatchByMood={swatchByMood} />
+      </div>
+
       <p
-        className="text-center text-[10.5px]"
-        style={{ color: "var(--color-warm-500)" }}
+        style={{
+          textAlign: "center",
+          fontSize: 11,
+          color: "var(--color-warm-500)",
+          marginTop: 24,
+        }}
       >
         Las correlaciones que mostramos no son causas. Tu cuerpo y tu vida son
         más complejos que un gráfico.
       </p>
-    </div>
+    </>
   );
 }
 
 // ───────────────────────────────────────────────────────────────────────
 
-function Header({ period }: { period: PatronesPeriod }) {
+function ScreenHead({ period }: { period: PatronesPeriod }) {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1
-          className="text-[26px] font-bold tracking-tight"
-          style={{ color: "var(--color-warm-900)" }}
-        >
-          Patrones
-        </h1>
-        <p
-          className="mt-1 text-[13px]"
-          style={{ color: "var(--color-warm-500)" }}
-        >
-          Lo que tu diario va dibujando con el tiempo.
-        </p>
+    <>
+      <div
+        className="screen-head"
+        style={{
+          display: "flex",
+          alignItems: "flex-end",
+          justifyContent: "space-between",
+          gap: 24,
+          flexWrap: "wrap",
+          marginBottom: 14,
+        }}
+      >
+        <div className="screen-title">
+          <span className="eb">Lo más valioso que descubrirás</span>
+          Patrones IA
+        </div>
+        <nav style={{ display: "flex", gap: 6 }} aria-label="Período">
+          {(["30d", "90d", "1y"] as const).map((p) => {
+            const active = p === period;
+            return (
+              <Link
+                key={p}
+                href={`/dashboard/patrones?period=${p}`}
+                className="chip"
+                style={
+                  active
+                    ? {
+                        background: "var(--color-warm-900)",
+                        color: "white",
+                        borderColor: "var(--color-warm-900)",
+                      }
+                    : undefined
+                }
+              >
+                {p === "30d" ? "30 días" : p === "90d" ? "90 días" : "1 año"}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
-      <nav className="flex gap-1.5" aria-label="Período">
-        {(["30d", "90d", "1y"] as const).map((p) => {
-          const active = p === period;
-          return (
-            <Link
-              key={p}
-              href={`/dashboard/patrones?period=${p}`}
-              className="rounded-full border-[1.5px] px-3 py-1 text-[12px] font-semibold"
-              style={
-                active
-                  ? {
-                      background: "var(--color-warm-900)",
-                      color: "white",
-                      borderColor: "var(--color-warm-900)",
-                    }
-                  : {
-                      background: "white",
-                      color: "var(--color-warm-700)",
-                      borderColor: "var(--color-warm-200)",
-                    }
-              }
-            >
-              {p === "30d" ? "30 días" : p === "90d" ? "90 días" : "1 año"}
-            </Link>
-          );
-        })}
-      </nav>
-    </header>
+      <p className="screen-sub" style={{ margin: "0 0 26px" }}>
+        Tendencias, conexiones y fortalezas que Eco detecta en tu actividad.
+        Tócalas para explorar de dónde vienen y hacia dónde te llevan.
+      </p>
+    </>
+  );
+}
+
+function Toolbar() {
+  return (
+    <div className="pat-toolbar">
+      {TOOLBAR_CHIPS.map((chip) => (
+        <button
+          key={chip.id}
+          type="button"
+          className={`chip${chip.active ? " on" : ""}`}
+          disabled={!chip.active}
+          title={
+            chip.active
+              ? undefined
+              : "Próximamente — cuando tengas más data, Eco categoriza los patrones"
+          }
+        >
+          {chip.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
 function PaywallCard({ entryCount }: { entryCount: number }) {
   return (
     <section
-      className="mt-6 overflow-hidden rounded-3xl p-7 text-white sm:p-10"
       style={{
+        marginTop: 16,
+        overflow: "hidden",
+        borderRadius: 24,
+        padding: 36,
+        color: "white",
         background:
           "radial-gradient(circle at top right, var(--color-lavender-500), var(--color-lavender-800))",
       }}
     >
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/70">
+      <p
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: ".14em",
+          color: "rgba(255,255,255,.7)",
+          margin: 0,
+        }}
+      >
         Función Pro
       </p>
-      <h2 className="mt-2 text-[24px] font-bold leading-tight">
+      <h2 style={{ font: "700 24px/1.1 var(--font-sans)", marginTop: 8 }}>
         Tu mapa emocional · sin descifrar nada
       </h2>
-      <p className="mt-3 max-w-md text-[14px] leading-relaxed text-white/85">
+      <p
+        style={{
+          marginTop: 12,
+          maxWidth: 460,
+          fontSize: 14,
+          lineHeight: 1.5,
+          color: "rgba(255,255,255,.85)",
+        }}
+      >
         Hicimos los patrones para que veas tu propio ritmo: cuándo escribes, qué
         emociones se repiten, qué semanas estuvieron pesadas. Todo desde la
         metadata de tu diario, sin que el servidor toque tu texto.
       </p>
-      <ul className="mt-5 space-y-2 text-[13.5px] text-white/90">
+      <ul
+        style={{
+          marginTop: 20,
+          listStyle: "none",
+          padding: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          fontSize: 13.5,
+          color: "rgba(255,255,255,.9)",
+        }}
+      >
         {[
           "Heatmap del mes con tus moods.",
           "Hora del día con más entradas.",
           "Resumen semanal generado por Eco (opt-in).",
           "Compartir snapshot con tu terapeuta (próximamente).",
         ].map((line) => (
-          <li key={line} className="flex items-start gap-2">
-            <span className="mt-0.5 text-white" aria-hidden>
+          <li
+            key={line}
+            style={{ display: "flex", alignItems: "flex-start", gap: 8 }}
+          >
+            <span style={{ marginTop: 2 }} aria-hidden>
               ✓
             </span>
             <span>{line}</span>
           </li>
         ))}
       </ul>
-      <p className="mt-5 text-[11.5px] text-white/70">
+      <p
+        style={{
+          marginTop: 20,
+          fontSize: 11.5,
+          color: "rgba(255,255,255,.7)",
+        }}
+      >
         Llevas <strong>{entryCount}</strong> entradas este período. Suficiente
         para empezar.
       </p>
       <Link
         href="/dashboard/plan"
-        className="mt-6 inline-flex items-center gap-1.5 rounded-2xl px-6 py-3 text-[13px] font-semibold"
-        style={{ background: "white", color: "var(--color-lavender-700)" }}
+        style={{
+          marginTop: 24,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          borderRadius: 16,
+          padding: "12px 24px",
+          fontSize: 13,
+          fontWeight: 600,
+          background: "white",
+          color: "var(--color-lavender-700)",
+          textDecoration: "none",
+        }}
       >
         Hazte Pro →
       </Link>

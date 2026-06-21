@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Sprint B6c — Geist from Google Fonts (same source as the design prototype
+   in docs/design/redesign-v2/dashboard/tokens.css). The `geist/font/sans`
+   npm package also ships Geist, but its release cadence trails Google Fonts
+   — loading both lets the browser pick the latest cut. The chain in
+   `--font-family-sans` below puts "Geist" string first so the CSS resolves
+   to the Google Fonts version when it's loaded. */
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap");
+
 /* ============================================================
    Design system tokens — Sprint A redesign (foundations)
    Mirrored from docs/design/redesign-v2/{landing,dashboard}/tokens.css.
@@ -75,8 +83,13 @@
      Geist is the default. Spline Sans + Bricolage Grotesque are loaded
      on demand by the ambient themes (Sprint B) and stay dormant on the
      base theme — they cost a single preconnect, no FOIT/FOUT. */
-  --font-family-sans: var(--font-geist-sans), system-ui, sans-serif;
-  --font-family-mono: var(--font-geist-mono), monospace;
+  /* "Geist" first → Google Fonts cut (matches design prototype).
+     `var(--font-geist-sans)` → npm geist package fallback if Google
+     Fonts is blocked/slow. Then system fonts. */
+  --font-family-sans: "Geist", var(--font-geist-sans), -apple-system,
+    BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-family-mono: "Geist Mono", var(--font-geist-mono), ui-monospace,
+    SFMono-Regular, Menlo, monospace;
   /* Alias the design source-of-truth name so partials migrating from the
      design ZIP work without renaming. */
   --font-sans: var(--font-family-sans);

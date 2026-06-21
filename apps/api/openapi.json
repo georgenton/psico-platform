@@ -1908,9 +1908,71 @@
         ]
       }
     },
-    "/api/diario/entries": {
+    "/api/emotional-map": {
       "get": {
-        "operationId": "DiarioController_list",
+        "operationId": "EmotionalMapController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "EmotionalMap"
+        ]
+      }
+    },
+    "/api/activity": {
+      "get": {
+        "operationId": "ActivityController_feed",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Items to return. 1–20. Default 5.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Activity"
+        ]
+      }
+    },
+    "/api/reflexiones/entries": {
+      "get": {
+        "operationId": "ReflexionesController_list",
         "parameters": [
           {
             "name": "from",
@@ -2021,11 +2083,11 @@
           }
         ],
         "tags": [
-          "Diario"
+          "Reflexiones"
         ]
       },
       "post": {
-        "operationId": "DiarioController_create",
+        "operationId": "ReflexionesController_create",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -2085,13 +2147,13 @@
           }
         ],
         "tags": [
-          "Diario"
+          "Reflexiones"
         ]
       }
     },
-    "/api/diario/prompt-of-the-day": {
+    "/api/reflexiones/prompt-of-the-day": {
       "get": {
-        "operationId": "DiarioController_getPromptOfTheDay",
+        "operationId": "ReflexionesController_getPromptOfTheDay",
         "parameters": [],
         "responses": {
           "200": {
@@ -2141,13 +2203,13 @@
           }
         ],
         "tags": [
-          "Diario"
+          "Reflexiones"
         ]
       }
     },
-    "/api/diario/entries/raw-ciphers": {
+    "/api/reflexiones/entries/raw-ciphers": {
       "get": {
-        "operationId": "DiarioController_listRawCiphers",
+        "operationId": "ReflexionesController_listRawCiphers",
         "parameters": [],
         "responses": {
           "200": {
@@ -2197,13 +2259,13 @@
           }
         ],
         "tags": [
-          "Diario"
+          "Reflexiones"
         ]
       }
     },
-    "/api/diario/entries/{id}": {
+    "/api/reflexiones/entries/{id}": {
       "get": {
-        "operationId": "DiarioController_getDetail",
+        "operationId": "ReflexionesController_getDetail",
         "parameters": [
           {
             "name": "id",
@@ -2262,11 +2324,11 @@
           }
         ],
         "tags": [
-          "Diario"
+          "Reflexiones"
         ]
       },
       "patch": {
-        "operationId": "DiarioController_update",
+        "operationId": "ReflexionesController_update",
         "parameters": [
           {
             "name": "id",
@@ -2335,11 +2397,11 @@
           }
         ],
         "tags": [
-          "Diario"
+          "Reflexiones"
         ]
       },
       "delete": {
-        "operationId": "DiarioController_remove",
+        "operationId": "ReflexionesController_remove",
         "parameters": [
           {
             "name": "id",
@@ -2398,13 +2460,13 @@
           }
         ],
         "tags": [
-          "Diario"
+          "Reflexiones"
         ]
       }
     },
-    "/api/diario/entries/{id}/share": {
+    "/api/reflexiones/entries/{id}/share": {
       "post": {
-        "operationId": "DiarioController_share",
+        "operationId": "ReflexionesController_share",
         "parameters": [
           {
             "name": "id",
@@ -2473,7 +2535,119 @@
           }
         ],
         "tags": [
-          "Diario"
+          "Reflexiones"
+        ]
+      }
+    },
+    "/api/mood": {
+      "post": {
+        "operationId": "MoodController_log",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogMoodDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Mood"
+        ]
+      }
+    },
+    "/api/journeys": {
+      "get": {
+        "operationId": "JourneysController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Journeys"
         ]
       }
     },
@@ -8521,6 +8695,21 @@
         ]
       }
     },
+    "/api/terapia/webhooks/daily": {
+      "post": {
+        "operationId": "DailyWebhookController_receive",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Recibe eventos de Daily.co (meeting.started, meeting.ended).",
+        "tags": [
+          "terapia"
+        ]
+      }
+    },
     "/api/autor/dashboard": {
       "get": {
         "operationId": "AuthorController_dashboard",
@@ -10207,6 +10396,26 @@
           "userOneShotPubKey"
         ]
       },
+      "LogMoodDto": {
+        "type": "object",
+        "properties": {
+          "mood": {
+            "type": "string",
+            "enum": [
+              "great",
+              "good",
+              "ok",
+              "low",
+              "hard"
+            ],
+            "description": "Mood token from the shared catalog.",
+            "example": "good"
+          }
+        },
+        "required": [
+          "mood"
+        ]
+      },
       "CreateCheckoutSessionDto": {
         "type": "object",
         "properties": {
@@ -10391,6 +10600,16 @@
             "enum": [
               "es-419",
               "es-ES"
+            ]
+          },
+          "ambient": {
+            "type": "string",
+            "description": "Ambient theme (Sprint B1). Re-skins the dashboard with a different\npalette + typography. All ambients are free regardless of plan — purely\ncosmetic, no functional gating.",
+            "enum": [
+              "calma",
+              "enfoque",
+              "energia",
+              "noche"
             ]
           }
         }
@@ -10582,8 +10801,8 @@
           },
           "newCryptoSalt": {
             "type": "string",
-            "description": "Fresh 16-byte Argon2id salt the client generated for the new master\nkey, base64url-encoded (24 chars). Distinct from the old salt — the\nclient throws away the old master key entirely and starts over.",
-            "minLength": 24,
+            "description": "Fresh 16-byte (or up to 21-byte) Argon2id salt the client generated\nfor the new master key, base64url-encoded (22–28 chars). Distinct\nfrom the old salt — the client throws away the old master key entirely\nand starts over.",
+            "minLength": 22,
             "maxLength": 28,
             "pattern": "BASE64URL"
           },

@@ -10,6 +10,10 @@ export { homeApi } from "./home";
 export { moodApi } from "./mood";
 // Sprint B5 — GET /api/journeys curated Exploraciones catalog.
 export { journeysApi } from "./journeys";
+// Sprint D — GET /api/emotional-map (radar driver for Inicio).
+export { emotionalMapApi } from "./emotional-map";
+// Sprint D — GET /api/activity (Inicio timeline feed).
+export { activityApi } from "./activity";
 // Sprint S11 — canonical billing client. Prefer this over `subscriptionApi`.
 export { billingApi } from "./billing";
 export type { BillingInterval, CheckoutSession } from "./billing";

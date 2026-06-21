@@ -1,19 +1,34 @@
-import { PlaceholderCard } from "@/components/dashboard/shell/PlaceholderCard";
+import type { Metadata } from "next";
+import type { EvolucionResponse } from "@psico/types";
 
-export const metadata = { title: "Mi Evolución" };
+import { serverFetch } from "@/lib/api.server";
+import { MilestonesList } from "@/components/dashboard/evolucion/MilestonesList";
+import { StatsGrid } from "@/components/dashboard/evolucion/StatsGrid";
 
-export default function EvolucionPage() {
+export const metadata: Metadata = { title: "Mi Evolución" };
+export const dynamic = "force-dynamic";
+
+export default async function EvolucionPage() {
+  const data = await serverFetch<EvolucionResponse>("/evolucion");
+
   return (
-    <PlaceholderCard
-      icon="📈"
-      subtitle="Próximamente"
-      title="Mi Evolución"
-      body={
-        <p>
-          Aquí verás tu progreso a lo largo del tiempo: hitos alcanzados,
-          hábitos que se consolidan y rachas largas. Llega en Sprint C.
-        </p>
-      }
-    />
+    <>
+      <div style={{ marginBottom: 24 }}>
+        <div className="greet-eyebrow">Tu camino</div>
+        <div className="greet">Mi Evolución</div>
+        <div className="greet-sub">
+          Lo que has sumado hasta hoy: tus cifras y los hitos que vas
+          desbloqueando con la práctica.
+        </div>
+      </div>
+
+      <div className="sec-label">Tus cifras</div>
+      <StatsGrid stats={data.stats} />
+
+      <div className="sec-label" style={{ marginTop: 36 }}>
+        Hitos
+      </div>
+      <MilestonesList milestones={data.milestones} />
+    </>
   );
 }

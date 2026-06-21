@@ -330,6 +330,37 @@ async function main() {
   }
   console.log(`✅  DiaryPrompt catalog: ${diaryPrompts.length} entries`);
 
+  // ─── Achievement catalog (Sprint E2) ─────────────────────────────────────
+  //
+  // 12 curated achievements wired to the EvolucionService auto-unlock loop.
+  // Source of truth: apps/api/src/evolucion/achievement-catalog.ts. Adding
+  // an entry there + re-running this seed is enough — the service picks it
+  // up on the next /api/evolucion request and computes progress for every
+  // user.
+  const { ACHIEVEMENT_CATALOG } =
+    await import("../src/evolucion/achievement-catalog");
+  for (const a of ACHIEVEMENT_CATALOG) {
+    await prisma.achievement.upsert({
+      where: { id: a.id },
+      create: {
+        id: a.id,
+        label: a.label,
+        description: a.description,
+        icon: a.icon,
+        progressTarget: a.progressTarget,
+        category: a.category,
+      },
+      update: {
+        label: a.label,
+        description: a.description,
+        icon: a.icon,
+        progressTarget: a.progressTarget,
+        category: a.category,
+      },
+    });
+  }
+  console.log(`✅  Achievement catalog: ${ACHIEVEMENT_CATALOG.length} entries`);
+
   // ─── Lector · ChapterBlocks (Sprint S6) ──────────────────────────────────
   //
   // Six representative blocks per chapter so the reader has real content

@@ -6361,6 +6361,32 @@
         ]
       }
     },
+    "/api/evolucion": {
+      "get": {
+        "operationId": "EvolucionController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Evolucion"
+        ]
+      }
+    },
     "/api/pulso/reports/eco/summary": {
       "get": {
         "operationId": "PulsoController_getSummary",

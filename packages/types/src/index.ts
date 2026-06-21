@@ -1220,6 +1220,35 @@ export interface ActivityFeedResponse {
   items: ActivityFeedItem[];
 }
 
+// ─── Sprint E1 — Evolución ──────────────────────────────────────────────
+
+export interface EvolucionStats {
+  reflexiones: number;
+  capitulosCompletados: number;
+  minutosLectura: number;
+  rachaActual: number;
+  rachaMasLarga: number;
+  diasActivos30d: number;
+}
+
+export interface EvolucionMilestone {
+  id: string;
+  label: string;
+  description: string;
+  /** Lucide-style icon token (`book-open`, `flame`, `star`…). Client maps it. */
+  icon: string;
+  progressTarget: number;
+  progressCurrent: number;
+  /** ISO timestamp, or null when still in progress. */
+  unlockedAt: string | null;
+  category: string | null;
+}
+
+export interface EvolucionResponse {
+  stats: EvolucionStats;
+  milestones: EvolucionMilestone[];
+}
+
 export interface UpdateUserMoodRequest {
   moodId: string;
 }

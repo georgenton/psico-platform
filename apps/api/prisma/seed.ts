@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import {
+  LEGACY_MOOD_IDS_TO_DEACTIVATE,
   MOOD_SEED_CATALOG,
   MOTIVO_SEED_CATALOG,
 } from "../src/onboarding/constants";
@@ -254,7 +255,17 @@ async function main() {
       },
     });
   }
-  console.log(`✅  Moods catalog:   ${moods.length} entries`);
+  // Sprint B6b: soft-disable the pre-B6b emotion IDs (calma/foco/…) so
+  // they stop appearing in the onboarding picker. We don't delete the rows
+  // because `OnboardingState.initialMoodId` keeps a FK-like reference for
+  // analytics on cohorts who answered with the old vocabulary.
+  const deactivated = await prisma.onboardingMood.updateMany({
+    where: { id: { in: [...LEGACY_MOOD_IDS_TO_DEACTIVATE] } },
+    data: { isActive: false },
+  });
+  console.log(
+    `✅  Moods catalog:   ${moods.length} active · ${deactivated.count} legacy soft-disabled`,
+  );
 
   // ─── Reflection prompts (S5) ─────────────────────────────────────────────
   //

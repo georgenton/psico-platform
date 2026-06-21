@@ -1292,14 +1292,16 @@ export interface DiaryMoodOption {
   readonly label: string;
 }
 
+// Sprint B6b: aligned with redesign-v2 (5 wellness levels, design IDs).
+// Legacy IDs (calma/foco/…) live in DB rows pre-B6b; the chip shows
+// "¿Cómo estás?" until the user picks again. No migration needed — the
+// column is String, the validator just accepts the new set.
 export const DIARY_MOODS: readonly DiaryMoodOption[] = [
-  { id: "calma", emoji: "😌", label: "Calma" },
-  { id: "foco", emoji: "🎯", label: "Foco" },
-  { id: "energia", emoji: "✨", label: "Energía" },
-  { id: "reflexion", emoji: "🕊", label: "Reflexión" },
-  { id: "alegria", emoji: "😊", label: "Alegría" },
-  { id: "ansiedad", emoji: "😟", label: "Ansiedad" },
-  { id: "tristeza", emoji: "😔", label: "Tristeza" },
+  { id: "great", emoji: "😄", label: "Muy bien" },
+  { id: "good", emoji: "🙂", label: "Bien" },
+  { id: "ok", emoji: "😐", label: "Neutral" },
+  { id: "low", emoji: "😕", label: "Bajo" },
+  { id: "hard", emoji: "😣", label: "Difícil" },
 ] as const;
 
 export type DiaryMoodId = (typeof DIARY_MOODS)[number]["id"];

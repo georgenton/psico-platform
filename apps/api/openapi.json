@@ -1934,13 +1934,11 @@
             "in": "query",
             "schema": {
               "enum": [
-                "calma",
-                "foco",
-                "energia",
-                "reflexion",
-                "alegria",
-                "ansiedad",
-                "tristeza"
+                "great",
+                "good",
+                "ok",
+                "low",
+                "hard"
               ],
               "type": "string"
             }
@@ -10069,13 +10067,11 @@
             "type": "string",
             "description": "Mood token from the shared `DIARY_MOODS` catalog (calma / foco /\nenergia / …). Used for the patterns analytics (heatmap, hourly\ndistribution) — visible to the server in plaintext by design.\n\nThe plugin auto-emits the enum in OpenAPI from the `@IsIn`.",
             "enum": [
-              "calma",
-              "foco",
-              "energia",
-              "reflexion",
-              "alegria",
-              "ansiedad",
-              "tristeza"
+              "great",
+              "good",
+              "ok",
+              "low",
+              "hard"
             ]
           },
           "kind": {
@@ -10143,13 +10139,11 @@
             "type": "string",
             "description": "New mood token from the shared `DIARY_MOODS` catalog. Server uses\nit for the patterns analytics — visible in plaintext by design.\nPlugin emits the enum in OpenAPI from `@IsIn`.",
             "enum": [
-              "calma",
-              "foco",
-              "energia",
-              "reflexion",
-              "alegria",
-              "ansiedad",
-              "tristeza"
+              "great",
+              "good",
+              "ok",
+              "low",
+              "hard"
             ]
           },
           "textCiphertext": {

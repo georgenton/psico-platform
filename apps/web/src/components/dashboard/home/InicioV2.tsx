@@ -5,11 +5,9 @@ import { Radar } from "@/components/dashboard/shell/Radar";
 import {
   IconArrowRight,
   IconBook,
-  IconCheck,
   IconEco,
   IconFlame,
   IconMap,
-  IconMoodNeutral,
   IconPatterns,
   IconPencil,
   IconTrendUp,
@@ -46,18 +44,6 @@ function todayLabel(city: string | null): string {
   return city ? `${base} · ${city}` : base;
 }
 
-const WEEK_PALETTE: readonly string[] = [
-  "var(--color-lavender-300)",
-  "var(--color-warm-300)",
-  "var(--color-sage-300)",
-  "var(--color-sage-300)",
-  "var(--color-sage-400)",
-  "var(--color-sage-300)",
-  "var(--color-warm-200)",
-];
-
-const WEEK_LABELS = ["V", "S", "D", "L", "M", "M", "Hoy"] as const;
-
 /**
  * InicioV2 — Sprint B6 visual parity.
  *
@@ -86,52 +72,6 @@ export function InicioV2({ home }: { home: HomeResponse }) {
         </div>
         <div className="greet-sub">
           {home.greeting.subtitle ?? "Una pausa para mirar hacia adentro."}
-        </div>
-      </div>
-
-      {/* Mood check-in card. The actual mood update happens through the Topbar
-          MoodChip (which calls POST /api/mood); these tiles are a visual echo
-          + a quick second entry point. */}
-      <div className="card mood-checkin">
-        <div className="mc-left">
-          <span className="mc-eyebrow">Check-in de hoy</span>
-          <h3>¿Cómo llegas hoy, {home.user.firstName}?</h3>
-          <div className="mc-sub">
-            Tu ánimo le da forma a tu mapa — nadie más lo ve.
-          </div>
-          <div className="mc-week">
-            {WEEK_LABELS.map((label, i) => (
-              <div
-                key={label + i}
-                className={`mc-day${label === "Hoy" ? " today" : ""}`}
-              >
-                <i style={{ background: WEEK_PALETTE[i] }} />
-                <b>{label}</b>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="mood-row">
-            {[
-              { id: "great", label: "Muy bien" },
-              { id: "good", label: "Bien" },
-              { id: "ok", label: "Neutral" },
-              { id: "low", label: "Bajo" },
-              { id: "hard", label: "Difícil" },
-            ].map((m) => (
-              <button key={m.id} className="mood" data-mood={m.id}>
-                <IconMoodNeutral size={34} />
-                <span>{m.label}</span>
-              </button>
-            ))}
-          </div>
-          {home.user.mood ? (
-            <div className="mc-confirm">
-              <IconCheck size={15} />
-              Eco lo registró · sumado a tu mapa
-            </div>
-          ) : null}
         </div>
       </div>
 

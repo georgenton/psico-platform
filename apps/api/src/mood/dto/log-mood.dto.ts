@@ -13,7 +13,7 @@ export class LogMoodDto {
   @ApiProperty({
     description: "Mood token from the shared catalog.",
     enum: DIARY_MOOD_IDS,
-    example: "calma",
+    example: "good",
   })
   @IsString()
   @IsIn(DIARY_MOOD_IDS as readonly string[])

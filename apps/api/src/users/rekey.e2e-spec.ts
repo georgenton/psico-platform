@@ -115,7 +115,7 @@ describe("Diario rekey · E2E (real crypto)", () => {
       .post("/api/reflexiones/entries")
       .set("Authorization", `Bearer ${accessToken}`)
       .send({
-        mood: "calma",
+        mood: "good",
         kind: "free",
         tags: ["dev"],
         textCiphertext: envelope1.ciphertext,

@@ -148,14 +148,30 @@ export interface OnboardingMoodSeed {
   readonly order: number;
 }
 
+// Sprint B6b: aligned with redesign-v2 (5 wellness levels) — kept in lockstep
+// with DIARY_MOODS via `moods-alignment.spec.ts`. Swatches map design intent:
+// great/good lean green (sage), ok stays warm-neutral, low/hard lean lavender.
 export const MOOD_SEED_CATALOG: readonly OnboardingMoodSeed[] = [
-  { id: "calma", label: "Calma", swatch: "#A8C7E4", order: 1 },
-  { id: "foco", label: "Foco", swatch: "#7C5BC4", order: 2 },
-  { id: "energia", label: "Energía", swatch: "#F2A65A", order: 3 },
-  { id: "reflexion", label: "Reflexión", swatch: "#8C9F7E", order: 4 },
-  { id: "alegria", label: "Alegría", swatch: "#F5C76B", order: 5 },
-  { id: "ansiedad", label: "Ansiedad", swatch: "#C97B7B", order: 6 },
-  { id: "tristeza", label: "Tristeza", swatch: "#6B7E8E", order: 7 },
+  { id: "great", label: "Muy bien", swatch: "#7FAE76", order: 1 },
+  { id: "good", label: "Bien", swatch: "#A8C7E4", order: 2 },
+  { id: "ok", label: "Neutral", swatch: "#B8B3AA", order: 3 },
+  { id: "low", label: "Bajo", swatch: "#8B71F5", order: 4 },
+  { id: "hard", label: "Difícil", swatch: "#5E42C0", order: 5 },
+] as const;
+
+// Legacy IDs the pre-B6b seed inserted into `OnboardingMood`. The B6b seed
+// flips their `isActive` to false so the onboarding step 2 picker stops
+// listing them; existing rows in `OnboardingState.initialMoodId` keep their
+// value (analytic audit), the live "current mood" surfaces show
+// "¿Cómo estás?" until the user picks again.
+export const LEGACY_MOOD_IDS_TO_DEACTIVATE = [
+  "calma",
+  "foco",
+  "energia",
+  "reflexion",
+  "alegria",
+  "ansiedad",
+  "tristeza",
 ] as const;
 
 // ─── Motivo catalog (seeded into OnboardingMotivo) ───────────────────────────

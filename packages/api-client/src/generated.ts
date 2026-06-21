@@ -10923,13 +10923,11 @@ export enum PathsApiBooksGetParametersQuerySort {
     marina = "marina"
 }
 export enum PathsApiDiarioEntriesGetParametersQueryMood {
-    calma = "calma",
-    foco = "foco",
-    energia = "energia",
-    reflexion = "reflexion",
-    alegria = "alegria",
-    ansiedad = "ansiedad",
-    tristeza = "tristeza"
+    great = "great",
+    good = "good",
+    ok = "ok",
+    low = "low",
+    hard = "hard"
 }
 export enum PathsApiPatronesGetParametersQueryPeriod {
     Value30d = "30d",
@@ -10981,13 +10979,11 @@ export enum CreateBookDtoPlan {
     B2B = "B2B"
 }
 export enum CreateDiaryEntryDtoMood {
-    calma = "calma",
-    foco = "foco",
-    energia = "energia",
-    reflexion = "reflexion",
-    alegria = "alegria",
-    ansiedad = "ansiedad",
-    tristeza = "tristeza"
+    great = "great",
+    good = "good",
+    ok = "ok",
+    low = "low",
+    hard = "hard"
 }
 export enum CreateDiaryEntryDtoKind {
     free = "free",
@@ -10995,13 +10991,11 @@ export enum CreateDiaryEntryDtoKind {
     voz = "voz"
 }
 export enum UpdateDiaryEntryDtoMood {
-    calma = "calma",
-    foco = "foco",
-    energia = "energia",
-    reflexion = "reflexion",
-    alegria = "alegria",
-    ansiedad = "ansiedad",
-    tristeza = "tristeza"
+    great = "great",
+    good = "good",
+    ok = "ok",
+    low = "low",
+    hard = "hard"
 }
 export enum CreateCheckoutSessionDtoBillingPlan {
     PRO_MONTHLY = "PRO_MONTHLY",

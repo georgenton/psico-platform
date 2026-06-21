@@ -1173,6 +1173,51 @@ export interface HomeResponse {
    * LLM-backed analog to WeeklySummary.
    */
   insightToday: InsightToday | null;
+  // ─── Sprint D additions ────────────────────────────────────────
+  /** Emotional Map for the Inicio radar (6 axes, cached 24h server-side). */
+  emotionalMap: EmotionalMapResult;
+  /** Top-5 interleaved activity feed for the Inicio timeline card. */
+  activity: ActivityFeedResponse;
+}
+
+// ─── Sprint D — Emotional Map ───────────────────────────────────────────
+
+/** 6 axes in fixed order: Calma · Claridad · Conexión · Propósito ·
+ *  Compasión · Consciencia. Each value in [0, 1]. */
+export type EmotionalMapAxes = readonly [
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+];
+
+export interface EmotionalMapResult {
+  values: EmotionalMapAxes;
+  /** 0–100 overall comprehension percentage shown next to the radar. */
+  pct: number;
+  computedAt: string;
+  /** Which provider answered the LLM axes ("anthropic" / "fallback" / …). */
+  provider: string;
+}
+
+// ─── Sprint D — Activity feed ───────────────────────────────────────────
+
+export type ActivityFeedItemType = "diary" | "reading" | "eco" | "voice";
+
+export interface ActivityFeedItem {
+  id: string;
+  type: ActivityFeedItemType;
+  /** ISO timestamp. Clients format relative ("hace 2h", "ayer", …). */
+  timestamp: string;
+  title: string;
+  subtitle: string;
+  href: string | null;
+}
+
+export interface ActivityFeedResponse {
+  items: ActivityFeedItem[];
 }
 
 export interface UpdateUserMoodRequest {

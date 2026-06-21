@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { HomeResponse } from "@psico/types";
+import type { ActivityFeedItemType, HomeResponse } from "@psico/types";
 
 import { Radar } from "@/components/dashboard/shell/Radar";
 import {
@@ -13,6 +13,35 @@ import {
   IconTrendUp,
   IconWind,
 } from "@/components/dashboard/shell/icons";
+
+/** Map activity feed type → matching nav icon. Keeps the timeline
+ *  visually coherent with the rest of the dashboard. */
+const ACTIVITY_ICON: Record<
+  ActivityFeedItemType,
+  (props: { size?: number }) => React.ReactNode
+> = {
+  diary: IconPencil,
+  reading: IconBook,
+  eco: IconEco,
+  voice: IconWind,
+};
+
+/** Compact relative timestamp ("ahora", "hace 2h", "ayer", "21 jun").
+ *  Server Component-safe — uses `new Date()` only inside the function, so
+ *  hydration sees the same value the server rendered. */
+function relativeFrom(iso: string): string {
+  const t = new Date(iso).getTime();
+  const diffMin = Math.round((Date.now() - t) / 60_000);
+  if (diffMin < 1) return "ahora";
+  if (diffMin < 60) return `hace ${diffMin}m`;
+  const diffH = Math.round(diffMin / 60);
+  if (diffH < 24) return `hace ${diffH}h`;
+  const diffD = Math.round(diffH / 24);
+  if (diffD === 1) return "ayer";
+  if (diffD < 7) return `hace ${diffD}d`;
+  const d = new Date(iso);
+  return `${d.getDate()} ${MONTH_LABELS[d.getMonth()]}`;
+}
 
 const WEEKDAY_LABELS = [
   "Domingo",
@@ -115,10 +144,10 @@ export function InicioV2({ home }: { home: HomeResponse }) {
             </Link>
           </div>
           <div className="radar-holder">
-            <Radar size={200} />
+            <Radar size={200} values={home.emotionalMap.values} />
           </div>
           <div className="mm-foot">
-            <b>74%</b>
+            <b>{home.emotionalMap.pct}%</b>
             <span>
               Comprensión
               <br />
@@ -255,9 +284,10 @@ export function InicioV2({ home }: { home: HomeResponse }) {
         ) : null}
       </div>
 
-      {/* Hilo de reflexión · activity timeline. v1 stubs the activity list with
-          the continueBook + ecoMoment we already have; Sprint C wires
-          /api/activity for the real timeline. */}
+      {/* Hilo de reflexión · activity timeline. Sprint D wires /api/activity
+          (top-5 interleaved Reflexiones + Lectura + Eco + Voz). The empty
+          state still surfaces the breathing nudge so the card never lands
+          fully blank on a brand-new account. */}
       <div className="card continue activity">
         <div className="r-head">
           <span className="card-tag sage">
@@ -280,47 +310,51 @@ export function InicioV2({ home }: { home: HomeResponse }) {
           </span>
         </Link>
         <div className="act-list" style={{ marginTop: 8 }}>
-          {continueBook ? (
+          {home.activity.items.length > 0 ? (
+            home.activity.items.map((it) => {
+              const Icon = ACTIVITY_ICON[it.type];
+              const meta = (
+                <>
+                  <span className={`ag${it.type === "voice" ? " sage" : ""}`}>
+                    <Icon size={18} />
+                  </span>
+                  <div className="a-meta">
+                    <div className="a-title">{it.title}</div>
+                    <div className="a-sub">{it.subtitle}</div>
+                  </div>
+                  <span className="a-time">{relativeFrom(it.timestamp)}</span>
+                </>
+              );
+              return it.href ? (
+                <Link
+                  key={it.id}
+                  href={it.href}
+                  className="act"
+                  style={{ textDecoration: "none", color: "inherit" }}
+                >
+                  {meta}
+                </Link>
+              ) : (
+                <div key={it.id} className="act">
+                  {meta}
+                </div>
+              );
+            })
+          ) : (
             <div className="act">
-              <span className="ag">
-                <IconBook size={18} />
+              <span className="ag sage">
+                <IconWind size={18} />
               </span>
               <div className="a-meta">
-                <div className="a-title">Lectura en curso</div>
+                <div className="a-title">Empieza con una respiración</div>
                 <div className="a-sub">
-                  {continueBook.title} · capítulo {continueBook.chapterN}
+                  Tres minutos de aire — más fácil de lo que parece
                 </div>
               </div>
-              <span className="a-fed">+ camino</span>
-              <span className="a-time">en curso</span>
+              <span className="a-fed">+ calma</span>
+              <span className="a-time">2 min</span>
             </div>
-          ) : null}
-          {ecoMoment ? (
-            <div className="act">
-              <span className="ag">
-                <IconEco size={18} />
-              </span>
-              <div className="a-meta">
-                <div className="a-title">Eco te espera</div>
-                <div className="a-sub">{ecoMoment.prompt.slice(0, 80)}…</div>
-              </div>
-              <span className="a-fed">+ pendiente</span>
-              <span className="a-time">hoy</span>
-            </div>
-          ) : null}
-          <div className="act">
-            <span className="ag sage">
-              <IconWind size={18} />
-            </span>
-            <div className="a-meta">
-              <div className="a-title">Empieza con una respiración</div>
-              <div className="a-sub">
-                Tres minutos de aire — más fácil de lo que parece
-              </div>
-            </div>
-            <span className="a-fed">+ calma</span>
-            <span className="a-time">2 min</span>
-          </div>
+          )}
         </div>
       </div>
 

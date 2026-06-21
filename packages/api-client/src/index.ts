@@ -14,6 +14,8 @@ export { journeysApi } from "./journeys";
 export { emotionalMapApi } from "./emotional-map";
 // Sprint D — GET /api/activity (Inicio timeline feed).
 export { activityApi } from "./activity";
+// Sprint E1 — GET /api/evolucion (stats + achievements for "Mi Evolución").
+export { evolucionApi } from "./evolucion";
 // Sprint S11 — canonical billing client. Prefer this over `subscriptionApi`.
 export { billingApi } from "./billing";
 export type { BillingInterval, CheckoutSession } from "./billing";

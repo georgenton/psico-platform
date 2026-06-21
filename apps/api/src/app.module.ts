@@ -27,6 +27,7 @@ import { LectorModule } from "./lector";
 import { PatronesModule } from "./patrones";
 import { EmotionalMapModule } from "./emotional-map";
 import { ActivityModule } from "./activity";
+import { EvolucionModule } from "./evolucion";
 import { PulsoModule } from "./pulso";
 import { LiveActivitiesModule } from "./live-activities";
 import { TerapiaModule } from "./terapia";
@@ -65,6 +66,7 @@ import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
     PatronesModule, // Sprint S10 — /api/patrones/* (Pro)
     EmotionalMapModule, // Sprint D — /api/emotional-map (radar driver)
     ActivityModule, // Sprint D — /api/activity (feed for Inicio timeline)
+    EvolucionModule, // Sprint E1 — /api/evolucion (stats + achievements)
     PulsoModule, // Sprint S42 — /api/pulso/* (ADMIN only)
     LiveActivitiesModule, // Sprint E.5 — /api/push/live-activity/* (iOS 16.1+)
     TerapiaModule, // Sprint S62 — /api/terapia/* (Crisis público + Hub auth)

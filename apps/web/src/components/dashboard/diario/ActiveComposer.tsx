@@ -40,7 +40,7 @@ export function ActiveComposer({
   const { key, lock } = useDiaryKey();
   const router = useRouter();
   const [text, setText] = useState("");
-  const [mood, setMood] = useState<string>("calma");
+  const [mood, setMood] = useState<string>("ok");
   const [submitting, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 

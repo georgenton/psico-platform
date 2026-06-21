@@ -38,7 +38,7 @@ function makeDetail(
       id: "entry-1",
       createdAt: new Date(Date.UTC(2026, 5, 1, 12, 0, 0)),
       updatedAt: new Date(Date.UTC(2026, 5, 1, 12, 0, 0)),
-      mood: "calma",
+      mood: "ok",
       kind: "free",
       promptId: null,
       promptText: null,
@@ -113,7 +113,7 @@ describe("EntryDetailView · edit mode", () => {
     renderDetail();
     await user.click(screen.getByRole("button", { name: /Editar/i }));
     // Change mood
-    await user.click(screen.getByRole("radio", { name: /Alegría/i }));
+    await user.click(screen.getByRole("radio", { name: "Bien" }));
     // Add tag
     await user.type(
       screen.getByLabelText(/Añadir etiqueta/i),
@@ -125,7 +125,7 @@ describe("EntryDetailView · edit mode", () => {
     expect(url).toBe("https://api.test/api/diario/entries/entry-1");
     expect((init as RequestInit).method).toBe("PATCH");
     const body = JSON.parse(((init as RequestInit).body as string) ?? "{}");
-    expect(body.mood).toBe("alegria");
+    expect(body.mood).toBe("good");
     expect(body.tags).toEqual(["sentimientos", "trabajo", "claridad"]);
     expect(body.textCiphertext).toContain("cipher:Texto desencriptado");
     expect(body.textNonce).toBe("nonce:fixed");

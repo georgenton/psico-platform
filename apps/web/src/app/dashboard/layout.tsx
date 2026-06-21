@@ -2,6 +2,11 @@ import { redirect } from "next/navigation";
 import type { AmbientId, DiaryMoodId, UserMeResponse } from "@psico/types";
 import { AMBIENT_IDS, DIARY_MOOD_IDS } from "@psico/types";
 
+// Sprint B6 — visual parity with the Claude Design v2 dashboard. Imported
+// at the dashboard layout level so the design's utility class names
+// (.card, .btn, .metric, .nav-item, …) only mount under /dashboard/*.
+import "../dashboard-design.css";
+
 import {
   getAccessToken,
   getSessionUser,

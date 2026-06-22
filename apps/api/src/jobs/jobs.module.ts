@@ -52,6 +52,8 @@ import type { Env } from "../config";
       { name: QueueName.PLATFORM_SNAPSHOT },
       // Sprint S51 — weekly cohort retention recomputation.
       { name: QueueName.COHORT_RETENTION },
+      // Sprint G2 — monthly emotional-map snapshot.
+      { name: QueueName.EMOTIONAL_MAP_SNAPSHOT },
     ),
   ],
   providers: [JobsService],

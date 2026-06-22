@@ -37,6 +37,11 @@ describe("JobsService", () => {
     add: vi.fn().mockResolvedValue(undefined),
     upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
   };
+  // Sprint G2 — emotional map snapshot queue.
+  const mockEmotionalMapSnapshotQueue = {
+    add: vi.fn().mockResolvedValue(undefined),
+    upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
+  };
 
   let service: JobsService;
 
@@ -52,6 +57,9 @@ describe("JobsService", () => {
     mockWeeklySummaryQueue.upsertJobScheduler.mockResolvedValue(undefined);
     mockPlatformSnapshotQueue.upsertJobScheduler.mockResolvedValue(undefined);
     mockCohortRetentionQueue.upsertJobScheduler.mockResolvedValue(undefined);
+    mockEmotionalMapSnapshotQueue.upsertJobScheduler.mockResolvedValue(
+      undefined,
+    );
     service = new JobsService(
       mockEmailQueue as never,
       mockDataExportQueue as never,
@@ -62,6 +70,7 @@ describe("JobsService", () => {
       mockWeeklySummaryQueue as never,
       mockPlatformSnapshotQueue as never,
       mockCohortRetentionQueue as never,
+      mockEmotionalMapSnapshotQueue as never,
     );
   });
 

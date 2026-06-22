@@ -66,25 +66,34 @@ export default async function BibliotecaPage({
 
   return (
     <div className="mx-auto max-w-[1080px]">
-      {/* Hero */}
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1
-            className="text-[28px] font-bold leading-tight tracking-tight sm:text-[32px]"
-            style={{ color: "var(--color-warm-900)" }}
-          >
-            Tu biblioteca
-          </h1>
-          <p
-            className="mt-1.5 text-[14px] leading-relaxed"
-            style={{ color: "var(--color-warm-500)" }}
-          >
-            {data.pagination.total === 0
-              ? "Tu catálogo se está cargando — empieza por explorar."
-              : `${data.pagination.total} libro${data.pagination.total === 1 ? "" : "s"} disponible${data.pagination.total === 1 ? "" : "s"}.`}
-          </p>
+      {/* Sprint F3 — paridad con design `s-biblioteca`: screen-head con eb
+          eyebrow + lib-note callout que recuerda al usuario que los libros
+          son herramienta del mapa, no destino. */}
+      <div className="screen-head">
+        <div className="screen-title">
+          <span className="eb">El vehículo, no el destino</span>
+          Biblioteca
         </div>
-      </header>
+      </div>
+      <div className="lib-note">
+        <svg
+          className="ic"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M12 3 L13.7 10.3 L21 12 L13.7 13.7 L12 21 L10.3 13.7 L3 12 L10.3 10.3 Z" />
+        </svg>
+        Aquí los libros son una herramienta de tu crecimiento. Cada lectura
+        alimenta tu Mapa Emocional — no se trata de cuántos terminas, sino de
+        qué descubres en ellos.
+      </div>
 
       {/* Filters */}
       <Filters categories={data.categories} authors={data.authors} />

@@ -123,16 +123,11 @@ export function EcoShell({
     return <LockedFallback />;
   }
 
+  // Sprint F3 — uses the design's `.eco-layout` (1fr 320px grid). Chat
+  // takes the wide column, the rail (threads + disclaimer) the narrow one.
   return (
-    <div className="flex gap-4 sm:gap-6">
-      <ThreadRail
-        rail={rail}
-        activeId={activeThreadId}
-        onSelect={setActiveThreadId}
-        onNew={createThread}
-        ecoKey={ecoKey}
-      />
-      <div className="flex-1 min-w-0">
+    <div className="eco-layout">
+      <div className="min-w-0">
         {activeThreadId ? (
           <ChatArea
             threadId={activeThreadId}
@@ -146,6 +141,40 @@ export function EcoShell({
           <EmptyState onNew={createThread} />
         )}
       </div>
+      <div className="eco-rail">
+        <ThreadRail
+          rail={rail}
+          activeId={activeThreadId}
+          onSelect={setActiveThreadId}
+          onNew={createThread}
+          ecoKey={ecoKey}
+        />
+        <EcoDisclaimer />
+      </div>
+    </div>
+  );
+}
+
+function EcoDisclaimer() {
+  return (
+    <div className="eco-disclaimer">
+      <svg
+        className="ic"
+        width="15"
+        height="15"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M6 10 H18 a1 1 0 0 1 1 1 V19 a1 1 0 0 1-1 1 H6 a1 1 0 0 1-1-1 V11 a1 1 0 0 1 1-1 Z" />
+        <path d="M8 10 V7 a4 4 0 0 1 8 0 V10" />
+      </svg>
+      Eco es un acompañante de autoconocimiento — complementa, no reemplaza, la
+      terapia profesional.
     </div>
   );
 }

@@ -26,6 +26,17 @@ const ACTIVITY_ICON: Record<
   voice: IconWind,
 };
 
+/** Sprint F3 — surface what each activity contributes to the user's map.
+ *  Mirrors the design's `.a-fed` chip ("+ mapa", "+ patrón", "+ calma").
+ *  Keep these short — they're the third column of a row that already has
+ *  a title + subtitle. */
+const ACTIVITY_FED: Record<ActivityFeedItemType, string> = {
+  diary: "+ mapa",
+  reading: "+ comprensión",
+  eco: "+ patrón",
+  voice: "+ calma",
+};
+
 /** Compact relative timestamp ("ahora", "hace 2h", "ayer", "21 jun").
  *  Server Component-safe — uses `new Date()` only inside the function, so
  *  hydration sees the same value the server rendered. */
@@ -163,21 +174,22 @@ export function InicioV2({ home }: { home: HomeResponse }) {
           <span className="mg">
             <IconPencil size={19} />
           </span>
-          <b>{home.stats.entriesThisWeek + 0}</b>
+          <b>{home.stats.entriesThisWeek}</b>
           <span className="lbl">Reflexiones</span>
           <span className="trend">
-            <IconTrendUp size={13} />+{home.stats.entriesThisWeek} esta semana
+            <IconTrendUp size={13} />
+            esta semana
           </span>
         </div>
         <div className="metric">
           <span className="mg">
             <IconMap size={19} />
           </span>
-          <b>{home.stats.weeklyGoalPct ?? 0}</b>
-          <span className="lbl">Insights</span>
+          <b>{home.stats.weeklyGoalPct}%</b>
+          <span className="lbl">Meta semanal</span>
           <span className="trend">
             <IconTrendUp size={13} />
-            +este mes
+            del objetivo
           </span>
         </div>
         <div className="metric">
@@ -195,10 +207,8 @@ export function InicioV2({ home }: { home: HomeResponse }) {
           <span className="mg">
             <IconWind size={19} />
           </span>
-          {/* TODO senior: backend HomeStats.exercisesThisWeek missing.
-              Using minutesThisWeek as proxy until /api/home counts exercises. */}
           <b>{home.stats.minutesThisWeek}</b>
-          <span className="lbl">Ejercicios</span>
+          <span className="lbl">Minutos de lectura</span>
           <span className="trend">
             <IconTrendUp size={13} />
             esta semana
@@ -322,6 +332,7 @@ export function InicioV2({ home }: { home: HomeResponse }) {
                     <div className="a-title">{it.title}</div>
                     <div className="a-sub">{it.subtitle}</div>
                   </div>
+                  <span className="a-fed">{ACTIVITY_FED[it.type]}</span>
                   <span className="a-time">{relativeFrom(it.timestamp)}</span>
                 </>
               );

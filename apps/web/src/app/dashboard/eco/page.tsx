@@ -34,30 +34,15 @@ export default async function EcoPage() {
     threadsResult.status === "fulfilled" ? threadsResult.value.rail : [];
   const accessToken = getAccessToken();
 
+  // Sprint F3 — paridad con design `s-eco`: no hay header en la página,
+  // el título "Eco" vive dentro del chat header (`.eco-chead`). El shell
+  // ya orquesta el `.eco-layout` grid + disclaimer en el rail.
   return (
-    <div className="mx-auto max-w-[1100px]">
-      <header className="mb-5">
-        <h1
-          className="text-[28px] font-bold leading-tight tracking-tight sm:text-[32px]"
-          style={{ color: "var(--color-warm-900)" }}
-        >
-          Eco
-        </h1>
-        <p
-          className="mt-1.5 text-[14px] leading-relaxed"
-          style={{ color: "var(--color-warm-500)" }}
-        >
-          Un companion para nombrar lo que pasa adentro. Cifrado en tu
-          dispositivo. No reemplaza a un profesional.
-        </p>
-      </header>
-
-      <EcoShell
-        caps={caps}
-        initialRail={initialRail}
-        apiBase={API_BASE}
-        token={accessToken}
-      />
-    </div>
+    <EcoShell
+      caps={caps}
+      initialRail={initialRail}
+      apiBase={API_BASE}
+      token={accessToken}
+    />
   );
 }

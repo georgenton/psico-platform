@@ -185,18 +185,18 @@ export function InicioV2({ home }: { home: HomeResponse }) {
           <span className="mg">
             <IconMap size={19} />
           </span>
-          <b>{home.stats.weeklyGoalPct}%</b>
-          <span className="lbl">Meta semanal</span>
+          <b>{home.stats.insightsCount}</b>
+          <span className="lbl">Insights</span>
           <span className="trend">
             <IconTrendUp size={13} />
-            del objetivo
+            de Eco
           </span>
         </div>
         <div className="metric">
           <span className="mg">
             <IconPatterns size={19} />
           </span>
-          <b>{home.recos.length}</b>
+          <b>{home.stats.patternsCount}</b>
           <span className="lbl">Patrones</span>
           <span className="trend">
             <IconTrendUp size={13} />

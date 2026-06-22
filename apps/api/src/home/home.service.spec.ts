@@ -18,7 +18,14 @@ function buildPrisma() {
     reflectionPrompt: { findFirst: vi.fn(), findUnique: vi.fn() },
     dismissedReflectionPrompt: { findMany: vi.fn(), upsert: vi.fn() },
     onboardingMood: { findUnique: vi.fn() },
-    diaryEntry: { count: vi.fn().mockResolvedValue(0) },
+    // Sprint G2b — fetchStats now also reads diaryEntry.findMany (for the
+    // distinct tag count → patternsCount) and weeklySummary.count (→
+    // insightsCount). Default both to safe empty values.
+    diaryEntry: {
+      count: vi.fn().mockResolvedValue(0),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    weeklySummary: { count: vi.fn().mockResolvedValue(0) },
     // Sprint B1 — MoodLog drives the mood-trend insight rule + ambient comes
     // from UserPreferences. Default: empty time series, no preferences row
     // (HomeService falls back to "calma" + returns null insightToday).

@@ -442,21 +442,31 @@ export class HomeService {
     const since = new Date();
     since.setDate(since.getDate() - 7);
 
-    const [user, completedThisWeek, entriesThisWeek] = await Promise.all([
-      this.prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          currentStreakDays: true,
-          preferences: { select: { weeklyGoalMinutes: true } },
-        },
-      }),
-      this.prisma.userProgress.count({
-        where: { userId, completedAt: { gte: since } },
-      }),
-      this.prisma.diaryEntry.count({
-        where: { userId, createdAt: { gte: since } },
-      }),
-    ]);
+    const [user, completedThisWeek, entriesThisWeek, insightsCount, tagRows] =
+      await Promise.all([
+        this.prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            currentStreakDays: true,
+            preferences: { select: { weeklyGoalMinutes: true } },
+          },
+        }),
+        this.prisma.userProgress.count({
+          where: { userId, completedAt: { gte: since } },
+        }),
+        this.prisma.diaryEntry.count({
+          where: { userId, createdAt: { gte: since } },
+        }),
+        // Sprint G2b — total WeeklySummary rows.
+        this.prisma.weeklySummary.count({ where: { userId } }),
+        // Sprint G2b — fetch tags arrays for distinct counting (Prisma can't
+        // distinct over array elements directly). Tags are plaintext metadata
+        // on DiaryEntry — privacy invariant intact.
+        this.prisma.diaryEntry.findMany({
+          where: { userId },
+          select: { tags: true },
+        }),
+      ]);
 
     // Approx 12 min/chapter when chapter.durationMinutes is missing. Diary
     // entries are not counted toward minutesThisWeek because we do not know
@@ -468,11 +478,24 @@ export class HomeService {
         ? Math.min(100, Math.round((minutesThisWeek / weeklyGoal) * 100))
         : 0;
 
+    // Sprint G2b — distinct tag count = pattern proxy. Lowercase before
+    // dedupe so "Trabajo" and "trabajo" count as one. Empty tag arrays
+    // contribute zero (filter doesn't drop them — flat does).
+    const distinctTags = new Set<string>();
+    for (const row of tagRows) {
+      for (const tag of row.tags) {
+        const normalized = tag.trim().toLowerCase();
+        if (normalized) distinctTags.add(normalized);
+      }
+    }
+
     return {
       minutesThisWeek,
       entriesThisWeek,
       streakDays: user?.currentStreakDays ?? 0,
       weeklyGoalPct,
+      insightsCount,
+      patternsCount: distinctTags.size,
     };
   }
 

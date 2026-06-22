@@ -13,6 +13,11 @@ function makePrisma() {
       findMany: vi.fn(),
       upsert: vi.fn().mockResolvedValue({}),
     },
+    // Sprint G2 — EmotionalMapSnapshot lookup for the historical series.
+    // Default to empty so existing tests don't have to know about it.
+    emotionalMapSnapshot: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   };
 }
 

@@ -1244,9 +1244,27 @@ export interface EvolucionMilestone {
   category: string | null;
 }
 
+/**
+ * Sprint G2 — One point in the "Comprensión emocional" line chart of the
+ * Evolución screen. The series is empty for a brand-new user; it fills in
+ * one row per month thanks to the `EmotionalMapSnapshot` cron.
+ */
+export interface EvolucionEmotionalSeriesPoint {
+  /** First day of the month in UTC, ISO date format `YYYY-MM-DD`. */
+  monthIso: string;
+  /** Same 0..100 percent shape as `EmotionalMapResult.pct`. */
+  pct: number;
+}
+
 export interface EvolucionResponse {
   stats: EvolucionStats;
   milestones: EvolucionMilestone[];
+  /**
+   * Sprint G2 — Historical line chart series. Empty array when no
+   * snapshots exist yet (new account or pre-cron period). Sorted by
+   * month ascending. Client shows a single-dot fallback when length < 2.
+   */
+  emotionalSeries: EvolucionEmotionalSeriesPoint[];
 }
 
 export interface UpdateUserMoodRequest {

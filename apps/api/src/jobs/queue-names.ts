@@ -159,6 +159,29 @@ export const QueueName = {
    * (cohortWeek, weekOffset).
    */
   COHORT_RETENTION: "cohort-retention",
+
+  /**
+   * Sprint G2 — Monthly emotional-map snapshot fan-out.
+   *
+   * Cron: 1st of each month at 04:00 UTC. Iterates every user with at
+   * least one diary entry or reading session, calls
+   * `EmotionalMapService.compute(userId)`, and upserts an
+   * `EmotionalMapSnapshot` row keyed on (userId, month).
+   *
+   * Why this cron and not a real-time compute:
+   *   - The Evolución screen wants to render a 6-month line chart of
+   *     "Comprensión emocional". A live recompute would either pin a
+   *     long-running fetch on the request or rely on the 24h Redis cache,
+   *     which doesn't give us historical data.
+   *   - Monthly granularity matches the design (one dot per month).
+   *
+   * Producer: `JobsService.onModuleInit` registers the cron.
+   * Consumer: `apps/api/src/jobs/processors/emotional-map-snapshot.processor.ts`
+   *
+   * Retry: 3 attempts, exp 5min/25min/2h. Idempotent — upserts on the
+   * unique (userId, month) so retries on the same month overwrite.
+   */
+  EMOTIONAL_MAP_SNAPSHOT: "emotional-map-snapshot",
 } as const;
 
 export type QueueName = (typeof QueueName)[keyof typeof QueueName];
@@ -279,6 +302,20 @@ export interface CohortRetentionJobPayload {
 }
 
 /**
+ * Sprint G2 — Monthly emotional-map snapshot fan-out.
+ *
+ * No payload in v1; the processor computes "first day of this month in
+ * UTC" itself. Ops can override `targetMonth` to backfill a missed run
+ * or run dry to count candidates without writing snapshots.
+ */
+export interface EmotionalMapSnapshotJobPayload {
+  /** ISO date YYYY-MM-DD of the first day of the target month. */
+  targetMonth?: string;
+  /** When true, lists candidate users but does NOT compute or upsert. */
+  dryRun?: boolean;
+}
+
+/**
  * Job names within each queue. Currently each queue has one default job
  * (so the name is essentially the queue name) but the type system keeps
  * this open for future expansion.
@@ -293,6 +330,7 @@ export const JobName = {
   RUN_WEEKLY_SUMMARY_GENERATION: "run-weekly-summary-generation",
   RUN_PLATFORM_SNAPSHOT: "run-platform-snapshot",
   RUN_COHORT_RETENTION: "run-cohort-retention",
+  RUN_EMOTIONAL_MAP_SNAPSHOT: "run-emotional-map-snapshot",
 } as const;
 
 export type JobName = (typeof JobName)[keyof typeof JobName];

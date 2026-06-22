@@ -132,6 +132,7 @@ model User {
   readingSessions         ReadingSession[]
   weeklySummaries         WeeklySummary[]
   deviceTokens            DeviceToken[]
+  emotionalMapSnapshots   EmotionalMapSnapshot[]
   liveActivityTokens      LiveActivityToken[]         @relation("UserLiveActivityTokens")
   therapistProfile        Therapist?                  @relation("UserAsTherapist")
   therapistFavorites      TherapistFavorite[]
@@ -1929,4 +1930,41 @@ model Journey {
   updatedAt       DateTime  @updatedAt
 
   @@index([publishedAt, order])
+}
+
+/// Sprint G2 — Monthly snapshot of every user's emotional map.
+///
+/// Why store this:
+///   - The Evolución screen wants to surface a real line chart over time
+///     ("Comprensión emocional · 6 meses"). The live `EmotionalMapService`
+///     computes a single snapshot per user with a 24h cache — it can't
+///     answer the historical question.
+///   - We don't backfill from raw history. A monthly cron (1st of month,
+///     04:00 UTC) iterates every user and writes one row. The chart fills
+///     in as months pass — honest, no fake data.
+///
+/// Unique `(userId, month)` makes the cron idempotent: re-running the
+/// 2026-07-01 job overwrites the row without creating duplicates.
+///
+/// `valuesJson` stores the 6 axes for potential per-dimension breakdowns
+/// later (e.g. "+18% autocompasión este mes" in EvoQuarter).
+model EmotionalMapSnapshot {
+  id          String   @id @default(cuid())
+  userId      String
+  /// First-day-of-month UTC, e.g. 2026-07-01T00:00:00Z. Acts as the
+  /// stable cohort anchor — every snapshot for July maps to the same date.
+  month       DateTime
+  /// Same `pct` shape as `EmotionalMapResult.pct` (0..100, rounded).
+  pct         Int
+  /// 6-axis vector as Float[]. Order matches Radar: Calma · Claridad ·
+  /// Conexión · Propósito · Compasión · Consciencia.
+  values      Float[]
+  /// Which provider answered the LLM axes ("anthropic", "fallback", …).
+  provider    String
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month])
+  @@index([userId, month])
 }

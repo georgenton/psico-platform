@@ -22,21 +22,19 @@ export default async function SecurityPage() {
 
   return (
     <div className="mx-auto max-w-[720px]">
-      <header className="mb-5">
-        <h1
-          className="text-[28px] font-bold leading-tight tracking-tight sm:text-[32px]"
-          style={{ color: "var(--color-warm-900)" }}
-        >
+      {/* Sprint G3 — generic screen-head for consistency with the design's
+          internal screens. Design HTML v2 doesn't cover settings pages, so
+          we apply the same eb + title pattern as a coherence sweep. */}
+      <div className="screen-head">
+        <div className="screen-title">
+          <span className="eb">Cuenta y privacidad</span>
           Seguridad
-        </h1>
-        <p
-          className="mt-1.5 text-[14px] leading-relaxed"
-          style={{ color: "var(--color-warm-500)" }}
-        >
-          Cambia tu contraseña, gestiona el acceso a tu cuenta y revisa tu frase
-          de recuperación.
-        </p>
-      </header>
+        </div>
+      </div>
+      <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
+        Cambia tu contraseña, gestiona el acceso a tu cuenta y revisa tu frase
+        de recuperación.
+      </p>
 
       <div className="space-y-5">
         <ChangePasswordCard

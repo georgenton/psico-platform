@@ -241,9 +241,13 @@ export class HomeService {
   }
 
   /**
-   * PATCH /user/mood — single source for setting the current mood. Validates
-   * against active OnboardingMood rows so we never persist an unknown token.
-   * Reads back the swatch so the front can render the color immediately.
+   * PATCH /user/mood — single source for setting the current mood. The
+   * mood id is validated upstream by the DTO against `DIARY_MOOD_IDS`
+   * from `@psico/types`; we look up `OnboardingMood` to enrich with the
+   * swatch but tolerate a missing row (Sprint B6b renamed the IDs from
+   * calma/foco/… to great/good/ok/low/hard, and any DB that hasn't been
+   * re-seeded would otherwise dead-end the picker). Mirrors the fallback
+   * in `MoodService.log`.
    */
   async updateMood(
     userId: string,
@@ -253,14 +257,22 @@ export class HomeService {
       where: { id: moodId },
       select: { id: true, swatch: true },
     });
-    if (!mood) throw new NotFoundException(`Mood '${moodId}' not found`);
+    const fallbackSwatch: Record<string, string> = {
+      great: "#7FAE76",
+      good: "#A8C7E4",
+      ok: "#B8B3AA",
+      low: "#8B71F5",
+      hard: "#5E42C0",
+    };
+    const swatch =
+      mood?.swatch ?? fallbackSwatch[moodId] ?? "var(--color-warm-400)";
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { mood: mood.id, moodUpdatedAt: new Date() },
+      data: { mood: moodId, moodUpdatedAt: new Date() },
     });
 
-    return { ok: true, mood: mood.id, swatch: mood.swatch };
+    return { ok: true, mood: moodId, swatch };
   }
 
   /**

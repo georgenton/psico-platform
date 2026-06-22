@@ -215,12 +215,26 @@ describe("HomeService.updateMood", () => {
     );
   });
 
-  it("throws 404 on unknown mood", async () => {
+  it("tolerates missing OnboardingMood row by falling back to a hardcoded swatch", async () => {
+    // Sprint B6b: the catalog row may be absent if the DB wasn't re-seeded
+    // after the IDs migrated from calma/foco to great/good/ok/low/hard.
+    // The DTO already validates the id; this service path just enriches
+    // with a swatch and must not 404.
     prisma.onboardingMood.findUnique.mockResolvedValue(null);
+    prisma.user.update.mockResolvedValue({});
 
-    await expect(service.updateMood("user-1", "ghost")).rejects.toThrow(
-      NotFoundException,
+    const result = await service.updateMood("user-1", "great");
+
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "user-1" },
+        data: expect.objectContaining({ mood: "great" }),
+      }),
     );
+    expect(result.ok).toBe(true);
+    expect(result.mood).toBe("great");
+    expect(typeof result.swatch).toBe("string");
+    expect(result.swatch.length).toBeGreaterThan(0);
   });
 
   it("updates user.mood and returns swatch", async () => {

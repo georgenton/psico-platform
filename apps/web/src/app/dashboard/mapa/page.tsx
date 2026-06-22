@@ -1,108 +1,75 @@
 import type { Metadata } from "next";
-import type { HomeResponse } from "@psico/types";
+import type { EvolucionResponse, HomeResponse } from "@psico/types";
 
 import { serverFetch } from "@/lib/api.server";
-import { Radar } from "@/components/dashboard/shell/Radar";
-import { AxisBreakdown } from "@/components/dashboard/mapa/AxisBreakdown";
+import { ExportButton } from "@/components/dashboard/shell/ExportButton";
+import { MapDims } from "@/components/dashboard/mapa/MapDims";
+import { MapFeed } from "@/components/dashboard/mapa/MapFeed";
+import { MapStage } from "@/components/dashboard/mapa/MapStage";
 
 export const metadata: Metadata = { title: "Mapa Emocional" };
 export const dynamic = "force-dynamic";
 
-const AXES = [
-  "Calma",
-  "Claridad",
-  "Conexión",
-  "Propósito",
-  "Compasión",
-  "Consciencia",
-] as const;
-
+/**
+ * /dashboard/mapa — Sprint F2.
+ *
+ * Aligns with `docs/design/redesign-v2/dashboard/index.html` (s-mapa):
+ * `screen-head` with eb + Exportar + `.map-grid` 2-col (`.map-stage` dark
+ * gradient + `.map-dims` axis bars) + `.map-feed` chips. Reuses the
+ * cached emotional map from `/home` and the evolución stats for the feed
+ * counts.
+ */
 export default async function MapaPage() {
-  // The emotional map is already cached server-side (24h Redis); calling
-  // /api/home keeps us with one round-trip and reuses the value rendered
-  // on Inicio. If the user navigates here cold, the home payload is the
-  // canonical source.
-  const home = await serverFetch<HomeResponse>("/home");
-  const { values, pct, computedAt, provider } = home.emotionalMap;
+  const [homeResult, evolucionResult] = await Promise.allSettled([
+    serverFetch<HomeResponse>("/home"),
+    serverFetch<EvolucionResponse>("/evolucion"),
+  ]);
+
+  if (homeResult.status !== "fulfilled") {
+    return (
+      <>
+        <div className="screen-head">
+          <div className="screen-title">
+            <span className="eb">El corazón de tu experiencia</span>
+            Tu Mapa Emocional
+          </div>
+        </div>
+        <div className="card">
+          <p
+            style={{ margin: 0, color: "var(--color-warm-500)", fontSize: 14 }}
+          >
+            No pudimos cargar tu mapa emocional. Reintenta en unos minutos.
+          </p>
+        </div>
+      </>
+    );
+  }
+
+  const home = homeResult.value;
+  const stats =
+    evolucionResult.status === "fulfilled" ? evolucionResult.value.stats : null;
 
   return (
     <>
-      <div style={{ marginBottom: 24 }}>
-        <div className="greet-eyebrow">Tu mapa</div>
-        <div className="greet">Tu Mapa Emocional</div>
-        <div className="greet-sub">
-          Seis ejes que se mueven con cada práctica. Esta vista es solo tuya.
+      <div className="screen-head">
+        <div className="screen-title">
+          <span className="eb">El corazón de tu experiencia</span>
+          Tu Mapa Emocional
         </div>
+        <ExportButton />
+      </div>
+      <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
+        Una representación viva de tu mundo interior. Se actualiza sola a medida
+        que lees, escribes y conversas. No mide cuánto haces — refleja cuánto te
+        comprendes.
+      </p>
+
+      <div className="map-grid">
+        <MapStage map={home.emotionalMap} />
+        <MapDims values={home.emotionalMap.values} />
       </div>
 
-      <div
-        className="card insight"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 32,
-          alignItems: "center",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <Radar
-            size={360}
-            values={values}
-            axes={AXES as unknown as string[]}
-            showLabels
-          />
-        </div>
-        <div>
-          <span className="card-tag">Comprensión emocional</span>
-          <div
-            style={{
-              font: "700 64px/1 var(--font-sans)",
-              letterSpacing: "-0.03em",
-              color: "var(--color-warm-900)",
-              marginTop: 8,
-            }}
-          >
-            {pct}%
-          </div>
-          <div
-            style={{
-              color: "var(--color-warm-500)",
-              fontSize: 13,
-              marginTop: 8,
-            }}
-          >
-            Promedio de los 6 ejes. Mientras más equilibrado, más sostenida tu
-            práctica.
-          </div>
-          <div
-            style={{
-              marginTop: 24,
-              fontSize: 11,
-              fontFamily: "var(--font-mono)",
-              color: "var(--color-warm-400)",
-              letterSpacing: ".05em",
-              textTransform: "uppercase",
-            }}
-          >
-            Actualizado · {formatDate(computedAt)} · {provider}
-          </div>
-        </div>
-      </div>
-
-      <div className="sec-label" style={{ marginTop: 36 }}>
-        Cada eje en detalle
-      </div>
-      <AxisBreakdown values={values} />
+      <MapFeed stats={stats} />
     </>
   );
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString("es-EC", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }

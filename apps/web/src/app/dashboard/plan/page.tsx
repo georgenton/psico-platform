@@ -246,19 +246,18 @@ export default async function PlanPage() {
 
   return (
     <div className="max-w-3xl">
-      <div className="mb-8">
-        <h1
-          className="mb-1 text-2xl font-bold"
-          style={{ color: "var(--color-warm-800)" }}
-        >
+      {/* Sprint G3 — generic screen-head sweep. */}
+      <div className="screen-head">
+        <div className="screen-title">
+          <span className="eb">Cuenta y privacidad</span>
           Mi plan
-        </h1>
-        <p className="text-sm" style={{ color: "var(--color-warm-500)" }}>
-          {isFreePlan
-            ? "Mejora tu experiencia con acceso completo al contenido."
-            : "Gestiona tu suscripción activa."}
-        </p>
+        </div>
       </div>
+      <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
+        {isFreePlan
+          ? "Mejora tu experiencia con acceso completo al contenido."
+          : "Gestiona tu suscripción activa."}
+      </p>
 
       {/* ── FREE user: upgrade options ── */}
       {isFreePlan && (

@@ -10,21 +10,74 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { homeApi } from "@psico/api-client";
-import type { HomeResponse } from "@psico/types";
+import { homeApi, moodApi } from "@psico/api-client";
+import type { HomeResponse, LogMoodRequest } from "@psico/types";
 import { useAuth } from "@/context/auth";
-import { coverColor } from "@/components/dashboard/cover-colors";
 import { Colors, Radius, Spacing } from "@/theme";
 
 /**
- * Home (Inicio) — Sprint S5-front-mobile.
+ * Home (Inicio) — Sprint H1a · Mobile parity with design v2.
  *
- * Mirrors docs/design/inicio/mobile.jsx: greeting, continue book, eco moment,
- * recos, stats, shortcuts, optional upgrade banner for free users. Calls
- * /api/home which aggregates everything server-side (Sprint S5).
+ * Mirrors `docs/design/redesign-v2/dashboard/index.html` phone-scroll
+ * preview (data-screen-label="Inicio (móvil)"):
  *
- * Pull-to-refresh re-runs the aggregator.
+ *   1. m-head    · eyebrow date · greeting · sub
+ *   2. m-mood    · "¿Cómo llegas hoy?" + 5 face buttons + done state
+ *   3. m-insight · "Insight del día" quote (insightToday from /home)
+ *   4. m-metrics · 4 mini cards (Reflexiones · Insights · Patrones · Días)
+ *   5. m-continue-wrap · book cover + chapter + progress
+ *   6. m-eco     · "Eco te sugiere" card with prompt + CTA
+ *
+ * Data wires from `homeApi.get()` — same aggregator that the web Inicio
+ * uses. Mood log uses `moodApi.log()` (POST /api/mood, Sprint B1).
  */
+
+type MoodId = "great" | "good" | "ok" | "low" | "hard";
+
+interface MoodOption {
+  id: MoodId;
+  label: string;
+  shortLabel: string;
+}
+
+const MOOD_OPTIONS: readonly MoodOption[] = [
+  { id: "great", label: "Muy bien", shortLabel: "Muy bien" },
+  { id: "good", label: "Bien", shortLabel: "Bien" },
+  { id: "ok", label: "Neutral", shortLabel: "Neutral" },
+  { id: "low", label: "Bajo", shortLabel: "Bajo" },
+  { id: "hard", label: "Difícil", shortLabel: "Difícil" },
+];
+
+const MONTH_LABELS = [
+  "ene",
+  "feb",
+  "mar",
+  "abr",
+  "may",
+  "jun",
+  "jul",
+  "ago",
+  "sep",
+  "oct",
+  "nov",
+  "dic",
+];
+
+const WEEKDAY_LABELS = [
+  "Domingo",
+  "Lunes",
+  "Martes",
+  "Miércoles",
+  "Jueves",
+  "Viernes",
+  "Sábado",
+];
+
+function todayEyebrow(): string {
+  const now = new Date();
+  return `${WEEKDAY_LABELS[now.getDay()]} · ${now.getDate()} ${MONTH_LABELS[now.getMonth()]}`;
+}
+
 export default function HomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
@@ -32,12 +85,17 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
+  const [moodSubmitting, setMoodSubmitting] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
     try {
       const data = await homeApi.get();
       setHome(data);
+      // Hydrate mood selection from the latest mood the backend knows about.
+      // The /home aggregator doesn't expose today's mood directly, so we
+      // start clean each load and let the user pick.
     } catch {
       setError("No pudimos cargar tu inicio.");
     } finally {
@@ -49,6 +107,22 @@ export default function HomeScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function handleMoodPick(id: MoodId) {
+    if (moodSubmitting) return;
+    setSelectedMood(id);
+    setMoodSubmitting(true);
+    try {
+      await moodApi.log({ mood: id } as LogMoodRequest);
+    } catch {
+      // Roll back optimistic state on transient failures so the user can
+      // retry without confusion. Keeping the chip selected when the POST
+      // failed would lie about the persisted state.
+      setSelectedMood(null);
+    } finally {
+      setMoodSubmitting(false);
+    }
+  }
 
   if (!user) return null;
 
@@ -95,395 +169,233 @@ export default function HomeScreen() {
         />
       }
     >
-      {/* Greeting */}
-      <View style={styles.greeting}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.greetEyebrow}>
-            {home.user.city ?? "Tu camino"} · racha {home.user.streakDays}
-          </Text>
-          <Text style={styles.greetTitle}>
-            {home.greeting.text}, {firstName}.
-          </Text>
-          {home.greeting.subtitle ? (
-            <Text style={styles.greetSub}>{home.greeting.subtitle}</Text>
-          ) : null}
-        </View>
-        <View
-          style={[
-            styles.planChip,
-            {
-              backgroundColor:
-                home.user.tier === "pro"
-                  ? Colors.lavender[100]
-                  : Colors.warm[100],
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.planDot,
-              {
-                backgroundColor:
-                  home.user.tier === "pro"
-                    ? Colors.lavender[500]
-                    : Colors.warm[400],
-              },
-            ]}
-          />
-          <Text
-            style={[
-              styles.planChipText,
-              {
-                color:
-                  home.user.tier === "pro"
-                    ? Colors.lavender[700]
-                    : Colors.warm[600],
-              },
-            ]}
-          >
-            {home.user.tier === "pro" ? "Pro" : "Gratuito"}
-          </Text>
-        </View>
+      {/* m-head — eyebrow + greet + sub (design v2 phone-scroll) */}
+      <View style={styles.mHead}>
+        <Text style={styles.mEyebrow}>{todayEyebrow()}</Text>
+        <Text style={styles.mGreet}>
+          {home.greeting.text}, {firstName}.
+        </Text>
+        {home.greeting.subtitle ? (
+          <Text style={styles.mSub}>{home.greeting.subtitle}</Text>
+        ) : null}
       </View>
 
-      {/* Continue book — deep link straight to the reader at the chapter the
-          backend returned. Previously this bounced through the book detail
-          page, which made "Seguir leyendo" feel broken in QA. The reader
-          route accepts id-or-slug so passing `bookId` works as-is. */}
+      {/* m-mood — ¿Cómo llegas hoy? + 5 faces */}
+      <View style={[styles.mCard, styles.mMood]}>
+        {selectedMood ? (
+          <View style={styles.mMoodDone}>
+            <Ionicons
+              name="checkmark-circle"
+              size={18}
+              color={Colors.sage[500]}
+            />
+            <Text style={styles.mMoodDoneText}>
+              Hoy te sientes{" "}
+              <Text style={styles.mMoodDoneBold}>
+                {MOOD_OPTIONS.find((m) => m.id === selectedMood)?.label}
+              </Text>
+            </Text>
+            <Pressable onPress={() => setSelectedMood(null)}>
+              <Text style={styles.mMoodChange}>Cambiar</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.mMoodQ}>¿Cómo llegas hoy?</Text>
+            <View style={styles.mMoodRow}>
+              {MOOD_OPTIONS.map((opt) => (
+                <Pressable
+                  key={opt.id}
+                  style={styles.mMoodOpt}
+                  onPress={() => handleMoodPick(opt.id)}
+                  disabled={moodSubmitting}
+                  accessibilityRole="button"
+                  accessibilityLabel={opt.label}
+                >
+                  <View style={styles.mMoodFace}>
+                    <MoodFaceIcon id={opt.id} />
+                  </View>
+                  <Text style={styles.mMoodOptLabel}>{opt.shortLabel}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        )}
+      </View>
+
+      {/* m-insight — Insight del día */}
+      {home.insightToday ? (
+        <View style={[styles.mCard, styles.mInsight]}>
+          <Text style={styles.mCardTag}>Insight del día</Text>
+          <Text style={styles.mInsightBody}>“{home.insightToday.body}”</Text>
+          <View style={styles.miFoot}>
+            <View style={styles.miFootAv}>
+              <Ionicons name="leaf" size={12} color={Colors.lavender[600]} />
+            </View>
+            <Text style={styles.miFootText}>Generado por Eco · privado</Text>
+          </View>
+        </View>
+      ) : null}
+
+      {/* m-metrics — 4 cards. Mirrors the 5-grid web Inicio but drops one
+          since mobile width can't comfortably host all five. */}
+      <View style={styles.mMetrics}>
+        <Metric
+          icon="pencil"
+          value={home.stats.entriesThisWeek}
+          label="Reflexiones"
+        />
+        <Metric
+          icon="star-outline"
+          value={home.stats.insightsCount}
+          label="Insights"
+        />
+        <Metric
+          icon="ellipse-outline"
+          value={home.stats.patternsCount}
+          label="Patrones"
+        />
+        <Metric
+          icon="flame-outline"
+          value={home.user.streakDays}
+          label="Días seguidos"
+        />
+      </View>
+
+      {/* m-continue-wrap — book cover + chapter + progress */}
       {home.continueBook ? (
         <Pressable
-          style={styles.card}
+          style={[styles.mCard, styles.mContinueWrap]}
           onPress={() =>
             router.push(
               `/(tabs)/books/${home.continueBook!.bookId}/lector/${home.continueBook!.chapterN}`,
             )
           }
+          accessibilityRole="button"
+          accessibilityLabel={`Continuar ${home.continueBook.title}`}
         >
-          <View style={styles.continueRow}>
-            <View
-              style={[
-                styles.continueCover,
-                { backgroundColor: coverColor(home.continueBook.cover) },
-              ]}
-            >
-              <Text style={styles.continueCoverGlyph}>📖</Text>
+          <Text style={styles.mCardTag}>Continúa tu recorrido</Text>
+          <View style={styles.mContinue}>
+            <View style={styles.mContinueCover}>
+              <Ionicons name="book" size={20} color={Colors.white} />
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.eyebrow}>Continúa</Text>
-              <Text style={styles.continueTitle} numberOfLines={2}>
-                {home.continueBook.title}
+            <View style={styles.mContinueMeta}>
+              <Text style={styles.mContinueEyebrow}>
+                Cap. {home.continueBook.chapterN}
               </Text>
-              <Text style={styles.continueMeta} numberOfLines={1}>
-                Cap. {home.continueBook.chapterN} —{" "}
+              <Text style={styles.mContinueTitle} numberOfLines={2}>
                 {home.continueBook.chapterTitle}
               </Text>
-              <View style={styles.progressBar}>
+              <View style={styles.mContinueBar}>
                 <View
                   style={[
-                    styles.progressFill,
+                    styles.mContinueBarFill,
                     {
                       width: `${Math.max(0, Math.min(100, home.continueBook.progressPct))}%`,
                     },
                   ]}
                 />
               </View>
-              <Text style={styles.continueCta}>
-                ▶ Seguir leyendo · {home.continueBook.progressPct}%
-              </Text>
             </View>
           </View>
         </Pressable>
       ) : null}
 
-      {/* Eco moment */}
+      {/* m-eco — Eco te sugiere */}
       {home.ecoMoment ? (
-        <View style={[styles.card, styles.marinaCard]}>
-          <View style={styles.marinaHead}>
-            <View style={styles.marinaAvatar}>
-              <Text style={styles.marinaAvatarGlyph}>✦</Text>
-            </View>
-            <View>
-              <Text style={styles.marinaId}>Eco</Text>
-              <Text style={styles.marinaBadge}>✦ Hoy contigo</Text>
-            </View>
-          </View>
-          <Text style={styles.marinaBody}>{home.ecoMoment.prompt}</Text>
-          {home.ecoMoment.pendingMessages > 0 ? (
-            <View style={styles.pendingBadge}>
-              <Text style={styles.pendingBadgeText}>
-                {home.ecoMoment.pendingMessages} sin leer
-              </Text>
-            </View>
-          ) : null}
-        </View>
-      ) : null}
-
-      {/* Recos */}
-      {home.recos.length > 0 ? (
-        <>
-          <View style={styles.sectionH}>
-            <Text style={styles.sectionTitle}>Para ti</Text>
-          </View>
-          {home.recos.map((r) => (
-            <Pressable
-              key={r.id}
-              style={styles.recoCard}
-              onPress={() =>
-                r.lockedByTier
-                  ? router.push("/(tabs)/plan")
-                  : router.push(`/(tabs)/books/${r.id}`)
-              }
-            >
-              <View style={styles.recoRow}>
-                <View
-                  style={[
-                    styles.recoCover,
-                    { backgroundColor: coverColor(r.cover) },
-                  ]}
-                />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.recoKind}>
-                    {r.kind === "book"
-                      ? "Libro"
-                      : r.kind === "audio"
-                        ? "Audio"
-                        : r.kind === "exercise"
-                          ? "Ejercicio"
-                          : "Carta"}
-                  </Text>
-                  <Text style={styles.recoTitle} numberOfLines={2}>
-                    {r.title}
-                  </Text>
-                  <Text style={styles.recoAuthor} numberOfLines={1}>
-                    {r.byline}
-                  </Text>
-                </View>
-                {r.lockedByTier ? (
-                  <Ionicons
-                    name="lock-closed"
-                    size={14}
-                    color={Colors.warm[400]}
-                  />
-                ) : null}
-              </View>
-              <View style={styles.recoReason}>
-                <Text style={styles.recoReasonText}>{r.reason}</Text>
-              </View>
-            </Pressable>
-          ))}
-        </>
-      ) : null}
-
-      {/* Stats */}
-      <View style={styles.sectionH}>
-        <Text style={styles.sectionTitle}>Tu camino</Text>
-      </View>
-      <View style={styles.statsRow}>
-        <StatCard
-          label="Racha"
-          value={home.stats.streakDays}
-          unit="días"
-          sub="Tu seguimiento diario"
-        />
-        <StatCard
-          label="Esta semana"
-          value={home.stats.minutesThisWeek}
-          unit="min"
-          sub={`${home.stats.weeklyGoalPct}% meta`}
-          progressPct={home.stats.weeklyGoalPct}
-        />
-      </View>
-      <View style={[styles.statsRow, { marginTop: Spacing.sm }]}>
-        <StatCard
-          label="Diario"
-          value={home.stats.entriesThisWeek}
-          unit={home.stats.entriesThisWeek === 1 ? "entrada" : "entradas"}
-          sub="Esta semana"
-        />
-      </View>
-
-      {/* Reflection prompt */}
-      {home.reflectionPrompt ? (
-        <View style={[styles.card, styles.reflexCard]}>
-          <Text style={styles.eyebrow}>✎ Reflexión · 30s</Text>
-          <Text style={styles.reflexQuestion}>
-            {home.reflectionPrompt.text}
-          </Text>
-          <Text style={styles.reflexHelper}>
-            Una sola palabra está bien — solo tú la lees.
-          </Text>
-          <Pressable
-            style={styles.reflexCta}
-            onPress={() => router.push("/(tabs)/reflexiones")}
-          >
-            <Text style={styles.reflexCtaText}>Abrir reflexiones →</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {/* Upgrade (free) */}
-      {home.user.tier === "free" ? (
         <Pressable
-          style={styles.upgradeCard}
-          onPress={() => router.push("/(tabs)/plan")}
+          style={[styles.mCard, styles.mEco]}
+          onPress={() => router.push("/(tabs)/eco")}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir Eco"
         >
-          <Ionicons name="star" size={20} color={Colors.lavender[500]} />
-          <View style={{ flex: 1, minWidth: 0, marginLeft: Spacing.sm }}>
-            <Text style={styles.upgradeTitle}>
-              Desbloquea todo · Pro $7/mes
-            </Text>
-            <Text style={styles.upgradeSub} numberOfLines={1}>
-              Libros, audios y Eco dentro del capítulo
-            </Text>
+          <View style={styles.meH}>
+            <View style={styles.meG}>
+              <Ionicons name="leaf" size={17} color={Colors.white} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.meN}>Eco te sugiere</Text>
+              <View style={styles.meSWrap}>
+                <View style={styles.meSDot} />
+                <Text style={styles.meS}>Disponible ahora</Text>
+              </View>
+            </View>
           </View>
-          <Ionicons name="arrow-forward" size={16} color={Colors.warm[500]} />
+          <Text style={styles.meBody}>{home.ecoMoment.prompt}</Text>
+          <View style={styles.meBtn}>
+            <Text style={styles.meBtnText}>Ver la conexión →</Text>
+          </View>
         </Pressable>
       ) : null}
-
-      {/* Shortcuts */}
-      <View style={styles.sectionH}>
-        <Text style={styles.sectionTitle}>Atajos</Text>
-      </View>
-      <View style={styles.shortcutsCard}>
-        {home.shortcuts.map((s, idx) => {
-          const isLast = idx === home.shortcuts.length - 1;
-          const cfg = SHORTCUT_CONFIG[s.id];
-          return (
-            <Pressable
-              key={s.id}
-              style={[styles.shortcutRow, !isLast && styles.shortcutDivider]}
-              onPress={() => router.push(cfg.href as never)}
-            >
-              <View style={styles.shortcutIcon}>
-                <Ionicons name={cfg.icon} size={16} color={Colors.warm[700]} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.shortcutLabel}>{s.label}</Text>
-                <Text style={styles.shortcutSub} numberOfLines={1}>
-                  {cfg.sub}
-                  {s.badge ? ` · ${s.badge}` : ""}
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={14}
-                color={Colors.warm[400]}
-              />
-            </Pressable>
-          );
-        })}
-      </View>
     </ScrollView>
   );
 }
 
-// ─── Shortcuts mapping ───────────────────────────────────────────────────────
+// ─── MoodFaceIcon ──────────────────────────────────────────────────────────
 
-// Sprint B4: mirror @psico/types ShortcutId rename. `"diario"` stays as
-// a deprecated alias so a stale HomeResponse from cache doesn't crash —
-// its config mirrors the new `"reflexiones"` entry.
-type ShortcutId = "reflexiones" | "eco" | "biblioteca" | "terapia" | "diario";
-const SHORTCUT_CONFIG: Record<
-  ShortcutId,
-  { icon: keyof typeof Ionicons.glyphMap; sub: string; href: string }
-> = {
-  reflexiones: {
-    icon: "create",
-    sub: "Anota cómo te sientes",
-    href: "/(tabs)/reflexiones",
-  },
-  diario: {
-    icon: "create",
-    sub: "Anota cómo te sientes",
-    href: "/(tabs)/reflexiones",
-  },
-  eco: {
-    icon: "sparkles",
-    sub: "Pregúntale lo que sea",
-    href: "/(tabs)",
-  },
-  biblioteca: {
-    icon: "library",
-    sub: "Tus libros",
-    href: "/(tabs)/books",
-  },
-  terapia: {
-    icon: "headset",
-    sub: "Sesiones de terapia",
-    href: "/(tabs)/plan",
-  },
+type IconName = React.ComponentProps<typeof Ionicons>["name"];
+
+const MOOD_FACE_ICON: Record<MoodId, IconName> = {
+  great: "happy-outline",
+  good: "happy-outline",
+  ok: "remove-circle-outline",
+  low: "sad-outline",
+  hard: "sad-outline",
 };
 
-// ─── StatCard reusable ───────────────────────────────────────────────────────
-
-function StatCard({
-  label,
-  value,
-  unit,
-  sub,
-  progressPct,
-}: {
-  label: string;
-  value: number;
-  unit: string;
-  sub: string;
-  progressPct?: number;
-}) {
+function MoodFaceIcon({ id }: { id: MoodId }) {
   return (
-    <View style={styles.statCard}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <View style={styles.statValueRow}>
-        <Text style={styles.statValue}>{value}</Text>
-        <Text style={styles.statUnit}>{unit}</Text>
+    <Ionicons name={MOOD_FACE_ICON[id]} size={28} color={Colors.warm[700]} />
+  );
+}
+
+// ─── Metric ────────────────────────────────────────────────────────────────
+
+interface MetricProps {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  value: number;
+  label: string;
+}
+
+function Metric({ icon, value, label }: MetricProps) {
+  return (
+    <View style={styles.mMetric}>
+      <View style={styles.mMetricG}>
+        <Ionicons name={icon} size={17} color={Colors.lavender[600]} />
       </View>
-      {progressPct !== undefined ? (
-        <View style={styles.statProgressBar}>
-          <View
-            style={[
-              styles.statProgressFill,
-              {
-                width: `${Math.max(0, Math.min(100, progressPct))}%`,
-              },
-            ]}
-          />
-        </View>
-      ) : null}
-      <Text style={styles.statSub} numberOfLines={1}>
-        {sub}
-      </Text>
+      <Text style={styles.mMetricValue}>{value}</Text>
+      <Text style={styles.mMetricLabel}>{label}</Text>
     </View>
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
+// ─── Styles ────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   root: {
-    flex: 1,
     backgroundColor: Colors.warm[50],
   },
   scroll: {
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.lg,
     paddingBottom: Spacing.xxl,
   },
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.warm[50],
-    gap: Spacing.md,
+    padding: Spacing.lg,
   },
   errorText: {
-    fontSize: 14,
     color: Colors.warm[600],
-    textAlign: "center",
-    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    fontSize: 14,
   },
   retryBtn: {
     backgroundColor: Colors.lavender[500],
-    borderRadius: Radius.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
   },
   retryBtnText: {
     color: Colors.white,
@@ -491,367 +403,270 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  greeting: {
-    flexDirection: "row",
-    alignItems: "flex-start",
+  // m-head
+  mHead: {
     marginBottom: Spacing.md,
-    gap: Spacing.sm,
   },
-  greetEyebrow: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1,
+  mEyebrow: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.6,
     textTransform: "uppercase",
-    color: Colors.lavender[700],
-    marginBottom: 6,
+    color: Colors.lavender[500],
   },
-  greetTitle: {
-    fontSize: 26,
+  mGreet: {
+    marginTop: 8,
+    fontSize: 24,
     fontWeight: "700",
     color: Colors.warm[900],
-    lineHeight: 30,
     letterSpacing: -0.5,
   },
-  greetSub: {
+  mSub: {
+    marginTop: 4,
     fontSize: 14,
-    color: Colors.warm[500],
-    marginTop: 6,
+    color: Colors.warm[600],
     lineHeight: 20,
   },
-  planChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
-  },
-  planDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  planChipText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
 
-  card: {
+  // Shared card chrome
+  mCard: {
     backgroundColor: Colors.white,
     borderRadius: Radius.xl,
-    borderWidth: 1.5,
-    borderColor: Colors.warm[200],
     padding: Spacing.md,
     marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.warm[200],
   },
-  eyebrow: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    color: Colors.lavender[700],
-  },
-
-  continueRow: {
-    flexDirection: "row",
-    gap: Spacing.md,
-  },
-  continueCover: {
-    width: 84,
-    height: 112,
-    borderRadius: Radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  continueCoverGlyph: {
-    fontSize: 28,
-    color: "rgba(255,255,255,0.85)",
-  },
-  continueTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: Colors.warm[900],
-    marginTop: 6,
-    lineHeight: 20,
-  },
-  continueMeta: {
-    fontSize: 12,
-    color: Colors.warm[600],
-    marginTop: 4,
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: Colors.warm[200],
-    borderRadius: 2,
-    marginTop: 10,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: Colors.lavender[500],
-  },
-  continueCta: {
-    marginTop: 8,
-    fontSize: 12,
-    fontWeight: "700",
-    color: Colors.sage[500],
-  },
-
-  marinaCard: {
-    backgroundColor: Colors.lavender[50],
-    borderColor: Colors.lavender[100],
-  },
-  marinaHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  marinaAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.lavender[500],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  marinaAvatarGlyph: {
-    color: Colors.white,
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  marinaId: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: Colors.warm[900],
-  },
-  marinaBadge: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: Colors.lavender[700],
-    marginTop: 2,
-  },
-  marinaBody: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: Colors.warm[800],
-    marginTop: Spacing.sm,
-  },
-  pendingBadge: {
-    alignSelf: "flex-start",
-    marginTop: Spacing.sm,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.lavender[100],
-  },
-  pendingBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: Colors.lavender[700],
-  },
-
-  sectionH: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    justifyContent: "space-between",
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: 11,
+  mCardTag: {
+    fontSize: 10.5,
     fontWeight: "700",
     letterSpacing: 1.2,
     textTransform: "uppercase",
-    color: Colors.warm[500],
+    color: Colors.lavender[600],
   },
 
-  recoCard: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius.lg,
-    borderWidth: 1.5,
-    borderColor: Colors.warm[200],
-    padding: Spacing.sm + 2,
-    marginBottom: Spacing.sm,
+  // m-mood
+  mMood: {
+    paddingVertical: Spacing.md,
   },
-  recoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  recoCover: {
-    width: 44,
-    height: 58,
-    borderRadius: 6,
-  },
-  recoKind: {
-    fontSize: 9.5,
-    fontWeight: "700",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    color: Colors.lavender[700],
-  },
-  recoTitle: {
-    fontSize: 13,
+  mMoodQ: {
+    fontSize: 15,
     fontWeight: "700",
     color: Colors.warm[900],
-    marginTop: 3,
-    lineHeight: 16,
+    marginBottom: Spacing.md,
   },
-  recoAuthor: {
-    fontSize: 11,
-    color: Colors.warm[500],
-    marginTop: 2,
+  mMoodRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 6,
   },
-  recoReason: {
-    marginTop: 8,
-    padding: Spacing.sm,
-    backgroundColor: Colors.warm[100],
-    borderRadius: Radius.sm,
+  mMoodOpt: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: 4,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.warm[50],
   },
-  recoReasonText: {
-    fontSize: 11.5,
-    lineHeight: 16,
+  mMoodFace: {
+    marginBottom: 4,
+  },
+  mMoodOptLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Colors.warm[600],
+    textAlign: "center",
+  },
+  mMoodDone: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  mMoodDoneText: {
+    flex: 1,
+    fontSize: 13,
     color: Colors.warm[700],
   },
-
-  statsRow: {
-    flexDirection: "row",
-    gap: Spacing.sm,
+  mMoodDoneBold: {
+    fontWeight: "700",
+    color: Colors.warm[900],
   },
-  statCard: {
-    flex: 1,
+  mMoodChange: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.lavender[600],
+  },
+
+  // m-insight
+  mInsight: {},
+  mInsightBody: {
+    marginTop: 10,
+    fontSize: 14,
+    color: Colors.warm[800],
+    lineHeight: 21,
+    fontStyle: "italic",
+  },
+  miFoot: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.warm[100],
+  },
+  miFootAv: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.lavender[100],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  miFootText: {
+    fontSize: 11,
+    color: Colors.warm[500],
+  },
+
+  // m-metrics
+  mMetrics: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  mMetric: {
+    flexBasis: "47%",
+    flexGrow: 1,
     backgroundColor: Colors.white,
     borderRadius: Radius.lg,
-    borderWidth: 1.5,
+    padding: Spacing.md,
+    borderWidth: 1,
     borderColor: Colors.warm[200],
-    padding: Spacing.sm + 4,
   },
-  statLabel: {
+  mMetricG: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    backgroundColor: Colors.lavender[100],
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  mMetricValue: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: Colors.warm[900],
+    letterSpacing: -0.5,
+  },
+  mMetricLabel: {
+    marginTop: 4,
+    fontSize: 11,
+    color: Colors.warm[600],
+    fontWeight: "500",
+  },
+
+  // m-continue
+  mContinueWrap: {},
+  mContinue: {
+    marginTop: 12,
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  mContinueCover: {
+    width: 54,
+    height: 72,
+    borderRadius: 10,
+    backgroundColor: Colors.lavender[500],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mContinueMeta: {
+    flex: 1,
+    minWidth: 0,
+  },
+  mContinueEyebrow: {
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1,
     textTransform: "uppercase",
-    color: Colors.warm[500],
+    color: Colors.warm[400],
   },
-  statValueRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 4,
-    marginTop: 8,
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: "700",
+  mContinueTitle: {
+    marginTop: 6,
+    fontSize: 14,
+    fontWeight: "600",
     color: Colors.warm[900],
-    letterSpacing: -0.5,
+    lineHeight: 19,
   },
-  statUnit: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: Colors.warm[500],
-  },
-  statProgressBar: {
-    height: 4,
-    backgroundColor: Colors.warm[100],
-    borderRadius: 2,
-    marginTop: 8,
+  mContinueBar: {
+    marginTop: 10,
+    height: 6,
+    borderRadius: 9999,
+    backgroundColor: Colors.warm[200],
     overflow: "hidden",
   },
-  statProgressFill: {
+  mContinueBarFill: {
     height: "100%",
-    backgroundColor: Colors.sage[400],
-  },
-  statSub: {
-    fontSize: 11,
-    color: Colors.warm[500],
-    marginTop: 6,
+    backgroundColor: Colors.lavender[500],
   },
 
-  reflexCard: {
-    marginTop: Spacing.md,
+  // m-eco
+  mEco: {
+    backgroundColor: Colors.lavender[700],
+    borderColor: Colors.lavender[700],
   },
-  reflexQuestion: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: Colors.warm[900],
-    marginTop: 6,
-    lineHeight: 22,
-  },
-  reflexHelper: {
-    fontSize: 12,
-    color: Colors.warm[500],
-    marginTop: 6,
-  },
-  reflexCta: {
-    marginTop: Spacing.sm + 2,
-    alignSelf: "flex-start",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.warm[900],
-  },
-  reflexCtaText: {
-    color: Colors.white,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-
-  upgradeCard: {
+  meH: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.lavender[50],
-    borderRadius: Radius.xl,
-    borderWidth: 1.5,
-    borderColor: Colors.lavender[200],
-    padding: Spacing.md,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  upgradeTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: Colors.warm[900],
-  },
-  upgradeSub: {
-    fontSize: 11.5,
-    color: Colors.warm[600],
-    marginTop: 2,
-  },
-
-  shortcutsCard: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius.xl,
-    borderWidth: 1.5,
-    borderColor: Colors.warm[200],
-    overflow: "hidden",
-  },
-  shortcutRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 12,
     gap: 10,
+    marginBottom: 10,
   },
-  shortcutDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.warm[100],
-  },
-  shortcutIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.warm[100],
+  meG: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
   },
-  shortcutLabel: {
+  meN: {
     fontSize: 13,
     fontWeight: "700",
-    color: Colors.warm[900],
+    color: Colors.white,
   },
-  shortcutSub: {
-    fontSize: 11.5,
-    color: Colors.warm[500],
-    marginTop: 2,
+  meSWrap: {
+    marginTop: 3,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  meSDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.sage[300],
+  },
+  meS: {
+    fontSize: 10.5,
+    color: "rgba(255,255,255,0.75)",
+  },
+  meBody: {
+    fontSize: 13.5,
+    lineHeight: 19,
+    color: "rgba(255,255,255,0.92)",
+  },
+  meBtn: {
+    marginTop: 14,
+    backgroundColor: Colors.white,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+  },
+  meBtnText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: Colors.lavender[700],
   },
 });

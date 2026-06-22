@@ -136,4 +136,20 @@ export class OnboardingController {
   ) {
     return this.onboarding.completeTour(user.userId, dto);
   }
+
+  /**
+   * Sprint G-polish — opt-in re-trigger of the dashboard tour. Sets
+   * `tourCompletedAt = null` so the TourOverlay surfaces on next dashboard
+   * mount. Cleared deuda from Sprint S37 ("Volver a ver el tour" missing).
+   *
+   * Idempotent: re-resetting an already-null row is a no-op (same row written).
+   */
+  @Post("tour/reset")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Reset the UI tour so it shows again on next dashboard mount",
+  })
+  resetTour(@CurrentUser() user: AuthenticatedUser) {
+    return this.onboarding.resetTour(user.userId);
+  }
 }

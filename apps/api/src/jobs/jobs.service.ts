@@ -7,6 +7,7 @@ import {
   type AccountDeletionJobPayload,
   type CohortRetentionJobPayload,
   type DailyUsageJobPayload,
+  type EmotionalMapSnapshotJobPayload,
   type DataExportJobPayload,
   type EmailJobPayload,
   type InactiveNudgeJobPayload,
@@ -44,6 +45,12 @@ const PLATFORM_SNAPSHOT_SCHEDULER_ID = "platform-snapshot-02-30-utc";
 // after the daily snapshot. Rebuilds the full retention triangle once per
 // week (more frequent runs add no signal because cohorts are weekly).
 const COHORT_RETENTION_SCHEDULER_ID = "cohort-retention-monday-03-utc";
+
+// Sprint G2 — Monthly emotional-map snapshot. 1st of each month at 04:00
+// UTC, after the daily snapshot (02:30) and cohort retention (Mon 03:00).
+// One row per user per month — the chart fills in as time passes.
+const EMOTIONAL_MAP_SNAPSHOT_SCHEDULER_ID =
+  "emotional-map-snapshot-monthly-04-utc";
 
 /**
  * Producer-side API for enqueuing background work. Feature services inject
@@ -83,6 +90,9 @@ export class JobsService implements OnModuleInit {
     // Sprint S51 — weekly cohort retention recomputation.
     @InjectQueue(QueueName.COHORT_RETENTION)
     private readonly cohortRetentionQueue: Queue<CohortRetentionJobPayload>,
+    // Sprint G2 — monthly emotional-map snapshot.
+    @InjectQueue(QueueName.EMOTIONAL_MAP_SNAPSHOT)
+    private readonly emotionalMapSnapshotQueue: Queue<EmotionalMapSnapshotJobPayload>,
   ) {}
 
   /**
@@ -279,6 +289,32 @@ export class JobsService implements OnModuleInit {
     } catch (err) {
       this.logger.error(
         `Failed to register cohort-retention scheduler: ${(err as Error).message}`,
+      );
+    }
+
+    // Sprint G2 — Monthly emotional-map snapshot cron. 1st of month at
+    // 04:00 UTC. Idempotent — upserts on (userId, month).
+    try {
+      await this.emotionalMapSnapshotQueue.upsertJobScheduler(
+        EMOTIONAL_MAP_SNAPSHOT_SCHEDULER_ID,
+        { pattern: "0 4 1 * *", tz: "UTC" }, // 1st of month, 04:00 UTC
+        {
+          name: JobName.RUN_EMOTIONAL_MAP_SNAPSHOT,
+          data: {},
+          opts: {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 5 * 60_000 },
+            removeOnComplete: { age: 30 * 24 * 60 * 60 },
+            removeOnFail: false,
+          },
+        },
+      );
+      this.logger.log(
+        `Emotional-map snapshot scheduled · id=${EMOTIONAL_MAP_SNAPSHOT_SCHEDULER_ID} · cron=0 4 1 * * UTC`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to register emotional-map-snapshot scheduler: ${(err as Error).message}`,
       );
     }
   }

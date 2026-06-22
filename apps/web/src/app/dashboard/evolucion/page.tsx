@@ -67,7 +67,7 @@ export default async function EvolucionPage() {
 
       <div className="evo-top">
         {map ? (
-          <EvoChart map={map} />
+          <EvoChart map={map} series={evolucion.emotionalSeries} />
         ) : (
           <div className="card evo-chart">
             <span className="card-tag">Comprensión emocional</span>

@@ -35,24 +35,45 @@ export interface EvolucionStats {
   diasActivos30d: number;
 }
 
+/**
+ * Sprint G2 — Historical comprehension series for the Evolución line
+ * chart. Empty array when the cron hasn't snapped any month yet.
+ */
+export interface EvolucionEmotionalSeriesPoint {
+  /** ISO date YYYY-MM-DD anchored to the first of the month UTC. */
+  monthIso: string;
+  /** 0..100 percent, same shape as `EmotionalMapResult.pct`. */
+  pct: number;
+}
+
 export interface EvolucionResponse {
   stats: EvolucionStats;
   /** All achievements from the catalog, sorted by (unlocked desc → progress desc). */
   milestones: EvolucionMilestone[];
+  /** Sprint G2 — monthly comprehension snapshots, sorted asc. */
+  emotionalSeries: EvolucionEmotionalSeriesPoint[];
 }
+
+/** Sprint G2 — how many months of historical snapshots to surface. The
+ *  design shows ~6 months; we return 12 to give the chart a bit more
+ *  context when the user has been around longer. */
+const SERIES_MAX_MONTHS = 12;
 
 @Injectable()
 export class EvolucionService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getForUser(userId: string): Promise<EvolucionResponse> {
-    const [user, existingUserAchievements] = await Promise.all([
-      this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { currentStreakDays: true, longestStreakDays: true },
-      }),
-      this.prisma.userAchievement.findMany({ where: { userId } }),
-    ]);
+    const [user, existingUserAchievements, emotionalSeries] = await Promise.all(
+      [
+        this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { currentStreakDays: true, longestStreakDays: true },
+        }),
+        this.prisma.userAchievement.findMany({ where: { userId } }),
+        this.fetchEmotionalSeries(userId),
+      ],
+    );
 
     if (!user) throw new NotFoundException("USER_NOT_FOUND");
 
@@ -63,7 +84,29 @@ export class EvolucionService {
       existingUserAchievements,
     );
 
-    return { stats, milestones };
+    return { stats, milestones, emotionalSeries };
+  }
+
+  /**
+   * Sprint G2 — Fetch the last N months of `EmotionalMapSnapshot` rows
+   * and shape them for the client. Sorted ascending so the line draws
+   * left-to-right naturally.
+   */
+  private async fetchEmotionalSeries(
+    userId: string,
+  ): Promise<EvolucionEmotionalSeriesPoint[]> {
+    const rows = await this.prisma.emotionalMapSnapshot.findMany({
+      where: { userId },
+      orderBy: { month: "desc" },
+      take: SERIES_MAX_MONTHS,
+      select: { month: true, pct: true },
+    });
+    return rows
+      .map((r) => ({
+        monthIso: r.month.toISOString().slice(0, 10),
+        pct: r.pct,
+      }))
+      .reverse();
   }
 
   private async computeStats(

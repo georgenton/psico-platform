@@ -9,6 +9,9 @@ import { NotificationsModule } from "../notifications";
 // Sprint S46 — PatronesModule wires the LLM-backed regenerator the worker
 // reuses. Imports cascade so AIModule (Anthropic SDK) loads here too.
 import { PatronesModule } from "../patrones/patrones.module";
+// Sprint G2 — EmotionalMapModule provides the service the monthly
+// snapshot processor reuses to recompute each user's score.
+import { EmotionalMapModule } from "../emotional-map/emotional-map.module";
 import { QueueName } from "./queue-names";
 import { EmailProcessor } from "./processors/email.processor";
 import { DataExportProcessor } from "./processors/data-export.processor";
@@ -19,6 +22,7 @@ import { InactiveNudgeProcessor } from "./processors/inactive-nudge.processor";
 import { WeeklySummaryGenerationProcessor } from "./processors/weekly-summary.processor";
 import { PlatformSnapshotProcessor } from "./processors/platform-snapshot.processor";
 import { CohortRetentionProcessor } from "./processors/cohort-retention.processor";
+import { EmotionalMapSnapshotProcessor } from "./processors/emotional-map-snapshot.processor";
 import type { Env } from "../config";
 
 /**
@@ -51,6 +55,8 @@ import type { Env } from "../config";
     StorageModule,
     NotificationsModule,
     PatronesModule,
+    // Sprint G2 — needed by EmotionalMapSnapshotProcessor.
+    EmotionalMapModule,
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<Env, true>) => {
@@ -74,6 +80,8 @@ import type { Env } from "../config";
       { name: QueueName.PLATFORM_SNAPSHOT },
       // Sprint S51 — weekly cohort retention queue.
       { name: QueueName.COHORT_RETENTION },
+      // Sprint G2 — monthly emotional-map snapshot queue.
+      { name: QueueName.EMOTIONAL_MAP_SNAPSHOT },
     ),
   ],
   providers: [
@@ -90,6 +98,8 @@ import type { Env } from "../config";
     PlatformSnapshotProcessor,
     // Sprint S51 — weekly cohort retention recomputation.
     CohortRetentionProcessor,
+    // Sprint G2 — monthly emotional-map snapshot.
+    EmotionalMapSnapshotProcessor,
   ],
 })
 export class WorkerAppModule {}

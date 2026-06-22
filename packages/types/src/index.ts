@@ -1141,6 +1141,20 @@ export interface HomeStats {
   entriesThisWeek: number;
   streakDays: number;
   weeklyGoalPct: number;
+  /**
+   * Sprint G2b — Count of `WeeklySummary` rows the user has accumulated.
+   * Each row = one editorial insight Eco generated for a finished ISO
+   * week. Defaults to 0 for FREE users (they get the summary feature but
+   * not the cron — surfaces zero until they regenerate manually).
+   */
+  insightsCount: number;
+  /**
+   * Sprint G2b — Distinct categorical tags across the user's full diary
+   * history. Approximation of "patrones detectados" — patterns are
+   * surfaces with shared tags. Until the LLM pattern detector lands, this
+   * count is a meaningful proxy.
+   */
+  patternsCount: number;
 }
 
 export interface HomeReflectionPrompt {

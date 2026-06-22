@@ -236,6 +236,16 @@ export default function TabsLayout() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="exploraciones"
+          options={{
+            href: null,
+            title: "Exploraciones",
+            tabBarIcon: ({ color, size }: IconProps) => (
+              <Ionicons name="compass" size={size} color={color} />
+            ),
+          }}
+        />
       </Tabs>
       {showTour ? <TourOverlay onClose={() => setShowTour(false)} /> : null}
     </DiaryKeyProvider>

@@ -94,6 +94,16 @@ export default function ProfileScreen() {
         />
       }
     >
+      {/* screen-head — Sprint H5 */}
+      <View style={styles.head}>
+        <Text style={styles.eyebrow}>Tu cuenta</Text>
+        <Text style={styles.title}>Mi Perfil</Text>
+        <Text style={styles.subtitle}>
+          Tu identidad en Psico. Aquí gestionas tu información, privacidad y
+          ajustes de la app.
+        </Text>
+      </View>
+
       {/* Avatar */}
       <View style={styles.avatarSection}>
         <View style={styles.avatar}>
@@ -249,6 +259,29 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: Spacing.xxl,
     gap: Spacing.lg,
+  },
+  head: {
+    marginBottom: Spacing.sm,
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: Colors.lavender[500],
+  },
+  title: {
+    marginTop: 6,
+    fontSize: 26,
+    fontWeight: "700",
+    color: Colors.warm[900],
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    marginTop: 8,
+    fontSize: 14,
+    color: Colors.warm[600],
+    lineHeight: 20,
   },
   avatarSection: {
     alignItems: "center",

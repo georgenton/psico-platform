@@ -137,7 +137,7 @@ export default function ProfileScreen() {
       {/* Achievements (Sprint S57) */}
       {me ? <AchievementsList achievements={me.achievements} /> : null}
 
-      {/* Vistas — Sprint H1b */}
+      {/* Vistas — Sprint H1b + H1d */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Tu camino</Text>
         <ShortcutRow
@@ -151,6 +151,12 @@ export default function ProfileScreen() {
           label="Mi Evolución"
           hint="Hitos, racha y comprensión mes a mes"
           onPress={() => router.push("/(tabs)/evolucion")}
+        />
+        <ShortcutRow
+          icon="map-outline"
+          label="Exploraciones"
+          hint="Recorridos guiados hacia algo que quieres trabajar"
+          onPress={() => router.push("/(tabs)/exploraciones")}
         />
       </View>
 

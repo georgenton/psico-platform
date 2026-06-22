@@ -137,6 +137,23 @@ export default function ProfileScreen() {
       {/* Achievements (Sprint S57) */}
       {me ? <AchievementsList achievements={me.achievements} /> : null}
 
+      {/* Vistas — Sprint H1b */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Tu camino</Text>
+        <ShortcutRow
+          icon="compass-outline"
+          label="Mi Mapa Emocional"
+          hint="Comprensión emocional y 6 dimensiones"
+          onPress={() => router.push("/(tabs)/mapa")}
+        />
+        <ShortcutRow
+          icon="trending-up-outline"
+          label="Mi Evolución"
+          hint="Hitos, racha y comprensión mes a mes"
+          onPress={() => router.push("/(tabs)/evolucion")}
+        />
+      </View>
+
       {/* Shortcuts */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Ajustes</Text>

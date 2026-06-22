@@ -216,6 +216,26 @@ export default function TabsLayout() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="mapa"
+          options={{
+            href: null,
+            title: "Mi Mapa Emocional",
+            tabBarIcon: ({ color, size }: IconProps) => (
+              <Ionicons name="compass" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="evolucion"
+          options={{
+            href: null,
+            title: "Mi Evolución",
+            tabBarIcon: ({ color, size }: IconProps) => (
+              <Ionicons name="trending-up" size={size} color={color} />
+            ),
+          }}
+        />
       </Tabs>
       {showTour ? <TourOverlay onClose={() => setShowTour(false)} /> : null}
     </DiaryKeyProvider>

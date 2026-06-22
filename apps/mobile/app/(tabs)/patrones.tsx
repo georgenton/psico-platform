@@ -80,10 +80,14 @@ export default function PatronesScreen() {
         />
       }
     >
-      <Text style={styles.title}>Patrones</Text>
-      <Text style={styles.subtitle}>
-        Lo que tu diario va dibujando con el tiempo.
-      </Text>
+      <View style={styles.head}>
+        <Text style={styles.eyebrow}>La inteligencia detrás del proceso</Text>
+        <Text style={styles.title}>Mis Patrones</Text>
+        <Text style={styles.subtitle}>
+          Lo que tu diario va dibujando con el tiempo. Cuando un patrón se
+          repite, vale la pena verlo de cerca.
+        </Text>
+      </View>
 
       <PeriodTabs period={period} onChange={setPeriod} />
 
@@ -407,15 +411,28 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: Colors.warm[50],
   },
+  head: {
+    marginBottom: Spacing.md,
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: Colors.lavender[500],
+  },
   title: {
-    fontSize: 24,
+    marginTop: 6,
+    fontSize: 26,
     fontWeight: "700",
     color: Colors.warm[900],
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 13,
-    color: Colors.warm[500],
-    marginTop: 4,
+    marginTop: 8,
+    fontSize: 14,
+    color: Colors.warm[600],
+    lineHeight: 20,
   },
   tabsRow: {
     flexDirection: "row",

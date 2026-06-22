@@ -336,6 +336,34 @@ export class OnboardingService {
     return { ok: true as const };
   }
 
+  // ── POST /api/onboarding/tour/reset ─────────────────────────────────────
+
+  /**
+   * Sprint G-polish — opt-in re-trigger of the dashboard tour.
+   *
+   * Clears `tourCompletedAt` (sets to null). On the next dashboard mount
+   * the `_TourOverlay` Server Component fires because the predicate
+   * `completedAt && !tourCompletedAt` becomes true again.
+   *
+   * We also reset `tourStepsCompleted` so the analytics counter starts
+   * fresh — otherwise a partial replay would inflate the count.
+   *
+   * Idempotent: if the row doesn't exist yet, we create it with
+   * `completedAt: null` so the tour never fires (the user hasn't even
+   * finished onboarding yet — calling reset in that state is a no-op).
+   */
+  async resetTour(userId: string) {
+    await this.prisma.onboardingState.upsert({
+      where: { userId },
+      create: { userId },
+      update: {
+        tourCompletedAt: null,
+        tourStepsCompleted: 0,
+      },
+    });
+    return { ok: true as const };
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   /**

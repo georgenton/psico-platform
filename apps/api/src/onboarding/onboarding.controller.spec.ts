@@ -18,7 +18,7 @@ describe("OnboardingController · auth posture", () => {
     expect(guards).toContain(JwtAuthGuard);
   });
 
-  it("exposes exactly the 11 expected handlers", () => {
+  it("exposes exactly the 12 expected handlers", () => {
     const proto = OnboardingController.prototype as unknown as Record<
       string,
       unknown
@@ -40,6 +40,7 @@ describe("OnboardingController · auth posture", () => {
         "complete",
         "getTour",
         "completeTour",
+        "resetTour",
       ].sort(),
     );
   });

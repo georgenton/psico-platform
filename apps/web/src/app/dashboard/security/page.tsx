@@ -3,6 +3,7 @@ import type { UserMeResponse } from "@psico/types";
 
 import { getAccessToken, serverFetch } from "@/lib/api.server";
 import { ChangePasswordCard } from "@/components/dashboard/security/ChangePasswordCard";
+import { ReplayTourCard } from "@/components/dashboard/security/ReplayTourCard";
 import { ShowSeedPhraseCard } from "@/components/dashboard/security/ShowSeedPhraseCard";
 
 export const metadata: Metadata = { title: "Seguridad" };
@@ -43,6 +44,7 @@ export default async function SecurityPage() {
           token={token}
         />
         <ShowSeedPhraseCard cryptoSalt={meResult.cryptoSalt} />
+        <ReplayTourCard />
       </div>
     </div>
   );

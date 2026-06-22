@@ -367,4 +367,29 @@ describe("OnboardingService", () => {
       expect(call.update.tourCompletedAt).toBeInstanceOf(Date);
     });
   });
+
+  // ── resetTour ────────────────────────────────────────────────────────────
+  //
+  // Sprint G-polish — opt-in re-trigger of the dashboard tour.
+
+  describe("resetTour", () => {
+    it("upserts tourCompletedAt to null + stepsCompleted to 0", async () => {
+      const res = await service.resetTour(userId);
+
+      expect(res).toEqual({ ok: true });
+      const call = mockPrisma.onboardingState.upsert.mock.calls[0][0];
+      expect(call.update.tourCompletedAt).toBeNull();
+      expect(call.update.tourStepsCompleted).toBe(0);
+    });
+
+    it("creates an empty OnboardingState when the user has none yet", async () => {
+      const res = await service.resetTour(userId);
+
+      expect(res).toEqual({ ok: true });
+      const call = mockPrisma.onboardingState.upsert.mock.calls[0][0];
+      // We don't ask the user to "complete onboarding" by calling reset —
+      // the `create` branch is intentionally empty (only userId).
+      expect(call.create).toEqual({ userId });
+    });
+  });
 });

@@ -30,20 +30,17 @@ export default async function PerfilPage() {
   if (!me) {
     return (
       <div className="mx-auto max-w-3xl">
-        <h1
-          className="mb-3 text-[26px] font-bold tracking-tight"
-          style={{ color: "var(--color-warm-900)" }}
-        >
-          Perfil
-        </h1>
+        <div className="screen-head">
+          <div className="screen-title">
+            <span className="eb">Cuenta y privacidad</span>
+            Perfil
+          </div>
+        </div>
         <div
           className="rounded-2xl border-[1.5px] bg-white p-6"
           style={{ borderColor: "var(--color-warm-200)" }}
         >
-          <p
-            className="text-[13px]"
-            style={{ color: "var(--color-warm-700)" }}
-          >
+          <p className="text-[13px]" style={{ color: "var(--color-warm-700)" }}>
             No pudimos cargar tu perfil.
           </p>
           {loadError ? (
@@ -80,20 +77,16 @@ export default async function PerfilPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <header>
-        <h1
-          className="text-[26px] font-bold tracking-tight"
-          style={{ color: "var(--color-warm-900)" }}
-        >
+      {/* Sprint G3 — generic screen-head sweep. */}
+      <div className="screen-head">
+        <div className="screen-title">
+          <span className="eb">Cuenta y privacidad</span>
           Perfil
-        </h1>
-        <p
-          className="mt-1 text-[13px]"
-          style={{ color: "var(--color-warm-500)" }}
-        >
-          Tus datos, tu actividad y los ajustes de la cuenta.
-        </p>
-      </header>
+        </div>
+      </div>
+      <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
+        Tus datos, tu actividad y los ajustes de la cuenta.
+      </p>
 
       <ProfileHeader me={me} />
       <StatsGrid stats={me.stats} />

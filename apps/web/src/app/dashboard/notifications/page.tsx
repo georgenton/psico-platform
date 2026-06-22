@@ -25,12 +25,12 @@ export default async function NotificationsPage() {
   if (!me) {
     return (
       <div className="mx-auto max-w-3xl">
-        <h1
-          className="mb-3 text-[26px] font-bold tracking-tight"
-          style={{ color: "var(--color-warm-900)" }}
-        >
-          Notificaciones
-        </h1>
+        <div className="screen-head">
+          <div className="screen-title">
+            <span className="eb">Cuenta y privacidad</span>
+            Notificaciones
+          </div>
+        </div>
         <p
           className="rounded-2xl border-[1.5px] bg-white p-6 text-[13px]"
           style={{
@@ -46,21 +46,17 @@ export default async function NotificationsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <header>
-        <h1
-          className="text-[26px] font-bold tracking-tight"
-          style={{ color: "var(--color-warm-900)" }}
-        >
+      {/* Sprint G3 — generic screen-head sweep. */}
+      <div className="screen-head">
+        <div className="screen-title">
+          <span className="eb">Cuenta y privacidad</span>
           Notificaciones
-        </h1>
-        <p
-          className="mt-1 text-[13px]"
-          style={{ color: "var(--color-warm-500)" }}
-        >
-          Controla qué te avisamos y cuándo. Estos ajustes aplican tanto al
-          email como al push del mobile.
-        </p>
-      </header>
+        </div>
+      </div>
+      <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
+        Controla qué te avisamos y cuándo. Estos ajustes aplican tanto al email
+        como al push del mobile.
+      </p>
 
       {accessToken ? (
         <WebPushToggle apiBase={API_BASE} accessToken={accessToken} />

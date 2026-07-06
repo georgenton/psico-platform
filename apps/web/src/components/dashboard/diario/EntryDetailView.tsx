@@ -30,7 +30,7 @@ function normalizeTag(raw: string): string | null {
  * component decrypts the body and renders it; otherwise the UnlockGate is
  * shown.
  *
- * Delete: simple confirm + DELETE /api/diario/entries/:id, then redirect
+ * Delete: simple confirm + DELETE /api/reflexiones/entries/:id, then redirect
  * to /dashboard/reflexiones. router.refresh() is not enough because we navigate
  * away — router.push handles that.
  */

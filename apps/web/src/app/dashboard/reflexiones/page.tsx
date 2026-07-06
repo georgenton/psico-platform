@@ -21,8 +21,8 @@ export default async function ReflexionesPage() {
   // independently — we degrade gracefully.
   const [entriesResult, promptResult, meResult, evolucionResult] =
     await Promise.allSettled([
-      serverFetch<DiaryListResponse>("/diario/entries?perPage=30"),
-      serverFetch<DiaryPromptOfTheDay | null>("/diario/prompt-of-the-day"),
+      serverFetch<DiaryListResponse>("/reflexiones/entries?perPage=30"),
+      serverFetch<DiaryPromptOfTheDay | null>("/reflexiones/prompt-of-the-day"),
       serverFetch<UserMeResponse>("/user/me"),
       serverFetch<EvolucionResponse>("/evolucion"),
     ]);

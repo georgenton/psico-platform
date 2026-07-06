@@ -570,6 +570,4 @@ export const LANDING_HTML = String.raw`
       </div>
     </div>
   </footer>
-
-  <script src="scripts.js"></script>
 `;

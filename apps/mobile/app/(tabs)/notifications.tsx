@@ -119,11 +119,14 @@ export default function NotificationsScreen() {
       style={{ flex: 1, backgroundColor: Colors.warm[50] }}
       contentContainerStyle={{ padding: Spacing.md, paddingBottom: 48 }}
     >
-      <Text style={styles.title}>Notificaciones</Text>
-      <Text style={styles.subtitle}>
-        Controla qué te avisamos y cuándo. Los cambios entran en vigor en el
-        próximo ciclo.
-      </Text>
+      <View style={styles.head}>
+        <Text style={styles.eyebrow}>Tu ritmo, tus reglas</Text>
+        <Text style={styles.title}>Notificaciones</Text>
+        <Text style={styles.subtitle}>
+          Controla qué te avisamos y cuándo. Los cambios entran en vigor en el
+          próximo ciclo.
+        </Text>
+      </View>
 
       {savedFlash ? (
         <View style={styles.flash}>
@@ -219,16 +222,28 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: Colors.warm[50],
   },
+  head: {
+    marginBottom: Spacing.md,
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: Colors.lavender[500],
+  },
   title: {
-    fontSize: 24,
+    marginTop: 6,
+    fontSize: 26,
     fontWeight: "700",
     color: Colors.warm[900],
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 13,
-    color: Colors.warm[500],
-    marginTop: 4,
-    marginBottom: Spacing.md,
+    marginTop: 8,
+    fontSize: 14,
+    color: Colors.warm[600],
+    lineHeight: 20,
   },
   flash: {
     flexDirection: "row",

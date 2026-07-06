@@ -121,9 +121,12 @@ export function ChangePasswordCard({
 
       // ── Step 2: pull all raw ciphers in one request ─────────────────────
       setPhase("fetching");
-      const ciphersRes = await fetch(`${apiBase}/diario/entries/raw-ciphers`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const ciphersRes = await fetch(
+        `${apiBase}/reflexiones/entries/raw-ciphers`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       if (!ciphersRes.ok) {
         throw new Error(`Could not load entries (${ciphersRes.status})`);
       }

@@ -36,14 +36,21 @@ export function LandingClient() {
     const NS = "http://www.w3.org/2000/svg";
 
     function buildRadar(axes: string[], values: number[]): SVGSVGElement {
-      const size = 360;
-      const cx = size / 2;
-      const cy = size / 2;
-      const R = size * 0.36;
+      // The viewBox is wider than the chart so long axis labels
+      // ("CONSCIENCIA", "CONEXIÓN") don't spill outside the card in
+      // narrow layouts (mobile). Padding = 60px on each side.
+      const chart = 360;
+      const padX = 60;
+      const width = chart + padX * 2; // 480
+      const height = chart;
+      const cx = width / 2;
+      const cy = height / 2;
+      const R = chart * 0.36;
       const rings = 4;
       const N = axes.length;
       const svg = document.createElementNS(NS, "svg");
-      svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
       function ang(i: number): number {
         return ((-90 + (i * 360) / N) * Math.PI) / 180;
@@ -139,7 +146,10 @@ export function LandingClient() {
     }
 
     // Sample data — frozen for the landing; production reads it from
-    // /api/emotional-map once Sprint D ships.
+    // /api/emotional-map once Sprint D ships. The hero radar represents
+    // "hoy" (higher levels, filled polygon); the cosmos radar shows a
+    // hypothetical "hace 3 meses" (lower, tighter) so the two visuals
+    // don't look identical when the layout stacks them on mobile.
     const axesShort = [
       "Calma",
       "Claridad",
@@ -148,12 +158,13 @@ export function LandingClient() {
       "Compasión",
       "Consciencia",
     ];
-    const vals = [0.58, 0.72, 0.8, 0.62, 0.5, 0.74];
+    const valsToday = [0.58, 0.72, 0.8, 0.62, 0.5, 0.74];
+    const valsThreeMonthsAgo = [0.34, 0.41, 0.52, 0.38, 0.29, 0.45];
 
     const hero = document.getElementById("heroRadar");
-    if (hero) hero.appendChild(buildRadar(axesShort, vals));
+    if (hero) hero.appendChild(buildRadar(axesShort, valsToday));
     const cosmos = document.getElementById("cosmosRadar");
-    if (cosmos) cosmos.appendChild(buildRadar(axesShort, vals));
+    if (cosmos) cosmos.appendChild(buildRadar(axesShort, valsThreeMonthsAgo));
 
     // Width-driven progress meter inside the radar footer.
     const hf = document.querySelector<HTMLElement>(".radar-foot .bar > i");

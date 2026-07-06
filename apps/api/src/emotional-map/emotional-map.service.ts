@@ -80,6 +80,21 @@ export class EmotionalMapService {
     ).size;
     const streakDays = user?.currentStreakDays ?? 0;
 
+    // ── Empty-state short circuit ─────────────────────────────────────────
+    // Users with zero real signal (fresh onboarding done, no reading, no
+    // diary entries) previously received a symmetric 50% radar which looked
+    // like real data. Instead return a null-shaped radar so the client can
+    // render an empty state ("empieza a interactuar para ver tu mapa"). We
+    // don't cache this — the next visit re-evaluates.
+    if (readingSessions.length === 0 && entries.length === 0) {
+      return {
+        values: [0, 0, 0, 0, 0, 0],
+        pct: 0,
+        computedAt: new Date().toISOString(),
+        provider: "fallback",
+      };
+    }
+
     // ── Mechanical axes (rule-based, deterministic) ────────────────────────
     // Propósito: book progress. Average completion % across sessions in the
     // window. Capped at 1. If no sessions, default neutral 0.5.

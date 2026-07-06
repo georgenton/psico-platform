@@ -168,6 +168,16 @@ export default function PlanScreen() {
         />
       }
     >
+      {/* screen-head — Sprint H5 */}
+      <View style={styles.head}>
+        <Text style={styles.eyebrow}>Tu suscripción</Text>
+        <Text style={styles.title}>Mi Plan</Text>
+        <Text style={styles.subtitle}>
+          Lo que está incluido hoy, lo que puedes desbloquear y cuánto has usado
+          este ciclo.
+        </Text>
+      </View>
+
       {/* Current plan banner */}
       <View style={styles.currentPlan}>
         <View style={styles.currentPlanRow}>
@@ -315,6 +325,29 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: Spacing.xxl,
     gap: Spacing.lg,
+  },
+  head: {
+    marginBottom: -Spacing.xs,
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: Colors.lavender[500],
+  },
+  title: {
+    marginTop: 6,
+    fontSize: 26,
+    fontWeight: "700",
+    color: Colors.warm[900],
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    marginTop: 8,
+    fontSize: 14,
+    color: Colors.warm[600],
+    lineHeight: 20,
   },
   currentPlan: {
     backgroundColor: Colors.lavender[500],

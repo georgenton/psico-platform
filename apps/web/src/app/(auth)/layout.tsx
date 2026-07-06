@@ -18,10 +18,10 @@ export default function AuthLayout({
       className="min-h-screen flex flex-col items-center justify-center p-4"
       style={{ background: "var(--color-lavender-50)" }}
     >
-      {/* Brand */}
+      {/* Brand — Sprint H6 polish: tracking-tight for editorial feel */}
       <Link
         href="/"
-        className="mb-8 text-2xl font-bold"
+        className="mb-8 text-[26px] font-bold leading-none tracking-[-0.5px]"
         style={{ color: "var(--color-lavender-700)" }}
       >
         Psico Platform

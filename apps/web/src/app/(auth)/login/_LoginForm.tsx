@@ -31,14 +31,24 @@ export default function LoginForm() {
 
   return (
     <>
+      <p
+        className="mb-1 text-[11px] font-bold uppercase tracking-[0.6px]"
+        style={{ color: "var(--color-lavender-500)" }}
+      >
+        Tu espacio te espera
+      </p>
       <h1
-        className="text-2xl font-bold mb-1"
-        style={{ color: "var(--color-warm-800)" }}
+        className="mb-2 text-[26px] font-bold leading-tight tracking-tight"
+        style={{ color: "var(--color-warm-900)" }}
       >
         Bienvenido de nuevo
       </h1>
-      <p className="text-sm mb-6" style={{ color: "var(--color-warm-500)" }}>
-        Ingresa tus datos para continuar
+      <p
+        className="mb-6 text-[14px] leading-[20px]"
+        style={{ color: "var(--color-warm-600)" }}
+      >
+        Ingresa tus datos para continuar. Tu diario y tus conversaciones con Eco
+        siguen cifrados en tu dispositivo.
       </p>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">

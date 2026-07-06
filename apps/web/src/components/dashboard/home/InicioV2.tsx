@@ -154,17 +154,37 @@ export function InicioV2({ home }: { home: HomeResponse }) {
               Ver completo →
             </Link>
           </div>
-          <div className="radar-holder">
-            <Radar size={200} values={home.emotionalMap.values} />
-          </div>
-          <div className="mm-foot">
-            <b>{home.emotionalMap.pct}%</b>
-            <span>
-              Comprensión
-              <br />
-              emocional
-            </span>
-          </div>
+          {home.emotionalMap.pct === 0 &&
+          home.emotionalMap.values.every((v) => v === 0) ? (
+            <div className="radar-holder">
+              <div
+                style={{
+                  padding: "36px 20px",
+                  textAlign: "center",
+                  fontSize: 13,
+                  lineHeight: 1.55,
+                  color: "var(--color-warm-500)",
+                }}
+              >
+                Empieza a leer o a escribir una reflexión y tu Mapa Emocional se
+                irá dibujando aquí.
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="radar-holder">
+                <Radar size={200} values={home.emotionalMap.values} />
+              </div>
+              <div className="mm-foot">
+                <b>{home.emotionalMap.pct}%</b>
+                <span>
+                  Comprensión
+                  <br />
+                  emocional
+                </span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

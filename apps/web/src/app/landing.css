@@ -186,6 +186,10 @@
   .cosmos .sec-head p { color: rgba(255,255,255,.66); }
   .cosmos-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 64px; align-items: center; margin-top: 12px; }
   @media (max-width: 940px) { .cosmos-grid { grid-template-columns: 1fr; gap: 48px; } }
+  /* On narrow layouts the hero already shows a live radar. The cosmos section
+     keeps its narrative + feeders list but hides the second radar to avoid
+     the "duplicated map" look under mobile widths. */
+  @media (max-width: 940px) { .cosmos-radar { display: none; } }
 
   .cosmos-radar { position: relative; }
   .cosmos-radar .rg-ring { stroke: rgba(255,255,255,.14); }

@@ -18,7 +18,7 @@ import { consumeVoiceHandoff } from "@/lib/voice/handoff";
  * Flow:
  *   1. User picks mood + writes text.
  *   2. On submit: encryptString(text, diaryKey) → { ciphertext, nonce }.
- *   3. POST /api/diario/entries with the cipher envelope + plain metadata.
+ *   3. POST /api/reflexiones/entries with the cipher envelope + plain metadata.
  *   4. Router.refresh() so the Server Component re-fetches the new list.
  *
  * The plaintext NEVER goes on the wire. The encrypt call happens entirely

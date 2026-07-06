@@ -198,10 +198,14 @@
   .cosmos-radar svg { width: 100%; height: auto; display:block; overflow: visible; filter: drop-shadow(0 0 30px rgba(166,151,255,.35)); }
 
   .feeders { list-style: none; padding: 0; margin: 26px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .feeder { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.10); border-radius: 14px; padding: 13px 15px; }
+  .feeder { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.10); border-radius: 14px; padding: 13px 15px; min-width: 0; }
   .feeder .fg { width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,.10); display: inline-flex; align-items: center; justify-content: center; color: var(--color-lavender-200); flex-shrink: 0; }
+  /* Meta column stacks label + hint vertically. Without display:flex the
+     inline <b> and <span> land on the same line, which the user reported
+     as "text off-set" in the cards. */
+  .feeder > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
   .feeder b { font: 600 13.5px/1.2 var(--font-sans); color: #fff; }
-  .feeder span { font: 400 11.5px/1.3 var(--font-sans); color: rgba(255,255,255,.55); }
+  .feeder span { font: 400 11.5px/1.35 var(--font-sans); color: rgba(255,255,255,.55); }
   .feeder .fg.sage { color: var(--color-sage-300); }
   @media (max-width: 460px) { .feeders { grid-template-columns: 1fr; } }
 

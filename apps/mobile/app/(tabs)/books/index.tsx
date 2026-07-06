@@ -76,13 +76,14 @@ export default function BooksScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Hero header */}
+      {/* Hero header — screen-head pattern (eyebrow + title + sub) */}
       <View style={styles.header}>
-        <Text style={styles.title}>Biblioteca</Text>
+        <Text style={styles.eyebrow}>Tu sala de lectura privada</Text>
+        <Text style={styles.title}>Mi Biblioteca</Text>
         <Text style={styles.subtitle}>
           {user.plan === "FREE"
-            ? "1 libro gratuito · 7 disponibles con Pro."
-            : "Acceso completo · Eco lee contigo."}
+            ? "1 libro gratuito · 7 disponibles con Pro. Cada lectura alimenta tu mapa."
+            : "Acceso completo · Eco lee contigo. Cada lectura alimenta tu mapa."}
         </Text>
       </View>
 
@@ -468,16 +469,25 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.sm,
   },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: Colors.lavender[500],
+  },
   title: {
+    marginTop: 6,
     fontSize: 26,
     fontWeight: "700",
     color: Colors.warm[900],
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 13,
-    color: Colors.warm[500],
-    marginTop: 4,
+    marginTop: 8,
+    fontSize: 14,
+    color: Colors.warm[600],
+    lineHeight: 20,
   },
 
   searchWrap: {

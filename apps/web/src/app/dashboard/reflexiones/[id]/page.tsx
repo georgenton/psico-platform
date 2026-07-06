@@ -22,7 +22,7 @@ export default async function DiaryEntryDetailPage({
   let detail: DiaryDetailResponse;
   try {
     detail = await serverFetch<DiaryDetailResponse>(
-      `/diario/entries/${encodeURIComponent(params.id)}`,
+      `/reflexiones/entries/${encodeURIComponent(params.id)}`,
     );
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) notFound();

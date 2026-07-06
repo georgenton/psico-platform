@@ -100,10 +100,11 @@ function DiarioInner() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>Tu diario</Text>
+        <Text style={styles.eyebrow}>Tu voz interior, sin filtros</Text>
+        <Text style={styles.title}>Mis Reflexiones</Text>
         <Text style={styles.subtitle}>
-          Un espacio para nombrar lo que pasa adentro. Cifrado en tu
-          dispositivo.
+          Un espacio privado para nombrar lo que pasa adentro. Cifrado en tu
+          dispositivo — nadie más puede leerlo, ni siquiera nosotros.
         </Text>
       </View>
 
@@ -457,17 +458,25 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: Spacing.md,
   },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: Colors.lavender[500],
+  },
   title: {
+    marginTop: 6,
     fontSize: 26,
     fontWeight: "700",
     color: Colors.warm[900],
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 13,
-    color: Colors.warm[500],
-    marginTop: 4,
-    lineHeight: 18,
+    marginTop: 8,
+    fontSize: 14,
+    color: Colors.warm[600],
+    lineHeight: 20,
   },
 
   composer: {

@@ -73,7 +73,7 @@ describe("EmotionalMapService — Sprint D", () => {
     redis = makeRedis();
   });
 
-  it("scores 6 axes and returns 50% overall when there is no data", async () => {
+  it("returns an empty-state radar (values=0, pct=0) when the user has no reading nor entries", async () => {
     prisma = makePrisma({});
     const provider = makeProvider(async () => ({
       calma: 0.5,
@@ -87,9 +87,9 @@ describe("EmotionalMapService — Sprint D", () => {
       redis as never,
     );
     const result = await service.compute("user-1");
-    expect(result.values).toHaveLength(6);
-    // No entries → LLM not called → all neutral → 50%.
-    expect(result.pct).toBe(50);
+    expect(result.values).toEqual([0, 0, 0, 0, 0, 0]);
+    // Zero data → no symmetric 50% hex; UI renders "empieza a leer o escribir".
+    expect(result.pct).toBe(0);
     expect(result.provider).toBe("fallback");
   });
 

@@ -44,7 +44,7 @@ export interface DiaryKeyState {
    * the master key stays RAM-only).
    *
    * Needed by:
-   *   1. The seed-phrase modal — render the 24-word backup without asking
+   *   1. The seed-phrase modal — render the 12-word backup without asking
    *      for the password again.
    *   2. The password-change-with-rekey flow — derive the OLD diaryKey from
    *      the OLD master key while re-encrypting entries with the new one.

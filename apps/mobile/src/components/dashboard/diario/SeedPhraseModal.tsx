@@ -3,9 +3,9 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,9 +16,13 @@ import { Colors, Radius, Spacing } from "@/theme";
 /**
  * SeedPhraseModal (mobile) — first-unlock backup flow.
  *
- * Mirrors the web modal: render the 24-word BIP39 phrase derived from the
- * user's master key, then ask them to retype 3 random positions before
- * marking `cryptoSeedShownAt` server-side via apiClient.
+ * Mirrors the web modal (2026-07 redesign — "suave, rápido, cómodo"):
+ *   - 12 words (not 24) — half the wall.
+ *   - "Guardar mis palabras" opens the native share sheet so the user can
+ *     drop them into Notes / a password manager / send to themselves. No
+ *     re-type quiz.
+ *   - One checkbox: "Ya las guardé en un lugar seguro." Then continue.
+ *   - The words can be viewed again in Perfil → Seguridad.
  *
  * Privacy invariants:
  *   - The phrase is computed from masterKey IN-MEMORY only.
@@ -35,23 +39,24 @@ export function SeedPhraseModal({
 }) {
   const phrase = useMemo(() => masterKeyToSeedPhrase(masterKey), [masterKey]);
   const words = useMemo(() => phrase.split(" "), [phrase]);
-  const [confirmIndexes] = useState<number[]>(() => pickThreeIndexes());
-  const [step, setStep] = useState<"view" | "confirm">("view");
-  const [inputs, setInputs] = useState<string[]>(["", "", ""]);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleConfirm() {
-    const ok = confirmIndexes.every(
-      (idx, slot) =>
-        inputs[slot].trim().toLowerCase() === words[idx].toLowerCase(),
-    );
-    if (!ok) {
-      setError(
-        "Una o más palabras no coinciden. Revísalas — el orden y la ortografía importan.",
-      );
-      return;
+  async function handleShare() {
+    const numbered = words.map((w, i) => `${i + 1}. ${w}`).join("\n");
+    try {
+      await Share.share({
+        message:
+          "Frase de recuperación de tu diario\nGuárdala en un lugar seguro.\n\n" +
+          numbered,
+      });
+    } catch {
+      // User cancelled the share sheet — nothing to do.
     }
+  }
+
+  async function handleContinue() {
     setSubmitting(true);
     setError(null);
     try {
@@ -70,118 +75,84 @@ export function SeedPhraseModal({
   }
 
   return (
-    <Modal
-      visible
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      // We intentionally do NOT wire onRequestClose — the user must reach the
-      // confirm step to dismiss. Android back button is no-op (handled by
-      // the parent screen).
-    >
+    <Modal visible transparent animationType="fade" statusBarTranslucent>
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <View style={styles.headerBg}>
             <View style={styles.iconCircle}>
               <Ionicons name="key" size={20} color={Colors.lavender[700]} />
             </View>
-            <Text style={styles.title}>Anota tu frase de recuperación</Text>
+            <Text style={styles.title}>Guarda tu frase de recuperación</Text>
             <Text style={styles.subtitle}>
-              Si olvidas tu contraseña, estas 24 palabras son la única forma de
-              recuperar tu diario. No las guardamos.
+              Si olvidas tu contraseña, estas 12 palabras son la única forma de
+              recuperar tu diario. No las guardamos por ti.
             </Text>
           </View>
 
-          {step === "view" ? (
-            <ScrollView contentContainerStyle={styles.body}>
-              <View style={styles.grid}>
-                {words.map((w, i) => (
-                  <View key={i} style={styles.wordCell}>
-                    <Text style={styles.wordIdx}>{i + 1}.</Text>
-                    <Text style={styles.wordText}>{w}</Text>
-                  </View>
-                ))}
-              </View>
-              <View style={styles.notice}>
-                <Text style={styles.noticeText}>
-                  <Text style={{ fontWeight: "700" }}>Cómo guardarlas: </Text>
-                  en papel, en un lugar seguro. Evita capturas de pantalla.
-                </Text>
-              </View>
-              <Pressable
-                style={styles.primaryButton}
-                onPress={() => setStep("confirm")}
-              >
-                <Text style={styles.primaryButtonText}>
-                  Las anoté, continuar
-                </Text>
-              </Pressable>
-            </ScrollView>
-          ) : (
-            <ScrollView contentContainerStyle={styles.body}>
-              <Text style={styles.bodyText}>
-                Para confirmar que las anotaste, escribe las palabras que
-                corresponden a estas posiciones:
-              </Text>
-              {confirmIndexes.map((idx, slot) => (
-                <View key={idx} style={{ marginTop: Spacing.md }}>
-                  <Text style={styles.label}>Palabra #{idx + 1}</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={inputs[slot]}
-                    onChangeText={(v) => {
-                      const next = [...inputs];
-                      next[slot] = v;
-                      setInputs(next);
-                    }}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    spellCheck={false}
-                  />
+          <ScrollView contentContainerStyle={styles.body}>
+            <View style={styles.grid}>
+              {words.map((w, i) => (
+                <View key={i} style={styles.wordCell}>
+                  <Text style={styles.wordIdx}>{i + 1}.</Text>
+                  <Text style={styles.wordText}>{w}</Text>
                 </View>
               ))}
-              {error ? (
-                <Text style={styles.error} accessibilityRole="alert">
-                  {error}
-                </Text>
-              ) : null}
-              <Pressable
-                style={[
-                  styles.primaryButton,
-                  (submitting || inputs.some((v) => !v.trim())) && {
-                    opacity: 0.5,
-                  },
-                ]}
-                onPress={() => void handleConfirm()}
-                disabled={submitting || inputs.some((v) => !v.trim())}
-              >
-                <Text style={styles.primaryButtonText}>
-                  {submitting ? "Guardando…" : "Confirmar"}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  setStep("view");
-                  setInputs(["", "", ""]);
-                  setError(null);
-                }}
-              >
-                <Text style={styles.backLink}>← Volver a ver las palabras</Text>
-              </Pressable>
-            </ScrollView>
-          )}
+            </View>
+
+            <Pressable style={styles.secondaryButton} onPress={handleShare}>
+              <Ionicons
+                name="share-outline"
+                size={16}
+                color={Colors.warm[700]}
+              />
+              <Text style={styles.secondaryButtonText}>
+                Guardar mis palabras
+              </Text>
+            </Pressable>
+
+            <Text style={styles.noticeText}>
+              Guárdalas en un lugar seguro — en tu gestor de contraseñas o en
+              papel. Podrás volver a verlas en{" "}
+              <Text style={{ fontWeight: "700" }}>Perfil → Seguridad</Text>.
+            </Text>
+
+            <Pressable
+              style={styles.checkRow}
+              onPress={() => setSaved((v) => !v)}
+            >
+              <View style={[styles.checkbox, saved && styles.checkboxOn]}>
+                {saved ? (
+                  <Ionicons name="checkmark" size={14} color={Colors.white} />
+                ) : null}
+              </View>
+              <Text style={styles.checkLabel}>
+                Ya las guardé en un lugar seguro
+              </Text>
+            </Pressable>
+
+            {error ? (
+              <Text style={styles.error} accessibilityRole="alert">
+                {error}
+              </Text>
+            ) : null}
+
+            <Pressable
+              style={[
+                styles.primaryButton,
+                (!saved || submitting) && { opacity: 0.5 },
+              ]}
+              onPress={() => void handleContinue()}
+              disabled={!saved || submitting}
+            >
+              <Text style={styles.primaryButtonText}>
+                {submitting ? "Guardando…" : "Continuar"}
+              </Text>
+            </Pressable>
+          </ScrollView>
         </View>
       </View>
     </Modal>
   );
-}
-
-function pickThreeIndexes(): number[] {
-  const chosen = new Set<number>();
-  while (chosen.size < 3) {
-    chosen.add(Math.floor(Math.random() * 24));
-  }
-  return [...chosen].sort((a, b) => a - b);
 }
 
 const styles = StyleSheet.create({
@@ -228,11 +199,6 @@ const styles = StyleSheet.create({
   body: {
     padding: Spacing.lg,
   },
-  bodyText: {
-    fontSize: 13,
-    color: Colors.warm[700],
-    lineHeight: 19,
-  },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -260,36 +226,55 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: Colors.warm[800],
   },
-  notice: {
+  secondaryButton: {
     marginTop: Spacing.md,
-    backgroundColor: Colors.warm[50],
-    borderColor: Colors.warm[200],
-    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
     borderRadius: Radius.md,
-    padding: 10,
-  },
-  noticeText: {
-    fontSize: 11,
-    color: Colors.warm[600],
-    lineHeight: 16,
-  },
-  label: {
-    fontSize: 10.5,
-    fontWeight: "700",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    color: Colors.warm[500],
-    marginBottom: 6,
-  },
-  input: {
-    backgroundColor: Colors.warm[50],
     borderWidth: 1.5,
     borderColor: Colors.warm[200],
+    backgroundColor: Colors.white,
+  },
+  secondaryButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.warm[700],
+  },
+  noticeText: {
+    marginTop: Spacing.sm,
+    fontSize: 11,
+    color: Colors.warm[500],
+    lineHeight: 16,
+  },
+  checkRow: {
+    marginTop: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: Colors.warm[50],
+    padding: 12,
     borderRadius: Radius.md,
-    paddingHorizontal: Spacing.sm + 2,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: Colors.warm[800],
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: Colors.warm[300],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxOn: {
+    backgroundColor: Colors.sage[400],
+    borderColor: Colors.sage[400],
+  },
+  checkLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: Colors.warm[700],
   },
   error: {
     marginTop: 10,
@@ -307,12 +292,5 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontWeight: "700",
     fontSize: 14,
-  },
-  backLink: {
-    marginTop: Spacing.md,
-    textAlign: "center",
-    fontSize: 12,
-    color: Colors.warm[500],
-    textDecorationLine: "underline",
   },
 });

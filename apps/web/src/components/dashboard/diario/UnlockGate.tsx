@@ -37,7 +37,7 @@ export function UnlockGate() {
     const trimmed = seedText.trim();
     if (!isValidSeedPhrase(trimmed)) {
       setSeedError(
-        "Esta frase no es válida. Revisa que sean exactamente 24 palabras y que estén bien escritas.",
+        "Esta frase no es válida. Revisa que sean exactamente 12 palabras y que estén bien escritas.",
       );
       return;
     }
@@ -108,7 +108,7 @@ export function UnlockGate() {
           className="mx-auto mt-2 max-w-md text-center text-[13px] leading-relaxed"
           style={{ color: "var(--color-warm-500)" }}
         >
-          Escribe las 24 palabras separadas por espacio. Usa esta opción
+          Escribe las 12 palabras separadas por espacio. Usa esta opción
           únicamente si olvidaste tu contraseña.
         </p>
         <label
@@ -116,7 +116,7 @@ export function UnlockGate() {
           className="mt-5 block text-[11px] font-semibold uppercase tracking-wider"
           style={{ color: "var(--color-warm-500)" }}
         >
-          Frase de 24 palabras
+          Frase de 12 palabras
         </label>
         <textarea
           id="diary-seed"

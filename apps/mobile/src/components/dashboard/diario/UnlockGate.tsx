@@ -29,7 +29,7 @@ export function UnlockGate() {
     const trimmed = seedText.trim();
     if (!isValidSeedPhrase(trimmed)) {
       setSeedError(
-        "Esta frase no es válida. Revisa que sean exactamente 24 palabras.",
+        "Esta frase no es válida. Revisa que sean exactamente 12 palabras.",
       );
       return;
     }
@@ -70,11 +70,11 @@ export function UnlockGate() {
         </View>
         <Text style={styles.title}>Recupera con tu frase de respaldo</Text>
         <Text style={styles.subtitle}>
-          Escribe las 24 palabras separadas por espacio. Usa esta opción solo si
+          Escribe las 12 palabras separadas por espacio. Usa esta opción solo si
           olvidaste tu contraseña.
         </Text>
 
-        <Text style={styles.label}>Frase de 24 palabras</Text>
+        <Text style={styles.label}>Frase de 12 palabras</Text>
         <TextInput
           style={[styles.input, styles.seedInput]}
           value={seedText}

@@ -41,41 +41,87 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     target: "inicio",
     title: "Tu Inicio",
     body:
-      "Aquí encuentras tu lectura en curso, una pregunta del día y " +
-      "accesos rápidos a tu diario y a Eco.",
+      "Este es tu punto de partida cada día. Verás tu lectura en curso, " +
+      "una pregunta para reflexionar y accesos rápidos a lo que más usas.",
+    learnMore: {
+      title: "¿Qué vas a ver aquí con el tiempo?",
+      points: [
+        "📖 El libro que estás leyendo y por dónde vas.",
+        "✍️ Una pregunta del día pensada para invitarte a escribir.",
+        "🌿 Un saludo de Eco cuando quieras conversar.",
+        "📊 Un mini Mapa Emocional que se va llenando a medida que reflexionas.",
+      ],
+    },
   },
   {
     order: 2,
     target: "biblioteca",
-    title: "Mi Biblioteca",
+    title: "Tu Biblioteca",
     body:
-      "Todos los libros, audios y ejercicios. Filtra por motivo o autor " +
-      "para encontrar lo que te haga clic.",
+      "Todos los libros, audios y ejercicios de la plataforma. Filtra por " +
+      "tema o autor para encontrar lo que te haga clic.",
+    learnMore: {
+      title: "¿Qué la hace distinta?",
+      points: [
+        "📚 Cada libro está escrito por psicólogos especializados.",
+        "🎧 Muchos vienen con audio para escuchar mientras caminas o descansas.",
+        "🔍 Los filtros ayudan a decidir sin abrumar — elige un tema y empieza.",
+        "✏️ Puedes resaltar frases y guardar notas mientras lees.",
+      ],
+    },
   },
   {
     order: 3,
     target: "diario",
     title: "Tu Diario",
     body:
-      "Un espacio privado para escribir cómo te sientes. " +
-      "Cifrado de punta a punta — solo tú puedes leerlo.",
+      "Un espacio privado para escribir cómo te sientes. Solo tú puedes " +
+      "leerlo — ni siquiera nuestro equipo tiene acceso.",
+    learnMore: {
+      title: "¿Cómo funciona la privacidad?",
+      analogy:
+        "Piensa en tu diario como una caja fuerte con una llave única — " +
+        "tú eres el único que la tiene.",
+      points: [
+        "🔑 Tu llave se crea con tu contraseña y nunca sale de tu dispositivo.",
+        "👀 Nosotros solo vemos texto revuelto que no significa nada.",
+        "📝 Si olvidas tu contraseña, te daremos una frase de 24 palabras para poder volver a entrar.",
+      ],
+    },
   },
   {
     order: 4,
     target: "eco",
     title: "Eco",
     body:
-      "Tu compañero conversacional. No es un terapeuta — está aquí para " +
-      "escucharte y ayudarte a poner palabras a lo que sientes.",
+      "Un compañero de conversación pensado para acompañarte. Está aquí " +
+      "para escucharte y ayudarte a poner palabras a lo que sientes.",
+    learnMore: {
+      title: "¿Qué es exactamente Eco?",
+      points: [
+        "🌿 Una IA entrenada para acompañarte con calma, no para juzgarte.",
+        "🔒 Tus conversaciones son igual de privadas que tu diario — solo tú las lees.",
+        "🩺 Si detecta señales de crisis, te muestra líneas de ayuda profesional inmediatas.",
+        "🙋 Complementa el trabajo con un terapeuta — no lo reemplaza.",
+      ],
+    },
   },
   {
     order: 5,
     target: "patrones",
-    title: "Patrones",
+    title: "Tus Patrones",
     body:
-      "Cuando escribas un poco más en tu diario, aquí vas a ver tu " +
-      "mapa emocional: qué moods se repiten y cuándo escribes. Función " +
-      "Pro — el preview vive aquí también.",
+      "Cuando reflexiones un poco más, aquí verás tu mapa emocional: qué " +
+      "emociones se repiten, cuándo escribes y qué temas van surgiendo.",
+    learnMore: {
+      title: "¿Qué son los patrones?",
+      points: [
+        "🗺️ Un mapa visual de las tendencias en tu ánimo a lo largo del tiempo.",
+        "🏷️ Etiquetas que se repiten en tus reflexiones (por ejemplo: trabajo, familia, descanso).",
+        "📈 Con unas 7 entradas de diario empiezan a aparecer los primeros insights.",
+        "✨ Es una función Pro — desde aquí siempre ves un preview.",
+      ],
+    },
   },
 ];
 

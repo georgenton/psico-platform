@@ -5,6 +5,7 @@ import { type FormEvent, useState, useTransition } from "react";
 
 import { registerAction } from "@/actions/auth";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { PrivacyInfoButton } from "@/components/privacy/PrivacyInfoButton";
 
 export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +54,8 @@ export default function RegisterPage() {
         style={{ color: "var(--color-warm-600)" }}
       >
         Empieza gratis — no necesitas tarjeta de crédito. Tu diario y tus
-        conversaciones con Eco se cifran en tu dispositivo desde el primer día.
+        conversaciones con Eco quedan protegidos: <b>solo tú puedes verlos</b>,
+        ni siquiera nuestro equipo. <PrivacyInfoButton />
       </p>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">

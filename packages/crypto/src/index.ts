@@ -10,7 +10,7 @@
 //   - Storing the master key on disk in plaintext (callers are responsible
 //     for using SecureStore/Keychain on mobile, in-memory on web).
 
-export { deriveMasterKey, MASTER_KEY_VERSION } from "./argon2";
+export { deriveMasterKey, MASTER_KEY_VERSION, MASTER_KEY_LEN } from "./argon2";
 export { deriveSubKey, DIARY_KEY_INFO, ECO_KEY_INFO } from "./hkdf";
 export {
   encryptString,
@@ -27,6 +27,7 @@ export {
   masterKeyToSeedPhrase,
   seedPhraseToMasterKey,
   isValidSeedPhrase,
+  SEED_PHRASE_WORD_COUNT,
 } from "./bip39";
 export {
   base64UrlToBytes,

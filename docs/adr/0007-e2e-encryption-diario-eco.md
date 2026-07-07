@@ -55,7 +55,7 @@ Por usuario:
 Password (nunca sale del cliente)
    │ Argon2id(password, userSalt) [solo en login/registration]
    ▼
-masterKey (32B, en memoria del proceso del cliente)
+masterKey (16B · 128-bit · en memoria del proceso del cliente)
    │
    ├─ HKDF-Expand(info="diary-v1") ─► diaryKey
    └─ HKDF-Expand(info="eco-v1")   ─► ecoKey
@@ -197,11 +197,39 @@ Banner permanente en `/perfil` cuando hay >0 entradas de diario:
 > 🔒 Tu diario está cifrado de extremo a extremo. Solo tú puedes leerlo.
 > **Si olvidas tu contraseña, no podemos recuperar tus entradas.** Asegúrate de tener una contraseña que recuerdes o guárdala en un gestor de contraseñas.
 
-Modal en el primer login después del registro reforzando esto. Tres acciones obligatorias antes de empezar:
+Modal en el primer unlock del diario reforzando esto.
 
-1. Confirmar que entendiste que perder el password = perder Diario.
-2. Anotar la "frase semilla" (24 palabras BIP39 derivadas del masterKey) o decidir explícitamente que no.
-3. Aceptar.
+**Frase de recuperación — 12 palabras (revisión 2026-07, v2):**
+
+La frase semilla es el masterKey serializado como palabras BIP39. Originalmente
+usábamos 24 palabras (masterKey de 32 bytes = 256 bits). En julio 2026 lo
+bajamos a **12 palabras (masterKey de 16 bytes = 128 bits)** por dos razones:
+
+1. **La entropía real ya está acotada por el password.** El masterKey se deriva
+   del password vía Argon2id, así que serializar 256 bits era teatral — la
+   fuerza efectiva nunca supera la del password. 128 bits sigue siendo
+   bank-grade (nivel AES-128) e imposible de romper por fuerza bruta.
+2. **UX.** Un muro de 24 palabras + un examen de re-tipeo lee como una tarea de
+   wallet cripto, no como un producto de bienestar para una audiencia no
+   técnica. 12 palabras + guardar en un toque (copiar/descargar/compartir) +
+   un solo check "ya las guardé" es suave, rápido y cómodo.
+
+El masterKey **nunca toca el AEAD directamente** — siempre pasa por HKDF, que
+expande un IKM de 16 bytes al subkey de 32 bytes que XChaCha20-Poly1305 necesita.
+Reducir el masterKey de 32 → 16 bytes NO debilita el cifrado de las entradas.
+
+`MASTER_KEY_VERSION = 2` marca este cambio. Es un **breaking change** para
+cuentas creadas antes: sus entradas están cifradas con un masterKey de 32 bytes
+y no descifran con el de 16 bytes. En pre-launch/staging las cuentas de prueba
+se re-registran; para producción se requeriría un flujo de migración con
+doble-versión (fuera de alcance hasta que haya data real que migrar).
+
+El flujo del modal (post-first-unlock):
+
+1. Muestra las 12 palabras.
+2. Guardar en un toque: copiar / descargar `.txt` (web), compartir (mobile).
+3. Un solo check: "ya las guardé en un lugar seguro" → Continuar.
+4. Nota: se pueden volver a ver en Ajustes → Seguridad.
 
 **El servidor NUNCA ofrecerá un endpoint de "recovery"** que descifre data del usuario. Hacerlo violaría el modelo entero.
 
@@ -212,7 +240,7 @@ Modal en el primer login después del registro reforzando esto. Tres acciones ob
 ```mermaid
 flowchart TB
     P[Password del usuario]
-    P -->|Argon2id m=64MB t=3 p=4| MK[masterKey 32B]
+    P -->|Argon2id m=64MB t=3 p=4| MK[masterKey 16B · 12 palabras BIP39]
     MK -->|HKDF info=diary-v1| DK[diaryKey]
     MK -->|HKDF info=eco-v1| EK[ecoKey]
 
@@ -285,7 +313,7 @@ flowchart TB
 | AES-GCM en lugar de XChaCha20-Poly1305                                                    | Nonce de 12B requiere counter persistente cliente-side; complica el flujo offline. XChaCha20 con nonce 24B random es libre de ese problema.                                       |
 | Eco descifra cliente-side, streamea al modelo desde el cliente                            | Sin un endpoint server-side que esté autenticado contra Anthropic, expondríamos la API key. Posible pero más caro de implementar; difiérelo a un sprint post-v1 si surge demanda. |
 | Compartir con terapeuta vía sealed box (terapista lee con su priv, fin)                   | Pierdes la rotación de claves y la expiración. Re-encrypt explícito por el usuario da control fino.                                                                               |
-| Recuperación con frase de 24 palabras BIP39 obligatoria                                   | Buena seguridad, mala UX. Lo ofrecemos como opt-in en el primer login.                                                                                                            |
+| Recuperación con frase de 24 palabras BIP39 obligatoria                                   | Buena seguridad, mala UX. v2 (2026-07): 12 palabras (128-bit) + guardar en un toque, sin examen. La entropía real ya la acota el password.                                        |
 | KMS del lado servidor + envelope encryption (cliente cifra DEK, server cifra DEK con KEK) | Aumenta complejidad sin mejorar el modelo de amenaza: server sigue pudiendo descifrar si está comprometido.                                                                       |
 
 ---

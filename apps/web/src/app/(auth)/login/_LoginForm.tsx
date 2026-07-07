@@ -6,6 +6,7 @@ import { type FormEvent, useState, useTransition } from "react";
 
 import { loginAction } from "@/actions/auth";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { PrivacyInfoButton } from "@/components/privacy/PrivacyInfoButton";
 
 export default function LoginForm() {
   const searchParams = useSearchParams();
@@ -48,7 +49,7 @@ export default function LoginForm() {
         style={{ color: "var(--color-warm-600)" }}
       >
         Ingresa tus datos para continuar. Tu diario y tus conversaciones con Eco
-        siguen cifrados en tu dispositivo.
+        siguen protegidos — <b>solo tú puedes verlos</b>. <PrivacyInfoButton />
       </p>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">

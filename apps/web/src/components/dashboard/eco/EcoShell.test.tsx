@@ -53,7 +53,9 @@ describe("EcoShell", () => {
       />,
     );
     expect(
-      screen.getByText(/Tu cuenta no tiene cifrado E2E activado/i),
+      screen.getByText(
+        /Tu cuenta aún no tiene activada la protección de privacidad/i,
+      ),
     ).toBeInTheDocument();
   });
 

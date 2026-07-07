@@ -9,6 +9,7 @@ import {
   ECO_KEY_INFO,
   encryptString,
   KEY_LEN,
+  MASTER_KEY_LEN,
   NONCE_LEN,
 } from "../index";
 
@@ -51,9 +52,10 @@ describe("deriveMasterKey (Argon2id)", () => {
   // to-end via a single derivation + roundtrip.
   const SALT_B64 = bytesToBase64Url(new Uint8Array(16).fill(7));
 
-  it("returns 32-byte master key", async () => {
+  it("returns 16-byte master key (128-bit, 12-word recovery)", async () => {
     const key = await deriveMasterKey("contraseña-segura", SALT_B64);
-    expect(key.length).toBe(KEY_LEN);
+    expect(key.length).toBe(MASTER_KEY_LEN);
+    expect(MASTER_KEY_LEN).toBe(16);
   });
 
   it("is deterministic for same password + salt", async () => {
@@ -91,9 +93,9 @@ describe("deriveMasterKey (Argon2id)", () => {
 // ─── deriveSubKey ────────────────────────────────────────────────────────────
 
 describe("deriveSubKey (HKDF)", () => {
-  const masterKey = new Uint8Array(32).fill(42);
+  const masterKey = new Uint8Array(MASTER_KEY_LEN).fill(42);
 
-  it("returns 32-byte subkey", () => {
+  it("returns 32-byte subkey from a 16-byte master key", () => {
     const k = deriveSubKey(masterKey, DIARY_KEY_INFO);
     expect(k.length).toBe(KEY_LEN);
   });
@@ -110,8 +112,8 @@ describe("deriveSubKey (HKDF)", () => {
     expect(Array.from(a)).toEqual(Array.from(b));
   });
 
-  it("rejects non-32-byte master key", () => {
-    expect(() => deriveSubKey(new Uint8Array(16), DIARY_KEY_INFO)).toThrow(
+  it("rejects a master key that is not exactly 16 bytes", () => {
+    expect(() => deriveSubKey(new Uint8Array(32), DIARY_KEY_INFO)).toThrow(
       "CRYPTO_INVALID_MASTER_KEY_LENGTH",
     );
   });

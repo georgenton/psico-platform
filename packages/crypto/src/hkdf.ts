@@ -1,5 +1,6 @@
 import { hkdf } from "@noble/hashes/hkdf";
 import { sha256 } from "@noble/hashes/sha2";
+import { MASTER_KEY_LEN } from "./argon2";
 import { stringToBytes } from "./base64";
 
 /**
@@ -30,9 +31,12 @@ const SUBKEY_LEN = 32; // 32 bytes — matches XChaCha20-Poly1305 key size.
  * Salt: empty. We treat the master key as already-extracted (Argon2id
  * already mixed in randomness); per RFC 5869 §3.3 the salt can be omitted
  * when the IKM is already a uniformly random pseudo-random key.
+ *
+ * The master key is 16 bytes (ADR 0007 §A v2); HKDF-Expand happily takes a
+ * 16-byte IKM and produces the 32-byte subkey the AEAD needs.
  */
 export function deriveSubKey(masterKey: Uint8Array, info: string): Uint8Array {
-  if (masterKey.length !== 32) {
+  if (masterKey.length !== MASTER_KEY_LEN) {
     throw new Error("CRYPTO_INVALID_MASTER_KEY_LENGTH");
   }
   return hkdf(sha256, masterKey, undefined, stringToBytes(info), SUBKEY_LEN);

@@ -154,7 +154,7 @@ function PrivacyModal({ onClose }: { onClose: () => void }) {
             <span style={dotStyle}>📝</span>
             <span>
               Si olvidas tu contraseña, nadie puede recuperar lo que escribiste.
-              Por eso te daremos una <b>frase de respaldo de 24 palabras</b> la
+              Por eso te daremos una <b>frase de respaldo de 12 palabras</b> la
               primera vez que abras tu diario — guárdala en un lugar seguro.
             </span>
           </li>

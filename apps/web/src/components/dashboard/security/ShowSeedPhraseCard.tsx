@@ -8,7 +8,7 @@ import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
 /**
  * ShowSeedPhraseCard — Sprint seed-recovery.
  *
- * Permite que el usuario vea (otra vez) su frase de respaldo de 24
+ * Permite que el usuario vea (otra vez) su frase de respaldo de 12
  * palabras después del modal post-onboarding inicial. Requiere desbloquear
  * el Diario primero — la seed phrase se deriva del masterKey, así que el
  * usuario debe autenticarse con la password (o con la seed misma).
@@ -115,7 +115,7 @@ function Inner() {
             className="mt-1 text-[12.5px] leading-relaxed"
             style={{ color: "var(--color-warm-500)" }}
           >
-            Tus 24 palabras de recuperación. Si olvidas tu contraseña, son la
+            Tus 12 palabras de recuperación. Si olvidas tu contraseña, son la
             única forma de recuperar tu Diario. Guárdalas en un lugar seguro:
             offline preferentemente — un papel en tu casa, no una nota digital.
           </p>
@@ -152,9 +152,9 @@ function Inner() {
           color: "var(--color-rose-700)",
         }}
       >
-        ⚠️ Cualquiera con estas 24 palabras puede descifrar todo tu Diario para
-        siempre. Tratálas como tu password — no las compartas, no las saques de
-        tu dispositivo sin precauciones.
+        ⚠️ Cualquiera con estas 12 palabras puede descifrar todo tu Diario para
+        siempre. Trátalas como tu contraseña — no las compartas, no las saques
+        de tu dispositivo sin precauciones.
       </footer>
     </section>
   );
@@ -213,7 +213,7 @@ function RevealedSeed({
             color: copied ? "var(--color-sage-700)" : "var(--color-warm-700)",
           }}
         >
-          {copied ? "✓ Copiado" : "Copiar las 24 palabras"}
+          {copied ? "✓ Copiado" : "Copiar las 12 palabras"}
         </button>
         <button
           type="button"

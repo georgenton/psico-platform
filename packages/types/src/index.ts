@@ -827,11 +827,24 @@ export interface OnboardingMood {
   swatch: string;
 }
 
+/**
+ * Optional deep-dive card attached to a tour step. Rendered as a
+ * "ⓘ Saber más" chip that opens a modal with a friendly analogy plus
+ * a bulleted list. Copy is server-owned so we can iterate without a
+ * client release.
+ */
+export interface OnboardingTourStepLearnMore {
+  title: string;
+  analogy?: string;
+  points: string[];
+}
+
 export interface OnboardingTourStep {
   target: string;
   title: string;
   body: string;
   order: number;
+  learnMore?: OnboardingTourStepLearnMore;
 }
 
 export type OnboardingVoicePreference = "marina" | "tomas" | "none";

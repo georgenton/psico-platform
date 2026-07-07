@@ -192,8 +192,8 @@ function LegacyFallback() {
       }}
     >
       <p className="text-sm">
-        Tu cuenta no tiene cifrado E2E activado. Contacta soporte para
-        habilitarlo antes de usar Eco.
+        Tu cuenta aún no tiene activada la protección de privacidad. Contacta
+        soporte para habilitarla antes de usar Eco.
       </p>
     </div>
   );
@@ -218,8 +218,9 @@ function LockedFallback() {
         className="mt-2 text-sm leading-relaxed"
         style={{ color: "var(--color-warm-600)" }}
       >
-        Eco usa la misma clave que tu diario para cifrar tus mensajes en este
-        dispositivo. Ve a Diario, ingresa tu contraseña una vez, y vuelve aquí.
+        Eco usa la misma llave que protege tu diario, así solo tú puedes leer
+        estas conversaciones. Ve a Diario, ingresa tu contraseña una vez, y
+        vuelve aquí.
       </p>
       <a
         href="/dashboard/reflexiones"

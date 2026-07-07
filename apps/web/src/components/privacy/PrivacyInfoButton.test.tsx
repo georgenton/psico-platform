@@ -29,7 +29,7 @@ describe("PrivacyInfoButton", () => {
     expect(dialog).toHaveTextContent(
       /ni nuestro equipo puede abrir tu diario/i,
     );
-    expect(dialog).toHaveTextContent(/frase de respaldo de 24 palabras/i);
+    expect(dialog).toHaveTextContent(/frase de respaldo de 12 palabras/i);
   });
 
   it("closes the modal with the Entendido button", () => {

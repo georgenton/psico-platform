@@ -81,7 +81,7 @@ export interface DiaryKeyState {
    * 32-byte master key from Argon2id(password, cryptoSalt). null = locked.
    *
    * Kept in memory (in addition to the diary subkey) for two reasons:
-   *   1. The seed-phrase modal can render the 24-word backup without
+   *   1. The seed-phrase modal can render the 12-word backup without
    *      asking the user for their password again.
    *   2. The password-change-with-rekey flow needs to derive sub-keys
    *      (DIARY_KEY_INFO) from the OLD master key while re-encrypting

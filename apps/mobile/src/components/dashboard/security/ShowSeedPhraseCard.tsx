@@ -15,7 +15,7 @@ import { Colors, Radius, Spacing } from "@/theme";
 /**
  * ShowSeedPhraseCard — Sprint seed-recovery (mobile).
  *
- * Permite que el usuario vea (otra vez) su frase de 24 palabras. Pide la
+ * Permite que el usuario vea (otra vez) su frase de 12 palabras. Pide la
  * password como gate (la deriva localmente, igual que el unlock del
  * Diario y el flow de password change). Si la password está mal, el
  * masterKey deriva mal pero no podemos saberlo sin un cipher conocido —
@@ -94,17 +94,14 @@ export function ShowSeedPhraseCard({
         <View style={{ flex: 1 }}>
           <Text style={styles.cardTitle}>Mi frase de respaldo</Text>
           <Text style={styles.cardSubtitle}>
-            Tus 24 palabras. Si olvidas tu contraseña, son la única forma de
+            Tus 12 palabras. Si olvidas tu contraseña, son la única forma de
             recuperar tu Diario. Guárdalas offline.
           </Text>
         </View>
       </View>
 
       {phase === "idle" ? (
-        <Pressable
-          onPress={() => setPhase("asking")}
-          style={styles.primaryBtn}
-        >
+        <Pressable onPress={() => setPhase("asking")} style={styles.primaryBtn}>
           <Text style={styles.primaryBtnText}>Mostrar mi frase</Text>
         </Pressable>
       ) : null}
@@ -178,7 +175,7 @@ export function ShowSeedPhraseCard({
 
       <View style={styles.warning}>
         <Text style={styles.warningText}>
-          ⚠️ Cualquiera con estas 24 palabras puede descifrar tu Diario para
+          ⚠️ Cualquiera con estas 12 palabras puede descifrar tu Diario para
           siempre. Trátalas como tu contraseña.
         </Text>
       </View>

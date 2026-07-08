@@ -54,7 +54,7 @@ export function InvoicesList({
       <div
         className="overflow-hidden rounded-2xl"
         style={{
-          background: "white",
+          background: "var(--bg-surface)",
           border: "1.5px solid var(--color-warm-200)",
         }}
       >

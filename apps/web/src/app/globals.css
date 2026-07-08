@@ -334,6 +334,20 @@ body.amb-noche {
   --color-lavender-600: #9c8af0;
 }
 
+/* ── Noche: neutralise hardcoded light surfaces ─────────────────────────────
+   Many product components use Tailwind's `bg-white` for card / panel / input
+   / modal surfaces. That utility resolves to a literal white and doesn't know
+   about the ambient tokens, so in Noche it renders as a glaring white box on
+   a dark page (the "todo se volvió pedazos" the diseño-v2 `.card` screens
+   already dodge via their own override). Flip `.bg-white` to the semantic
+   surface token so the whole dashboard stays coordinated in every ambient.
+   Scoped to `body.amb-noche` → Calma / Enfoque / Energía are untouched, and
+   the value is `#fff` outside Noche anyway. Inline `background:"white"` can't
+   be caught by CSS (inline wins) and is fixed at the source per component. */
+body.amb-noche .bg-white {
+  background-color: var(--bg-surface) !important;
+}
+
 /* ── Eco chat micro-animations ──────────────────────────────────────────────
    Used by the Eco companion's streaming bubble: a soft three-dot "typing"
    indicator, a gentle blinking caret while text streams in, and a calm

@@ -124,7 +124,7 @@ export function AmbiencePicker({
           aria-label="Selecciona un ambiente"
           className="absolute right-0 z-40 mt-2 w-48 rounded-2xl border p-1 shadow-lg"
           style={{
-            background: "white",
+            background: "var(--bg-surface)",
             borderColor: "var(--color-warm-200)",
             boxShadow: "var(--shadow-card)",
           }}

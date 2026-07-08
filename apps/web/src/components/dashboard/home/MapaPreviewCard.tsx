@@ -53,7 +53,7 @@ export function MapaPreviewCard() {
     <article
       className="rounded-3xl border p-5 sm:p-6"
       style={{
-        background: "white",
+        background: "var(--bg-surface)",
         borderColor: "var(--color-warm-200)",
         boxShadow: "var(--shadow-card)",
       }}

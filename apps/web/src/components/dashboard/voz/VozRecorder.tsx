@@ -361,7 +361,7 @@ function Recording({
       >
         <span
           className="block h-6 w-6 rounded-sm"
-          style={{ background: "white" }}
+          style={{ background: "var(--bg-surface)" }}
         />
       </button>
     </div>

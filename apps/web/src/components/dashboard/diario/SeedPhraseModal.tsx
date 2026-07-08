@@ -121,7 +121,7 @@ export function SeedPhraseModal({
           <div
             aria-hidden
             className="mx-auto flex h-12 w-12 items-center justify-center rounded-full text-[20px]"
-            style={{ background: "white" }}
+            style={{ background: "var(--bg-surface)" }}
           >
             🔑
           </div>

@@ -115,7 +115,7 @@ export function ReportMessageModal({
                           borderColor: "var(--color-lavender-500)",
                         }
                       : {
-                          background: "white",
+                          background: "var(--bg-surface)",
                           borderColor: "var(--color-warm-200)",
                         }
                   }

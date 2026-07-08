@@ -103,7 +103,10 @@ export function WeeklySummaryCard({ summary, apiBase, token }: Props) {
           onClick={regenerate}
           disabled={submitting}
           className="rounded-2xl px-5 py-2.5 text-[13px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
-          style={{ background: "white", color: "var(--color-lavender-700)" }}
+          style={{
+            background: "var(--bg-surface)",
+            color: "var(--color-lavender-700)",
+          }}
         >
           {submitting
             ? "Generando…"

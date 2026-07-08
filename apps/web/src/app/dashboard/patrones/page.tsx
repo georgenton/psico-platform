@@ -351,7 +351,7 @@ function PaywallCard({ entryCount }: { entryCount: number }) {
           padding: "12px 24px",
           fontSize: 13,
           fontWeight: 600,
-          background: "white",
+          background: "var(--bg-surface)",
           color: "var(--color-lavender-700)",
           textDecoration: "none",
         }}

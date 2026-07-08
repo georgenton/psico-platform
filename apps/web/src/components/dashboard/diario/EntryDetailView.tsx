@@ -132,7 +132,7 @@ function DecryptedDetail({
     startDelete(async () => {
       try {
         const res = await fetch(
-          `${apiBase}/diario/entries/${encodeURIComponent(detail.entry.id)}`,
+          `${apiBase}/reflexiones/entries/${encodeURIComponent(detail.entry.id)}`,
           { method: "DELETE", headers: { Authorization: `Bearer ${token}` } },
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -204,7 +204,7 @@ function DecryptedDetail({
           draftTags.some((t, i) => t !== detail.entry.tags[i]);
         if (tagsChanged) payload.tags = draftTags;
         const res = await fetch(
-          `${apiBase}/diario/entries/${encodeURIComponent(detail.entry.id)}`,
+          `${apiBase}/reflexiones/entries/${encodeURIComponent(detail.entry.id)}`,
           {
             method: "PATCH",
             headers: {

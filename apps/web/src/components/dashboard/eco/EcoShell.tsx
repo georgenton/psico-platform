@@ -8,6 +8,7 @@ import type {
   EcoThreadRailItem,
 } from "@psico/types";
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
+import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
 import { ChatArea } from "./ChatArea";
 import { ThreadRail } from "./ThreadRail";
 
@@ -120,7 +121,14 @@ export function EcoShell({
   }
 
   if (!ecoKey) {
-    return <LockedFallback />;
+    // Unlock IN PLACE — no detour to Diario. Deriving the key here fills the
+    // shared context, so this component re-renders straight into the chat.
+    // The user stays in Eco the whole time.
+    return (
+      <div className="mx-auto w-full max-w-md">
+        <UnlockGate context="eco" />
+      </div>
+    );
   }
 
   // Sprint F3 — uses the design's `.eco-layout` (1fr 320px grid). Chat
@@ -195,40 +203,6 @@ function LegacyFallback() {
         Tu cuenta aún no tiene activada la protección de privacidad. Contacta
         soporte para habilitarla antes de usar Eco.
       </p>
-    </div>
-  );
-}
-
-function LockedFallback() {
-  return (
-    <div
-      className="rounded-2xl p-6 text-center"
-      style={{
-        background: "var(--color-warm-50)",
-        border: "1.5px solid var(--color-warm-200)",
-      }}
-    >
-      <h2
-        className="text-lg font-bold"
-        style={{ color: "var(--color-warm-900)" }}
-      >
-        Desbloquea tu diario primero
-      </h2>
-      <p
-        className="mt-2 text-sm leading-relaxed"
-        style={{ color: "var(--color-warm-600)" }}
-      >
-        Eco usa la misma llave que protege tu diario, así solo tú puedes leer
-        estas conversaciones. Ve a Diario, ingresa tu contraseña una vez, y
-        vuelve aquí.
-      </p>
-      <a
-        href="/dashboard/reflexiones"
-        className="mt-4 inline-block rounded-2xl px-5 py-2.5 text-sm font-semibold text-white"
-        style={{ background: "var(--color-sage-400)" }}
-      >
-        Ir a Diario
-      </a>
     </div>
   );
 }

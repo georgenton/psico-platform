@@ -29,7 +29,7 @@ export function ReasonChips({
           active === null
             ? {
                 background: "var(--color-warm-900)",
-                color: "white",
+                color: "var(--color-warm-50)",
                 borderColor: "var(--color-warm-900)",
               }
             : {

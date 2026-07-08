@@ -86,7 +86,7 @@ export function ActiveComposer({
           excerptCiphertext: excerpt.ciphertext,
           excerptNonce: excerpt.nonce,
         };
-        const res = await fetch(`${apiBase}/diario/entries`, {
+        const res = await fetch(`${apiBase}/reflexiones/entries`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

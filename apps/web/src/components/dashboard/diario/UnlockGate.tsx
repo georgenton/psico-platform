@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { isValidSeedPhrase, seedPhraseToMasterKey } from "@psico/crypto";
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
+import { PrivacyInfoButton } from "@/components/privacy/PrivacyInfoButton";
 
 /**
  * UnlockGate — password prompt that derives the diary key.
@@ -22,8 +23,15 @@ import { useDiaryKey } from "@/lib/crypto/diary-key-context";
  *     instead of the password form.
  */
 export function UnlockGate() {
-  const { unlock, adoptMasterKey, unlocking, error, isLegacyAccount } =
-    useDiaryKey();
+  const {
+    unlock,
+    adoptMasterKey,
+    unlocking,
+    error,
+    isLegacyAccount,
+    remember,
+    setRemember,
+  } = useDiaryKey();
   const [password, setPassword] = useState("");
   // `mode` toggles between the standard password unlock and the seed-phrase
   // recovery unlock. The recovery path skips Argon2id entirely — the BIP39
@@ -199,15 +207,21 @@ export function UnlockGate() {
         className="mx-auto mt-2 max-w-md text-center text-[13px] leading-relaxed"
         style={{ color: "var(--color-warm-500)" }}
       >
-        Tu diario se cifra en tu dispositivo con una clave derivada de tu
-        contraseña. Ingrésala una vez para esta sesión.
+        Tu diario se cifra en tu dispositivo. Escribe{" "}
+        <b style={{ color: "var(--color-warm-700)" }}>
+          la misma contraseña con la que iniciaste sesión
+        </b>{" "}
+        para abrirlo. Solo tú puedes leerlo.
       </p>
+      <div className="mt-2 flex justify-center">
+        <PrivacyInfoButton variant="diario" label="¿Por qué?" />
+      </div>
       <label
         htmlFor="diary-password"
         className="mt-5 block text-[11px] font-semibold uppercase tracking-wider"
         style={{ color: "var(--color-warm-500)" }}
       >
-        Contraseña de tu cuenta
+        Contraseña de tu cuenta (la misma del login)
       </label>
       <input
         id="diary-password"
@@ -232,6 +246,38 @@ export function UnlockGate() {
           {error}
         </p>
       ) : null}
+
+      {/* Remember-vs-ask control. Default is "recordar" (checked). Unchecking
+          it means we never persist the key — each session re-prompts. */}
+      <label
+        className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl px-3 py-2.5"
+        style={{ background: "var(--color-warm-50)" }}
+      >
+        <input
+          type="checkbox"
+          checked={remember}
+          onChange={(e) => setRemember(e.target.checked)}
+          disabled={unlocking}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-sage-500,#5B8A72)]"
+        />
+        <span className="text-[12.5px] leading-snug">
+          <span
+            className="font-semibold"
+            style={{ color: "var(--color-warm-800)" }}
+          >
+            Recordar en este dispositivo
+          </span>
+          <span
+            className="mt-0.5 block"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            {remember
+              ? "No te pediremos la contraseña la próxima vez en este equipo. Desmárcalo si es un equipo compartido."
+              : "Te pediremos la contraseña cada vez que entres. Márcalo para no repetirla en tu equipo personal."}
+          </span>
+        </span>
+      </label>
+
       <button
         type="submit"
         disabled={unlocking || !password}

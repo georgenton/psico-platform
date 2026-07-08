@@ -12,7 +12,19 @@ import { useEffect, useState } from "react";
  * uses an analogy (a lockbox with a single key) plus three concrete
  * consequences the user can act on.
  */
-export function PrivacyInfoButton({ label = "¿Cómo?" }: { label?: string }) {
+export function PrivacyInfoButton({
+  label = "¿Cómo?",
+  variant = "basic",
+}: {
+  label?: string;
+  /**
+   * "basic" — the short lockbox explanation (register / login / Eco).
+   * "diario" — adds two extra sections used at the diary unlock gate and in
+   * Ajustes → Seguridad: (a) the key is your account password, and (b) why
+   * YOU decide between "recordar en este dispositivo" and "pedir cada vez".
+   */
+  variant?: "basic" | "diario";
+}) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -55,12 +67,20 @@ export function PrivacyInfoButton({ label = "¿Cómo?" }: { label?: string }) {
         {label}
       </button>
 
-      {open ? <PrivacyModal onClose={() => setOpen(false)} /> : null}
+      {open ? (
+        <PrivacyModal variant={variant} onClose={() => setOpen(false)} />
+      ) : null}
     </>
   );
 }
 
-function PrivacyModal({ onClose }: { onClose: () => void }) {
+function PrivacyModal({
+  variant,
+  onClose,
+}: {
+  variant: "basic" | "diario";
+  onClose: () => void;
+}) {
   return (
     <div
       role="dialog"
@@ -165,12 +185,69 @@ function PrivacyModal({ onClose }: { onClose: () => void }) {
             fontSize: 12,
             lineHeight: 1.5,
             color: "var(--color-warm-500)",
-            marginBottom: 20,
+            marginBottom: variant === "diario" ? 24 : 20,
             textAlign: "center",
           }}
         >
           Lo mismo aplica a tus conversaciones con Eco.
         </p>
+
+        {variant === "diario" ? (
+          <>
+            <div style={sectionStyle}>
+              <h3 style={sectionTitleStyle}>🔑 Es tu misma contraseña</h3>
+              <p style={sectionBodyStyle}>
+                La llave de tu diario se crea con{" "}
+                <b>la misma contraseña con la que inicias sesión</b>. No tienes
+                que recordar una clave aparte. Si cambias tu contraseña desde
+                Seguridad, tu diario se vuelve a proteger con la nueva —
+                automáticamente.
+              </p>
+            </div>
+
+            <div style={sectionStyle}>
+              <h3 style={sectionTitleStyle}>🤝 Tú decides: recordar o pedir</h3>
+              <p style={sectionBodyStyle}>
+                Como <b>nadie más que tú</b> puede abrir tu diario (ni
+                nosotros), también eres tú quien decide qué tan cómodo o qué tan
+                estricto quieres que sea:
+              </p>
+              <ul
+                style={{
+                  margin: "10px 0 0",
+                  paddingLeft: 0,
+                  listStyle: "none",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
+                <li style={rowStyle}>
+                  <span style={dotStyle}>💾</span>
+                  <span>
+                    <b>Recordar en este dispositivo:</b> abres tu diario sin
+                    escribir la contraseña cada vez. Cómodo para tu teléfono o
+                    computadora personal.
+                  </span>
+                </li>
+                <li style={rowStyle}>
+                  <span style={dotStyle}>🔒</span>
+                  <span>
+                    <b>Pedir cada vez:</b> te pedimos la contraseña en cada
+                    sesión. Ideal en equipos compartidos o prestados.
+                  </span>
+                </li>
+              </ul>
+              <p style={{ ...sectionBodyStyle, marginTop: 12 }}>
+                Puedes cambiar esto cuando quieras en <b>Ajustes → Seguridad</b>
+                , y bloquear tu diario al instante si prestas tu equipo.
+                Recordarlo es tan seguro como tu propia sesión: si alguien más
+                usa tu dispositivo desbloqueado, podría verlo — por eso la
+                decisión es tuya.
+              </p>
+            </div>
+          </>
+        ) : null}
 
         <button
           type="button"
@@ -214,4 +291,24 @@ const dotStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
+};
+
+const sectionStyle: React.CSSProperties = {
+  borderTop: "1px solid var(--color-warm-100)",
+  paddingTop: 18,
+  marginBottom: 18,
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  fontSize: 15,
+  fontWeight: 700,
+  color: "var(--color-warm-900)",
+  marginBottom: 8,
+};
+
+const sectionBodyStyle: React.CSSProperties = {
+  fontSize: 13.5,
+  lineHeight: 1.55,
+  color: "var(--color-warm-700)",
+  margin: 0,
 };

@@ -3,6 +3,7 @@ import type { UserMeResponse } from "@psico/types";
 
 import { getAccessToken, serverFetch } from "@/lib/api.server";
 import { ChangePasswordCard } from "@/components/dashboard/security/ChangePasswordCard";
+import { DiaryLockCard } from "@/components/dashboard/security/DiaryLockCard";
 import { ReplayTourCard } from "@/components/dashboard/security/ReplayTourCard";
 import { ShowSeedPhraseCard } from "@/components/dashboard/security/ShowSeedPhraseCard";
 
@@ -43,6 +44,7 @@ export default async function SecurityPage() {
           apiBase={API_BASE}
           token={token}
         />
+        <DiaryLockCard />
         <ShowSeedPhraseCard cryptoSalt={meResult.cryptoSalt} />
         <ReplayTourCard />
       </div>

@@ -26,6 +26,14 @@ import { ReportMessageModal } from "./ReportMessageModal";
  *      assistant-message bubble, finalize on `done`, surface `crisis`
  *      via a non-dismissable modal, show inline error banner on `error`.
  *
+ * Streaming feel: the LLM emits deltas in bursts (10–40 chars at a time),
+ * which used to "pop" the text in jerky chunks. We now accumulate the full
+ * text as it arrives (`streamTarget`) and reveal it through `useSmoothReveal`,
+ * a typewriter buffer that catches up a few characters per animation frame —
+ * so the reader sees a calm, steady stream regardless of network jitter.
+ * Before the first token lands we show an animated three-dot "thinking"
+ * indicator instead of frozen placeholder text.
+ *
  * Crisis events take over the UI: we set `crisisData` and render the
  * modal — per ADR 0007 + 08-eco.md design, the user MUST see the
  * derivation message.
@@ -49,8 +57,15 @@ export function ChatArea({
   const [loading, setLoading] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [text, setText] = useState("");
-  const [streaming, setStreaming] = useState(false);
-  const [streamingText, setStreamingText] = useState<string>("");
+  // Streaming state machine:
+  //   "idle"      — nothing in flight
+  //   "receiving" — SSE stream open, deltas arriving
+  //   "revealing" — stream closed, typewriter still catching up to the target
+  const [phase, setPhase] = useState<"idle" | "receiving" | "revealing">(
+    "idle",
+  );
+  // Full assistant text accumulated so far (the reveal target).
+  const [streamTarget, setStreamTarget] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [crisisData, setCrisisData] = useState<{
     text: string;
@@ -63,6 +78,16 @@ export function ChatArea({
   const [loadingMore, setLoadingMore] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
+  // Holds the finalized reply while the typewriter finishes revealing it, so
+  // we can swap the streaming bubble for a persisted message with no snap.
+  const finalizeRef = useRef<{
+    id: string;
+    text: string;
+  } | null>(null);
+
+  const busy = phase !== "idle";
+  const displayed = useSmoothReveal(streamTarget, busy);
+
   // ─── Load history when thread changes ────────────────────────────────────
 
   useEffect(() => {
@@ -70,7 +95,9 @@ export function ChatArea({
     setLoading(true);
     setHistoryError(null);
     setMessages([]);
-    setStreamingText("");
+    setStreamTarget("");
+    setPhase("idle");
+    finalizeRef.current = null;
     setSendError(null);
     fetch(`${apiBase}/eco/threads/${threadId}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -95,15 +122,45 @@ export function ChatArea({
     };
   }, [threadId, apiBase, token]);
 
-  // Scroll to bottom on new messages + streaming deltas. We skip this when
-  // `loadingMore` is true — that's the only path that prepends to the list
-  // and the user is reading at the top, not the bottom.
+  // Scroll to bottom on new messages + every typewriter tick. We skip this
+  // when `loadingMore` is true — that's the only path that prepends to the
+  // list and the user is reading at the top, not the bottom.
   useEffect(() => {
     if (loadingMore) return;
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, streamingText, loadingMore]);
+  }, [messages, displayed, phase, loadingMore]);
+
+  // ─── Commit the reply once the typewriter catches up ─────────────────────
+  //
+  // While `phase === "revealing"` the stream is already closed and the full
+  // text lives in `streamTarget`; we wait for `displayed` to reach it, then
+  // persist the assistant bubble and go idle. Because both bubbles render the
+  // exact same text at that instant, the swap is invisible.
+  useEffect(() => {
+    if (phase !== "revealing") return;
+    if (displayed.length < streamTarget.length) return;
+    const fin = finalizeRef.current;
+    finalizeRef.current = null;
+    if (fin && fin.text) {
+      setMessages((m) => [
+        ...m,
+        {
+          id: fin.id,
+          kind: "assistant",
+          textCiphertext: null,
+          textNonce: null,
+          assistantText: fin.text,
+          suggestedBookId: null,
+          createdAt: new Date(),
+        },
+      ]);
+    }
+    setPhase("idle");
+    setStreamTarget("");
+    onMessageSent();
+  }, [phase, displayed, streamTarget, onMessageSent]);
 
   // ─── Load older (pagination) ─────────────────────────────────────────────
 
@@ -146,12 +203,13 @@ export function ChatArea({
   // ─── Send ────────────────────────────────────────────────────────────────
 
   const send = useCallback(async () => {
-    if (!text.trim() || streaming) return;
+    if (!text.trim() || busy) return;
     const plain = text.trim();
     const envelope = encryptString(plain, ecoKey);
 
-    setStreaming(true);
-    setStreamingText("");
+    finalizeRef.current = null;
+    setPhase("receiving");
+    setStreamTarget("");
     setSendError(null);
     setText("");
 
@@ -172,8 +230,7 @@ export function ChatArea({
     let buffered = "";
     let crisis: { text: string; hotline: string; crisisPath: string } | null =
       null;
-    let doneEvent: { messageId: string; quotaRemaining: number | null } | null =
-      null;
+    let doneMessageId: string | null = null;
 
     try {
       await ecoApi.sendMessage(
@@ -190,7 +247,7 @@ export function ChatArea({
             switch (ev.event) {
               case "delta":
                 buffered += ev.data.text;
-                setStreamingText(buffered);
+                setStreamTarget(buffered);
                 break;
               case "crisis":
                 crisis = ev.data;
@@ -198,10 +255,10 @@ export function ChatArea({
               case "suggestion":
                 // v1 just appends a note. Future: render a book/exercise card.
                 buffered += `\n\n📚 Sugerencia: ${ev.data.rationale}`;
-                setStreamingText(buffered);
+                setStreamTarget(buffered);
                 break;
               case "done":
-                doneEvent = ev.data;
+                doneMessageId = ev.data.messageId;
                 break;
               case "error":
                 setSendError(ev.data.message);
@@ -219,19 +276,19 @@ export function ChatArea({
       // Roll back the optimistic user msg so the user can edit + resend.
       setMessages((m) => m.filter((msg) => msg.id !== optimisticId));
       setText(plain);
-      setStreaming(false);
+      finalizeRef.current = null;
+      setStreamTarget("");
+      setPhase("idle");
       return;
     }
 
-    // Finalize: replace optimistic user-id with the real assistant message.
+    // Crisis takes over immediately — it should feel urgent, not gently typed.
     if (crisis) {
       setCrisisData(crisis);
-      // Persist a placeholder CRISIS bubble in the list too so the thread
-      // re-reads the same.
       setMessages((m) => [
         ...m,
         {
-          id: doneEvent?.messageId ?? `crisis-${Date.now()}`,
+          id: doneMessageId ?? `crisis-${Date.now()}`,
           kind: "crisis",
           textCiphertext: null,
           textNonce: null,
@@ -240,24 +297,28 @@ export function ChatArea({
           createdAt: new Date(),
         },
       ]);
-    } else if (buffered) {
-      setMessages((m) => [
-        ...m,
-        {
-          id: doneEvent?.messageId ?? `local-asst-${Date.now()}`,
-          kind: "assistant",
-          textCiphertext: null,
-          textNonce: null,
-          assistantText: buffered,
-          suggestedBookId: null,
-          createdAt: new Date(),
-        },
-      ]);
+      finalizeRef.current = null;
+      setStreamTarget("");
+      setPhase("idle");
+      onMessageSent();
+      return;
     }
-    setStreamingText("");
-    setStreaming(false);
-    onMessageSent();
-  }, [text, streaming, ecoKey, threadId, apiBase, token, onMessageSent]);
+
+    if (buffered) {
+      // Hand off to the reveal phase: keep streaming the target visually until
+      // the typewriter catches up, then the commit effect persists the bubble.
+      finalizeRef.current = {
+        id: doneMessageId ?? `local-asst-${Date.now()}`,
+        text: buffered,
+      };
+      setPhase("revealing");
+    } else {
+      // No text and no crisis (shouldn't happen) — just go idle.
+      setStreamTarget("");
+      setPhase("idle");
+      onMessageSent();
+    }
+  }, [text, busy, ecoKey, threadId, apiBase, token, onMessageSent]);
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
@@ -346,7 +407,7 @@ export function ChatArea({
             >
               {historyError}
             </p>
-          ) : messages.length === 0 ? (
+          ) : messages.length === 0 && !busy ? (
             <Welcome caps={caps} />
           ) : (
             messages.map((msg) => (
@@ -362,13 +423,12 @@ export function ChatArea({
               />
             ))
           )}
-          {/* While we're waiting for Eco we need *some* visible feedback even
-              when the first SSE delta hasn't arrived yet (Anthropic typically
-              takes 1–3s to emit its first token, longer over a flaky link).
-              Without this bubble the chat looked frozen and QA reported "no
-              response" even when the request was in flight. Once any chunk
-              lands we swap to the live-text variant; on `done` both clear. */}
-          {streaming ? (
+          {/* While Eco is composing we keep a live bubble. Before the first
+              token lands (`displayed` empty) it shows an animated three-dot
+              "thinking" indicator; once text arrives the typewriter reveals it
+              with a soft caret. On finalize the commit effect swaps it for a
+              persisted bubble with identical text — no snap. */}
+          {busy ? (
             <MessageBubble
               key="streaming"
               message={{
@@ -376,7 +436,7 @@ export function ChatArea({
                 kind: "assistant",
                 textCiphertext: null,
                 textNonce: null,
-                assistantText: streamingText || "Eco está pensando…",
+                assistantText: displayed,
                 suggestedBookId: null,
                 createdAt: new Date(),
               }}
@@ -391,7 +451,7 @@ export function ChatArea({
           text={text}
           onChange={setText}
           onSend={() => void send()}
-          streaming={streaming}
+          streaming={busy}
           error={sendError}
         />
       </section>
@@ -421,6 +481,77 @@ export function ChatArea({
   );
 }
 
+// ─── Smooth reveal hook ────────────────────────────────────────────────────
+
+/**
+ * Typewriter buffer for streamed text.
+ *
+ * The LLM streams deltas in bursts, so the raw target text jumps in chunks.
+ * This hook animates a `displayed` slice that catches up to `target` a few
+ * characters per animation frame: a steady base cadence that accelerates
+ * gently when far behind (so long replies don't drag) and is capped so it
+ * never dumps a whole chunk at once. Users with `prefers-reduced-motion` get
+ * the full text instantly.
+ *
+ * `active` gates the loop: pass `false` between streams and the buffer resets.
+ */
+function useSmoothReveal(target: string, active: boolean): string {
+  const [displayed, setDisplayed] = useState("");
+  const displayedRef = useRef("");
+  const targetRef = useRef(target);
+  const lastRef = useRef(0);
+  targetRef.current = target;
+
+  // Reset the buffer whenever we go idle so the next stream starts clean.
+  useEffect(() => {
+    if (!active) {
+      displayedRef.current = "";
+      lastRef.current = 0;
+      setDisplayed("");
+    }
+  }, [active]);
+
+  useEffect(() => {
+    if (!active) return;
+    if (typeof window === "undefined") return;
+
+    const reduce =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    let raf = 0;
+    const step = (now: number) => {
+      const tgt = targetRef.current;
+      const cur = displayedRef.current;
+      if (cur.length < tgt.length) {
+        if (reduce) {
+          displayedRef.current = tgt;
+          setDisplayed(tgt);
+        } else {
+          const gap = tgt.length - cur.length;
+          const dt = lastRef.current ? now - lastRef.current : 16;
+          // Base ~90 cps, accelerating with the backlog, capped at 300 cps so
+          // no single frame reveals a jarring jump.
+          const cps = Math.min(300, 90 + gap * 3);
+          const reveal = Math.max(1, Math.round((dt / 1000) * cps));
+          const next = tgt.slice(0, cur.length + Math.min(gap, reveal));
+          displayedRef.current = next;
+          setDisplayed(next);
+        }
+      }
+      lastRef.current = now;
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => {
+      cancelAnimationFrame(raf);
+      lastRef.current = 0;
+    };
+  }, [active]);
+
+  return displayed;
+}
+
 // ─── Sub-components ────────────────────────────────────────────────────────
 
 function Welcome({ caps }: { caps: EcoPersona }) {
@@ -440,6 +571,45 @@ function Welcome({ caps }: { caps: EcoPersona }) {
         profesional.
       </p>
     </div>
+  );
+}
+
+/** Soft companion avatar shown beside Eco's (non-user) bubbles. */
+function EcoAvatar({ crisis }: { crisis?: boolean }) {
+  return (
+    <div
+      aria-hidden
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px]"
+      style={{
+        background: crisis ? "#FEE2E2" : "var(--color-sage-50, #F0F6EE)",
+        border: `1px solid ${crisis ? "#FCA5A5" : "var(--color-sage-100, #DDEAD8)"}`,
+      }}
+    >
+      🌿
+    </div>
+  );
+}
+
+/** Animated three-dot "Eco is thinking" indicator. */
+function TypingDots() {
+  return (
+    <span
+      className="flex items-center gap-1 py-1"
+      role="status"
+      aria-label="Eco está pensando"
+    >
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="inline-block h-1.5 w-1.5 rounded-full"
+          style={{
+            background: "var(--color-sage-400)",
+            animation: "eco-typing 1.2s ease-in-out infinite",
+            animationDelay: `${i * 0.18}s`,
+          }}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -480,51 +650,69 @@ function MessageBubble({
     ecoKey,
   ]);
 
+  // The streaming bubble shows the "thinking" dots until the first token lands.
+  const thinking = streaming && body.length === 0;
+
   return (
-    <div className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
+    <div
+      className={`flex items-end gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}
+      style={{ animation: "eco-fade-in 0.25s var(--easing-default, ease)" }}
+    >
+      {!isUser ? <EcoAvatar crisis={isCrisis} /> : null}
       <div
-        className="max-w-[80%] rounded-2xl px-4 py-2.5"
-        style={
-          isCrisis
-            ? {
-                background: "#FEE2E2",
-                color: "#7F1D1D",
-                border: "1px solid #FCA5A5",
-              }
-            : isUser
-              ? {
-                  background: "var(--color-lavender-500)",
-                  color: "white",
-                }
-              : {
-                  background: "var(--color-warm-50)",
-                  color: "var(--color-warm-800)",
-                  border: "1px solid var(--color-warm-100)",
-                }
-        }
+        className={`flex max-w-[82%] flex-col ${isUser ? "items-end" : "items-start"}`}
       >
-        <p className="whitespace-pre-wrap text-[14px] leading-relaxed">
-          {body}
-          {streaming ? (
-            <span
-              aria-hidden
-              className="ml-0.5 inline-block h-3 w-1 animate-pulse align-middle"
-              style={{ background: "var(--color-warm-500)" }}
-            />
-          ) : null}
-        </p>
-      </div>
-      {onReport && !streaming ? (
-        <button
-          type="button"
-          onClick={onReport}
-          className="mt-0.5 text-[10.5px] underline-offset-2 hover:underline"
-          style={{ color: "var(--color-warm-400)" }}
-          aria-label="Reportar esta respuesta"
+        <div
+          className="rounded-2xl px-4 py-2.5"
+          style={
+            isCrisis
+              ? {
+                  background: "#FEE2E2",
+                  color: "#7F1D1D",
+                  border: "1px solid #FCA5A5",
+                }
+              : isUser
+                ? {
+                    background: "var(--color-lavender-500)",
+                    color: "white",
+                  }
+                : {
+                    background: "var(--color-warm-50)",
+                    color: "var(--color-warm-800)",
+                    border: "1px solid var(--color-warm-100)",
+                  }
+          }
         >
-          Reportar
-        </button>
-      ) : null}
+          {thinking ? (
+            <TypingDots />
+          ) : (
+            <p className="whitespace-pre-wrap text-[14px] leading-relaxed">
+              {body}
+              {streaming ? (
+                <span
+                  aria-hidden
+                  className="ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[2px] rounded-full align-middle"
+                  style={{
+                    background: "var(--color-sage-400)",
+                    animation: "eco-caret 1s step-end infinite",
+                  }}
+                />
+              ) : null}
+            </p>
+          )}
+        </div>
+        {onReport && !streaming ? (
+          <button
+            type="button"
+            onClick={onReport}
+            className="mt-0.5 text-[10.5px] underline-offset-2 hover:underline"
+            style={{ color: "var(--color-warm-400)" }}
+            aria-label="Reportar esta respuesta"
+          >
+            Reportar
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

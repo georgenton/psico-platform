@@ -23,7 +23,7 @@ export type { BillingInterval, CheckoutSession } from "./billing";
 /** @deprecated Sprint S11 — use `billingApi` instead. Sunset 2026-08-31. */
 export { subscriptionApi } from "./subscription";
 export { voiceApi } from "./voice";
-export { ecoApi } from "./eco";
+export { ecoApi, parseSseChunk } from "./eco";
 export { lectorApi, highlightsApi, annotationsApi } from "./lector";
 export { onboardingApi } from "./onboarding";
 export { patronesApi } from "./patrones";

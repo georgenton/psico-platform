@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -24,9 +25,101 @@ import type {
 import { decryptString, encryptString } from "@psico/crypto";
 import { useDiaryKey } from "@/crypto/diary-key-context";
 import { CrisisModal } from "@/components/dashboard/eco/CrisisModal";
+import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
 import { Colors, Radius, Spacing } from "@/theme";
 
 const API_ROOT = process.env.EXPO_PUBLIC_API_URL ?? "";
+
+/**
+ * Typewriter buffer (parity with web). SSE deltas arrive in bursts; this
+ * reveals the accumulated `target` a few chars per frame so the reply streams
+ * in calmly instead of popping in chunks. `active` gates the loop.
+ */
+function useSmoothReveal(target: string, active: boolean): string {
+  const [displayed, setDisplayed] = useState("");
+  const displayedRef = useRef("");
+  const targetRef = useRef(target);
+  const lastRef = useRef(0);
+  targetRef.current = target;
+
+  useEffect(() => {
+    if (!active) {
+      displayedRef.current = "";
+      lastRef.current = 0;
+      setDisplayed("");
+    }
+  }, [active]);
+
+  useEffect(() => {
+    if (!active) return;
+    let raf = 0;
+    const step = (now: number) => {
+      const tgt = targetRef.current;
+      const cur = displayedRef.current;
+      if (cur.length < tgt.length) {
+        const gap = tgt.length - cur.length;
+        const dt = lastRef.current ? now - lastRef.current : 16;
+        // Base ~90 cps, accelerating with the backlog, capped at 300 cps.
+        const cps = Math.min(300, 90 + gap * 3);
+        const reveal = Math.max(1, Math.round((dt / 1000) * cps));
+        const next = tgt.slice(0, cur.length + Math.min(gap, reveal));
+        displayedRef.current = next;
+        setDisplayed(next);
+      }
+      lastRef.current = now;
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => {
+      cancelAnimationFrame(raf);
+      lastRef.current = 0;
+    };
+  }, [active]);
+
+  return displayed;
+}
+
+/** Animated three-dot "Eco is thinking" indicator (parity with web). */
+function TypingDots() {
+  const a = useRef(new Animated.Value(0)).current;
+  const b = useRef(new Animated.Value(0)).current;
+  const c = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const pulse = (v: Animated.Value) =>
+      Animated.sequence([
+        Animated.timing(v, {
+          toValue: 1,
+          duration: 320,
+          useNativeDriver: true,
+        }),
+        Animated.timing(v, {
+          toValue: 0,
+          duration: 320,
+          useNativeDriver: true,
+        }),
+      ]);
+    const loop = Animated.loop(
+      Animated.stagger(160, [pulse(a), pulse(b), pulse(c)]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [a, b, c]);
+  const dotStyle = (v: Animated.Value) => ({
+    opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+    transform: [
+      {
+        translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, -3] }),
+      },
+    ],
+  });
+  return (
+    <View style={styles.typingDots}>
+      <Animated.View style={[styles.typingDot, dotStyle(a)]} />
+      <Animated.View style={[styles.typingDot, dotStyle(b)]} />
+      <Animated.View style={[styles.typingDot, dotStyle(c)]} />
+    </View>
+  );
+}
 
 /**
  * Eco chat (mobile) — Sprint front-eco.
@@ -55,8 +148,17 @@ export default function EcoScreen() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [text, setText] = useState("");
-  const [streaming, setStreaming] = useState(false);
-  const [streamingText, setStreamingText] = useState("");
+  // Streaming state machine (parity with web): "receiving" while SSE deltas
+  // arrive, "revealing" while the typewriter catches up after the stream
+  // closes. `streamTarget` is the full accumulated text; `displayed` is the
+  // smoothly-revealed slice shown in the bubble.
+  const [phase, setPhase] = useState<"idle" | "receiving" | "revealing">(
+    "idle",
+  );
+  const [streamTarget, setStreamTarget] = useState("");
+  const finalizeRef = useRef<{ id: string; text: string } | null>(null);
+  const busy = phase !== "idle";
+  const displayed = useSmoothReveal(streamTarget, busy);
   const [sendError, setSendError] = useState<string | null>(null);
   const [crisisData, setCrisisData] = useState<{
     text: string;
@@ -127,7 +229,9 @@ export default function EcoScreen() {
     setLoadingThread(true);
     setMessages([]);
     setHasMore(false);
-    setStreamingText("");
+    finalizeRef.current = null;
+    setStreamTarget("");
+    setPhase("idle");
     setSendError(null);
     ecoApi
       .getThread(activeThreadId)
@@ -177,12 +281,13 @@ export default function EcoScreen() {
   // ─── Send ────────────────────────────────────────────────────────────────
 
   const send = useCallback(async () => {
-    if (!text.trim() || streaming || !activeThreadId || !ecoKey) return;
+    if (!text.trim() || busy || !activeThreadId || !ecoKey) return;
     const plain = text.trim();
     const envelope = encryptString(plain, ecoKey);
 
-    setStreaming(true);
-    setStreamingText("");
+    finalizeRef.current = null;
+    setPhase("receiving");
+    setStreamTarget("");
     setSendError(null);
     setText("");
 
@@ -203,8 +308,7 @@ export default function EcoScreen() {
     let buffered = "";
     let crisis: { text: string; hotline: string; crisisPath: string } | null =
       null;
-    let doneEvent: { messageId: string; quotaRemaining: number | null } | null =
-      null;
+    let doneMessageId: string | null = null;
 
     try {
       const token = apiClient.getAccessToken();
@@ -222,17 +326,17 @@ export default function EcoScreen() {
             switch (ev.event) {
               case "delta":
                 buffered += ev.data.text;
-                setStreamingText(buffered);
+                setStreamTarget(buffered);
                 break;
               case "crisis":
                 crisis = ev.data;
                 break;
               case "suggestion":
                 buffered += `\n\n📚 Sugerencia: ${ev.data.rationale}`;
-                setStreamingText(buffered);
+                setStreamTarget(buffered);
                 break;
               case "done":
-                doneEvent = ev.data;
+                doneMessageId = ev.data.messageId;
                 break;
               case "error":
                 setSendError(ev.data.message);
@@ -249,16 +353,19 @@ export default function EcoScreen() {
       );
       setMessages((m) => m.filter((msg) => msg.id !== optimisticId));
       setText(plain);
-      setStreaming(false);
+      finalizeRef.current = null;
+      setStreamTarget("");
+      setPhase("idle");
       return;
     }
 
     if (crisis) {
+      // Crisis takes over immediately — urgent, not gently typed.
       setCrisisData(crisis);
       setMessages((m) => [
         ...m,
         {
-          id: doneEvent?.messageId ?? `crisis-${Date.now()}`,
+          id: doneMessageId ?? `crisis-${Date.now()}`,
           kind: "crisis",
           textCiphertext: null,
           textNonce: null,
@@ -267,24 +374,52 @@ export default function EcoScreen() {
           createdAt: new Date(),
         },
       ]);
-    } else if (buffered) {
+      finalizeRef.current = null;
+      setStreamTarget("");
+      setPhase("idle");
+      void refreshRail();
+      return;
+    }
+
+    if (buffered) {
+      // Hand off to the reveal phase: keep streaming the target visually
+      // until the typewriter catches up, then the commit effect persists it.
+      finalizeRef.current = {
+        id: doneMessageId ?? `local-asst-${Date.now()}`,
+        text: buffered,
+      };
+      setPhase("revealing");
+    } else {
+      setStreamTarget("");
+      setPhase("idle");
+      void refreshRail();
+    }
+  }, [text, busy, activeThreadId, ecoKey, refreshRail]);
+
+  // ─── Commit the reply once the typewriter catches up ─────────────────────
+  useEffect(() => {
+    if (phase !== "revealing") return;
+    if (displayed.length < streamTarget.length) return;
+    const fin = finalizeRef.current;
+    finalizeRef.current = null;
+    if (fin && fin.text) {
       setMessages((m) => [
         ...m,
         {
-          id: doneEvent?.messageId ?? `local-asst-${Date.now()}`,
+          id: fin.id,
           kind: "assistant",
           textCiphertext: null,
           textNonce: null,
-          assistantText: buffered,
+          assistantText: fin.text,
           suggestedBookId: null,
           createdAt: new Date(),
         },
       ]);
     }
-    setStreamingText("");
-    setStreaming(false);
+    setPhase("idle");
+    setStreamTarget("");
     void refreshRail();
-  }, [text, streaming, activeThreadId, ecoKey, refreshRail]);
+  }, [phase, displayed, streamTarget, refreshRail]);
 
   // ─── Switch / create thread ──────────────────────────────────────────────
 
@@ -308,8 +443,21 @@ export default function EcoScreen() {
   }
 
   if (!ecoKey) {
+    // Unlock IN PLACE (parity with web) — deriving the shared key fills the
+    // context and this screen re-renders straight into the chat. No detour to
+    // Diario. Eco-framed copy via the `context` prop.
     return (
-      <Centered text="Desbloquea tu diario primero (la misma clave abre Eco)." />
+      <KeyboardAvoidingView
+        style={styles.root}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.unlockScroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          <UnlockGate context="eco" />
+        </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -367,7 +515,7 @@ export default function EcoScreen() {
             />
           ))
         )}
-        {streamingText ? (
+        {busy ? (
           <Bubble
             key="streaming"
             message={{
@@ -375,7 +523,7 @@ export default function EcoScreen() {
               kind: "assistant",
               textCiphertext: null,
               textNonce: null,
-              assistantText: streamingText,
+              assistantText: displayed,
               suggestedBookId: null,
               createdAt: new Date(),
             }}
@@ -389,7 +537,7 @@ export default function EcoScreen() {
         text={text}
         onChange={setText}
         onSend={() => void send()}
-        streaming={streaming}
+        streaming={busy}
         error={sendError}
       />
 
@@ -530,24 +678,28 @@ function Bubble({
     },
   ];
 
+  // Before the first token lands, show the animated thinking dots instead of
+  // an empty bubble (parity with web).
+  const thinking = streaming && body.length === 0;
+  const content = thinking ? (
+    <TypingDots />
+  ) : (
+    <Text style={textStyle}>
+      {body}
+      {streaming ? <Text style={{ opacity: 0.5 }}> ▍</Text> : null}
+    </Text>
+  );
+
   const Inner = onLongPress ? (
     <Pressable
       onLongPress={onLongPress}
       delayLongPress={400}
       style={({ pressed }) => [...bubbleStyle, pressed && { opacity: 0.7 }]}
     >
-      <Text style={textStyle}>
-        {body}
-        {streaming ? <Text style={{ opacity: 0.5 }}> ▍</Text> : null}
-      </Text>
+      {content}
     </Pressable>
   ) : (
-    <View style={bubbleStyle}>
-      <Text style={textStyle}>
-        {body}
-        {streaming ? <Text style={{ opacity: 0.5 }}> ▍</Text> : null}
-      </Text>
-    </View>
+    <View style={bubbleStyle}>{content}</View>
   );
 
   return (
@@ -849,6 +1001,23 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: Colors.warm[50],
+  },
+  unlockScroll: {
+    flexGrow: 1,
+    justifyContent: "center",
+    padding: Spacing.lg,
+  },
+  typingDots: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 4,
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.sage[400],
   },
   header: {
     flexDirection: "row",

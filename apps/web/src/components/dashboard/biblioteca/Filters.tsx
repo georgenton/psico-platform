@@ -97,7 +97,7 @@ export function Filters({
                 active
                   ? {
                       background: "var(--color-warm-900)",
-                      color: "white",
+                      color: "var(--color-warm-50)",
                     }
                   : { color: "var(--color-warm-600)" }
               }

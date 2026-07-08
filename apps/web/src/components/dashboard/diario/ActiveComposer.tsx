@@ -126,8 +126,11 @@ export function ActiveComposer({
                 style={
                   active
                     ? {
+                        // warm-900 inverts to a light tone in the Noche
+                        // ambient, so the active chip's text must invert with
+                        // it (warm-50) — literal white would vanish on it.
                         background: "var(--color-warm-900)",
-                        color: "white",
+                        color: "var(--color-warm-50)",
                         borderColor: "var(--color-warm-900)",
                       }
                     : {

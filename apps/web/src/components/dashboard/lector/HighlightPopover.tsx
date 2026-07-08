@@ -47,7 +47,7 @@ export function HighlightPopover({
         left: x,
         top: y,
         background: "var(--color-warm-900)",
-        color: "white",
+        color: "var(--color-warm-50)",
         transform: "translate(-50%, -100%) translateY(-8px)",
       }}
       onMouseDown={(e) => e.stopPropagation()}

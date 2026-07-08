@@ -33,7 +33,7 @@ export function ReasonChips({
                 borderColor: "var(--color-warm-900)",
               }
             : {
-                background: "white",
+                background: "var(--bg-surface)",
                 color: "var(--color-warm-700)",
                 borderColor: "var(--color-warm-200)",
               }
@@ -57,7 +57,7 @@ export function ReasonChips({
                     borderColor: "var(--color-lavender-600)",
                   }
                 : {
-                    background: "white",
+                    background: "var(--bg-surface)",
                     color: "var(--color-warm-700)",
                     borderColor: "var(--color-warm-200)",
                   }

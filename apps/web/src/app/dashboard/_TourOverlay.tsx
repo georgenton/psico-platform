@@ -305,7 +305,7 @@ function LearnMoreModal({
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "white",
+          background: "var(--bg-surface)",
           borderRadius: 24,
           maxWidth: 460,
           width: "100%",

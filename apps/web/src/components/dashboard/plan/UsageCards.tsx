@@ -110,7 +110,7 @@ function UsageCard({ icon, label, current, quota, unit }: CardItem) {
     <div
       className="flex flex-col rounded-2xl p-4"
       style={{
-        background: "white",
+        background: "var(--bg-surface)",
         border: "1.5px solid var(--color-warm-200)",
       }}
     >

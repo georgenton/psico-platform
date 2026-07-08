@@ -50,7 +50,7 @@ function UpgradeCard({
               boxShadow: "var(--shadow-soft)",
             }
           : {
-              background: "white",
+              background: "var(--bg-surface)",
               border: "1.5px solid var(--color-warm-200)",
               boxShadow: "var(--shadow-card)",
             }
@@ -122,7 +122,10 @@ function UpgradeCard({
           className="w-full rounded-2xl py-3 text-sm font-semibold transition-opacity hover:opacity-90"
           style={
             isFeatured
-              ? { background: "white", color: "var(--color-lavender-600)" }
+              ? {
+                  background: "var(--bg-surface)",
+                  color: "var(--color-lavender-600)",
+                }
               : {
                   background: "var(--color-lavender-100)",
                   color: "var(--color-lavender-700)",
@@ -144,7 +147,10 @@ function ActiveSubscription({ subscription }: { subscription: Subscription }) {
   return (
     <div
       className="rounded-3xl p-7"
-      style={{ background: "white", boxShadow: "var(--shadow-card)" }}
+      style={{
+        background: "var(--bg-surface)",
+        boxShadow: "var(--shadow-card)",
+      }}
     >
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>

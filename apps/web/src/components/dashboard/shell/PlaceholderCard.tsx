@@ -24,7 +24,7 @@ export function PlaceholderCard({
       <div
         className="rounded-3xl border p-8 text-center"
         style={{
-          background: "white",
+          background: "var(--bg-surface)",
           borderColor: "var(--color-warm-200)",
           boxShadow: "var(--shadow-card)",
         }}

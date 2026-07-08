@@ -14,15 +14,18 @@ import {
 // ─── masterKey ↔ seedPhrase roundtrip ────────────────────────────────────────
 
 describe("BIP39 seed phrase utilities", () => {
-  it("encodes a 16-byte master key into 12 English words", () => {
+  it("encodes a 16-byte master key into 12 Spanish words", () => {
     const key = new Uint8Array(MASTER_KEY_LEN).fill(0x42);
     const phrase = masterKeyToSeedPhrase(key);
     const words = phrase.split(" ");
     expect(words.length).toBe(SEED_PHRASE_WORD_COUNT);
     expect(SEED_PHRASE_WORD_COUNT).toBe(12);
-    // Every word should be from the English wordlist (lowercase ASCII).
+    // Every word should be from the Spanish wordlist: lowercase letters plus
+    // combining marks. @scure ships the wordlist NFKD-decomposed, so an
+    // accented word like "árido" is "a" + U+0301 (combining acute) rather
+    // than the precomposed "á" — hence \p{M} in the class, not literal á.
     for (const w of words) {
-      expect(w).toMatch(/^[a-z]+$/);
+      expect(w).toMatch(/^[\p{Ll}\p{M}]+$/u);
     }
   });
 

@@ -32,12 +32,14 @@ describe("EcoShell", () => {
       ecoKey: null,
       masterKey: null,
       isLegacyAccount: false,
+      remember: true,
       unlocking: false,
       restoring: false,
       error: null,
       unlock: vi.fn(),
       lock: vi.fn(),
       adoptMasterKey: vi.fn(),
+      setRemember: vi.fn(),
       ...overrides,
     });
   }

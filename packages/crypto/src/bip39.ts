@@ -3,7 +3,7 @@ import {
   mnemonicToEntropy,
   validateMnemonic,
 } from "@scure/bip39";
-import { wordlist } from "@scure/bip39/wordlists/english";
+import { wordlist } from "@scure/bip39/wordlists/spanish";
 import { MASTER_KEY_LEN } from "./argon2";
 
 /**
@@ -13,8 +13,16 @@ import { MASTER_KEY_LEN } from "./argon2";
  *
  *   The seed phrase IS the masterKey serialized.
  *
- * 16-byte masterKey = 128 bits = 12 BIP39 English words (128-bit entropy
+ * 16-byte masterKey = 128 bits = 12 BIP39 Spanish words (128-bit entropy
  * + 4-bit checksum = 132 bits / 11 bits per word).
+ *
+ * Language: the Spanish wordlist (2026-07). Our audience is Ecuador → LATAM,
+ * so an English recovery phrase reads as foreign and hard to transcribe. The
+ * words carry accents (e.g. "gavilán", "útil"); @scure/bip39 NFKD-normalises
+ * on decode, and `toLowerCase()` preserves accents, so transcription from a
+ * hand-written copy is forgiving. Switching wordlist is a hard break for any
+ * phrase generated under the old English list — acceptable pre-launch (no
+ * real users), but MUST be a documented migration if we ever change it again.
  *
  * Standard BIP39 derives a key FROM a seed phrase via PBKDF2; we go the
  * opposite direction (key → words → key). The trade-off:
@@ -70,7 +78,7 @@ export function masterKeyToSeedPhrase(masterKey: Uint8Array): string {
  *
  * Throws on:
  *   - wrong word count (not 12)
- *   - invalid words (not in the BIP39 English wordlist)
+ *   - invalid words (not in the BIP39 Spanish wordlist)
  *   - checksum mismatch (user mistyped a word)
  *
  * The error is intentionally generic so a "wrong word" doesn't leak

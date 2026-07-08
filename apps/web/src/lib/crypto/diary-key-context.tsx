@@ -54,6 +54,24 @@ import { clearDiaryWrapKey, saveDiaryWrapKey } from "@/actions/diary-session";
  */
 
 const LOCAL_STORAGE_KEY = "psico:diary:wrapped";
+/**
+ * Per-device preference: does the user want us to keep the diary unlocked on
+ * THIS browser ("recordar") or ask for the password every session ("pedir
+ * cada vez")? Default: remember (decision 2026-07 — fluidity-first, with a
+ * visible control at the unlock gate and in Ajustes → Seguridad).
+ */
+const REMEMBER_KEY = "psico:diary:remember";
+
+/** Read the remember preference. Defaults to `true` (SSR + first visit). */
+function readRememberPref(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const v = window.localStorage.getItem(REMEMBER_KEY);
+    return v === null ? true : v === "1";
+  } catch {
+    return true;
+  }
+}
 
 interface WrappedPayload {
   ciphertext: string;
@@ -90,6 +108,13 @@ export interface DiaryKeyState {
   masterKey: Uint8Array | null;
   /** Whether `cryptoSalt` is null on the user (legacy account, no E2E). */
   isLegacyAccount: boolean;
+  /**
+   * Whether the user wants the diary remembered on this device. When true we
+   * persist a wrap pair so reloads restore silently; when false the key lives
+   * only in tab memory and each fresh session re-prompts for the password.
+   * The value is per-device (localStorage), never sent to the server.
+   */
+  remember: boolean;
   /** Derivation is in flight (Argon2id ~500ms on desktop). */
   unlocking: boolean;
   /**
@@ -115,6 +140,13 @@ export interface DiaryKeyActions {
   adoptMasterKey: (masterKey: Uint8Array) => void;
   /** Forget the key + clear persisted wrap pair (RAM + storage + cookie). */
   lock: () => void;
+  /**
+   * Change the per-device "recordar" preference. Turning it OFF wipes the
+   * persisted wrap pair immediately (next session will ask for the password)
+   * but keeps the current in-memory key so the session isn't interrupted.
+   * Turning it ON persists the current master key right away, if unlocked.
+   */
+  setRemember: (next: boolean) => void;
 }
 
 export type DiaryKeyContextValue = DiaryKeyState & DiaryKeyActions;
@@ -145,6 +177,7 @@ export function DiaryKeyProvider({
   const [ecoKey, setEcoKey] = useState<Uint8Array | null>(null);
   const [masterKey, setMasterKey] = useState<Uint8Array | null>(null);
   const [unlocking, setUnlocking] = useState(false);
+  const [remember, setRememberState] = useState<boolean>(readRememberPref);
   const [restoring, setRestoring] = useState<boolean>(
     () => initialWrapKey !== null && cryptoSalt !== null,
   );
@@ -208,6 +241,13 @@ export function DiaryKeyProvider({
       setRestoring(false);
       return;
     }
+    // User chose "pedir cada vez": never silently restore. Drop any lingering
+    // persistence so we don't keep a wrap pair around against their wish.
+    if (!remember) {
+      wipePersistence();
+      setRestoring(false);
+      return;
+    }
     try {
       const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
       if (!raw) {
@@ -239,7 +279,7 @@ export function DiaryKeyProvider({
     } finally {
       setRestoring(false);
     }
-  }, [restoring, cryptoSalt, initialWrapKey, wipePersistence]);
+  }, [restoring, cryptoSalt, initialWrapKey, remember, wipePersistence]);
 
   // ── Actions ────────────────────────────────────────────────────────────
 
@@ -258,7 +298,8 @@ export function DiaryKeyProvider({
         setMasterKey(derivedMaster);
         setKey(diaryKey);
         setEcoKey(ecoSub);
-        await persistMasterKey(derivedMaster);
+        // Only persist across sessions when the user opted to be remembered.
+        if (remember) await persistMasterKey(derivedMaster);
       } catch (err) {
         const code =
           err instanceof Error ? err.message : "CRYPTO_UNKNOWN_ERROR";
@@ -288,9 +329,31 @@ export function DiaryKeyProvider({
       setKey(diaryKey);
       setEcoKey(ecoSub);
       setError(null);
-      void persistMasterKey(owned);
+      if (remember) void persistMasterKey(owned);
     },
-    [persistMasterKey],
+    [remember, persistMasterKey],
+  );
+
+  const setRemember = useCallback(
+    (next: boolean) => {
+      setRememberState(next);
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(REMEMBER_KEY, next ? "1" : "0");
+        } catch {
+          // Private mode / quota — the in-memory value still drives behaviour.
+        }
+      }
+      if (!next) {
+        // Stop remembering: drop the persisted wrap so the next session asks
+        // for the password. The current in-memory key stays valid.
+        wipePersistence();
+      } else if (masterKey) {
+        // Re-enabling: persist the key we already hold so reloads restore.
+        void persistMasterKey(masterKey);
+      }
+    },
+    [masterKey, wipePersistence, persistMasterKey],
   );
 
   const lock = useCallback(() => {
@@ -310,24 +373,28 @@ export function DiaryKeyProvider({
       ecoKey,
       masterKey,
       isLegacyAccount: cryptoSalt === null,
+      remember,
       unlocking,
       restoring,
       error,
       unlock,
       adoptMasterKey,
       lock,
+      setRemember,
     }),
     [
       key,
       ecoKey,
       masterKey,
       cryptoSalt,
+      remember,
       unlocking,
       restoring,
       error,
       unlock,
       adoptMasterKey,
       lock,
+      setRemember,
     ],
   );
 

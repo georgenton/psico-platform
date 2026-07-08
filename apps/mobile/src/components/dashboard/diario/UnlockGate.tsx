@@ -1,8 +1,16 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { isValidSeedPhrase, seedPhraseToMasterKey } from "@psico/crypto";
 import { useDiaryKey } from "@/crypto/diary-key-context";
+import { DiarySecurityInfo } from "./DiarySecurityInfo";
 import { Colors, Radius, Spacing } from "@/theme";
 
 /**
@@ -17,8 +25,18 @@ import { Colors, Radius, Spacing } from "@/theme";
  * unavailable" card pointing users to support.
  */
 export function UnlockGate() {
-  const { unlock, adoptMasterKey, unlocking, error, isLegacyAccount } =
-    useDiaryKey();
+  const {
+    unlock,
+    adoptMasterKey,
+    unlocking,
+    error,
+    isLegacyAccount,
+    remember,
+    setRemember,
+    needsBiometric,
+    authenticateBiometric,
+    biometricLabel,
+  } = useDiaryKey();
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"password" | "seed">("password");
   const [seedText, setSeedText] = useState("");
@@ -126,11 +144,38 @@ export function UnlockGate() {
       </View>
       <Text style={styles.title}>Desbloquea tu diario</Text>
       <Text style={styles.subtitle}>
-        Tu diario se cifra en tu dispositivo con una clave derivada de tu
-        contraseña. Ingrésala una sola vez para esta instalación.
+        Tu diario se cifra en tu dispositivo. Ábrelo con{" "}
+        <Text style={styles.bold}>
+          la misma contraseña con la que iniciaste sesión
+        </Text>
+        . Solo tú puedes leerlo.
       </Text>
 
-      <Text style={styles.label}>Contraseña de tu cuenta</Text>
+      <View style={{ marginTop: 6 }}>
+        <DiarySecurityInfo />
+      </View>
+
+      {/* Biometric shortcut when a cached key is gated behind Face ID / huella. */}
+      {needsBiometric ? (
+        <>
+          <Pressable
+            style={styles.biometricButton}
+            onPress={() => void authenticateBiometric()}
+          >
+            <Ionicons
+              name="finger-print"
+              size={18}
+              color={Colors.lavender[700]}
+            />
+            <Text style={styles.biometricButtonText}>
+              Usar {biometricLabel}
+            </Text>
+          </Pressable>
+          <Text style={styles.orDivider}>o ingresa tu contraseña</Text>
+        </>
+      ) : null}
+
+      <Text style={styles.label}>Contraseña de tu cuenta (la del login)</Text>
       <TextInput
         style={styles.input}
         value={password}
@@ -149,6 +194,24 @@ export function UnlockGate() {
           {error}
         </Text>
       ) : null}
+
+      {/* Remember-vs-ask control (default remember). */}
+      <View style={styles.rememberRow}>
+        <View style={{ flex: 1, paddingRight: 10 }}>
+          <Text style={styles.rememberTitle}>Recordar en este dispositivo</Text>
+          <Text style={styles.rememberHelp}>
+            {remember
+              ? "No te pediremos la contraseña la próxima vez. Desactívalo en equipos compartidos."
+              : "Te pediremos la contraseña cada vez que entres."}
+          </Text>
+        </View>
+        <Switch
+          value={remember}
+          onValueChange={setRemember}
+          disabled={unlocking}
+          trackColor={{ true: Colors.sage[400], false: Colors.warm[200] }}
+        />
+      </View>
 
       <Pressable
         style={[styles.button, (!password || unlocking) && { opacity: 0.5 }]}
@@ -257,5 +320,45 @@ const styles = StyleSheet.create({
     textAlign: "center",
     textDecorationLine: "underline",
     marginTop: Spacing.sm + 2,
+  },
+  bold: { fontWeight: "700", color: Colors.warm[700] },
+  biometricButton: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: Spacing.md,
+    paddingVertical: 13,
+    borderRadius: Radius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.lavender[400],
+    backgroundColor: Colors.lavender[50],
+  },
+  biometricButtonText: {
+    color: Colors.lavender[700],
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  orDivider: {
+    fontSize: 12,
+    color: Colors.warm[400],
+    textAlign: "center",
+    marginTop: Spacing.sm + 2,
+  },
+  rememberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.md,
+    backgroundColor: Colors.warm[50],
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.sm + 2,
+    paddingVertical: 10,
+  },
+  rememberTitle: { fontSize: 13, fontWeight: "700", color: Colors.warm[800] },
+  rememberHelp: {
+    fontSize: 11.5,
+    color: Colors.warm[500],
+    marginTop: 2,
+    lineHeight: 15,
   },
 });

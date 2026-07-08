@@ -122,7 +122,7 @@ describe("EntryDetailView · edit mode", () => {
     await user.click(screen.getByRole("button", { name: /Guardar cambios/i }));
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0];
-    expect(url).toBe("https://api.test/api/diario/entries/entry-1");
+    expect(url).toBe("https://api.test/api/reflexiones/entries/entry-1");
     expect((init as RequestInit).method).toBe("PATCH");
     const body = JSON.parse(((init as RequestInit).body as string) ?? "{}");
     expect(body.mood).toBe("good");

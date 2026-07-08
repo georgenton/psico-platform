@@ -111,27 +111,38 @@ export const ecoApi = {
 
 /**
  * Parse a single SSE event chunk (everything before the blank-line
- * delimiter). The server emits:
+ * delimiter).
  *
- *   event: delta
- *   data: {"text":"..."}
+ * NestJS' `@Sse()` serialises an observable of `{ data: {...} }` as:
+ *
+ *   id: 1
+ *   data: {"event":"delta","data":{"text":"..."}}
+ *
+ * i.e. there is NO SSE `event:` field — the event type lives INSIDE the JSON
+ * payload (`{ event, data }`). We therefore read the discriminant from the
+ * parsed JSON, not from an `event:` line. (An earlier version required an
+ * `event:` line that the server never emits, so every frame was silently
+ * dropped and Eco appeared to never reply.)
  *
  * Returns `null` if the chunk is incomplete or unparseable — we let the
  * stream continue rather than throwing, because a single malformed frame
  * shouldn't terminate the conversation.
  */
-function parseSseChunk(raw: string): EcoSseEvent | null {
+/** @internal Exported for regression tests only — not part of the public API. */
+export function parseSseChunk(raw: string): EcoSseEvent | null {
   const lines = raw.split("\n");
-  let event: string | undefined;
   let dataLine: string | undefined;
   for (const line of lines) {
-    if (line.startsWith("event:")) event = line.slice(6).trim();
-    else if (line.startsWith("data:")) dataLine = line.slice(5).trim();
+    // Concatenate multi-line `data:` fields per the SSE spec.
+    if (line.startsWith("data:")) {
+      dataLine = (dataLine ?? "") + line.slice(5).trim();
+    }
   }
-  if (!event || !dataLine) return null;
+  if (!dataLine) return null;
   try {
-    const data = JSON.parse(dataLine) as Record<string, unknown>;
-    return { event, data } as EcoSseEvent;
+    const parsed = JSON.parse(dataLine) as { event?: string; data?: unknown };
+    if (typeof parsed.event !== "string") return null;
+    return parsed as EcoSseEvent;
   } catch {
     return null;
   }

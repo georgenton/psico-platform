@@ -83,13 +83,25 @@ function clearTokens() {
   }
 }
 
-// Attempts a token refresh.  Returns the new access token or null on failure.
+// Attempts a token refresh.  Returns the new access token, or null on a
+// genuine auth failure (invalid/expired refresh token → the caller logs the
+// user out).
+//
+// Transient failures — a rate limit (429) or a server error (5xx) — are NOT
+// auth failures: the session is probably still valid, the backend is just
+// busy. We RE-THROW those so the caller surfaces the error instead of
+// bouncing the user through /logout on a temporary hiccup (which is what
+// caused the ERR_TOO_MANY_REDIRECTS loop when the refresh endpoint got
+// throttled).
 async function attemptRefresh(refreshToken: string): Promise<string | null> {
   try {
     const refreshed = await authApi.refresh(refreshToken);
     setTokens(refreshed.accessToken, refreshed.refreshToken);
     return refreshed.accessToken;
-  } catch {
+  } catch (err) {
+    if (err instanceof ApiError && (err.status === 429 || err.status >= 500)) {
+      throw err;
+    }
     return null;
   }
 }
@@ -137,9 +149,7 @@ export async function serverFetch<T>(
       // turning into "Failed to load" placeholders downstream.
       if (!(err instanceof ApiError) || err.status !== 401) {
         if (err instanceof ApiError) {
-          console.error(
-            `[serverFetch] ${path} → ${err.status} ${err.message}`,
-          );
+          console.error(`[serverFetch] ${path} → ${err.status} ${err.message}`);
         } else {
           console.error(
             `[serverFetch] ${path} network error:`,
@@ -161,12 +171,20 @@ export async function serverFetch<T>(
       return apiFetch<T>(path, { ...init, token: newToken });
     }
 
-    // Refresh failed — clean up and force re-login
+    // Refresh failed with a genuine auth error — clean up and force re-login.
     clearTokens();
   }
 
-  // No usable token
-  redirect("/login");
+  // No usable token. Redirect to /logout — NOT /login.
+  //
+  // Clearing cookies here (clearTokens above) is a no-op during a Server
+  // Component render: `cookies().delete()` throws and we swallow it. So the
+  // cookies survive, the middleware still sees a "session", and it bounces
+  // /login → /dashboard → serverFetch fails again → /login … forever
+  // (ERR_TOO_MANY_REDIRECTS). /logout runs `logoutAction`, a Server Action
+  // where cookie writes ARE allowed, so it actually clears the session and
+  // then lands on /login with no loop.
+  redirect("/logout");
 }
 
 // ── Convenience: read session without making an API call ──────────────────

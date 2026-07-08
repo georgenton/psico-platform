@@ -24,7 +24,16 @@ import { Colors, Radius, Spacing } from "@/theme";
  * For legacy accounts (cryptoSalt === null) we show a neutral "feature
  * unavailable" card pointing users to support.
  */
-export function UnlockGate() {
+export function UnlockGate({
+  context = "diario",
+}: {
+  /**
+   * Which surface is asking. Both derive the SAME key (diary + Eco share it),
+   * but the copy/icon adapt so unlocking from Eco doesn't read like "go to
+   * your diary". Parity with the web UnlockGate `context` prop.
+   */
+  context?: "diario" | "eco";
+} = {}) {
   const {
     unlock,
     adoptMasterKey,
@@ -37,6 +46,20 @@ export function UnlockGate() {
     authenticateBiometric,
     biometricLabel,
   } = useDiaryKey();
+  const copy =
+    context === "eco"
+      ? {
+          icon: "leaf" as const,
+          title: "Desbloquea Eco",
+          subtitle:
+            "Eco usa la misma llave cifrada de tu diario. Escribe la misma contraseña con la que iniciaste sesión para abrir tus conversaciones. Solo tú puedes leerlas.",
+        }
+      : {
+          icon: "lock-closed" as const,
+          title: "Desbloquea tu diario",
+          subtitle:
+            "Tu diario se cifra en tu dispositivo. Escribe la misma contraseña con la que iniciaste sesión para abrirlo. Solo tú puedes leerlo.",
+        };
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"password" | "seed">("password");
   const [seedText, setSeedText] = useState("");
@@ -140,16 +163,10 @@ export function UnlockGate() {
   return (
     <View style={styles.card}>
       <View style={[styles.icon, { backgroundColor: Colors.lavender[50] }]}>
-        <Ionicons name="lock-closed" size={22} color={Colors.lavender[700]} />
+        <Ionicons name={copy.icon} size={22} color={Colors.lavender[700]} />
       </View>
-      <Text style={styles.title}>Desbloquea tu diario</Text>
-      <Text style={styles.subtitle}>
-        Tu diario se cifra en tu dispositivo. Ábrelo con{" "}
-        <Text style={styles.bold}>
-          la misma contraseña con la que iniciaste sesión
-        </Text>
-        . Solo tú puedes leerlo.
-      </Text>
+      <Text style={styles.title}>{copy.title}</Text>
+      <Text style={styles.subtitle}>{copy.subtitle}</Text>
 
       <View style={{ marginTop: 6 }}>
         <DiarySecurityInfo />

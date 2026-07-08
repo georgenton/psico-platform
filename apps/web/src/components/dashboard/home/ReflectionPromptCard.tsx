@@ -85,8 +85,11 @@ export function ReflectionPromptCard({
         <button
           type="button"
           disabled
-          className="inline-flex items-center gap-1.5 rounded-[10px] px-4 py-2.5 text-[12.5px] font-semibold text-white opacity-50"
-          style={{ background: "var(--color-warm-900)" }}
+          className="inline-flex items-center gap-1.5 rounded-[10px] px-4 py-2.5 text-[12.5px] font-semibold opacity-50"
+          style={{
+            background: "var(--color-warm-900)",
+            color: "var(--color-warm-50)",
+          }}
           title="Diario UI llega en Sprint S6-front"
         >
           Guardar en mi diario →

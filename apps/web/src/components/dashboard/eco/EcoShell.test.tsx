@@ -15,7 +15,8 @@ const PERSONA: EcoPersona = {
  *
  * EcoShell decides between three states based on `useDiaryKey()`:
  *   - LegacyFallback when the account predates the E2E rollout.
- *   - LockedFallback when the user hasn't unlocked the diary.
+ *   - An inline UnlockGate (Eco-framed) when the user hasn't unlocked yet —
+ *     they unlock in place and stay in Eco, no detour to Diario.
  *   - The actual chat layout when the ecoKey is available.
  *
  * We mock the context (not the children — ChatArea/ThreadRail) and assert
@@ -61,7 +62,7 @@ describe("EcoShell", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the locked fallback with a Diario CTA when ecoKey is null", () => {
+  it("renders an inline Eco-framed unlock gate when ecoKey is null", () => {
     mockDiaryKey();
     render(
       <EcoShell
@@ -71,11 +72,11 @@ describe("EcoShell", () => {
         token="t"
       />,
     );
+    // Unlock happens in place — Eco-framed copy, no "go to Diario" detour.
+    expect(screen.getByText(/Desbloquea Eco/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/Desbloquea tu diario primero/i),
-    ).toBeInTheDocument();
-    const cta = screen.getByRole("link", { name: /Ir a Diario/i });
-    expect(cta.getAttribute("href")).toBe("/dashboard/reflexiones");
+      screen.queryByRole("link", { name: /Ir a Diario/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the eco-layout grid (with rail + disclaimer) when ecoKey is unlocked", () => {

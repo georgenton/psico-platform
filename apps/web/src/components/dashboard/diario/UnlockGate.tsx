@@ -22,7 +22,16 @@ import { PrivacyInfoButton } from "@/components/privacy/PrivacyInfoButton";
  *   - For legacy accounts (cryptoSalt === null) we render an inactive note
  *     instead of the password form.
  */
-export function UnlockGate() {
+export function UnlockGate({
+  context = "diario",
+}: {
+  /**
+   * Which surface is asking for the unlock. Both derive the SAME key (the
+   * diary and Eco share it), but the copy/icon adapt so the user knows where
+   * they are — unlocking from Eco shouldn't read like "go to your diary".
+   */
+  context?: "diario" | "eco";
+} = {}) {
   const {
     unlock,
     adoptMasterKey,
@@ -32,6 +41,20 @@ export function UnlockGate() {
     remember,
     setRemember,
   } = useDiaryKey();
+  const copy =
+    context === "eco"
+      ? {
+          icon: "🌿",
+          title: "Desbloquea Eco",
+          blurb:
+            "Eco usa la misma llave cifrada de tu diario. Escribe la misma contraseña con la que iniciaste sesión para abrir tus conversaciones. Solo tú puedes leerlas.",
+        }
+      : {
+          icon: "🔒",
+          title: "Desbloquea tu diario",
+          blurb:
+            "Tu diario se cifra en tu dispositivo. Escribe la misma contraseña con la que iniciaste sesión para abrirlo. Solo tú puedes leerlo.",
+        };
   const [password, setPassword] = useState("");
   // `mode` toggles between the standard password unlock and the seed-phrase
   // recovery unlock. The recovery path skips Argon2id entirely — the BIP39
@@ -195,23 +218,19 @@ export function UnlockGate() {
         className="mx-auto flex h-14 w-14 items-center justify-center rounded-full text-[22px]"
         style={{ background: "var(--color-lavender-50)" }}
       >
-        🔒
+        {copy.icon}
       </div>
       <h3
         className="mt-4 text-center text-[18px] font-bold leading-tight"
         style={{ color: "var(--color-warm-900)" }}
       >
-        Desbloquea tu diario
+        {copy.title}
       </h3>
       <p
         className="mx-auto mt-2 max-w-md text-center text-[13px] leading-relaxed"
         style={{ color: "var(--color-warm-500)" }}
       >
-        Tu diario se cifra en tu dispositivo. Escribe{" "}
-        <b style={{ color: "var(--color-warm-700)" }}>
-          la misma contraseña con la que iniciaste sesión
-        </b>{" "}
-        para abrirlo. Solo tú puedes leerlo.
+        {copy.blurb}
       </p>
       <div className="mt-2 flex justify-center">
         <PrivacyInfoButton variant="diario" label="¿Por qué?" />

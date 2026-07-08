@@ -334,6 +334,45 @@ body.amb-noche {
   --color-lavender-600: #9c8af0;
 }
 
+/* ── Eco chat micro-animations ──────────────────────────────────────────────
+   Used by the Eco companion's streaming bubble: a soft three-dot "typing"
+   indicator, a gentle blinking caret while text streams in, and a calm
+   fade-in as each bubble mounts. Kept here (global) so the reduced-motion
+   guard below neutralises them for users who asked the OS to reduce motion. */
+@keyframes eco-typing {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@keyframes eco-caret {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes eco-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Respect users who asked the OS to reduce motion. */
 @media (prefers-reduced-motion: reduce) {
   *,

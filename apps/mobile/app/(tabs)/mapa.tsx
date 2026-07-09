@@ -13,11 +13,16 @@ import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { evolucionApi, homeApi } from "@psico/api-client";
 import type {
+  EmotionalMapAffectDynamics,
   EmotionalMapDimension,
   EmotionalMapResult,
   EvolucionStats,
 } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
+import {
+  buildAffectStory,
+  formatInertia,
+} from "@/components/dashboard/mapa/affect-copy";
 
 /**
  * Mapa Emocional — Sprint H1b · Mobile parity with design v2 (s-mapa).
@@ -195,6 +200,9 @@ export default function MapaScreen() {
                 const covered = dim.confidence >= CONFIDENCE_FLOOR;
                 const pct = Math.round(dim.value * 100);
                 const icon = AXIS_ICONS[dim.key] ?? "ellipse-outline";
+                const measured =
+                  dim.key === "calma" &&
+                  map.affectDynamics?.status === "active";
                 return (
                   <View key={dim.key} style={styles.dim}>
                     <View style={styles.dimTop}>
@@ -209,7 +217,18 @@ export default function MapaScreen() {
                         <Text style={styles.dimLabel}>{LABELS[dim.key]}</Text>
                       </View>
                       {covered ? (
-                        <Text style={styles.dimPct}>{pct}%</Text>
+                        <View style={styles.dimValueWrap}>
+                          <Text
+                            style={
+                              measured
+                                ? styles.dimBasisMeasured
+                                : styles.dimBasisActivity
+                            }
+                          >
+                            {measured ? "Medido" : "Tu actividad"}
+                          </Text>
+                          <Text style={styles.dimPct}>{pct}%</Text>
+                        </View>
                       ) : (
                         <Text style={styles.dimGathering}>Reuniendo datos</Text>
                       )}
@@ -255,52 +274,10 @@ export default function MapaScreen() {
                   <Text style={styles.affectGathering}>
                     Reuniendo datos — {map.affectDynamics.nObs} de ~
                     {map.affectDynamics.needed} registros de ánimo. Registra tu
-                    ánimo unos días más y verás tu tono base, recuperación,
-                    estabilidad e inercia emocional.
+                    ánimo unos días más y te contaremos cómo se mueve.
                   </Text>
                 ) : (
-                  <>
-                    <View style={styles.affectGrid}>
-                      <AffectMetric
-                        label="Tono base"
-                        value={pctLabel(map.affectDynamics.baseline)}
-                      />
-                      <AffectMetric
-                        label="Recuperación"
-                        value={
-                          map.affectDynamics.recovery != null
-                            ? pctLabel(map.affectDynamics.recovery)
-                            : gatheringLabel(
-                                map.affectDynamics.recoveryNeeded,
-                                map.affectDynamics.nObs,
-                              )
-                        }
-                        muted={map.affectDynamics.recovery == null}
-                      />
-                      <AffectMetric
-                        label="Estabilidad"
-                        value={pctLabel(map.affectDynamics.stability)}
-                      />
-                      <AffectMetric
-                        label="Inercia"
-                        value={
-                          map.affectDynamics.inertiaDays != null
-                            ? `${map.affectDynamics.inertiaDays.toFixed(1)} d`
-                            : gatheringLabel(
-                                map.affectDynamics.recoveryNeeded,
-                                map.affectDynamics.nObs,
-                              )
-                        }
-                        muted={map.affectDynamics.inertiaDays == null}
-                      />
-                    </View>
-                    <Text style={styles.affectConf}>
-                      Confianza{" "}
-                      {Math.round(map.affectDynamics.confidence * 100)}% ·{" "}
-                      {map.affectDynamics.nObs} registros. Mientras más
-                      registres, más precisa la estimación.
-                    </Text>
-                  </>
+                  <AffectStoryView data={map.affectDynamics} />
                 )}
               </View>
             ) : null}
@@ -440,38 +417,58 @@ function FeedRow({
   );
 }
 
-function AffectMetric({
-  label,
-  value,
-  muted,
-}: {
-  label: string;
-  value: string;
-  muted?: boolean;
-}) {
+/** Human story for the ACTIVE affect-dynamics block (hybrid: phrase + % chip). */
+function AffectStoryView({ data }: { data: EmotionalMapAffectDynamics }) {
+  const story = buildAffectStory(data);
+  const conf = Math.round(data.confidence * 100);
   return (
-    <View style={styles.affectCard}>
-      <Text style={styles.affectCardLabel}>{label}</Text>
-      <Text
-        style={muted ? styles.affectCardValueMuted : styles.affectCardValue}
-      >
-        {value}
+    <View style={styles.affectStory}>
+      <Text style={styles.affectHeadline}>{story.headline}</Text>
+      {story.rows.map((row) => (
+        <View key={row.key} style={styles.affectRow}>
+          <View style={styles.affectRowIcon}>
+            <Ionicons
+              name={row.icon as AxisIcon}
+              size={17}
+              color={Colors.lavender[600]}
+            />
+          </View>
+          {row.phrase ? (
+            <View style={styles.affectRowBody}>
+              <View style={styles.affectRowTitleLine}>
+                <Text style={styles.affectRowTitle}>{row.phrase.title}</Text>
+                {row.pct != null ? (
+                  <Text style={styles.affectRowPct}>{row.pct}%</Text>
+                ) : null}
+              </View>
+              <Text style={styles.affectRowText}>{row.phrase.body}</Text>
+            </View>
+          ) : (
+            <View style={styles.affectRowBody}>
+              <Text style={styles.affectRowTitleMuted}>
+                Cómo te recuperas — reuniendo datos
+                {row.missing ? ` · ~${row.missing} más` : ""}
+              </Text>
+              <Text style={styles.affectRowText}>
+                Con unos registros más podremos contarte qué tan rápido vuelves
+                a tu base después de un bajón.
+              </Text>
+            </View>
+          )}
+        </View>
+      ))}
+      <Text style={styles.affectConf}>
+        Confianza {conf}% · {data.nObs} registros
+        {data.inertiaDays != null
+          ? ` · tus estados suelen durar ~${formatInertia(data.inertiaDays)}`
+          : ""}
+        . Mientras más registres, más precisa la estimación.
       </Text>
     </View>
   );
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────
-
-function pctLabel(v: number | null): string {
-  return v == null ? "—" : `${Math.round(v * 100)}%`;
-}
-
-/** Recovery/inertia gathering label — shows how many more records are needed. */
-function gatheringLabel(needed: number, nObs: number): string {
-  const missing = Math.max(0, needed - nObs);
-  return missing > 0 ? `Reuniendo · ~${missing} más` : "Reuniendo datos";
-}
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -667,6 +664,35 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.warm[500],
   },
+  dimValueWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  dimBasisMeasured: {
+    fontSize: 9.5,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: Colors.lavender[700],
+    backgroundColor: Colors.lavender[50],
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 9999,
+    overflow: "hidden",
+  },
+  dimBasisActivity: {
+    fontSize: 9.5,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: Colors.warm[500],
+    backgroundColor: Colors.warm[100],
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 9999,
+    overflow: "hidden",
+  },
   dimGathering: {
     fontSize: 11,
     fontWeight: "700",
@@ -739,42 +765,73 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: Colors.warm[700],
   },
-  affectGrid: {
+  affectStory: {
     marginTop: 12,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
   },
-  affectCard: {
-    flexGrow: 1,
-    flexBasis: "45%",
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.warm[200],
-  },
-  affectCardLabel: {
-    fontSize: 10.5,
+  affectHeadline: {
+    fontSize: 16,
     fontWeight: "700",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-    color: Colors.warm[500],
-  },
-  affectCardValue: {
-    fontSize: 20,
-    fontWeight: "800",
+    lineHeight: 22,
     color: Colors.warm[900],
-    marginTop: 2,
+    marginBottom: 6,
   },
-  affectCardValueMuted: {
-    fontSize: 12,
+  affectRow: {
+    flexDirection: "row",
+    gap: 10,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.warm[100],
+  },
+  affectRowIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.lavender[50],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  affectRowBody: {
+    flex: 1,
+  },
+  affectRowTitleLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  affectRowTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.warm[900],
+  },
+  affectRowTitleMuted: {
+    fontSize: 14,
     fontWeight: "600",
     color: Colors.warm[500],
-    marginTop: 6,
+  },
+  affectRowPct: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.lavender[700],
+    backgroundColor: Colors.lavender[50],
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  affectRowText: {
+    marginTop: 2,
+    fontSize: 12.5,
+    lineHeight: 17.5,
+    color: Colors.warm[500],
   },
   affectConf: {
-    marginTop: 12,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.warm[100],
     fontSize: 11.5,
+    lineHeight: 16,
     color: Colors.warm[500],
   },
 

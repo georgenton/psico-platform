@@ -28,29 +28,42 @@ describe("MapAffectDynamics", () => {
     expect(screen.queryByText("Tono base")).not.toBeInTheDocument();
   });
 
-  it("renders the four estimated metrics when active", () => {
+  it("renders the human story (headline + phrases + hybrid % chips) when active", () => {
     const data: EmotionalMapAffectDynamics = {
       status: "active",
       nObs: 42,
       needed: 8,
       recoveryNeeded: 20,
       confidence: 1,
-      baseline: 0.6,
-      recovery: 0.4,
-      stability: 0.7,
-      inertiaDays: 2.5,
+      baseline: 0.72,
+      recovery: 0.83,
+      stability: 0.66,
+      inertiaDays: 0.2,
     };
     render(<MapAffectDynamics data={data} />);
-    expect(screen.getByText("Tono base")).toBeInTheDocument();
-    expect(screen.getByText("60%")).toBeInTheDocument(); // baseline
-    expect(screen.getByText("70%")).toBeInTheDocument(); // stability
-    expect(screen.getByText("2.5 d")).toBeInTheDocument(); // inertia
+    // Warm headline composed from the strongest signals.
+    expect(
+      screen.getByText(
+        "Sueles estar en un buen lugar, y cuando bajas, te recuperas rápido.",
+      ),
+    ).toBeInTheDocument();
+    // Human phrases, not parameter names.
+    expect(screen.getByText("Tu ánimo de base es bueno")).toBeInTheDocument();
+    expect(screen.getByText("Te recuperas rápido")).toBeInTheDocument();
+    expect(screen.getByText("Tienes altibajos normales")).toBeInTheDocument();
+    expect(screen.queryByText("Tono base")).not.toBeInTheDocument();
+    // Hybrid: the numbers stay as small chips.
+    expect(screen.getByText("72%")).toBeInTheDocument();
+    expect(screen.getByText("83%")).toBeInTheDocument();
+    expect(screen.getByText("66%")).toBeInTheDocument();
+    // Footer: confidence + human inertia ("unas horas" for 0.2d).
     expect(screen.getByText(/Confianza 100%/)).toBeInTheDocument();
+    expect(screen.getByText(/unas horas/)).toBeInTheDocument();
     // Non-diagnostic disclaimer present.
     expect(screen.getByText(/no.*un diagnóstico/i)).toBeInTheDocument();
   });
 
-  it("Etapa 1: gates recovery + inertia with a 'reuniendo' note until enough data", () => {
+  it("Etapa 1: gates the recovery row with a 'reuniendo' note until enough data", () => {
     // Active with baseline + stability, but θ-derived axes still withheld.
     const data: EmotionalMapAffectDynamics = {
       status: "active",
@@ -58,16 +71,20 @@ describe("MapAffectDynamics", () => {
       needed: 8,
       recoveryNeeded: 20,
       confidence: 0.3,
-      baseline: 0.6,
+      baseline: 0.72,
       recovery: null,
       stability: 0.55,
       inertiaDays: null,
     };
     render(<MapAffectDynamics data={data} />);
-    // Baseline + stability show real numbers.
-    expect(screen.getByText("60%")).toBeInTheDocument();
+    // Baseline + stability phrases show with their chips.
+    expect(screen.getByText("Tu ánimo de base es bueno")).toBeInTheDocument();
+    expect(screen.getByText("Tienes altibajos normales")).toBeInTheDocument();
+    expect(screen.getByText("72%")).toBeInTheDocument();
     expect(screen.getByText("55%")).toBeInTheDocument();
-    // Recovery + inertia show the gathering note with the remaining count (8 more).
-    expect(screen.getAllByText(/Reuniendo datos · ~8 más/).length).toBe(2);
+    // Recovery row shows the gathering note with the remaining count (8 more).
+    expect(
+      screen.getByText(/reuniendo datos · ~8 registros más/i),
+    ).toBeInTheDocument();
   });
 });

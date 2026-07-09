@@ -12,7 +12,7 @@ import type {
   IEmotionalMapProvider,
 } from "./providers/provider.interface";
 import {
-  fitOu,
+  fitOuWithTrend,
   MIN_OBS_FOR_FIT,
   moodToScalar,
   ouToAxes,
@@ -375,22 +375,36 @@ export function computeAffectDynamics(
     recovery: null,
     stability: null,
     inertiaDays: null,
+    trend: null,
   });
 
   if (nObs < MIN_OBS_FOR_FIT) return gathering();
 
-  const fit = fitOu(obs);
+  // Etapa 4 (v1 ordinal-latent) — decompose into trend + OU residuals. When a
+  // significant trend exists, stability/recovery come from the DETRENDED
+  // dynamics (improving ≠ unstable) and the baseline is the trend's CURRENT
+  // level (where the user is, not their window average).
+  const trendFit = fitOuWithTrend(obs);
+  const fit = trendFit.fit;
   if (!fit.converged) return gathering();
 
   const conf = clamp01(nObs / OU_GOOD_N);
   if (conf < CONFIDENCE_FLOOR) return gathering(conf);
 
   const axes = ouToAxes(fit);
+  const baseline = trendFit.trending
+    ? clamp01((trendFit.levelNow + 1) / 2)
+    : axes.baseline;
+  const trend = trendFit.trending
+    ? trendFit.slopePerDay > 0
+      ? ("up" as const)
+      : ("down" as const)
+    : null;
   // Etapa 1 — reliable axes first: baseline + stability are shown from the fit
   // floor; recovery/inertia (θ-derived) are withheld until RECOVERY_MIN_OBS.
   const recoveryReady = nObs >= RECOVERY_MIN_OBS;
   logger?.log?.(
-    `EmotionalMap OU · nObs=${nObs} · sigma=${fit.params.sigma.toFixed(2)} · theta=${fit.params.theta.toFixed(2)} · stability=${axes.stability.toFixed(2)} · recoveryReady=${recoveryReady}`,
+    `EmotionalMap OU · nObs=${nObs} · sigma=${fit.params.sigma.toFixed(2)} · theta=${fit.params.theta.toFixed(2)} · stability=${axes.stability.toFixed(2)} · trend=${trend ?? "none"} · recoveryReady=${recoveryReady}`,
   );
   return {
     status: "active",
@@ -398,10 +412,11 @@ export function computeAffectDynamics(
     needed: MIN_OBS_FOR_FIT,
     recoveryNeeded: RECOVERY_MIN_OBS,
     confidence: round2(conf),
-    baseline: round2(axes.baseline),
+    baseline: round2(baseline),
     recovery: recoveryReady ? round2(axes.regulation) : null,
     stability: round2(axes.stability),
     inertiaDays: recoveryReady ? round2(fit.inertiaDays) : null,
+    trend,
   };
 }
 

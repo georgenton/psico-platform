@@ -63,6 +63,54 @@ describe("MapAffectDynamics", () => {
     expect(screen.getByText(/no.*un diagnóstico/i)).toBeInTheDocument();
   });
 
+  it("Etapa 4: leads with the direction and explains the detrended stability", () => {
+    // A recovering user — v1 detected an upward trend.
+    const data: EmotionalMapAffectDynamics = {
+      status: "active",
+      nObs: 43,
+      needed: 8,
+      recoveryNeeded: 20,
+      confidence: 1,
+      baseline: 0.98,
+      recovery: 0.97,
+      stability: 0.8,
+      inertiaDays: 0.1,
+      trend: "up",
+    };
+    render(<MapAffectDynamics data={data} />);
+    // The trend IS the headline.
+    expect(
+      screen.getByText(
+        "Vas en buena dirección: tu ánimo viene subiendo estas semanas.",
+      ),
+    ).toBeInTheDocument();
+    // Explainer: current level ≠ window average; rising ≠ instability.
+    expect(
+      screen.getByText(/subir no cuenta como inestabilidad/i),
+    ).toBeInTheDocument();
+    // The three cards still render beneath.
+    expect(screen.getByText("Tu ánimo de base es bueno")).toBeInTheDocument();
+  });
+
+  it("Etapa 4: no trend banner when the mood is stationary", () => {
+    const data: EmotionalMapAffectDynamics = {
+      status: "active",
+      nObs: 42,
+      needed: 8,
+      recoveryNeeded: 20,
+      confidence: 1,
+      baseline: 0.72,
+      recovery: 0.83,
+      stability: 0.66,
+      inertiaDays: 0.2,
+      trend: null,
+    };
+    render(<MapAffectDynamics data={data} />);
+    expect(
+      screen.queryByText(/no cuenta como inestabilidad/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("Etapa 1: gates the recovery row with a 'reuniendo' note until enough data", () => {
     // Active with baseline + stability, but θ-derived axes still withheld.
     const data: EmotionalMapAffectDynamics = {

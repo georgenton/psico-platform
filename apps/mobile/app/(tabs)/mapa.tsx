@@ -201,8 +201,9 @@ export default function MapaScreen() {
                 const pct = Math.round(dim.value * 100);
                 const icon = AXIS_ICONS[dim.key] ?? "ellipse-outline";
                 const measured =
-                  dim.key === "calma" &&
-                  map.affectDynamics?.status === "active";
+                  dim.measured ??
+                  (dim.key === "calma" &&
+                    map.affectDynamics?.status === "active");
                 return (
                   <View key={dim.key} style={styles.dim}>
                     <View style={styles.dimTop}>

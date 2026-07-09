@@ -59,7 +59,9 @@ export function MapDims({
         const label = LABELS[dim.key];
         const covered = dim.confidence >= CONFIDENCE_FLOOR;
         const pct = Math.round(dim.value * 100);
-        const measured = dim.key === "calma" && affectActive;
+        // Prefer the backend flag (Etapa 2+); fall back to the OU heuristic
+        // for maps cached before the field existed.
+        const measured = dim.measured ?? (dim.key === "calma" && affectActive);
         return (
           <div key={dim.key} className="dim">
             <div className="d-top">

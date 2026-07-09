@@ -18,6 +18,7 @@ import {
   ouToAxes,
   type OuObservation,
 } from "./dynamics/ou";
+import { bootstrapAxesCI } from "./dynamics/bootstrap";
 
 /**
  * Pure emotional-map scoring — the math extracted from EmotionalMapService so
@@ -376,6 +377,7 @@ export function computeAffectDynamics(
     stability: null,
     inertiaDays: null,
     trend: null,
+    margins: null,
   });
 
   if (nObs < MIN_OBS_FOR_FIT) return gathering();
@@ -403,6 +405,27 @@ export function computeAffectDynamics(
   // Etapa 1 — reliable axes first: baseline + stability are shown from the fit
   // floor; recovery/inertia (θ-derived) are withheld until RECOVERY_MIN_OBS.
   const recoveryReady = nObs >= RECOVERY_MIN_OBS;
+
+  // Etapa 3 — 90% bootstrap half-widths in axis units, from the SAME series
+  // the fit used (raw when stationary, detrended residuals when trending).
+  // Deterministic seed → the cached map is reproducible. For the trending
+  // baseline the bootstrap μ describes the residual mean (~0), so the ±
+  // comes from the OLS prediction SE at the last observation instead.
+  const ci = bootstrapAxesCI(trendFit.obsForFit, { seed: 7 });
+  const halfWidth = (iv: { lo: number; hi: number }) =>
+    round2(Math.max(0, (iv.hi - iv.lo) / 2));
+  const margins = ci
+    ? {
+        baseline:
+          trendFit.trending && trendFit.levelNowSe != null
+            ? // 90% normal CI half-width, mood scale → axis units (÷2).
+              round2((1.645 * trendFit.levelNowSe) / 2)
+            : halfWidth(ci.baseline),
+        recovery: recoveryReady ? halfWidth(ci.regulation) : null,
+        stability: halfWidth(ci.stability),
+      }
+    : null;
+
   logger?.log?.(
     `EmotionalMap OU · nObs=${nObs} · sigma=${fit.params.sigma.toFixed(2)} · theta=${fit.params.theta.toFixed(2)} · stability=${axes.stability.toFixed(2)} · trend=${trend ?? "none"} · recoveryReady=${recoveryReady}`,
   );
@@ -417,6 +440,7 @@ export function computeAffectDynamics(
     stability: round2(axes.stability),
     inertiaDays: recoveryReady ? round2(fit.inertiaDays) : null,
     trend,
+    margins,
   };
 }
 

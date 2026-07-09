@@ -90,4 +90,27 @@ describe("MapDims", () => {
     expect(screen.getByText("fuente de calma")).toBeInTheDocument();
     expect(screen.getByText("fuente de consciencia")).toBeInTheDocument();
   });
+
+  it("badges Calma as 'Medido' when the affect model is active, others as 'Tu actividad'", () => {
+    render(
+      <MapDims
+        dimensions={[
+          dim("calma", 0.66, 1),
+          dim("conexion", 0.5, 0.8),
+          dim("proposito", 0.75, 0.9),
+          dim("claridad", 0, 0),
+        ]}
+        affectActive
+      />,
+    );
+    expect(screen.getByText("Medido")).toBeInTheDocument();
+    expect(screen.getAllByText("Tu actividad")).toHaveLength(2);
+    expect(screen.getByText("Reuniendo datos")).toBeInTheDocument();
+  });
+
+  it("Calma falls back to 'Tu actividad' when the affect model is not active", () => {
+    render(<MapDims dimensions={[dim("calma", 0.6, 1)]} />);
+    expect(screen.queryByText("Medido")).not.toBeInTheDocument();
+    expect(screen.getByText("Tu actividad")).toBeInTheDocument();
+  });
 });

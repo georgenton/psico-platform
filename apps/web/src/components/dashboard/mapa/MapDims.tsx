@@ -45,8 +45,12 @@ const LABELS: Record<EmotionalMapDimension["key"], string> = {
 
 export function MapDims({
   dimensions,
+  affectActive = false,
 }: {
   dimensions: EmotionalMapDimension[];
+  /** True when the affect-dynamics (OU) model is active — Calma is then a real
+   *  measurement, not an activity proxy, and gets the "Medido" badge. */
+  affectActive?: boolean;
 }) {
   return (
     <div className="map-dims">
@@ -55,6 +59,7 @@ export function MapDims({
         const label = LABELS[dim.key];
         const covered = dim.confidence >= CONFIDENCE_FLOOR;
         const pct = Math.round(dim.value * 100);
+        const measured = dim.key === "calma" && affectActive;
         return (
           <div key={dim.key} className="dim">
             <div className="d-top">
@@ -65,7 +70,33 @@ export function MapDims({
                 {label}
               </div>
               {covered ? (
-                <span className="d-trend flat">{pct}%</span>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: 0.4,
+                      textTransform: "uppercase",
+                      padding: "2px 7px",
+                      borderRadius: 999,
+                      background: measured
+                        ? "var(--color-lavender-50)"
+                        : "var(--color-warm-100)",
+                      color: measured
+                        ? "var(--color-lavender-700)"
+                        : "var(--color-warm-500)",
+                    }}
+                  >
+                    {measured ? "Medido" : "Tu actividad"}
+                  </span>
+                  <span className="d-trend flat">{pct}%</span>
+                </span>
               ) : (
                 <span
                   className="d-trend"

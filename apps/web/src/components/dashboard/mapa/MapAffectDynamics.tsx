@@ -1,12 +1,17 @@
 import type { EmotionalMapAffectDynamics } from "@psico/types";
-import { buildAffectStory } from "./affect-copy";
+import {
+  IconMoodFace,
+  IconTrendUp,
+  IconWind,
+} from "@/components/dashboard/shell/icons";
+import { baselineLevel, buildAffectStory } from "./affect-copy";
 
 /**
  * MapAffectDynamics — surfaces the Tier 2 (Ornstein–Uhlenbeck) block on the
  * Mapa page. When "gathering" it shows honest progress toward the observation
- * floor; when "active" it leads with a HUMAN story (warm sentences built from
- * the model's estimates via affect-copy) and keeps the numbers as small
- * secondary chips — the hybrid the user asked for. Non-diagnostic always.
+ * floor; when "active" it leads with a HUMAN story (warm headline + one card
+ * per signal, styled like the rest of the dashboard cards) and keeps the
+ * numbers as small chips — the hybrid the user asked for. Non-diagnostic.
  *
  * Null (kill-switch off) → renders nothing.
  */
@@ -22,6 +27,7 @@ export function MapAffectDynamics({
       className="card"
       style={{
         marginTop: 24,
+        padding: "22px 26px 20px",
         border: "1.5px solid var(--color-lavender-200)",
       }}
     >
@@ -37,8 +43,8 @@ export function MapAffectDynamics({
         <h3
           style={{
             margin: 0,
-            fontSize: 16,
-            fontWeight: 700,
+            font: "700 16px/1.2 var(--font-sans)",
+            letterSpacing: "-0.01em",
             color: "var(--color-warm-900)",
           }}
         >
@@ -46,13 +52,12 @@ export function MapAffectDynamics({
         </h3>
         <span
           style={{
-            fontSize: 10.5,
-            fontWeight: 700,
-            letterSpacing: 0.6,
+            font: "700 10.5px/1 var(--font-mono)",
+            letterSpacing: ".08em",
             textTransform: "uppercase",
             color: "var(--color-lavender-700)",
             background: "var(--color-lavender-50)",
-            padding: "3px 8px",
+            padding: "4px 9px",
             borderRadius: 999,
           }}
         >
@@ -62,8 +67,7 @@ export function MapAffectDynamics({
       <p
         style={{
           margin: "6px 0 0",
-          fontSize: 12.5,
-          lineHeight: 1.5,
+          font: "400 12.5px/1.5 var(--font-sans)",
           color: "var(--color-warm-500)",
         }}
       >
@@ -84,11 +88,11 @@ export function MapAffectDynamics({
 function Gathering({ nObs, needed }: { nObs: number; needed: number }) {
   const pct = Math.min(100, Math.round((nObs / Math.max(needed, 1)) * 100));
   return (
-    <div style={{ marginTop: 14 }}>
+    <div style={{ marginTop: 16 }}>
       <p
         style={{
           margin: 0,
-          fontSize: 13,
+          font: "400 13.5px/1.55 var(--font-sans)",
           color: "var(--color-warm-700)",
         }}
       >
@@ -106,9 +110,9 @@ function Gathering({ nObs, needed }: { nObs: number; needed: number }) {
         aria-valuemin={0}
         aria-valuemax={100}
         style={{
-          marginTop: 10,
-          height: 8,
-          borderRadius: 999,
+          marginTop: 12,
+          height: 7,
+          borderRadius: 9999,
           background: "var(--color-warm-100)",
           overflow: "hidden",
         }}
@@ -117,7 +121,9 @@ function Gathering({ nObs, needed }: { nObs: number; needed: number }) {
           style={{
             width: `${pct}%`,
             height: "100%",
-            background: "var(--color-lavender-400)",
+            borderRadius: 9999,
+            background:
+              "linear-gradient(90deg, var(--color-lavender-400), var(--color-lavender-600))",
           }}
         />
       </div>
@@ -128,130 +134,147 @@ function Gathering({ nObs, needed }: { nObs: number; needed: number }) {
 function Active({ data }: { data: EmotionalMapAffectDynamics }) {
   const story = buildAffectStory(data);
   const conf = Math.round(data.confidence * 100);
+  const faceVariant =
+    baselineLevel(data.baseline ?? 0.5) === "high"
+      ? ("good" as const)
+      : baselineLevel(data.baseline ?? 0.5) === "medium"
+        ? ("ok" as const)
+        : ("low" as const);
+
   return (
-    <div style={{ marginTop: 14 }}>
+    <div style={{ marginTop: 18 }}>
       <p
         style={{
-          margin: "0 0 4px",
-          fontSize: 17,
-          fontWeight: 700,
-          lineHeight: 1.45,
+          margin: "0 0 16px",
+          font: "700 19px/1.35 var(--font-sans)",
+          letterSpacing: "-0.015em",
           color: "var(--color-warm-900)",
-          maxWidth: "38ch",
         }}
       >
         {story.headline}
       </p>
 
-      <div style={{ marginTop: 8 }}>
-        {story.rows.map((row) => (
-          <div
-            key={row.key}
-            style={{
-              display: "flex",
-              gap: 12,
-              alignItems: "flex-start",
-              padding: "12px 0",
-              borderTop: "1px solid var(--color-warm-100)",
-            }}
-          >
-            <span
-              aria-hidden
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+          gap: 14,
+        }}
+      >
+        {story.rows.map((row) => {
+          const gated = !row.phrase;
+          return (
+            <div
+              key={row.key}
               style={{
-                flex: "none",
-                width: 34,
-                height: 34,
-                borderRadius: "50%",
-                background: "var(--color-lavender-50)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 16,
+                background: "#fff",
+                border: "1px solid var(--color-warm-200)",
+                borderRadius: 16,
+                padding: "16px 18px",
+                boxShadow: "var(--shadow-card-sm)",
               }}
             >
-              {row.emoji}
-            </span>
-            {row.phrase ? (
-              <div>
-                <div
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span
                   style={{
-                    display: "flex",
-                    alignItems: "baseline",
-                    gap: 8,
-                    flexWrap: "wrap",
+                    width: 34,
+                    height: 34,
+                    borderRadius: 10,
+                    background: gated
+                      ? "var(--color-warm-100)"
+                      : "var(--color-lavender-100)",
+                    color: gated
+                      ? "var(--color-warm-400)"
+                      : "var(--color-lavender-600)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
                   }}
                 >
+                  {row.key === "baseline" ? (
+                    <IconMoodFace variant={faceVariant} size={19} />
+                  ) : row.key === "recovery" ? (
+                    <IconTrendUp size={19} />
+                  ) : (
+                    <IconWind size={19} />
+                  )}
+                </span>
+                {row.pct != null ? (
                   <span
                     style={{
-                      fontSize: 14.5,
-                      fontWeight: 700,
+                      marginLeft: "auto",
+                      font: "700 11px/1 var(--font-mono)",
+                      color: "var(--color-lavender-700)",
+                      background: "var(--color-lavender-100)",
+                      padding: "4px 9px",
+                      borderRadius: 9999,
+                    }}
+                  >
+                    {row.pct}%
+                  </span>
+                ) : null}
+              </div>
+              {row.phrase ? (
+                <>
+                  <div
+                    style={{
+                      margin: "12px 0 0",
+                      font: "700 14.5px/1.25 var(--font-sans)",
+                      letterSpacing: "-0.01em",
                       color: "var(--color-warm-900)",
                     }}
                   >
                     {row.phrase.title}
-                  </span>
-                  {row.pct != null ? (
-                    <span
-                      style={{
-                        fontSize: 11.5,
-                        fontWeight: 700,
-                        color: "var(--color-lavender-700)",
-                        background: "var(--color-lavender-50)",
-                        padding: "1px 7px",
-                        borderRadius: 999,
-                      }}
-                    >
-                      {row.pct}%
-                    </span>
-                  ) : null}
-                </div>
-                <p
-                  style={{
-                    margin: "3px 0 0",
-                    fontSize: 13,
-                    lineHeight: 1.5,
-                    color: "var(--color-warm-500)",
-                  }}
-                >
-                  {row.phrase.body}
-                </p>
-              </div>
-            ) : (
-              <div>
-                <span
-                  style={{
-                    fontSize: 14.5,
-                    fontWeight: 600,
-                    color: "var(--color-warm-500)",
-                  }}
-                >
-                  Cómo te recuperas — reuniendo datos
-                  {row.missing ? ` · ~${row.missing} registros más` : ""}
-                </span>
-                <p
-                  style={{
-                    margin: "3px 0 0",
-                    fontSize: 13,
-                    lineHeight: 1.5,
-                    color: "var(--color-warm-500)",
-                  }}
-                >
-                  Con unos registros más podremos contarte qué tan rápido
-                  vuelves a tu base después de un bajón.
-                </p>
-              </div>
-            )}
-          </div>
-        ))}
+                  </div>
+                  <p
+                    style={{
+                      margin: "5px 0 0",
+                      font: "400 13px/1.55 var(--font-sans)",
+                      color: "var(--color-warm-500)",
+                    }}
+                  >
+                    {row.phrase.body}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      margin: "12px 0 0",
+                      font: "700 14.5px/1.25 var(--font-sans)",
+                      letterSpacing: "-0.01em",
+                      color: "var(--color-warm-500)",
+                    }}
+                  >
+                    Cómo te recuperas
+                  </div>
+                  <p
+                    style={{
+                      margin: "5px 0 0",
+                      font: "400 13px/1.55 var(--font-sans)",
+                      color: "var(--color-warm-500)",
+                    }}
+                  >
+                    Reuniendo datos
+                    {row.missing ? ` · ~${row.missing} registros más` : ""}. Con
+                    unos registros más te contaremos qué tan rápido vuelves a tu
+                    base después de un bajón.
+                  </p>
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <p
         style={{
-          margin: "10px 0 0",
-          paddingTop: 10,
+          margin: "16px 0 0",
+          paddingTop: 14,
           borderTop: "1px solid var(--color-warm-100)",
-          fontSize: 11.5,
-          color: "var(--color-warm-500)",
+          font: "400 12px/1.5 var(--font-sans)",
+          color: "var(--color-warm-400)",
         }}
       >
         Confianza {conf}% · basado en {data.nObs} registros de ánimo

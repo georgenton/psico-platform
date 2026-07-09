@@ -1241,6 +1241,13 @@ export interface EmotionalMapDimension {
   value: number;
   confidence: number;
   sources: string;
+  /**
+   * True when the axis comes from a real measurement (OU affect model for
+   * Calma, daily check-in answers for Claridad/Compasión/Consciencia) rather
+   * than an activity proxy or LLM interpretation. Optional so maps cached
+   * before Etapa 2 keep parsing; UIs fall back to their own heuristic.
+   */
+  measured?: boolean;
 }
 
 /**
@@ -1440,6 +1447,90 @@ export interface LogMoodResponse {
   currentMood: DiaryMoodId;
   /** Hex/swatch hint for the badge — same source the Diario uses. */
   swatch: string;
+}
+
+// ─── Micro-checkins (Mapa Emocional · Etapa 2) ──────────────────────────────
+//
+// One 5-second question after the daily mood pick. Items are ADAPTED from
+// validated instruments (TMMS-24 emotional clarity, Self-Compassion Scale
+// short form, MAAS present-moment awareness) — inspiration, not the validated
+// scales themselves. Answers are plain ordinal scores (0–4): no text, no
+// ciphertext, ADR 0007-friendly. They feed the Claridad / Compasión /
+// Consciencia axes of the Emotional Map as MEASURED signals.
+
+export type CheckinAxis = "claridad" | "compasion" | "consciencia";
+
+export interface CheckinItem {
+  readonly key: string;
+  readonly axis: CheckinAxis;
+  /** The question shown to the user (Ecuadorian Spanish, tú). */
+  readonly text: string;
+}
+
+export const CHECKIN_ITEMS: readonly CheckinItem[] = [
+  {
+    key: "claridad_nombrar",
+    axis: "claridad",
+    text: "¿Pudiste ponerle nombre a lo que sentiste hoy?",
+  },
+  {
+    key: "claridad_causa",
+    axis: "claridad",
+    text: "¿Tuviste claro qué causó tus emociones de hoy?",
+  },
+  {
+    key: "compasion_amable",
+    axis: "compasion",
+    text: "¿Fuiste amable contigo cuando algo salió mal?",
+  },
+  {
+    key: "compasion_juicio",
+    axis: "compasion",
+    text: "Hoy, ¿te trataste sin juzgarte demasiado?",
+  },
+  {
+    key: "consciencia_presente",
+    axis: "consciencia",
+    text: "¿Notaste tus emociones en el momento en que aparecían?",
+  },
+  {
+    key: "consciencia_pausa",
+    axis: "consciencia",
+    text: "¿Te diste un momento para observar cómo estabas?",
+  },
+] as const;
+
+/** Runtime array for validators (class-validator @IsIn). */
+export const CHECKIN_ITEM_KEYS: readonly string[] = CHECKIN_ITEMS.map(
+  (i) => i.key,
+);
+
+/** Answer scale, index = score (0–4). Shared so web + mobile render the same. */
+export const CHECKIN_SCALE: readonly string[] = [
+  "Para nada",
+  "Un poco",
+  "A medias",
+  "Bastante",
+  "Totalmente",
+] as const;
+
+export interface LogCheckinRequest {
+  itemKey: string;
+  /** 0–4 on the CHECKIN_SCALE. */
+  score: number;
+}
+
+export interface LogCheckinResponse {
+  ok: true;
+  id: string;
+  itemKey: string;
+  score: number;
+  createdAt: Date;
+}
+
+/** `item` is null when today's question was already answered (rolling ~20h). */
+export interface CheckinNextResponse {
+  item: CheckinItem | null;
 }
 
 /**

@@ -79,6 +79,7 @@ export class EmotionalMapService {
       user,
       diaryMoodRows,
       moodLogRows,
+      checkins,
     ] = await Promise.all([
       this.prisma.diaryEntry.findMany({
         where: { userId, createdAt: { gte: since } },
@@ -116,6 +117,11 @@ export class EmotionalMapService {
         where: { userId, createdAt: { gte: ouSince } },
         select: { mood: true, createdAt: true },
       }),
+      // Etapa 2 — micro-checkin answers (ordinal 0–4 scores, no text).
+      this.prisma.checkinResponse.findMany({
+        where: { userId, createdAt: { gte: since } },
+        select: { itemKey: true, score: true, createdAt: true },
+      }),
     ]);
 
     return scoreEmotionalMap(
@@ -128,6 +134,7 @@ export class EmotionalMapService {
         annotationCount,
         currentStreakDays: user?.currentStreakDays ?? 0,
         moodSeries: [...diaryMoodRows, ...moodLogRows],
+        checkins,
         // Kill-switch: on by default; EMOTIONAL_MAP_OU=off disables in prod.
         ouEnabled: process.env.EMOTIONAL_MAP_OU !== "off",
       },

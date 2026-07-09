@@ -189,6 +189,37 @@ async function main() {
       }
       if (rows.length) await prisma.moodLog.createMany({ data: rows });
 
+      // ── Daily checkin answers (Etapa 2) → Claridad/Compasión/Consciencia
+      // as MEASURED axes. Rotating item catalog, scores follow the pattern.
+      const CHECKIN_ITEM_KEYS = [
+        "claridad_nombrar",
+        "claridad_causa",
+        "compasion_amable",
+        "compasion_juicio",
+        "consciencia_presente",
+        "consciencia_pausa",
+      ];
+      await prisma.checkinResponse.deleteMany({
+        where: { userId: user.id, createdAt: { gte: windowStart } },
+      });
+      const checkinRows = [];
+      const checkinDays = Math.min(u.days, 30);
+      if (u.days >= 14) {
+        for (let d = checkinDays - 1; d >= 0; d--) {
+          const itemKey =
+            CHECKIN_ITEM_KEYS[(checkinDays - 1 - d) % CHECKIN_ITEM_KEYS.length];
+          const base = u.pattern === "volatile" ? 1 + Math.floor(Math.random() * 3) : 3;
+          const score = Math.min(4, base + (Math.random() < 0.4 ? 1 : 0));
+          checkinRows.push({
+            userId: user.id,
+            itemKey,
+            score,
+            createdAt: new Date(now - d * DAY - Math.floor(Math.random() * DAY)),
+          });
+        }
+        await prisma.checkinResponse.createMany({ data: checkinRows });
+      }
+
       // ── A reading session → Conexión / Propósito axes
       if (u.reading && chapter) {
         await prisma.readingSession.upsert({

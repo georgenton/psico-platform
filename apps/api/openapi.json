@@ -2605,6 +2605,130 @@
         ]
       }
     },
+    "/api/mood/checkin/next": {
+      "get": {
+        "operationId": "MoodController_nextCheckin",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Which micro-checkin question to ask next (Mapa Emocional · Etapa 2).\n`item: null` when today's question was already answered.",
+        "tags": [
+          "Mood"
+        ]
+      }
+    },
+    "/api/mood/checkin": {
+      "post": {
+        "operationId": "MoodController_logCheckin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogCheckinDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Persist one 0–4 checkin answer. Plain ordinal, no text (ADR 0007).",
+        "tags": [
+          "Mood"
+        ]
+      }
+    },
     "/api/journeys": {
       "get": {
         "operationId": "JourneysController_list",
@@ -5124,6 +5248,46 @@
           }
         ],
         "summary": "Mark UI tour as completed",
+        "tags": [
+          "Onboarding"
+        ]
+      }
+    },
+    "/api/onboarding/tour/reset": {
+      "post": {
+        "operationId": "OnboardingController_resetTour",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reset the UI tour so it shows again on next dashboard mount",
         "tags": [
           "Onboarding"
         ]
@@ -10440,6 +10604,33 @@
         },
         "required": [
           "mood"
+        ]
+      },
+      "LogCheckinDto": {
+        "type": "object",
+        "properties": {
+          "itemKey": {
+            "type": "string",
+            "description": "Which question was answered. Must be one of the CHECKIN_ITEMS keys from\n`@psico/types` (compile-time shared catalog; adding an item there is\nenough — no migration, the column is String).",
+            "enum": [
+              "claridad_nombrar",
+              "claridad_causa",
+              "compasion_amable",
+              "compasion_juicio",
+              "consciencia_presente",
+              "consciencia_pausa"
+            ]
+          },
+          "score": {
+            "type": "number",
+            "description": "Answer on the shared CHECKIN_SCALE: 0 = \"Para nada\" … 4 = \"Totalmente\".",
+            "minimum": 0,
+            "maximum": 4
+          }
+        },
+        "required": [
+          "itemKey",
+          "score"
         ]
       },
       "CreateCheckoutSessionDto": {

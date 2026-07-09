@@ -1,7 +1,15 @@
 import { Injectable } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
-import type { DiaryMoodId, LogMoodResponse } from "@psico/types";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { EmotionalMapService } from "../emotional-map";
+import type {
+  CheckinNextResponse,
+  DiaryMoodId,
+  LogCheckinResponse,
+  LogMoodResponse,
+} from "@psico/types";
+import { CHECKIN_ITEMS } from "@psico/types";
 
 /**
  * MoodService — Sprint B1.
@@ -32,7 +40,10 @@ const FALLBACK_SWATCH: Record<string, string> = {
 
 @Injectable()
 export class MoodService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emotionalMap: EmotionalMapService,
+  ) {}
 
   async log(userId: string, mood: string): Promise<LogMoodResponse> {
     // Swatch enrichment is best-effort. The DTO has already validated `mood`
@@ -71,4 +82,53 @@ export class MoodService {
       swatch,
     };
   }
+
+  /**
+   * Which micro-checkin question to ask next (Mapa Emocional · Etapa 2).
+   *
+   * Cadence: at most one question per rolling ~20h window (feels "daily"
+   * without timezone math — an answer at 8pm unlocks the next one by ~4pm the
+   * following day). Rotation: the item whose last answer is oldest goes first,
+   * never-answered items before all of them, catalog order as tiebreak. Server
+   * decides so web + mobile can't drift.
+   */
+  async nextCheckin(userId: string): Promise<CheckinNextResponse> {
+    const windowStart = new Date(Date.now() - CHECKIN_COOLDOWN_MS);
+    const recent = await this.prisma.checkinResponse.findFirst({
+      where: { userId, createdAt: { gte: windowStart } },
+      select: { id: true },
+    });
+    if (recent) return { item: null };
+
+    const lastPerItem = await this.prisma.checkinResponse.groupBy({
+      by: ["itemKey"],
+      where: { userId },
+      _max: { createdAt: true },
+    });
+    const lastAnswered = new Map(
+      lastPerItem.map((r) => [r.itemKey, r._max.createdAt?.getTime() ?? 0]),
+    );
+    const item = [...CHECKIN_ITEMS].sort(
+      (a, b) => (lastAnswered.get(a.key) ?? 0) - (lastAnswered.get(b.key) ?? 0),
+    )[0];
+    return { item };
+  }
+
+  /** Persist one checkin answer and bust the map cache so it reflects soon. */
+  async logCheckin(
+    userId: string,
+    itemKey: string,
+    score: number,
+  ): Promise<LogCheckinResponse> {
+    const row = await this.prisma.checkinResponse.create({
+      data: { userId, itemKey, score },
+      select: { id: true, itemKey: true, score: true, createdAt: true },
+    });
+    // Fire-and-forget — a stale map is annoying, not fatal.
+    void this.emotionalMap.invalidate(userId).catch(() => undefined);
+    return { ok: true, ...row };
+  }
 }
+
+/** ~20h rolling window so the checkin feels daily without timezone math. */
+const CHECKIN_COOLDOWN_MS = 20 * 60 * 60 * 1000;

@@ -1220,12 +1220,42 @@ export type EmotionalMapAxes = readonly [
   number,
 ];
 
+/** Stable key per axis, in radar order. */
+export type EmotionalMapDimensionKey =
+  | "calma"
+  | "claridad"
+  | "conexion"
+  | "proposito"
+  | "compasion"
+  | "consciencia";
+
+/**
+ * Per-dimension detail used by the transparency UI (the ℹ️ modal + the
+ * "reuniendo datos" state). `value` is the 0..1 score; `confidence` is how
+ * much real signal backs it — the client renders "aún reuniendo datos" when
+ * confidence is below a small threshold instead of showing a fabricated
+ * number. `sources` is a short human summary of what feeds the axis today.
+ */
+export interface EmotionalMapDimension {
+  key: EmotionalMapDimensionKey;
+  value: number;
+  confidence: number;
+  sources: string;
+}
+
 export interface EmotionalMapResult {
   values: EmotionalMapAxes;
-  /** 0–100 overall comprehension percentage shown next to the radar. */
+  /** Per-axis confidence in [0, 1], same order as `values`. */
+  confidence: EmotionalMapAxes;
+  /** 6 dimension details (radar order) for the transparency UI. */
+  dimensions: EmotionalMapDimension[];
+  /** 0–100 overall comprehension percentage shown next to the radar.
+   *  Averages ONLY the axes with real signal, so low-data maps don't inflate. */
   pct: number;
+  /** 0..1 overall data coverage — gates the "aún reuniendo datos" banner. */
+  coverage: number;
   computedAt: string;
-  /** Which provider answered the LLM axes ("anthropic" / "fallback" / …). */
+  /** Which provider answered the LLM axes ("anthropic" / "rule-based" / …). */
   provider: string;
 }
 

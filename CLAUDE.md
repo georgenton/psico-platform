@@ -2740,6 +2740,27 @@ Cierra deuda explícita del Sprint 3 (`sprint-e2e-rekey-lectorshell`): el DTO va
 
 ---
 
+### Sesión — 2026-07-08 ✅ COMPLETADA — Mapa Emocional · Híbrido Fase A
+
+**Rama sugerida:** `feature/emotional-map-hybrid-phase-a`
+**Bitácora:** [docs/informes/emotional-map-hybrid-phase-a.md](docs/informes/emotional-map-hybrid-phase-a.md)
+
+**Contexto:** el usuario probó el Mapa Emocional con 1 reflexión + 3 chats con Eco y obtuvo un radar casi todo al 50 % (dato fabricado). Pidió: cómo se mide, que el usuario vea cómo se llena + botón ⓘ, más completo (reflexiones + Eco + contenido), y respetando el cifrado E2E. Eligió la dirección **"Híbrido: on-device + checkins"**. Esta es la **Fase A** (honestidad + señales ricas + transparencia), sin tocar el cifrado.
+
+**Lo que se construyó:**
+- **Confianza por dimensión** — `EmotionalMapResult` extendido con `confidence`, `dimensions[]` y `coverage`. Ejes por debajo de `CONFIDENCE_FLOOR=0.15` muestran "Reuniendo datos" en vez de 50 % falso. `pct` promedia solo ejes cubiertos.
+- **Señales ricas** — `compute()` ahora lee Eco USER (+ días distintos), voz, highlights, annotations y sesiones completadas, además del diario. Conexión y Consciencia se encienden desde Eco aunque solo haya 1 reflexión.
+- **Transparencia** — web `MapInfoButton` (modal ⓘ con explicación por dimensión + garantía de privacidad), `MapStage` con banner "tu mapa se está formando" (`coverage<0.4`), `MapDims` con estado "Reuniendo datos" + `sources`. Mobile paridad completa (`app/(tabs)/mapa.tsx` con Modal RN).
+- **TTL adaptativo** — mapas en formación cachean 15 min (no 24 h) para que la primera reflexión se refleje en minutos.
+
+**Privacidad (ADR 0007 intacto):** el servicio nunca selecciona columnas cipher/nonce; el LLM solo recibe frecuencias categóricas + counts. `emotional-map.privacy.spec.ts` verde.
+
+**Verificación:** API 729/730 · Web 256/256 · Mobile 43/43 · typecheck + lint verdes · OpenAPI in sync. Sin migración, sin endpoint nuevo.
+
+**Siguiente:** Fase B (análisis on-device del texto, sube solo números) + Fase C (micro-checkins validados WHO-5 / auto-compasión) — PRs aparte.
+
+---
+
 ### Próximo paso — polish o freeze
 
 📖 **El roadmap maestro vive en [docs/ROADMAP.md](docs/ROADMAP.md).** Sprints 1-5 cerrados + el bug de Sprint 3.

@@ -26,6 +26,14 @@ export interface EmotionalMapMetadataPayload {
     streakDays: number;
     /** Distinct days with at least 1 entry in the window. */
     activeDays: number;
+    /** Eco USER messages in the window (conversation engagement). */
+    ecoMessages: number;
+    /** Distinct days with at least 1 Eco USER message. */
+    ecoActiveDays: number;
+    /** Voice transcriptions in the window (naming feelings out loud). */
+    voiceCount: number;
+    /** Reading sessions touched in the window. */
+    readingSessions: number;
   };
 }
 

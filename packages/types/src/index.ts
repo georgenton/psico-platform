@@ -1257,15 +1257,31 @@ export interface EmotionalMapAffectDynamics {
   nObs: number;
   /** Observations at which the estimate reaches full confidence. */
   needed: number;
+  /**
+   * Observations at which the recovery + inertia axes unlock. They need more
+   * history than baseline/stability because θ is hard to estimate from short
+   * series (Etapa 1 reliable-axes-first gating).
+   */
+  recoveryNeeded: number;
   /** 0..1 — how much the estimate can be trusted (grows with nObs). */
   confidence: number;
   /** Emotional baseline / tone in [0,1]. Present when status === "active". */
   baseline: number | null;
-  /** Recovery speed (θ) mapped to [0,1]. Higher = you bounce back faster. */
+  /**
+   * Recovery speed (θ) mapped to [0,1]. Higher = you bounce back faster. Null
+   * until `nObs >= recoveryNeeded` (θ needs more data than the other axes).
+   */
   recovery: number | null;
-  /** Emotional stability in [0,1]. Higher = lower measured volatility. */
+  /**
+   * Emotional stability in [0,1]. Higher = lower volatility. Derived from the
+   * stationary spread of moods with a measurement-noise floor, so ordinary
+   * ±1-level day-to-day check-in swings don't count as instability (Etapa 1).
+   */
   stability: number | null;
-  /** Emotional inertia = 1/θ in days. Higher = moods persist longer. */
+  /**
+   * Emotional inertia = 1/θ in days. Higher = moods persist longer. Null until
+   * `nObs >= recoveryNeeded` (same θ-identifiability gate as `recovery`).
+   */
   inertiaDays: number | null;
 }
 

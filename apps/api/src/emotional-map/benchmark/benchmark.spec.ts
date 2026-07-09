@@ -126,6 +126,54 @@ describe("Stage 0 — emotional-map persona benchmark", () => {
     );
   });
 
+  it("Etapa 1: a steady ±1-jump persona reads as MEANINGFULLY stable (not ~0)", async () => {
+    // The Etapa-0 finding: v0 read normal ±1-level check-in jumps as volatility,
+    // so "stable" personas scored ~0% stability. With the measurement-noise
+    // floor they should now read clearly stable.
+    for (const id of [
+      "dos-semanas",
+      "mes-constante",
+      "trimestre-disciplinado",
+    ]) {
+      const r = await scoreEmotionalMap(
+        buildPersonaInput(PERSONAS.find((p) => p.id === id)!),
+        stubProvider,
+      );
+      expect(r.affectDynamics?.status).toBe("active");
+      expect(r.affectDynamics?.stability ?? 0).toBeGreaterThan(0.4);
+    }
+  });
+
+  it("Etapa 1: recovery + inertia are gated until recoveryNeeded observations", async () => {
+    // 8 ≤ nObs < recoveryNeeded → baseline + stability present, but θ-derived
+    // axes (recovery, inertia) withheld.
+    const early = await scoreEmotionalMap(
+      buildPersonaInput(PERSONAS.find((p) => p.id === "dos-semanas")!), // n=10
+      stubProvider,
+    );
+    expect(early.affectDynamics?.status).toBe("active");
+    expect(early.affectDynamics?.nObs ?? 0).toBeLessThan(
+      early.affectDynamics?.recoveryNeeded ?? 0,
+    );
+    expect(early.affectDynamics?.baseline).not.toBeNull();
+    expect(early.affectDynamics?.stability).not.toBeNull();
+    expect(early.affectDynamics?.recovery).toBeNull();
+    expect(early.affectDynamics?.inertiaDays).toBeNull();
+
+    // Enough history → all four axes present.
+    const mature = await scoreEmotionalMap(
+      buildPersonaInput(
+        PERSONAS.find((p) => p.id === "trimestre-disciplinado")!,
+      ), // n=77
+      stubProvider,
+    );
+    expect(mature.affectDynamics?.nObs ?? 0).toBeGreaterThanOrEqual(
+      mature.affectDynamics?.recoveryNeeded ?? 0,
+    );
+    expect(mature.affectDynamics?.recovery).not.toBeNull();
+    expect(mature.affectDynamics?.inertiaDays).not.toBeNull();
+  });
+
   it("higher engagement yields higher overall map coverage", async () => {
     const low = await scoreEmotionalMap(
       buildPersonaInput(PERSONAS.find((p) => p.id === "nuevo-3d")!),

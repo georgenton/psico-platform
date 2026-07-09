@@ -67,7 +67,10 @@ export default async function MapaPage() {
 
       <div className="map-grid">
         <MapStage map={home.emotionalMap} />
-        <MapDims dimensions={home.emotionalMap.dimensions} />
+        <MapDims
+          dimensions={home.emotionalMap.dimensions}
+          affectActive={home.emotionalMap.affectDynamics?.status === "active"}
+        />
       </div>
 
       <MapAffectDynamics data={home.emotionalMap.affectDynamics} />

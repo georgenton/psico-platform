@@ -14,6 +14,7 @@ describe("MapAffectDynamics", () => {
       status: "gathering",
       nObs: 3,
       needed: 8,
+      recoveryNeeded: 20,
       confidence: 0,
       baseline: null,
       recovery: null,
@@ -32,6 +33,7 @@ describe("MapAffectDynamics", () => {
       status: "active",
       nObs: 42,
       needed: 8,
+      recoveryNeeded: 20,
       confidence: 1,
       baseline: 0.6,
       recovery: 0.4,
@@ -46,5 +48,26 @@ describe("MapAffectDynamics", () => {
     expect(screen.getByText(/Confianza 100%/)).toBeInTheDocument();
     // Non-diagnostic disclaimer present.
     expect(screen.getByText(/no.*un diagnóstico/i)).toBeInTheDocument();
+  });
+
+  it("Etapa 1: gates recovery + inertia with a 'reuniendo' note until enough data", () => {
+    // Active with baseline + stability, but θ-derived axes still withheld.
+    const data: EmotionalMapAffectDynamics = {
+      status: "active",
+      nObs: 12,
+      needed: 8,
+      recoveryNeeded: 20,
+      confidence: 0.3,
+      baseline: 0.6,
+      recovery: null,
+      stability: 0.55,
+      inertiaDays: null,
+    };
+    render(<MapAffectDynamics data={data} />);
+    // Baseline + stability show real numbers.
+    expect(screen.getByText("60%")).toBeInTheDocument();
+    expect(screen.getByText("55%")).toBeInTheDocument();
+    // Recovery + inertia show the gathering note with the remaining count (8 more).
+    expect(screen.getAllByText(/Reuniendo datos · ~8 más/).length).toBe(2);
   });
 });

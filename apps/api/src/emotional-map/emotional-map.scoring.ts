@@ -33,6 +33,14 @@ export const OU_GOOD_N = 40;
 /** Hard cap on observations fed to the fit (perf guard). */
 export const OU_MAX_OBS = 1000;
 /**
+ * Etapa 1 — reliable-axes-first gating. The baseline (μ) and the stationary
+ * spread (stability) are identifiable from few observations, so they surface at
+ * `MIN_OBS_FOR_FIT`. The recovery speed θ (and its reciprocal, inertia) suffers
+ * severe finite-sample bias in short series, so we withhold those two axes until
+ * there's enough history to estimate θ with any confidence.
+ */
+export const RECOVERY_MIN_OBS = 20;
+/**
  * Below this confidence an axis is treated as "still gathering data" — the
  * value is forced to 0 and the client renders "reuniendo datos" instead of a
  * fabricated number.
@@ -288,6 +296,7 @@ export function computeAffectDynamics(
     status: "gathering",
     nObs,
     needed: MIN_OBS_FOR_FIT,
+    recoveryNeeded: RECOVERY_MIN_OBS,
     confidence: round2(conf),
     baseline: null,
     recovery: null,
@@ -304,18 +313,22 @@ export function computeAffectDynamics(
   if (conf < CONFIDENCE_FLOOR) return gathering(conf);
 
   const axes = ouToAxes(fit);
+  // Etapa 1 — reliable axes first: baseline + stability are shown from the fit
+  // floor; recovery/inertia (θ-derived) are withheld until RECOVERY_MIN_OBS.
+  const recoveryReady = nObs >= RECOVERY_MIN_OBS;
   logger?.log?.(
-    `EmotionalMap OU · nObs=${nObs} · sigma=${fit.params.sigma.toFixed(2)} · theta=${fit.params.theta.toFixed(2)} · stability=${axes.stability.toFixed(2)}`,
+    `EmotionalMap OU · nObs=${nObs} · sigma=${fit.params.sigma.toFixed(2)} · theta=${fit.params.theta.toFixed(2)} · stability=${axes.stability.toFixed(2)} · recoveryReady=${recoveryReady}`,
   );
   return {
     status: "active",
     nObs,
     needed: MIN_OBS_FOR_FIT,
+    recoveryNeeded: RECOVERY_MIN_OBS,
     confidence: round2(conf),
     baseline: round2(axes.baseline),
-    recovery: round2(axes.regulation),
+    recovery: recoveryReady ? round2(axes.regulation) : null,
     stability: round2(axes.stability),
-    inertiaDays: round2(fit.inertiaDays),
+    inertiaDays: recoveryReady ? round2(fit.inertiaDays) : null,
   };
 }
 

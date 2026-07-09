@@ -1,6 +1,6 @@
 # Banco de pruebas del Mapa Emocional — personas (Etapa 0, offline)
 
-**Estado:** Resultados v0.1 · **Fecha:** 2026-07-09
+**Estado:** Resultados v0.2 (tras Etapa 1) · **Fecha:** 2026-07-09
 **Fuente:** `apps/api/src/emotional-map/benchmark/` (personas + benchmark spec, determinista).
 **Reproducir:** `pnpm --filter @psico/api test -- --run benchmark`
 
@@ -14,19 +14,21 @@
 - El generador produce la **metadata exacta** que consume el scoring real (serie de ánimo, reflexiones, conteos de Eco/lectura/voz), de forma **determinista**.
 - Se corre `scoreEmotionalMap` (el mismo código de producción) y se captura la salida.
 
-## Resultados (captura real)
+## Resultados (captura real — tras Etapa 1)
+
+`recup` e `iner` en **gate** = "—" hasta 20 registros (θ necesita más historia).
 
 | Persona                   | Días | #ánimo | Dinámica      | Conf | Tono | Recup | Estab | Inercia | Cobertura | pct |
 | ------------------------- | ---- | ------ | ------------- | ---- | ---- | ----- | ----- | ------- | --------- | --- |
 | Nuevo · 3 días            | 3    | 2      | **gathering** | 0%   | —    | —     | —     | —       | 12%       | 57% |
 | Semana · casual           | 7    | 4      | **gathering** | 0%   | —    | —     | —     | —       | 69%       | 58% |
-| Dos semanas               | 14   | 10     | active        | 25%  | 75%  | 95%   | 0%    | 0.1d    | 72%       | 48% |
-| Un mes · constante        | 30   | 21     | active        | 53%  | 71%  | 59%   | 28%   | 0.7d    | 77%       | 53% |
-| Trimestre · disciplinado  | 90   | 77     | active        | 100% | 75%  | 79%   | 0%    | 0.3d    | 100%      | 59% |
+| Dos semanas               | 14   | 10     | active        | 25%  | 75%  | gate  | 54%   | gate    | 72%       | 57% |
+| Un mes · constante        | 30   | 21     | active        | 53%  | 71%  | 59%   | 62%   | 0.7d    | 77%       | 59% |
+| Trimestre · disciplinado  | 90   | 77     | active        | 100% | 75%  | 79%   | 64%   | 0.3d    | 100%      | 69% |
 | Un mes · volátil          | 30   | 26     | active        | 65%  | 45%  | 83%   | 0%    | 0.2d    | 87%       | 49% |
-| Dos meses · recuperándose | 60   | 43     | active        | 100% | 46%  | 20%   | 46%   | 3.9d    | 96%       | 56% |
-| Un mes · en declive       | 30   | 21     | active        | 53%  | 55%  | 42%   | 25%   | 1.4d    | 88%       | 55% |
-| Dos meses · esporádico    | 60   | 9      | active        | 23%  | 72%  | 74%   | 13%   | 0.4d    | 20%       | 47% |
+| Dos meses · recuperándose | 60   | 43     | active        | 100% | 46%  | 20%   | 0%    | 3.9d    | 96%       | 48% |
+| Un mes · en declive       | 30   | 21     | active        | 53%  | 55%  | 42%   | 14%   | 1.4d    | 88%       | 53% |
+| Dos meses · esporádico    | 60   | 9      | active        | 23%  | 72%  | gate  | 81%   | gate    | 20%       | 64% |
 | Un mes · casi plano       | 30   | 21     | active        | 53%  | 50%  | 96%   | 100%  | 0.0d    | 83%       | 65% |
 
 ## Qué confirma (bueno)
@@ -35,13 +37,29 @@
 2. **La cobertura sigue al engagement.** Nuevo/bajo → 12%; disciplinado/alto → 100%. El esporádico (mucho tiempo, poca actividad) → 20%: correcto, tiene poco con qué.
 3. **Patrones interpretables donde el modelo tiene datos:** "recuperándose" (mejorando) sale con **inercia alta (3.9d)** — el modelo ve una tendencia lenta; "casi plano" sale con **estabilidad 100%**; "volátil" con estabilidad 0% y tono más bajo (45%).
 
-## Hallazgo importante (para la tesis) — por qué el modelo v1 importa
+## Hallazgo de la Etapa 0 (para la tesis) — por qué el modelo v1 importa
 
-La **Estabilidad** sale **0%** en varias personas que llamamos "estables" (ej. trimestre disciplinado, dos semanas). ¿Por qué? Porque el patrón "estable" salta ±1 nivel entre registros (ok↔good↔great), y el **modelo v0 (aproximación numérica)** interpreta ese salto de categoría como **volatilidad real** (σ alto → estabilidad baja). Solo "casi plano" (ánimo idéntico siempre) llega a 100%.
+En la captura v0.1, la **Estabilidad** salía **0%** en varias personas "estables" (trimestre disciplinado, dos semanas). ¿Por qué? Porque el patrón "estable" salta ±1 nivel entre registros (ok↔good↔great), y el **modelo v0** interpretaba ese salto de categoría como **volatilidad real** (basaba la estabilidad en la σ de difusión cruda). Solo "casi plano" (ánimo idéntico siempre) llegaba a 100%.
 
-Esto es exactamente el argumento a favor del **modelo v1 ordinal-latente** (Etapa 4): un salto de "good" a "great" **no** debería contar como una gran sacudida emocional — es ruido de medición de una escala de 5 niveles. El v1 (ordered probit/logit) trataría esos saltos como observación ruidosa de un estado latente suave, y la Estabilidad dejaría de castigar la cadencia normal.
+## Etapa 1 — corrección aplicada (ejes confiables primero)
 
-**Conclusión de producto (Etapa 1):** hoy conviene **surfacer Tono base y Recuperación con más confianza que Estabilidad** con poca data, o subir el umbral de Estabilidad — porque con el v0 la Estabilidad es la más ruidosa. El banco lo demuestra con números.
+Dos cambios, validados contra este banco:
+
+**1. Estabilidad desde la dispersión estacionaria con piso de ruido de medición.** Ahora la estabilidad se calcula sobre `σ_stat = √(σ²/2θ)` (cuánto se aleja realmente el ánimo de su base a largo plazo) menos un piso de ruido ordinal — un salto ok↔good deja de contar como sacudida. Resultado antes→después:
+
+| Persona           | Estab v0 | Estab v1 |
+| ----------------- | -------- | -------- |
+| Dos semanas       | 0%       | **54%**  |
+| Un mes constante  | 28%      | **62%**  |
+| Trimestre estable | 0%       | **64%**  |
+| Un mes volátil    | 0%       | 0% ✓     |
+| Casi plano        | 100%     | 100% ✓   |
+
+Las personas estables ahora leen estables; el ancla volátil (0%) y el ancla plana (100%) se preservan. La separación estable↔volátil es real y la demuestra el banco.
+
+**2. Gating por eje.** Tono base y Estabilidad se muestran desde ~8 registros (μ y σ_stat convergen rápido). **Recuperación e Inercia** (derivadas de θ, que tiene sesgo severo en series cortas) quedan en gate hasta 20 registros — la UI muestra "Reuniendo datos · ~N más" en vez de un número poco fiable.
+
+**Límite honesto (motiva Etapa 4).** Las personas con **tendencia** (recuperándose, en declive) leen estabilidad baja (0–14%), porque el modelo OU asume estacionariedad y trata una tendencia como varianza alta alrededor de una media fija. La estabilidad no está "mal" — su ánimo sí recorre un rango amplio — pero un modelo **ordinal-latente con componente de tendencia** (Etapa 4) separaría "me estoy moviendo hacia arriba" de "reboto sin rumbo". Ese es el próximo salto de calidad, y el banco ya tiene la métrica para medirlo.
 
 ## Para qué sirve este banco
 

@@ -267,7 +267,15 @@ export default function MapaScreen() {
                       />
                       <AffectMetric
                         label="Recuperación"
-                        value={pctLabel(map.affectDynamics.recovery)}
+                        value={
+                          map.affectDynamics.recovery != null
+                            ? pctLabel(map.affectDynamics.recovery)
+                            : gatheringLabel(
+                                map.affectDynamics.recoveryNeeded,
+                                map.affectDynamics.nObs,
+                              )
+                        }
+                        muted={map.affectDynamics.recovery == null}
                       />
                       <AffectMetric
                         label="Estabilidad"
@@ -278,8 +286,12 @@ export default function MapaScreen() {
                         value={
                           map.affectDynamics.inertiaDays != null
                             ? `${map.affectDynamics.inertiaDays.toFixed(1)} d`
-                            : "—"
+                            : gatheringLabel(
+                                map.affectDynamics.recoveryNeeded,
+                                map.affectDynamics.nObs,
+                              )
                         }
+                        muted={map.affectDynamics.inertiaDays == null}
                       />
                     </View>
                     <Text style={styles.affectConf}>
@@ -428,11 +440,23 @@ function FeedRow({
   );
 }
 
-function AffectMetric({ label, value }: { label: string; value: string }) {
+function AffectMetric({
+  label,
+  value,
+  muted,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+}) {
   return (
     <View style={styles.affectCard}>
       <Text style={styles.affectCardLabel}>{label}</Text>
-      <Text style={styles.affectCardValue}>{value}</Text>
+      <Text
+        style={muted ? styles.affectCardValueMuted : styles.affectCardValue}
+      >
+        {value}
+      </Text>
     </View>
   );
 }
@@ -441,6 +465,12 @@ function AffectMetric({ label, value }: { label: string; value: string }) {
 
 function pctLabel(v: number | null): string {
   return v == null ? "—" : `${Math.round(v * 100)}%`;
+}
+
+/** Recovery/inertia gathering label — shows how many more records are needed. */
+function gatheringLabel(needed: number, nObs: number): string {
+  const missing = Math.max(0, needed - nObs);
+  return missing > 0 ? `Reuniendo · ~${missing} más` : "Reuniendo datos";
 }
 
 function formatDate(iso: string): string {
@@ -735,6 +765,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: Colors.warm[900],
     marginTop: 2,
+  },
+  affectCardValueMuted: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.warm[500],
+    marginTop: 6,
   },
   affectConf: {
     marginTop: 12,

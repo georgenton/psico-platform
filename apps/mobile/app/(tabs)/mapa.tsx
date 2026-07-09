@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -12,7 +13,7 @@ import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { evolucionApi, homeApi } from "@psico/api-client";
 import type {
-  EmotionalMapAxes,
+  EmotionalMapDimension,
   EmotionalMapResult,
   EvolucionStats,
 } from "@psico/types";
@@ -32,25 +33,28 @@ import { Colors, Radius, Spacing } from "@/theme";
  * both.
  */
 
-const AXES = [
-  "Calma",
-  "Claridad",
-  "Conexión",
-  "Propósito",
-  "Compasión",
-  "Consciencia",
-] as const;
-
 type AxisIcon = React.ComponentProps<typeof Ionicons>["name"];
 
-const AXIS_ICONS: AxisIcon[] = [
-  "leaf-outline",
-  "book-outline",
-  "people-outline",
-  "flame-outline",
-  "heart-outline",
-  "bulb-outline",
-];
+/** Must match `CONFIDENCE_FLOOR` in the backend service. */
+const CONFIDENCE_FLOOR = 0.15;
+
+const LABELS: Record<EmotionalMapDimension["key"], string> = {
+  calma: "Calma",
+  claridad: "Claridad",
+  conexion: "Conexión",
+  proposito: "Propósito",
+  compasion: "Compasión",
+  consciencia: "Consciencia",
+};
+
+const AXIS_ICONS: Record<EmotionalMapDimension["key"], AxisIcon> = {
+  calma: "leaf-outline",
+  claridad: "book-outline",
+  conexion: "people-outline",
+  proposito: "flame-outline",
+  compasion: "heart-outline",
+  consciencia: "bulb-outline",
+};
 
 export default function MapaScreen() {
   const router = useRouter();
@@ -59,6 +63,7 @@ export default function MapaScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -146,32 +151,52 @@ export default function MapaScreen() {
                 <Text style={styles.stageTitle}>
                   Dimensiones del autoconocimiento
                 </Text>
+                <Pressable
+                  onPress={() => setInfoOpen(true)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cómo se mide tu Mapa Emocional"
+                  style={styles.infoBtn}
+                >
+                  <Text style={styles.infoBtnText}>i</Text>
+                </Pressable>
               </View>
               <Text style={styles.stageMeta}>
                 Actualizado · {formatDate(map.computedAt)}
               </Text>
               <View style={styles.scoreRow}>
                 <Text style={styles.scoreValue}>{map.pct}%</Text>
-                <Text style={styles.scoreLabel}>Comprensión emocional</Text>
+                <Text style={styles.scoreLabel}>
+                  {map.coverage < 0.4
+                    ? "Tu mapa se está formando"
+                    : "Comprensión emocional"}
+                </Text>
               </View>
               <View style={styles.providerChip}>
                 <Ionicons name="trending-up" size={12} color={Colors.white} />
                 <Text style={styles.providerText}>
                   {map.provider === "anthropic"
                     ? "Análisis con IA"
-                    : "Análisis rule-based"}
+                    : "Análisis inicial"}
                 </Text>
               </View>
+              {map.coverage < 0.4 ? (
+                <Text style={styles.stageGathering}>
+                  Todavía estamos reuniendo señales. Escribe una reflexión,
+                  conversa con Eco o avanza en una lectura y verás cómo cada
+                  dimensión se enciende.
+                </Text>
+              ) : null}
             </View>
 
-            {/* map-dims — 6 stacked bars */}
+            {/* map-dims — 6 stacked bars with honest "gathering" state */}
             <View style={styles.dims}>
-              {AXES.map((label, i) => {
-                const v = (map.values as EmotionalMapAxes)[i] ?? 0.5;
-                const pct = Math.round(v * 100);
-                const icon = AXIS_ICONS[i] ?? "ellipse-outline";
+              {map.dimensions.map((dim) => {
+                const covered = dim.confidence >= CONFIDENCE_FLOOR;
+                const pct = Math.round(dim.value * 100);
+                const icon = AXIS_ICONS[dim.key] ?? "ellipse-outline";
                 return (
-                  <View key={label} style={styles.dim}>
+                  <View key={dim.key} style={styles.dim}>
                     <View style={styles.dimTop}>
                       <View style={styles.dimName}>
                         <View style={styles.dimIconWrap}>
@@ -181,17 +206,32 @@ export default function MapaScreen() {
                             color={Colors.lavender[600]}
                           />
                         </View>
-                        <Text style={styles.dimLabel}>{label}</Text>
+                        <Text style={styles.dimLabel}>{LABELS[dim.key]}</Text>
                       </View>
-                      <Text style={styles.dimPct}>{pct}%</Text>
+                      {covered ? (
+                        <Text style={styles.dimPct}>{pct}%</Text>
+                      ) : (
+                        <Text style={styles.dimGathering}>Reuniendo datos</Text>
+                      )}
                     </View>
                     <View
                       style={styles.dimBar}
                       accessibilityRole="progressbar"
-                      accessibilityLabel={`${label} ${pct}%`}
+                      accessibilityLabel={`${LABELS[dim.key]} ${
+                        covered ? `${pct}%` : "reuniendo datos"
+                      }`}
                     >
-                      <View style={[styles.dimFill, { width: `${pct}%` }]} />
+                      <View
+                        style={[
+                          styles.dimFill,
+                          {
+                            width: covered ? `${pct}%` : "0%",
+                            opacity: covered ? 1 : 0.35,
+                          },
+                        ]}
+                      />
                     </View>
+                    <Text style={styles.dimSources}>{dim.sources}</Text>
                   </View>
                 );
               })}
@@ -246,6 +286,66 @@ export default function MapaScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Transparency modal — how the map is measured + privacy guarantee */}
+      <Modal
+        visible={infoOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setInfoOpen(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setInfoOpen(false)}
+        >
+          <Pressable
+            style={styles.modalCard}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.modalHead}>
+              <Text style={styles.modalTitle}>Cómo se mide tu Mapa</Text>
+              <Pressable
+                onPress={() => setInfoOpen(false)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Cerrar"
+              >
+                <Ionicons name="close" size={22} color={Colors.warm[500]} />
+              </Pressable>
+            </View>
+            <Text style={styles.modalIntro}>
+              Tu mapa no mide cuánto haces, sino cuánto te vas comprendiendo. Se
+              arma con seis dimensiones. Cada una se enciende cuando reúne
+              señales suficientes — hasta entonces la verás como “Reuniendo
+              datos” en lugar de un número inventado.
+            </Text>
+            <ScrollView style={styles.modalList}>
+              {(map?.dimensions ?? []).map((dim) => (
+                <View key={dim.key} style={styles.modalRow}>
+                  <View style={styles.modalRowTop}>
+                    <Text style={styles.modalRowName}>{LABELS[dim.key]}</Text>
+                    <Text style={styles.modalRowStatus}>
+                      {dim.confidence >= CONFIDENCE_FLOOR
+                        ? `${Math.round(dim.value * 100)}%`
+                        : "Reuniendo datos"}
+                    </Text>
+                  </View>
+                  <Text style={styles.modalRowSources}>{dim.sources}</Text>
+                </View>
+              ))}
+              <View style={styles.modalPrivacy}>
+                <Text style={styles.modalPrivacyText}>
+                  🔒 Privacidad primero. El análisis nunca lee el texto de tu
+                  diario ni de tus conversaciones con Eco — están cifrados de
+                  extremo a extremo. Solo usamos señales sin contenido: tu
+                  ánimo, tus etiquetas, con qué frecuencia y a qué horas
+                  escribes, lees o conversas.
+                </Text>
+              </View>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </>
   );
 }
@@ -361,6 +461,28 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: Colors.sage[400],
   },
+  infoBtn: {
+    marginLeft: "auto",
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  infoBtnText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 14,
+  },
+  stageGathering: {
+    marginTop: 12,
+    fontSize: 12,
+    lineHeight: 17,
+    color: "rgba(255,255,255,0.72)",
+  },
   stageTitle: {
     fontSize: 12,
     fontWeight: "700",
@@ -446,6 +568,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.warm[500],
   },
+  dimGathering: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.warm[500],
+    backgroundColor: Colors.warm[100],
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 9999,
+    overflow: "hidden",
+  },
+  dimSources: {
+    marginTop: 7,
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: Colors.warm[500],
+  },
   dimBar: {
     height: 7,
     borderRadius: 9999,
@@ -514,5 +652,74 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: Colors.lavender[700],
+  },
+
+  // transparency modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15,13,20,0.55)",
+    justifyContent: "center",
+    padding: Spacing.md,
+  },
+  modalCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    padding: Spacing.md,
+    maxHeight: "85%",
+  },
+  modalHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: Colors.warm[900],
+  },
+  modalIntro: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: Colors.warm[600],
+    marginBottom: 12,
+  },
+  modalList: {
+    flexGrow: 0,
+  },
+  modalRow: {
+    marginBottom: 12,
+  },
+  modalRowTop: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  modalRowName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.warm[900],
+  },
+  modalRowStatus: {
+    fontSize: 11.5,
+    color: Colors.warm[500],
+  },
+  modalRowSources: {
+    marginTop: 3,
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: Colors.warm[600],
+  },
+  modalPrivacy: {
+    marginTop: 4,
+    padding: 12,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.sage[100],
+  },
+  modalPrivacyText: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: Colors.warm[700],
   },
 });

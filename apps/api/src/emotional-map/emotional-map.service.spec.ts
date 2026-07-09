@@ -18,16 +18,16 @@ function makeProvider(
 }
 
 function makePrisma(overrides: {
-  diaryEntries?: Array<{
-    mood: string;
-    tags: string[];
-    createdAt: Date;
-  }>;
+  diaryEntries?: Array<{ mood: string; tags: string[]; createdAt: Date }>;
   readingSessions?: Array<{
     progressPct: number;
     completedAt: Date | null;
     timeSpentSec: number;
   }>;
+  ecoMessages?: Array<{ createdAt: Date }>;
+  voiceCount?: number;
+  highlightCount?: number;
+  annotationCount?: number;
   user?: { currentStreakDays: number } | null;
 }) {
   return {
@@ -36,6 +36,18 @@ function makePrisma(overrides: {
     },
     readingSession: {
       findMany: vi.fn().mockResolvedValue(overrides.readingSessions ?? []),
+    },
+    ecoMessage: {
+      findMany: vi.fn().mockResolvedValue(overrides.ecoMessages ?? []),
+    },
+    voiceTranscription: {
+      count: vi.fn().mockResolvedValue(overrides.voiceCount ?? 0),
+    },
+    highlight: {
+      count: vi.fn().mockResolvedValue(overrides.highlightCount ?? 0),
+    },
+    annotation: {
+      count: vi.fn().mockResolvedValue(overrides.annotationCount ?? 0),
     },
     user: {
       findUnique: vi.fn().mockResolvedValue(overrides.user ?? null),
@@ -65,7 +77,7 @@ function makeRedis() {
   };
 }
 
-describe("EmotionalMapService — Sprint D", () => {
+describe("EmotionalMapService — hybrid rework (confidence per axis)", () => {
   let prisma: ReturnType<typeof makePrisma>;
   let redis: ReturnType<typeof makeRedis>;
 
@@ -73,36 +85,37 @@ describe("EmotionalMapService — Sprint D", () => {
     redis = makeRedis();
   });
 
-  it("returns an empty-state radar (values=0, pct=0) when the user has no reading nor entries", async () => {
+  it("returns a fully empty map (values=0, pct=0, coverage=0) with no signal", async () => {
     prisma = makePrisma({});
-    const provider = makeProvider(async () => ({
-      calma: 0.5,
-      claridad: 0.5,
-      compasion: 0.5,
-      consciencia: 0.5,
-    }));
+    const scoreSpy = vi.fn();
+    const provider = makeProvider(async () => {
+      scoreSpy();
+      return { calma: 0.5, claridad: 0.5, compasion: 0.5, consciencia: 0.5 };
+    });
     const service = new EmotionalMapService(
       prisma as never,
       provider,
       redis as never,
     );
     const result = await service.compute("user-1");
+
     expect(result.values).toEqual([0, 0, 0, 0, 0, 0]);
-    // Zero data → no symmetric 50% hex; UI renders "empieza a leer o escribir".
+    expect(result.confidence).toEqual([0, 0, 0, 0, 0, 0]);
     expect(result.pct).toBe(0);
-    expect(result.provider).toBe("fallback");
+    expect(result.coverage).toBe(0);
+    expect(result.dimensions).toHaveLength(6);
+    expect(result.provider).toBe("rule-based");
+    // Zero signal → never burn an LLM call.
+    expect(scoreSpy).not.toHaveBeenCalled();
   });
 
-  it("short-circuits the LLM when entries < 3", async () => {
+  it("shows 'reuniendo datos' (value 0) for interpretive axes with a single bare entry", async () => {
     prisma = makePrisma({
-      diaryEntries: [
-        { mood: "good", tags: ["familia"], createdAt: new Date() },
-        { mood: "low", tags: ["trabajo"], createdAt: new Date() },
-      ],
+      diaryEntries: [{ mood: "ok", tags: [], createdAt: new Date() }],
     });
     const scoreSpy = vi.fn();
-    const provider = makeProvider(async (p) => {
-      scoreSpy(p);
+    const provider = makeProvider(async () => {
+      scoreSpy();
       return { calma: 0.9, claridad: 0.9, compasion: 0.9, consciencia: 0.9 };
     });
     const service = new EmotionalMapService(
@@ -111,17 +124,54 @@ describe("EmotionalMapService — Sprint D", () => {
       redis as never,
     );
     const result = await service.compute("user-1");
+
+    // 1 entry → every axis stays below the confidence floor → no fabricated
+    // number, and no LLM call.
     expect(scoreSpy).not.toHaveBeenCalled();
-    expect(result.provider).toBe("fallback");
+    expect(result.values[0]).toBe(0); // calma
+    expect(result.dimensions[0].confidence).toBeLessThan(0.15);
   });
 
-  it("calls the LLM when entries ≥ 3 and uses its output for the 4 interpretive axes", async () => {
+  it("lights up conexión + consciencia from Eco even with a single diary entry", async () => {
+    // The exact user scenario: 1 reflection + a few Eco chats used to produce
+    // a fake ~50% radar. Now Eco signal drives real axes instead.
     prisma = makePrisma({
-      diaryEntries: Array.from({ length: 5 }, (_, i) => ({
-        mood: ["great", "good", "ok", "low", "hard"][i] ?? "ok",
-        tags: ["trabajo"],
+      diaryEntries: [
+        { mood: "good", tags: ["trabajo"], createdAt: new Date() },
+      ],
+      ecoMessages: Array.from({ length: 4 }, (_, i) => ({
+        createdAt: new Date(2026, 5, 2 + i),
+      })),
+    });
+    const provider = makeProvider(async () => ({
+      calma: 0.8,
+      claridad: 0.7,
+      compasion: 0.6,
+      consciencia: 0.65,
+    }));
+    const service = new EmotionalMapService(
+      prisma as never,
+      provider,
+      redis as never,
+    );
+    const result = await service.compute("user-1");
+
+    // Conexión (index 2) has 0 reading + 4 eco → conf = 4/8 = 0.5 ≥ floor.
+    expect(result.dimensions[2].confidence).toBeGreaterThanOrEqual(0.15);
+    expect(result.values[2]).toBeGreaterThan(0);
+    // Consciencia (index 5): diaryDays(1) + ecoDays(4) = 5/10 = 0.5 ≥ floor.
+    expect(result.dimensions[5].confidence).toBeGreaterThanOrEqual(0.15);
+    expect(result.provider).toBe("test");
+  });
+
+  it("uses the LLM output for the 4 interpretive axes with rich data", async () => {
+    prisma = makePrisma({
+      diaryEntries: Array.from({ length: 6 }, (_, i) => ({
+        mood: ["great", "good", "ok", "low", "hard", "good"][i] ?? "ok",
+        tags: ["trabajo", "familia"],
         createdAt: new Date(2026, 5, 1 + i),
       })),
+      voiceCount: 2,
     });
     const provider = makeProvider(async () => ({
       calma: 0.8,
@@ -135,6 +185,7 @@ describe("EmotionalMapService — Sprint D", () => {
       redis as never,
     );
     const result = await service.compute("user-1");
+
     expect(result.values[0]).toBe(0.8); // calma
     expect(result.values[1]).toBe(0.7); // claridad
     expect(result.values[4]).toBe(0.6); // compasion
@@ -142,11 +193,11 @@ describe("EmotionalMapService — Sprint D", () => {
     expect(result.provider).toBe("test");
   });
 
-  it("falls back to neutral on the 4 LLM axes when the provider throws", async () => {
+  it("collapses interpretive axes to 'reuniendo datos' when the provider throws", async () => {
     prisma = makePrisma({
-      diaryEntries: Array.from({ length: 5 }, (_, i) => ({
+      diaryEntries: Array.from({ length: 6 }, (_, i) => ({
         mood: "ok",
-        tags: [],
+        tags: ["trabajo"],
         createdAt: new Date(2026, 5, i + 1),
       })),
     });
@@ -159,14 +210,17 @@ describe("EmotionalMapService — Sprint D", () => {
       redis as never,
     );
     const result = await service.compute("user-1");
-    expect(result.values[0]).toBe(0.5);
-    expect(result.values[1]).toBe(0.5);
-    expect(result.values[4]).toBe(0.5);
-    expect(result.values[5]).toBe(0.5);
-    expect(result.provider).toBe("fallback");
+
+    // No fabricated numbers when the model is unavailable.
+    expect(result.values[0]).toBe(0); // calma
+    expect(result.values[1]).toBe(0); // claridad
+    expect(result.values[4]).toBe(0); // compasion
+    expect(result.values[5]).toBe(0); // consciencia
+    expect(result.confidence[0]).toBe(0);
+    expect(result.provider).toBe("rule-based");
   });
 
-  it("computes Propósito as average reading progress (mechanical)", async () => {
+  it("computes Propósito mechanically from reading progress", async () => {
     prisma = makePrisma({
       readingSessions: [
         { progressPct: 60, completedAt: null, timeSpentSec: 0 },
@@ -185,11 +239,44 @@ describe("EmotionalMapService — Sprint D", () => {
       redis as never,
     );
     const result = await service.compute("user-1");
-    // Propósito is axis index 3 (Calma · Claridad · Conexión · Propósito · …).
-    expect(result.values[3]).toBeCloseTo(0.5);
+
+    // Propósito is axis index 3. avgProgress 0.5 * 0.7 + 0 completions = 0.35.
+    expect(result.values[3]).toBeCloseTo(0.35);
+    expect(result.dimensions[3].confidence).toBeGreaterThanOrEqual(0.15);
   });
 
-  it("caches the computed result for 24h and reuses on subsequent calls", async () => {
+  it("pct averages only the covered axes (low-data maps don't inflate)", async () => {
+    // Only reading signal → conexión + propósito covered; interpretive axes
+    // stay at 0/uncovered. pct must reflect ONLY the two covered axes.
+    prisma = makePrisma({
+      readingSessions: [
+        { progressPct: 100, completedAt: new Date(), timeSpentSec: 3600 },
+        { progressPct: 100, completedAt: new Date(), timeSpentSec: 3600 },
+        { progressPct: 80, completedAt: null, timeSpentSec: 1800 },
+      ],
+    });
+    const provider = makeProvider(async () => ({
+      calma: 0.5,
+      claridad: 0.5,
+      compasion: 0.5,
+      consciencia: 0.5,
+    }));
+    const service = new EmotionalMapService(
+      prisma as never,
+      provider,
+      redis as never,
+    );
+    const result = await service.compute("user-1");
+
+    const covered = result.dimensions.filter((d) => d.confidence >= 0.15);
+    expect(covered.map((d) => d.key).sort()).toEqual(["conexion", "proposito"]);
+    const expectedPct = Math.round(
+      (covered.reduce((a, d) => a + d.value, 0) / covered.length) * 100,
+    );
+    expect(result.pct).toBe(expectedPct);
+  });
+
+  it("caches the computed result for 24h and reuses it on subsequent calls", async () => {
     prisma = makePrisma({});
     const provider = makeProvider(async () => ({
       calma: 0.7,
@@ -206,7 +293,6 @@ describe("EmotionalMapService — Sprint D", () => {
     await service.getForUser("user-1");
     expect(redis.set).toHaveBeenCalledTimes(1);
 
-    // Second call: served from cache, no new set.
     await service.getForUser("user-1");
     expect(redis.set).toHaveBeenCalledTimes(1);
     expect(redis.get).toHaveBeenCalledTimes(2);

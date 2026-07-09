@@ -6,7 +6,10 @@ import { EvoChart } from "./EvoChart";
 function map(overrides: Partial<EmotionalMapResult> = {}): EmotionalMapResult {
   return {
     values: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+    confidence: [0.6, 0.6, 0.6, 0.6, 0.6, 0.6],
+    dimensions: [],
     pct: 74,
+    coverage: 0.6,
     computedAt: "2026-06-21T14:00:00Z",
     provider: "anthropic",
     ...overrides,

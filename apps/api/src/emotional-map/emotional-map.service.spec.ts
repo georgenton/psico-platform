@@ -55,6 +55,9 @@ function makePrisma(overrides: {
     moodLog: {
       findMany: vi.fn().mockResolvedValue(overrides.moodLogs ?? []),
     },
+    checkinResponse: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     user: {
       findUnique: vi.fn().mockResolvedValue(overrides.user ?? null),
     },

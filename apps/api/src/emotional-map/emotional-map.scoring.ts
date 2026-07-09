@@ -1,9 +1,11 @@
 import type {
+  CheckinAxis,
   EmotionalMapAffectDynamics,
   EmotionalMapAxes,
   EmotionalMapDimension,
   EmotionalMapResult,
 } from "@psico/types";
+import { CHECKIN_ITEMS } from "@psico/types";
 
 import type {
   EmotionalMapMetadataPayload,
@@ -71,8 +73,46 @@ export interface EmotionalMapScoringInput {
   currentStreakDays: number;
   /** Longer mood history (diary + mood-log union) for the OU fit. */
   moodSeries: ReadonlyArray<{ mood: string; createdAt: Date }>;
+  /**
+   * Micro-checkin answers in the 30-day window (Etapa 2). Ordinal 0–4 scores;
+   * itemKey maps to an axis via CHECKIN_ITEMS. Optional so pre-Etapa-2
+   * callers/fixtures keep compiling.
+   */
+  checkins?: ReadonlyArray<{ itemKey: string; score: number; createdAt: Date }>;
   /** Tier 2 kill-switch. When false, the affect-dynamics block is null. */
   ouEnabled: boolean;
+}
+
+/** Checkin answers per axis at which the measured confidence saturates. */
+export const CHECKIN_GOOD_N = 5;
+
+/**
+ * Etapa 2 — aggregate checkin answers into per-axis measured signals.
+ * value = mean(score)/4 in [0,1]; confidence grows with the answer count.
+ */
+export function computeCheckinAxes(
+  checkins: ReadonlyArray<{ itemKey: string; score: number }>,
+): Partial<Record<CheckinAxis, { value: number; confidence: number }>> {
+  const axisOf = new Map(CHECKIN_ITEMS.map((i) => [i.key, i.axis]));
+  const buckets = new Map<CheckinAxis, number[]>();
+  for (const c of checkins) {
+    const axis = axisOf.get(c.itemKey);
+    if (!axis) continue; // unknown/retired item — ignore
+    const list = buckets.get(axis) ?? [];
+    list.push(Math.min(4, Math.max(0, c.score)));
+    buckets.set(axis, list);
+  }
+  const out: Partial<
+    Record<CheckinAxis, { value: number; confidence: number }>
+  > = {};
+  for (const [axis, scores] of buckets) {
+    const mean = scores.reduce((a, s) => a + s, 0) / scores.length;
+    out[axis] = {
+      value: mean / 4,
+      confidence: Math.min(1, scores.length / CHECKIN_GOOD_N),
+    };
+  }
+  return out;
 }
 
 export async function scoreEmotionalMap(
@@ -89,6 +129,7 @@ export async function scoreEmotionalMap(
     annotationCount,
     currentStreakDays,
     moodSeries,
+    checkins = [],
     ouEnabled,
   } = input;
 
@@ -98,6 +139,9 @@ export async function scoreEmotionalMap(
     affect?.status === "active" && affect.stability != null
       ? { value: affect.stability, confidence: affect.confidence }
       : null;
+
+  // ── Etapa 2: measured signals from the daily micro-checkins ─────────────
+  const checkinAxes = computeCheckinAxes(checkins);
 
   // ── Derived counters ─────────────────────────────────────────────────────
   const dayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -187,11 +231,30 @@ export async function scoreEmotionalMap(
   }
 
   // ── Assemble dimensions (radar order) ────────────────────────────────────
+  // For the interpretive axes, a MEASURED checkin signal (with enough answers)
+  // takes precedence over the LLM interpretation — same pattern as OU→Calma.
+  const measuredAxis = (
+    axis: CheckinAxis,
+    fallback: { value: number; confidence: number; sources: string },
+  ) => {
+    const m = checkinAxes[axis];
+    if (m && m.confidence >= CONFIDENCE_FLOOR) {
+      return {
+        value: m.value,
+        confidence: m.confidence,
+        sources: "Tus respuestas al check-in diario",
+        measured: true,
+      };
+    }
+    return { ...fallback, measured: false };
+  };
+
   const raw: Array<{
     key: EmotionalMapDimension["key"];
     value: number;
     confidence: number;
     sources: string;
+    measured: boolean;
   }> = [
     {
       key: "calma",
@@ -200,39 +263,48 @@ export async function scoreEmotionalMap(
       sources: ouCalma
         ? "Volatilidad medida de tu ánimo (modelo de dinámica afectiva)"
         : "Variedad y tono de tus estados de ánimo en el diario",
+      measured: Boolean(ouCalma),
     },
     {
       key: "claridad",
-      value: claridadRaw,
-      confidence: confClaridad * llmConfidenceScale,
-      sources:
-        "Con qué frecuencia nombras y etiquetas lo que sientes (diario y voz)",
+      ...measuredAxis("claridad", {
+        value: claridadRaw,
+        confidence: confClaridad * llmConfidenceScale,
+        sources:
+          "Con qué frecuencia nombras y etiquetas lo que sientes (diario y voz)",
+      }),
     },
     {
       key: "conexion",
       value: conexionRaw,
       confidence: confConexion,
       sources: "Tu lectura y tus conversaciones con Eco",
+      measured: false,
     },
     {
       key: "proposito",
       value: propositoRaw,
       confidence: confProposito,
       sources: "Tu avance en las lecturas que empiezas",
+      measured: false,
     },
     {
       key: "compasion",
-      value: compasionRaw,
-      confidence: confCompasion * llmConfidenceScale,
-      sources:
-        "Seguir presente en los momentos difíciles (escribir o conversar)",
+      ...measuredAxis("compasion", {
+        value: compasionRaw,
+        confidence: confCompasion * llmConfidenceScale,
+        sources:
+          "Seguir presente en los momentos difíciles (escribir o conversar)",
+      }),
     },
     {
       key: "consciencia",
-      value: conscienciaRaw,
-      confidence: confConsciencia * llmConfidenceScale,
-      sources:
-        "La regularidad con que te observas (días activos en diario y Eco)",
+      ...measuredAxis("consciencia", {
+        value: conscienciaRaw,
+        confidence: confConsciencia * llmConfidenceScale,
+        sources:
+          "La regularidad con que te observas (días activos en diario y Eco)",
+      }),
     },
   ];
 
@@ -241,6 +313,7 @@ export async function scoreEmotionalMap(
     value: d.confidence >= CONFIDENCE_FLOOR ? round2(d.value) : 0,
     confidence: round2(d.confidence),
     sources: d.sources,
+    measured: d.measured && d.confidence >= CONFIDENCE_FLOOR,
   }));
 
   const values = dimensions.map((d) => d.value) as unknown as EmotionalMapAxes;

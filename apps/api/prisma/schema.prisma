@@ -144,6 +144,7 @@ model User {
   therapyTechnicalReports TherapyTechnicalReport[]
   authorBooks             AuthorBook[]                @relation("AuthorBookOwner")
   moodLogs                MoodLog[]
+  checkinResponses        CheckinResponse[]
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -1119,6 +1120,23 @@ model MoodLog {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt(sort: Desc)])
+}
+
+// Micro-checkin answer (Mapa Emocional · Etapa 2). One 0–4 ordinal score per
+// question; itemKey is validated against CHECKIN_ITEMS in @psico/types at the
+// DTO layer. Plain metadata only — no text (ADR 0007). Feeds the Claridad /
+// Compasión / Consciencia axes as MEASURED signals.
+model CheckinResponse {
+  id        String   @id @default(cuid())
+  userId    String
+  itemKey   String
+  score     Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, itemKey, createdAt(sort: Desc)])
 }
 
 model ReaderPreferences {

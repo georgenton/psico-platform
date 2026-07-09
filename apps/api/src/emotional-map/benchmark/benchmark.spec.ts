@@ -174,6 +174,34 @@ describe("Stage 0 — emotional-map persona benchmark", () => {
     expect(mature.affectDynamics?.inertiaDays).not.toBeNull();
   });
 
+  it("Etapa 2: daily checkins turn Claridad/Compasión/Consciencia into MEASURED axes", async () => {
+    const withCheckins = await scoreEmotionalMap(
+      buildPersonaInput(PERSONAS.find((p) => p.id === "checkin-3sem")!),
+      stubProvider,
+    );
+    const measuredKeys = withCheckins.dimensions
+      .filter((d) => d.measured)
+      .map((d) => d.key);
+    expect(measuredKeys).toEqual(
+      expect.arrayContaining(["claridad", "compasion", "consciencia"]),
+    );
+    // The measured value reflects the answers (stable persona answers 3-4/4).
+    const claridad = withCheckins.dimensions.find((d) => d.key === "claridad")!;
+    expect(claridad.value).toBeGreaterThan(0.6);
+    expect(claridad.sources).toMatch(/check-in diario/);
+
+    // Control: a persona WITHOUT checkins keeps those axes unmeasured.
+    const without = await scoreEmotionalMap(
+      buildPersonaInput(PERSONAS.find((p) => p.id === "mes-constante")!),
+      stubProvider,
+    );
+    for (const key of ["claridad", "compasion", "consciencia"] as const) {
+      expect(without.dimensions.find((d) => d.key === key)!.measured).not.toBe(
+        true,
+      );
+    }
+  });
+
   it("higher engagement yields higher overall map coverage", async () => {
     const low = await scoreEmotionalMap(
       buildPersonaInput(PERSONAS.find((p) => p.id === "nuevo-3d")!),

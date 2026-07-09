@@ -22,7 +22,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 
 const MOODS = ["hard", "low", "ok", "good", "great"];

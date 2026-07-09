@@ -219,6 +219,18 @@ export interface TrendOuFit {
    * (where the user IS, not the window average), else the fitted μ.
    */
   levelNow: number;
+  /**
+   * The series the OU was actually fit on (detrended residuals when trending,
+   * the raw sorted series otherwise). Feed this to the bootstrap so the ±
+   * intervals describe the same fit the axes came from (Etapa 3).
+   */
+  obsForFit: OuObservation[];
+  /**
+   * OLS standard error of the trend prediction at t_last (mood-scale units).
+   * Only set when trending — the baseline ± comes from here instead of the
+   * bootstrap μ (which describes the residual mean, ~0 by construction).
+   */
+  levelNowSe?: number;
 }
 
 /** |t-statistic| of the OLS slope required to accept a trend. */
@@ -238,7 +250,13 @@ export function fitOuWithTrend(obs: ReadonlyArray<OuObservation>): TrendOuFit {
   const n = sorted.length;
   const plain = (): TrendOuFit => {
     const fit = fitOu(sorted);
-    return { fit, slopePerDay: 0, trending: false, levelNow: fit.params.mu };
+    return {
+      fit,
+      slopePerDay: 0,
+      trending: false,
+      levelNow: fit.params.mu,
+      obsForFit: sorted,
+    };
   };
   if (n < MIN_OBS_FOR_FIT) return plain();
 
@@ -270,8 +288,20 @@ export function fitOuWithTrend(obs: ReadonlyArray<OuObservation>): TrendOuFit {
   const residuals = sorted.map((o) => ({ t: o.t, x: o.x - (a + b * o.t) }));
   const fit = fitOu(residuals);
   // Where the trend puts the user TODAY, kept on the mood scale.
-  const levelNow = clamp(a + b * sorted[n - 1].t, -1, 1);
-  return { fit, slopePerDay: b, trending: true, levelNow };
+  const tLast = sorted[n - 1].t;
+  const levelNow = clamp(a + b * tLast, -1, 1);
+  // OLS prediction SE at t_last: √(s²·(1/n + (t_last − t̄)²/Sxx)).
+  const levelNowSe = Math.sqrt(
+    Math.max(residVar, VAR_FLOOR) * (1 / n + (tLast - tMean) ** 2 / sxx),
+  );
+  return {
+    fit,
+    slopePerDay: b,
+    trending: true,
+    levelNow,
+    obsForFit: residuals,
+    levelNowSe,
+  };
 }
 
 // ─── initial guess ──────────────────────────────────────────────────────────

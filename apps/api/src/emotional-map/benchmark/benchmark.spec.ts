@@ -244,6 +244,29 @@ describe("Stage 0 — emotional-map persona benchmark", () => {
     expect(volatile.stability ?? 1).toBeLessThan(0.35);
   });
 
+  it("Etapa 3: ± margins are present, honest, and shrink with history", async () => {
+    const by = async (id: string) =>
+      scoreEmotionalMap(
+        buildPersonaInput(PERSONAS.find((p) => p.id === id)!),
+        stubProvider,
+      );
+
+    // Gathering → no margins block (nothing to bracket).
+    expect((await by("nuevo-3d")).affectDynamics?.margins).toBeNull();
+
+    // Active with few obs: margins present, recovery ± gated with the axis.
+    const early = (await by("dos-semanas")).affectDynamics!;
+    expect(early.margins).not.toBeNull();
+    expect(early.margins!.stability).toBeGreaterThan(0);
+    expect(early.margins!.recovery).toBeNull();
+
+    // More history → tighter intervals (the honesty story in one assert).
+    const mature = (await by("trimestre-disciplinado")).affectDynamics!;
+    expect(mature.margins!.recovery).not.toBeNull();
+    expect(mature.margins!.stability!).toBeLessThan(early.margins!.stability!);
+    expect(mature.margins!.baseline!).toBeLessThan(early.margins!.baseline!);
+  });
+
   it("higher engagement yields higher overall map coverage", async () => {
     const low = await scoreEmotionalMap(
       buildPersonaInput(PERSONAS.find((p) => p.id === "nuevo-3d")!),

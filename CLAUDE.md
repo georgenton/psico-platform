@@ -2843,6 +2843,23 @@ Cierra deuda explícita del Sprint 3 (`sprint-e2e-rekey-lectorshell`): el DTO va
 
 ---
 
+### Sesión — 2026-07-09 ✅ COMPLETADA — Mapa Emocional · Etapa 3 (intervalos ± bootstrap)
+
+**Rama:** `feature/emotional-map-stage-3-intervals`
+**Tests:** API 764/765 (+4: 3 bootstrap.spec + 1 benchmark) · Web 273 (+2 MapAffectDynamics) · Mobile 48 · typecheck ×3 + lints + privacy + OpenAPI verdes.
+
+**Qué cierra:** la última etapa v1 del roadmap — surfacear la incertidumbre que `bootstrapOuCI` ya sabía calcular. Los chips del bloque afectivo ahora leen «72% ±8» con nota en el footer («El ± marca el rango probable de cada valor»).
+
+- **`bootstrapAxesCI`** (`dynamics/bootstrap.ts`): cada réplica bootstrap se mapea por `ouToAxes` ANTES de tomar percentiles — correcto para estabilidad, que depende de σ y θ conjuntamente. Determinista (seed fijo) → cache reproducible.
+- **`TrendOuFit.obsForFit` + `levelNowSe`**: el bootstrap corre sobre la MISMA serie que usó el fit (residuos detrendados cuando hay tendencia); el ± del tono con tendencia sale del SE de predicción OLS en t_last (el μ bootstrap describiría la media residual ≈ 0).
+- **Wire:** `EmotionalMapAffectDynamics.margins?: {baseline, recovery, stability} | null` — half-widths 90% en unidades 0–1, opcional/cache-tolerant, null por eje cuando está gated.
+- **Comportamiento (banco):** los márgenes se ENCOGEN con la historia — estabilidad ±38 (n=10) → ±25 (n=21) → ±20 (n=77); gathering → null; casi-plano → ~0 (certeza real); volátil ±2 (confiadamente inestable).
+- **UI web + mobile:** chip "±N" (filtro de ruido ≤0.4pp) + nota de footer condicional. `affect-copy.ts` twins con `AffectStoryRow.margin`.
+
+**Privacidad (ADR 0007):** solo remuestreo matemático sobre la serie ordinal ya usada. Cero texto.
+
+---
+
 ### 🗺️ Roadmap por etapas — Mapa Emocional (acordado 2026-07-09)
 
 Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de la Etapa 0.
@@ -2852,7 +2869,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 | **0** | Banco de personas offline (cimiento de validación) | ✅ **HECHO** |
 | **1** | Ejes confiables primero — Tono base + Estabilidad desde ~8 registros; gate Recuperación/Inercia a 20. Estabilidad desde σ estacionaria + piso de ruido ordinal | ✅ **HECHO** |
 | **2** | Micro-checkins (Fase C) — 6 ítems adaptados de instrumentos validados (TMMS-24/SCS-SF/MAAS); Claridad/Compasión/Consciencia pasan a MEDIDOS; persona "checkin diario" en el banco | ✅ **HECHO** |
-| **3** | Intervalos ± (bootstrap) visibles en la UI — ya existe `bootstrapOuCI`, falta surfacear | ⬜ siguiente |
+| **3** | Intervalos ± (bootstrap) visibles en la UI — `bootstrapAxesCI` en espacio de ejes; chips "72% ±8" + nota en el footer; márgenes se encogen con la historia | ✅ **HECHO** |
 | **4** | **Modelo v1 ordinal-latente con tendencia** — `x(t) = a + b·t + OU`; estabilidad sobre residuos detrendados, tono = nivel actual, `trend` up/down en el wire. Cierra el hallazgo de la Etapa 0 | ✅ **HECHO** |
 | **5** | EWS / resiliencia (critical slowing down) + experimentos E5/E6 del paper | ⬜ |
 | **6** | Análisis on-device del texto (Fase B / Capa 8) — el cliente descifra, analiza local, sube solo números. Respeta E2E | ⬜ |

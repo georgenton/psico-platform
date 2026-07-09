@@ -1298,6 +1298,17 @@ export interface EmotionalMapAffectDynamics {
    * cached pre-Etapa-4 blobs keep deserializing.
    */
   trend?: "up" | "down" | null;
+  /**
+   * Etapa 3 — 90% bootstrap half-widths per axis, in the same 0–1 units as
+   * the axes (the UI renders "72% ±8"). Null per axis when that axis is
+   * gated; the whole block is null when the bootstrap could not run.
+   * Optional so cached pre-Etapa-3 blobs keep deserializing.
+   */
+  margins?: {
+    baseline: number | null;
+    recovery: number | null;
+    stability: number | null;
+  } | null;
 }
 
 export interface EmotionalMapResult {

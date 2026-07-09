@@ -111,6 +111,48 @@ describe("MapAffectDynamics", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("Etapa 3: renders ± margins on the chips and explains them in the footer", () => {
+    const data: EmotionalMapAffectDynamics = {
+      status: "active",
+      nObs: 42,
+      needed: 8,
+      recoveryNeeded: 20,
+      confidence: 1,
+      baseline: 0.72,
+      recovery: 0.83,
+      stability: 0.66,
+      inertiaDays: 0.2,
+      trend: null,
+      margins: { baseline: 0.08, recovery: 0.17, stability: 0.2 },
+    };
+    render(<MapAffectDynamics data={data} />);
+    expect(screen.getByText("72% ±8")).toBeInTheDocument();
+    expect(screen.getByText("83% ±17")).toBeInTheDocument();
+    expect(screen.getByText("66% ±20")).toBeInTheDocument();
+    expect(
+      screen.getByText(/El ± marca el rango probable/),
+    ).toBeInTheDocument();
+  });
+
+  it("Etapa 3: plain chips (no ±, no footer note) for cached pre-Etapa-3 blobs", () => {
+    const data: EmotionalMapAffectDynamics = {
+      status: "active",
+      nObs: 42,
+      needed: 8,
+      recoveryNeeded: 20,
+      confidence: 1,
+      baseline: 0.72,
+      recovery: 0.83,
+      stability: 0.66,
+      inertiaDays: 0.2,
+    };
+    render(<MapAffectDynamics data={data} />);
+    expect(screen.getByText("72%")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/El ± marca el rango probable/),
+    ).not.toBeInTheDocument();
+  });
+
   it("Etapa 1: gates the recovery row with a 'reuniendo' note until enough data", () => {
     // Active with baseline + stability, but θ-derived axes still withheld.
     const data: EmotionalMapAffectDynamics = {

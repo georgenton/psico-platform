@@ -235,9 +235,10 @@ function Active({ data }: { data: EmotionalMapAffectDynamics }) {
                       background: "var(--color-lavender-100)",
                       padding: "4px 9px",
                       borderRadius: 9999,
+                      whiteSpace: "nowrap",
                     }}
                   >
-                    {row.pct}%
+                    {row.pct}%{row.margin != null ? ` ±${row.margin}` : ""}
                   </span>
                 ) : null}
               </div>
@@ -307,7 +308,11 @@ function Active({ data }: { data: EmotionalMapAffectDynamics }) {
         {data.inertiaDays != null
           ? ` · tus estados suelen durar ~${formatInertia(data.inertiaDays)}`
           : ""}
-        . Mientras más registres, más precisa será la estimación.
+        .{" "}
+        {story.rows.some((r) => r.margin != null)
+          ? "El ± marca el rango probable de cada valor. "
+          : ""}
+        Mientras más registres, más precisa será la estimación.
       </p>
     </div>
   );

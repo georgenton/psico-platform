@@ -154,6 +154,22 @@ function Active({ data }: { data: EmotionalMapAffectDynamics }) {
         {story.headline}
       </p>
 
+      {story.ewsNote ? (
+        <p
+          style={{
+            margin: "-6px 0 16px",
+            padding: "10px 14px",
+            borderRadius: 12,
+            font: "400 12.5px/1.55 var(--font-sans)",
+            background: "var(--color-lavender-50)",
+            border: "1px solid var(--color-lavender-200)",
+            color: "var(--color-lavender-700)",
+          }}
+        >
+          {story.ewsNote}
+        </p>
+      ) : null}
+
       {story.trendNote ? (
         <p
           style={{

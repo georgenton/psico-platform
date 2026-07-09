@@ -140,8 +140,8 @@ Piloto idiográfico consentido (**requiere IRB/comité**): usuarios opt-in, text
 | Contrato de privacidad                    | ✅ `dynamics/privacy.spec.ts`                               |
 | Baseline AR(1) discreto (E4)              | ❌ por implementar                                          |
 | Estimador OU ordinal v1 (E3/E4)           | ❌ por implementar (probit/logit)                           |
-| Intervalos por bootstrap (§4.4)           | ❌ por implementar                                          |
-| Arnés de falsos positivos EWS (E5)        | ❌ por implementar                                          |
+| Intervalos por bootstrap (§4.4)           | ✅ `dynamics/bootstrap.ts` (E3 + Etapa 3 en producto)       |
+| Arnés de falsos positivos EWS (E5)        | ✅ `dynamics/ews.ts` + E5/E5b/E6 en `simulation.spec.ts`    |
 | Script de experimentos + export de tablas | ❌ por implementar (fuera de la app; `scripts/` o notebook) |
 
 ---

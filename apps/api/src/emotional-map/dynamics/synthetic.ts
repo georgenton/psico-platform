@@ -90,6 +90,46 @@ export function simulateOuAt(
   return out;
 }
 
+/**
+ * Simulate an OU path whose recovery rate θ RAMPS DOWN linearly from θ0 to θ1
+ * across the sampled window — the canonical "approaching a critical
+ * transition" scenario (critical slowing down): as θ → 0 the process becomes
+ * slower to recover, so lag-1 autocorrelation AND variance rise. Used by the
+ * E5-companion sensitivity check and the EWS benchmark persona.
+ */
+export function simulateOuThetaRamp(opts: {
+  mu: number;
+  sigma: number;
+  /** Recovery rate at the start of the window. */
+  theta0: number;
+  /** Recovery rate at the end (θ1 < θ0 = slowing down). */
+  theta1: number;
+  n: number;
+  dtMean?: number;
+  seed?: number;
+}): OuObservation[] {
+  const { mu, sigma, theta0, theta1, n } = opts;
+  const dtMean = opts.dtMean ?? 0.25;
+  const rng = mulberry32(opts.seed ?? 1);
+  const gauss = () => boxMuller(rng);
+  const sigma2 = sigma * sigma;
+
+  let x = mu + Math.sqrt(sigma2 / (2 * theta0)) * gauss();
+  let t = 0;
+  const out: OuObservation[] = [{ t, x }];
+  for (let i = 1; i < n; i++) {
+    const frac = i / (n - 1);
+    const theta = Math.max(theta0 + (theta1 - theta0) * frac, 1e-3);
+    t += dtMean;
+    const e = Math.exp(-theta * dtMean);
+    const mean = mu + (x - mu) * e;
+    const transStd = Math.sqrt((sigma2 / (2 * theta)) * (1 - e * e));
+    x = mean + transStd * gauss();
+    out.push({ t, x });
+  }
+  return out;
+}
+
 // ─── deterministic PRNG + Gaussian ──────────────────────────────────────────
 
 /** mulberry32 — tiny deterministic PRNG returning floats in [0, 1). */

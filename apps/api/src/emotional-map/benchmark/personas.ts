@@ -17,7 +17,13 @@ export type MoodPattern =
   | "volatile"
   | "improving"
   | "declining"
-  | "flat";
+  | "flat"
+  /**
+   * Etapa 5 — losing resilience: stable first half, then an increasingly
+   * persistent random walk (rising autocorrelation + variance = the critical
+   * slowing down signature the EWS detector must catch).
+   */
+  | "destabilizing";
 export type Engagement = "low" | "medium" | "high";
 
 export interface Persona {
@@ -54,6 +60,7 @@ export const PERSONAS: Persona[] = [
   { id: "esporadico-2m", label: "Dos meses · esporádico", days: 60, moodPattern: "stable", moodsPerWeek: 1, engagement: "low" }, // prettier-ignore
   { id: "casi-plano-mes", label: "Un mes · casi plano", days: 30, moodPattern: "flat", moodsPerWeek: 5, engagement: "medium" }, // prettier-ignore
   { id: "checkin-3sem", label: "Tres semanas · checkin diario", days: 21, moodPattern: "stable", moodsPerWeek: 7, engagement: "low", answersCheckins: true }, // prettier-ignore
+  { id: "senal-temprana", label: "Tres meses · señal temprana", days: 90, moodPattern: "destabilizing", moodsPerWeek: 7, engagement: "medium" }, // prettier-ignore
 ];
 
 function seedFor(id: string): number {
@@ -66,6 +73,7 @@ function moodForPattern(
   pattern: MoodPattern,
   frac: number,
   rng: () => number,
+  walk?: { level: number },
 ): string {
   const noise = () => Math.floor(rng() * 3) - 1; // -1,0,1
   const clampIdx = (n: number) => Math.max(0, Math.min(MOODS.length - 1, n));
@@ -78,6 +86,15 @@ function moodForPattern(
       return MOODS[clampIdx(Math.round(frac * 4) + noise())];
     case "declining":
       return MOODS[clampIdx(Math.round((1 - frac) * 4) + noise())];
+    case "destabilizing": {
+      // Stable first half; then a persistent random walk whose step
+      // probability grows with time — rising AC + variance (Etapa 5).
+      if (frac < 0.5 || !walk) return MOODS[clampIdx(3 + noise())];
+      if (rng() < 0.3 + 0.6 * frac) {
+        walk.level = clampIdx(walk.level + (rng() < 0.5 ? -1 : 1));
+      }
+      return MOODS[walk.level];
+    }
     case "volatile":
     default:
       return MOODS[clampIdx((rng() < 0.5 ? 4 : 0) + noise())];
@@ -113,13 +130,14 @@ export function buildPersonaInput(persona: Persona): EmotionalMapScoringInput {
     Math.round((persona.days / 7) * persona.moodsPerWeek),
   );
   const moodSeries: Array<{ mood: string; createdAt: Date }> = [];
+  const walk = { level: 3 }; // persistent-walk state for "destabilizing"
   const entries: Array<{ mood: string; tags: string[]; createdAt: Date }> = [];
   for (let i = 0; i < count; i++) {
     const frac = count <= 1 ? 1 : i / (count - 1); // 0 (oldest) → 1 (newest)
     // Evenly spread across the window, with sub-day jitter for irregular Δt.
     const dayOffset = persona.days * (1 - frac) + (rng() - 0.5);
     const createdAt = new Date(NOW_REF - Math.max(dayOffset, 0) * DAY_MS);
-    const mood = moodForPattern(persona.moodPattern, frac, rng);
+    const mood = moodForPattern(persona.moodPattern, frac, rng, walk);
     moodSeries.push({ mood, createdAt });
 
     // A fraction of recent (≤30d) mood check-ins are diary entries.

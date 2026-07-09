@@ -151,6 +151,19 @@ export function fitOu(obs: ReadonlyArray<OuObservation>): OuFit {
 }
 
 /**
+ * Stability measurement-noise floor (Etapa 1). Our mood scale has levels 0.5
+ * apart (great=1 … hard=−1). A normal ±1-level check-in swing (e.g. "good"→
+ * "great") is mostly *reporting granularity*, not emotional volatility. We treat
+ * a stationary spread below this standard deviation as measurement noise and
+ * don't let it lower the stability axis. Tuned against the persona benchmark;
+ * the v1 ordinal-latent model (Etapa 4) will replace this heuristic with a
+ * principled measurement model. See docs/research/emotional-map-benchmark.md.
+ */
+export const STABILITY_MEASUREMENT_SD = 0.35;
+/** Stationary SD (after removing measurement noise) at which stability hits 0. */
+export const STABILITY_REF_SD = 0.6;
+
+/**
  * Bridge OU parameters to interpretable [0,1] axes for the radar. EXPERIMENTAL
  * scalings — to be calibrated against real data. Documented so the mapping is
  * auditable rather than magic.
@@ -165,8 +178,16 @@ export function ouToAxes(fit: OuFit): {
   const baseline = clamp01((mu + 1) / 2);
   // regulation: saturating in θ (θ=1/day → 0.5). Faster recovery → higher.
   const regulation = clamp01(theta / (theta + 1));
-  // stability: lower volatility → higher. σ≈1 → 0. Reference σ_ref = 1.
-  const stability = clamp01(1 - sigma / 1);
+  // stability (Etapa 1): base it on the STATIONARY spread of moods around the
+  // baseline (σ_stat = √(σ²/2θ)) — the long-run "how far do moods wander" — not
+  // the raw diffusion σ, which trades off against θ and conflated ordinal
+  // jitter with true volatility (the Etapa-0 benchmark finding). Then subtract
+  // a measurement-noise floor so ordinary ±1-level day-to-day swings don't read
+  // as instability.
+  const statVar = (sigma * sigma) / (2 * Math.max(theta, 1e-6));
+  const trueVar = Math.max(0, statVar - STABILITY_MEASUREMENT_SD ** 2);
+  const trueSd = Math.sqrt(trueVar);
+  const stability = clamp01(1 - trueSd / STABILITY_REF_SD);
   return { baseline, regulation, stability };
 }
 

@@ -124,6 +124,10 @@ function Gathering({ nObs, needed }: { nObs: number; needed: number }) {
 }
 
 function Active({ data }: { data: EmotionalMapAffectDynamics }) {
+  // Recovery + inertia unlock later than baseline/stability (θ needs more data).
+  const missing = Math.max(0, data.recoveryNeeded - data.nObs);
+  const gatheringNote =
+    missing > 0 ? `Reuniendo datos · ~${missing} más` : "Reuniendo datos";
   const metrics: Array<{ label: string; value: string; help: string }> = [
     {
       label: "Tono base",
@@ -132,18 +136,20 @@ function Active({ data }: { data: EmotionalMapAffectDynamics }) {
     },
     {
       label: "Recuperación",
-      value: pct(data.recovery),
+      value: data.recovery != null ? pct(data.recovery) : gatheringNote,
       help: "Qué tan rápido vuelves a tu base tras un bajón",
     },
     {
       label: "Estabilidad",
       value: pct(data.stability),
-      help: "Menor volatilidad en tu ánimo = más estable",
+      help: "Qué tan parejo se mantiene tu ánimo (los cambios pequeños del día a día no cuentan como inestabilidad)",
     },
     {
       label: "Inercia",
       value:
-        data.inertiaDays != null ? `${data.inertiaDays.toFixed(1)} d` : "—",
+        data.inertiaDays != null
+          ? `${data.inertiaDays.toFixed(1)} d`
+          : gatheringNote,
       help: "Cuánto tienden a persistir tus estados de ánimo",
     },
   ];
@@ -180,10 +186,12 @@ function Active({ data }: { data: EmotionalMapAffectDynamics }) {
             </div>
             <div
               style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: "var(--color-warm-900)",
-                marginTop: 2,
+                fontSize: m.value.startsWith("Reuniendo") ? 13 : 22,
+                fontWeight: m.value.startsWith("Reuniendo") ? 600 : 800,
+                color: m.value.startsWith("Reuniendo")
+                  ? "var(--color-warm-500)"
+                  : "var(--color-warm-900)",
+                marginTop: m.value.startsWith("Reuniendo") ? 6 : 2,
               }}
             >
               {m.value}

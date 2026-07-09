@@ -2783,6 +2783,26 @@ Cierra deuda explícita del Sprint 3 (`sprint-e2e-rekey-lectorshell`): el DTO va
 
 ---
 
+### Sesión — 2026-07-09 ✅ COMPLETADA — Mapa Emocional · Etapa 1 (ejes confiables primero)
+
+**Rama:** `feature/emotional-map-stage-1` · **PR** develop + sync a main
+**Doc:** [docs/research/emotional-map-benchmark.md](docs/research/emotional-map-benchmark.md) (v0.2, tabla recapturada)
+**Tests:** API 752/753 (+2 benchmark) · Web 260 (+1 MapAffectDynamics) · Mobile 43 · typecheck + lint + privacy verdes · OpenAPI in sync.
+
+**Contexto:** cierra el hallazgo de la Etapa 0 — el modelo v0 leía los saltos ordinales normales (±1 nivel) como volatilidad real, así que las personas estables leían 0% de Estabilidad.
+
+**Dos cambios (validados contra el banco):**
+1. **Estabilidad desde la dispersión estacionaria + piso de ruido de medición** (`ou.ts` `ouToAxes`). Ahora la estabilidad se calcula sobre `σ_stat = √(σ²/2θ)` (cuánto se aleja el ánimo de su base a largo plazo) menos un piso de ruido ordinal (`STABILITY_MEASUREMENT_SD=0.35`, `STABILITY_REF_SD=0.6`). Antes→después: dos-semanas 0%→**54%**, mes-constante 28%→**62%**, trimestre 0%→**64%**; volátil 0%→0% ✓ y casi-plano 100%→100% ✓ se preservan.
+2. **Gating por eje** (`scoring.ts` `computeAffectDynamics`). Tono base + Estabilidad desde ~8 registros (`MIN_OBS_FOR_FIT`); Recuperación + Inercia (derivadas de θ, sesgo severo en series cortas) gated a `RECOVERY_MIN_OBS=20`. Nuevo campo `EmotionalMapAffectDynamics.recoveryNeeded`. La UI (web `MapAffectDynamics` + mobile `mapa.tsx`) muestra "Reuniendo datos · ~N más" en vez de un número poco fiable.
+
+**Tests nuevos (benchmark):** "persona estable ±1 lee estabilidad >0.4" + "recovery/inertia gated hasta recoveryNeeded". Test `ou.spec` de monotonicidad (calm>volatile) preservado.
+
+**Límite honesto (motiva Etapa 4):** personas con **tendencia** (recuperándose, en declive) leen estabilidad baja porque OU asume estacionariedad y trata una tendencia como varianza alta. El modelo v1 ordinal-latente con componente de tendencia (Etapa 4) separaría "voy hacia arriba" de "reboto sin rumbo".
+
+**Privacidad (ADR 0007):** solo cambia la matemática sobre ánimo ordinal + timestamps. Cero texto. Privacy spec verde.
+
+---
+
 ### 🗺️ Roadmap por etapas — Mapa Emocional (acordado 2026-07-09)
 
 Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de la Etapa 0.
@@ -2790,8 +2810,8 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 | Etapa | Qué | Estado |
 |---|---|---|
 | **0** | Banco de personas offline (cimiento de validación) | ✅ **HECHO** |
-| **1** | Ejes confiables primero — mostrar Tono base + Estabilidad desde ~8 registros; gate Recuperación/Inercia más alto. Corrige que Estabilidad hoy es la más ruidosa | ⬜ siguiente |
-| **2** | Micro-checkins (Fase C) — WHO-5 / auto-compasión validados; persona "checkin diario" en el banco | ⬜ |
+| **1** | Ejes confiables primero — Tono base + Estabilidad desde ~8 registros; gate Recuperación/Inercia a 20. Estabilidad desde σ estacionaria + piso de ruido ordinal | ✅ **HECHO** |
+| **2** | Micro-checkins (Fase C) — WHO-5 / auto-compasión validados; persona "checkin diario" en el banco | ⬜ siguiente |
 | **3** | Intervalos ± (bootstrap) visibles en la UI — ya existe `bootstrapOuCI`, falta surfacear | ⬜ |
 | **4** | **Modelo v1 ordinal-latente** (ordered probit/logit) — trata los saltos de categoría como ruido de medición. Cierra el hallazgo de la Etapa 0 | ⬜ |
 | **5** | EWS / resiliencia (critical slowing down) + experimentos E5/E6 del paper | ⬜ |

@@ -34,7 +34,10 @@ function buildHome(overrides: Partial<HomeResponse> = {}): HomeResponse {
     insightToday: null,
     emotionalMap: {
       values: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5] as never,
+      confidence: [0.6, 0.6, 0.6, 0.6, 0.6, 0.6] as never,
+      dimensions: [],
       pct: 50,
+      coverage: 0.6,
       computedAt: "2026-06-21T12:00:00Z",
       provider: "anthropic",
     },

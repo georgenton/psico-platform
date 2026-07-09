@@ -13,12 +13,28 @@ import type {
   IEmotionalMapProvider,
 } from "./providers/provider.interface";
 import { EMOTIONAL_MAP_PROVIDER } from "./tokens";
+import {
+  fitOu,
+  MIN_OBS_FOR_FIT,
+  moodToScalar,
+  ouToAxes,
+  type OuObservation,
+} from "./dynamics/ou";
 
 /** Re-export the shared wire shape so the controller + barrel keep importing
  *  it from this module. The source of truth lives in `@psico/types`. */
 export type { EmotionalMapResult } from "@psico/types";
 
 const WINDOW_DAYS = 30;
+/**
+ * Tier 2 (affect dynamics) reads a longer mood history than the 30-day signal
+ * window: an Ornstein–Uhlenbeck fit needs enough points to be identifiable.
+ */
+const OU_WINDOW_DAYS = 180;
+/** Observation count at which the OU-derived Calma reaches full confidence. */
+const OU_GOOD_N = 40;
+/** Hard cap on observations fed to the fit (perf guard). */
+const OU_MAX_OBS = 1000;
 const CACHE_TTL_SECONDS = 86400; // 24h — established maps change slowly.
 /**
  * Maps that are still forming (low coverage) get a short TTL so a brand-new
@@ -73,6 +89,7 @@ export class EmotionalMapService {
   /** Public so the daily cron + ops scripts can rebuild without going through cache. */
   async compute(userId: string): Promise<EmotionalMapResult> {
     const since = new Date(Date.now() - WINDOW_DAYS * 86400_000);
+    const ouSince = new Date(Date.now() - OU_WINDOW_DAYS * 86400_000);
 
     // ── Gather every plaintext signal we're allowed to read (ADR 0007) ──────
     // We never select the encrypted cipher/nonce columns. Only categorical
@@ -85,6 +102,8 @@ export class EmotionalMapService {
       highlightCount,
       annotationCount,
       user,
+      diaryMoodRows,
+      moodLogRows,
     ] = await Promise.all([
       this.prisma.diaryEntry.findMany({
         where: { userId, createdAt: { gte: since } },
@@ -112,7 +131,24 @@ export class EmotionalMapService {
         where: { id: userId },
         select: { currentStreakDays: true },
       }),
+      // ── Tier 2 (affect dynamics) — longer mood history for the OU fit.
+      // Only ordinal mood + timestamp; never text (ADR 0007).
+      this.prisma.diaryEntry.findMany({
+        where: { userId, createdAt: { gte: ouSince } },
+        select: { mood: true, createdAt: true },
+      }),
+      this.prisma.moodLog.findMany({
+        where: { userId, createdAt: { gte: ouSince } },
+        select: { mood: true, createdAt: true },
+      }),
     ]);
+
+    // ── Tier 2: fit an Ornstein–Uhlenbeck model to the mood series ──────────
+    // Live in production behind a kill-switch (EMOTIONAL_MAP_OU=off disables).
+    // When it converges with enough points, the measured volatility drives the
+    // Calma axis instead of the LLM's impression. Otherwise we fall back to the
+    // Tier 1 heuristic below — the user never sees a broken axis.
+    const ou = this.fitMoodDynamics([...diaryMoodRows, ...moodLogRows]);
 
     // ── Derived counters ────────────────────────────────────────────────────
     const dayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -220,9 +256,14 @@ export class EmotionalMapService {
     }> = [
       {
         key: "calma",
-        value: calmaRaw,
-        confidence: confCalma * llmConfidenceScale,
-        sources: "Variedad y tono de tus estados de ánimo en el diario",
+        // Tier 2: when the OU fit is available, Calma is the measured
+        // stability (low mood volatility → high calma). Otherwise fall back to
+        // the Tier 1 interpretive value.
+        value: ou ? ou.calma : calmaRaw,
+        confidence: ou ? ou.confidence : confCalma * llmConfidenceScale,
+        sources: ou
+          ? "Volatilidad medida de tu ánimo (modelo de dinámica afectiva)"
+          : "Variedad y tono de tus estados de ánimo en el diario",
       },
       {
         key: "claridad",
@@ -296,6 +337,43 @@ export class EmotionalMapService {
       computedAt: new Date().toISOString(),
       provider: providerName,
     };
+  }
+
+  /**
+   * Tier 2 — fit an Ornstein–Uhlenbeck model to the ordinal mood series and
+   * derive the Calma axis from measured volatility. Returns null (→ Tier 1
+   * fallback) when disabled, under-powered, or the fit doesn't converge.
+   *
+   * Privacy (ADR 0007): consumes only `{mood, createdAt}` — never text.
+   */
+  private fitMoodDynamics(
+    rows: ReadonlyArray<{ mood: string; createdAt: Date }>,
+  ): { calma: number; confidence: number } | null {
+    // Kill-switch: on by default; EMOTIONAL_MAP_OU=off disables in prod.
+    if (process.env.EMOTIONAL_MAP_OU === "off") return null;
+
+    const obs: OuObservation[] = rows
+      .map((r) => ({
+        t: r.createdAt.getTime() / 86400_000, // days
+        x: moodToScalar(r.mood),
+      }))
+      .sort((a, b) => a.t - b.t)
+      .slice(-OU_MAX_OBS);
+
+    if (obs.length < MIN_OBS_FOR_FIT) return null;
+
+    const fit = fitOu(obs);
+    if (!fit.converged) return null;
+
+    // Confidence grows with the number of observations, saturating at OU_GOOD_N.
+    const confidence = clamp01(obs.length / OU_GOOD_N);
+    if (confidence < CONFIDENCE_FLOOR) return null;
+
+    const calma = ouToAxes(fit).stability;
+    this.logger.log(
+      `EmotionalMap OU · nObs=${obs.length} · sigma=${fit.params.sigma.toFixed(2)} · theta=${fit.params.theta.toFixed(2)} · calma=${calma.toFixed(2)}`,
+    );
+    return { calma, confidence };
   }
 
   /** Cache-busting hook for the daily cron and post-write paths. */

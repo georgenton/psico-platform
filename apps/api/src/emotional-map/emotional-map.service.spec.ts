@@ -28,9 +28,12 @@ function makePrisma(overrides: {
   voiceCount?: number;
   highlightCount?: number;
   annotationCount?: number;
+  moodLogs?: Array<{ mood: string; createdAt: Date }>;
   user?: { currentStreakDays: number } | null;
 }) {
   return {
+    // Used for both the 30-day Phase-A fetch and the 180-day OU fetch; the
+    // mock returns the same rows for both, which is fine for these tests.
     diaryEntry: {
       findMany: vi.fn().mockResolvedValue(overrides.diaryEntries ?? []),
     },
@@ -48,6 +51,9 @@ function makePrisma(overrides: {
     },
     annotation: {
       count: vi.fn().mockResolvedValue(overrides.annotationCount ?? 0),
+    },
+    moodLog: {
+      findMany: vi.fn().mockResolvedValue(overrides.moodLogs ?? []),
     },
     user: {
       findUnique: vi.fn().mockResolvedValue(overrides.user ?? null),
@@ -296,5 +302,69 @@ describe("EmotionalMapService — hybrid rework (confidence per axis)", () => {
     await service.getForUser("user-1");
     expect(redis.set).toHaveBeenCalledTimes(1);
     expect(redis.get).toHaveBeenCalledTimes(2);
+  });
+
+  // ── Tier 2 — Ornstein–Uhlenbeck wiring (live in production) ───────────────
+
+  it("drives Calma from measured mood volatility once there's enough history", async () => {
+    // 40 daily mood logs → OU fits and converges; Calma comes from σ.
+    const moodLogs = Array.from({ length: 40 }, (_, i) => ({
+      mood: ["great", "good", "ok", "low", "hard"][i % 5] ?? "ok",
+      createdAt: new Date(2026, 0, 1 + i),
+    }));
+    prisma = makePrisma({ moodLogs });
+    const provider = makeProvider(async () => ({
+      calma: 0.9, // the LLM would say 0.9; OU should override this
+      claridad: 0.5,
+      compasion: 0.5,
+      consciencia: 0.5,
+    }));
+    const service = new EmotionalMapService(
+      prisma as never,
+      provider,
+      redis as never,
+    );
+    const result = await service.compute("user-1");
+
+    // Calma (index 0) is now sourced from the affect-dynamics model.
+    expect(result.dimensions[0].key).toBe("calma");
+    expect(result.dimensions[0].sources).toContain("Volatilidad medida");
+    expect(result.dimensions[0].confidence).toBeGreaterThanOrEqual(0.15);
+    // It is NOT the LLM's 0.9 impression.
+    expect(result.values[0]).not.toBe(0.9);
+  });
+
+  it("falls back to the Tier 1 Calma when EMOTIONAL_MAP_OU=off", async () => {
+    const prev = process.env.EMOTIONAL_MAP_OU;
+    process.env.EMOTIONAL_MAP_OU = "off";
+    try {
+      const moodLogs = Array.from({ length: 40 }, (_, i) => ({
+        mood: ["great", "good", "ok", "low", "hard"][i % 5] ?? "ok",
+        createdAt: new Date(2026, 0, 1 + i),
+      }));
+      prisma = makePrisma({
+        diaryEntries: moodLogs.map((m) => ({ ...m, tags: [] })),
+        moodLogs,
+      });
+      const provider = makeProvider(async () => ({
+        calma: 0.9,
+        claridad: 0.5,
+        compasion: 0.5,
+        consciencia: 0.5,
+      }));
+      const service = new EmotionalMapService(
+        prisma as never,
+        provider,
+        redis as never,
+      );
+      const result = await service.compute("user-1");
+
+      // Kill-switch on → Calma is the LLM's value, sourced from Tier 1 copy.
+      expect(result.dimensions[0].sources).not.toContain("Volatilidad medida");
+      expect(result.values[0]).toBe(0.9);
+    } finally {
+      if (prev === undefined) delete process.env.EMOTIONAL_MAP_OU;
+      else process.env.EMOTIONAL_MAP_OU = prev;
+    }
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   fitOu,
+  fitOuWithTrend,
   MIN_OBS_FOR_FIT,
   moodToScalar,
   ouNegLogLik,
@@ -78,6 +79,49 @@ describe("OU affect-dynamics estimator — Tier 2 prototype", () => {
     expect(fit.converged).toBe(false);
     // Still returns a usable neutral fallback (caller degrades to Tier 1).
     expect(Number.isFinite(fit.params.mu)).toBe(true);
+  });
+
+  it("v1 (Etapa 4): detects a real upward trend and detrends the residual fit", () => {
+    // Stationary OU path + a strong deterministic drift (1.5 mood levels over
+    // 30 days). v0 read this drift as variance; v1 must isolate it.
+    const base = simulateOu({
+      mu: 0,
+      theta: 1,
+      sigma: 0.3,
+      n: 40,
+      dtMean: 0.75,
+      seed: 21,
+    });
+    const span = base[base.length - 1].t - base[0].t;
+    const slope = 1.5 / span;
+    const drifted = base.map((o) => ({ t: o.t, x: o.x + slope * o.t }));
+
+    const v1 = fitOuWithTrend(drifted);
+    expect(v1.trending).toBe(true);
+    expect(v1.slopePerDay).toBeGreaterThan(0);
+    // levelNow tracks the top of the drift, not the window average.
+    expect(v1.levelNow).toBeGreaterThan(0.5);
+    // Detrended residual fit reads LESS spread than the raw fit sees.
+    const raw = fitOu(drifted);
+    const statVar = (f: typeof raw) =>
+      f.params.sigma ** 2 / (2 * f.params.theta);
+    expect(statVar(v1.fit)).toBeLessThan(statVar(raw));
+  });
+
+  it("v1 (Etapa 4): rejects the trend on a stationary path (no false direction)", () => {
+    const obs = simulateOu({
+      mu: 0.3,
+      theta: 1,
+      sigma: 0.4,
+      n: 60,
+      dtMean: 0.5,
+      seed: 9,
+    });
+    const v1 = fitOuWithTrend(obs);
+    expect(v1.trending).toBe(false);
+    expect(v1.slopePerDay).toBe(0);
+    // Falls back to the plain fit — levelNow is the fitted baseline μ.
+    expect(v1.levelNow).toBeCloseTo(v1.fit.params.mu, 6);
   });
 
   it("bridges OU params to interpretable axes with the right monotonicity", () => {

@@ -2803,6 +2803,46 @@ Cierra deuda explícita del Sprint 3 (`sprint-e2e-rekey-lectorshell`): el DTO va
 
 ---
 
+### Sesión — 2026-07-09 ✅ COMPLETADA — Mapa Emocional · Etapa 2 (micro-checkins)
+
+**Rama:** `feature/emotional-map-stage-2-checkins` · **PR #470** (develop) + **#471** (sync a main)
+**Tests:** API 757/758 (+7: 4 MoodService + 1 benchmark + specs ajustados) · Web 269 (+2 MoodChip) · Mobile 48 · typecheck ×3 + lints + privacy verdes · OpenAPI in sync.
+
+**Qué se construyó:** después de marcar el ánimo del día, el MoodChip (web) / Modal (mobile) hace **una pregunta de 5 segundos** que rota entre 6 ítems adaptados de instrumentos validados (TMMS-24 claridad, SCS-SF auto-compasión, MAAS consciencia), escala 0–4, cero texto. Las respuestas alimentan **Claridad/Compasión/Consciencia como ejes MEDIDOS** del mapa (badge "Medido"), con la señal medida sobre-escribiendo al LLM por eje (mismo patrón que OU→Calma).
+
+- **Schema:** `CheckinResponse {userId, itemKey, score Int, createdAt}` + índices; migración `20260709220000_stage2_checkin_response` aditiva.
+- **Catálogo compartido** en `@psico/types`: `CHECKIN_ITEMS` (6), `CHECKIN_SCALE` (5 anclas), tipos request/response. Añadir un ítem = editar el catálogo, sin migración.
+- **Endpoints:** `GET /api/mood/checkin/next` (rotación server-side: cooldown rolling ~20h, menos-respondida primero) + `POST /api/mood/checkin` (valida `@IsIn(CHECKIN_ITEM_KEYS)`, invalida cache del mapa fire-and-forget).
+- **Scoring:** `computeCheckinAxes` — value = mean/4, confianza satura a 5 respuestas por eje; `measuredAxis()` helper; `EmotionalMapDimension.measured?: boolean` (opcional, cache-tolerant).
+- **Banco:** persona `checkin-3sem` + test "checkins turn axes into MEASURED"; control sin checkins sigue unmeasured.
+- **Seed demo:** cuentas ≥14 días reciben historial de checkins (re-correr `node scripts/seed-demo-users.mjs` en Railway post-deploy).
+
+**Privacidad (ADR 0007):** puntajes ordinales + timestamps, cero texto. Privacy specs verdes.
+
+---
+
+### Sesión — 2026-07-09 ✅ COMPLETADA — Mapa Emocional · Etapa 4 (modelo v1 ordinal-latente con tendencia)
+
+**Rama:** `feature/emotional-map-stage-4`
+**Tests:** API 760/761 (+3: 2 ou.spec + 1 benchmark) · Web 271 (+2 MapAffectDynamics) · Mobile 48 · typecheck ×3 + lints + privacy + OpenAPI verdes.
+**Doc:** [docs/research/emotional-map-benchmark.md](docs/research/emotional-map-benchmark.md) §Etapa 4.
+
+**Qué cierra:** el límite honesto de la Etapa 1 — OU asume estacionariedad, así que "voy mejorando" leía como varianza (recuperándose-2m: estabilidad ~0%).
+
+**El modelo v1** (`fitOuWithTrend` en `dynamics/ou.ts`): descompone `x(t) = a + b·t + z(t)` — tendencia lineal OLS + OU de media cero sobre los **residuos detrendados**. La tendencia solo se acepta con |t-stat| ≥ 2 **y** ≥1 nivel ordinal de movimiento total en la ventana (`TREND_T_STAT`, `TREND_MIN_TOTAL`); si no, cae al fit v0 → personas estacionarias intactas.
+
+**Resultados (banco):** recuperándose-2m estabilidad ~0%→**80%**, tono 98% (nivel ACTUAL de la tendencia, no promedio de ventana); declive-mes estabilidad **59%**, tono 19% (honesto); volátil 0% ✓ sin tendencia; estables/casi-plano sin cambios ✓.
+
+**Wire:** `EmotionalMapAffectDynamics.trend?: "up" | "down" | null` (opcional, cache-tolerant).
+
+**UI (web + mobile):** la dirección lidera el titular («Vas en buena dirección: tu ánimo viene subiendo estas semanas») + nota tintada (sage para up, warm para down) explicando que el tono refleja el hoy y que subir/bajar no cuenta como inestabilidad. `affect-copy.ts` twins con `TREND_NOTE` + headline trend-aware.
+
+**Privacidad (ADR 0007):** solo matemática sobre ánimo ordinal + timestamps. Cero texto.
+
+**Pendiente research (Etapa R):** probit ordinal completo con umbrales estimados — el v1 aproxima la medición ordinal con el piso de ruido de Etapa 1 + descomposición de tendencia.
+
+---
+
 ### 🗺️ Roadmap por etapas — Mapa Emocional (acordado 2026-07-09)
 
 Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de la Etapa 0.
@@ -2811,9 +2851,9 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 |---|---|---|
 | **0** | Banco de personas offline (cimiento de validación) | ✅ **HECHO** |
 | **1** | Ejes confiables primero — Tono base + Estabilidad desde ~8 registros; gate Recuperación/Inercia a 20. Estabilidad desde σ estacionaria + piso de ruido ordinal | ✅ **HECHO** |
-| **2** | Micro-checkins (Fase C) — WHO-5 / auto-compasión validados; persona "checkin diario" en el banco | ⬜ siguiente |
-| **3** | Intervalos ± (bootstrap) visibles en la UI — ya existe `bootstrapOuCI`, falta surfacear | ⬜ |
-| **4** | **Modelo v1 ordinal-latente** (ordered probit/logit) — trata los saltos de categoría como ruido de medición. Cierra el hallazgo de la Etapa 0 | ⬜ |
+| **2** | Micro-checkins (Fase C) — 6 ítems adaptados de instrumentos validados (TMMS-24/SCS-SF/MAAS); Claridad/Compasión/Consciencia pasan a MEDIDOS; persona "checkin diario" en el banco | ✅ **HECHO** |
+| **3** | Intervalos ± (bootstrap) visibles en la UI — ya existe `bootstrapOuCI`, falta surfacear | ⬜ siguiente |
+| **4** | **Modelo v1 ordinal-latente con tendencia** — `x(t) = a + b·t + OU`; estabilidad sobre residuos detrendados, tono = nivel actual, `trend` up/down en el wire. Cierra el hallazgo de la Etapa 0 | ✅ **HECHO** |
 | **5** | EWS / resiliencia (critical slowing down) + experimentos E5/E6 del paper | ⬜ |
 | **6** | Análisis on-device del texto (Fase B / Capa 8) — el cliente descifra, analiza local, sube solo números. Respeta E2E | ⬜ |
 | **R** | Research: Bayesiano/partículas, DSEM/mlVAR networks, NSGA-II multiobjetivo, validación clínica | ⬜ paper |

@@ -11,6 +11,30 @@ Dos herramientas, ya en el repo:
 
 ---
 
+## ⚡ Opción más simple — cuentas demo listas (1 comando)
+
+Si solo quieres **entrar con un usuario y mirar el mapa**, este es el camino corto. Un solo comando crea 4 cuentas ya cargadas con datos:
+
+```bash
+cd apps/api
+railway run node scripts/seed-demo-users.mjs
+```
+
+Imprime la contraseña (por defecto `Demo1234!`) y, por cada cuenta, qué datos tiene y qué deberías ver. Luego abres la web, inicias sesión y entras a **"Mi Mapa Emocional"**:
+
+| Email                         | Datos                             | Qué verás                                                                             |
+| ----------------------------- | --------------------------------- | ------------------------------------------------------------------------------------- |
+| `demo-estable@psico.test`     | 90 días ánimo estable + 1 lectura | Dinámica afectiva **activa** · estabilidad ~60% · Calma/Conexión/Propósito encendidos |
+| `demo-volatil@psico.test`     | 30 días ánimo volátil + 1 lectura | Dinámica afectiva **activa** · estabilidad ~0%                                        |
+| `demo-recuperando@psico.test` | 60 días mejorando                 | **activa** · tendencia a mejorar · estabilidad baja (esperado)                        |
+| `demo-nuevo@psico.test`       | 3 días (pocos registros)          | **"Reuniendo datos"** — estado honesto vacío                                          |
+
+Todas con la misma contraseña. Onboarding pre-completado → entran directo al dashboard. No abras Diario/Eco en estas cuentas (no tienen contenido, solo datos del mapa).
+
+El resto de este runbook (abajo) es la versión granular por persona + el smoke con aserciones automáticas, útil para validar contra el banco o meterlo en CI.
+
+---
+
 ## Prerequisitos
 
 1. **Railway CLI** logueado y apuntando al proyecto (`railway link`), para correr el seed contra la DB de prod: `railway run ...`.

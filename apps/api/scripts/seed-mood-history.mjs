@@ -27,6 +27,8 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 
 const MOODS = ["hard", "low", "ok", "good", "great"];
 
@@ -83,7 +85,9 @@ async function main() {
   const skip = Number(args.skip ?? 0.25);
   const reset = Boolean(args.reset);
 
-  const prisma = new PrismaClient();
+  // Prisma 7 requires an explicit driver adapter (same as the app's PrismaService).
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
   try {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
@@ -128,6 +132,7 @@ async function main() {
     );
   } finally {
     await prisma.$disconnect();
+    await pool.end();
   }
 }
 

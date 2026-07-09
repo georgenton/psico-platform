@@ -1,175 +1,250 @@
-# Fundamento científico del Mapa Emocional — dinámica afectiva, OU y señales tempranas
+# Fundamento científico del Mapa Emocional — dinámica afectiva, OU, observación ordinal y señales de resiliencia
 
-**Estado:** Propuesta de investigación (v0.1) · **Fecha:** 2026-07-08 · **Autor:** Jorge (+ Claude)
+**Estado:** Propuesta de investigación (v0.2) · **Fecha:** 2026-07-08 · **Autor:** Jorge (+ Claude)
 **Relación:** complementa [PRD-tendencias-mapa-emocional.md](../PRD-tendencias-mapa-emocional.md) (producto) y la Fase A del mapa ([informes/emotional-map-hybrid-phase-a.md](../informes/emotional-map-hybrid-phase-a.md)).
-**Restricción dura:** cifrado E2E del Diario/Eco (ADR 0007) — el análisis nunca lee texto, solo metadata categórica y conteos.
+**Restricción dura (redacción precisa):** el **contenido textual** del Diario/Eco permanece **cifrado E2E** (ADR 0007). El análisis usa únicamente **metadata mínima autorizada** —mood categórico, tags categóricos, timestamps y conteos de actividad— **o** corre **on-device** y sube solo parámetros agregados. La metadata que el servidor observa **no** está cifrada E2E frente al servidor: está minimizada y consentida, no oculta.
 
-> Este documento existe para dar al Mapa Emocional un fundamento científico defendible y para explorar una posible tesis de maestría / publicación. No es un plan de implementación de producto — eso lo derivamos después por niveles.
+> Este documento da al Mapa Emocional un fundamento científico defendible y explora una tesis de maestría / publicación. **No es un plan de implementación de producto**: las etapas avanzadas (§4) son un roadmap de madurez, no código a construir hoy.
+>
+> **Historial de revisión.** v0.2 incorpora una revisión crítica externa: separa el modelo v0 (aproximación numérica) del v1 (estado latente + observación ordinal), corrige la redacción de privacidad, endurece los umbrales de datos, añade humildad sobre las señales tempranas y una tabla de lenguaje seguro.
 
 ---
 
 ## 0. Resumen ejecutivo
 
-- El marco correcto para "profesionalizar" el mapa **no** son los metaheurísticos bioinspirados como pieza central, sino la **dinámica afectiva**: modelar el ánimo como un sistema dinámico continuo con **ecuaciones diferenciales estocásticas (SDE)** y monitorear su **resiliencia** vía _critical slowing down_.
-- Cada eje del radar puede dejar de ser una heurística y convertirse en un **parámetro estimado de un proceso de Ornstein–Uhlenbeck (OU)**: línea base `μ`, velocidad de regulación `θ`, volatilidad `σ`.
-- La **novedad publicable** no es un algoritmo nuevo, sino la **combinación**: dinámica afectiva + señales tempranas **corriendo on-device / sobre metadata cifrada E2E**, en **población hispanohablante (Ecuador/LATAM)**, con datos **dispersos y categóricos**. Ese es el hueco en la literatura.
-- Los **bioinspirados** entran como **capa secundaria de personalización/optimización** (selección de features, multiobjetivo bajo presupuesto de privacidad), no como el modelo. Enmarcados así, suman; como titular, restan.
-- **Ética:** cualquier claim de "predicción de depresión" exige IRB/comité de ética y consentimiento informado. En producto el framing es _resiliencia / autoconocimiento_, nunca diagnóstico.
+- El marco correcto para "profesionalizar" el mapa **no** son los metaheurísticos bioinspirados como pieza central, sino la **dinámica afectiva idiográfica**: modelar el ánimo como un estado latente continuo con dinámica de **Ornstein–Uhlenbeck (OU)**, observado a través de **categorías ordinales ruidosas**.
+- Los parámetros estimados —línea base `μ`, velocidad de recuperación `θ`, volatilidad `σ`, inercia `1/θ`— pueden alimentar ejes interpretables del radar, **siempre con intervalos de incertidumbre** y **degradación a heurística** cuando los datos sean escasos.
+- **Distinción clave (corrección central):** la transición gaussiana del OU es exacta para el **estado latente continuo**, **no** para una observación ordinal de 5 niveles. El mapeo `hard…great → −1…1` es una **aproximación práctica v0**; el modelo formal v1 es **OU latente + capa de observación ordinal (ordered probit/logit)**.
+- Las **señales tempranas de pérdida de resiliencia (EWS)** se exploran como **indicadores experimentales**, no como predicción clínica, y solo con suficiente densidad temporal (la evidencia muestra sensibilidad limitada).
+- Los **bioinspirados** entran como **capa de optimización/personalización** (selección de features, multiobjetivo bajo presupuesto de privacidad), no como el modelo emocional.
+- **Novedad publicable = combinación**, no algoritmo nuevo: dinámica afectiva de tiempo continuo + observación ordinal + datos dispersos/irregulares + privacidad por diseño (on-device / metadata mínima) + población hispanohablante LATAM. _(La baja representación LATAM es una hipótesis de gap a verificar con una revisión breve, no un claim demostrado.)_
+- **Ética:** el producto **no diagnostica**. Framing = _resiliencia / autoconocimiento_. Cualquier claim clínico exige comité de ética/IRB y consentimiento informado.
 
 ---
 
 ## 1. La realidad del dato (lo que sí tenemos)
 
-Por ADR 0007, el servidor observa por usuario, sin texto:
+Por ADR 0007, el servidor observa por usuario, **sin texto**:
 
-| Señal                | Fuente                                     | Tipo                           | Frecuencia típica |
-| -------------------- | ------------------------------------------ | ------------------------------ | ----------------- |
-| Estado de ánimo      | `MoodLog`, `DiaryEntry.mood`               | Categórico ordinal (5 niveles) | Baja, irregular   |
-| Etiquetas            | `DiaryEntry.tags`                          | Categórico multi               | Baja              |
-| Timestamps           | Todas las tablas                           | Continuo                       | —                 |
-| Conteos de actividad | Eco, voz, highlights, annotations, lectura | Conteo                         | Baja–media        |
+| Señal                | Fuente                                     | Tipo                               | Frecuencia típica |
+| -------------------- | ------------------------------------------ | ---------------------------------- | ----------------- |
+| Estado de ánimo      | `MoodLog`, `DiaryEntry.mood`               | Categórico **ordinal** (5 niveles) | Baja, irregular   |
+| Etiquetas            | `DiaryEntry.tags`                          | Categórico multi                   | Baja              |
+| Timestamps           | Todas las tablas                           | Continuo                           | —                 |
+| Conteos de actividad | Eco, voz, highlights, annotations, lectura | Conteo                             | Baja–media        |
 
-**Caracterización formal:** serie de tiempo **idiográfica** (por-sujeto), **irregular** (Δt variable), **dispersa** y **categórica ordinal**. Esto descarta métodos que asumen muestreo denso y regular (p.ej. AR(1) discreto directo) y **favorece formulaciones tiempo-continuo** (el OU maneja Δt irregular de forma natural — es una fortaleza, no un parche).
+**Caracterización formal:** serie de tiempo **idiográfica** (por-sujeto), **irregular** (Δt variable), **dispersa** y **categórica ordinal**. Esto favorece formulaciones de tiempo continuo, pero **no las convierte automáticamente en ganadoras** (ver §2.4 sobre benchmarking).
 
-Mapa ordinal → numérico usado en el prototipo: `great=1.0, good=0.5, ok=0.0, low=-0.5, hard=-1.0` (centrado en 0; monotónico; revisable con datos reales).
+**Mapeo ordinal → numérico (solo v0):** `great=1.0, good=0.5, ok=0.0, low=-0.5, hard=-1.0`. Es una aproximación práctica para el prototipo, **no** la formulación estadística final (ver §2.2).
 
 ---
 
 ## 2. El marco: la emoción como sistema dinámico
 
-### 2.1 Proceso de Ornstein–Uhlenbeck (OU) — el modelo base
+### 2.1 Proceso de Ornstein–Uhlenbeck (OU) — el estado latente
 
-El ánimo `X(t)` como proceso de reversión a la media:
+El ánimo latente `X(t)` como proceso de reversión a la media:
 
 ```
 dX(t) = θ · (μ − X(t)) dt + σ dW(t)
 ```
 
-- `μ` — **atractor / línea base emocional** (a dónde vuelves).
-- `θ > 0` — **velocidad de regulación** (qué tan rápido regresas a `μ` tras una perturbación).
-- `σ` — **volatilidad / reactividad emocional**.
-- `1/θ` — **inercia emocional** (tiempo de relajación). Alta inercia (autocorrelación alta) es un marcador establecido asociado a depresión y neuroticismo (Kuppens et al.).
+- `μ` — **línea base / punto de retorno**.
+- `θ > 0` — **velocidad de retorno / regulación estimada** (qué tan rápido vuelve a `μ`).
+- `σ` — **volatilidad / reactividad**.
+- `1/θ` — **inercia / tiempo de relajación**. La inercia emocional (resistencia de los estados al cambio) se ha asociado con malajuste, depresión y menor bienestar (Kuppens et al. — _[verificar cita]_).
 
-**Solución de transición** (clave para muestreo irregular): dado `X(t)`, tras un intervalo `Δt`,
+**Transición del estado latente continuo** (base para muestreo irregular): dado `X(t)`, tras `Δt`,
 
 ```
 X(t+Δt) | X(t) ~ Normal( μ + (X(t) − μ)·e^(−θΔt),  (σ²/2θ)·(1 − e^(−2θΔt)) )
 ```
 
-Esto da una **verosimilitud exacta** para observaciones espaciadas irregularmente → estimamos `(μ, θ, σ)` por **MLE** o **inferencia bayesiana en espacio de estados** (filtro de Kalman / partículas). _No_ se necesita un metaheurístico para esto: el problema es suave y de baja dimensión.
+Esta transición es **exacta para el estado latente continuo `X(t)`**. **No** es exacta para la categoría ordinal observada `Y(t)` (§2.2). El uso de OU de tiempo continuo para dinámica afectiva tiene respaldo (Oravecz, Tuerlinckx & Vandekerckhove propusieron modelos estocásticos tipo OU con parámetros interpretables como "home base", varianza y regulación, para mediciones en tiempos posiblemente irregulares — _[verificar cita]_).
 
-**Mapeo a ejes interpretables del radar:**
+**Mapeo a ejes interpretables (renombrado: sin "compasión" hasta validar con una escala):**
 
-| Eje del mapa                              | Parámetro OU | Interpretación                |
-| ----------------------------------------- | ------------ | ----------------------------- |
-| Estabilidad / Calma                       | `σ` bajo     | Poca volatilidad              |
-| Auto-regulación (≈ Compasión operacional) | `θ` alto     | Recuperación rápida           |
-| Línea base                                | `μ`          | Tono emocional promedio       |
-| Inercia                                   | `1/θ`        | Cuánto "se pegan" los estados |
+| Eje propuesto  | Parámetro                           | Comentario                            |
+| -------------- | ----------------------------------- | ------------------------------------- |
+| Tono emocional | `μ`                                 | Promedio latente                      |
+| Volatilidad    | `σ`                                 | Reactividad / amplitud                |
+| Recuperación   | `θ`                                 | Velocidad de retorno                  |
+| Inercia        | `1/θ`                               | Persistencia del estado               |
+| Confianza      | función de `n`, `Δt`, incertidumbre | **No** es parámetro OU, pero es clave |
 
-### 2.2 Critical Slowing Down y señales tempranas (EWS) — la frontera
+### 2.2 Modelo v0 (aproximación) vs v1 (estado latente + observación ordinal)
 
-Cuando un sistema dinámico se acerca a una **bifurcación** (transición de un régimen "sano" a uno "depresivo"), pierde resiliencia: la recuperación tras perturbaciones se vuelve más lenta. Observables (van de Leemput, Wichers, Scheffer, PNAS 2014):
+**Modelo v0 — aproximación práctica (prototipo actual):**
+`mood ordinal → número (−1…1) → OU gaussiano`. Útil para producto y prototipo. Debe declararse **explícitamente como aproximación**, no como modelo estadístico correcto.
 
-- ↑ **autocorrelación temporal** (lag-1),
-- ↑ **varianza**,
-- ↑ **correlación cruzada** entre emociones (en el caso multivariado).
+**Modelo v1 — formulación académica (dirección formal):**
 
-Modelo mental: una bola en un **paisaje de potencial** `dx/dt = −dU/dx + ruido`. Un pozo profundo = régimen estable; conforme el pozo se aplana (bifurcación silla-nodo / catástrofe de cúspide de Zeeman), la bola vaga más y tarda en volver → EWS. Trabajo confirmatorio reciente replica el efecto idiográficamente (Smit et al., 2025).
+```
+Estado latente:      dX(t) = θ(μ − X(t))dt + σ dW(t)
+Observación ordinal: Y(t) = categoría k  si  τ[k−1] < X(t) + ε < τ[k]
+```
 
-**Para el producto** esto se traduce, con cuidado ético, en un **indicador de resiliencia** (no un diagnóstico): "tu sistema emocional se ve más frágil/estable esta semana".
+donde `X(t)` es el ánimo latente continuo, `Y(t) ∈ {hard, low, ok, good, great}`, `τ` son umbrales ordinales y `ε` es ruido de medición. Esto es un **state-space con capa de observación ordinal (ordered probit/logit)** — el tratamiento correcto de datos Likert/EMA, porque tratarlos como continuos puede sesgar los parámetros dinámicos.
 
-### 2.3 Modelos de red (mlVAR / DSEM) — extensión multivariada
+Frase de protección ante revisores: _"El prototipo usa una aproximación numérica ordinal (v0); la formulación completa modela el ánimo como estado latente continuo observado mediante categorías discretas (v1)."_
 
-Emociones/estados como nodos de una red que se refuerzan; la **densidad de conexión** como marcador de (falta de) resiliencia (Bringmann). Requiere más señales simultáneas → relevante cuando sumemos micro-checkins con varios ítems.
+### 2.3 Critical Slowing Down y señales tempranas (EWS) — con humildad
 
----
+Cerca de una **bifurcación** (transición hacia/desde un régimen depresivo), el sistema pierde resiliencia: la recuperación se hace más lenta. Observables (van de Leemput, Wichers, Scheffer, PNAS 2014): ↑ autocorrelación, ↑ varianza, ↑ correlación cruzada entre emociones.
 
-## 3. Dónde entran (y dónde no) los algoritmos bioinspirados
+**Humildad obligatoria (corrección):** la evidencia muestra **sensibilidad limitada**. Smit et al. (2025) usaron EMA 5×/día durante ~4 meses (~524 observaciones/persona) y las EWS precedieron recurrencia en **solo ~33%** de participantes en chequeos de robustez; los autores señalan la baja sensibilidad como reto clínico. Por tanto el paper y el producto deben decir:
 
-**Principio:** GA, PSO, ACO, evolución diferencial, etc. son técnicas de **optimización**, no de **modelado**. Poner un GA a estimar `(μ, θ, σ)` cuando existe MLE/Kalman sería "algoritmo buscando problema" y un revisor lo cuestionaría.
+> "EWS es un **indicador experimental de fragilidad/resiliencia**, no un predictor clínicamente confiable por sí solo."
 
-**Roles legítimos y defendibles:**
+**Cuidado técnico (corrección):** una **autocorrelación lag-1 cruda no funciona con Δt irregular** — mezcla la correlación con el tiempo entre observaciones (`lun 8am→lun 9am` no es comparable con `lun 8am→vie 11pm` aunque ambos sean "lag-1"). Opciones correctas: (1) estimar `θ` en **ventanas móviles** con OU/CT-AR; (2) **autocorrelación ajustada por Δt**; (3) ventanas por **tiempo calendario**, no por número de puntos; (4) separar "no registró" de "ánimo estable"; (5) reportar EWS solo con densidad suficiente.
 
-1. **Selección personalizada de features/modelo bajo restricciones** — qué señales predicen transiciones _para este usuario_, con presupuesto de cómputo on-device. Selección evolutiva de subconjuntos es apropiada (espacio combinatorio, objetivo no diferenciable).
-2. **Optimización multiobjetivo (NSGA-II)** — frontera de Pareto entre _precisión predictiva ↔ interpretabilidad ↔ presupuesto de privacidad (cuánta info agregada sale del dispositivo)_. Esto es genuinamente novedoso y conecta con tu maestría sin forzarlo.
-3. **Ajuste de hiperparámetros on-device** — bajo restricción de batería/latencia.
+### 2.4 OU no es automáticamente superior — hay que hacer benchmarking
 
-Enmarcado como **capa de personalización/optimización** (Tier 4), es una contribución honesta. Como titular del paper, no.
+El argumento de tiempo continuo (OU maneja `Δt` variable vía `e^{−θΔt}`) es correcto, pero **no implica superioridad automática**. Hay literatura donde un **VAR(1) discreto superó al OU** en la mayoría de series afectivas evaluadas, aun con intervalos desiguales (Loossens et al. — _[verificar cita]_). Redacción defendible: _"OU es una opción natural y elegante para muestreo irregular, pero debe compararse empíricamente contra baselines discretos simples (AR(1), media móvil)."_
 
----
+### 2.5 Modelos de red (mlVAR / DSEM) — extensión multivariada
 
-## 4. Arquitectura por niveles (encaja con lo ya construido)
-
-| Tier  | Qué es                                                               | Estado                 | Privacidad                       |
-| ----- | -------------------------------------------------------------------- | ---------------------- | -------------------------------- |
-| **1** | Heurística interpretable + LLM, con confianza honesta                | ✅ Fase A (shippeado)  | metadata server-side             |
-| **2** | OU en espacio de estados por usuario → ejes = parámetros de una SDE  | 🧪 Prototipo (este PR) | metadata server-side u on-device |
-| **3** | Monitor de resiliencia (EWS: autocorrelación + varianza móviles)     | Diseño                 | on-device o server-side          |
-| **4** | Capa bioinspirada de personalización (NSGA-II / selección evolutiva) | Idea                   | on-device, sube solo config      |
-
-El Tier 1 permanece como fallback cuando el Tier 2/3 no tiene datos suficientes (la confianza por dimensión de la Fase A es exactamente el gate).
+Emociones/estados como nodos de una red; la **densidad de conexión** como marcador de (falta de) resiliencia (Bringmann — _[verificar cita]_). Requiere varias señales simultáneas → relevante cuando existan micro-checkins multivariados (§4, etapa 6).
 
 ---
 
-## 5. El gap publicable (por qué esto es novedoso)
+## 3. Dónde entran (y dónde no) los bioinspirados
 
-La literatura de affect dynamics usa mayoritariamente: **EMA densa** (6–10 pings/día por semanas), **texto en claro**, muestras **europeas/norteamericanas**. Nuestro caso es distinto en tres ejes simultáneos:
+**Principio:** GA, PSO, ACO, evolución diferencial, NSGA-II son técnicas de **optimización**, no de **modelado**. Estimar `(μ, θ, σ)` con un GA cuando existe MLE/Bayes/Kalman sería débil ante revisores.
 
-1. **Privacidad por diseño**: EWS/OU calculados **on-device o sobre metadata cifrada E2E**; el texto nunca sale del dispositivo.
-2. **Contexto LATAM / español**: población ecuatoriana, poco representada.
-3. **Dato disperso y categórico**: formulación tiempo-continuo robusta a muestreo irregular.
-
-**Contribución = arquitectura + contexto + robustez al dato**, no un algoritmo nuevo. La literatura reciente confirma que la _privacy-preserving phenotyping_ es tema abierto y caliente (JMIR 2025).
+**Roles legítimos:** (1) selección personalizada de features/modelo bajo restricciones; (2) **optimización multiobjetivo (NSGA-II)** — Pareto entre precisión ↔ interpretabilidad ↔ presupuesto de privacidad ↔ batería; (3) tuning on-device. Como **capa de personalización** (etapa 7), suma; como titular del paper, resta.
 
 ---
 
-## 6. Diseño de estudio y publicación
+## 4. Roadmap de madurez científica del Mapa Emocional
 
-- **Paradigma:** **idiográfico (N=1 series de tiempo)** — dominante en el campo (Wichers publica con N=1). Alcanzable sin muestra grande.
-- **Validación del método:** primero **datos sintéticos** (simular OU con `(μ,θ,σ)` conocidos, muestrear irregularmente, verificar recuperación de parámetros) → luego **piloto** con usuarios consentidos.
-- **Papers realistas:**
-  1. _System/methods_: "Arquitectura preservadora de privacidad para modelado on-device de dinámica afectiva" — pipeline E2E + EWS, validado en sintético + piloto.
-  2. _Empírico_: OU/EWS idiográfico sobre la cohorte piloto.
-- **Venues:** JMIR Mental Health, JMIR mHealth, Journal of Affective Disorders (rama computacional), workshops _ML for Health_ (NeurIPS/ICML), conferencias LATAM de IA.
-- **Tesis:** el Tier 2 + Tier 3 (+ Tier 4 opcional) es material de tesis completo.
+El Mapa Emocional se concibe como una **arquitectura por etapas de madurez**, donde cada capa se activa según datos, privacidad, consentimiento e incertidumbre. **Esto es narrativa de roadmap, no código a construir hoy** — sólo las etapas 1–2 tienen implementación (Fase A + prototipo OU); el resto es dirección de investigación.
 
----
+| Etapa | Qué es                                          | Estado real                    | Datos / activación                             |
+| ----- | ----------------------------------------------- | ------------------------------ | ---------------------------------------------- |
+| **0** | Contrato de privacidad y datos                  | ✅ ADR 0007 + test de contrato | Define qué puede leer cada módulo              |
+| **1** | Mapa interpretable (heurística + confianza)     | ✅ Fase A (en vivo)            | Siempre disponible (fallback)                  |
+| **2** | OU v0 (aproximación ordinal-numérica)           | 🧪 Prototipo (este PR)         | Gates de §7; experimental tras flag            |
+| **3** | OU latente + observación ordinal (probit/logit) | 📋 Diseño                      | Requiere capa de observación ordinal           |
+| **4** | Inferencia bayesiana / filtro de partículas     | 📋 Idea                        | Incertidumbre + pocos datos + estados latentes |
+| **5** | EWS / resiliencia (experimental)                | 📋 Diseño                      | Solo con densidad temporal suficiente          |
+| **6** | DSEM / mlVAR / redes emocionales                | 📋 Idea                        | Requiere micro-checkins multivariados          |
+| **7** | NSGA-II / bioinspirados (personalización)       | 📋 Idea                        | Requiere historial suficiente                  |
+| **8** | Texto libre 100% **on-device**                  | 📋 Idea                        | Consentimiento; sube solo agregados            |
+| **9** | Validación clínica/investigativa                | 📋 Investigación               | IRB + consentimiento + escalas validadas       |
 
-## 7. Ética y seguridad (no negociable)
-
-1. **No es diagnóstico.** Producto: framing _resiliencia / autoconocimiento_. Nunca "tienes riesgo de depresión".
-2. **IRB / comité de ética + consentimiento informado** antes de publicar con datos reales de usuarios.
-3. **Detección de crisis** sigue siendo su propio flujo (regex + LLM en Eco, ADR 0007); el mapa **no** reemplaza esa capa de seguridad.
-4. **Privacidad**: si el modelo necesita el texto, corre **on-device** (Fase B) y sube solo números; si solo necesita ánimo/tags/timestamps, puede correr server-side sobre la metadata que ya tenemos.
-
----
-
-## 8. Riesgos y límites honestos
-
-- **Dispersión de datos**: EWS necesita densidad de muestreo → **motiva científicamente la Fase C (micro-checkins validados, WHO-5 / auto-compasión)**. La ciencia justifica la feature, no al revés.
-- **Estabilidad de estimación** con pocos puntos: `(μ,θ,σ)` mal identificados con <~10–15 observaciones → reportar **intervalos de confianza** y degradar a Tier 1 bajo el umbral (la confianza por dimensión ya existe).
-- **Cuantización ordinal**: 5 niveles introducen ruido; considerar tratarlo como _ordinal probit_ en el espacio de estados en una iteración posterior.
-- **Bifurcación ≠ siempre presente**: no todo empeoramiento es una transición crítica (crítica reciente: "Illusions of Criticality"); reportar EWS como _indicador_, con incertidumbre.
+**Regla de producto:** ninguna etapa avanzada se presenta como "no disponible" de forma fría; si falta densidad, el sistema degrada con elegancia a la etapa anterior con confianza honesta ("con más registros podremos estimar mejor tu recuperación emocional"). Los claims clínicos **nunca** son etapa de producto público — viven solo en la etapa 9 (investigación).
 
 ---
 
-## 9. Próximos pasos concretos
+## 5. Privacidad — redacción precisa (corrección)
 
-1. **Tier 2 prototipo** (este PR): estimador OU dependency-free + generador sintético + tests de recuperación de parámetros. No wired al endpoint (flag/experimental).
-2. **Tier 3 diseño**: EWS móviles (autocorrelación + varianza) sobre la serie de ánimo; definir ventana e indicador de resiliencia.
-3. **Fase C**: micro-checkins validados para densidad de muestreo (habilita EWS y red).
-4. **Protocolo de ética/IRB**: redactar consentimiento + protocolo idiográfico con la universidad.
-5. **Paper 1 (methods)**: escribir con validación sintética + descripción de arquitectura.
+- El **texto** del Diario/Eco permanece **cifrado E2E**; el análisis **no** lo lee server-side.
+- El análisis usa **metadata mínima autorizada** (mood, tags, timestamps, conteos) **o** corre **on-device** y sube solo parámetros agregados no reversibles.
+- **No** afirmar que la metadata visible por el servidor está "cifrada E2E frente al servidor" — es minimizada/consentida, no oculta.
+- El motor de dinámica afectiva **no** importa, lee, loguea ni envía a LLM campos de texto libre (`content`, `body`, `rawText`, `transcript`, `diaryText`, `ecoText`, `plaintext`, …). Hay un **test de contrato** que lo verifica (`dynamics/privacy.spec.ts`).
+
+---
+
+## 6. Lenguaje permitido vs prohibido (producto público)
+
+| ✅ Permitido                                | ❌ Prohibido                         |
+| ------------------------------------------- | ------------------------------------ |
+| "variabilidad emocional"                    | "tienes depresión"                   |
+| "recuperación emocional estimada más lenta" | "riesgo clínico"                     |
+| "mayor inercia emocional"                   | "predicción diagnóstica"             |
+| "tendencia reciente"                        | "alerta médica"                      |
+| "confianza baja por pocos registros"        | "crisis detectada por el mapa"       |
+| "indicador experimental de resiliencia"     | "diagnóstico psicológico automático" |
+
+La detección de crisis sigue siendo **su propio flujo** (regex + LLM en Eco); el mapa **no** la reemplaza.
+
+---
+
+## 7. Gates de suficiencia de datos (conservadores — corrección)
+
+Los umbrales de identificación de dinámica afectiva son **más altos** de lo que sugería la v0.1. La autocorrelación suele requerir >30 observaciones para precisión mínima, y la inercia >40 para potencia estadística de asociaciones de tamaño medio (Pirla et al. — _[verificar cita]_). Política propuesta:
+
+| Datos por usuario | Qué mostrar                                               |
+| ----------------- | --------------------------------------------------------- |
+| < 10              | Solo Tier 1 / heurística                                  |
+| 10–29             | `μ` aproximado + confianza **baja**                       |
+| 30–59             | OU experimental, **intervalos amplios**                   |
+| 60–99             | `θ`/`σ` más defendibles + EWS preliminar (si densidad OK) |
+| 100–299           | Dinámica afectiva más seria, con incertidumbre            |
+| 300+              | EWS metodológicamente plausible                           |
+
+No son reglas universales, pero son más honestas que sugerir que ~15 puntos bastan para estimar bien regulación/inercia.
+
+---
+
+## 8. El gap publicable (hipótesis, no claim)
+
+La literatura de affect dynamics usa mayoritariamente EMA densa, texto en claro y muestras europeas/norteamericanas. Nuestro caso difiere en tres ejes: **privacidad por diseño** (on-device / metadata mínima), **dato ordinal disperso e irregular**, y **población LATAM/español**.
+
+**Hipótesis de gap** (a verificar con una mini-revisión sistemática antes de afirmarlo): baja representación de población hispanohablante/LATAM en estudios de dinámica afectiva con EMA y modelos de resiliencia.
+
+---
+
+## 9. Diseño de estudio y publicación
+
+- **Paradigma:** idiográfico (N=1 series de tiempo), dominante en el campo. Alcanzable sin muestra grande.
+- **Validación del método (primero):** simular OU con `(μ,θ,σ)` conocidos → timestamps irregulares realistas → discretizar a 5 categorías → missingness/baja adherencia → re-estimar con (a) scoring lineal v0, (b) OU continuo gaussiano, (c) OU ordinal probit, (d) AR(1) discreto baseline → medir error en `μ,θ,σ`, cobertura de intervalos, sensibilidad a pocos datos, falsos positivos de EWS.
+- **Paper 1 (methods):** _"Privacy-preserving continuous-time affect dynamics from sparse ordinal mood logs: an on-device state-space approach."_ Realista: modelo OU latente con observación ordinal + timestamps irregulares + validación sintética + análisis de incertidumbre + arquitectura privacy-preserving + comparación vs heurística/media móvil/AR(1).
+- **Paper 2 (empírico):** piloto idiográfico consentido (requiere ética/IRB).
+- **Venues:** JMIR Mental Health / mHealth, Journal of Affective Disorders (computacional), workshops _ML for Health_, conferencias LATAM de IA.
+- **Encuadre recomendado:** IA aplicada + affective computing + privacy-preserving digital phenotyping (no "matemática inferencial dura" pura). _Decisión de posicionamiento a validar con tu tutor._
+
+---
+
+## 10. Ética y seguridad (no negociable)
+
+1. **No es diagnóstico.** Framing _resiliencia / autoconocimiento_.
+2. **IRB / comité de ética + consentimiento informado** antes de publicar con datos reales.
+3. **Detección de crisis** es su propio flujo; el mapa no lo reemplaza.
+4. **Privacidad:** texto E2E; modelos sensibles on-device o sobre metadata mínima. Digital phenotyping enfatiza privacidad, consentimiento, transparencia, responsabilidad y sesgo como prioridades éticas centrales.
+
+---
+
+## 11. Riesgos y límites honestos
+
+- **Ordinal tratado como continuo (v0):** sesga parámetros → corregir con v1 latente-ordinal para publicación.
+- **Pocos datos:** identificación pobre → gates conservadores (§7) + degradación a Tier 1 + intervalos.
+- **EWS:** sensibilidad limitada + lag-1 crudo inválido con Δt irregular → ventanas por tiempo + Δt-ajustado + marcarlo experimental.
+- **OU vs discreto:** no asumir superioridad → benchmarking.
+- **Bifurcación ≠ siempre presente:** crítica reciente ("Illusions of Criticality") advierte tipping points ilusorios → EWS como indicador con incertidumbre.
+- **Sesgo de usuarios activos:** quien registra más no es representativo.
+- **LATAM:** gap por verificar, no afirmar.
+
+---
+
+## 12. Próximos pasos concretos
+
+1. **Doc (este PR):** corregido a v0.2 con separación v0/v1, privacidad precisa, gates conservadores, lenguaje seguro, roadmap de etapas.
+2. **Código (este PR):** solo el **test de contrato de privacidad** del módulo `dynamics` (no lee texto libre). Prototipo OU v0 ya existe (experimental, no wired).
+3. **Siguiente decisión:** endurecer el estimador (gates de confianza + incertidumbre/bootstrap) **o** empezar el outline del Paper 1 (methods) con la validación sintética de §9. Ambos sin construir las etapas 3–9 en código.
+4. **Ética/IRB:** redactar consentimiento + protocolo idiográfico con la universidad antes de cualquier dato real.
 
 ---
 
 ## Fuentes
+
+> Nota: las citas marcadas _[verificar cita]_ provienen de una revisión externa y deben confirmarse (autor, año, venue) antes de usarse en un manuscrito. Las que llevan URL fueron consultadas directamente.
+
+**Verificadas (con URL):**
 
 - van de Leemput et al. — [Critical slowing down as early warning for the onset and termination of depression (PNAS 2014)](https://www.pnas.org/doi/10.1073/pnas.1312114110)
 - Wichers et al. — [Critical Slowing Down as a Personalized Early Warning Signal for Depression (Psychotherapy and Psychosomatics)](https://karger.com/pps/article/85/2/114/294376/Critical-Slowing-Down-as-a-Personalized-Early)
 - Smit et al. (2025) — [Critical Slowing Down in Momentary Affect as Early Warning Signal of Impending Transitions in Depression](https://journals.sagepub.com/doi/10.1177/21677026241305136)
 - [Early Warning Signals Based on Momentary Affect Dynamics can Expose Nearby Transitions in Depression (PMC)](https://pmc.ncbi.nlm.nih.gov/articles/PMC7842626/)
 - [Illusions of Criticality: Crises Without Tipping Points (arXiv, crítica metodológica)](https://arxiv.org/pdf/2412.01833)
-- [Digital Journaling Enables Privacy-Preserving Behavioral Phenotyping (JMIR preprint 2025)](https://preprints.jmir.org/preprint/102783)
 - [Key Features of Digital Phenotyping for Monitoring Mental Disorders: Systematic Review (JMIR 2025)](https://www.jmir.org/2025/1/e77331)
+
+**Por verificar (autor/año, sin confirmar):**
+
+- Oravecz, Tuerlinckx & Vandekerckhove — modelos OU de tiempo continuo para dinámica afectiva. _[verificar cita]_
+- Kuppens et al. — inercia emocional como marcador de malajuste/depresión. _[verificar cita]_
+- Pirla et al. — requisitos de tamaño muestral para índices de dinámica afectiva (autocorrelación >30, inercia >40). _[verificar cita]_
+- Loossens et al. — comparación OU continuo vs VAR(1) discreto en afecto. _[verificar cita]_
+- Bringmann — modelos de red (mlVAR/DSEM) de emoción. _[verificar cita]_
+- "Digital Journaling … Privacy-Preserving Behavioral Phenotyping" — **preprint JMIR no revisado por pares**; no citar como evidencia establecida hasta su publicación. _[verificar estado/fecha]_

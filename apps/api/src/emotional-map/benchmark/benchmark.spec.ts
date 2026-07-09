@@ -42,7 +42,7 @@ describe("Stage 0 — emotional-map persona benchmark", () => {
 
     // eslint-disable-next-line no-console
     console.log(
-      "\n[BENCHMARK] persona → mapa (días · #ánimo · dinámica · conf · tono · recup · estab · inercia · cobertura · pct)",
+      "\n[BENCHMARK] persona → mapa (días · #ánimo · dinámica · conf · tono · recup · estab · inercia · tendencia · cobertura · pct)",
     );
     for (const { id, result } of rows) {
       const p = PERSONAS.find((x) => x.id === id)!;
@@ -63,6 +63,7 @@ describe("Stage 0 — emotional-map persona benchmark", () => {
           `recup=${pctOrGathering(ad?.recovery ?? null, active).padStart(4)}`,
           `estab=${pctOrGathering(ad?.stability ?? null, active).padStart(4)}`,
           `iner=${inertia.padStart(6)}`,
+          `tend=${(ad?.trend ?? "—").padStart(4)}`,
           `cob=${String(Math.round(result.coverage * 100)).padStart(3)}%`,
           `pct=${String(result.pct).padStart(3)}%`,
         ].join("  "),
@@ -200,6 +201,47 @@ describe("Stage 0 — emotional-map persona benchmark", () => {
         true,
       );
     }
+  });
+
+  it("Etapa 4: trending personas read a direction and a meaningful (detrended) stability", async () => {
+    const by = async (id: string) =>
+      scoreEmotionalMap(
+        buildPersonaInput(PERSONAS.find((p) => p.id === id)!),
+        stubProvider,
+      );
+
+    // The Etapa-1 honest limit: OU assumes stationarity, so improving/declining
+    // personas read their trend as variance (~0% stability). The v1 model fits
+    // trend + OU on residuals — direction and day-to-day steadiness separate.
+    const improving = (await by("recuperandose-2m")).affectDynamics!;
+    expect(improving.trend).toBe("up");
+    expect(improving.stability ?? 0).toBeGreaterThan(0.5);
+    // Baseline is the trend's CURRENT level (where the user is), not the
+    // window average — a recovering user sees their tone reflect today.
+    expect(improving.baseline ?? 0).toBeGreaterThan(0.75);
+
+    const declining = (await by("declive-mes")).affectDynamics!;
+    expect(declining.trend).toBe("down");
+    expect(declining.stability ?? 0).toBeGreaterThan(0.4);
+    // Honest low tone — the current level IS low.
+    expect(declining.baseline ?? 1).toBeLessThan(0.35);
+
+    // Stationary personas are untouched: no trend, Etapa-1 stability intact.
+    for (const id of [
+      "mes-constante",
+      "trimestre-disciplinado",
+      "casi-plano-mes",
+    ]) {
+      // prettier-ignore
+      const r = (await by(id)).affectDynamics!;
+      expect(r.trend).toBeNull();
+      expect(r.stability ?? 0).toBeGreaterThan(0.4);
+    }
+
+    // A volatile persona swings, it does not trend — and stays unstable.
+    const volatile = (await by("volatil-mes")).affectDynamics!;
+    expect(volatile.trend).toBeNull();
+    expect(volatile.stability ?? 1).toBeLessThan(0.35);
   });
 
   it("higher engagement yields higher overall map coverage", async () => {

@@ -1290,6 +1290,14 @@ export interface EmotionalMapAffectDynamics {
    * `nObs >= recoveryNeeded` (same θ-identifiability gate as `recovery`).
    */
   inertiaDays: number | null;
+  /**
+   * Etapa 4 (v1 ordinal-latent) — season direction. "up"/"down" when a
+   * statistically significant linear trend was detected in the latent mood
+   * (the stability axis is then computed on the DETRENDED residuals, so
+   * improving ≠ unstable); null when the mood is stationary. Optional so
+   * cached pre-Etapa-4 blobs keep deserializing.
+   */
+  trend?: "up" | "down" | null;
 }
 
 export interface EmotionalMapResult {

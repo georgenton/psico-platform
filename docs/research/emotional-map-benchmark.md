@@ -70,4 +70,27 @@ Las personas estables ahora leen estables; el ancla volátil (0%) y el ancla pla
 ## Pendiente (siguiente sabor)
 
 - **Banco end-to-end real:** inyectar estas personas en una base de datos de prueba y llamar a la **API real** (prueba el pipeline completo: queries, cache, endpoints). El offline ya cubre la lógica; el E2E cubre la fontanería.
-- Añadir persona "checkin diario" cuando exista la Etapa 2 (micro-checkins).
+- ~~Añadir persona "checkin diario" cuando exista la Etapa 2 (micro-checkins).~~ ✅ Hecho — `checkin-3sem` valida los ejes medidos de la Etapa 2.
+
+## Etapa 4 — modelo v1 ordinal-latente con componente de tendencia (aplicado)
+
+El límite honesto de la Etapa 1 queda cerrado. El modelo v1 descompone el ánimo latente en `x(t) = a + b·t + z(t)`: una **tendencia lineal** (la dirección de la temporada) más un **OU de media cero** (la dinámica día a día alrededor de ese camino). La tendencia solo se acepta cuando es estadísticamente significativa (|t-stat| ≥ 2 del slope OLS) **y** prácticamente relevante (≥ 1 nivel ordinal de movimiento total en la ventana) — las personas estacionarias caen al fit v0 sin cambios.
+
+Consecuencias (validadas contra el banco, `benchmark.spec.ts`):
+
+| Persona                | Estab. Etapa 1 | Estab. v1    | Tono v1                       | Tendencia             |
+| ---------------------- | -------------- | ------------ | ----------------------------- | --------------------- |
+| Recuperándose (2 m)    | ~0%            | **80%**      | **98%** (nivel actual)        | **up**                |
+| En declive (1 mes)     | bajo           | **59%**      | **19%** (honesto: está abajo) | **down**              |
+| Volátil (1 mes)        | 0%             | 0% ✓         | 45%                           | — (rebota, no tiende) |
+| Estables (14d/30d/90d) | 54/62/64%      | sin cambio ✓ | sin cambio                    | —                     |
+| Casi plano             | 100%           | 100% ✓       | 50%                           | —                     |
+
+Dos ganancias humanas concretas:
+
+1. **La estabilidad se mide sobre tu camino.** "Voy mejorando" ya no lee como "soy inestable" — la estabilidad usa los residuos detrendados. La persona recuperándose pasa de ~0% a 80%.
+2. **El tono refleja dónde estás, no tu promedio.** Para una persona en recuperación de 2 meses, el promedio de ventana diluía su presente (~50%); el v1 reporta el nivel actual de la tendencia (98%). Igual de honesto hacia abajo: el declive lee 19%.
+
+En la UI (web + mobile), la dirección lidera el titular («Vas en buena dirección: tu ánimo viene subiendo estas semanas») con una nota que explica que subir/bajar no cuenta como inestabilidad. El wire expone `affectDynamics.trend: "up" | "down" | null`.
+
+Pendiente para la investigación (Etapa R): el probit ordinal completo con umbrales estimados — el v1 aproxima la medición ordinal con el piso de ruido de la Etapa 1 + la descomposición de tendencia, que es lo que el banco demandaba.

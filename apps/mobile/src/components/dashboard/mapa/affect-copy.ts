@@ -122,6 +122,11 @@ export interface AffectStoryRow {
   phrase: AffectPhrase | null;
   /** Small hybrid chip, e.g. 72. Null when the axis is still gathering. */
   pct: number | null;
+  /**
+   * Etapa 3 — bootstrap 90% half-width in % points ("72% ±8"). Null when the
+   * axis is gated or the bootstrap could not run.
+   */
+  margin: number | null;
   /** Records still needed before this axis unlocks (recovery gating). */
   missing: number | null;
 }
@@ -144,6 +149,9 @@ export function buildAffectStory(
   const stab = stabilityLevel(data.stability ?? 0.5);
   const missing = Math.max(0, data.recoveryNeeded - data.nObs);
   const trend = data.trend ?? null;
+  // Etapa 3 — half-widths (0–1) → % points; drop zero-margins as noise.
+  const marginPct = (m: number | null | undefined): number | null =>
+    m != null && m > 0.004 ? Math.round(m * 100) : null;
 
   return {
     headline: affectHeadline(base, rec, trend),
@@ -155,6 +163,7 @@ export function buildAffectStory(
         icon: "happy-outline",
         phrase: BASELINE_COPY[base],
         pct: data.baseline != null ? Math.round(data.baseline * 100) : null,
+        margin: marginPct(data.margins?.baseline),
         missing: null,
       },
       {
@@ -162,6 +171,7 @@ export function buildAffectStory(
         icon: "arrow-undo-outline",
         phrase: rec ? RECOVERY_COPY[rec] : null,
         pct: data.recovery != null ? Math.round(data.recovery * 100) : null,
+        margin: marginPct(data.margins?.recovery),
         missing: rec ? null : missing,
       },
       {
@@ -169,6 +179,7 @@ export function buildAffectStory(
         icon: "pulse-outline",
         phrase: STABILITY_COPY[stab],
         pct: data.stability != null ? Math.round(data.stability * 100) : null,
+        margin: marginPct(data.margins?.stability),
         missing: null,
       },
     ],

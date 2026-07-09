@@ -451,7 +451,9 @@ function AffectStoryView({ data }: { data: EmotionalMapAffectDynamics }) {
               <View style={styles.affectRowTitleLine}>
                 <Text style={styles.affectRowTitle}>{row.phrase.title}</Text>
                 {row.pct != null ? (
-                  <Text style={styles.affectRowPct}>{row.pct}%</Text>
+                  <Text style={styles.affectRowPct}>
+                    {row.pct}%{row.margin != null ? ` ±${row.margin}` : ""}
+                  </Text>
                 ) : null}
               </View>
               <Text style={styles.affectRowText}>{row.phrase.body}</Text>
@@ -475,7 +477,11 @@ function AffectStoryView({ data }: { data: EmotionalMapAffectDynamics }) {
         {data.inertiaDays != null
           ? ` · tus estados suelen durar ~${formatInertia(data.inertiaDays)}`
           : ""}
-        . Mientras más registres, más precisa la estimación.
+        .{" "}
+        {story.rows.some((r) => r.margin != null)
+          ? "El ± marca el rango probable de cada valor. "
+          : ""}
+        Mientras más registres, más precisa la estimación.
       </Text>
     </View>
   );

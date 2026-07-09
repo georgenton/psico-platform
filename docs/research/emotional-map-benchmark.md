@@ -94,3 +94,20 @@ Dos ganancias humanas concretas:
 En la UI (web + mobile), la dirección lidera el titular («Vas en buena dirección: tu ánimo viene subiendo estas semanas») con una nota que explica que subir/bajar no cuenta como inestabilidad. El wire expone `affectDynamics.trend: "up" | "down" | null`.
 
 Pendiente para la investigación (Etapa R): el probit ordinal completo con umbrales estimados — el v1 aproxima la medición ordinal con el piso de ruido de la Etapa 1 + la descomposición de tendencia, que es lo que el banco demandaba.
+
+## Etapa 3 — intervalos ± (bootstrap) surfaceados (aplicado)
+
+`bootstrapAxesCI` mapea cada réplica bootstrap por `ouToAxes` antes de tomar percentiles (correcto para la estabilidad, que depende de σ y θ conjuntamente) y corre sobre la misma serie que usó el fit (residuos detrendados cuando el v1 aceptó tendencia; el ± del tono con tendencia sale del SE de predicción OLS). Los chips de la UI leen «72% ±8».
+
+Comportamiento validado contra el banco (half-widths 90%):
+
+| Persona                  | Tono ±      | Estabilidad ±                |
+| ------------------------ | ----------- | ---------------------------- |
+| Dos semanas (n=10)       | ±11         | **±38**                      |
+| Un mes constante (n=21)  | ±7          | ±25                          |
+| Trimestre (n=77)         | ±5          | **±20**                      |
+| Casi plano               | ±0          | ±0 (certeza real)            |
+| Volátil                  | ±16         | ±2 (confiadamente inestable) |
+| Recuperándose (trend up) | ±9 (SE OLS) | ±20                          |
+
+La historia de honestidad en una línea: **más registros → intervalos más angostos**, y el banco lo garantiza por regresión (`benchmark.spec.ts` §Etapa 3). Con esto las Etapas 0–4 del roadmap v1 quedan completas; siguen 5 (EWS) y 6 (on-device) como investigación.

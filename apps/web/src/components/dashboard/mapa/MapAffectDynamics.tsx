@@ -1,10 +1,12 @@
 import type { EmotionalMapAffectDynamics } from "@psico/types";
+import { buildAffectStory } from "./affect-copy";
 
 /**
  * MapAffectDynamics — surfaces the Tier 2 (Ornstein–Uhlenbeck) block on the
  * Mapa page. When "gathering" it shows honest progress toward the observation
- * floor; when "active" it renders the four estimated parameters with a
- * confidence bar and a clear non-diagnostic disclaimer.
+ * floor; when "active" it leads with a HUMAN story (warm sentences built from
+ * the model's estimates via affect-copy) and keeps the numbers as small
+ * secondary chips — the hybrid the user asked for. Non-diagnostic always.
  *
  * Null (kill-switch off) → renders nothing.
  */
@@ -124,105 +126,147 @@ function Gathering({ nObs, needed }: { nObs: number; needed: number }) {
 }
 
 function Active({ data }: { data: EmotionalMapAffectDynamics }) {
-  // Recovery + inertia unlock later than baseline/stability (θ needs more data).
-  const missing = Math.max(0, data.recoveryNeeded - data.nObs);
-  const gatheringNote =
-    missing > 0 ? `Reuniendo datos · ~${missing} más` : "Reuniendo datos";
-  const metrics: Array<{ label: string; value: string; help: string }> = [
-    {
-      label: "Tono base",
-      value: pct(data.baseline),
-      help: "Tu punto de retorno emocional promedio",
-    },
-    {
-      label: "Recuperación",
-      value: data.recovery != null ? pct(data.recovery) : gatheringNote,
-      help: "Qué tan rápido vuelves a tu base tras un bajón",
-    },
-    {
-      label: "Estabilidad",
-      value: pct(data.stability),
-      help: "Qué tan parejo se mantiene tu ánimo (los cambios pequeños del día a día no cuentan como inestabilidad)",
-    },
-    {
-      label: "Inercia",
-      value:
-        data.inertiaDays != null
-          ? `${data.inertiaDays.toFixed(1)} d`
-          : gatheringNote,
-      help: "Cuánto tienden a persistir tus estados de ánimo",
-    },
-  ];
+  const story = buildAffectStory(data);
   const conf = Math.round(data.confidence * 100);
   return (
     <div style={{ marginTop: 14 }}>
-      <div
+      <p
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-          gap: 12,
+          margin: "0 0 4px",
+          fontSize: 17,
+          fontWeight: 700,
+          lineHeight: 1.45,
+          color: "var(--color-warm-900)",
+          maxWidth: "38ch",
         }}
       >
-        {metrics.map((m) => (
+        {story.headline}
+      </p>
+
+      <div style={{ marginTop: 8 }}>
+        {story.rows.map((row) => (
           <div
-            key={m.label}
+            key={row.key}
             style={{
-              padding: 12,
-              borderRadius: 14,
-              border: "1px solid var(--color-warm-200)",
-              background: "var(--bg-surface, #fff)",
+              display: "flex",
+              gap: 12,
+              alignItems: "flex-start",
+              padding: "12px 0",
+              borderTop: "1px solid var(--color-warm-100)",
             }}
           >
-            <div
+            <span
+              aria-hidden
               style={{
-                fontSize: 11,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-                color: "var(--color-warm-500)",
+                flex: "none",
+                width: 34,
+                height: 34,
+                borderRadius: "50%",
+                background: "var(--color-lavender-50)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 16,
               }}
             >
-              {m.label}
-            </div>
-            <div
-              style={{
-                fontSize: m.value.startsWith("Reuniendo") ? 13 : 22,
-                fontWeight: m.value.startsWith("Reuniendo") ? 600 : 800,
-                color: m.value.startsWith("Reuniendo")
-                  ? "var(--color-warm-500)"
-                  : "var(--color-warm-900)",
-                marginTop: m.value.startsWith("Reuniendo") ? 6 : 2,
-              }}
-            >
-              {m.value}
-            </div>
-            <div
-              style={{
-                fontSize: 11,
-                lineHeight: 1.4,
-                color: "var(--color-warm-500)",
-                marginTop: 4,
-              }}
-            >
-              {m.help}
-            </div>
+              {row.emoji}
+            </span>
+            {row.phrase ? (
+              <div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 14.5,
+                      fontWeight: 700,
+                      color: "var(--color-warm-900)",
+                    }}
+                  >
+                    {row.phrase.title}
+                  </span>
+                  {row.pct != null ? (
+                    <span
+                      style={{
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        color: "var(--color-lavender-700)",
+                        background: "var(--color-lavender-50)",
+                        padding: "1px 7px",
+                        borderRadius: 999,
+                      }}
+                    >
+                      {row.pct}%
+                    </span>
+                  ) : null}
+                </div>
+                <p
+                  style={{
+                    margin: "3px 0 0",
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    color: "var(--color-warm-500)",
+                  }}
+                >
+                  {row.phrase.body}
+                </p>
+              </div>
+            ) : (
+              <div>
+                <span
+                  style={{
+                    fontSize: 14.5,
+                    fontWeight: 600,
+                    color: "var(--color-warm-500)",
+                  }}
+                >
+                  Cómo te recuperas — reuniendo datos
+                  {row.missing ? ` · ~${row.missing} registros más` : ""}
+                </span>
+                <p
+                  style={{
+                    margin: "3px 0 0",
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    color: "var(--color-warm-500)",
+                  }}
+                >
+                  Con unos registros más podremos contarte qué tan rápido
+                  vuelves a tu base después de un bajón.
+                </p>
+              </div>
+            )}
           </div>
         ))}
       </div>
+
       <p
         style={{
-          margin: "12px 0 0",
+          margin: "10px 0 0",
+          paddingTop: 10,
+          borderTop: "1px solid var(--color-warm-100)",
           fontSize: 11.5,
           color: "var(--color-warm-500)",
         }}
       >
-        Confianza {conf}% · basado en {data.nObs} registros de ánimo. Mientras
-        más registres, más precisa será la estimación.
+        Confianza {conf}% · basado en {data.nObs} registros de ánimo
+        {data.inertiaDays != null
+          ? ` · tus estados suelen durar ~${formatInertia(data.inertiaDays)}`
+          : ""}
+        . Mientras más registres, más precisa será la estimación.
       </p>
     </div>
   );
 }
 
-function pct(v: number | null): string {
-  return v == null ? "—" : `${Math.round(v * 100)}%`;
+/** Inertia (days) → a human duration: "unas horas", "un día", "3 días". */
+function formatInertia(days: number): string {
+  if (days < 0.75) return "unas horas";
+  if (days < 1.5) return "un día";
+  return `${Math.round(days)} días`;
 }

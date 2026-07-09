@@ -191,6 +191,89 @@ export function ouToAxes(fit: OuFit): {
   return { baseline, regulation, stability };
 }
 
+// ─── Etapa 4 — v1 ordinal-latent: trend + OU on residuals ───────────────────
+
+/**
+ * The v0 OU model assumes stationarity, so a user who is steadily improving
+ * (or declining) reads as "high variance" — the Etapa-0 benchmark showed
+ * trending personas scoring ~0% stability. The v1 model decomposes the latent
+ * mood into  x(t) = a + b·t + z(t)  where the linear part is the *direction*
+ * of the season and z is a mean-zero OU (the day-to-day dynamics around it).
+ *
+ * The trend is only accepted when it is statistically significant (|t-stat| of
+ * the OLS slope) AND practically meaningful (total movement across the window
+ * of at least one ordinal mood level) — otherwise we keep the plain OU fit so
+ * stationary users are unaffected. This treats ordinal category jumps as noise
+ * around a latent path rather than real volatility, in the same spirit as the
+ * Etapa-1 measurement floor.
+ */
+export interface TrendOuFit {
+  /** OU fit — over the detrended residuals when `trending`, else the raw fit. */
+  fit: OuFit;
+  /** Latent-scale slope per day. 0 when the trend was rejected. */
+  slopePerDay: number;
+  /** True when the linear trend passed the significance + magnitude test. */
+  trending: boolean;
+  /**
+   * Latent level at the most recent observation: `a + b·t_last` when trending
+   * (where the user IS, not the window average), else the fitted μ.
+   */
+  levelNow: number;
+}
+
+/** |t-statistic| of the OLS slope required to accept a trend. */
+export const TREND_T_STAT = 2;
+/**
+ * Minimum total latent movement across the window (|b|·span) to accept a
+ * trend. One ordinal mood level = 0.5 on the centered scale.
+ */
+export const TREND_MIN_TOTAL = 0.5;
+
+/**
+ * Fit the v1 trend+OU decomposition. Falls back to the plain OU fit (and
+ * `trending: false`) for short series or when the slope is not significant.
+ */
+export function fitOuWithTrend(obs: ReadonlyArray<OuObservation>): TrendOuFit {
+  const sorted = [...obs].sort((a, b) => a.t - b.t);
+  const n = sorted.length;
+  const plain = (): TrendOuFit => {
+    const fit = fitOu(sorted);
+    return { fit, slopePerDay: 0, trending: false, levelNow: fit.params.mu };
+  };
+  if (n < MIN_OBS_FOR_FIT) return plain();
+
+  // OLS of x on t.
+  const tMean = mean(sorted.map((o) => o.t));
+  const xMean = mean(sorted.map((o) => o.x));
+  let sxx = 0;
+  let sxy = 0;
+  for (const o of sorted) {
+    sxx += (o.t - tMean) ** 2;
+    sxy += (o.t - tMean) * (o.x - xMean);
+  }
+  if (sxx <= 0) return plain();
+  const b = sxy / sxx;
+  const a = xMean - b * tMean;
+
+  let sse = 0;
+  for (const o of sorted) sse += (o.x - a - b * o.t) ** 2;
+  const residVar = sse / Math.max(n - 2, 1);
+  const seB = Math.sqrt(Math.max(residVar, VAR_FLOOR) / sxx);
+  const tStat = seB > 0 ? b / seB : 0;
+  const span = sorted[n - 1].t - sorted[0].t;
+
+  const trending =
+    Math.abs(tStat) >= TREND_T_STAT && Math.abs(b) * span >= TREND_MIN_TOTAL;
+  if (!trending) return plain();
+
+  // Fit the OU on the detrended residuals — day-to-day dynamics only.
+  const residuals = sorted.map((o) => ({ t: o.t, x: o.x - (a + b * o.t) }));
+  const fit = fitOu(residuals);
+  // Where the trend puts the user TODAY, kept on the mood scale.
+  const levelNow = clamp(a + b * sorted[n - 1].t, -1, 1);
+  return { fit, slopePerDay: b, trending: true, levelNow };
+}
+
 // ─── initial guess ──────────────────────────────────────────────────────────
 
 function initialGuess(

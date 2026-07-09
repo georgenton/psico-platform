@@ -425,6 +425,18 @@ function AffectStoryView({ data }: { data: EmotionalMapAffectDynamics }) {
   return (
     <View style={styles.affectStory}>
       <Text style={styles.affectHeadline}>{story.headline}</Text>
+      {story.trendNote ? (
+        <Text
+          style={[
+            styles.affectTrendNote,
+            story.trend === "up"
+              ? styles.affectTrendNoteUp
+              : styles.affectTrendNoteDown,
+          ]}
+        >
+          {story.trendNote}
+        </Text>
+      ) : null}
       {story.rows.map((row) => (
         <View key={row.key} style={styles.affectRow}>
           <View style={styles.affectRowIcon}>
@@ -775,6 +787,25 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: Colors.warm[900],
     marginBottom: 6,
+  },
+  affectTrendNote: {
+    fontSize: 12,
+    lineHeight: 18,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  affectTrendNoteUp: {
+    backgroundColor: Colors.sage[50],
+    borderColor: Colors.sage[200],
+    color: Colors.sage[700],
+  },
+  affectTrendNoteDown: {
+    backgroundColor: Colors.warm[50],
+    borderColor: Colors.warm[200],
+    color: Colors.warm[600],
   },
   affectRow: {
     flexDirection: "row",

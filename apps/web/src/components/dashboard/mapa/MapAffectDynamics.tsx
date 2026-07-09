@@ -154,6 +154,32 @@ function Active({ data }: { data: EmotionalMapAffectDynamics }) {
         {story.headline}
       </p>
 
+      {story.trendNote ? (
+        <p
+          style={{
+            margin: "-6px 0 16px",
+            padding: "10px 14px",
+            borderRadius: 12,
+            font: "400 12.5px/1.55 var(--font-sans)",
+            background:
+              story.trend === "up"
+                ? "var(--color-sage-50)"
+                : "var(--color-warm-50)",
+            border: `1px solid ${
+              story.trend === "up"
+                ? "var(--color-sage-200)"
+                : "var(--color-warm-200)"
+            }`,
+            color:
+              story.trend === "up"
+                ? "var(--color-sage-700)"
+                : "var(--color-warm-600)",
+          }}
+        >
+          {story.trendNote}
+        </p>
+      ) : null}
+
       <div
         style={{
           display: "grid",

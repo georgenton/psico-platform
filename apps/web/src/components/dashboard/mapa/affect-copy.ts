@@ -88,7 +88,15 @@ export const STABILITY_COPY: Record<StabilityLevel, AffectPhrase> = {
 export function affectHeadline(
   baseline: BaselineLevel,
   recovery: RecoveryLevel | null,
+  trend?: "up" | "down" | null,
 ): string {
+  // Etapa 4 — a detected direction is the strongest story: lead with it.
+  if (trend === "up") {
+    return "Vas en buena dirección: tu ánimo viene subiendo estas semanas.";
+  }
+  if (trend === "down") {
+    return "Estas semanas tu ánimo viene bajando un poco. Gracias por seguir registrándolo — notarlo ya es cuidarte.";
+  }
   if (baseline === "high" && recovery === "fast") {
     return "Sueles estar en un buen lugar, y cuando bajas, te recuperas rápido.";
   }
@@ -103,6 +111,15 @@ export function affectHeadline(
   return "Así se está moviendo tu ánimo últimamente.";
 }
 
+/**
+ * Etapa 4 — short explainer shown when a direction was detected, so the user
+ * understands the stability card measures the day-to-day around their path.
+ */
+export const TREND_NOTE: Record<"up" | "down", string> = {
+  up: "Tu tono de hoy refleja dónde estás ahora, no el promedio del mes. Y la estabilidad se mide sobre tu camino: subir no cuenta como inestabilidad.",
+  down: "Tu tono de hoy refleja dónde estás ahora, no el promedio del mes. Bajar tampoco cuenta como inestabilidad — son cosas distintas.",
+};
+
 export interface AffectStoryRow {
   key: "baseline" | "recovery" | "stability";
   emoji: string;
@@ -116,6 +133,10 @@ export interface AffectStoryRow {
 export interface AffectStory {
   headline: string;
   rows: AffectStoryRow[];
+  /** Etapa 4 — season direction. Non-null when a real trend was detected. */
+  trend: "up" | "down" | null;
+  /** Explainer for the trend (null when the mood is stationary). */
+  trendNote: string | null;
 }
 
 /**
@@ -129,9 +150,12 @@ export function buildAffectStory(
   const rec = data.recovery != null ? recoveryLevel(data.recovery) : null;
   const stab = stabilityLevel(data.stability ?? 0.5);
   const missing = Math.max(0, data.recoveryNeeded - data.nObs);
+  const trend = data.trend ?? null;
 
   return {
-    headline: affectHeadline(base, rec),
+    headline: affectHeadline(base, rec, trend),
+    trend,
+    trendNote: trend ? TREND_NOTE[trend] : null,
     rows: [
       {
         key: "baseline",

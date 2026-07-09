@@ -1,5 +1,6 @@
 import type { EmotionalMapScoringInput } from "../emotional-map.scoring";
 import { mulberry32 } from "../dynamics/synthetic";
+import { CHECKIN_ITEMS } from "@psico/types";
 
 /**
  * Persona benchmark — synthetic user archetypes for the offline Stage-0 test
@@ -28,6 +29,11 @@ export interface Persona {
   /** Mood check-ins per week (cadence). */
   moodsPerWeek: number;
   engagement: Engagement;
+  /**
+   * Etapa 2 — answers the daily micro-checkin (one rotating question/day).
+   * Scores follow the mood pattern (stable → 3-4, volatile → swings).
+   */
+  answersCheckins?: boolean;
 }
 
 const MOODS = ["hard", "low", "ok", "good", "great"] as const;
@@ -47,6 +53,7 @@ export const PERSONAS: Persona[] = [
   { id: "declive-mes", label: "Un mes · en declive", days: 30, moodPattern: "declining", moodsPerWeek: 5, engagement: "medium" }, // prettier-ignore
   { id: "esporadico-2m", label: "Dos meses · esporádico", days: 60, moodPattern: "stable", moodsPerWeek: 1, engagement: "low" }, // prettier-ignore
   { id: "casi-plano-mes", label: "Un mes · casi plano", days: 30, moodPattern: "flat", moodsPerWeek: 5, engagement: "medium" }, // prettier-ignore
+  { id: "checkin-3sem", label: "Tres semanas · checkin diario", days: 21, moodPattern: "stable", moodsPerWeek: 7, engagement: "low", answersCheckins: true }, // prettier-ignore
 ];
 
 function seedFor(id: string): number {
@@ -143,6 +150,30 @@ export function buildPersonaInput(persona: Persona): EmotionalMapScoringInput {
     createdAt: new Date(NOW_REF - rng() * recentDays * DAY_MS),
   }));
 
+  // ── Etapa 2: one rotating checkin answer per day (last 30d window). ───────
+  // Stable/flat personas answer high (3-4); volatile swings 1-4; trending
+  // patterns follow their direction loosely. Deterministic via the same rng.
+  const checkins: Array<{ itemKey: string; score: number; createdAt: Date }> =
+    [];
+  if (persona.answersCheckins) {
+    const days = Math.min(persona.days, 30);
+    for (let d = days - 1; d >= 0; d--) {
+      const item = CHECKIN_ITEMS[(days - 1 - d) % CHECKIN_ITEMS.length];
+      const base =
+        persona.moodPattern === "volatile"
+          ? 1 + Math.floor(rng() * 4)
+          : persona.moodPattern === "declining"
+            ? 2
+            : 3;
+      const score = Math.min(4, Math.max(0, base + (rng() < 0.4 ? 1 : 0)));
+      checkins.push({
+        itemKey: item.key,
+        score,
+        createdAt: new Date(NOW_REF - d * DAY_MS - Math.floor(rng() * DAY_MS)),
+      });
+    }
+  }
+
   return {
     entries,
     readingSessions,
@@ -153,6 +184,7 @@ export function buildPersonaInput(persona: Persona): EmotionalMapScoringInput {
     currentStreakDays:
       persona.moodsPerWeek >= 5 ? Math.min(persona.days, 7) : 2,
     moodSeries,
+    checkins,
     ouEnabled: true,
   };
 }

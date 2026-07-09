@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -11,7 +12,8 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { homeApi, moodApi } from "@psico/api-client";
-import type { HomeResponse, LogMoodRequest } from "@psico/types";
+import type { CheckinItem, HomeResponse, LogMoodRequest } from "@psico/types";
+import { CHECKIN_SCALE } from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { Colors, Radius, Spacing } from "@/theme";
 
@@ -87,6 +89,8 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
   const [moodSubmitting, setMoodSubmitting] = useState(false);
+  const [checkinItem, setCheckinItem] = useState<CheckinItem | null>(null);
+  const [checkinThanks, setCheckinThanks] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -114,6 +118,13 @@ export default function HomeScreen() {
     setMoodSubmitting(true);
     try {
       await moodApi.log({ mood: id } as LogMoodRequest);
+      // Etapa 2 — best-effort daily question; any failure just skips it.
+      try {
+        const { item } = await moodApi.nextCheckin();
+        if (item) setCheckinItem(item);
+      } catch {
+        // no checkin today — fine
+      }
     } catch {
       // Roll back optimistic state on transient failures so the user can
       // retry without confusion. Keeping the chip selected when the POST
@@ -121,6 +132,21 @@ export default function HomeScreen() {
       setSelectedMood(null);
     } finally {
       setMoodSubmitting(false);
+    }
+  }
+
+  async function answerCheckin(score: number) {
+    if (!checkinItem) return;
+    const item = checkinItem;
+    try {
+      await moodApi.logCheckin({ itemKey: item.key, score });
+      setCheckinThanks(true);
+      setTimeout(() => {
+        setCheckinItem(null);
+        setCheckinThanks(false);
+      }, 1200);
+    } catch {
+      setCheckinItem(null);
     }
   }
 
@@ -327,6 +353,48 @@ export default function HomeScreen() {
           </View>
         </Pressable>
       ) : null}
+
+      {/* Etapa 2 — daily micro-checkin after the mood pick */}
+      <Modal
+        visible={checkinItem != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCheckinItem(null)}
+      >
+        <View style={styles.ckBackdrop}>
+          <View style={styles.ckCard}>
+            {checkinThanks ? (
+              <Text style={styles.ckThanks}>
+                ¡Gracias! Esto alimenta tu Mapa Emocional.
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.ckTag}>Pregunta del día</Text>
+                <Text style={styles.ckQuestion}>{checkinItem?.text}</Text>
+                <View style={styles.ckScale}>
+                  {CHECKIN_SCALE.map((label, score) => (
+                    <Pressable
+                      key={label}
+                      style={styles.ckOption}
+                      onPress={() => answerCheckin(score)}
+                      accessibilityRole="button"
+                      accessibilityLabel={label}
+                    >
+                      <Text style={styles.ckOptionText}>{label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Pressable
+                  onPress={() => setCheckinItem(null)}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.ckSkip}>Omitir por hoy</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -372,6 +440,67 @@ function Metric({ icon, value, label }: MetricProps) {
 // ─── Styles ────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  ckBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(30,25,60,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  ckCard: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    padding: 20,
+  },
+  ckTag: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: Colors.lavender[600],
+    marginBottom: 6,
+  },
+  ckQuestion: {
+    fontSize: 16,
+    fontWeight: "700",
+    lineHeight: 22,
+    color: Colors.warm[900],
+    marginBottom: 14,
+  },
+  ckScale: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
+  },
+  ckOption: {
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: Colors.warm[200],
+    backgroundColor: Colors.white,
+  },
+  ckOptionText: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: Colors.warm[700],
+  },
+  ckSkip: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.warm[400],
+  },
+  ckThanks: {
+    fontSize: 14.5,
+    fontWeight: "600",
+    color: Colors.sage[600],
+    textAlign: "center",
+    paddingVertical: 8,
+  },
+
   root: {
     backgroundColor: Colors.warm[50],
   },

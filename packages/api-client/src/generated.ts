@@ -601,6 +601,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mood/checkin/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which micro-checkin question to ask next (Mapa Emocional · Etapa 2).
+         *     `item: null` when today's question was already answered.
+         */
+        get: operations["MoodController_nextCheckin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mood/checkin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Persist one 0–4 checkin answer. Plain ordinal, no text (ADR 0007). */
+        post: operations["MoodController_logCheckin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/journeys": {
         parameters: {
             query?: never;
@@ -1473,6 +1510,23 @@ export interface paths {
         put?: never;
         /** Mark UI tour as completed */
         post: operations["OnboardingController_completeTour"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/onboarding/tour/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset the UI tour so it shows again on next dashboard mount */
+        post: operations["OnboardingController_resetTour"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3066,6 +3120,17 @@ export interface components {
              * @enum {string}
              */
             mood: LogMoodDtoMood;
+        };
+        LogCheckinDto: {
+            /**
+             * @description Which question was answered. Must be one of the CHECKIN_ITEMS keys from
+             *     `@psico/types` (compile-time shared catalog; adding an item there is
+             *     enough — no migration, the column is String).
+             * @enum {string}
+             */
+            itemKey: LogCheckinDtoItemKey;
+            /** @description Answer on the shared CHECKIN_SCALE: 0 = "Para nada" … 4 = "Totalmente". */
+            score: number;
         };
         CreateCheckoutSessionDto: {
             /**
@@ -5753,6 +5818,96 @@ export interface operations {
             };
         };
     };
+    MoodController_nextCheckin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    MoodController_logCheckin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogCheckinDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     JourneysController_list: {
         parameters: {
             query?: never;
@@ -7686,6 +7841,39 @@ export interface operations {
                 "application/json": components["schemas"]["OnboardingTourCompleteDto"];
             };
         };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    OnboardingController_resetTour: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             200: {
                 headers: {
@@ -11275,6 +11463,14 @@ export enum LogMoodDtoMood {
     ok = "ok",
     low = "low",
     hard = "hard"
+}
+export enum LogCheckinDtoItemKey {
+    claridad_nombrar = "claridad_nombrar",
+    claridad_causa = "claridad_causa",
+    compasion_amable = "compasion_amable",
+    compasion_juicio = "compasion_juicio",
+    consciencia_presente = "consciencia_presente",
+    consciencia_pausa = "consciencia_pausa"
 }
 export enum CreateCheckoutSessionDtoBillingPlan {
     PRO_MONTHLY = "PRO_MONTHLY",

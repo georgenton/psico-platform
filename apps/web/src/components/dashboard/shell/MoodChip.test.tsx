@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 
 vi.mock("@psico/api-client", () => ({
-  moodApi: { log: vi.fn() },
+  moodApi: { log: vi.fn(), nextCheckin: vi.fn(), logCheckin: vi.fn() },
 }));
 
 import { moodApi } from "@psico/api-client";
@@ -14,6 +14,10 @@ const mockedMoodApi = vi.mocked(moodApi);
 describe("MoodChip — Sprint B6b (5 wellness levels)", () => {
   beforeEach(() => {
     mockedMoodApi.log.mockReset();
+    mockedMoodApi.nextCheckin.mockReset();
+    mockedMoodApi.logCheckin.mockReset();
+    // Default: no pending question — the popover closes right after the pick.
+    mockedMoodApi.nextCheckin.mockResolvedValue({ item: null });
   });
 
   it("renders the empty state when initialMood is null", () => {
@@ -76,5 +80,63 @@ describe("MoodChip — Sprint B6b (5 wellness levels)", () => {
       );
     });
     expect(screen.getByText("¿Cómo estás?")).toBeInTheDocument();
+  });
+
+  it("Etapa 2: shows the daily checkin question after the mood pick and posts the answer", async () => {
+    const user = userEvent.setup();
+    mockedMoodApi.log.mockResolvedValueOnce({} as never);
+    mockedMoodApi.nextCheckin.mockResolvedValueOnce({
+      item: {
+        key: "compasion_amable",
+        axis: "compasion",
+        text: "¿Fuiste amable contigo cuando algo salió mal?",
+      },
+    } as never);
+    mockedMoodApi.logCheckin.mockResolvedValueOnce({} as never);
+    render(<MoodChip initialMood={null} />);
+
+    await user.click(screen.getByRole("button", { name: /Marcar tu ánimo/ }));
+    await user.click(screen.getByRole("button", { name: "Bien" }));
+
+    // The popover switches to the question instead of closing.
+    await waitFor(() => {
+      expect(
+        screen.getByText("¿Fuiste amable contigo cuando algo salió mal?"),
+      ).toBeInTheDocument();
+    });
+
+    // Answer on the 0-4 scale ("Bastante" = 3).
+    await user.click(screen.getByRole("button", { name: "Bastante" }));
+    await waitFor(() => {
+      expect(mockedMoodApi.logCheckin).toHaveBeenCalledWith({
+        itemKey: "compasion_amable",
+        score: 3,
+      });
+    });
+    expect(screen.getByText(/Gracias/)).toBeInTheDocument();
+  });
+
+  it("Etapa 2: 'Omitir por hoy' closes the question without posting", async () => {
+    const user = userEvent.setup();
+    mockedMoodApi.log.mockResolvedValueOnce({} as never);
+    mockedMoodApi.nextCheckin.mockResolvedValueOnce({
+      item: {
+        key: "claridad_nombrar",
+        axis: "claridad",
+        text: "¿Pudiste ponerle nombre a lo que sentiste hoy?",
+      },
+    } as never);
+    render(<MoodChip initialMood={null} />);
+
+    await user.click(screen.getByRole("button", { name: /Marcar tu ánimo/ }));
+    await user.click(screen.getByRole("button", { name: "Bien" }));
+    await waitFor(() => {
+      expect(
+        screen.getByText("¿Pudiste ponerle nombre a lo que sentiste hoy?"),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Omitir por hoy" }));
+    expect(mockedMoodApi.logCheckin).not.toHaveBeenCalled();
   });
 });

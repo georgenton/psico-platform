@@ -2761,6 +2761,47 @@ Cierra deuda explícita del Sprint 3 (`sprint-e2e-rekey-lectorshell`): el DTO va
 
 ---
 
+### Sesión — 2026-07-09 ✅ COMPLETADA — Mapa Emocional · Etapa 0 (banco de personas offline)
+
+**Rama:** `feature/emotional-map-benchmark` · **PR #452** (develop) + **#453** (sync a main)
+**Doc:** [docs/research/emotional-map-benchmark.md](docs/research/emotional-map-benchmark.md)
+**Tests:** API 750/751 (sin nuevos endpoints) · typecheck + lint + privacy verdes · OpenAPI in sync.
+
+**Contexto:** el usuario pidió, antes de seguir con mejoras del modelo, (a) un **roadmap por etapas** sólido y (b) un **banco de usuarios sintéticos** para simular "un usuario entra N días e interactúa así → esto le sale". Eligió **Etapa 0 (banco) primero, sabor offline**.
+
+**Lo que se construyó:**
+- **Refactor:** la matemática del scoring se extrajo de `EmotionalMapService.compute()` a una función pura `scoreEmotionalMap(input, provider)` en `apps/api/src/emotional-map/emotional-map.scoring.ts`. El servicio ahora solo hace fetch a Prisma (9 queries) y delega. **Comportamiento preservado** (service spec 11/11).
+- `benchmark/personas.ts` — 10 arquetipos (nuevo-3d … trimestre-disciplinado, volátil, recuperándose, declive, esporádico, casi-plano) + `buildPersonaInput()` determinista (seeded mulberry32, anclado a `NOW_REF`).
+- `benchmark/benchmark.spec.ts` — corre cada persona por el scoring REAL, imprime la tabla, y asserta comportamiento por persona (gathering vs active, confianza ↑ con historia, plano > volátil en estabilidad, cobertura ~ engagement). 5 tests.
+- `docs/research/emotional-map-benchmark.md` — tabla capturada + interpretación.
+
+**Hallazgo (para la tesis):** el modelo **v0** lee los saltos normales de ±1 categoría (ok↔good↔great) como volatilidad real → la **Estabilidad sub-reporta** en personas "estables" (trimestre estable = 0%, solo casi-plano = 100%). Argumento concreto y numérico para el **v1 ordinal-latente** (Etapa 4). Además: hoy conviene surfacer Tono/Recuperación con más peso que Estabilidad con poca data (Etapa 1).
+
+**Reconciliación de sync (importante):** el PR #453 destapó que `main` cargaba una versión **monolítica stale** de `emotional-map.service.ts` (427 líneas) que un sync previo con `-X ours` no había actualizado. El sync forzó el árbol a coincidir exactamente con `develop` (`git checkout origin/develop -- .` → `git diff origin/develop` vacío verificado). `main` y `develop` ahora tienen contenido idéntico.
+
+**Privacidad (ADR 0007):** scoring + personas consumen solo ánimo ordinal + timestamps + conteos. Cero texto. Privacy spec verde sobre el código nuevo.
+
+---
+
+### 🗺️ Roadmap por etapas — Mapa Emocional (acordado 2026-07-09)
+
+Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de la Etapa 0.
+
+| Etapa | Qué | Estado |
+|---|---|---|
+| **0** | Banco de personas offline (cimiento de validación) | ✅ **HECHO** |
+| **1** | Ejes confiables primero — mostrar Tono base + Estabilidad desde ~8 registros; gate Recuperación/Inercia más alto. Corrige que Estabilidad hoy es la más ruidosa | ⬜ siguiente |
+| **2** | Micro-checkins (Fase C) — WHO-5 / auto-compasión validados; persona "checkin diario" en el banco | ⬜ |
+| **3** | Intervalos ± (bootstrap) visibles en la UI — ya existe `bootstrapOuCI`, falta surfacear | ⬜ |
+| **4** | **Modelo v1 ordinal-latente** (ordered probit/logit) — trata los saltos de categoría como ruido de medición. Cierra el hallazgo de la Etapa 0 | ⬜ |
+| **5** | EWS / resiliencia (critical slowing down) + experimentos E5/E6 del paper | ⬜ |
+| **6** | Análisis on-device del texto (Fase B / Capa 8) — el cliente descifra, analiza local, sube solo números. Respeta E2E | ⬜ |
+| **R** | Research: Bayesiano/partículas, DSEM/mlVAR networks, NSGA-II multiobjetivo, validación clínica | ⬜ paper |
+
+**Banco end-to-end real** (inyectar personas en DB de prueba + llamar la API real) queda como siguiente sabor del banco cuando se justifique probar la fontanería completa.
+
+---
+
 ### Próximo paso — polish o freeze
 
 📖 **El roadmap maestro vive en [docs/ROADMAP.md](docs/ROADMAP.md).** Sprints 1-5 cerrados + el bug de Sprint 3.

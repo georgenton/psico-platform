@@ -59,6 +59,37 @@ export function simulateOu(opts: SimulateOptions): OuObservation[] {
   return out;
 }
 
+/**
+ * Simulate an exact OU path sampled at the GIVEN observation times (days).
+ * Used by the parametric bootstrap: resample new paths at the real timestamps,
+ * refit, and read the spread of the estimates.
+ */
+export function simulateOuAt(
+  params: { mu: number; theta: number; sigma: number },
+  times: ReadonlyArray<number>,
+  rng: () => number,
+  x0?: number,
+): OuObservation[] {
+  const { mu, theta, sigma } = params;
+  const sigma2 = sigma * sigma;
+  const statStd = Math.sqrt(sigma2 / (2 * theta));
+  const gauss = () => boxMuller(rng);
+  const sorted = [...times].sort((a, b) => a - b);
+  if (!sorted.length) return [];
+
+  let x = x0 ?? mu + statStd * gauss();
+  const out: OuObservation[] = [{ t: sorted[0], x }];
+  for (let i = 1; i < sorted.length; i++) {
+    const dt = Math.max(sorted[i] - sorted[i - 1], 1e-6);
+    const e = Math.exp(-theta * dt);
+    const mean = mu + (x - mu) * e;
+    const transStd = Math.sqrt((sigma2 / (2 * theta)) * (1 - e * e));
+    x = mean + transStd * gauss();
+    out.push({ t: sorted[i], x });
+  }
+  return out;
+}
+
 // ─── deterministic PRNG + Gaussian ──────────────────────────────────────────
 
 /** mulberry32 — tiny deterministic PRNG returning floats in [0, 1). */

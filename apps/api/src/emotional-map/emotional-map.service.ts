@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { Redis } from "ioredis";
 import type {
+  EmotionalMapAffectDynamics,
   EmotionalMapAxes,
   EmotionalMapDimension,
   EmotionalMapResult,
@@ -145,10 +146,18 @@ export class EmotionalMapService {
 
     // ── Tier 2: fit an Ornstein–Uhlenbeck model to the mood series ──────────
     // Live in production behind a kill-switch (EMOTIONAL_MAP_OU=off disables).
-    // When it converges with enough points, the measured volatility drives the
-    // Calma axis instead of the LLM's impression. Otherwise we fall back to the
+    // Always returns a block (gathering | active) when enabled so the UI can
+    // show progress; when "active", the measured stability drives the Calma
+    // axis instead of the LLM's impression. Otherwise Calma falls back to the
     // Tier 1 heuristic below — the user never sees a broken axis.
-    const ou = this.fitMoodDynamics([...diaryMoodRows, ...moodLogRows]);
+    const affect = this.computeAffectDynamics([
+      ...diaryMoodRows,
+      ...moodLogRows,
+    ]);
+    const ouCalma =
+      affect?.status === "active" && affect.stability != null
+        ? { value: affect.stability, confidence: affect.confidence }
+        : null;
 
     // ── Derived counters ────────────────────────────────────────────────────
     const dayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -256,12 +265,14 @@ export class EmotionalMapService {
     }> = [
       {
         key: "calma",
-        // Tier 2: when the OU fit is available, Calma is the measured
-        // stability (low mood volatility → high calma). Otherwise fall back to
-        // the Tier 1 interpretive value.
-        value: ou ? ou.calma : calmaRaw,
-        confidence: ou ? ou.confidence : confCalma * llmConfidenceScale,
-        sources: ou
+        // Tier 2: when the OU fit is active, Calma is the measured stability
+        // (low mood volatility → high calma). Otherwise fall back to the
+        // Tier 1 interpretive value.
+        value: ouCalma ? ouCalma.value : calmaRaw,
+        confidence: ouCalma
+          ? ouCalma.confidence
+          : confCalma * llmConfidenceScale,
+        sources: ouCalma
           ? "Volatilidad medida de tu ánimo (modelo de dinámica afectiva)"
           : "Variedad y tono de tus estados de ánimo en el diario",
       },
@@ -334,6 +345,7 @@ export class EmotionalMapService {
       dimensions,
       pct,
       coverage,
+      affectDynamics: affect,
       computedAt: new Date().toISOString(),
       provider: providerName,
     };
@@ -341,14 +353,17 @@ export class EmotionalMapService {
 
   /**
    * Tier 2 — fit an Ornstein–Uhlenbeck model to the ordinal mood series and
-   * derive the Calma axis from measured volatility. Returns null (→ Tier 1
-   * fallback) when disabled, under-powered, or the fit doesn't converge.
+   * surface an interpretable affect-dynamics block (baseline / recovery /
+   * stability / inertia). Returns `null` only when the layer is disabled;
+   * otherwise it always returns a block — `"gathering"` (with progress toward
+   * `needed`) until there's enough history, then `"active"` with the estimated
+   * parameters. When active, the Calma axis is driven by the measured stability.
    *
    * Privacy (ADR 0007): consumes only `{mood, createdAt}` — never text.
    */
-  private fitMoodDynamics(
+  private computeAffectDynamics(
     rows: ReadonlyArray<{ mood: string; createdAt: Date }>,
-  ): { calma: number; confidence: number } | null {
+  ): EmotionalMapAffectDynamics | null {
     // Kill-switch: on by default; EMOTIONAL_MAP_OU=off disables in prod.
     if (process.env.EMOTIONAL_MAP_OU === "off") return null;
 
@@ -359,21 +374,42 @@ export class EmotionalMapService {
       }))
       .sort((a, b) => a.t - b.t)
       .slice(-OU_MAX_OBS);
+    const nObs = obs.length;
 
-    if (obs.length < MIN_OBS_FOR_FIT) return null;
+    const gathering = (confidence = 0): EmotionalMapAffectDynamics => ({
+      status: "gathering",
+      nObs,
+      needed: MIN_OBS_FOR_FIT,
+      confidence: round2(confidence),
+      baseline: null,
+      recovery: null,
+      stability: null,
+      inertiaDays: null,
+    });
+
+    if (nObs < MIN_OBS_FOR_FIT) return gathering();
 
     const fit = fitOu(obs);
-    if (!fit.converged) return null;
+    if (!fit.converged) return gathering();
 
     // Confidence grows with the number of observations, saturating at OU_GOOD_N.
-    const confidence = clamp01(obs.length / OU_GOOD_N);
-    if (confidence < CONFIDENCE_FLOOR) return null;
+    const confidence = clamp01(nObs / OU_GOOD_N);
+    if (confidence < CONFIDENCE_FLOOR) return gathering(confidence);
 
-    const calma = ouToAxes(fit).stability;
+    const axes = ouToAxes(fit);
     this.logger.log(
-      `EmotionalMap OU · nObs=${obs.length} · sigma=${fit.params.sigma.toFixed(2)} · theta=${fit.params.theta.toFixed(2)} · calma=${calma.toFixed(2)}`,
+      `EmotionalMap OU · nObs=${nObs} · sigma=${fit.params.sigma.toFixed(2)} · theta=${fit.params.theta.toFixed(2)} · stability=${axes.stability.toFixed(2)}`,
     );
-    return { calma, confidence };
+    return {
+      status: "active",
+      nObs,
+      needed: MIN_OBS_FOR_FIT,
+      confidence: round2(confidence),
+      baseline: round2(axes.baseline),
+      recovery: round2(axes.regulation),
+      stability: round2(axes.stability),
+      inertiaDays: round2(fit.inertiaDays),
+    };
   }
 
   /** Cache-busting hook for the daily cron and post-write paths. */

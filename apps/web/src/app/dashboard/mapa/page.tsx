@@ -6,6 +6,7 @@ import { ExportButton } from "@/components/dashboard/shell/ExportButton";
 import { MapDims } from "@/components/dashboard/mapa/MapDims";
 import { MapFeed } from "@/components/dashboard/mapa/MapFeed";
 import { MapStage } from "@/components/dashboard/mapa/MapStage";
+import { MapAffectDynamics } from "@/components/dashboard/mapa/MapAffectDynamics";
 
 export const metadata: Metadata = { title: "Mapa Emocional" };
 export const dynamic = "force-dynamic";
@@ -68,6 +69,8 @@ export default async function MapaPage() {
         <MapStage map={home.emotionalMap} />
         <MapDims dimensions={home.emotionalMap.dimensions} />
       </div>
+
+      <MapAffectDynamics data={home.emotionalMap.affectDynamics} />
 
       <MapFeed stats={stats} />
     </>

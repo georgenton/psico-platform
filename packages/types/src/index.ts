@@ -1243,6 +1243,32 @@ export interface EmotionalMapDimension {
   sources: string;
 }
 
+/**
+ * Tier 2 — affect-dynamics block derived from fitting an Ornstein–Uhlenbeck
+ * process to the user's ordinal mood series. `status: "gathering"` means there
+ * isn't enough mood history yet (the UI shows progress toward `needed`); when
+ * `"active"`, the four metrics carry the estimated parameters, each in a
+ * human-friendly framing. NEVER a diagnosis — it's an experimental
+ * self-knowledge signal (see docs/research/emotional-map-affect-dynamics.md).
+ */
+export interface EmotionalMapAffectDynamics {
+  status: "active" | "gathering";
+  /** Mood observations used for the fit. */
+  nObs: number;
+  /** Observations at which the estimate reaches full confidence. */
+  needed: number;
+  /** 0..1 — how much the estimate can be trusted (grows with nObs). */
+  confidence: number;
+  /** Emotional baseline / tone in [0,1]. Present when status === "active". */
+  baseline: number | null;
+  /** Recovery speed (θ) mapped to [0,1]. Higher = you bounce back faster. */
+  recovery: number | null;
+  /** Emotional stability in [0,1]. Higher = lower measured volatility. */
+  stability: number | null;
+  /** Emotional inertia = 1/θ in days. Higher = moods persist longer. */
+  inertiaDays: number | null;
+}
+
 export interface EmotionalMapResult {
   values: EmotionalMapAxes;
   /** Per-axis confidence in [0, 1], same order as `values`. */
@@ -1254,6 +1280,8 @@ export interface EmotionalMapResult {
   pct: number;
   /** 0..1 overall data coverage — gates the "aún reuniendo datos" banner. */
   coverage: number;
+  /** Tier 2 affect-dynamics (OU) block. Null when the layer is disabled. */
+  affectDynamics?: EmotionalMapAffectDynamics | null;
   computedAt: string;
   /** Which provider answered the LLM axes ("anthropic" / "rule-based" / …). */
   provider: string;

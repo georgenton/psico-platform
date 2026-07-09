@@ -237,6 +237,62 @@ export default function MapaScreen() {
               })}
             </View>
 
+            {/* Tier 2 — affect dynamics (Ornstein–Uhlenbeck) */}
+            {map.affectDynamics ? (
+              <View style={styles.affect}>
+                <View style={styles.affectHead}>
+                  <Text style={styles.affectTitle}>Dinámica afectiva</Text>
+                  <View style={styles.affectBadge}>
+                    <Text style={styles.affectBadgeText}>Experimental</Text>
+                  </View>
+                </View>
+                <Text style={styles.affectIntro}>
+                  Un modelo matemático estima cómo se mueve tu ánimo en el
+                  tiempo. Es apoyo para el autoconocimiento, no un diagnóstico.
+                </Text>
+
+                {map.affectDynamics.status === "gathering" ? (
+                  <Text style={styles.affectGathering}>
+                    Reuniendo datos — {map.affectDynamics.nObs} de ~
+                    {map.affectDynamics.needed} registros de ánimo. Registra tu
+                    ánimo unos días más y verás tu tono base, recuperación,
+                    estabilidad e inercia emocional.
+                  </Text>
+                ) : (
+                  <>
+                    <View style={styles.affectGrid}>
+                      <AffectMetric
+                        label="Tono base"
+                        value={pctLabel(map.affectDynamics.baseline)}
+                      />
+                      <AffectMetric
+                        label="Recuperación"
+                        value={pctLabel(map.affectDynamics.recovery)}
+                      />
+                      <AffectMetric
+                        label="Estabilidad"
+                        value={pctLabel(map.affectDynamics.stability)}
+                      />
+                      <AffectMetric
+                        label="Inercia"
+                        value={
+                          map.affectDynamics.inertiaDays != null
+                            ? `${map.affectDynamics.inertiaDays.toFixed(1)} d`
+                            : "—"
+                        }
+                      />
+                    </View>
+                    <Text style={styles.affectConf}>
+                      Confianza{" "}
+                      {Math.round(map.affectDynamics.confidence * 100)}% ·{" "}
+                      {map.affectDynamics.nObs} registros. Mientras más
+                      registres, más precisa la estimación.
+                    </Text>
+                  </>
+                )}
+              </View>
+            ) : null}
+
             {/* map-feed equivalent — resumen card */}
             {stats ? (
               <View style={styles.feed}>
@@ -372,7 +428,20 @@ function FeedRow({
   );
 }
 
+function AffectMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.affectCard}>
+      <Text style={styles.affectCardLabel}>{label}</Text>
+      <Text style={styles.affectCardValue}>{value}</Text>
+    </View>
+  );
+}
+
 // ─── helpers ──────────────────────────────────────────────────────────────
+
+function pctLabel(v: number | null): string {
+  return v == null ? "—" : `${Math.round(v * 100)}%`;
+}
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -594,6 +663,83 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: Colors.lavender[500],
     borderRadius: 9999,
+  },
+
+  // affect dynamics (Tier 2)
+  affect: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1.5,
+    borderColor: Colors.lavender[200],
+  },
+  affectHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  affectTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.warm[900],
+  },
+  affectBadge: {
+    backgroundColor: Colors.lavender[50],
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  affectBadgeText: {
+    fontSize: 9.5,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    color: Colors.lavender[700],
+  },
+  affectIntro: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 16.5,
+    color: Colors.warm[500],
+  },
+  affectGathering: {
+    marginTop: 12,
+    fontSize: 13,
+    lineHeight: 18,
+    color: Colors.warm[700],
+  },
+  affectGrid: {
+    marginTop: 12,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  affectCard: {
+    flexGrow: 1,
+    flexBasis: "45%",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.warm[200],
+  },
+  affectCardLabel: {
+    fontSize: 10.5,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    color: Colors.warm[500],
+  },
+  affectCardValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: Colors.warm[900],
+    marginTop: 2,
+  },
+  affectConf: {
+    marginTop: 12,
+    fontSize: 11.5,
+    color: Colors.warm[500],
   },
 
   // feed

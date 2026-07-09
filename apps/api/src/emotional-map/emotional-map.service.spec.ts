@@ -332,6 +332,36 @@ describe("EmotionalMapService — hybrid rework (confidence per axis)", () => {
     expect(result.dimensions[0].confidence).toBeGreaterThanOrEqual(0.15);
     // It is NOT the LLM's 0.9 impression.
     expect(result.values[0]).not.toBe(0.9);
+    // The affect-dynamics block is active with the estimated parameters.
+    expect(result.affectDynamics?.status).toBe("active");
+    expect(result.affectDynamics?.nObs).toBe(40);
+    expect(result.affectDynamics?.baseline).not.toBeNull();
+    expect(result.affectDynamics?.recovery).not.toBeNull();
+    expect(result.affectDynamics?.inertiaDays).not.toBeNull();
+  });
+
+  it("surfaces a 'gathering' affect-dynamics block below the observation floor", async () => {
+    prisma = makePrisma({
+      moodLogs: [
+        { mood: "ok", createdAt: new Date(2026, 0, 1) },
+        { mood: "good", createdAt: new Date(2026, 0, 3) },
+      ],
+    });
+    const provider = makeProvider(async () => ({
+      calma: 0.5,
+      claridad: 0.5,
+      compasion: 0.5,
+      consciencia: 0.5,
+    }));
+    const service = new EmotionalMapService(
+      prisma as never,
+      provider,
+      redis as never,
+    );
+    const result = await service.compute("user-1");
+    expect(result.affectDynamics?.status).toBe("gathering");
+    expect(result.affectDynamics?.nObs).toBe(2);
+    expect(result.affectDynamics?.baseline).toBeNull();
   });
 
   it("falls back to the Tier 1 Calma when EMOTIONAL_MAP_OU=off", async () => {
@@ -359,9 +389,11 @@ describe("EmotionalMapService — hybrid rework (confidence per axis)", () => {
       );
       const result = await service.compute("user-1");
 
-      // Kill-switch on → Calma is the LLM's value, sourced from Tier 1 copy.
+      // Kill-switch on → Calma is the LLM's value, sourced from Tier 1 copy,
+      // and the affect-dynamics block is absent entirely.
       expect(result.dimensions[0].sources).not.toContain("Volatilidad medida");
       expect(result.values[0]).toBe(0.9);
+      expect(result.affectDynamics ?? null).toBeNull();
     } finally {
       if (prev === undefined) delete process.env.EMOTIONAL_MAP_OU;
       else process.env.EMOTIONAL_MAP_OU = prev;

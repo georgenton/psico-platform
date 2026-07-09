@@ -22,6 +22,8 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 
@@ -114,7 +116,10 @@ async function main() {
   const args = parseArgs(process.argv);
   const password = String(args.password ?? "Demo1234!");
   const reset = Boolean(args.reset);
-  const prisma = new PrismaClient();
+  // Prisma 7 requires an explicit driver adapter (same as the app's
+  // PrismaService). @prisma/adapter-pg + pg are runtime deps of the API.
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
   try {
     const passwordHash = await bcrypt.hash(password, 12);
@@ -227,6 +232,7 @@ async function main() {
     }
   } finally {
     await prisma.$disconnect();
+    await pool.end();
   }
 }
 

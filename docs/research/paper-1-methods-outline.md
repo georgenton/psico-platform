@@ -2,6 +2,7 @@
 
 **Estado:** Outline de trabajo (v0.1) · **Fecha:** 2026-07-08 · **Autor:** Jorge (+ Claude)
 **Basado en:** [emotional-map-affect-dynamics.md](emotional-map-affect-dynamics.md) §9.
+**Resultados (E1–E4):** [paper-1-results.md](paper-1-results.md) — arnés de simulación ya corriendo.
 **Tipo:** paper de **métodos + validación sintética** (no requiere datos humanos → no requiere IRB para publicarse; el piloto empírico es el Paper 2).
 
 > Objetivo de este paper: demostrar, **sin muestra grande real**, que se pueden estimar indicadores interpretables de dinámica afectiva (línea base, recuperación, volatilidad, inercia) a partir de registros de ánimo **ordinales, dispersos e irregulares**, con **incertidumbre explícita**, **degradación honesta** cuando faltan datos, y **preservando la privacidad** (el texto nunca sale del dispositivo / solo metadata mínima). La evidencia central es un **estudio de simulación** con recuperación de parámetros y comparación de modelos.

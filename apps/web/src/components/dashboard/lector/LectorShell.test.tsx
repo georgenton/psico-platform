@@ -121,7 +121,7 @@ describe("LectorShell — header + blocks", () => {
       screen.getByRole("button", { name: /preferencias de lectura/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /ver notas/i }),
+      screen.getByRole("button", { name: /abrir panel del lector/i }),
     ).toBeInTheDocument();
   });
 });
@@ -142,26 +142,31 @@ describe("LectorShell — progress bar", () => {
   });
 });
 
-describe("LectorShell — annotations panel", () => {
-  it("is closed initially and opens when the user taps the notes button", () => {
+describe("LectorShell — companion dock", () => {
+  it("is closed initially and opens on the Notas tab when the user taps the panel button", () => {
     renderShell({
       annotations: [
         {
           id: "a-1",
           blockId: "b-1",
           text: "Mi primera nota",
+          createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
       ],
     } as unknown as Partial<LectorChapterResponse>);
 
-    // Closed initially — the annotation text isn't on the screen because
-    // the panel is rendered with display:none / closed state.
+    // Closed initially — the dock returns null, so nothing inside it renders.
     expect(screen.queryByText("Mi primera nota")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /ver notas/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /abrir panel del lector/i }),
+    );
 
-    // After opening, the existing annotation is visible.
+    // After opening, the dock shows its three tabs + the existing note.
+    expect(screen.getByRole("tab", { name: /notas/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /reflexión/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /eco/i })).toBeInTheDocument();
     expect(screen.getByText("Mi primera nota")).toBeInTheDocument();
   });
 });

@@ -32,6 +32,7 @@ export function ReaderCompanionDock({
   onClose,
   passage,
   ecoSeed,
+  reflexionSeedOverride,
   onPassageConsumed,
   annotations,
   focusBlockId,
@@ -51,6 +52,8 @@ export function ReaderCompanionDock({
   passage: string | null;
   /** A ready-made Eco prompt (e.g. a chapter topic) that overrides `passage`. */
   ecoSeed?: string | null;
+  /** A ready-made Reflexión seed (e.g. a chapter exercise) overriding `passage`. */
+  reflexionSeedOverride?: string | null;
   onPassageConsumed: () => void;
   annotations: AnnotationSummary[];
   focusBlockId: string | null;
@@ -75,7 +78,8 @@ export function ReaderCompanionDock({
   if (!open) return null;
 
   const ecoSeedText = ecoSeed ?? (passage ? passageToPrompt(passage) : null);
-  const reflexionSeedText = passage ? reflexionSeed(passage) : null;
+  const reflexionSeedText =
+    reflexionSeedOverride ?? (passage ? reflexionSeed(passage) : null);
 
   const TABS: Array<{ id: DockTab; icon: string; label: string }> = [
     { id: "eco", icon: "🌿", label: "Eco" },

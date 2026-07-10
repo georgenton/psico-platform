@@ -3022,6 +3022,33 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-07-10 ✅ COMPLETADA — Reproductor de video en el lector (backlog #3)
+
+**Rama:** `feature/lector-video-player` · **PR #496** (develop) + sync a main
+**Bitácora:** [docs/informes/sprint-lector-video-player.md](docs/informes/sprint-lector-video-player.md)
+**Tests:** API 783/784 · Web 294 (+8) · Mobile 63 · Crypto 34 · typecheck ×3 + lints + OpenAPI verdes.
+
+**Qué cierra:** tercer ítem del backlog. La card mock «🎬 próximamente» se convierte en un **reproductor real**: reproduce inline cuando ops sube el archivo, o muestra un placeholder con forma de reproductor («En producción») hasta entonces — mismo patrón que «Audio en producción» de Modo Guía.
+
+**Decisión clave:** el video es **inline por bloque** (una cápsula dentro del flujo de lectura), no por capítulo como el audio → encaja como un `ChapterBlock` kind `VIDEO` con la URL en `meta.videoUrl`.
+
+**Cómo:**
+- **Schema:** valor `VIDEO` en `ChapterBlockKind` + migración aditiva `20260710120000_chapter_block_video_kind`.
+- **Helper compartido `videoBlockInfo(block)`** en `@psico/types` — única fuente de verdad web + mobile. Detecta kind `VIDEO` **o** (backward-compat) `EXERCISE` con prefijo `🎬` → la data ya sembrada sube al reproductor **sin re-ingestar** (no pierde highlights). Devuelve `{url, poster, caption, durationSec}`.
+- **Ingest script:** `VIDEO_MOCK` → bloque kind `VIDEO` (caption limpio).
+- **Web `VideoBlock`** (`<video>` o placeholder) wireado en `BlockRenderer`; **Mobile `VideoBlock`** (`expo-av` `Video` o placeholder) wireado en `BlockView`.
+- **README §video** con la guía ops (ffmpeg MP4 +faststart, poster, UPDATE del `meta`).
+
+**Privacidad (ADR 0007):** videos = contenido público licenciado; `videoUrl` es URL pública directa (sin firmar, sin cripto). Nada del Diario/Eco toca la reproducción.
+
+**Tests:** `VideoBlock.test.tsx` web (+8) cubre el helper (detección VIDEO + 🎬 legacy + parse meta) y el componente (placeholder / `<video>` real / caption).
+
+**Deuda / ops:** subir los videos reales a R2 + setear `meta.videoUrl` (como los m4a del audio) · migración sin aplicar en Railway.
+
+**Backlog restante:** refinar Eco con contenido *(siguiente, pedido del usuario)* · sugerencias adaptativas de Eco · character-level highlights mobile.
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

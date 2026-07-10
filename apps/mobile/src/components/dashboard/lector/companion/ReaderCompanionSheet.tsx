@@ -13,7 +13,7 @@ import { passageToEcoPrompt } from "@/lib/eco/reader-handoff";
 import { Colors, Radius, Spacing } from "@/theme";
 import { EcoSheetTab } from "./EcoSheetTab";
 import { NotesSheetTab } from "./NotesSheetTab";
-import { ReflexionSheetTab } from "./ReflexionSheetTab";
+import { ReflexionSheetTab, reflexionSeed } from "./ReflexionSheetTab";
 
 export type SheetTab = "eco" | "notas" | "reflexion";
 
@@ -35,6 +35,7 @@ export function ReaderCompanionSheet({
   onClose,
   passage,
   ecoSeed,
+  reflexionSeedOverride,
   onPassageConsumed,
   annotations,
   pendingBlockId,
@@ -50,6 +51,8 @@ export function ReaderCompanionSheet({
   passage: string | null;
   /** A ready-made Eco prompt (e.g. a chapter topic) that overrides `passage`. */
   ecoSeed?: string | null;
+  /** A ready-made Reflexión seed (e.g. a chapter exercise) overriding `passage`. */
+  reflexionSeedOverride?: string | null;
   onPassageConsumed: () => void;
   annotations: AnnotationSummary[];
   pendingBlockId: string | null;
@@ -123,7 +126,10 @@ export function ReaderCompanionSheet({
               />
             ) : tab === "reflexion" ? (
               <ReflexionSheetTab
-                passage={passage}
+                seed={
+                  reflexionSeedOverride ??
+                  (passage ? reflexionSeed(passage) : null)
+                }
                 onSeedConsumed={onPassageConsumed}
               />
             ) : (

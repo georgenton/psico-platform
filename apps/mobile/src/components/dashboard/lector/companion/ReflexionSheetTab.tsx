@@ -35,10 +35,11 @@ export function reflexionSeed(passage: string): string {
 }
 
 export function ReflexionSheetTab({
-  passage,
+  seed,
   onSeedConsumed,
 }: {
-  passage: string | null;
+  /** Pre-computed composer seed (a quoted passage or an exercise prompt). */
+  seed: string | null;
   onSeedConsumed: () => void;
 }) {
   const { key, isLegacyAccount } = useDiaryKey();
@@ -51,10 +52,10 @@ export function ReflexionSheetTab({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!passage) return;
-    setText((prev) => (prev ? prev : reflexionSeed(passage)));
+    if (!seed) return;
+    setText((prev) => (prev ? prev : seed));
     onSeedConsumed();
-  }, [passage, onSeedConsumed]);
+  }, [seed, onSeedConsumed]);
 
   async function handleSave() {
     if (!key || !text.trim()) return;

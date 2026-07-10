@@ -14,14 +14,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { lectorApi, annotationsApi, highlightsApi } from "@psico/api-client";
 import type {
   AnnotationSummary,
+  BreatheExercise,
   ChapterBlockSummary,
   HighlightColor,
   HighlightSummary,
   LectorChapterResponse,
 } from "@psico/types";
+import { reflectExerciseSeed } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 import { LectorAudioBar } from "@/components/dashboard/lector/LectorAudioBar";
 import { EcoTopicCard } from "@/components/dashboard/lector/EcoTopicCard";
+import { ChapterExercises } from "@/components/dashboard/lector/exercises/ChapterExercises";
+import { BreathingExercise } from "@/components/dashboard/lector/exercises/BreathingExercise";
 import {
   BlockActionsSheet,
   highlightStyleFor,
@@ -75,14 +79,27 @@ export default function LectorScreen() {
   const [sheetTab, setSheetTab] = useState<SheetTab>("notas");
   const [sheetPassage, setSheetPassage] = useState<string | null>(null);
   const [sheetEcoSeed, setSheetEcoSeed] = useState<string | null>(null);
+  const [sheetReflexionSeed, setSheetReflexionSeed] = useState<string | null>(
+    null,
+  );
+
+  // Breathing exercise overlay (chapter activity).
+  const [breatheExercise, setBreatheExercise] =
+    useState<BreatheExercise | null>(null);
 
   function openCompanion(
     tab: SheetTab,
-    opts?: { passage?: string; ecoSeed?: string; blockId?: string },
+    opts?: {
+      passage?: string;
+      ecoSeed?: string;
+      reflexionSeed?: string;
+      blockId?: string;
+    },
   ) {
     setSheetTab(tab);
     setSheetPassage(opts?.passage ?? null);
     setSheetEcoSeed(opts?.ecoSeed ?? null);
+    setSheetReflexionSeed(opts?.reflexionSeed ?? null);
     if (opts?.blockId) setPendingBlockId(opts.blockId);
     setSheetOpen(true);
   }
@@ -388,6 +405,17 @@ export default function LectorScreen() {
           />
         ))}
 
+        <ChapterExercises
+          bookSlug={chapter.book.slug}
+          chapterOrder={chapter.chapter.order}
+          onReflect={(prompt) =>
+            openCompanion("reflexion", {
+              reflexionSeed: reflectExerciseSeed(prompt),
+            })
+          }
+          onBreathe={(ex) => setBreatheExercise(ex)}
+        />
+
         <View style={styles.completeWrap}>
           <Pressable onPress={handleComplete} style={styles.completeButton}>
             <Text style={styles.completeText}>✓ Marcar como leído</Text>
@@ -437,12 +465,15 @@ export default function LectorScreen() {
           setPendingBlockId(null);
           setSheetPassage(null);
           setSheetEcoSeed(null);
+          setSheetReflexionSeed(null);
         }}
         passage={sheetPassage}
         ecoSeed={sheetEcoSeed}
+        reflexionSeedOverride={sheetReflexionSeed}
         onPassageConsumed={() => {
           setSheetPassage(null);
           setSheetEcoSeed(null);
+          setSheetReflexionSeed(null);
         }}
         annotations={annotations}
         pendingBlockId={pendingBlockId}
@@ -450,6 +481,13 @@ export default function LectorScreen() {
         onCreateNote={createAnnotation}
         onDeleteNote={deleteAnnotation}
       />
+
+      {breatheExercise ? (
+        <BreathingExercise
+          exercise={breatheExercise}
+          onClose={() => setBreatheExercise(null)}
+        />
+      ) : null}
     </View>
   );
 }

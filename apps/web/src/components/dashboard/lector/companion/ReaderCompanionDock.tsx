@@ -31,6 +31,7 @@ export function ReaderCompanionDock({
   onTabChange,
   onClose,
   passage,
+  ecoSeed,
   onPassageConsumed,
   annotations,
   focusBlockId,
@@ -46,8 +47,10 @@ export function ReaderCompanionDock({
   tab: DockTab;
   onTabChange: (tab: DockTab) => void;
   onClose: () => void;
-  /** Raw highlighted passage, or null when opened from the header. */
+  /** Raw highlighted passage (wrapped per-tab), or null. */
   passage: string | null;
+  /** A ready-made Eco prompt (e.g. a chapter topic) that overrides `passage`. */
+  ecoSeed?: string | null;
   onPassageConsumed: () => void;
   annotations: AnnotationSummary[];
   focusBlockId: string | null;
@@ -71,7 +74,7 @@ export function ReaderCompanionDock({
 
   if (!open) return null;
 
-  const ecoSeedText = passage ? passageToPrompt(passage) : null;
+  const ecoSeedText = ecoSeed ?? (passage ? passageToPrompt(passage) : null);
   const reflexionSeedText = passage ? reflexionSeed(passage) : null;
 
   const TABS: Array<{ id: DockTab; icon: string; label: string }> = [

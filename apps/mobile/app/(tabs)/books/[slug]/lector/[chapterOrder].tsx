@@ -3,14 +3,10 @@ import {
   ActivityIndicator,
   Alert,
   AppState,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -31,9 +27,9 @@ import {
   highlightStyleFor,
 } from "@/components/dashboard/lector/BlockActionsSheet";
 import {
-  passageToEcoPrompt,
-  setEcoReaderHandoff,
-} from "@/lib/eco/reader-handoff";
+  ReaderCompanionSheet,
+  type SheetTab,
+} from "@/components/dashboard/lector/companion/ReaderCompanionSheet";
 
 /**
  * Mobile reader screen — Sprint S6-front.
@@ -71,6 +67,25 @@ export default function LectorScreen() {
   // Annotation state.
   const [annotations, setAnnotations] = useState<AnnotationSummary[]>([]);
   const [pendingBlockId, setPendingBlockId] = useState<string | null>(null);
+
+  // Companion sheet state (Eco · Notas · Reflexión). The sheet is the reader's
+  // bottom panel — it keeps the chapter behind it so the user never loses their
+  // place when they open Eco, a note, or a reflexión.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetTab, setSheetTab] = useState<SheetTab>("notas");
+  const [sheetPassage, setSheetPassage] = useState<string | null>(null);
+  const [sheetEcoSeed, setSheetEcoSeed] = useState<string | null>(null);
+
+  function openCompanion(
+    tab: SheetTab,
+    opts?: { passage?: string; ecoSeed?: string; blockId?: string },
+  ) {
+    setSheetTab(tab);
+    setSheetPassage(opts?.passage ?? null);
+    setSheetEcoSeed(opts?.ecoSeed ?? null);
+    if (opts?.blockId) setPendingBlockId(opts.blockId);
+    setSheetOpen(true);
+  }
 
   // Highlight state — Sprint mobile-highlights v1.
   //
@@ -229,23 +244,6 @@ export default function LectorScreen() {
     }
   }
 
-  // ── Ask Eco about a paragraph ─────────────────────────────────────────
-  //
-  // Sprint B — take the long-pressed block to Eco. We stash the passage
-  // prompt in the in-memory handoff and navigate to the Eco tab, which
-  // consumes it on focus and pre-fills the composer. Book text is licensed
-  // PUBLIC content, so carrying a passage across the hop is fine.
-  function askEcoAboutBlock(blockId: string) {
-    const block = chapter?.blocks.find((b) => b.id === blockId);
-    if (!block || !chapter) return;
-    setEcoReaderHandoff(passageToEcoPrompt(block.content), {
-      bookSlug: chapter.book.slug,
-      chapterOrder: chapter.chapter.order,
-      kind: "highlight",
-    });
-    router.push("/eco" as never);
-  }
-
   // ── Complete handler ──────────────────────────────────────────────────
 
   async function handleComplete() {
@@ -351,6 +349,7 @@ export default function LectorScreen() {
           bookSlug={chapter.book.slug}
           chapterOrder={chapter.chapter.order}
           chapterTitle={chapter.chapter.title}
+          onOpenEco={(prompt) => openCompanion("eco", { ecoSeed: prompt })}
         />
 
         {chapter.chapter.audioAvailable ? (
@@ -405,13 +404,19 @@ export default function LectorScreen() {
             await createHighlight(actionBlockId, color);
           }}
           onAddNote={() => {
-            setPendingBlockId(actionBlockId);
-            setActionBlockId(null);
-          }}
-          onAskEco={() => {
             const id = actionBlockId;
             setActionBlockId(null);
-            askEcoAboutBlock(id);
+            openCompanion("notas", { blockId: id });
+          }}
+          onReflect={() => {
+            const block = chapter.blocks.find((b) => b.id === actionBlockId);
+            setActionBlockId(null);
+            if (block) openCompanion("reflexion", { passage: block.content });
+          }}
+          onAskEco={() => {
+            const block = chapter.blocks.find((b) => b.id === actionBlockId);
+            setActionBlockId(null);
+            if (block) openCompanion("eco", { passage: block.content });
           }}
           onRemoveHighlights={async () => {
             const list = highlightsByBlock.get(actionBlockId) ?? [];
@@ -422,16 +427,29 @@ export default function LectorScreen() {
         />
       )}
 
-      {/* Annotation composer modal */}
-      {pendingBlockId && (
-        <AnnotationComposer
-          onCancel={() => setPendingBlockId(null)}
-          onSubmit={async (text) => {
-            await createAnnotation(pendingBlockId, text);
-            setPendingBlockId(null);
-          }}
-        />
-      )}
+      {/* Companion sheet — Eco · Notas · Reflexión (bottom panel) */}
+      <ReaderCompanionSheet
+        visible={sheetOpen}
+        tab={sheetTab}
+        onTabChange={setSheetTab}
+        onClose={() => {
+          setSheetOpen(false);
+          setPendingBlockId(null);
+          setSheetPassage(null);
+          setSheetEcoSeed(null);
+        }}
+        passage={sheetPassage}
+        ecoSeed={sheetEcoSeed}
+        onPassageConsumed={() => {
+          setSheetPassage(null);
+          setSheetEcoSeed(null);
+        }}
+        annotations={annotations}
+        pendingBlockId={pendingBlockId}
+        onClearPending={() => setPendingBlockId(null)}
+        onCreateNote={createAnnotation}
+        onDeleteNote={deleteAnnotation}
+      />
     </View>
   );
 }
@@ -533,52 +551,6 @@ function BlockView({
         </View>
       )}
     </View>
-  );
-}
-
-function AnnotationComposer({
-  onCancel,
-  onSubmit,
-}: {
-  onCancel: () => void;
-  onSubmit: (text: string) => Promise<void>;
-}) {
-  const [text, setText] = useState("");
-
-  return (
-    <Modal transparent animationType="fade" onRequestClose={onCancel}>
-      <KeyboardAvoidingView
-        style={styles.modalBackdrop}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <View style={styles.modalSheet}>
-          <Text style={styles.modalTitle}>Nueva nota</Text>
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder="Escribe tu nota…"
-            multiline
-            style={styles.modalInput}
-            autoFocus
-          />
-          <View style={styles.modalActions}>
-            <Pressable onPress={onCancel} style={styles.modalCancel}>
-              <Text style={styles.modalCancelText}>Cancelar</Text>
-            </Pressable>
-            <Pressable
-              onPress={async () => {
-                if (!text.trim()) return;
-                await onSubmit(text.trim());
-              }}
-              style={[styles.modalSubmit, !text.trim() && { opacity: 0.5 }]}
-              disabled={!text.trim()}
-            >
-              <Text style={styles.modalSubmitText}>Guardar</Text>
-            </Pressable>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
   );
 }
 
@@ -685,46 +657,4 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.sage[500],
   },
   completeText: { color: "white", fontWeight: "700", fontSize: 14 },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  modalSheet: {
-    backgroundColor: "white",
-    padding: Spacing.lg,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: Spacing.md,
-    color: Colors.warm[900],
-  },
-  modalInput: {
-    minHeight: 80,
-    padding: Spacing.sm,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.warm[200],
-    fontSize: 14,
-    color: Colors.warm[900],
-    textAlignVertical: "top",
-  },
-  modalActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 12,
-    marginTop: Spacing.md,
-  },
-  modalCancel: { paddingHorizontal: 16, paddingVertical: 10 },
-  modalCancelText: { color: Colors.warm[500], fontWeight: "600" },
-  modalSubmit: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.lavender[500],
-  },
-  modalSubmitText: { color: "white", fontWeight: "700" },
 });

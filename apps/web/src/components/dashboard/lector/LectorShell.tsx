@@ -78,6 +78,7 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
   const [dockOpen, setDockOpen] = useState(false);
   const [dockTab, setDockTab] = useState<DockTab>("notas");
   const [dockPassage, setDockPassage] = useState<string | null>(null);
+  const [dockEcoSeed, setDockEcoSeed] = useState<string | null>(null);
   const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
   const [pendingBlockId, setPendingBlockId] = useState<string | null>(null);
 
@@ -624,6 +625,12 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
           bookSlug={bookSlug}
           chapterOrder={chapter.order}
           chapterTitle={chapter.title}
+          onOpen={(prompt) => {
+            setDockPassage(null);
+            setDockEcoSeed(prompt);
+            setDockTab("eco");
+            setDockOpen(true);
+          }}
         />
       </div>
 
@@ -760,9 +767,14 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
           setFocusBlockId(null);
           setPendingBlockId(null);
           setDockPassage(null);
+          setDockEcoSeed(null);
         }}
         passage={dockPassage}
-        onPassageConsumed={() => setDockPassage(null)}
+        ecoSeed={dockEcoSeed}
+        onPassageConsumed={() => {
+          setDockPassage(null);
+          setDockEcoSeed(null);
+        }}
         annotations={annotations}
         focusBlockId={focusBlockId}
         pendingBlockId={pendingBlockId}

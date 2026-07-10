@@ -37,6 +37,7 @@ function renderSheet(overrides: Partial<Props> = {}) {
     hasHighlight: false,
     onPickColor: noop,
     onAddNote: noop,
+    onReflect: noop,
     onAskEco: noop,
     onRemoveHighlights: noop,
     onCancel: noop,
@@ -85,6 +86,13 @@ describe("BlockActionsSheet — callbacks", () => {
     renderSheet({ onAddNote });
     fireEvent.press(screen.getByText(/Añadir nota/));
     expect(onAddNote).toHaveBeenCalledTimes(1);
+  });
+
+  it("fires onReflect when the user picks 'Reflexión'", () => {
+    const onReflect = jest.fn();
+    renderSheet({ onReflect });
+    fireEvent.press(screen.getByText(/Reflexión/));
+    expect(onReflect).toHaveBeenCalledTimes(1);
   });
 
   it("fires onAskEco when the user picks 'Conversar con Eco'", () => {

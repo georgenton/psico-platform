@@ -125,3 +125,7 @@ Persona nueva en el banco: **`senal-temprana`** (90 días: mitad estable, mitad 
 | Todos con n < 60       | —   | insufficient | —             |
 
 En el producto, `affectDynamics.ews` alimenta una **nota de autocuidado no-diagnóstica** (web + mobile) que solo aparece con la señal en subida: una invitación amable, nunca una alarma. El flujo de crisis existente queda intacto y separado.
+
+## Etapa 6 — análisis on-device del texto (aplicado)
+
+El cierre del roadmap de producto: `analyzeReflectionText` (compartido en `@psico/types`, una sola fuente web+mobile) convierte la reflexión descifrada en 10 densidades numéricas EN EL DISPOSITIVO — auto-foco, lenguaje absolutista, affect labeling, insight/causal, self-kind vs self-critic — y solo esos números viajan (`POST /api/emotional-map/text-features`, DTO numbers-only con guard de ownership). En el scoring, `computeTextAxes` alimenta Claridad (insight+causal), Consciencia (affect labeling) y Compasión (balance del self-talk) con **precedencia checkin > texto > LLM** y confianza que satura a 8 entradas analizadas. El E2E queda intacto: el servidor nunca ve una palabra. Validación: 9 tests del analizador con frases ES reales + precedencia asserted en `text-features.spec.ts`.

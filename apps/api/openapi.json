@@ -1934,6 +1934,36 @@
         ]
       }
     },
+    "/api/emotional-map/text-features": {
+      "post": {
+        "operationId": "EmotionalMapController_logTextFeatures",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogTextFeaturesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Etapa 6 — receive the NUMERIC text features the client computed on-device\nfrom a decrypted reflection. The body has no text field by design; the\nwhitelist ValidationPipe strips anything extra (ADR 0007).",
+        "tags": [
+          "EmotionalMap"
+        ]
+      }
+    },
     "/api/activity": {
       "get": {
         "operationId": "ActivityController_feed",
@@ -10437,6 +10467,89 @@
         },
         "required": [
           "moodId"
+        ]
+      },
+      "LogTextFeaturesDto": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "description": "Diary entry the features belong to; enables idempotent re-save upsert.",
+            "minLength": 10,
+            "maxLength": 64
+          },
+          "wordCount": {
+            "type": "number",
+            "description": "Tokens in the analyzed entry.",
+            "minimum": 5,
+            "maximum": 100000
+          },
+          "selfFocus": {
+            "type": "number",
+            "description": "First-person singular pronoun density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "positive": {
+            "type": "number",
+            "description": "Positive-affect word density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "negative": {
+            "type": "number",
+            "description": "Negative-affect word density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "insight": {
+            "type": "number",
+            "description": "Cognitive-insight marker density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "causal": {
+            "type": "number",
+            "description": "Causal-language density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "absolutist": {
+            "type": "number",
+            "description": "Absolutist word density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "social": {
+            "type": "number",
+            "description": "Social-reference density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "selfKind": {
+            "type": "number",
+            "description": "Self-kind talk density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "selfCritic": {
+            "type": "number",
+            "description": "Self-critical talk density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "wordCount",
+          "selfFocus",
+          "positive",
+          "negative",
+          "insight",
+          "causal",
+          "absolutist",
+          "social",
+          "selfKind",
+          "selfCritic"
         ]
       },
       "CreateDiaryEntryDto": {

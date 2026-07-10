@@ -58,6 +58,12 @@ function makePrisma(overrides: {
     checkinResponse: {
       findMany: vi.fn().mockResolvedValue([]),
     },
+    diaryTextFeature: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockResolvedValue({ id: "tf-1" }),
+      create: vi.fn().mockResolvedValue({ id: "tf-1" }),
+    },
     user: {
       findUnique: vi.fn().mockResolvedValue(overrides.user ?? null),
     },
@@ -401,5 +407,81 @@ describe("EmotionalMapService — hybrid rework (confidence per axis)", () => {
       if (prev === undefined) delete process.env.EMOTIONAL_MAP_OU;
       else process.env.EMOTIONAL_MAP_OU = prev;
     }
+  });
+});
+
+describe("EmotionalMapService.logTextFeatures — Etapa 6 (numbers only)", () => {
+  const FEATURES = {
+    wordCount: 60,
+    selfFocus: 0.05,
+    positive: 0.03,
+    negative: 0.02,
+    insight: 0.03,
+    causal: 0.02,
+    absolutist: 0.01,
+    social: 0.02,
+    selfKind: 0.02,
+    selfCritic: 0,
+  };
+  const provider = makeProvider(async () => ({
+    calma: 0.5,
+    claridad: 0.5,
+    compasion: 0.5,
+    consciencia: 0.5,
+  }));
+
+  it("upserts by entryId and busts the map cache", async () => {
+    const prisma = makePrisma({});
+    const redis = makeRedis();
+    const service = new EmotionalMapService(
+      prisma as never,
+      provider,
+      redis as never,
+    );
+    const res = await service.logTextFeatures("user-1", {
+      ...FEATURES,
+      entryId: "entry-abc",
+    });
+    expect(res).toEqual({ ok: true, id: "tf-1" });
+    const upsert = (prisma as Record<string, any>).diaryTextFeature.upsert;
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { entryId: "entry-abc" },
+        create: expect.objectContaining({ userId: "user-1", wordCount: 60 }),
+      }),
+    );
+    expect(redis.del).toHaveBeenCalledWith("emotional-map:user-1");
+  });
+
+  it("rejects an entryId owned by another user (403)", async () => {
+    const prisma = makePrisma({});
+    (prisma as Record<string, any>).diaryTextFeature.findUnique = vi
+      .fn()
+      .mockResolvedValue({ userId: "other-user" });
+    const service = new EmotionalMapService(
+      prisma as never,
+      provider,
+      makeRedis() as never,
+    );
+    await expect(
+      service.logTextFeatures("user-1", { ...FEATURES, entryId: "entry-x" }),
+    ).rejects.toThrow("TEXT_FEATURE_NOT_YOURS");
+  });
+
+  it("creates a standalone row when no entryId is given", async () => {
+    const prisma = makePrisma({});
+    const service = new EmotionalMapService(
+      prisma as never,
+      provider,
+      makeRedis() as never,
+    );
+    await service.logTextFeatures("user-1", FEATURES);
+    expect(
+      (prisma as Record<string, any>).diaryTextFeature.create,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ userId: "user-1" }),
+      }),
+    );
   });
 });

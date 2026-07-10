@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { ForbiddenException, Inject, Injectable, Logger } from "@nestjs/common";
 import type { Redis } from "ioredis";
 import type { EmotionalMapResult } from "@psico/types";
 
@@ -124,6 +124,25 @@ export class EmotionalMapService {
       }),
     ]);
 
+    // Etapa 6 — on-device text features (numbers only; the text never left
+    // the client). Separate await keeps the Promise.all tuple readable.
+    const textFeatures = await this.prisma.diaryTextFeature.findMany({
+      where: { userId, createdAt: { gte: since } },
+      select: {
+        wordCount: true,
+        selfFocus: true,
+        positive: true,
+        negative: true,
+        insight: true,
+        causal: true,
+        absolutist: true,
+        social: true,
+        selfKind: true,
+        selfCritic: true,
+        createdAt: true,
+      },
+    });
+
     return scoreEmotionalMap(
       {
         entries,
@@ -135,6 +154,7 @@ export class EmotionalMapService {
         currentStreakDays: user?.currentStreakDays ?? 0,
         moodSeries: [...diaryMoodRows, ...moodLogRows],
         checkins,
+        textFeatures,
         // Kill-switch: on by default; EMOTIONAL_MAP_OU=off disables in prod.
         ouEnabled: process.env.EMOTIONAL_MAP_OU !== "off",
       },
@@ -146,5 +166,55 @@ export class EmotionalMapService {
   /** Cache-busting hook for the daily cron and post-write paths. */
   async invalidate(userId: string): Promise<void> {
     await this.redis.del(`emotional-map:${userId}`);
+  }
+
+  /**
+   * Etapa 6 — persist the numeric text features the client computed on-device
+   * (ADR 0007: the table has no text column). Upserts by entryId so re-saving
+   * an entry updates its features instead of duplicating them; features
+   * without an entryId (e.g. future Eco messages) just append.
+   */
+  async logTextFeatures(
+    userId: string,
+    dto: {
+      entryId?: string;
+      wordCount: number;
+      selfFocus: number;
+      positive: number;
+      negative: number;
+      insight: number;
+      causal: number;
+      absolutist: number;
+      social: number;
+      selfKind: number;
+      selfCritic: number;
+    },
+  ): Promise<{ ok: true; id: string }> {
+    const { entryId, ...features } = dto;
+    if (entryId) {
+      // Ownership guard: entryId is client-supplied — never let one user
+      // overwrite another user's row by guessing an id.
+      const existing = await this.prisma.diaryTextFeature.findUnique({
+        where: { entryId },
+        select: { userId: true },
+      });
+      if (existing && existing.userId !== userId) {
+        throw new ForbiddenException("TEXT_FEATURE_NOT_YOURS");
+      }
+    }
+    const row = entryId
+      ? await this.prisma.diaryTextFeature.upsert({
+          where: { entryId },
+          create: { userId, entryId, ...features },
+          update: { ...features },
+          select: { id: true },
+        })
+      : await this.prisma.diaryTextFeature.create({
+          data: { userId, ...features },
+          select: { id: true },
+        });
+    // Fire-and-forget: a fresh map should reflect the new signal soon.
+    void this.invalidate(userId).catch(() => undefined);
+    return { ok: true, id: row.id };
   }
 }

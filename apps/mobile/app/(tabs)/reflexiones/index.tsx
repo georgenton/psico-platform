@@ -10,9 +10,9 @@ import {
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { diarioApi } from "@psico/api-client";
+import { diarioApi, emotionalMapApi } from "@psico/api-client";
 import { decryptString, encryptString } from "@psico/crypto";
-import { DIARY_MOODS } from "@psico/types";
+import { DIARY_MOODS, analyzeReflectionText } from "@psico/types";
 import type {
   CreateDiaryEntryRequest,
   DiaryEntrySummary,
@@ -180,7 +180,18 @@ function ActiveDiarioBody({
         excerptCiphertext: excerpt.ciphertext,
         excerptNonce: excerpt.nonce,
       };
-      await diarioApi.create(body);
+      const created = await diarioApi.create(body);
+      // Etapa 6 — analyze the plaintext ON DEVICE and upload ONLY numbers
+      // (the text never goes on the wire). Best-effort fire-and-forget.
+      const features = analyzeReflectionText(trimmed);
+      if (features) {
+        void emotionalMapApi
+          .logTextFeatures({
+            ...features,
+            entryId: (created as { id?: string } | null)?.id,
+          })
+          .catch(() => undefined);
+      }
       setText("");
       onCreated();
     } finally {

@@ -3001,6 +3001,27 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-07-10 ✅ COMPLETADA — Nudges post-ejercicio (backlog #2)
+
+**Rama:** `feature/post-exercise-nudges` · **PR #494** (develop) + sync a main
+**Bitácora:** [docs/informes/sprint-post-exercise-nudges.md](docs/informes/sprint-post-exercise-nudges.md)
+**Tests:** Web 286 (+5) · Mobile 63 (+5) · API 783/784 · Crypto 34 · typecheck ×3 + lints + OpenAPI verdes.
+
+**Qué cierra:** segundo ítem del backlog. Al **terminar** una actividad, invita a seguir en vez de dejar un callejón: la **respiración** (fase "Listo") muestra dos CTAs suaves («🪷 Escribir cómo me siento» → Reflexión sembrada · «🌿 Conversar con Eco» → Eco sembrado); la **reflexión guardada** añade «🌿 Conversarlo con Eco» que salta a la pestaña Eco. Cero backend, cero migración, todo cliente reusando el dock/sheet.
+
+**Cómo:**
+- Seeds compartidos en `@psico/types/chapter-exercises.ts`: `breatheReflectSeed`, `breatheEcoSeed`, `reflexionEcoSeed` (web + mobile dicen lo mismo).
+- Web: `BreathingExercise` gana `onReflect?`/`onAskEco?`; `ReflexionTab` gana `onAskEco?`; `ReaderCompanionDock` los propaga; `LectorShell` centraliza el patrón de apertura en `openEcoInDock`/`openReflexionInDock` y los reusa en los 4 sitios (reduce duplicación).
+- Mobile: paridad — `BreathingExercise` + `ReflexionSheetTab` + `ReaderCompanionSheet` + la pantalla reusa el `openCompanion(tab, opts)` existente.
+
+**Privacidad (ADR 0007):** los nudges solo abren una superficie / siembran un composer con texto genérico nuestro; la reflexión se cifra como siempre y ningún texto del usuario viaja entre pantallas.
+
+**Tests:** `BreathingExercise.test.tsx` web (+5, `vi.useFakeTimers`) y mobile (+5, `jest.useFakeTimers` + `clearAllTimers` en afterEach para callar el loop de Animated tras el unmount).
+
+**Deuda (backlog aprobado):** sugerencias adaptativas de Eco *(siguiente)* · reproductor de video real · character-level highlights mobile · subir los m4a a R2.
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

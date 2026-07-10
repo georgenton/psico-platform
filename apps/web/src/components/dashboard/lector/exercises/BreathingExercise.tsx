@@ -22,9 +22,15 @@ const PHASE_LABEL: Record<Phase, string> = {
 export function BreathingExercise({
   exercise,
   onClose,
+  onReflect,
+  onAskEco,
 }: {
   exercise: BreatheExercise;
   onClose: () => void;
+  /** Post-exercise nudge — write how you feel now (opens Reflexión). */
+  onReflect?: () => void;
+  /** Post-exercise nudge — take the calm into a chat with Eco. */
+  onAskEco?: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>("inhale");
   const [cycle, setCycle] = useState(1);
@@ -124,10 +130,48 @@ export function BreathingExercise({
         </p>
       )}
 
+      {/* Post-exercise nudge — invite to reflect or converse (backlog). */}
+      {phase === "done" && (onReflect || onAskEco) ? (
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+          {onReflect ? (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onReflect();
+              }}
+              className="rounded-full border px-4 py-2 text-[12.5px] font-semibold"
+              style={{
+                borderColor: "rgba(255,255,255,0.25)",
+                color: "white",
+              }}
+            >
+              🪷 Escribir cómo me siento
+            </button>
+          ) : null}
+          {onAskEco ? (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onAskEco();
+              }}
+              className="rounded-full border px-4 py-2 text-[12.5px] font-semibold"
+              style={{
+                borderColor: "rgba(255,255,255,0.25)",
+                color: "white",
+              }}
+            >
+              🌿 Conversar con Eco
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       <button
         type="button"
         onClick={onClose}
-        className="mt-8 rounded-full px-6 py-2.5 text-[13px] font-semibold"
+        className="mt-6 rounded-full px-6 py-2.5 text-[13px] font-semibold"
         style={{
           background:
             phase === "done"

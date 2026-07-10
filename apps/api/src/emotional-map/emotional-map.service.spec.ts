@@ -345,8 +345,12 @@ describe("EmotionalMapService — hybrid rework (confidence per axis)", () => {
     expect(result.affectDynamics?.status).toBe("active");
     expect(result.affectDynamics?.nObs).toBe(40);
     expect(result.affectDynamics?.baseline).not.toBeNull();
-    expect(result.affectDynamics?.recovery).not.toBeNull();
-    expect(result.affectDynamics?.inertiaDays).not.toBeNull();
+    // Fase B' (L1): recovery/inertia are gated until ~100 observations —
+    // theta is unidentifiable below that (paper-1-results E1), so 40 obs
+    // yields baseline/stability but NO public recovery claim.
+    expect(result.affectDynamics?.recoveryNeeded).toBe(100);
+    expect(result.affectDynamics?.recovery).toBeNull();
+    expect(result.affectDynamics?.inertiaDays).toBeNull();
   });
 
   it("surfaces a 'gathering' affect-dynamics block below the observation floor", async () => {

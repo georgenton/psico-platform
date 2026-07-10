@@ -1,10 +1,10 @@
 import type { EmotionalMapAffectDynamics } from "@psico/types";
 
 /**
- * affect-copy (mobile) — same translation layer as the web helper: turns the
- * affect-dynamics model output into warm, human Spanish. Buckets are
- * presentation thresholds validated against the persona benchmark. Keep in
- * sync with apps/web/src/components/dashboard/mapa/affect-copy.ts.
+ * affect-copy (mobile) — same DESCRIPTIVE translation layer as the web helper.
+ * Fase B' copy contract: describes patterns in the records, never evaluates
+ * the person. Keep in sync with
+ * apps/web/src/components/dashboard/mapa/affect-copy.ts.
  */
 
 export type BaselineLevel = "high" | "medium" | "low";
@@ -29,6 +29,16 @@ export function stabilityLevel(v: number): StabilityLevel {
   return "volatile";
 }
 
+/**
+ * Honest evidence label for the analysis footer — replaces the old certainty
+ * percentage (an n/40 ratio read as certainty; real CI coverage ≈78%, E3).
+ */
+export function evidenceBaseLabel(nObs: number): string {
+  if (nObs < 20) return "base limitada";
+  if (nObs < 100) return "base moderada";
+  return "base más sólida";
+}
+
 export interface AffectPhrase {
   title: string;
   body: string;
@@ -36,93 +46,74 @@ export interface AffectPhrase {
 
 export const BASELINE_COPY: Record<BaselineLevel, AffectPhrase> = {
   high: {
-    title: "Tu ánimo de base es bueno",
-    body: "La mayoría de los días estás en un punto positivo.",
+    title: "Nivel central en categorías agradables",
+    body: "Tus registros recientes se concentran en categorías que marcaste como agradables.",
   },
   medium: {
-    title: "Tu ánimo de base es equilibrado",
-    body: "Te mueves alrededor de un punto medio, sin extremos.",
+    title: "Nivel central en categorías intermedias",
+    body: "Tus registros se mueven alrededor de un punto intermedio.",
   },
   low: {
-    title: "Tu base está más abajo estos días",
-    body: "Tu punto de retorno anda bajo últimamente. Sé amable contigo — registrar cómo te sientes ya es un paso.",
+    title: "Nivel central en categorías menos agradables",
+    body: "Tus registros recientes se concentran en categorías menos agradables. Registrar cómo te sientes ya es un paso.",
   },
 };
 
 export const RECOVERY_COPY: Record<RecoveryLevel, AffectPhrase> = {
   fast: {
-    title: "Te recuperas rápido",
-    body: "Cuando tienes un mal día, no se te queda pegado — vuelves pronto a tu base.",
+    title: "Ritmo de retorno estimado: rápido",
+    body: "Después de un cambio, tus registros tienden a volver pronto a tu nivel habitual (estimación).",
   },
   moderate: {
-    title: "Te recuperas a tu ritmo",
-    body: "Después de un bajón, tu ánimo vuelve a su base en unos días.",
+    title: "Ritmo de retorno estimado: gradual",
+    body: "Después de un cambio, tus registros vuelven a tu nivel habitual en unos días (estimación).",
   },
   slow: {
-    title: "Tus emociones toman su tiempo",
-    body: "Cuando algo te mueve, tu ánimo tarda en volver a su base. Está bien darte ese espacio.",
+    title: "Ritmo de retorno estimado: pausado",
+    body: "Después de un cambio, tus registros toman su tiempo en volver a tu nivel habitual. Está bien darte ese espacio.",
   },
 };
 
 export const STABILITY_COPY: Record<StabilityLevel, AffectPhrase> = {
   steady: {
-    title: "Tu ánimo es muy parejo",
-    body: "Se mantiene estable de un día a otro, casi sin sobresaltos.",
+    title: "Variación baja alrededor de tu tendencia",
+    body: "Tus registros cambian poco de un día a otro.",
   },
   variable: {
-    title: "Tienes altibajos normales",
-    body: "Tu ánimo se mueve de un día a otro, pero dentro de un rango sano.",
+    title: "Variación moderada alrededor de tu tendencia",
+    body: "Tus registros se mueven de un día a otro alrededor de tu tendencia.",
   },
   volatile: {
-    title: "Tu ánimo cambia con fuerza",
-    body: "Pasas de días muy arriba a días muy abajo. Conocer qué lo mueve es el primer paso.",
+    title: "Variación alta alrededor de tu tendencia",
+    body: "Tus registros se mueven bastante de un día a otro. Conocer qué los mueve puede ayudarte a leerlos.",
   },
 };
 
-/** One warm opening sentence composed from the strongest signals. */
+/** One descriptive opening sentence — never an evaluation of the person. */
 export function affectHeadline(
   baseline: BaselineLevel,
-  recovery: RecoveryLevel | null,
   trend?: "up" | "down" | null,
 ): string {
-  // Etapa 4 — a detected direction is the strongest story: lead with it.
   if (trend === "up") {
-    return "Vas en buena dirección: tu ánimo viene subiendo estas semanas.";
+    return "Durante las últimas semanas, tus registros han tendido hacia categorías que marcaste como más agradables.";
   }
   if (trend === "down") {
-    return "Estas semanas tu ánimo viene bajando un poco. Gracias por seguir registrándolo — notarlo ya es cuidarte.";
+    return "Durante las últimas semanas, tus registros han tendido hacia categorías que marcaste como menos agradables. Gracias por seguir registrando.";
   }
-  if (baseline === "high" && recovery === "fast") {
-    return "Sueles estar en un buen lugar, y cuando bajas, te recuperas rápido.";
-  }
-  if (baseline === "high") return "Sueles estar en un buen lugar.";
-  if (baseline === "low" && recovery === "slow") {
-    return "Estos días cuesta un poco más — y está bien ir a tu ritmo.";
+  if (baseline === "high") {
+    return "Tus registros recientes se concentran en categorías agradables.";
   }
   if (baseline === "low") {
-    return "Estos días tu ánimo anda más abajo. Gracias por seguir registrándolo.";
+    return "Estos días tus registros se concentran en categorías menos agradables. Gracias por seguir registrando.";
   }
-  if (recovery === "fast") return "Cuando tu ánimo baja, se recupera rápido.";
-  return "Así se está moviendo tu ánimo últimamente.";
+  return "Así se han movido tus registros últimamente.";
 }
 
-/**
- * Etapa 4 — short explainer shown when a direction was detected, so the user
- * understands the stability card measures the day-to-day around their path.
- */
+/** Etapa 4 — explainer shown when a direction was detected. */
 export const TREND_NOTE: Record<"up" | "down", string> = {
-  up: "Tu tono de hoy refleja dónde estás ahora, no el promedio del mes. Y la estabilidad se mide sobre tu camino: subir no cuenta como inestabilidad.",
-  down: "Tu tono de hoy refleja dónde estás ahora, no el promedio del mes. Bajar tampoco cuenta como inestabilidad — son cosas distintas.",
+  up: "El nivel reciente refleja dónde están tus registros ahora, no el promedio del período. La variación se mide alrededor de tu tendencia: subir no cuenta como inestabilidad.",
+  down: "El nivel reciente refleja dónde están tus registros ahora, no el promedio del período. Bajar tampoco cuenta como inestabilidad — son cosas distintas.",
 };
-
-/**
- * Etapa 5 — kind self-care nudge shown ONLY when the early-warning signal is
- * rising (rolling autocorrelation + variance both trending up, ≥60 registros,
- * ~6% false-alarm rate under the null). Deliberately soft and non-diagnostic:
- * an invitation, never an alarm.
- */
-export const EWS_NOTE =
-  "Señal temprana: últimamente tu ánimo se mueve más y tarda más en soltar lo que carga. No es un diagnóstico — tómalo como una invitación a cuidarte con más intención estos días, y si lo sientes pesado, hablarlo con alguien de confianza ayuda.";
 
 export interface AffectStoryRow {
   key: "baseline" | "recovery" | "stability";
@@ -147,11 +138,12 @@ export interface AffectStory {
   trend: "up" | "down" | null;
   /** Explainer for the trend (null when the mood is stationary). */
   trendNote: string | null;
-  /** Etapa 5 — self-care nudge, non-null ONLY when the EWS is rising. */
-  ewsNote: string | null;
 }
 
-/** Build the full human story from an ACTIVE affect-dynamics block. */
+/**
+ * Build the full descriptive story from an ACTIVE affect-dynamics block.
+ * Recovery is gated until ~100 records (theta identifiability, paper E1).
+ */
 export function buildAffectStory(
   data: EmotionalMapAffectDynamics,
 ): AffectStory {
@@ -160,15 +152,13 @@ export function buildAffectStory(
   const stab = stabilityLevel(data.stability ?? 0.5);
   const missing = Math.max(0, data.recoveryNeeded - data.nObs);
   const trend = data.trend ?? null;
-  // Etapa 3 — half-widths (0–1) → % points; drop zero-margins as noise.
   const marginPct = (m: number | null | undefined): number | null =>
     m != null && m > 0.004 ? Math.round(m * 100) : null;
 
   return {
-    headline: affectHeadline(base, rec, trend),
+    headline: affectHeadline(base, trend),
     trend,
     trendNote: trend ? TREND_NOTE[trend] : null,
-    ewsNote: data.ews?.status === "rising" ? EWS_NOTE : null,
     rows: [
       {
         key: "baseline",

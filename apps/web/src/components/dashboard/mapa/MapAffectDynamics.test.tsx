@@ -41,26 +41,36 @@ describe("MapAffectDynamics", () => {
       inertiaDays: 0.2,
     };
     render(<MapAffectDynamics data={data} />);
-    // Warm headline composed from the strongest signals.
+    // Fase B' — descriptive headline (never an evaluation of the person).
     expect(
       screen.getByText(
-        "Sueles estar en un buen lugar, y cuando bajas, te recuperas rápido.",
+        "Tus registros recientes se concentran en categorías agradables.",
       ),
     ).toBeInTheDocument();
-    // Human phrases, not parameter names.
-    expect(screen.getByText("Tu ánimo de base es bueno")).toBeInTheDocument();
-    expect(screen.getByText("Te recuperas rápido")).toBeInTheDocument();
-    expect(screen.getByText("Tienes altibajos normales")).toBeInTheDocument();
+    // Descriptive phrases, not evaluative claims.
+    expect(
+      screen.getByText("Nivel central en categorías agradables"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Ritmo de retorno estimado: rápido"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Variación moderada alrededor de tu tendencia"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Tono base")).not.toBeInTheDocument();
     // Hybrid: the numbers stay as small chips.
     expect(screen.getByText("72%")).toBeInTheDocument();
     expect(screen.getByText("83%")).toBeInTheDocument();
     expect(screen.getByText("66%")).toBeInTheDocument();
-    // Footer: confidence + human inertia ("unas horas" for 0.2d).
-    expect(screen.getByText(/Confianza 100%/)).toBeInTheDocument();
+    // Footer: honest evidence label (no certainty percentage) + inertia.
+    expect(
+      screen.getByText(/Basado en 42 registros de ánimo · base moderada/),
+    ).toBeInTheDocument();
     expect(screen.getByText(/unas horas/)).toBeInTheDocument();
     // Non-diagnostic disclaimer present.
-    expect(screen.getByText(/no.*un diagnóstico/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/no constituyen un diagnóstico/i),
+    ).toBeInTheDocument();
   });
 
   it("Etapa 4: leads with the direction and explains the detrended stability", () => {
@@ -78,10 +88,10 @@ describe("MapAffectDynamics", () => {
       trend: "up",
     };
     render(<MapAffectDynamics data={data} />);
-    // The trend IS the headline.
+    // The trend IS the headline — described neutrally (Fase B' §23.5).
     expect(
       screen.getByText(
-        "Vas en buena dirección: tu ánimo viene subiendo estas semanas.",
+        "Durante las últimas semanas, tus registros han tendido hacia categorías que marcaste como más agradables.",
       ),
     ).toBeInTheDocument();
     // Explainer: current level ≠ window average; rising ≠ instability.
@@ -89,7 +99,9 @@ describe("MapAffectDynamics", () => {
       screen.getByText(/subir no cuenta como inestabilidad/i),
     ).toBeInTheDocument();
     // The three cards still render beneath.
-    expect(screen.getByText("Tu ánimo de base es bueno")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nivel central en categorías agradables"),
+    ).toBeInTheDocument();
   });
 
   it("Etapa 4: no trend banner when the mood is stationary", () => {
@@ -153,12 +165,14 @@ describe("MapAffectDynamics", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("Etapa 5: shows the kind self-care nudge ONLY when the EWS is rising", () => {
+  it("Fase B' (L1): renders NO early-warning note even when a cached blob carries EWS data", () => {
+    // EWS-R1 is research-only (sensitivity 40%, paper E5). Even if a cached
+    // response still carries the block, the UI must not surface it.
     const base: EmotionalMapAffectDynamics = {
       status: "active",
       nObs: 90,
       needed: 8,
-      recoveryNeeded: 20,
+      recoveryNeeded: 100,
       confidence: 1,
       baseline: 0.4,
       recovery: 0.4,
@@ -168,11 +182,8 @@ describe("MapAffectDynamics", () => {
       ews: { status: "rising", tauAc: 0.87, tauVar: 0.84, needed: 60 },
     };
     render(<MapAffectDynamics data={base} />);
-    expect(screen.getByText(/Señal temprana/)).toBeInTheDocument();
-    // Non-diagnostic, kind framing.
-    expect(screen.getByText(/No es un diagnóstico/)).toBeInTheDocument();
+    expect(screen.queryByText(/Señal temprana/)).not.toBeInTheDocument();
 
-    // Steady or insufficient → no nudge (and cached pre-Etapa-5 blobs too).
     cleanup();
     render(
       <MapAffectDynamics
@@ -185,13 +196,13 @@ describe("MapAffectDynamics", () => {
     expect(screen.queryByText(/Señal temprana/)).not.toBeInTheDocument();
   });
 
-  it("Etapa 1: gates the recovery row with a 'reuniendo' note until enough data", () => {
+  it("Etapa 1 + Fase B': gates the recovery row with an honest note until ~100 obs", () => {
     // Active with baseline + stability, but θ-derived axes still withheld.
     const data: EmotionalMapAffectDynamics = {
       status: "active",
       nObs: 12,
       needed: 8,
-      recoveryNeeded: 20,
+      recoveryNeeded: 100,
       confidence: 0.3,
       baseline: 0.72,
       recovery: null,
@@ -200,13 +211,17 @@ describe("MapAffectDynamics", () => {
     };
     render(<MapAffectDynamics data={data} />);
     // Baseline + stability phrases show with their chips.
-    expect(screen.getByText("Tu ánimo de base es bueno")).toBeInTheDocument();
-    expect(screen.getByText("Tienes altibajos normales")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nivel central en categorías agradables"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Variación moderada alrededor de tu tendencia"),
+    ).toBeInTheDocument();
     expect(screen.getByText("72%")).toBeInTheDocument();
     expect(screen.getByText("55%")).toBeInTheDocument();
-    // Recovery row shows the gathering note with the remaining count (8 more).
+    // Recovery row shows the gathering note with the remaining count (88 more).
     expect(
-      screen.getByText(/reuniendo datos · ~8 registros más/i),
+      screen.getByText(/reuniendo más información · ~88 registros más/i),
     ).toBeInTheDocument();
   });
 });

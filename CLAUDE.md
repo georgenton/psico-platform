@@ -3049,7 +3049,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
-### Sesión — 2026-07-11 ✅ EN CURSO — Mapa Emocional V2 · Fase A (auditoría) + Fase B (contratos)
+### Sesión — 2026-07-11 ✅ COMPLETADA — Mapa Emocional V2 · Fase A (auditoría) + Fase B (contratos)
 
 **Rama:** `feature/emotional-map-v2-fase-b`
 **Bitácora:** [docs/informes/sprint-v2-fase-b-contratos.md](docs/informes/sprint-v2-fase-b-contratos.md)
@@ -3066,7 +3066,28 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 - **Fix privacidad:** FK CASCADE `DiaryTextFeature.entryId → DiaryEntry` (migración `20260711000000_text_feature_entry_cascade` con limpieza de huérfanos).
 - Ratchets: `emotional-map.v2-contract.spec.ts` (violaciones 5.1/5.2/5.3 pineadas + tests de palancas) y `copy-contract.spec.ts` (15 términos prohibidos × 8 archivos públicos, snapshot exacto de hoy).
 
-**Decisiones pendientes de aprobación (L1–L6, detalle en emotional-map-v2.md §6):** L1 hotfix B' (EWS off + gate recuperación 20→100 + copy neutro) · L2 radar restringido a autoinforme · L3 LLM→Narrator · L4 opt-in análisis local · L6 alcance LearningDashboard.
+**Decisiones pendientes de aprobación (L1–L6, detalle en emotional-map-v2.md §6):** ~~L1 hotfix B'~~ (✅ aprobada e implementada — ver sesión siguiente) · L2 radar restringido a autoinforme · L3 LLM→Narrator · L4 opt-in análisis local · L6 alcance LearningDashboard.
+
+---
+
+### Sesión — 2026-07-11 ✅ COMPLETADA — Mapa Emocional V2 · Fase B' (hotfix L1)
+
+**Rama:** `feature/emotional-map-hotfix-b-prime`
+**Bitácora:** [docs/informes/sprint-v2-fase-b-prime-hotfix.md](docs/informes/sprint-v2-fase-b-prime-hotfix.md)
+**Tests:** API 797/798 (1 skipped sentinel) · Web 299 · Mobile 65 · typecheck ×3 + lints + OpenAPI verdes.
+
+**Qué cierra:** la decisión **L1** aprobada por el usuario ("vamos con L1") — los tres claims públicos que el paper no sostiene, usando las palancas pre-cableadas en Fase B:
+
+1. **EWS fuera del wire público** — `EMOTIONAL_MAP_EWS_PUBLIC` default off (sensibilidad 40 %, E5). El detector sigue corriendo interno para research/banco (la función pura mantiene default true; persona `senal-temprana` intacta). La UI además ignora `ews` defensivamente aunque un blob cacheado lo traiga.
+2. **Gate de recuperación 20 → 100** — `RECOVERY_MIN_OBS = 100` (θ no identificable bajo n≈100, E1). Fila con nota honesta "Reuniendo más información · ~N registros más".
+3. **Copy afectivo neutro descriptivo** — twins `affect-copy.ts` reescritos: "Nivel central en categorías agradables" (no "tu ánimo de base es bueno"), "Ritmo de retorno estimado" (no "te recuperas rápido"), "Variación alrededor de tu tendencia" (no "muy parejo"); headlines de tendencia neutrales. "Confianza N %" → `evidenceBaseLabel` (base limitada/moderada/más sólida). `EWS_NOTE`/`ewsNote` eliminados.
+4. **Landing sin claim falso** — chat demo ya no dice "releyendo lo que escribiste esta semana" (imposible con E2E); Eco reflexiona sobre la conversación presente y la resonancia se propone confirmable.
+
+**Ratchets encogidos (nunca crecen):** `copy-contract.spec.ts` 8 → 5 archivos pineados (MapAffectDynamics + ambos affect-copy limpios); "KNOWN VIOLATION 7.4" del v2-contract reemplazada por asserts del flag OFF + vista research viva.
+
+**Sin migración, sin endpoint nuevo, sin cambio de shape** — `ews` era opcional desde Etapa 5. ADR 0007 intacto.
+
+**Decisiones abiertas restantes:** L2 (radar solo autoinforme) · L3 (LLM→Narrator) · L4 (opt-in análisis local) · L6 (LearningDashboard) — ver `docs/architecture/emotional-map-v2.md` §6.
 
 ---
 

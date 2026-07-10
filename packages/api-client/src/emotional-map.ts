@@ -1,4 +1,8 @@
-import type { EmotionalMapResult } from "@psico/types";
+import type {
+  EmotionalMapResult,
+  LogTextFeaturesRequest,
+  LogTextFeaturesResponse,
+} from "@psico/types";
 import { apiClient } from "./client";
 
 /**
@@ -11,4 +15,13 @@ import { apiClient } from "./client";
  */
 export const emotionalMapApi = {
   get: () => apiClient.get<EmotionalMapResult>("/emotional-map"),
+  /**
+   * Etapa 6 — upload the NUMERIC features the device computed from a
+   * decrypted reflection. The text itself never goes on the wire.
+   */
+  logTextFeatures: (body: LogTextFeaturesRequest) =>
+    apiClient.post<LogTextFeaturesResponse>(
+      "/emotional-map/text-features",
+      body,
+    ),
 };

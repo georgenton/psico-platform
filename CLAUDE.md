@@ -2880,6 +2880,24 @@ Cierra deuda explícita del Sprint 3 (`sprint-e2e-rekey-lectorshell`): el DTO va
 
 ---
 
+### Sesión — 2026-07-09 ✅ COMPLETADA — Mapa Emocional · Etapa 6 (análisis on-device del texto · Fase B)
+
+**Rama:** `feature/emotional-map-stage-6-ondevice`
+**Tests:** API 783/784 (+12: 9 text-features.spec + 3 service) · Web 274 · Mobile 48 · typecheck ×3 + lints + privacy ×4 + OpenAPI verdes.
+
+**Qué cierra:** la última etapa de producto del roadmap — el texto del diario (la señal más rica) alimenta el mapa SIN romper el E2E: el cliente descifra (ya lo hacía en el composer), analiza localmente, y **solo suben números**.
+
+- **Analizador compartido** `analyzeReflectionText` en `@psico/types/text-features.ts` — UNA fuente para web y mobile (cero divergencia). Léxico ES curado (acentos normalizados): auto-foco (Pennebaker), lenguaje absolutista (Al-Mosaiwi 2018), affect labeling, insight/causal, self-kind vs self-critic. Devuelve 10 densidades 0–1 + wordCount; null bajo 5 tokens.
+- **Schema:** `DiaryTextFeature` (SOLO columnas numéricas + `entryId? @unique` para upsert). Migración `20260709235000_stage6_diary_text_feature` aditiva.
+- **Endpoint:** `POST /api/emotional-map/text-features` — DTO numbers-only (`@IsNumber @Min(0) @Max(1)` × 9 + wordCount), guard de ownership sobre entryId (403 `TEXT_FEATURE_NOT_YOURS`), invalidación del cache del mapa fire-and-forget.
+- **Scoring:** `computeTextAxes` — claridad = insight+causal; consciencia = affect labeling; compasión = balance kind−critic alrededor de 0.5 (calla sin evidencia de self-talk). Confianza satura a `TEXT_GOOD_N=8` entradas. **Precedencia: checkin > texto > LLM** (ambos como Medido; source «El lenguaje de tus reflexiones — analizado en tu dispositivo; solo números salen de él»).
+- **Clients:** hooks post-guardado en composers web + mobile (best-effort, jamás afecta el guardado). `emotionalMapApi.logTextFeatures` nuevo.
+- **Seed demo:** cuentas ≥14 días reciben features verosímiles por arquetipo (re-correr `node scripts/seed-demo-users.mjs` post-deploy).
+
+**Privacidad (ADR 0007):** el DTO no tiene NINGÚN campo capaz de portar texto; whitelist pipe descarta extras; la tabla no tiene columna de texto. El servidor sigue sin poder leer ni una palabra del diario.
+
+---
+
 ### 🗺️ Roadmap por etapas — Mapa Emocional (acordado 2026-07-09)
 
 Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de la Etapa 0.
@@ -2892,7 +2910,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 | **3** | Intervalos ± (bootstrap) visibles en la UI — `bootstrapAxesCI` en espacio de ejes; chips "72% ±8" + nota en el footer; márgenes se encogen con la historia | ✅ **HECHO** |
 | **4** | **Modelo v1 ordinal-latente con tendencia** — `x(t) = a + b·t + OU`; estabilidad sobre residuos detrendados, tono = nivel actual, `trend` up/down en el wire. Cierra el hallazgo de la Etapa 0 | ✅ **HECHO** |
 | **5** | EWS / resiliencia (critical slowing down) — detector calibrado (FP 6%, gate ≥60 obs) + nudge no-diagnóstico + E5/E6 del paper | ✅ **HECHO** |
-| **6** | Análisis on-device del texto (Fase B / Capa 8) — el cliente descifra, analiza local, sube solo números. Respeta E2E | ⬜ siguiente |
+| **6** | Análisis on-device del texto (Fase B / Capa 8) — analizador ES compartido en @psico/types, 10 features numéricos, precedencia checkin > texto > LLM. Respeta E2E | ✅ **HECHO** |
 | **R** | Research: Bayesiano/partículas, DSEM/mlVAR networks, NSGA-II multiobjetivo, validación clínica | ⬜ paper |
 
 **Banco end-to-end real** (inyectar personas en DB de prueba + llamar la API real) queda como siguiente sabor del banco cuando se justifique probar la fontanería completa.

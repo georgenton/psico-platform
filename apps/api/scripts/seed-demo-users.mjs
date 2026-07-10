@@ -220,6 +220,37 @@ async function main() {
         await prisma.checkinResponse.createMany({ data: checkinRows });
       }
 
+      // ── On-device text features (Etapa 6). In production the CLIENT
+      // analyzes the decrypted reflection and uploads only these numbers;
+      // for demo accounts we seed plausible densities per archetype so the
+      // "analizado en tu dispositivo" source lights up. NUMBERS ONLY.
+      await prisma.diaryTextFeature.deleteMany({
+        where: { userId: user.id, createdAt: { gte: windowStart } },
+      });
+      if (u.days >= 14) {
+        const kind = u.pattern === "volatile" ? 0.005 : 0.02;
+        const critic = u.pattern === "volatile" ? 0.02 : 0.002;
+        const featureRows = [];
+        const featureDays = Math.min(u.days, 30);
+        for (let d = featureDays - 1; d >= 0; d -= 3) {
+          featureRows.push({
+            userId: user.id,
+            wordCount: 60 + Math.floor(Math.random() * 80),
+            selfFocus: 0.04 + Math.random() * 0.03,
+            positive: u.pattern === "volatile" ? 0.01 : 0.03,
+            negative: u.pattern === "volatile" ? 0.04 : 0.015,
+            insight: 0.02 + Math.random() * 0.02,
+            causal: 0.015 + Math.random() * 0.01,
+            absolutist: u.pattern === "volatile" ? 0.02 : 0.005,
+            social: 0.015,
+            selfKind: kind,
+            selfCritic: critic,
+            createdAt: new Date(now - d * DAY - Math.floor(Math.random() * DAY)),
+          });
+        }
+        await prisma.diaryTextFeature.createMany({ data: featureRows });
+      }
+
       // ── A reading session → Conexión / Propósito axes
       if (u.reading && chapter) {
         await prisma.readingSession.upsert({

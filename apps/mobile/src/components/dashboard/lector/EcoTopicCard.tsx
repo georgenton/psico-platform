@@ -10,18 +10,23 @@ import { setEcoReaderHandoff } from "@/lib/eco/reader-handoff";
  *
  * A small, dismissible invitation shown near the top of a chapter, offering a
  * curated topic to explore with Eco (see ECO_CHAPTER_PROMPTS in @psico/types,
- * with a title-based fallback). Tapping it seeds the Eco composer via the
- * reader→Eco handoff and navigates to the Eco tab. Discreet by design — it
- * never blocks reading and can be dismissed for the session.
+ * with a title-based fallback). Discreet by design — it never blocks reading
+ * and can be dismissed for the session.
+ *
+ * When `onOpenEco` is provided (the reader), tapping opens the companion sheet
+ * on the Eco tab with the topic seeded — no navigation. Without it, it falls
+ * back to the reader→Eco handoff + navigating to the Eco tab.
  */
 export function EcoTopicCard({
   bookSlug,
   chapterOrder,
   chapterTitle,
+  onOpenEco,
 }: {
   bookSlug: string;
   chapterOrder: number;
   chapterTitle: string;
+  onOpenEco?: (prompt: string) => void;
 }) {
   const router = useRouter();
   const [dismissed, setDismissed] = useState(false);
@@ -47,6 +52,10 @@ export function EcoTopicCard({
       </View>
       <Pressable
         onPress={() => {
+          if (onOpenEco) {
+            onOpenEco(topic.prompt);
+            return;
+          }
           setEcoReaderHandoff(topic.prompt, {
             bookSlug,
             chapterOrder,

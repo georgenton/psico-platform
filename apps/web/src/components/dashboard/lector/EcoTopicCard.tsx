@@ -18,10 +18,14 @@ export function EcoTopicCard({
   bookSlug,
   chapterOrder,
   chapterTitle,
+  onOpen,
 }: {
   bookSlug: string;
   chapterOrder: number;
   chapterTitle: string;
+  /** When provided (the reader), open the companion dock on Eco with the
+   * topic seeded instead of navigating to /dashboard/eco. */
+  onOpen?: (prompt: string) => void;
 }) {
   const router = useRouter();
   const [dismissed, setDismissed] = useState(false);
@@ -68,6 +72,10 @@ export function EcoTopicCard({
       <button
         type="button"
         onClick={() => {
+          if (onOpen) {
+            onOpen(topic.prompt);
+            return;
+          }
           setEcoReaderHandoff(topic.prompt, {
             bookSlug,
             chapterOrder,

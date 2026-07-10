@@ -523,6 +523,10 @@ model Chapter {
   description     String?
   durationMinutes Int?
   isPublished     Boolean  @default(false)
+  // Book part grouping (e.g. "Parte I · Deconstruyendo lo que sabíamos").
+  // Nullable so single-part books just leave them null and render a flat list.
+  partNumber      Int?
+  partTitle       String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

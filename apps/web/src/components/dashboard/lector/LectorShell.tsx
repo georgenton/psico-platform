@@ -432,7 +432,9 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
               className="truncate text-[11px] uppercase tracking-[0.14em]"
               style={{ color: "var(--reader-muted, var(--color-warm-500))" }}
             >
-              {book.title}
+              {chapter.partNumber != null
+                ? `${book.title} · Parte ${romanize(chapter.partNumber)}`
+                : book.title}
             </div>
             <div
               className="truncate text-[13px] font-semibold"
@@ -739,6 +741,11 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
 // Reader themes override a small handful of CSS variables. We do this here
 // (not in global CSS) so the theme is scoped to the reader and doesn't
 // affect the rest of the dashboard.
+
+const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+function romanize(n: number): string {
+  return ROMAN[n] ?? String(n);
+}
 
 function themeStyle(theme: ReaderPrefs["theme"]): React.CSSProperties {
   switch (theme) {

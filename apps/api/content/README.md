@@ -10,14 +10,22 @@ readable, highlightable and annotatable in the Lector.
 ```
 content/<book-slug>/
   titles.json          # { "1": "Título del capítulo 1", ... } (order → title)
+  parts.json           # { "1": { "number": 1, "title": "Parte I …" }, ... }
   capitulo-01.md
   capitulo-02.md
   ...
 ```
 
 `titles.json` supplies the chapter title when a file opens with a narrative
-paragraph instead of a short title line (e.g. chapter 3). The filename's number
-sets the chapter order.
+paragraph instead of a short title line (e.g. chapter 3). `parts.json` maps
+each chapter's order to its book part (`number` + `title`) — the reader and
+the book's table of contents render "Parte I · <title>" headings from it.
+The filename's number sets the chapter order.
+
+Both modes work with ingested chapters: **Modo Libro** shows the blocks;
+**Modo Guía** shows the same blocks with an "Audio en producción" placeholder
+until the chapter's narration is embedded + uploaded (no audio row → the
+placeholder is the honest state).
 
 ## How the parser reads a manuscript
 

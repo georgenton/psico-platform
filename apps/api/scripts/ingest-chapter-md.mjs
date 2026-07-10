@@ -203,10 +203,10 @@ function injectMocks(blocks, title) {
 
 const TITLE_FLAG = flag("title");
 
-/** Load the order→title sidecar next to the chapter files, if present. */
-function loadTitles(dir) {
+/** Load a JSON sidecar next to the chapter files, if present. */
+function loadSidecar(dir, name) {
   try {
-    return JSON.parse(readFileSync(join(dir, "titles.json"), "utf8"));
+    return JSON.parse(readFileSync(join(dir, name), "utf8"));
   } catch {
     return {};
   }
@@ -219,15 +219,23 @@ function chapterFiles() {
       process.exit(1);
     }
     const dir = FILE.replace(/[^/]+$/, "");
-    return [{ path: FILE, order: ORDER, titles: loadTitles(dir) }];
+    return [
+      {
+        path: FILE,
+        order: ORDER,
+        titles: loadSidecar(dir, "titles.json"),
+        parts: loadSidecar(dir, "parts.json"),
+      },
+    ];
   }
-  const titles = loadTitles(DIR);
+  const titles = loadSidecar(DIR, "titles.json");
+  const parts = loadSidecar(DIR, "parts.json");
   return readdirSync(DIR)
     .filter((f) => f.endsWith(".md"))
     .map((f) => {
       const m = f.match(/(\d+)/);
       if (!m) return null;
-      return { path: join(DIR, f), order: Number(m[1]), titles };
+      return { path: join(DIR, f), order: Number(m[1]), titles, parts };
     })
     .filter(Boolean)
     .sort((a, b) => a.order - b.order);
@@ -253,12 +261,15 @@ async function main() {
   }
 
   try {
-    for (const { path, order, titles } of files) {
+    for (const { path, order, titles, parts } of files) {
       const raw = readFileSync(path, "utf8");
       const titleFallback =
         (TITLE_FLAG && TITLE_FLAG !== true ? TITLE_FLAG : null) ??
         titles?.[String(order)] ??
         `Capítulo ${order}`;
+      const part = parts?.[String(order)] ?? null;
+      const partNumber = part?.number ?? null;
+      const partTitle = part?.title ?? null;
       const { title, blocks } = parseChapter(raw, titleFallback);
       const words = blocks.reduce((a, b) => a + b.content.split(/\s+/).length, 0);
       const durationMinutes = Math.max(3, Math.round(words / 180));
@@ -267,8 +278,11 @@ async function main() {
         return a;
       }, {});
 
+      const partLabel = partNumber
+        ? ` · Parte ${partNumber}${partTitle ? ` · ${partTitle}` : ""}`
+        : "";
       console.log(
-        `\n[cap ${order}] "${title}" · ${blocks.length} bloques · ~${durationMinutes} min · ${JSON.stringify(byKind)}`,
+        `\n[cap ${order}] "${title}"${partLabel} · ${blocks.length} bloques · ~${durationMinutes} min · ${JSON.stringify(byKind)}`,
       );
       if (DRY_RUN) {
         for (const [i, b] of blocks.entries()) {
@@ -281,8 +295,8 @@ async function main() {
 
       const chapter = await prisma.chapter.upsert({
         where: { bookId_order: { bookId: book.id, order } },
-        create: { bookId: book.id, order, title, durationMinutes, isPublished: true },
-        update: { title, durationMinutes, isPublished: true },
+        create: { bookId: book.id, order, title, durationMinutes, isPublished: true, partNumber, partTitle },
+        update: { title, durationMinutes, isPublished: true, partNumber, partTitle },
       });
       await prisma.chapterBlock.deleteMany({ where: { chapterId: chapter.id } });
       await prisma.chapterBlock.createMany({

@@ -41,11 +41,10 @@ describe("MODEL_REGISTRY", () => {
       MIN_OBS_FOR_FIT,
     );
     expect(getModel("EWS-R1")?.minimumData.observationCount).toBe(EWS_MIN_OBS);
-    // KNOWN VIOLATION (ratchet): recovery/inertia surface at 20 observations,
-    // but paper-1-results E1 shows theta needs ~100. Raising this gate is
-    // decision L1 (pending sign-off). If this number changes, update the
-    // registry + copy contract in the same PR.
-    expect(RECOVERY_MIN_OBS).toBe(20);
+    // Fase B' (decision L1, approved 2026-07-11): recovery/inertia gate raised
+    // to 100 per paper-1-results E1 (theta unidentified below ~100 obs). If
+    // this number changes, update the registry + copy contract in the same PR.
+    expect(RECOVERY_MIN_OBS).toBe(100);
     // TXT-L1 saturates at TEXT_GOOD_N analyzed entries; CHK-S1 at CHECKIN_GOOD_N
     // answers — the registry floor is the first observation, saturation is the
     // documented full-confidence point.

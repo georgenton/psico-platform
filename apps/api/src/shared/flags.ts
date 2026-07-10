@@ -51,12 +51,13 @@ export const FLAGS = {
   },
   /**
    * Serialize the EWS block (EWS-R1) to public clients. Research shows FP 6% /
-   * sensitivity 40% (paper-1-results.md E5) — target state is OFF (research
-   * only). Default preserves current behavior until product sign-off.
+   * sensitivity 40% (paper-1-results.md E5) — research-only. Default OFF since
+   * Fase B' (decision L1, 2026-07-11): the detector keeps running internally
+   * (benchmark/research), but nothing reaches the public wire.
    */
   EMOTIONAL_MAP_EWS_PUBLIC: {
     env: "EMOTIONAL_MAP_EWS_PUBLIC",
-    default: true,
+    default: false,
     description: "Include the early-warning-signal block in the public wire.",
   },
   /** ARC resonance cycle (Fase E). */

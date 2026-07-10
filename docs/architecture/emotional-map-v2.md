@@ -61,12 +61,12 @@ Secciones independientes en "Tu Mapa Emocional": **Mi momento** (autoinforme) ·
 | 100+        | Ritmo de retorno/persistencia con intervalo (θ identificable, paper E1) |
 | cualquier n | EWS: research-only                                                      |
 
-Estado actual (violación conocida, ratchet en `model-registry.spec.ts`): recuperación/inercia se muestran desde n=20 y "Confianza" llega a 100 % con n=40. Corregirlo es la **decisión L1** (hotfix Fase B').
+Estado tras Fase B' (L1 aplicada): `RECOVERY_MIN_OBS = 100` en el scoring — recuperación/persistencia se retienen hasta n=100 con nota honesta en la UI; "Confianza N %" fue reemplazado por la etiqueta de base de evidencia (`evidenceBaseLabel`: limitada <20 · moderada <100 · más sólida ≥100); el EWS quedó fuera del wire público (`EMOTIONAL_MAP_EWS_PUBLIC` default off, sigue corriendo interno para research/banco). Pendiente del gate: el bloque de tendencia aún se muestra desde n≈8 en vez de n=60 (se alinea en Fase F con la UI V2).
 
 ## 5. Fases
 
-**B (este PR):** Model Registry + flags + contratos + tests de caracterización + FK cascade de `DiaryTextFeature`. Cero cambio público.
-**B' (pendiente L1):** EWS fuera del wire · gate recuperación 20→100 · copy afectivo neutro.
+**B (✅ mergeada):** Model Registry + flags + contratos + tests de caracterización + FK cascade de `DiaryTextFeature`. Cero cambio público.
+**B' (✅ mergeada — L1):** EWS fuera del wire · gate recuperación 20→100 · copy afectivo neutro descriptivo · landing sin claims falsos.
 **C:** LearningDashboard; el scoring V2 deja de leer engagement (flag `EMOTIONAL_MAP_V2`).
 **D:** Evidence Ledger + secciones V2 + opt-in TXT-L1 + borrado/consentimiento.
 **E:** Content graph (Concept/ContentUnit/BookManifest) + ciclo ARC (`CONTENT_RESONANCE`).
@@ -78,11 +78,11 @@ Estado actual (violación conocida, ratchet en `model-registry.spec.ts`): recupe
 
 ## 6. Decisiones abiertas (requieren aprobación)
 
-| #   | Decisión                                                          | Recomendación                                               | Estado       |
-| --- | ----------------------------------------------------------------- | ----------------------------------------------------------- | ------------ |
-| L1  | Hotfix B' (EWS off + gate 100 + copy neutro)                      | Sí — riesgo ético más alto, fix barato                      | ⬜ pendiente |
-| L2  | Radar: solo autoinforme ("Resumen de tus respuestas") vs quitarlo | Conservarlo restringido (mapa se transforma, no se elimina) | ⬜ pendiente |
-| L3  | Provider LLM → Narrator (solo copy) vs eliminar                   | Narrator opcional apagable                                  | ⬜ pendiente |
-| L4  | Opt-in análisis local                                             | Default off + pantalla de consentimiento                    | ⬜ pendiente |
-| L5  | Naming                                                            | Mantener **Eco** / **Psico Platform**                       | ✅ implícita |
-| L6  | Alcance Fase C                                                    | Endpoint + página LearningDashboard propios                 | ⬜ pendiente |
+| #   | Decisión                                                          | Recomendación                                               | Estado                               |
+| --- | ----------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------ |
+| L1  | Hotfix B' (EWS off + gate 100 + copy neutro)                      | Sí — riesgo ético más alto, fix barato                      | ✅ aprobada e implementada (Fase B') |
+| L2  | Radar: solo autoinforme ("Resumen de tus respuestas") vs quitarlo | Conservarlo restringido (mapa se transforma, no se elimina) | ⬜ pendiente                         |
+| L3  | Provider LLM → Narrator (solo copy) vs eliminar                   | Narrator opcional apagable                                  | ⬜ pendiente                         |
+| L4  | Opt-in análisis local                                             | Default off + pantalla de consentimiento                    | ⬜ pendiente                         |
+| L5  | Naming                                                            | Mantener **Eco** / **Psico Platform**                       | ✅ implícita                         |
+| L6  | Alcance Fase C                                                    | Endpoint + página LearningDashboard propios                 | ⬜ pendiente                         |

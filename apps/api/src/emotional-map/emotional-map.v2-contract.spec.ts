@@ -5,6 +5,7 @@ import {
   type EmotionalMapScoringInput,
 } from "./emotional-map.scoring";
 import type { IEmotionalMapProvider } from "./providers/provider.interface";
+import { flagEnabled } from "../shared/flags";
 
 /**
  * Fase B — characterization tests for the V2 data-source contract
@@ -115,7 +116,20 @@ describe("V2 EWS gate — flag plumbing", () => {
     createdAt: day(i * 2),
   }));
 
-  it("KNOWN VIOLATION 7.4 (default): the EWS block is serialized to the client", async () => {
+  it("Fase B' (L1): the EWS flag defaults to OFF — nothing reaches the public wire", () => {
+    const prev = process.env.EMOTIONAL_MAP_EWS_PUBLIC;
+    delete process.env.EMOTIONAL_MAP_EWS_PUBLIC;
+    try {
+      expect(flagEnabled("EMOTIONAL_MAP_EWS_PUBLIC")).toBe(false);
+    } finally {
+      if (prev !== undefined) process.env.EMOTIONAL_MAP_EWS_PUBLIC = prev;
+    }
+  });
+
+  it("research view: the pure scoring still computes EWS when not overridden (benchmark)", async () => {
+    // The scoring FUNCTION defaults to ewsPublic=true so research/benchmark
+    // callers keep seeing the detector; the public wire is governed by the
+    // flag (previous test), which the service passes explicitly.
     const result = await scoreEmotionalMap(
       baseInput({ moodSeries }),
       mockProvider(),

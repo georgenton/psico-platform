@@ -41,10 +41,13 @@ export const OU_MAX_OBS = 1000;
  * Etapa 1 — reliable-axes-first gating. The baseline (μ) and the stationary
  * spread (stability) are identifiable from few observations, so they surface at
  * `MIN_OBS_FOR_FIT`. The recovery speed θ (and its reciprocal, inertia) suffers
- * severe finite-sample bias in short series, so we withhold those two axes until
- * there's enough history to estimate θ with any confidence.
+ * severe finite-sample bias in short series, so we withhold those two axes
+ * until there's enough history to estimate θ with any confidence.
+ *
+ * Fase B' (decision L1): raised 20 → 100 per paper-1-results E1 — θ's RMSE at
+ * n=30 (1.16) exceeds the true value (1.0); it only becomes usable near n≈100.
  */
-export const RECOVERY_MIN_OBS = 20;
+export const RECOVERY_MIN_OBS = 100;
 /**
  * Below this confidence an axis is treated as "still gathering data" — the
  * value is forced to 0 and the client renders "reuniendo datos" instead of a

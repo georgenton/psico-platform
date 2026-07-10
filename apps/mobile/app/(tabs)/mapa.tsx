@@ -21,6 +21,7 @@ import type {
 import { Colors, Radius, Spacing } from "@/theme";
 import {
   buildAffectStory,
+  evidenceBaseLabel,
   formatInertia,
 } from "@/components/dashboard/mapa/affect-copy";
 
@@ -421,15 +422,9 @@ function FeedRow({
 /** Human story for the ACTIVE affect-dynamics block (hybrid: phrase + % chip). */
 function AffectStoryView({ data }: { data: EmotionalMapAffectDynamics }) {
   const story = buildAffectStory(data);
-  const conf = Math.round(data.confidence * 100);
   return (
     <View style={styles.affectStory}>
       <Text style={styles.affectHeadline}>{story.headline}</Text>
-      {story.ewsNote ? (
-        <Text style={[styles.affectTrendNote, styles.affectEwsNote]}>
-          {story.ewsNote}
-        </Text>
-      ) : null}
       {story.trendNote ? (
         <Text
           style={[
@@ -466,27 +461,27 @@ function AffectStoryView({ data }: { data: EmotionalMapAffectDynamics }) {
           ) : (
             <View style={styles.affectRowBody}>
               <Text style={styles.affectRowTitleMuted}>
-                Cómo te recuperas — reuniendo datos
+                Ritmo de retorno — reuniendo más información
                 {row.missing ? ` · ~${row.missing} más` : ""}
               </Text>
               <Text style={styles.affectRowText}>
-                Con unos registros más podremos contarte qué tan rápido vuelves
-                a tu base después de un bajón.
+                Esta estimación necesita bastante historia para ser fiable, así
+                que preferimos esperar antes de mostrar un número.
               </Text>
             </View>
           )}
         </View>
       ))}
       <Text style={styles.affectConf}>
-        Confianza {conf}% · {data.nObs} registros
+        Basado en {data.nObs} registros · {evidenceBaseLabel(data.nObs)}
         {data.inertiaDays != null
-          ? ` · tus estados suelen durar ~${formatInertia(data.inertiaDays)}`
+          ? ` · los cambios persisten ~${formatInertia(data.inertiaDays)} (estimación)`
           : ""}
         .{" "}
         {story.rows.some((r) => r.margin != null)
           ? "El ± marca el rango probable de cada valor. "
           : ""}
-        Mientras más registres, más precisa la estimación.
+        Describe patrones en tus registros — no es un diagnóstico.
       </Text>
     </View>
   );
@@ -817,11 +812,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.warm[50],
     borderColor: Colors.warm[200],
     color: Colors.warm[600],
-  },
-  affectEwsNote: {
-    backgroundColor: Colors.lavender[50],
-    borderColor: Colors.lavender[200],
-    color: Colors.lavender[700],
   },
   affectRow: {
     flexDirection: "row",

@@ -201,12 +201,12 @@ export const LANDING_HTML = String.raw`
           </div>
         </div>
         <div class="bubbles">
-          <div class="bubble eco">Buenas tardes, Ana. Releyendo lo que escribiste esta semana, noto algo. ¿Te late explorarlo?</div>
-          <div class="bubble me">Sí, dime.</div>
-          <span class="insight-tag">Patrón detectado</span>
-          <div class="bubble eco">Cuando hablas de tu trabajo, casi siempre aparece la palabra "debería". Tiendes a medir tu valor por lo que produces.</div>
+          <div class="bubble eco">Buenas tardes, Ana. ¿Quieres contarme cómo va tu semana?</div>
+          <div class="bubble me">Con mucho trabajo… siento que nunca hago suficiente.</div>
+          <span class="insight-tag">Tema sugerido</span>
+          <div class="bubble eco">En lo que me cuentas aparece seguido la palabra "debería". ¿Sientes que mides tu valor por lo que produces?</div>
           <div class="bubble me">…nunca lo había visto así.</div>
-          <div class="bubble eco">Es un descubrimiento valioso. Lo agregué a tu Mapa Emocional. ¿Probamos un ejercicio breve para mirarlo con más calma?</div>
+          <div class="bubble eco">Gracias por compartirlo. Si te resuena, puedes añadir este tema a tu Mapa Emocional. ¿Probamos un ejercicio breve para mirarlo con más calma?</div>
         </div>
         <div class="chat-input">
           <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-warm-400)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 a3 3 0 0 0-3 3 v7 a3 3 0 0 0 6 0 V5 a3 3 0 0 0-3-3 Z"/><path d="M19 10 v2 a7 7 0 0 1-14 0 v-2"/><path d="M12 19 v3"/></svg>

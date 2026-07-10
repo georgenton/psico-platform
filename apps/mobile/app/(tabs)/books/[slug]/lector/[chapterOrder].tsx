@@ -20,7 +20,12 @@ import type {
   HighlightSummary,
   LectorChapterResponse,
 } from "@psico/types";
-import { reflectExerciseSeed } from "@psico/types";
+import {
+  reflectExerciseSeed,
+  breatheReflectSeed,
+  breatheEcoSeed,
+  reflexionEcoSeed,
+} from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 import { LectorAudioBar } from "@/components/dashboard/lector/LectorAudioBar";
 import { EcoTopicCard } from "@/components/dashboard/lector/EcoTopicCard";
@@ -475,6 +480,9 @@ export default function LectorScreen() {
           setSheetEcoSeed(null);
           setSheetReflexionSeed(null);
         }}
+        onReflexionAskEco={() =>
+          openCompanion("eco", { ecoSeed: reflexionEcoSeed() })
+        }
         annotations={annotations}
         pendingBlockId={pendingBlockId}
         onClearPending={() => setPendingBlockId(null)}
@@ -486,6 +494,10 @@ export default function LectorScreen() {
         <BreathingExercise
           exercise={breatheExercise}
           onClose={() => setBreatheExercise(null)}
+          onReflect={() =>
+            openCompanion("reflexion", { reflexionSeed: breatheReflectSeed() })
+          }
+          onAskEco={() => openCompanion("eco", { ecoSeed: breatheEcoSeed() })}
         />
       ) : null}
     </View>

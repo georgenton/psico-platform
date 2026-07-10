@@ -37,10 +37,13 @@ export function reflexionSeed(passage: string): string {
 export function ReflexionSheetTab({
   seed,
   onSeedConsumed,
+  onAskEco,
 }: {
   /** Pre-computed composer seed (a quoted passage or an exercise prompt). */
   seed: string | null;
   onSeedConsumed: () => void;
+  /** Post-save nudge — switch the sheet to Eco, seeded (backlog). */
+  onAskEco?: () => void;
 }) {
   const { key, isLegacyAccount } = useDiaryKey();
   const router = useRouter();
@@ -122,8 +125,13 @@ export function ReflexionSheetTab({
         <Text style={styles.savedBody}>
           Tu reflexión quedó cifrada y sumó a tu Mapa Emocional.
         </Text>
+        {onAskEco ? (
+          <Pressable onPress={onAskEco} style={styles.savedEcoBtn}>
+            <Text style={styles.savedAgainText}>🌿 Conversarlo con Eco</Text>
+          </Pressable>
+        ) : null}
         <Pressable onPress={() => setSaved(false)} style={styles.savedAgainBtn}>
-          <Text style={styles.savedAgainText}>Escribir otra</Text>
+          <Text style={styles.savedAgainTextMuted}>Escribir otra</Text>
         </Pressable>
         <Pressable onPress={() => router.push("/reflexiones" as never)}>
           <Text style={styles.savedLink}>Ver en Reflexiones →</Text>
@@ -255,13 +263,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: Spacing.sm,
   },
+  savedEcoBtn: {
+    borderRadius: 999,
+    backgroundColor: Colors.sage[500],
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: Spacing.xs,
+  },
   savedAgainBtn: {
     borderRadius: 999,
-    backgroundColor: Colors.sage[400],
+    backgroundColor: Colors.warm[100],
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   savedAgainText: { color: "white", fontWeight: "700", fontSize: 12.5 },
+  savedAgainTextMuted: {
+    color: Colors.warm[800],
+    fontWeight: "700",
+    fontSize: 12.5,
+  },
   savedLink: {
     marginTop: 8,
     fontSize: 12.5,

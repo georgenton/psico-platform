@@ -99,3 +99,26 @@ export function chapterExercises(
 export function reflectExerciseSeed(prompt: string): string {
   return `Ejercicio: ${prompt}\n\n`;
 }
+
+/**
+ * Post-exercise nudge seeds (backlog — nudges post-ejercicio).
+ *
+ * When someone FINISHES an activity we gently invite them to keep going:
+ * reflect on how they feel now, or take the calm into a conversation with Eco.
+ * These build the seed text; kept here so web + mobile stay in sync.
+ */
+
+/** After a breathing pause → seed the Reflexión composer. */
+export function breatheReflectSeed(): string {
+  return "Acabo de hacer una pausa de respiración. Ahora mismo me siento… ";
+}
+
+/** After a breathing pause → seed an Eco conversation. */
+export function breatheEcoSeed(): string {
+  return "Acabo de hacer una pausa de respiración antes de seguir leyendo. Me gustaría aprovechar esta calma — ¿por dónde empiezo?";
+}
+
+/** After saving a reflexión → seed an Eco conversation about it. */
+export function reflexionEcoSeed(): string {
+  return "Acabo de escribir una reflexión sobre lo que estoy leyendo y me gustaría conversarlo contigo.";
+}

@@ -2860,6 +2860,26 @@ Cierra deuda explícita del Sprint 3 (`sprint-e2e-rekey-lectorshell`): el DTO va
 
 ---
 
+### Sesión — 2026-07-09 ✅ COMPLETADA — Mapa Emocional · Etapa 5 (EWS / resiliencia + E5/E6 del paper)
+
+**Rama:** `feature/emotional-map-stage-5-ews`
+**Tests:** API 771/772 (+7: E5 + E5b + E6 + 3 ews.spec + 1 benchmark) · Web 274 (+1) · Mobile 48 · typecheck ×3 + lints + privacy + OpenAPI verdes.
+**Docs:** [paper-1-results.md](docs/research/paper-1-results.md) v0.2 (E1–E6 completos) · [emotional-map-benchmark.md](docs/research/emotional-map-benchmark.md) §Etapa 5.
+
+**Qué cierra:** la Etapa 5 del roadmap — early-warning signals por critical slowing down (van de Leemput et al. 2014) + los dos experimentos que faltaban del Paper 1.
+
+- **Detector** (`dynamics/ews.ts`): AC1 + varianza sobre ventanas rodantes (50%) de la serie detrendada; tendencia por Kendall τ; dispara solo si AMBAS suben con τ ≥ 0.65. Gate honesto a ≥60 registros (gates de suficiencia del paper §4.5).
+- **Calibración E5** (falsos positivos bajo el nulo estacionario, R=150): grilla τ×regla → punto de operación **FP 6.0% / sensibilidad 40%** (E5b, θ-ramp). Sensibilidad limitada = limitación conocida de los EWS, declarada, no escondida.
+- **E6** (missingness 20/50/70%, R=30): μ casi inmune (RMSE 0.062→0.073 a 70% missing); σ acotado (0.051→0.135). Respalda el claim "diseñado para dato disperso real".
+- **`simulateOuThetaRamp`** en `synthetic.ts` — θ colapsando linealmente (aproximación a transición) para E5b + banco.
+- **Banco:** persona `senal-temprana` (90d: mitad estable → caminata persistente amplificándose) lee **rising** (τ 0.87/0.84); trimestre estable lee **steady**; todos con n<60 → **insufficient**.
+- **Wire:** `EmotionalMapAffectDynamics.ews?: {status, tauAc, tauVar, needed} | null` (opcional, cache-tolerant).
+- **UI (web + mobile):** nota de autocuidado NO-diagnóstica con tinte lavender, SOLO cuando rising: «Señal temprana: … No es un diagnóstico — tómalo como una invitación a cuidarte…». El flujo de crisis existente queda intacto y separado.
+
+**Privacidad (ADR 0007):** solo matemática sobre la serie ordinal + timestamps. Cero texto.
+
+---
+
 ### 🗺️ Roadmap por etapas — Mapa Emocional (acordado 2026-07-09)
 
 Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de la Etapa 0.
@@ -2871,8 +2891,8 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 | **2** | Micro-checkins (Fase C) — 6 ítems adaptados de instrumentos validados (TMMS-24/SCS-SF/MAAS); Claridad/Compasión/Consciencia pasan a MEDIDOS; persona "checkin diario" en el banco | ✅ **HECHO** |
 | **3** | Intervalos ± (bootstrap) visibles en la UI — `bootstrapAxesCI` en espacio de ejes; chips "72% ±8" + nota en el footer; márgenes se encogen con la historia | ✅ **HECHO** |
 | **4** | **Modelo v1 ordinal-latente con tendencia** — `x(t) = a + b·t + OU`; estabilidad sobre residuos detrendados, tono = nivel actual, `trend` up/down en el wire. Cierra el hallazgo de la Etapa 0 | ✅ **HECHO** |
-| **5** | EWS / resiliencia (critical slowing down) + experimentos E5/E6 del paper | ⬜ |
-| **6** | Análisis on-device del texto (Fase B / Capa 8) — el cliente descifra, analiza local, sube solo números. Respeta E2E | ⬜ |
+| **5** | EWS / resiliencia (critical slowing down) — detector calibrado (FP 6%, gate ≥60 obs) + nudge no-diagnóstico + E5/E6 del paper | ✅ **HECHO** |
+| **6** | Análisis on-device del texto (Fase B / Capa 8) — el cliente descifra, analiza local, sube solo números. Respeta E2E | ⬜ siguiente |
 | **R** | Research: Bayesiano/partículas, DSEM/mlVAR networks, NSGA-II multiobjetivo, validación clínica | ⬜ paper |
 
 **Banco end-to-end real** (inyectar personas en DB de prueba + llamar la API real) queda como siguiente sabor del banco cuando se justifique probar la fontanería completa.

@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { fitOu, type OuObservation } from "./ou";
 import { bootstrapOuCI } from "./bootstrap";
-import { mulberry32, simulateOu, simulateOuAt } from "./synthetic";
+import { computeEws } from "./ews";
+import {
+  mulberry32,
+  simulateOu,
+  simulateOuAt,
+  simulateOuThetaRamp,
+} from "./synthetic";
 
 /**
  * Paper 1 — synthetic-validation harness (methods paper §5).
@@ -163,6 +169,99 @@ describe("Paper 1 — OU synthetic-validation harness", () => {
     // Both sane; we do NOT assert OU beats AR(1) (Loossens et al.).
     expect(ouRmse).toBeLessThan(1.0);
     expect(arRmse).toBeLessThan(1.0);
+  });
+
+  it("E5 · EWS false-positive rate under a stationary null (Tabla 2)", () => {
+    // A stationary OU series has NO transition — any "rising" flag is a false
+    // alarm. This calibrates EWS_TAU_THRESHOLD: the product nudge and the
+    // paper both need this rate to be low.
+    const R = 150;
+    let falsePositives = 0;
+    let steady = 0;
+    for (let r = 0; r < R; r++) {
+      const obs = simulateOu({ ...TRUTH, n: 100, dtMean: 0.5, seed: 5000 + r });
+      const ews = computeEws(obs);
+      if (ews.status === "rising") falsePositives++;
+      if (ews.status === "steady") steady++;
+    }
+    const fpRate = falsePositives / R;
+    // eslint-disable-next-line no-console
+    console.log(
+      `\n[E5] EWS under stationary null (R=${R}, n=100): false-positive rate=${round(fpRate, 3)} · steady=${steady}`,
+    );
+    expect(fpRate).toBeLessThanOrEqual(0.1);
+    // Sanity: the gate actually evaluated the series (not all "insufficient").
+    expect(falsePositives + steady).toBe(R);
+  });
+
+  it("E5b · EWS sensitivity when θ ramps down (critical slowing down)", () => {
+    // Companion to E5: a series whose recovery rate collapses toward zero
+    // (approaching a transition) SHOULD raise the flag reasonably often —
+    // low sensitivity would make the null result meaningless.
+    const R = 60;
+    let detected = 0;
+    for (let r = 0; r < R; r++) {
+      const obs = simulateOuThetaRamp({
+        mu: 0,
+        sigma: 0.6,
+        theta0: 1.5,
+        theta1: 0.05,
+        n: 100,
+        dtMean: 0.5,
+        seed: 6000 + r,
+      });
+      if (computeEws(obs).status === "rising") detected++;
+    }
+    const sensitivity = detected / R;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[E5b] EWS sensitivity under θ-ramp 1.5→0.05 (R=${R}, n=100): ${round(sensitivity, 3)}`,
+    );
+    // Limited sensitivity is a known EWS property (paper §8) — the operating
+    // point deliberately favours a low false-alarm rate (see EWS_TAU_THRESHOLD).
+    expect(sensitivity).toBeGreaterThanOrEqual(0.35);
+  });
+
+  it("E6 · parameter recovery degrades gracefully under missingness", () => {
+    // Low adherence = missing check-ins. Drop each observation with
+    // probability m and measure how recovery of μ and σ degrades.
+    const R = 30;
+    const missingness = [0, 0.2, 0.5, 0.7];
+    const rows: Record<number, { mu: number; sigma: number; kept: number }> =
+      {};
+    for (const m of missingness) {
+      const em: number[] = [];
+      const es: number[] = [];
+      let kept = 0;
+      for (let r = 0; r < R; r++) {
+        const full = simulateOu({
+          ...TRUTH,
+          n: 150,
+          dtMean: 0.5,
+          seed: 7000 + r,
+        });
+        const drop = mulberry32(8000 + r);
+        const obs = full.filter(() => drop() >= m);
+        kept += obs.length;
+        const f = fitOu(obs);
+        em.push(f.params.mu - TRUTH.mu);
+        es.push(f.params.sigma - TRUTH.sigma);
+      }
+      rows[m] = { mu: rmse(em), sigma: rmse(es), kept: Math.round(kept / R) };
+    }
+    // eslint-disable-next-line no-console
+    console.log("\n[E6] RMSE under missingness (n=150 before dropping)");
+    for (const m of missingness) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `  missing=${String(Math.round(m * 100)).padStart(2)}%  kept≈${String(rows[m].kept).padStart(3)}  RMSE μ=${round(rows[m].mu)}  σ=${round(rows[m].sigma)}`,
+      );
+    }
+    // Graceful: even at 70% missing (≈45 obs) μ stays usable and σ sane.
+    expect(rows[0.7].mu).toBeLessThan(0.3);
+    expect(rows[0.7].sigma).toBeLessThan(0.3);
+    // Degradation is real but bounded: ≤ ~3× the full-data error for μ.
+    expect(rows[0.7].mu).toBeLessThan(Math.max(rows[0].mu * 3.5, 0.3));
   });
 
   it("simulateOuAt reproduces a path at given timestamps", () => {

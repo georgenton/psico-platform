@@ -425,6 +425,11 @@ function AffectStoryView({ data }: { data: EmotionalMapAffectDynamics }) {
   return (
     <View style={styles.affectStory}>
       <Text style={styles.affectHeadline}>{story.headline}</Text>
+      {story.ewsNote ? (
+        <Text style={[styles.affectTrendNote, styles.affectEwsNote]}>
+          {story.ewsNote}
+        </Text>
+      ) : null}
       {story.trendNote ? (
         <Text
           style={[
@@ -812,6 +817,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.warm[50],
     borderColor: Colors.warm[200],
     color: Colors.warm[600],
+  },
+  affectEwsNote: {
+    backgroundColor: Colors.lavender[50],
+    borderColor: Colors.lavender[200],
+    color: Colors.lavender[700],
   },
   affectRow: {
     flexDirection: "row",

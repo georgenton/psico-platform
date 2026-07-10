@@ -1826,7 +1826,8 @@ export type ChapterBlockKind =
   | "EXERCISE"
   | "AUDIO"
   | "IMAGE"
-  | "PAUSE";
+  | "PAUSE"
+  | "VIDEO";
 
 export type HighlightColor = "YELLOW" | "BLUE" | "PINK";
 
@@ -1834,10 +1835,75 @@ export interface ChapterBlockSummary {
   id: string;
   order: number;
   kind: ChapterBlockKind;
-  /** Markdown text for PARAGRAPH/HEADING/QUOTE; caption for IMAGE/AUDIO/EXERCISE. */
+  /** Markdown text for PARAGRAPH/HEADING/QUOTE; caption for IMAGE/AUDIO/EXERCISE/VIDEO. */
   content: string;
   /** Structured metadata; shape depends on `kind`. See lector/README.md. */
   meta: Record<string, unknown> | null;
+}
+
+/**
+ * Metadata carried by a VIDEO block's `meta` JSON. All optional — an empty
+ * (or null) meta means the video isn't uploaded yet and the player renders an
+ * "en producción" placeholder. Book videos are public licensed content, so
+ * `videoUrl` is a direct public R2/CDN URL (no signing needed, like audio).
+ */
+export interface VideoBlockMeta {
+  /** Direct public URL of the video file (mp4/webm). */
+  videoUrl?: string;
+  /** Optional poster/thumbnail image shown before playback. */
+  posterUrl?: string;
+  /** Optional duration in seconds (for the UI to show a runtime hint). */
+  durationSec?: number;
+}
+
+/** Resolved shape returned by {@link videoBlockInfo}. */
+export interface VideoBlockInfo {
+  /** Playable URL, or null when the video isn't uploaded yet. */
+  url: string | null;
+  /** Poster image URL, or null. */
+  poster: string | null;
+  /** Human caption (leading "🎬" stripped from legacy blocks). */
+  caption: string;
+  /** Runtime hint in seconds, or null. */
+  durationSec: number | null;
+}
+
+/**
+ * Detect whether a chapter block is a video, and resolve its playback info.
+ *
+ * Returns null for non-video blocks. A block counts as a video when its kind
+ * is "VIDEO" OR — for backward compatibility with chapters ingested before the
+ * VIDEO kind existed — it's an "EXERCISE" whose content starts with "🎬".
+ * This lets already-seeded data upgrade to the real player without a
+ * destructive re-ingest (which would cascade-delete highlights/annotations).
+ *
+ * Single source of truth so web + mobile agree on detection and meta parsing.
+ */
+export function videoBlockInfo(block: {
+  kind: string;
+  content: string;
+  meta: Record<string, unknown> | null;
+}): VideoBlockInfo | null {
+  const isVideoKind = block.kind === "VIDEO";
+  const isLegacyMock =
+    block.kind === "EXERCISE" && block.content.trimStart().startsWith("🎬");
+  if (!isVideoKind && !isLegacyMock) return null;
+
+  const meta = block.meta ?? {};
+  const url =
+    typeof meta.videoUrl === "string" && meta.videoUrl ? meta.videoUrl : null;
+  const poster =
+    typeof meta.posterUrl === "string" && meta.posterUrl
+      ? meta.posterUrl
+      : null;
+  const durationSec =
+    typeof meta.durationSec === "number" && meta.durationSec > 0
+      ? meta.durationSec
+      : null;
+  // Strip a leading "🎬" (+ whitespace) from legacy EXERCISE mocks.
+  const caption = block.content.replace(/^\s*🎬\s*/, "").trim();
+
+  return { url, poster, caption, durationSec };
 }
 
 export interface HighlightSummary {

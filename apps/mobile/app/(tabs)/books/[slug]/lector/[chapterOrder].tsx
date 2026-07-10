@@ -25,12 +25,14 @@ import {
   breatheReflectSeed,
   breatheEcoSeed,
   reflexionEcoSeed,
+  videoBlockInfo,
 } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 import { LectorAudioBar } from "@/components/dashboard/lector/LectorAudioBar";
 import { EcoTopicCard } from "@/components/dashboard/lector/EcoTopicCard";
 import { ChapterExercises } from "@/components/dashboard/lector/exercises/ChapterExercises";
 import { BreathingExercise } from "@/components/dashboard/lector/exercises/BreathingExercise";
+import { VideoBlock } from "@/components/dashboard/lector/VideoBlock";
 import {
   BlockActionsSheet,
   highlightStyleFor,
@@ -523,6 +525,17 @@ function BlockView({
   onDeleteAnnotation: (id: string) => void;
   onLayout: (y: number) => void;
 }) {
+  // Video capsule (VIDEO kind, or a legacy 🎬 EXERCISE mock) → dedicated
+  // player; no highlight/annotation overlay or long-press applies.
+  const video = videoBlockInfo(block);
+  if (video) {
+    return (
+      <View onLayout={(e) => onLayout(e.nativeEvent.layout.y)}>
+        <VideoBlock info={video} />
+      </View>
+    );
+  }
+
   const blockStyle = (() => {
     switch (block.kind) {
       case "HEADING":

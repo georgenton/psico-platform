@@ -10,7 +10,12 @@ import type {
   HighlightSummary,
   LectorChapterResponse,
 } from "@psico/types";
-import { reflectExerciseSeed } from "@psico/types";
+import {
+  reflectExerciseSeed,
+  breatheReflectSeed,
+  breatheEcoSeed,
+  reflexionEcoSeed,
+} from "@psico/types";
 import {
   ReaderCompanionDock,
   type DockTab,
@@ -92,6 +97,23 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
     useState<BreatheExercise | null>(null);
   const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
   const [pendingBlockId, setPendingBlockId] = useState<string | null>(null);
+
+  // Open the dock on a given tool, seeded. Centralises the open pattern so the
+  // chapter-topic card, the exercises and the post-exercise nudges all agree.
+  function openEcoInDock(seed: string) {
+    setDockPassage(null);
+    setDockReflexionSeed(null);
+    setDockEcoSeed(seed);
+    setDockTab("eco");
+    setDockOpen(true);
+  }
+  function openReflexionInDock(seed: string) {
+    setDockPassage(null);
+    setDockEcoSeed(null);
+    setDockReflexionSeed(seed);
+    setDockTab("reflexion");
+    setDockOpen(true);
+  }
 
   // Prefs modal.
   const [prefsOpen, setPrefsOpen] = useState(false);
@@ -636,12 +658,7 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
           bookSlug={bookSlug}
           chapterOrder={chapter.order}
           chapterTitle={chapter.title}
-          onOpen={(prompt) => {
-            setDockPassage(null);
-            setDockEcoSeed(prompt);
-            setDockTab("eco");
-            setDockOpen(true);
-          }}
+          onOpen={(prompt) => openEcoInDock(prompt)}
         />
       </div>
 
@@ -668,13 +685,9 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
         <ChapterExercises
           bookSlug={bookSlug}
           chapterOrder={chapter.order}
-          onReflect={(prompt) => {
-            setDockPassage(null);
-            setDockEcoSeed(null);
-            setDockReflexionSeed(reflectExerciseSeed(prompt));
-            setDockTab("reflexion");
-            setDockOpen(true);
-          }}
+          onReflect={(prompt) =>
+            openReflexionInDock(reflectExerciseSeed(prompt))
+          }
           onBreathe={(ex) => setBreatheExercise(ex)}
         />
 
@@ -803,6 +816,7 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
           setDockEcoSeed(null);
           setDockReflexionSeed(null);
         }}
+        onReflexionAskEco={() => openEcoInDock(reflexionEcoSeed())}
         annotations={annotations}
         focusBlockId={focusBlockId}
         pendingBlockId={pendingBlockId}
@@ -818,6 +832,8 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
         <BreathingExercise
           exercise={breatheExercise}
           onClose={() => setBreatheExercise(null)}
+          onReflect={() => openReflexionInDock(breatheReflectSeed())}
+          onAskEco={() => openEcoInDock(breatheEcoSeed())}
         />
       ) : null}
 

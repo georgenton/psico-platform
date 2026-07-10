@@ -2977,6 +2977,51 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-07-10 ✅ COMPLETADA — Panel compañero del lector (dock/sheet) + actividades interactivas
+
+**Ramas:** `feature/reader-companion-dock` (#487/#488) · `feature/reader-companion-sheet` (#489/#490) · `feature/interactive-exercises` (#491/#492)
+**Bitácora:** [docs/informes/sprint-reader-companion.md](docs/informes/sprint-reader-companion.md)
+**Tests:** Web 281 · Mobile 58 · API 783/784 · Crypto 34 · typecheck ×3 + lints + privacy + OpenAPI verdes.
+
+**Contexto:** el subrayar→Eco del Sprint B **navegaba** a `/dashboard/eco` y el lector perdía su lugar. El usuario pidió (a) un texto claro «Pregúntale a Eco» en vez de solo un ícono, (b) una ventana lateral tipo Copilot de GitHub que se abra sin salir del lector, (c) distinguir **notas** (apunte sobre el texto) de **reflexiones** (escritura sobre ti). Eligió **Dock completo (3 pestañas: Eco/Notas/Reflexión)** + **Modo Guía como está**.
+
+**Lo que se construyó:**
+- **Panel compañero** — web = drawer derecho (`ReaderCompanionDock`), mobile = bottom sheet (`ReaderCompanionSheet`), ambos con 3 pestañas 🌿 Eco · ✎ Notas · 🪷 Reflexión. El lector queda montado detrás (nunca se pierde el lugar). Solo la pestaña activa se monta.
+- **Distinción Notas vs Reflexión:** Notas = plaintext (annotation, ancla a `blockId`); Reflexión = **cifrada E2E** (DiaryEntry) que alimenta el Mapa. Dos superficies de escritura con contratos de privacidad opuestos en un solo panel.
+- **Seed override pattern:** `passage` (crudo, envuelto por-tab) · `ecoSeed` (prompt Eco listo) · `reflexionSeedOverride` (consigna Reflexión lista), en precedencia.
+- **`EcoChat` reutilizable** extraído de la pantalla Eco mobile (SSE, crisis, reveal máquina de escribir, paginación, reporte); la pantalla quedó como wrapper delgado y el sheet monta el mismo componente.
+- **`EcoTopicCard` → abre el panel** (no navega) vía `onOpen?(prompt)` opcional; igual `HighlightPopover` (web) y `BlockActionsSheet` (mobile) ganan «🌿 Eco» + «🪷 Reflexión» que abren el dock/sheet sembrado.
+- **Actividades interactivas** (backlog #1): catálogo curado `CHAPTER_EXERCISES` en `@psico/types` (como `ECO_CHAPTER_PROMPTS`), 100 % cliente, cero backend. `reflect` → abre Reflexión sembrada (entrada cifrada → Mapa); `breathe` → ejercicio guiado inhala/sostén/exhala animado (overlay web / Modal mobile). **No re-ingesta** (evita borrar highlights por cascade).
+
+**Privacidad (ADR 0007):** Notas plaintext por diseño; Reflexión cifrada (solo ciphertext + números on-device); libros son contenido público; respiración es UX pura.
+
+**Bug clave (#488):** `git merge -X theirs` dejó el árbol sucio y committeó código viejo de `LectorShell.tsx` → CI `TS17001`. Causa: `git checkout origin/develop -- . && git add -A` sin committear antes del push. Fix `--amend` + `--force-with-lease`. **Workflow endurecido:** verificar blob MATCH contra `origin/develop` antes de cada push de sync (#490, #492 limpios).
+
+**Deuda (backlog aprobado):** nudges post-ejercicio *(siguiente)* · sugerencias adaptativas de Eco · reproductor de video real · character-level highlights mobile.
+
+---
+
+### Sesión — 2026-07-10 ✅ COMPLETADA — Nudges post-ejercicio (backlog #2)
+
+**Rama:** `feature/post-exercise-nudges` · **PR #494** (develop) + sync a main
+**Bitácora:** [docs/informes/sprint-post-exercise-nudges.md](docs/informes/sprint-post-exercise-nudges.md)
+**Tests:** Web 286 (+5) · Mobile 63 (+5) · API 783/784 · Crypto 34 · typecheck ×3 + lints + OpenAPI verdes.
+
+**Qué cierra:** segundo ítem del backlog. Al **terminar** una actividad, invita a seguir en vez de dejar un callejón: la **respiración** (fase "Listo") muestra dos CTAs suaves («🪷 Escribir cómo me siento» → Reflexión sembrada · «🌿 Conversar con Eco» → Eco sembrado); la **reflexión guardada** añade «🌿 Conversarlo con Eco» que salta a la pestaña Eco. Cero backend, cero migración, todo cliente reusando el dock/sheet.
+
+**Cómo:**
+- Seeds compartidos en `@psico/types/chapter-exercises.ts`: `breatheReflectSeed`, `breatheEcoSeed`, `reflexionEcoSeed` (web + mobile dicen lo mismo).
+- Web: `BreathingExercise` gana `onReflect?`/`onAskEco?`; `ReflexionTab` gana `onAskEco?`; `ReaderCompanionDock` los propaga; `LectorShell` centraliza el patrón de apertura en `openEcoInDock`/`openReflexionInDock` y los reusa en los 4 sitios (reduce duplicación).
+- Mobile: paridad — `BreathingExercise` + `ReflexionSheetTab` + `ReaderCompanionSheet` + la pantalla reusa el `openCompanion(tab, opts)` existente.
+
+**Privacidad (ADR 0007):** los nudges solo abren una superficie / siembran un composer con texto genérico nuestro; la reflexión se cifra como siempre y ningún texto del usuario viaja entre pantallas.
+
+**Tests:** `BreathingExercise.test.tsx` web (+5, `vi.useFakeTimers`) y mobile (+5, `jest.useFakeTimers` + `clearAllTimers` en afterEach para callar el loop de Animated tras el unmount).
+
+**Deuda (backlog aprobado):** sugerencias adaptativas de Eco *(siguiente)* · reproductor de video real · character-level highlights mobile · subir los m4a a R2.
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

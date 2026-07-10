@@ -28,9 +28,15 @@ const PHASE_LABEL: Record<Phase, string> = {
 export function BreathingExercise({
   exercise,
   onClose,
+  onReflect,
+  onAskEco,
 }: {
   exercise: BreatheExercise;
   onClose: () => void;
+  /** Post-exercise nudge — write how you feel now (opens Reflexión). */
+  onReflect?: () => void;
+  /** Post-exercise nudge — take the calm into a chat with Eco. */
+  onAskEco?: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>("inhale");
   const [cycle, setCycle] = useState(1);
@@ -105,6 +111,33 @@ export function BreathingExercise({
             : "Sigue el ritmo del círculo."}
         </Text>
 
+        {phase === "done" && (onReflect || onAskEco) ? (
+          <View style={styles.nudgeRow}>
+            {onReflect ? (
+              <Pressable
+                onPress={() => {
+                  onClose();
+                  onReflect();
+                }}
+                style={styles.nudgeBtn}
+              >
+                <Text style={styles.nudgeText}>🪷 Escribir cómo me siento</Text>
+              </Pressable>
+            ) : null}
+            {onAskEco ? (
+              <Pressable
+                onPress={() => {
+                  onClose();
+                  onAskEco();
+                }}
+                style={styles.nudgeBtn}
+              >
+                <Text style={styles.nudgeText}>🌿 Conversar con Eco</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
         <Pressable
           onPress={onClose}
           style={[styles.btn, phase === "done" && styles.btnDone]}
@@ -165,8 +198,23 @@ const styles = StyleSheet.create({
     maxWidth: 280,
     lineHeight: 20,
   },
+  nudgeRow: {
+    marginTop: 24,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+  },
+  nudgeBtn: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  nudgeText: { color: "white", fontWeight: "700", fontSize: 12.5 },
   btn: {
-    marginTop: 32,
+    marginTop: 24,
     borderRadius: 999,
     paddingHorizontal: 26,
     paddingVertical: 11,

@@ -34,6 +34,7 @@ export function ReaderCompanionDock({
   ecoSeed,
   reflexionSeedOverride,
   onPassageConsumed,
+  onReflexionAskEco,
   annotations,
   focusBlockId,
   pendingBlockId,
@@ -55,6 +56,8 @@ export function ReaderCompanionDock({
   /** A ready-made Reflexión seed (e.g. a chapter exercise) overriding `passage`. */
   reflexionSeedOverride?: string | null;
   onPassageConsumed: () => void;
+  /** After saving a reflexión, jump to Eco seeded (post-exercise nudge). */
+  onReflexionAskEco?: () => void;
   annotations: AnnotationSummary[];
   focusBlockId: string | null;
   pendingBlockId: string | null;
@@ -168,6 +171,7 @@ export function ReaderCompanionDock({
           token={token}
           seed={reflexionSeedText}
           onSeedConsumed={onPassageConsumed}
+          onAskEco={onReflexionAskEco}
         />
       ) : (
         <NotesTab

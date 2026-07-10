@@ -267,6 +267,32 @@ describe("Stage 0 — emotional-map persona benchmark", () => {
     expect(mature.margins!.baseline!).toBeLessThan(early.margins!.baseline!);
   });
 
+  it("Etapa 5: EWS fires for the losing-resilience persona, stays quiet otherwise", async () => {
+    const by = async (id: string) =>
+      scoreEmotionalMap(
+        buildPersonaInput(PERSONAS.find((p) => p.id === id)!),
+        stubProvider,
+      );
+
+    // Losing resilience: stable half → increasingly persistent swings. Both
+    // rolling metrics (AC1 + variance) trend hard upward → "rising".
+    const early = (await by("senal-temprana")).affectDynamics!;
+    expect(early.ews?.status).toBe("rising");
+    expect(early.ews?.tauAc ?? 0).toBeGreaterThan(0.65);
+    expect(early.ews?.tauVar ?? 0).toBeGreaterThan(0.65);
+
+    // A steady long-run persona must NOT alarm.
+    const steady = (await by("trimestre-disciplinado")).affectDynamics!;
+    expect(steady.ews?.status).toBe("steady");
+
+    // Below the observation floor the detector refuses to answer — even for
+    // the volatile persona (short series ≠ evidence of losing resilience).
+    for (const id of ["volatil-mes", "recuperandose-2m", "casi-plano-mes"]) {
+      const r = (await by(id)).affectDynamics!;
+      expect(r.ews?.status).toBe("insufficient");
+    }
+  });
+
   it("higher engagement yields higher overall map coverage", async () => {
     const low = await scoreEmotionalMap(
       buildPersonaInput(PERSONAS.find((p) => p.id === "nuevo-3d")!),

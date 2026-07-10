@@ -115,6 +115,15 @@ export const TREND_NOTE: Record<"up" | "down", string> = {
   down: "Tu tono de hoy refleja dónde estás ahora, no el promedio del mes. Bajar tampoco cuenta como inestabilidad — son cosas distintas.",
 };
 
+/**
+ * Etapa 5 — kind self-care nudge shown ONLY when the early-warning signal is
+ * rising (rolling autocorrelation + variance both trending up, ≥60 registros,
+ * ~6% false-alarm rate under the null). Deliberately soft and non-diagnostic:
+ * an invitation, never an alarm.
+ */
+export const EWS_NOTE =
+  "Señal temprana: últimamente tu ánimo se mueve más y tarda más en soltar lo que carga. No es un diagnóstico — tómalo como una invitación a cuidarte con más intención estos días, y si lo sientes pesado, hablarlo con alguien de confianza ayuda.";
+
 export interface AffectStoryRow {
   key: "baseline" | "recovery" | "stability";
   /** Ionicons name for the row bullet. */
@@ -138,6 +147,8 @@ export interface AffectStory {
   trend: "up" | "down" | null;
   /** Explainer for the trend (null when the mood is stationary). */
   trendNote: string | null;
+  /** Etapa 5 — self-care nudge, non-null ONLY when the EWS is rising. */
+  ewsNote: string | null;
 }
 
 /** Build the full human story from an ACTIVE affect-dynamics block. */
@@ -157,6 +168,7 @@ export function buildAffectStory(
     headline: affectHeadline(base, rec, trend),
     trend,
     trendNote: trend ? TREND_NOTE[trend] : null,
+    ewsNote: data.ews?.status === "rising" ? EWS_NOTE : null,
     rows: [
       {
         key: "baseline",

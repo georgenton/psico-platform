@@ -111,3 +111,17 @@ Comportamiento validado contra el banco (half-widths 90%):
 | Recuperándose (trend up) | ±9 (SE OLS) | ±20                          |
 
 La historia de honestidad en una línea: **más registros → intervalos más angostos**, y el banco lo garantiza por regresión (`benchmark.spec.ts` §Etapa 3). Con esto las Etapas 0–4 del roadmap v1 quedan completas; siguen 5 (EWS) y 6 (on-device) como investigación.
+
+## Etapa 5 — EWS / resiliencia (critical slowing down) (aplicado)
+
+Detector en `dynamics/ews.ts`: autocorrelación lag-1 + varianza sobre ventanas rodantes (50%) de la serie detrendada, tendencia por Kendall τ, dispara solo si **ambas** suben con τ ≥ 0.65. Gate honesto a **≥60 registros** (los gates de suficiencia del paper). Calibrado con el experimento E5: **6.0% de falsos positivos** bajo el nulo estacionario, sensibilidad ~40% bajo colapso de θ (limitación conocida de los EWS, declarada).
+
+Persona nueva en el banco: **`senal-temprana`** (90 días: mitad estable, mitad caminata persistente que se amplifica — la firma del critical slowing down). Resultados:
+
+| Persona                | n   | EWS          | τ_AC / τ_var  |
+| ---------------------- | --- | ------------ | ------------- |
+| Señal temprana (90d)   | 90  | **rising**   | 0.87 / 0.84   |
+| Trimestre disciplinado | 77  | steady       | −0.83 / −0.51 |
+| Todos con n < 60       | —   | insufficient | —             |
+
+En el producto, `affectDynamics.ews` alimenta una **nota de autocuidado no-diagnóstica** (web + mobile) que solo aparece con la señal en subida: una invitación amable, nunca una alarma. El flujo de crisis existente queda intacto y separado.

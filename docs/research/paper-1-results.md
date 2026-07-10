@@ -1,6 +1,6 @@
 # Paper 1 — Resultados de la validación sintética
 
-**Estado:** Resultados v0.1 · **Fecha:** 2026-07-09
+**Estado:** Resultados v0.2 (E1–E6) · **Fecha:** 2026-07-09
 **Fuente:** `apps/api/src/emotional-map/dynamics/simulation.spec.ts` (determinista, semillado).
 **Reproducir:** `pnpm --filter @psico/api test -- --run dynamics/simulation`
 **Parámetros verdaderos:** μ=0.2, θ=1.0/día, σ=0.6, dtMean=0.5 día, R réplicas por celda.
@@ -56,6 +56,41 @@ RMSE por parámetro (verdad μ=0.2, θ=1.0, σ=0.6):
 
 ---
 
+## E5 — Falsos positivos del EWS bajo el nulo estacionario (Tabla 2 · R=150, n=100)
+
+Detector: autocorrelación lag-1 + varianza sobre ventanas rodantes (50%), tendencia por Kendall τ; dispara solo si **ambas** métricas superan τ ≥ 0.65 (`dynamics/ews.ts`).
+
+| Métrica                                                       | Valor    |
+| ------------------------------------------------------------- | -------- |
+| Tasa de falsos positivos (serie estacionaria, sin transición) | **6.0%** |
+| Sensibilidad bajo θ-ramp 1.5→0.05 (E5b, R=60)                 | 40%      |
+
+Curva de calibración (grilla completa en el código):
+
+| Umbral τ | FP       | Sensibilidad |
+| -------- | -------- | ------------ |
+| 0.50     | 12.7%    | 65%          |
+| 0.60     | 8.7%     | 50%          |
+| **0.65** | **6.0%** | **40%**      |
+| 0.70     | 5.3%     | 35%          |
+
+**Lectura:** el punto de operación elegido favorece deliberadamente la baja tasa de falsas alarmas — para un nudge de autocuidado, gritar "lobo" es el error caro. La **sensibilidad limitada (~40%)** es consistente con la crítica a los EWS en la literatura ("Illusions of Criticality") y se reporta como limitación, no se esconde: el producto enmarca la señal como invitación amable, nunca alarma ni diagnóstico.
+
+---
+
+## E6 — Robustez del estimador a la baja adherencia (missingness · R=30, n=150 base)
+
+| Missing | n efectivo | RMSE μ | RMSE σ |
+| ------- | ---------- | ------ | ------ |
+| 0%      | ≈150       | 0.062  | 0.051  |
+| 20%     | ≈121       | 0.064  | 0.071  |
+| 50%     | ≈75        | 0.070  | 0.110  |
+| 70%     | ≈44        | 0.073  | 0.135  |
+
+**Lectura:** la formulación de tiempo continuo es **notablemente robusta a la adherencia baja**: con 70% de registros perdidos, el error de μ apenas sube de 0.062 a 0.073 (+18%), y σ se degrada de forma acotada (0.051 → 0.135). Esto respalda el claim central del paper: el modelo está diseñado para el dato disperso e irregular del uso real, no para EMA densa de laboratorio.
+
+---
+
 ## Conclusiones para el paper
 
 1. **μ y σ son estimables** con datos moderados; **θ exige n grande** → los gates de suficiencia son necesarios y ahora están justificados con números.
@@ -65,8 +100,8 @@ RMSE por parámetro (verdad μ=0.2, θ=1.0, σ=0.6):
 
 ## Pendiente (para robustecer antes de someter)
 
-- E5: falsos positivos de EWS bajo estacionariedad (aún no en el arnés).
-- E6: robustez a missingness 20/50/70%.
+- ~~E5: falsos positivos de EWS bajo estacionariedad.~~ ✅ Hecho — 6.0% FP con τ≥0.65 (tabla arriba).
+- ~~E6: robustez a missingness 20/50/70%.~~ ✅ Hecho — μ casi inmune (0.062→0.073 RMSE a 70%).
 - Modelo v1 ordinal-latente (probit/logit) comparado contra v0 (E3 del outline).
 - Calibración de los intervalos (BCa / bootstrap por bloques / más réplicas).
 - Verificar las citas `[verificar]` del doc base.

@@ -37,6 +37,7 @@ export function ReaderCompanionSheet({
   ecoSeed,
   reflexionSeedOverride,
   onPassageConsumed,
+  onReflexionAskEco,
   annotations,
   pendingBlockId,
   onClearPending,
@@ -54,6 +55,8 @@ export function ReaderCompanionSheet({
   /** A ready-made Reflexión seed (e.g. a chapter exercise) overriding `passage`. */
   reflexionSeedOverride?: string | null;
   onPassageConsumed: () => void;
+  /** After saving a reflexión, jump to Eco seeded (post-exercise nudge). */
+  onReflexionAskEco?: () => void;
   annotations: AnnotationSummary[];
   pendingBlockId: string | null;
   onClearPending: () => void;
@@ -131,6 +134,7 @@ export function ReaderCompanionSheet({
                   (passage ? reflexionSeed(passage) : null)
                 }
                 onSeedConsumed={onPassageConsumed}
+                onAskEco={onReflexionAskEco}
               />
             ) : (
               <NotesSheetTab

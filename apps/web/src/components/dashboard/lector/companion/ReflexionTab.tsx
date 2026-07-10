@@ -38,12 +38,15 @@ export function ReflexionTab({
   token,
   seed,
   onSeedConsumed,
+  onAskEco,
 }: {
   apiBase: string;
   token: string | null;
   /** Composer pre-fill from a highlighted passage (consumed once). */
   seed: string | null;
   onSeedConsumed: () => void;
+  /** Post-save nudge — switch the dock to Eco, seeded (backlog). */
+  onAskEco?: () => void;
 }) {
   const { key, isLegacyAccount } = useDiaryKey();
 
@@ -159,11 +162,24 @@ export function ReflexionTab({
           Tu reflexión quedó cifrada y sumó a tu Mapa Emocional.
         </p>
         <div className="mt-4 flex flex-col items-center gap-2">
+          {onAskEco ? (
+            <button
+              type="button"
+              onClick={onAskEco}
+              className="rounded-full px-4 py-1.5 text-[12px] font-semibold text-white"
+              style={{ background: "var(--color-sage-500)" }}
+            >
+              🌿 Conversarlo con Eco
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => setSaved(false)}
-            className="rounded-full px-4 py-1.5 text-[12px] font-semibold text-white"
-            style={{ background: "var(--color-sage-400)" }}
+            className="rounded-full px-4 py-1.5 text-[12px] font-semibold"
+            style={{
+              background: "var(--color-warm-100)",
+              color: "var(--color-warm-800)",
+            }}
           >
             Escribir otra
           </button>

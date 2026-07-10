@@ -44,12 +44,15 @@ export function BlockActionsSheet({
   hasHighlight,
   onPickColor,
   onAddNote,
+  onAskEco,
   onRemoveHighlights,
   onCancel,
 }: {
   hasHighlight: boolean;
   onPickColor: (color: HighlightColor) => void;
   onAddNote: () => void;
+  /** Sprint B — take this paragraph to Eco to explore it. */
+  onAskEco: () => void;
   onRemoveHighlights: () => void;
   onCancel: () => void;
 }) {
@@ -90,6 +93,14 @@ export function BlockActionsSheet({
             accessibilityRole="button"
           >
             <Text style={styles.actionRowText}>✏️ Añadir nota</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={onAskEco}
+            style={styles.actionRow}
+            accessibilityRole="button"
+          >
+            <Text style={styles.actionRowText}>🌿 Conversar con Eco</Text>
           </Pressable>
 
           {hasHighlight && (

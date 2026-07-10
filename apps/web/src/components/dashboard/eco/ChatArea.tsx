@@ -45,6 +45,8 @@ export function ChatArea({
   token,
   ecoKey,
   onMessageSent,
+  initialComposerText,
+  onComposerSeedConsumed,
 }: {
   threadId: string;
   caps: EcoPersona;
@@ -52,6 +54,9 @@ export function ChatArea({
   token: string | null;
   ecoKey: Uint8Array;
   onMessageSent: () => void;
+  /** Sprint B — reader→Eco handoff: pre-fill the composer once (then clear). */
+  initialComposerText?: string | null;
+  onComposerSeedConsumed?: () => void;
 }) {
   const [messages, setMessages] = useState<EcoMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +82,15 @@ export function ChatArea({
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Sprint B — seed the composer from a reader→Eco handoff exactly once.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current || !initialComposerText) return;
+    seededRef.current = true;
+    setText(initialComposerText);
+    onComposerSeedConsumed?.();
+  }, [initialComposerText, onComposerSeedConsumed]);
 
   // Holds the finalized reply while the typewriter finishes revealing it, so
   // we can swap the streaming bubble for a persisted message with no snap.

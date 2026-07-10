@@ -25,10 +25,15 @@ import type {
 } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 import { LectorAudioBar } from "@/components/dashboard/lector/LectorAudioBar";
+import { EcoTopicCard } from "@/components/dashboard/lector/EcoTopicCard";
 import {
   BlockActionsSheet,
   highlightStyleFor,
 } from "@/components/dashboard/lector/BlockActionsSheet";
+import {
+  passageToEcoPrompt,
+  setEcoReaderHandoff,
+} from "@/lib/eco/reader-handoff";
 
 /**
  * Mobile reader screen — Sprint S6-front.
@@ -224,6 +229,23 @@ export default function LectorScreen() {
     }
   }
 
+  // ── Ask Eco about a paragraph ─────────────────────────────────────────
+  //
+  // Sprint B — take the long-pressed block to Eco. We stash the passage
+  // prompt in the in-memory handoff and navigate to the Eco tab, which
+  // consumes it on focus and pre-fills the composer. Book text is licensed
+  // PUBLIC content, so carrying a passage across the hop is fine.
+  function askEcoAboutBlock(blockId: string) {
+    const block = chapter?.blocks.find((b) => b.id === blockId);
+    if (!block || !chapter) return;
+    setEcoReaderHandoff(passageToEcoPrompt(block.content), {
+      bookSlug: chapter.book.slug,
+      chapterOrder: chapter.chapter.order,
+      kind: "highlight",
+    });
+    router.push("/eco" as never);
+  }
+
   // ── Complete handler ──────────────────────────────────────────────────
 
   async function handleComplete() {
@@ -325,6 +347,12 @@ export default function LectorScreen() {
           Cap. {chapter.chapter.order} · {chapter.chapter.title}
         </Text>
 
+        <EcoTopicCard
+          bookSlug={chapter.book.slug}
+          chapterOrder={chapter.chapter.order}
+          chapterTitle={chapter.chapter.title}
+        />
+
         {chapter.chapter.audioAvailable ? (
           <View style={styles.audioWrap}>
             <LectorAudioBar
@@ -379,6 +407,11 @@ export default function LectorScreen() {
           onAddNote={() => {
             setPendingBlockId(actionBlockId);
             setActionBlockId(null);
+          }}
+          onAskEco={() => {
+            const id = actionBlockId;
+            setActionBlockId(null);
+            askEcoAboutBlock(id);
           }}
           onRemoveHighlights={async () => {
             const list = highlightsByBlock.get(actionBlockId) ?? [];

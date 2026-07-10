@@ -8,6 +8,8 @@ interface Props {
   y: number;
   onPick: (color: HighlightColor) => void;
   onAnnotate: () => void;
+  /** Sprint B — take the selected passage to Eco to explore it. */
+  onAskEco: () => void;
   onDismiss: () => void;
 }
 
@@ -36,6 +38,7 @@ export function HighlightPopover({
   y,
   onPick,
   onAnnotate,
+  onAskEco,
   onDismiss,
 }: Props) {
   return (
@@ -74,6 +77,14 @@ export function HighlightPopover({
         style={{ background: "var(--color-lavender-500)", color: "white" }}
       >
         ✎ Nota
+      </button>
+      <button
+        type="button"
+        onClick={onAskEco}
+        className="rounded-full px-3 py-1 text-[12px] font-semibold"
+        style={{ background: "var(--color-sage-400)", color: "white" }}
+      >
+        🌿 Eco
       </button>
       <button
         type="button"

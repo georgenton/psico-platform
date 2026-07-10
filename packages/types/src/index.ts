@@ -3045,3 +3045,6 @@ export * from "./text-features";
 
 // ─── Eco contextual · Sprint B — per-chapter suggested topics ────────────
 export * from "./eco-chapter-prompts";
+
+// ─── Backlog — interactive chapter exercises (reflect + breathe) ─────────
+export * from "./chapter-exercises";

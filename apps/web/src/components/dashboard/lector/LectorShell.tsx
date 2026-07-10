@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type {
   AnnotationSummary,
+  BreatheExercise,
   HighlightColor,
   HighlightSummary,
   LectorChapterResponse,
 } from "@psico/types";
+import { reflectExerciseSeed } from "@psico/types";
 import {
   ReaderCompanionDock,
   type DockTab,
@@ -16,6 +18,8 @@ import {
 import { AudioBar } from "./AudioBar";
 import { BlockRenderer } from "./BlockRenderer";
 import { EcoTopicCard } from "./EcoTopicCard";
+import { ChapterExercises } from "./exercises/ChapterExercises";
+import { BreathingExercise } from "./exercises/BreathingExercise";
 import { HighlightPopover } from "./HighlightPopover";
 import {
   ReaderPreferencesModal,
@@ -79,6 +83,13 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
   const [dockTab, setDockTab] = useState<DockTab>("notas");
   const [dockPassage, setDockPassage] = useState<string | null>(null);
   const [dockEcoSeed, setDockEcoSeed] = useState<string | null>(null);
+  const [dockReflexionSeed, setDockReflexionSeed] = useState<string | null>(
+    null,
+  );
+
+  // Breathing exercise overlay (chapter activity).
+  const [breatheExercise, setBreatheExercise] =
+    useState<BreatheExercise | null>(null);
   const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
   const [pendingBlockId, setPendingBlockId] = useState<string | null>(null);
 
@@ -653,6 +664,20 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
           />
         ))}
 
+        {/* Interactive activities (backlog: actividades reales) */}
+        <ChapterExercises
+          bookSlug={bookSlug}
+          chapterOrder={chapter.order}
+          onReflect={(prompt) => {
+            setDockPassage(null);
+            setDockEcoSeed(null);
+            setDockReflexionSeed(reflectExerciseSeed(prompt));
+            setDockTab("reflexion");
+            setDockOpen(true);
+          }}
+          onBreathe={(ex) => setBreatheExercise(ex)}
+        />
+
         {/* Lessons list */}
         {lessons.length > 0 && (
           <section
@@ -768,12 +793,15 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
           setPendingBlockId(null);
           setDockPassage(null);
           setDockEcoSeed(null);
+          setDockReflexionSeed(null);
         }}
         passage={dockPassage}
         ecoSeed={dockEcoSeed}
+        reflexionSeedOverride={dockReflexionSeed}
         onPassageConsumed={() => {
           setDockPassage(null);
           setDockEcoSeed(null);
+          setDockReflexionSeed(null);
         }}
         annotations={annotations}
         focusBlockId={focusBlockId}
@@ -785,6 +813,13 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
         apiBase={apiBase}
         token={token}
       />
+
+      {breatheExercise ? (
+        <BreathingExercise
+          exercise={breatheExercise}
+          onClose={() => setBreatheExercise(null)}
+        />
+      ) : null}
 
       <ReaderPreferencesModal
         isOpen={prefsOpen}

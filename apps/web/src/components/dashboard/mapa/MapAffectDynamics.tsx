@@ -4,7 +4,11 @@ import {
   IconTrendUp,
   IconWind,
 } from "@/components/dashboard/shell/icons";
-import { baselineLevel, buildAffectStory } from "./affect-copy";
+import {
+  baselineLevel,
+  buildAffectStory,
+  evidenceBaseLabel,
+} from "./affect-copy";
 
 /**
  * MapAffectDynamics — surfaces the Tier 2 (Ornstein–Uhlenbeck) block on the
@@ -133,7 +137,6 @@ function Gathering({ nObs, needed }: { nObs: number; needed: number }) {
 
 function Active({ data }: { data: EmotionalMapAffectDynamics }) {
   const story = buildAffectStory(data);
-  const conf = Math.round(data.confidence * 100);
   const faceVariant =
     baselineLevel(data.baseline ?? 0.5) === "high"
       ? ("good" as const)
@@ -153,22 +156,6 @@ function Active({ data }: { data: EmotionalMapAffectDynamics }) {
       >
         {story.headline}
       </p>
-
-      {story.ewsNote ? (
-        <p
-          style={{
-            margin: "-6px 0 16px",
-            padding: "10px 14px",
-            borderRadius: 12,
-            font: "400 12.5px/1.55 var(--font-sans)",
-            background: "var(--color-lavender-50)",
-            border: "1px solid var(--color-lavender-200)",
-            color: "var(--color-lavender-700)",
-          }}
-        >
-          {story.ewsNote}
-        </p>
-      ) : null}
 
       {story.trendNote ? (
         <p
@@ -290,7 +277,7 @@ function Active({ data }: { data: EmotionalMapAffectDynamics }) {
                       color: "var(--color-warm-500)",
                     }}
                   >
-                    Cómo te recuperas
+                    Ritmo de retorno
                   </div>
                   <p
                     style={{
@@ -299,10 +286,10 @@ function Active({ data }: { data: EmotionalMapAffectDynamics }) {
                       color: "var(--color-warm-500)",
                     }}
                   >
-                    Reuniendo datos
-                    {row.missing ? ` · ~${row.missing} registros más` : ""}. Con
-                    unos registros más te contaremos qué tan rápido vuelves a tu
-                    base después de un bajón.
+                    Reuniendo más información
+                    {row.missing ? ` · ~${row.missing} registros más` : ""}.
+                    Esta estimación necesita bastante historia para ser fiable,
+                    así que preferimos esperar antes de mostrar un número.
                   </p>
                 </>
               )}
@@ -320,15 +307,17 @@ function Active({ data }: { data: EmotionalMapAffectDynamics }) {
           color: "var(--color-warm-400)",
         }}
       >
-        Confianza {conf}% · basado en {data.nObs} registros de ánimo
+        Basado en {data.nObs} registros de ánimo ·{" "}
+        {evidenceBaseLabel(data.nObs)}
         {data.inertiaDays != null
-          ? ` · tus estados suelen durar ~${formatInertia(data.inertiaDays)}`
+          ? ` · los cambios persisten ~${formatInertia(data.inertiaDays)} (estimación)`
           : ""}
         .{" "}
         {story.rows.some((r) => r.margin != null)
           ? "El ± marca el rango probable de cada valor. "
           : ""}
-        Mientras más registres, más precisa será la estimación.
+        Estos cálculos describen patrones en los estados que elegiste registrar
+        — no constituyen un diagnóstico.
       </p>
     </div>
   );

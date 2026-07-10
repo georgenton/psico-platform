@@ -180,7 +180,7 @@ export const MODEL_REGISTRY: readonly ModelRegistryEntry[] = [
     minimumData: { observationCount: 60 },
     knownLimitations: [
       "sensitivity 40% — misses most true transitions; must not drive public UX, nudges, notifications, or crisis flow",
-      "CURRENTLY serialized to public clients + 'Señal temprana' note — known violation, gated by EMOTIONAL_MAP_EWS_PUBLIC (default preserves behavior until sign-off)",
+      "withheld from the public wire since Fase B' (EMOTIONAL_MAP_EWS_PUBLIC default off); the detector keeps running internally for research/benchmark",
     ],
     productCopyAllowed: [],
     productCopyForbidden: [

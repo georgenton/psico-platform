@@ -32,6 +32,6 @@
 
 ## Violaciones conocidas hoy (snapshot del ratchet)
 
-Ver `KNOWN_VIOLATIONS` en el spec — 8 archivos pineados (MapStage, MapDims, MapAffectDynamics, MapFeed, MapInfoButton, affect-copy web+mobile, mapa.tsx mobile). Se corrigen en Fase B' (decisión L1) y Fase F, encogiendo el snapshot con cada fix.
+Ver `KNOWN_VIOLATIONS` en el spec. Fase B' (L1) limpió el bloque afectivo completo: `MapAffectDynamics` y los dos `affect-copy` (web + mobile) ya no contienen términos prohibidos — el snapshot se encogió de 8 a 5 archivos. Lo que queda pineado pertenece a fases posteriores: el % global + badge "Medido" (Fase F) y los chips de engagement (Fase C → LearningDashboard).
 
-**Fuera del alcance del ratchet pero registrado:** la landing ([\_landing-html.ts:204](../../apps/web/src/app/_landing-html.ts)) dice "Releyendo lo que escribiste esta semana, noto algo" — imposible con E2E (Eco no puede releer mensajes pasados del usuario). Corregir junto con B'.
+**Landing corregida en Fase B':** el chat de demostración de [\_landing-html.ts](../../apps/web/src/app/_landing-html.ts) ya no dice "Releyendo lo que escribiste esta semana, noto algo" (imposible con E2E — Eco no puede releer mensajes pasados del usuario). El diálogo nuevo solo muestra a Eco reflexionando sobre lo que la persona dice en esa misma conversación.

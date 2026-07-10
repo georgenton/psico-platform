@@ -1139,6 +1139,7 @@ model DiaryTextFeature {
   id         String   @id @default(cuid())
   userId     String
   // Diary entry the features came from — unique so a re-save upserts.
+  // FK with CASCADE (Fase B): deleting the entry deletes its derived numbers.
   entryId    String?  @unique
   wordCount  Int
   selfFocus  Float
@@ -1153,7 +1154,8 @@ model DiaryTextFeature {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entry DiaryEntry? @relation(fields: [entryId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt(sort: Desc)])
 }
@@ -1333,6 +1335,10 @@ model DiaryEntry {
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   prompt       DiaryPrompt?       @relation(fields: [promptId], references: [id], onDelete: SetNull)
   sharedCopies SharedDiaryEntry[]
+  // Derived on-device text features (TXT-L1). Cascade so deleting an entry
+  // also deletes its derived numbers — derived data is sensitive data
+  // (Fase B, docs/architecture/emotional-map-v2.md §privacidad).
+  textFeature  DiaryTextFeature?
   // The promptId path is rare; soft FK does not need an index of its own.
 
   // Range scans for the list view (last N entries, optionally filtered by mood).

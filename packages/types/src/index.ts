@@ -1309,6 +1309,24 @@ export interface EmotionalMapAffectDynamics {
     recovery: number | null;
     stability: number | null;
   } | null;
+  /**
+   * Etapa 5 — early-warning signal (critical slowing down). "rising" when the
+   * rolling lag-1 autocorrelation AND variance of the (detrended) mood series
+   * both trend upward (Kendall τ ≥ threshold, calibrated to a ~6% false-alarm
+   * rate under a stationary null — experiment E5). "insufficient" below the
+   * observation floor (`needed`). NEVER a diagnosis — the UI surfaces it only
+   * as a kind self-care nudge. Optional so cached pre-Etapa-5 blobs keep
+   * deserializing.
+   */
+  ews?: {
+    status: "insufficient" | "steady" | "rising";
+    /** Kendall τ of the rolling lag-1 autocorrelation (null when insufficient). */
+    tauAc: number | null;
+    /** Kendall τ of the rolling variance (null when insufficient). */
+    tauVar: number | null;
+    /** Observations required before the signal can be computed. */
+    needed: number;
+  } | null;
 }
 
 export interface EmotionalMapResult {

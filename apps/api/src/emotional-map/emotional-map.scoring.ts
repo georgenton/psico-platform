@@ -19,6 +19,7 @@ import {
   type OuObservation,
 } from "./dynamics/ou";
 import { bootstrapAxesCI } from "./dynamics/bootstrap";
+import { computeEws } from "./dynamics/ews";
 
 /**
  * Pure emotional-map scoring — the math extracted from EmotionalMapService so
@@ -378,6 +379,7 @@ export function computeAffectDynamics(
     inertiaDays: null,
     trend: null,
     margins: null,
+    ews: null,
   });
 
   if (nObs < MIN_OBS_FOR_FIT) return gathering();
@@ -426,8 +428,18 @@ export function computeAffectDynamics(
       }
     : null;
 
+  // Etapa 5 — early-warning signal on the same detrended series. Refuses to
+  // answer below its own observation floor; never a diagnosis.
+  const ewsRaw = computeEws(trendFit.obsForFit);
+  const ews = {
+    status: ewsRaw.status,
+    tauAc: ewsRaw.tauAc,
+    tauVar: ewsRaw.tauVar,
+    needed: ewsRaw.needed,
+  };
+
   logger?.log?.(
-    `EmotionalMap OU · nObs=${nObs} · sigma=${fit.params.sigma.toFixed(2)} · theta=${fit.params.theta.toFixed(2)} · stability=${axes.stability.toFixed(2)} · trend=${trend ?? "none"} · recoveryReady=${recoveryReady}`,
+    `EmotionalMap OU · nObs=${nObs} · sigma=${fit.params.sigma.toFixed(2)} · theta=${fit.params.theta.toFixed(2)} · stability=${axes.stability.toFixed(2)} · trend=${trend ?? "none"} · ews=${ews.status} · recoveryReady=${recoveryReady}`,
   );
   return {
     status: "active",
@@ -441,6 +453,7 @@ export function computeAffectDynamics(
     inertiaDays: recoveryReady ? round2(fit.inertiaDays) : null,
     trend,
     margins,
+    ews,
   };
 }
 

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { EmotionalMapAffectDynamics } from "@psico/types";
 import { MapAffectDynamics } from "./MapAffectDynamics";
@@ -151,6 +151,38 @@ describe("MapAffectDynamics", () => {
     expect(
       screen.queryByText(/El ± marca el rango probable/),
     ).not.toBeInTheDocument();
+  });
+
+  it("Etapa 5: shows the kind self-care nudge ONLY when the EWS is rising", () => {
+    const base: EmotionalMapAffectDynamics = {
+      status: "active",
+      nObs: 90,
+      needed: 8,
+      recoveryNeeded: 20,
+      confidence: 1,
+      baseline: 0.4,
+      recovery: 0.4,
+      stability: 0.31,
+      inertiaDays: 1.7,
+      trend: null,
+      ews: { status: "rising", tauAc: 0.87, tauVar: 0.84, needed: 60 },
+    };
+    render(<MapAffectDynamics data={base} />);
+    expect(screen.getByText(/Señal temprana/)).toBeInTheDocument();
+    // Non-diagnostic, kind framing.
+    expect(screen.getByText(/No es un diagnóstico/)).toBeInTheDocument();
+
+    // Steady or insufficient → no nudge (and cached pre-Etapa-5 blobs too).
+    cleanup();
+    render(
+      <MapAffectDynamics
+        data={{
+          ...base,
+          ews: { status: "steady", tauAc: -0.2, tauVar: 0.1, needed: 60 },
+        }}
+      />,
+    );
+    expect(screen.queryByText(/Señal temprana/)).not.toBeInTheDocument();
   });
 
   it("Etapa 1: gates the recovery row with a 'reuniendo' note until enough data", () => {

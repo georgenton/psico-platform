@@ -1,0 +1,19 @@
+# Model Registry del Mapa Emocional
+
+**Fuente de verdad ejecutable:** [`model-registry.ts`](../../apps/api/src/emotional-map/model-registry.ts) — este doc es su espejo legible. El spec (`model-registry.spec.ts`) ancla los gates declarados a las constantes reales del código.
+
+Motivo: "v0", "v1" y "Etapa N" nombraban cosas distintas según el documento. Desde Fase B, producto, investigación y código usan **estos IDs**.
+
+| ID         | Qué es                                                      | Estado            | Gate (n)   | Flag                        | Limitación clave                                                                                             |
+| ---------- | ----------------------------------------------------------- | ----------------- | ---------- | --------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **H1**     | Scoring heurístico legacy + LLM numérico (6 ejes + pct)     | LEGACY            | —          | `EMOTIONAL_MAP_LLM_SCORING` | engagement→psicología; LLM crea scores; pct sin interpretación                                               |
+| **OU-G0**  | Mood ordinal→escalar + OU gaussiano (MLE transición exacta) | EXPERIMENTAL      | fit ≥8     | `EMOTIONAL_MAP_OU`          | θ no identificado <n≈100 (E1); CI cobertura ≈78 % (E3); OU≈AR(1) en predicción (E4)                          |
+| **OU-GT**  | Tendencia OLS + OU sobre residuos detrendados               | EXPERIMENTAL      | fit ≥8     | `EMOTIONAL_MAP_OU`          | mismos límites de θ                                                                                          |
+| **OU-O1**  | OU latente + observación ordinal probit/logit               | DESIGN            | ~100       | —                           | no implementado; no referenciar en producto                                                                  |
+| **EWS-R1** | Critical slowing down (AC1+var, τ≥0.65)                     | **RESEARCH_ONLY** | ≥60        | `EMOTIONAL_MAP_EWS_PUBLIC`  | FP 6 % / **sensibilidad 40 %** (E5) — no dirige UX pública. Violación actual pineada                         |
+| **TXT-L1** | Analizador léxico local (10 densidades on-device)           | EXPERIMENTAL      | satura n=8 | —                           | sin opt-in hoy; puntúa ejes (V2: solo patrones descriptivos); contaminación por prompts sembrados sin marcar |
+| **CHK-S1** | Check-in breve 6 ítems (adaptados de TMMS-24/SCS-SF/MAAS)   | EXPERIMENTAL      | satura n=5 | —                           | no es instrumento validado — label "Autoinformado", nunca "Medido"                                           |
+
+**Números citados:** [paper-1-results.md](paper-1-results.md) — RMSE θ 1.16 @n=30 → ~0.32 @n=100 (E1) · cobertura bootstrap 78 % vs 90 % nominal (E3) · OU 0.339 ≈ AR(1) 0.339 (E4) · EWS FP 6.0 % / sens 40 % con τ≥0.65 (E5/E5b).
+
+**Violación de gate registrada (ratchet):** `RECOVERY_MIN_OBS = 20` en código vs ~100 requerido por E1. Subir el gate = decisión L1 (Fase B').

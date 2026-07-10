@@ -91,6 +91,20 @@ export interface EmotionalMapScoringInput {
   textFeatures?: ReadonlyArray<ReflectionTextFeatures & { createdAt: Date }>;
   /** Tier 2 kill-switch. When false, the affect-dynamics block is null. */
   ouEnabled: boolean;
+  /**
+   * EMOTIONAL_MAP_EWS_PUBLIC (Fase B). When false, the EWS-R1 block is NOT
+   * serialized to the client (`affectDynamics.ews = null`) — the detector is
+   * research-only per paper-1-results E5 (FP 6% / sensitivity 40%). Defaults
+   * to true to preserve current behavior until product sign-off.
+   */
+  ewsPublic?: boolean;
+  /**
+   * EMOTIONAL_MAP_LLM_SCORING (Fase B). When false, the H1 LLM provider is
+   * never called and the interpretive axes fall back to "gathering data"
+   * unless a measured signal (check-in / local text) covers them. Defaults to
+   * true to preserve current behavior; V2 forbids LLM-created scores.
+   */
+  llmScoringEnabled?: boolean;
 }
 
 /** Checkin answers per axis at which the measured confidence saturates. */
@@ -192,10 +206,17 @@ export async function scoreEmotionalMap(
     checkins = [],
     textFeatures = [],
     ouEnabled,
+    ewsPublic = true,
+    llmScoringEnabled = true,
   } = input;
 
   // ── Tier 2: fit the OU model to the mood series ─────────────────────────
-  const affect = computeAffectDynamics(moodSeries, ouEnabled, logger);
+  const affect = computeAffectDynamics(
+    moodSeries,
+    ouEnabled,
+    logger,
+    ewsPublic,
+  );
   const ouCalma =
     affect?.status === "active" && affect.stability != null
       ? { value: affect.stability, confidence: affect.confidence }
@@ -260,7 +281,7 @@ export async function scoreEmotionalMap(
     confCompasion >= CONFIDENCE_FLOOR ||
     confConsciencia >= CONFIDENCE_FLOOR;
 
-  if (llmHasSignal) {
+  if (llmHasSignal && llmScoringEnabled) {
     const payload: EmotionalMapMetadataPayload = {
       entries: entries.map((e) => ({
         mood: e.mood,
@@ -428,6 +449,7 @@ export function computeAffectDynamics(
   rows: ReadonlyArray<{ mood: string; createdAt: Date }>,
   ouEnabled: boolean,
   logger?: ScoringLogger,
+  ewsPublic = true,
 ): EmotionalMapAffectDynamics | null {
   if (!ouEnabled) return null;
 
@@ -503,16 +525,23 @@ export function computeAffectDynamics(
 
   // Etapa 5 — early-warning signal on the same detrended series. Refuses to
   // answer below its own observation floor; never a diagnosis.
+  //
+  // Fase B: EWS-R1 is calibrated at FP 6% / SENSITIVITY 40% (paper-1-results
+  // E5/E5b) — research-grade, not product-grade. `ewsPublic=false` withholds
+  // the block from the wire entirely (clients render nothing) while the
+  // detector keeps running internally for research/benchmark use.
   const ewsRaw = computeEws(trendFit.obsForFit);
-  const ews = {
-    status: ewsRaw.status,
-    tauAc: ewsRaw.tauAc,
-    tauVar: ewsRaw.tauVar,
-    needed: ewsRaw.needed,
-  };
+  const ews = ewsPublic
+    ? {
+        status: ewsRaw.status,
+        tauAc: ewsRaw.tauAc,
+        tauVar: ewsRaw.tauVar,
+        needed: ewsRaw.needed,
+      }
+    : null;
 
   logger?.log?.(
-    `EmotionalMap OU · nObs=${nObs} · sigma=${fit.params.sigma.toFixed(2)} · theta=${fit.params.theta.toFixed(2)} · stability=${axes.stability.toFixed(2)} · trend=${trend ?? "none"} · ews=${ews.status} · recoveryReady=${recoveryReady}`,
+    `EmotionalMap OU · nObs=${nObs} · sigma=${fit.params.sigma.toFixed(2)} · theta=${fit.params.theta.toFixed(2)} · stability=${axes.stability.toFixed(2)} · trend=${trend ?? "none"} · ews=${ewsRaw.status} · recoveryReady=${recoveryReady}`,
   );
   return {
     status: "active",

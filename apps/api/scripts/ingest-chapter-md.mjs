@@ -77,8 +77,10 @@ function isImplicitHeading(line) {
 
 const PAUSE_MOCK =
   "Haz una pausa aquí. Suelta el libro un momento, respira profundo tres veces y nota qué se mueve en tu cuerpo con lo que acabas de leer. No hay respuesta correcta — solo observa.";
+// Caption for the VIDEO block. No 🎬 prefix / "próximamente" prose — the
+// VideoBlock component renders the play frame + "en producción" state itself.
 const VIDEO_MOCK = (title) =>
-  `🎬 Video del capítulo — próximamente. Aquí irá una cápsula corta donde el autor conversa sobre «${title}». Mientras tanto, puedes llevarte una idea del texto a tu propia historia.`;
+  `Cápsula del capítulo: el autor conversa sobre «${title}».`;
 const EXERCISE_MOCK = (heading) =>
   `✍️ Actividad interactiva — próximamente. «${heading}» se convertirá en un ejercicio guiado dentro de la app (con espacio para responder y guardar). Por ahora, léela como una invitación y, si quieres, llévala a tu Diario o conversa con Eco.`;
 
@@ -93,9 +95,11 @@ const EXERCISE_MOCK = (heading) =>
  * visible and the reader knows where the real activity will land — while the
  * author's text below stays readable prose.
  *
- * VIDEO mocks render as EXERCISE blocks with a 🎬 prefix (no schema change).
- * `titleFallback` (from titles.json / filename) is used when the first line
- * is too long to be a real chapter title (e.g. a narrative opening).
+ * VIDEO mocks render as first-class VIDEO blocks (the real player shows an
+ * "en producción" placeholder until ops sets `meta.videoUrl`). The caption
+ * goes in `content`. `titleFallback` (from titles.json / filename) is used
+ * when the first line is too long to be a real chapter title (e.g. a
+ * narrative opening).
  */
 export function parseChapter(raw, titleFallback) {
   const lines = raw
@@ -110,7 +114,7 @@ export function parseChapter(raw, titleFallback) {
 
   const pushSpecial = (kind, content) => {
     if (!content) return;
-    if (kind === "VIDEO_MOCK") blocks.push({ kind: "EXERCISE", content: `🎬 ${content}` });
+    if (kind === "VIDEO_MOCK") blocks.push({ kind: "VIDEO", content });
     else blocks.push({ kind, content });
   };
   const pushHeading = (text) => {
@@ -186,9 +190,11 @@ function injectMocks(blocks, title) {
   );
   if (insertAt === -1) insertAt = blocks.length;
 
-  // 🎬 video mock card at the end of the readable body.
+  // 🎬 video capsule at the end of the readable body. Ships as a VIDEO block
+  // with no meta.videoUrl → the real player renders an "en producción"
+  // placeholder until ops uploads the file and sets meta.videoUrl.
   blocks.splice(insertAt, 0, {
-    kind: "EXERCISE",
+    kind: "VIDEO",
     content: VIDEO_MOCK(title),
   });
 

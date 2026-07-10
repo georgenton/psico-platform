@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiClient, ecoApi } from "@psico/api-client";
 import type {
@@ -23,6 +24,7 @@ import type {
   EcoThreadResponse,
 } from "@psico/types";
 import { decryptString, encryptString } from "@psico/crypto";
+import { consumeEcoReaderHandoff } from "@/lib/eco/reader-handoff";
 import { useDiaryKey } from "@/crypto/diary-key-context";
 import { CrisisModal } from "@/components/dashboard/eco/CrisisModal";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
@@ -220,6 +222,20 @@ export default function EcoScreen() {
   useEffect(() => {
     if (ecoKey) void ensureThread();
   }, [ecoKey, ensureThread]);
+
+  // ─── Reader → Eco handoff (Sprint B) ─────────────────────────────────────
+  //
+  // When the user tapped "Conversar con Eco" on a paragraph or a chapter's
+  // suggested topic, the reader stashed a composer prompt. Consume it when
+  // this screen gains focus and seed the composer. `text` lives above the
+  // unlock gate, so even if the user still has to unlock, the seed survives
+  // into the composer once they're in.
+  useFocusEffect(
+    useCallback(() => {
+      const handoff = consumeEcoReaderHandoff();
+      if (handoff) setText(handoff.text);
+    }, []),
+  );
 
   // ─── Load history when active thread changes ─────────────────────────────
 

@@ -5,6 +5,8 @@ import type {
   HighlightColor,
   HighlightSummary,
 } from "@psico/types";
+import { videoBlockInfo } from "@psico/types";
+import { VideoBlock } from "./VideoBlock";
 
 interface Props {
   block: ChapterBlockSummary;
@@ -52,6 +54,11 @@ export function BlockRenderer({
   annotationCount,
   registerRef,
 }: Props) {
+  // Video capsule (VIDEO kind, or a legacy 🎬 EXERCISE mock). Rendered by a
+  // dedicated player; no highlight/annotation overlay applies.
+  const video = videoBlockInfo(block);
+  if (video) return <VideoBlock info={video} blockId={block.id} />;
+
   const isQuote = block.kind === "QUOTE";
   const isHeading = block.kind === "HEADING";
   const isPause = block.kind === "PAUSE";

@@ -1032,6 +1032,10 @@ export interface ChapterListItem {
   title: string;
   durationMinutes: number | null;
   lockedByTier: boolean;
+  /** Book part number this chapter belongs to (null for single-part books). */
+  partNumber: number | null;
+  /** Book part title, e.g. "Deconstruyendo lo que sabíamos" (null if none). */
+  partTitle: string | null;
   userProgress: {
     status: "not-started" | "started" | "completed";
     progressPct: number;
@@ -1889,6 +1893,9 @@ export interface LectorChapterResponse {
     subtitle: string | null;
     durationMinutes: number | null;
     audioAvailable: boolean;
+    /** Book part this chapter belongs to (null for single-part books). */
+    partNumber: number | null;
+    partTitle: string | null;
   };
   blocks: ChapterBlockSummary[];
   lessons: LectorChapterLesson[];

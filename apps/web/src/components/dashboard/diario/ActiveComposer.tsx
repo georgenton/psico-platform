@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { DIARY_MOODS } from "@psico/types";
+import { analyzeReflectionText, DIARY_MOODS } from "@psico/types";
 import type {
   CreateDiaryEntryRequest,
   DiaryPromptOfTheDay,
@@ -96,6 +96,27 @@ export function ActiveComposer({
         });
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
+        }
+        // Etapa 6 — analyze the plaintext ON DEVICE and upload ONLY numbers
+        // (the text itself never goes on the wire). Best-effort: any failure
+        // here must not affect the save the user just made.
+        try {
+          const created = (await res.json().catch(() => null)) as {
+            id?: string;
+          } | null;
+          const features = analyzeReflectionText(trimmed);
+          if (features) {
+            void fetch(`${apiBase}/emotional-map/text-features`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ ...features, entryId: created?.id }),
+            }).catch(() => undefined);
+          }
+        } catch {
+          // ignore — self-knowledge signal is optional, the entry is saved
         }
         setText("");
         // Force the Server Component to re-fetch the list so the new entry

@@ -4,6 +4,7 @@ import type {
   EmotionalMapAxes,
   EmotionalMapDimension,
   EmotionalMapResult,
+  ReflectionTextFeatures,
 } from "@psico/types";
 import { CHECKIN_ITEMS } from "@psico/types";
 
@@ -81,6 +82,13 @@ export interface EmotionalMapScoringInput {
    * callers/fixtures keep compiling.
    */
   checkins?: ReadonlyArray<{ itemKey: string; score: number; createdAt: Date }>;
+  /**
+   * Etapa 6 — numeric text features the CLIENT computed on-device from
+   * decrypted reflections (the text itself never reaches the server). One row
+   * per analyzed entry, 30-day window. Optional so pre-Etapa-6 callers keep
+   * compiling.
+   */
+  textFeatures?: ReadonlyArray<ReflectionTextFeatures & { createdAt: Date }>;
   /** Tier 2 kill-switch. When false, the affect-dynamics block is null. */
   ouEnabled: boolean;
 }
@@ -117,6 +125,56 @@ export function computeCheckinAxes(
   return out;
 }
 
+/** Analyzed entries per axis at which the text-derived confidence saturates. */
+export const TEXT_GOOD_N = 8;
+/** Density scales that map lexicon hit-rates to the 0–1 axes (tuned on the
+ *  analyzer unit fixtures — see text-features.spec.ts). */
+const TEXT_CLARITY_SCALE = 0.05;
+const TEXT_AWARENESS_SCALE = 0.08;
+const TEXT_COMPASSION_SCALE = 0.04;
+
+/**
+ * Etapa 6 — turn per-entry text features into per-axis signals.
+ * value in [0,1]; confidence grows with the analyzed-entry count.
+ *
+ * - claridad: insight + causal language (naming and explaining feelings).
+ * - consciencia: affect labeling (positive + negative emotion vocabulary).
+ * - compasion: self-kind vs self-critical talk balance around neutral 0.5.
+ */
+export function computeTextAxes(
+  rows: ReadonlyArray<ReflectionTextFeatures>,
+): Partial<Record<CheckinAxis, { value: number; confidence: number }>> {
+  const n = rows.length;
+  if (n === 0) return {};
+  const mean = (f: (r: ReflectionTextFeatures) => number) =>
+    rows.reduce((a, r) => a + f(r), 0) / n;
+  const confidence = Math.min(1, n / TEXT_GOOD_N);
+
+  const claridad = clamp01(
+    mean((r) => r.insight + r.causal) / TEXT_CLARITY_SCALE,
+  );
+  const consciencia = clamp01(
+    mean((r) => r.positive + r.negative) / TEXT_AWARENESS_SCALE,
+  );
+  const kind = mean((r) => r.selfKind);
+  const critic = mean((r) => r.selfCritic);
+  const out: Partial<
+    Record<CheckinAxis, { value: number; confidence: number }>
+  > = {
+    claridad: { value: claridad, confidence },
+    consciencia: { value: consciencia, confidence },
+  };
+  // Compassion needs SOME self-talk evidence either way; otherwise stay quiet
+  // rather than reporting a fabricated neutral.
+  if (kind + critic > 0) {
+    out.compasion = {
+      value: clamp01(0.5 + (kind - critic) / TEXT_COMPASSION_SCALE),
+      confidence,
+    };
+  }
+  return out;
+}
+
 export async function scoreEmotionalMap(
   input: EmotionalMapScoringInput,
   provider: IEmotionalMapProvider,
@@ -132,6 +190,7 @@ export async function scoreEmotionalMap(
     currentStreakDays,
     moodSeries,
     checkins = [],
+    textFeatures = [],
     ouEnabled,
   } = input;
 
@@ -144,6 +203,9 @@ export async function scoreEmotionalMap(
 
   // ── Etapa 2: measured signals from the daily micro-checkins ─────────────
   const checkinAxes = computeCheckinAxes(checkins);
+
+  // ── Etapa 6: on-device text features (numbers computed by the client) ───
+  const textAxes = computeTextAxes(textFeatures);
 
   // ── Derived counters ─────────────────────────────────────────────────────
   const dayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -233,8 +295,9 @@ export async function scoreEmotionalMap(
   }
 
   // ── Assemble dimensions (radar order) ────────────────────────────────────
-  // For the interpretive axes, a MEASURED checkin signal (with enough answers)
-  // takes precedence over the LLM interpretation — same pattern as OU→Calma.
+  // For the interpretive axes, the precedence is: checkin (explicit answers) >
+  // on-device text features (Etapa 6) > LLM interpretation — same pattern as
+  // OU→Calma. Both checkin and text signals count as MEASURED.
   const measuredAxis = (
     axis: CheckinAxis,
     fallback: { value: number; confidence: number; sources: string },
@@ -245,6 +308,16 @@ export async function scoreEmotionalMap(
         value: m.value,
         confidence: m.confidence,
         sources: "Tus respuestas al check-in diario",
+        measured: true,
+      };
+    }
+    const t = textAxes[axis];
+    if (t && t.confidence >= CONFIDENCE_FLOOR) {
+      return {
+        value: t.value,
+        confidence: t.confidence,
+        sources:
+          "El lenguaje de tus reflexiones — analizado en tu dispositivo; solo números salen de él",
         measured: true,
       };
     }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -322,77 +322,88 @@ export default function BookDetailScreen() {
             <View style={styles.chaptersCard}>
               {detail.chaptersList.map((ch, idx) => {
                 const isLast = idx === detail.chaptersList.length - 1;
+                const prev = detail.chaptersList[idx - 1];
+                const showPartHeading =
+                  ch.partNumber != null &&
+                  (idx === 0 || prev?.partNumber !== ch.partNumber);
                 return (
-                  <Pressable
-                    key={`${ch.n}-${idx}`}
-                    onPress={() =>
-                      router.push(
-                        `/books/${detail.book.slug}/lector/${ch.n}` as never,
-                      )
-                    }
-                    style={[
-                      styles.chapterRow,
-                      !isLast && styles.chapterDivider,
-                    ]}
-                  >
-                    <View
+                  <Fragment key={`${ch.n}-${idx}`}>
+                    {showPartHeading ? (
+                      <Text style={styles.partHeading}>
+                        {`Parte ${romanize(ch.partNumber as number)}${ch.partTitle ? ` · ${ch.partTitle}` : ""}`}
+                      </Text>
+                    ) : null}
+                    <Pressable
+                      key={`row-${ch.n}-${idx}`}
+                      onPress={() =>
+                        router.push(
+                          `/books/${detail.book.slug}/lector/${ch.n}` as never,
+                        )
+                      }
                       style={[
-                        styles.chapterBadge,
-                        {
-                          backgroundColor:
-                            ch.userProgress.status === "completed"
-                              ? Colors.sage[100]
-                              : ch.userProgress.status === "started"
-                                ? Colors.lavender[100]
-                                : Colors.warm[100],
-                        },
+                        styles.chapterRow,
+                        !isLast && styles.chapterDivider,
                       ]}
                     >
-                      <Text
+                      <View
                         style={[
-                          styles.chapterBadgeText,
+                          styles.chapterBadge,
                           {
-                            color:
+                            backgroundColor:
                               ch.userProgress.status === "completed"
-                                ? Colors.sage[600]
+                                ? Colors.sage[100]
                                 : ch.userProgress.status === "started"
-                                  ? Colors.lavender[700]
-                                  : Colors.warm[500],
+                                  ? Colors.lavender[100]
+                                  : Colors.warm[100],
                           },
                         ]}
                       >
-                        {ch.userProgress.status === "completed" ? "✓" : ch.n}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.chapterTitle} numberOfLines={2}>
-                        {ch.title}
-                      </Text>
-                      <Text style={styles.chapterMeta}>
-                        {ch.durationMinutes
-                          ? `${ch.durationMinutes} min`
-                          : "Sin duración"}
-                        {ch.userProgress.status === "started"
-                          ? ` · ${ch.userProgress.progressPct}%`
-                          : ""}
-                      </Text>
-                    </View>
-                    {ch.lockedByTier ? (
-                      <Ionicons
-                        name="lock-closed"
-                        size={13}
-                        color={Colors.warm[400]}
-                      />
-                    ) : ch.userProgress.status === "started" ? (
-                      <Text style={styles.chapterCta}>Continuar →</Text>
-                    ) : (
-                      <Ionicons
-                        name="chevron-forward"
-                        size={14}
-                        color={Colors.warm[400]}
-                      />
-                    )}
-                  </Pressable>
+                        <Text
+                          style={[
+                            styles.chapterBadgeText,
+                            {
+                              color:
+                                ch.userProgress.status === "completed"
+                                  ? Colors.sage[600]
+                                  : ch.userProgress.status === "started"
+                                    ? Colors.lavender[700]
+                                    : Colors.warm[500],
+                            },
+                          ]}
+                        >
+                          {ch.userProgress.status === "completed" ? "✓" : ch.n}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.chapterTitle} numberOfLines={2}>
+                          {ch.title}
+                        </Text>
+                        <Text style={styles.chapterMeta}>
+                          {ch.durationMinutes
+                            ? `${ch.durationMinutes} min`
+                            : "Sin duración"}
+                          {ch.userProgress.status === "started"
+                            ? ` · ${ch.userProgress.progressPct}%`
+                            : ""}
+                        </Text>
+                      </View>
+                      {ch.lockedByTier ? (
+                        <Ionicons
+                          name="lock-closed"
+                          size={13}
+                          color={Colors.warm[400]}
+                        />
+                      ) : ch.userProgress.status === "started" ? (
+                        <Text style={styles.chapterCta}>Continuar →</Text>
+                      ) : (
+                        <Ionicons
+                          name="chevron-forward"
+                          size={14}
+                          color={Colors.warm[400]}
+                        />
+                      )}
+                    </Pressable>
+                  </Fragment>
                 );
               })}
             </View>
@@ -551,6 +562,11 @@ function StatItem({ value, label }: { value: number | string; label: string }) {
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
+
+const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+function romanize(n: number): string {
+  return ROMAN[n] ?? String(n);
+}
 
 const styles = StyleSheet.create({
   root: {
@@ -737,6 +753,16 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     color: Colors.warm[500],
     marginBottom: Spacing.sm,
+  },
+  partHeading: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: Colors.lavender[700],
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
   },
 
   card: {

@@ -540,6 +540,8 @@ export class BooksService {
               order: true,
               title: true,
               durationMinutes: true,
+              partNumber: true,
+              partTitle: true,
               progress: { where: { userId }, select: { completedAt: true } },
             },
           }
@@ -551,6 +553,8 @@ export class BooksService {
               order: true,
               title: true,
               durationMinutes: true,
+              partNumber: true,
+              partTitle: true,
             },
           },
     };
@@ -735,6 +739,8 @@ export class BooksService {
         order: number;
         title: string;
         durationMinutes: number | null;
+        partNumber?: number | null;
+        partTitle?: string | null;
         progress?: { completedAt: Date | null }[];
       }[];
     },
@@ -756,6 +762,8 @@ export class BooksService {
         title: ch.title,
         durationMinutes: ch.durationMinutes,
         lockedByTier: tier === "pro" && (PLAN_RANK[book.plan] ?? 0) > 0,
+        partNumber: ch.partNumber ?? null,
+        partTitle: ch.partTitle ?? null,
         userProgress: {
           status,
           progressPct:

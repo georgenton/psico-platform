@@ -161,18 +161,36 @@ describe("Stage 0 — emotional-map persona benchmark", () => {
     expect(early.affectDynamics?.recovery).toBeNull();
     expect(early.affectDynamics?.inertiaDays).toBeNull();
 
-    // Enough history → all four axes present.
+    // Fase B' (L1): even a disciplined quarter (n=77) stays below the raised
+    // gate — theta is unidentifiable under ~100 obs (paper-1-results E1).
     const mature = await scoreEmotionalMap(
       buildPersonaInput(
         PERSONAS.find((p) => p.id === "trimestre-disciplinado")!,
       ), // n=77
       stubProvider,
     );
-    expect(mature.affectDynamics?.nObs ?? 0).toBeGreaterThanOrEqual(
-      mature.affectDynamics?.recoveryNeeded ?? 0,
+    expect(mature.affectDynamics?.recoveryNeeded).toBe(100);
+    expect(mature.affectDynamics?.recovery).toBeNull();
+    expect(mature.affectDynamics?.inertiaDays).toBeNull();
+
+    // With ≥100 observations the axes unlock (synthetic long series — no
+    // persona logs that much yet).
+    const longSeries = Array.from({ length: 110 }, (_, i) => ({
+      mood: i % 2 === 0 ? "ok" : "good",
+      createdAt: new Date(Date.UTC(2026, 0, 1) + i * 1.5 * 86_400_000),
+    }));
+    const unlocked = await scoreEmotionalMap(
+      {
+        ...buildPersonaInput(
+          PERSONAS.find((p) => p.id === "trimestre-disciplinado")!,
+        ),
+        moodSeries: longSeries,
+      },
+      stubProvider,
     );
-    expect(mature.affectDynamics?.recovery).not.toBeNull();
-    expect(mature.affectDynamics?.inertiaDays).not.toBeNull();
+    expect(unlocked.affectDynamics?.nObs).toBeGreaterThanOrEqual(100);
+    expect(unlocked.affectDynamics?.recovery).not.toBeNull();
+    expect(unlocked.affectDynamics?.inertiaDays).not.toBeNull();
   });
 
   it("Etapa 2: daily checkins turn Claridad/Compasión/Consciencia into MEASURED axes", async () => {
@@ -261,8 +279,10 @@ describe("Stage 0 — emotional-map persona benchmark", () => {
     expect(early.margins!.recovery).toBeNull();
 
     // More history → tighter intervals (the honesty story in one assert).
+    // Fase B' (L1): the recovery ± stays gated with the axis until ~100 obs,
+    // so even at n=77 it is null — only baseline/stability tighten.
     const mature = (await by("trimestre-disciplinado")).affectDynamics!;
-    expect(mature.margins!.recovery).not.toBeNull();
+    expect(mature.margins!.recovery).toBeNull();
     expect(mature.margins!.stability!).toBeLessThan(early.margins!.stability!);
     expect(mature.margins!.baseline!).toBeLessThan(early.margins!.baseline!);
   });

@@ -53,14 +53,14 @@ const FILES = [
  * sorted forbidden terms present in that file.
  */
 const KNOWN_VIOLATIONS: Record<string, string[]> = {
+  // Fase B' (L1) cleaned the affect block: MapAffectDynamics + both
+  // affect-copy twins are now term-free. What remains belongs to later
+  // phases: the global pct + "Medido" badge (Fase F) and the engagement
+  // chips (Fase C → LearningDashboard).
   "apps/web/src/components/dashboard/mapa/MapStage.tsx": [
     "comprensión emocional",
   ],
   "apps/web/src/components/dashboard/mapa/MapDims.tsx": ["medido"],
-  "apps/web/src/components/dashboard/mapa/MapAffectDynamics.tsx": [
-    "confianza",
-    "te recuperas",
-  ],
   "apps/web/src/components/dashboard/mapa/MapFeed.tsx": [
     "conversaciones con eco",
     "minutos de lectura",
@@ -72,29 +72,11 @@ const KNOWN_VIOLATIONS: Record<string, string[]> = {
   "apps/web/src/components/dashboard/mapa/MapInfoButton.tsx": [
     "conversaciones con eco",
   ],
-  "apps/web/src/components/dashboard/mapa/affect-copy.ts": [
-    "confianza",
-    "muy parejo",
-    "señal temprana",
-    "te recuperas",
-    "vas en buena dirección",
-    "ánimo de base es bueno",
-  ],
-  "apps/mobile/src/components/dashboard/mapa/affect-copy.ts": [
-    "confianza",
-    "muy parejo",
-    "señal temprana",
-    "te recuperas",
-    "vas en buena dirección",
-    "ánimo de base es bueno",
-  ],
   "apps/mobile/app/(tabs)/mapa.tsx": [
     "comprensión emocional",
-    "confianza",
     "conversaciones con eco",
     "medido",
     "minutos de lectura",
-    "te recuperas",
   ],
 };
 

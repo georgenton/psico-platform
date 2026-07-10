@@ -3,6 +3,7 @@ import {
   affectHeadline,
   baselineLevel,
   buildAffectStory,
+  evidenceBaseLabel,
   formatInertia,
   recoveryLevel,
   stabilityLevel,
@@ -15,7 +16,7 @@ function active(
     status: "active",
     nObs: 40,
     needed: 8,
-    recoveryNeeded: 20,
+    recoveryNeeded: 100,
     confidence: 1,
     baseline: 0.5,
     recovery: 0.5,
@@ -35,18 +36,25 @@ describe("affect-copy (mobile)", () => {
     expect(stabilityLevel(0.1)).toBe("volatile");
   });
 
-  it("matches the demo-estable persona (72/83/66) end to end", () => {
+  it("labels the evidence base honestly by record count (Fase B')", () => {
+    expect(evidenceBaseLabel(12)).toBe("base limitada");
+    expect(evidenceBaseLabel(45)).toBe("base moderada");
+    expect(evidenceBaseLabel(120)).toBe("base más sólida");
+  });
+
+  it("matches the demo-estable persona (72/83/66) with descriptive rows", () => {
     const story = buildAffectStory(
       active({ baseline: 0.72, recovery: 0.83, stability: 0.66 }),
     );
     expect(story.headline).toBe(
-      "Sueles estar en un buen lugar, y cuando bajas, te recuperas rápido.",
+      "Tus registros recientes se concentran en categorías agradables.",
     );
     expect(story.rows.map((r) => r.phrase?.title)).toEqual([
-      "Tu ánimo de base es bueno",
-      "Te recuperas rápido",
-      "Tienes altibajos normales",
+      "Nivel central en categorías agradables",
+      "Ritmo de retorno estimado: rápido",
+      "Variación moderada alrededor de tu tendencia",
     ]);
+    expect(story).not.toHaveProperty("ewsNote");
   });
 
   it("degrades the recovery row to a gathering note when gated", () => {
@@ -55,11 +63,17 @@ describe("affect-copy (mobile)", () => {
     );
     const recovery = story.rows.find((r) => r.key === "recovery")!;
     expect(recovery.phrase).toBeNull();
-    expect(recovery.missing).toBe(8);
+    expect(recovery.missing).toBe(88); // 100 needed − 12 observed
+  });
+
+  it("leads with the trend in neutral terms (never an evaluation)", () => {
+    const up = affectHeadline("medium", "up");
+    expect(up).toContain("han tendido hacia categorías");
+    expect(up).not.toMatch(/buena dirección|vas bien/i);
   });
 
   it("keeps the low-mood headline kind (non-diagnostic framing)", () => {
-    expect(affectHeadline("low", "slow")).not.toMatch(
+    expect(affectHeadline("low", null)).not.toMatch(
       /depres|ansied|trastorn|problema/i,
     );
   });

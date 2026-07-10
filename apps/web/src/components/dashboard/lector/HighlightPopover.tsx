@@ -8,7 +8,9 @@ interface Props {
   y: number;
   onPick: (color: HighlightColor) => void;
   onAnnotate: () => void;
-  /** Sprint B — take the selected passage to Eco to explore it. */
+  /** Reader companion dock — open a private reflexión seeded with the passage. */
+  onReflect: () => void;
+  /** Reader companion dock — open Eco in a side panel, seeded with the passage. */
   onAskEco: () => void;
   onDismiss: () => void;
 }
@@ -38,6 +40,7 @@ export function HighlightPopover({
   y,
   onPick,
   onAnnotate,
+  onReflect,
   onAskEco,
   onDismiss,
 }: Props) {
@@ -80,11 +83,19 @@ export function HighlightPopover({
       </button>
       <button
         type="button"
-        onClick={onAskEco}
+        onClick={onReflect}
         className="rounded-full px-3 py-1 text-[12px] font-semibold"
+        style={{ background: "var(--color-warm-700)", color: "white" }}
+      >
+        🪷 Reflexión
+      </button>
+      <button
+        type="button"
+        onClick={onAskEco}
+        className="whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold"
         style={{ background: "var(--color-sage-400)", color: "white" }}
       >
-        🌿 Eco
+        🌿 Pregúntale a Eco
       </button>
       <button
         type="button"

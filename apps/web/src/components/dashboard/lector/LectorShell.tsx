@@ -9,8 +9,10 @@ import type {
   HighlightSummary,
   LectorChapterResponse,
 } from "@psico/types";
-import { passageToPrompt, setEcoReaderHandoff } from "@/lib/eco/reader-handoff";
-import { AnnotationsPanel } from "./AnnotationsPanel";
+import {
+  ReaderCompanionDock,
+  type DockTab,
+} from "./companion/ReaderCompanionDock";
 import { AudioBar } from "./AudioBar";
 import { BlockRenderer } from "./BlockRenderer";
 import { EcoTopicCard } from "./EcoTopicCard";
@@ -70,8 +72,12 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
     initial.session.progressPct,
   );
 
-  // Annotations panel state.
-  const [panelOpen, setPanelOpen] = useState(false);
+  // Companion dock state (Eco · Notas · Reflexión). The dock is the reader's
+  // right-hand panel — it keeps the chapter mounted behind it, so the user
+  // never loses their place when they open Eco, a note, or a reflexión.
+  const [dockOpen, setDockOpen] = useState(false);
+  const [dockTab, setDockTab] = useState<DockTab>("notas");
+  const [dockPassage, setDockPassage] = useState<string | null>(null);
   const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
   const [pendingBlockId, setPendingBlockId] = useState<string | null>(null);
 
@@ -473,11 +479,13 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
             <button
               type="button"
               onClick={() => {
-                setPanelOpen(true);
+                setDockTab("notas");
                 setFocusBlockId(null);
                 setPendingBlockId(null);
+                setDockPassage(null);
+                setDockOpen(true);
               }}
-              aria-label="Ver notas"
+              aria-label="Abrir panel del lector"
               className="rounded-full px-3 py-1 text-[13px] font-semibold"
               style={{
                 background: "var(--reader-chip-bg, var(--color-warm-100))",
@@ -629,7 +637,10 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
             annotationCount={annotationsByBlock.get(b.id) ?? 0}
             onAnnotateClick={(id) => {
               setFocusBlockId(id);
-              setPanelOpen(true);
+              setPendingBlockId(null);
+              setDockPassage(null);
+              setDockTab("notas");
+              setDockOpen(true);
             }}
             registerRef={registerRef}
           />
@@ -708,23 +719,29 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
           onPick={createHighlight}
           onAnnotate={() => {
             setPendingBlockId(selection.blockId);
-            setPanelOpen(true);
             setFocusBlockId(null);
+            setDockPassage(null);
+            setDockTab("notas");
+            setDockOpen(true);
+            setSelection(null);
+            window.getSelection()?.removeAllRanges();
+          }}
+          onReflect={() => {
+            const passage = window.getSelection()?.toString() ?? "";
+            setDockPassage(passage.trim() || null);
+            setDockTab("reflexion");
+            setDockOpen(true);
             setSelection(null);
             window.getSelection()?.removeAllRanges();
           }}
           onAskEco={() => {
+            // Open Eco IN the dock — no navigation, the chapter stays put.
             const passage = window.getSelection()?.toString() ?? "";
-            if (passage.trim()) {
-              setEcoReaderHandoff(passageToPrompt(passage), {
-                bookSlug,
-                chapterOrder: chapter.order,
-                kind: "highlight",
-              });
-            }
+            setDockPassage(passage.trim() || null);
+            setDockTab("eco");
+            setDockOpen(true);
             setSelection(null);
             window.getSelection()?.removeAllRanges();
-            router.push("/dashboard/eco");
           }}
           onDismiss={() => {
             setSelection(null);
@@ -733,21 +750,28 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
         />
       )}
 
-      {/* Side panels */}
-      <AnnotationsPanel
+      {/* Companion dock — Eco · Notas · Reflexión (right-hand panel) */}
+      <ReaderCompanionDock
+        open={dockOpen}
+        tab={dockTab}
+        onTabChange={setDockTab}
+        onClose={() => {
+          setDockOpen(false);
+          setFocusBlockId(null);
+          setPendingBlockId(null);
+          setDockPassage(null);
+        }}
+        passage={dockPassage}
+        onPassageConsumed={() => setDockPassage(null)}
         annotations={annotations}
         focusBlockId={focusBlockId}
         pendingBlockId={pendingBlockId}
         onClearPending={() => setPendingBlockId(null)}
-        isOpen={panelOpen}
-        onClose={() => {
-          setPanelOpen(false);
-          setFocusBlockId(null);
-          setPendingBlockId(null);
-        }}
-        onCreate={createAnnotation}
-        onUpdate={updateAnnotation}
-        onDelete={deleteAnnotation}
+        onCreateNote={createAnnotation}
+        onUpdateNote={updateAnnotation}
+        onDeleteNote={deleteAnnotation}
+        apiBase={apiBase}
+        token={token}
       />
 
       <ReaderPreferencesModal

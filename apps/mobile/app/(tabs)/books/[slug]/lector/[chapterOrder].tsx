@@ -317,7 +317,9 @@ export default function LectorScreen() {
         onScroll={onScroll}
       >
         <Text style={styles.chapterEyebrow}>
-          {chapter.book.title.toUpperCase()}
+          {chapter.chapter.partNumber != null
+            ? `${chapter.book.title.toUpperCase()} · PARTE ${romanize(chapter.chapter.partNumber)}`
+            : chapter.book.title.toUpperCase()}
         </Text>
         <Text style={styles.chapterTitle}>
           Cap. {chapter.chapter.order} · {chapter.chapter.title}
@@ -548,6 +550,11 @@ function AnnotationComposer({
 }
 
 // ───────────────────────────────────────────────────────────────────────
+
+const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+function romanize(n: number): string {
+  return ROMAN[n] ?? String(n);
+}
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.warm[50] },

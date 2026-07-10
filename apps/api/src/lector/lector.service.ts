@@ -126,6 +126,8 @@ export class LectorService {
         subtitle: chapter.description,
         durationMinutes: chapter.durationMinutes,
         audioAvailable: chapter.audios.length > 0,
+        partNumber: chapter.partNumber ?? null,
+        partTitle: chapter.partTitle ?? null,
       },
       blocks: chapter.blocks.map((b) => ({
         id: b.id,

@@ -9,9 +9,11 @@ import type {
   HighlightSummary,
   LectorChapterResponse,
 } from "@psico/types";
+import { passageToPrompt, setEcoReaderHandoff } from "@/lib/eco/reader-handoff";
 import { AnnotationsPanel } from "./AnnotationsPanel";
 import { AudioBar } from "./AudioBar";
 import { BlockRenderer } from "./BlockRenderer";
+import { EcoTopicCard } from "./EcoTopicCard";
 import { HighlightPopover } from "./HighlightPopover";
 import {
   ReaderPreferencesModal,
@@ -608,8 +610,17 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
         </div>
       ) : null}
 
+      {/* Sprint B — contextual Eco topic for this chapter (dismissible). */}
+      <div className="mx-auto max-w-3xl px-4 pt-6">
+        <EcoTopicCard
+          bookSlug={bookSlug}
+          chapterOrder={chapter.order}
+          chapterTitle={chapter.title}
+        />
+      </div>
+
       {/* Reading area */}
-      <main className="mx-auto max-w-3xl px-4 py-8" style={proseStyle}>
+      <main className="mx-auto max-w-3xl px-4 pb-8" style={proseStyle}>
         {blocks.map((b) => (
           <BlockRenderer
             key={b.id}
@@ -701,6 +712,19 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
             setFocusBlockId(null);
             setSelection(null);
             window.getSelection()?.removeAllRanges();
+          }}
+          onAskEco={() => {
+            const passage = window.getSelection()?.toString() ?? "";
+            if (passage.trim()) {
+              setEcoReaderHandoff(passageToPrompt(passage), {
+                bookSlug,
+                chapterOrder: chapter.order,
+                kind: "highlight",
+              });
+            }
+            setSelection(null);
+            window.getSelection()?.removeAllRanges();
+            router.push("/dashboard/eco");
           }}
           onDismiss={() => {
             setSelection(null);

@@ -9,6 +9,7 @@ import type {
 } from "@psico/types";
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
+import { consumeEcoReaderHandoff } from "@/lib/eco/reader-handoff";
 import { ChatArea } from "./ChatArea";
 import { ThreadRail } from "./ThreadRail";
 
@@ -68,6 +69,18 @@ export function EcoShell({
   const [activeThreadId, setActiveThreadId] = useState<string | null>(
     initialRail[0]?.id ?? null,
   );
+
+  // Sprint B — reader→Eco handoff. If the user arrived by tapping "🌿 Eco"
+  // on a highlight or a chapter topic, pre-fill the composer with the passage
+  // + lead-in. Read once on mount (the consume() clears sessionStorage).
+  const [composerSeed, setComposerSeed] = useState<string | null>(null);
+  const handoffChecked = useRef(false);
+  useEffect(() => {
+    if (handoffChecked.current) return;
+    handoffChecked.current = true;
+    const handoff = consumeEcoReaderHandoff();
+    if (handoff) setComposerSeed(handoff.text);
+  }, []);
 
   // After a new message lands, the rail row's lastMessageAt + messageCount
   // change — refetch so the sidebar reorders. We don't broadcast every
@@ -144,6 +157,8 @@ export function EcoShell({
             token={token}
             ecoKey={ecoKey}
             onMessageSent={refreshRail}
+            initialComposerText={composerSeed}
+            onComposerSeedConsumed={() => setComposerSeed(null)}
           />
         ) : (
           <EmptyState onNew={createThread} />

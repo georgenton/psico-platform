@@ -2917,15 +2917,83 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
-### Próximo paso — polish o freeze
+### Sesión — 2026-07-09 ✅ COMPLETADA — Sprint A · Ingesta de capítulos reales (Parte I de *Emociones en Construcción*)
 
-📖 **El roadmap maestro vive en [docs/ROADMAP.md](docs/ROADMAP.md).** Sprints 1-5 cerrados + el bug de Sprint 3.
+**Rama:** `feature/chapter-ingestion` · **PR #480** (develop) + sync a main
+**Bitácora:** [docs/informes/sprint-a-chapter-ingestion.md](docs/informes/sprint-a-chapter-ingestion.md)
+**Tests:** API 783/784 · Web 274 · Mobile 48 · typecheck ×3 + lints + privacy + OpenAPI verdes (sin tests nuevos — contenido + tooling).
 
-**Opciones:**
-- **Settings UI: explicit TZ selector** (~½ día) — polish #13.
-- **`expo-av` → `expo-audio`** (3-5 días) — polish #10, metadata dinámica lock-screen.
-- **Testcontainers para E2E API** — migrar de Prisma mock.
-- **Freeze v1 + validación** — todos los items críticos del código están cerrados; solo faltan los 3 items ops (Stripe price IDs + API keys + ffmpeg embed real).
+**Contexto:** para probar la app con un usuario real (entrar, leer, subrayar, anotar, conversar con Eco, ver cómo lo mide el Mapa) hacía falta texto de verdad. El usuario aportó los 3 primeros capítulos de *Emociones en Construcción* (Parte I) en prosa. Actividades y videos aún no existen como features → se colocan **mocks** para que esos bloques rendericen y el flujo se vea completo.
+
+**Lo que se construyó:**
+- **`apps/api/scripts/ingest-chapter-md.mjs`** — parser heurístico Markdown **o** prosa plana → `ChapterBlock`s. Primera línea = título; líneas cortas sin punto = headings; el resto = párrafos. Secciones "Actividades" → sus párrafos como `EXERCISE` + una card `✍️` mock. Inyecta una `PAUSE` de respiración ~45 % y una card `🎬 Video (próximamente)` antes de referencias. Idempotente por REEMPLAZO (⚠️ cascade sobre highlights/annotations). Lee sidecars `titles.json` / `parts.json`.
+- **`apps/api/content/emociones-en-construccion/`** — `capitulo-01/02/03.md` + `titles.json` (títulos canónicos) + `parts.json` (los 3 son Parte 1 "Deconstruyendo lo que sabíamos").
+
+**Bugs corregidos:** (1) título del Cap. 3 parseado como párrafo de 600 chars → `titles.json` + guard `takeTitle` (≤120 chars, sin punto final); (2) sección "Actividades" del Cap. 3 = 31 párrafos → parser mantiene prosa + una card mock, no fuerza todo a EXERCISE.
+
+**Deuda:** reproductor de video real · actividades interactivas reales · ingestar Partes II/III · re-ingesta destructiva (migrar a diff cuando haya marcas reales).
+
+---
+
+### Sesión — 2026-07-09 ✅ COMPLETADA — Sprint A.2 · Partes del libro + Modo Libro/Guía
+
+**Rama:** `feature/book-parts` · **PR #481** (develop) + **#482** (sync a main)
+**Bitácora:** [docs/informes/sprint-a2-book-parts.md](docs/informes/sprint-a2-book-parts.md)
+**Tests:** API 783/784 · Web 277 (+3 ChaptersList) · Mobile 48 · typecheck ×3 + lints + OpenAPI verdes.
+
+**Contexto:** *Emociones en Construcción* tiene 3 partes; los capítulos ingestados son la **Parte I**. El usuario pidió que la Parte I quede clara en la UI y que los 3 capítulos funcionen en **Modo Libro y Modo Guía**.
+
+**Lo que se construyó:**
+- **Schema:** `Chapter.partNumber Int?` + `Chapter.partTitle String?` (nullable → fallback a lista plana). Migración aditiva `20260710000000_chapter_part_grouping`. El script de ingesta ya los escribía desde `parts.json`.
+- **Backend:** `books.service.buildChaptersList` + `lector.service` devuelven part number/title; `@psico/types` extendido (cache-tolerant).
+- **Web:** `ChaptersList` reescrito con `groupByPart` (headings "PARTE I · …" o lista plana); `LectorShell` header con "· Parte I". +3 tests.
+- **Mobile:** heading de parte en el detalle + eyebrow "· PARTE I" en el lector.
+- **Modo Libro/Guía verificado:** ambos modos rinden los 3 capítulos. Modo Guía muestra el `AudioBar` con placeholder honesto **"Audio en producción"** (los m4a aún no están en R2); cuando ops los suba, reproduce sin cambios cliente.
+
+**Nota de sync:** #482 se mergeó por squash — el repo no permite merge commits. `main` quedó idéntico a `develop` (diff vacío verificado).
+
+**Deuda:** subir los m4a a R2 · tabla `BookPart` cuando llegue Author B2B · Partes II/III.
+
+---
+
+### Sesión — 2026-07-09 ✅ COMPLETADA — Sprint B · Eco contextual en el lector
+
+**Rama:** `feature/eco-contextual-reader` · **PR #483** (develop) + **#484** (sync a main)
+**Bitácora:** [docs/informes/sprint-b-eco-contextual.md](docs/informes/sprint-b-eco-contextual.md)
+**Tests:** API 783/784 · Web 277 · Mobile 53 (+5: acción Eco en BlockActionsSheet + EcoTopicCard) · Crypto 34 · typecheck ×3 + lints + OpenAPI verdes.
+
+**Contexto:** con los capítulos ya legibles, cerrar el bucle de acompañamiento — que Eco aparezca al abrir un capítulo sugiriendo un tema, y que al subrayar se pueda saltar a profundizar con el pasaje pre-cargado. El resto (sugerencias adaptativas, nudges post-ejercicio) a backlog. Para los prompts de capítulo el usuario eligió **"Yo las genero"** (las redactó el asistente).
+
+**Lo que se construyó:**
+- **`EcoTopicCard`** (web + mobile) — tarjeta descartable al inicio del capítulo con un abre-conversación curado. Prompts en `ECO_CHAPTER_PROMPTS` (`@psico/types/eco-chapter-prompts.ts`) por `(bookSlug, chapterOrder)` + fallback por título. Los 3 capítulos de la Parte I tienen tema propio (el título de la tarjeta es el tema de conversación, distinto del título del capítulo).
+- **Subrayar → profundizar:** web `HighlightPopover` gana botón "🌿 Eco"; mobile `BlockActionsSheet` gana fila "🌿 Conversar con Eco". Ambos arman el prompt del pasaje y navegan a Eco.
+- **Handoff lector → Eco:** web `sessionStorage` (per-tab, consumido una vez al montar → siembra el composer vía `seededRef`); mobile singleton en RAM consumido en `useFocusEffect` (el seed sobrevive el unlock gate). Cargan `source: { bookSlug, chapterOrder, kind }`.
+
+**Privacidad (ADR 0007):** el texto de los libros es contenido PÚBLICO licenciado, no el Diario cifrado — llevar un pasaje entre pantallas no toca ningún ciphertext ni el Mapa. El composer cifra el mensaje del usuario como siempre.
+
+**Bug corregido:** Jest hoist rule en `EcoTopicCard.test.tsx` — la variable del factory `jest.mock` debe tener prefijo `mock` **al inicio** (`pushMock` → `mockPush`).
+
+**Deuda (backlog aprobado):** sugerencias adaptativas según interacción + Mapa · nudges post-ejercicio · video/actividades reales · character-level highlights en mobile.
+
+---
+
+### Próximo paso — arco de libros cerrado
+
+📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).
+
+**Estado tras el arco de libros (Sprints A → A.2 → B):** un usuario ya puede entrar a un capítulo real de *Emociones en Construcción* (Parte I), leerlo en Modo Libro o Modo Guía, subrayar/anotar, saltar a Eco con el pasaje pre-cargado, y ver cómo el Mapa lo mide.
+
+**Backlog aprobado por el usuario (para retomar):**
+- **Reproductor de video real** — hoy card mock `🎬` en los capítulos.
+- **Actividades interactivas reales** — hoy card mock `✍️` + prosa.
+- **Sugerencias adaptativas de Eco** según cómo el usuario interactúa con libro/video/actividades + según el Mapa Emocional.
+- **Nudges post-ejercicio.**
+
+**Otros candidatos (polish / infra):**
+- **Subir los m4a de los 3 capítulos a R2** para que Modo Guía reproduzca de verdad (hoy "Audio en producción").
+- **`expo-av` → `expo-audio`** — metadata dinámica lock-screen + character-level highlights mobile.
+- **Settings UI: explicit TZ selector** · **Testcontainers para E2E API**.
+- **Freeze v1 + validación** — el código crítico está cerrado; faltan los items ops (Stripe price IDs + API keys + ffmpeg embed real).
 
 ---
 

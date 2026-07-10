@@ -145,6 +145,7 @@ model User {
   authorBooks             AuthorBook[]                @relation("AuthorBookOwner")
   moodLogs                MoodLog[]
   checkinResponses        CheckinResponse[]
+  diaryTextFeatures       DiaryTextFeature[]
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -1126,6 +1127,32 @@ model MoodLog {
 // question; itemKey is validated against CHECKIN_ITEMS in @psico/types at the
 // DTO layer. Plain metadata only — no text (ADR 0007). Feeds the Claridad /
 // Compasión / Consciencia axes as MEASURED signals.
+// Etapa 6 (Mapa Emocional) — on-device text features. The diary body is
+// E2E-encrypted; the CLIENT analyzes the decrypted text locally and uploads
+// ONLY these numeric densities (ADR 0007: no text column exists here, ever).
+model DiaryTextFeature {
+  id         String   @id @default(cuid())
+  userId     String
+  // Diary entry the features came from — unique so a re-save upserts.
+  entryId    String?  @unique
+  wordCount  Int
+  selfFocus  Float
+  positive   Float
+  negative   Float
+  insight    Float
+  causal     Float
+  absolutist Float
+  social     Float
+  selfKind   Float
+  selfCritic Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
 model CheckinResponse {
   id        String   @id @default(cuid())
   userId    String

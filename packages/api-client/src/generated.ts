@@ -489,6 +489,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/emotional-map/text-features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Etapa 6 — receive the NUMERIC text features the client computed on-device
+         *     from a decrypted reflection. The body has no text field by design; the
+         *     whitelist ValidationPipe strips anything extra (ADR 0007).
+         */
+        post: operations["EmotionalMapController_logTextFeatures"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/activity": {
         parameters: {
             query?: never;
@@ -2969,6 +2990,30 @@ export interface components {
         UpdateUserMoodBodyDto: {
             moodId: string;
         };
+        LogTextFeaturesDto: {
+            /** @description Diary entry the features belong to; enables idempotent re-save upsert. */
+            entryId?: string;
+            /** @description Tokens in the analyzed entry. */
+            wordCount: number;
+            /** @description First-person singular pronoun density in [0,1]. */
+            selfFocus: number;
+            /** @description Positive-affect word density in [0,1]. */
+            positive: number;
+            /** @description Negative-affect word density in [0,1]. */
+            negative: number;
+            /** @description Cognitive-insight marker density in [0,1]. */
+            insight: number;
+            /** @description Causal-language density in [0,1]. */
+            causal: number;
+            /** @description Absolutist word density in [0,1]. */
+            absolutist: number;
+            /** @description Social-reference density in [0,1]. */
+            social: number;
+            /** @description Self-kind talk density in [0,1]. */
+            selfKind: number;
+            /** @description Self-critical talk density in [0,1]. */
+            selfCritic: number;
+        };
         CreateDiaryEntryDto: {
             /**
              * @description Mood token from the shared `DIARY_MOODS` catalog (calma / foco /
@@ -5375,6 +5420,27 @@ export interface operations {
                 content: {
                     "application/json": Record<string, never>;
                 };
+            };
+        };
+    };
+    EmotionalMapController_logTextFeatures: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogTextFeaturesDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

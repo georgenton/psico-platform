@@ -3032,3 +3032,6 @@ export interface JourneyListItem {
 export interface JourneyListResponse {
   journeys: JourneyListItem[];
 }
+
+// ─── Mapa Emocional · Etapa 6 — on-device text features ──────────────────
+export * from "./text-features";

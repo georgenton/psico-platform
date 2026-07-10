@@ -3049,6 +3049,27 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-07-11 ✅ EN CURSO — Mapa Emocional V2 · Fase A (auditoría) + Fase B (contratos)
+
+**Rama:** `feature/emotional-map-v2-fase-b`
+**Bitácora:** [docs/informes/sprint-v2-fase-b-contratos.md](docs/informes/sprint-v2-fase-b-contratos.md)
+**Docs nuevos:** [docs/architecture/emotional-map-v2.md](docs/architecture/emotional-map-v2.md) · [docs/product/emotional-map-copy-contract.md](docs/product/emotional-map-copy-contract.md) · [docs/product/learning-vs-emotional-map.md](docs/product/learning-vs-emotional-map.md) · [docs/research/emotional-map-model-registry.md](docs/research/emotional-map-model-registry.md) · [ADR 0014](docs/adr/0014-emotional-map-v2-facts-narrator.md)
+
+**Contexto:** el usuario entregó el prompt maestro "PSICOCONTENT — Auditoría y diseño de la arquitectura V2". La **Fase A** (auditoría read-only, secciones A–M) verificó contra el repo: engagement alimenta ejes psicológicos (conexión/propósito), el LLM crea puntuaciones numéricas, `pct` global "Comprensión emocional" (web + mobile), "Te recuperas rápido" desde n=20 vs paper que exige ~100, "Confianza 100%" alcanzable con n=40 (cobertura CI real ≈78%), **EWS serializado al cliente público** (sensibilidad 40%), análisis local de texto **sin opt-in** y **sin borrado en cascada** de derivados, y la landing prometiendo que Eco "relee lo que escribiste" (imposible con E2E). Lo que ya está bien: cripto E2E, crisis flow separado del mapa, Eco con RAG y sin impersonación, banco de personas, núcleo matemático OU publicable.
+
+**Decisión de producto del usuario:** el Mapa Emocional **se transforma, no se elimina**.
+
+**Fase B construida (cero cambio de comportamiento público):**
+- `shared/flags.ts` (6 flags env-based, defaults = comportamiento actual; `EMOTIONAL_MAP_OU` absorbido).
+- `emotional-map/model-registry.ts` + spec — IDs canónicos H1/OU-G0/OU-GT/OU-O1/EWS-R1/TXT-L1/CHK-S1; gates anclados a constantes reales (RECOVERY_MIN_OBS=20 pineado como violación conocida).
+- Palancas en el scoring puro: `ewsPublic` (false → `ews: null` en el wire) y `llmScoringEnabled` (false → provider jamás llamado, sin números fabricados).
+- **Fix privacidad:** FK CASCADE `DiaryTextFeature.entryId → DiaryEntry` (migración `20260711000000_text_feature_entry_cascade` con limpieza de huérfanos).
+- Ratchets: `emotional-map.v2-contract.spec.ts` (violaciones 5.1/5.2/5.3 pineadas + tests de palancas) y `copy-contract.spec.ts` (15 términos prohibidos × 8 archivos públicos, snapshot exacto de hoy).
+
+**Decisiones pendientes de aprobación (L1–L6, detalle en emotional-map-v2.md §6):** L1 hotfix B' (EWS off + gate recuperación 20→100 + copy neutro) · L2 radar restringido a autoinforme · L3 LLM→Narrator · L4 opt-in análisis local · L6 alcance LearningDashboard.
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

@@ -4,6 +4,7 @@ import type { EmotionalMapResult } from "@psico/types";
 
 import { PrismaService } from "../prisma";
 import { REDIS_CLIENT } from "../redis";
+import { flagEnabled } from "../shared/flags";
 import type { IEmotionalMapProvider } from "./providers/provider.interface";
 import { EMOTIONAL_MAP_PROVIDER } from "./tokens";
 import { scoreEmotionalMap } from "./emotional-map.scoring";
@@ -155,8 +156,12 @@ export class EmotionalMapService {
         moodSeries: [...diaryMoodRows, ...moodLogRows],
         checkins,
         textFeatures,
-        // Kill-switch: on by default; EMOTIONAL_MAP_OU=off disables in prod.
-        ouEnabled: process.env.EMOTIONAL_MAP_OU !== "off",
+        // Fase B flags (shared/flags.ts). Defaults preserve current behavior;
+        // flipping any of these is a deliberate product decision, not a deploy
+        // side-effect. EMOTIONAL_MAP_OU keeps its legacy "off" semantics.
+        ouEnabled: flagEnabled("EMOTIONAL_MAP_OU"),
+        ewsPublic: flagEnabled("EMOTIONAL_MAP_EWS_PUBLIC"),
+        llmScoringEnabled: flagEnabled("EMOTIONAL_MAP_LLM_SCORING"),
       },
       this.provider,
       this.logger,

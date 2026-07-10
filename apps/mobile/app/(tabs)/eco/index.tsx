@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -9,133 +7,26 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { apiClient, ecoApi } from "@psico/api-client";
-import type {
-  EcoMessage,
-  EcoMessageReportReason,
-  EcoPersona,
-  EcoSseEvent,
-  EcoThreadRailItem,
-  EcoThreadResponse,
-} from "@psico/types";
-import { decryptString, encryptString } from "@psico/crypto";
+import { ecoApi } from "@psico/api-client";
+import type { EcoPersona, EcoThreadRailItem } from "@psico/types";
+import { decryptString } from "@psico/crypto";
 import { consumeEcoReaderHandoff } from "@/lib/eco/reader-handoff";
 import { useDiaryKey } from "@/crypto/diary-key-context";
-import { CrisisModal } from "@/components/dashboard/eco/CrisisModal";
+import { EcoChat } from "@/components/dashboard/eco/EcoChat";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
 import { Colors, Radius, Spacing } from "@/theme";
-
-const API_ROOT = process.env.EXPO_PUBLIC_API_URL ?? "";
-
-/**
- * Typewriter buffer (parity with web). SSE deltas arrive in bursts; this
- * reveals the accumulated `target` a few chars per frame so the reply streams
- * in calmly instead of popping in chunks. `active` gates the loop.
- */
-function useSmoothReveal(target: string, active: boolean): string {
-  const [displayed, setDisplayed] = useState("");
-  const displayedRef = useRef("");
-  const targetRef = useRef(target);
-  const lastRef = useRef(0);
-  targetRef.current = target;
-
-  useEffect(() => {
-    if (!active) {
-      displayedRef.current = "";
-      lastRef.current = 0;
-      setDisplayed("");
-    }
-  }, [active]);
-
-  useEffect(() => {
-    if (!active) return;
-    let raf = 0;
-    const step = (now: number) => {
-      const tgt = targetRef.current;
-      const cur = displayedRef.current;
-      if (cur.length < tgt.length) {
-        const gap = tgt.length - cur.length;
-        const dt = lastRef.current ? now - lastRef.current : 16;
-        // Base ~90 cps, accelerating with the backlog, capped at 300 cps.
-        const cps = Math.min(300, 90 + gap * 3);
-        const reveal = Math.max(1, Math.round((dt / 1000) * cps));
-        const next = tgt.slice(0, cur.length + Math.min(gap, reveal));
-        displayedRef.current = next;
-        setDisplayed(next);
-      }
-      lastRef.current = now;
-      raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => {
-      cancelAnimationFrame(raf);
-      lastRef.current = 0;
-    };
-  }, [active]);
-
-  return displayed;
-}
-
-/** Animated three-dot "Eco is thinking" indicator (parity with web). */
-function TypingDots() {
-  const a = useRef(new Animated.Value(0)).current;
-  const b = useRef(new Animated.Value(0)).current;
-  const c = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const pulse = (v: Animated.Value) =>
-      Animated.sequence([
-        Animated.timing(v, {
-          toValue: 1,
-          duration: 320,
-          useNativeDriver: true,
-        }),
-        Animated.timing(v, {
-          toValue: 0,
-          duration: 320,
-          useNativeDriver: true,
-        }),
-      ]);
-    const loop = Animated.loop(
-      Animated.stagger(160, [pulse(a), pulse(b), pulse(c)]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [a, b, c]);
-  const dotStyle = (v: Animated.Value) => ({
-    opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
-    transform: [
-      {
-        translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, -3] }),
-      },
-    ],
-  });
-  return (
-    <View style={styles.typingDots}>
-      <Animated.View style={[styles.typingDot, dotStyle(a)]} />
-      <Animated.View style={[styles.typingDot, dotStyle(b)]} />
-      <Animated.View style={[styles.typingDot, dotStyle(c)]} />
-    </View>
-  );
-}
 
 /**
  * Eco chat (mobile) — Sprint front-eco.
  *
- * Single-screen experience:
- *   - Header shows persona + a "switch thread" button that opens a modal
- *     with the rail (no sidebar in RN — modal is the idiomatic pattern).
- *   - Body renders message history. USER bubbles decrypt with ecoKey;
- *     ASSISTANT/CRISIS/SUGGESTION bubbles render plaintext from server.
- *   - Composer streams the response via `ecoApi.sendMessage` (fetch +
- *     reader) and finalizes on `done` or `crisis`.
- *
- * The DiaryKeyProvider lives in the (tabs) layout, so `ecoKey` is already
- * available. If the user lands without unlock, we route them to Diario.
+ * Thin wrapper around the reusable `EcoChat` component (Sprint reader-companion
+ * dock). This screen owns the thread rail + persona; the message list, SSE
+ * send, crisis + report flows all live in EcoChat, shared with the reader
+ * companion sheet.
  */
 export default function EcoScreen() {
   const { ecoKey, isLegacyAccount } = useDiaryKey();
@@ -144,32 +35,7 @@ export default function EcoScreen() {
   const [rail, setRail] = useState<EcoThreadRailItem[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [railModalOpen, setRailModalOpen] = useState(false);
-
-  const [messages, setMessages] = useState<EcoMessage[]>([]);
-  const [loadingThread, setLoadingThread] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [text, setText] = useState("");
-  // Streaming state machine (parity with web): "receiving" while SSE deltas
-  // arrive, "revealing" while the typewriter catches up after the stream
-  // closes. `streamTarget` is the full accumulated text; `displayed` is the
-  // smoothly-revealed slice shown in the bubble.
-  const [phase, setPhase] = useState<"idle" | "receiving" | "revealing">(
-    "idle",
-  );
-  const [streamTarget, setStreamTarget] = useState("");
-  const finalizeRef = useRef<{ id: string; text: string } | null>(null);
-  const busy = phase !== "idle";
-  const displayed = useSmoothReveal(streamTarget, busy);
-  const [sendError, setSendError] = useState<string | null>(null);
-  const [crisisData, setCrisisData] = useState<{
-    text: string;
-    hotline: string;
-    crisisPath: string;
-  } | null>(null);
-  const [reportingId, setReportingId] = useState<string | null>(null);
-  const [reportFlash, setReportFlash] = useState<string | null>(null);
-  const scrollRef = useRef<ScrollView | null>(null);
+  const [seed, setSeed] = useState<string | null>(null);
 
   // ─── Boot: load persona + rail; auto-create first thread if needed ──────
 
@@ -225,219 +91,14 @@ export default function EcoScreen() {
 
   // ─── Reader → Eco handoff (Sprint B) ─────────────────────────────────────
   //
-  // When the user tapped "Conversar con Eco" on a paragraph or a chapter's
-  // suggested topic, the reader stashed a composer prompt. Consume it when
-  // this screen gains focus and seed the composer. `text` lives above the
-  // unlock gate, so even if the user still has to unlock, the seed survives
-  // into the composer once they're in.
+  // Back-compat: if anything still navigates here with a stashed prompt,
+  // consume it on focus and seed the composer via EcoChat.
   useFocusEffect(
     useCallback(() => {
       const handoff = consumeEcoReaderHandoff();
-      if (handoff) setText(handoff.text);
+      if (handoff) setSeed(handoff.text);
     }, []),
   );
-
-  // ─── Load history when active thread changes ─────────────────────────────
-
-  useEffect(() => {
-    if (!activeThreadId) return;
-    let active = true;
-    setLoadingThread(true);
-    setMessages([]);
-    setHasMore(false);
-    finalizeRef.current = null;
-    setStreamTarget("");
-    setPhase("idle");
-    setSendError(null);
-    ecoApi
-      .getThread(activeThreadId)
-      .then((res: EcoThreadResponse) => {
-        if (active) {
-          setMessages(res.messages);
-          setHasMore(res.hasMore);
-        }
-      })
-      .catch(() => {
-        // Keep messages empty; the user can compose a new one.
-      })
-      .finally(() => {
-        if (active) setLoadingThread(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [activeThreadId]);
-
-  // ─── Load older (pagination) ─────────────────────────────────────────────
-  //
-  // RN ScrollView doesn't expose scrollHeight/scrollTop like the web; we use
-  // `scrollToEnd({ animated: false })` after prepending to keep the user
-  // roughly anchored. They'll see their previous message at the bottom of
-  // the new page — closer to the web's "anchor by delta" UX than a top
-  // jump would be. Without the snapshot, an unbounded ScrollView would
-  // re-anchor to the top after prepending, which breaks the reading flow.
-
-  const loadOlder = useCallback(async () => {
-    if (!activeThreadId || !hasMore || loadingMore || messages.length === 0)
-      return;
-    const oldestId = messages[0]?.id;
-    if (!oldestId || oldestId.startsWith("local-")) return;
-    setLoadingMore(true);
-    try {
-      const res = await ecoApi.getThread(activeThreadId, oldestId);
-      setMessages((prev) => [...res.messages, ...prev]);
-      setHasMore(res.hasMore);
-    } catch {
-      // Silent fail — user can re-tap.
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [activeThreadId, hasMore, loadingMore, messages]);
-
-  // ─── Send ────────────────────────────────────────────────────────────────
-
-  const send = useCallback(async () => {
-    if (!text.trim() || busy || !activeThreadId || !ecoKey) return;
-    const plain = text.trim();
-    const envelope = encryptString(plain, ecoKey);
-
-    finalizeRef.current = null;
-    setPhase("receiving");
-    setStreamTarget("");
-    setSendError(null);
-    setText("");
-
-    const optimisticId = `local-${Date.now()}`;
-    setMessages((m) => [
-      ...m,
-      {
-        id: optimisticId,
-        kind: "user",
-        textCiphertext: envelope.ciphertext,
-        textNonce: envelope.nonce,
-        assistantText: null,
-        suggestedBookId: null,
-        createdAt: new Date(),
-      },
-    ]);
-
-    let buffered = "";
-    let crisis: { text: string; hotline: string; crisisPath: string } | null =
-      null;
-    let doneMessageId: string | null = null;
-
-    try {
-      const token = apiClient.getAccessToken();
-      await ecoApi.sendMessage(
-        {
-          threadId: activeThreadId,
-          textPlaintext: plain,
-          textCiphertext: envelope.ciphertext,
-          textNonce: envelope.nonce,
-        },
-        {
-          baseUrl: API_ROOT.replace(/\/$/, ""),
-          accessToken: token,
-          onEvent: (ev: EcoSseEvent) => {
-            switch (ev.event) {
-              case "delta":
-                buffered += ev.data.text;
-                setStreamTarget(buffered);
-                break;
-              case "crisis":
-                crisis = ev.data;
-                break;
-              case "suggestion":
-                buffered += `\n\n📚 Sugerencia: ${ev.data.rationale}`;
-                setStreamTarget(buffered);
-                break;
-              case "done":
-                doneMessageId = ev.data.messageId;
-                break;
-              case "error":
-                setSendError(ev.data.message);
-                break;
-            }
-          },
-        },
-      );
-    } catch (err) {
-      setSendError(
-        err instanceof Error
-          ? err.message
-          : "No pudimos enviar tu mensaje. Reintenta.",
-      );
-      setMessages((m) => m.filter((msg) => msg.id !== optimisticId));
-      setText(plain);
-      finalizeRef.current = null;
-      setStreamTarget("");
-      setPhase("idle");
-      return;
-    }
-
-    if (crisis) {
-      // Crisis takes over immediately — urgent, not gently typed.
-      setCrisisData(crisis);
-      setMessages((m) => [
-        ...m,
-        {
-          id: doneMessageId ?? `crisis-${Date.now()}`,
-          kind: "crisis",
-          textCiphertext: null,
-          textNonce: null,
-          assistantText: crisis!.text,
-          suggestedBookId: null,
-          createdAt: new Date(),
-        },
-      ]);
-      finalizeRef.current = null;
-      setStreamTarget("");
-      setPhase("idle");
-      void refreshRail();
-      return;
-    }
-
-    if (buffered) {
-      // Hand off to the reveal phase: keep streaming the target visually
-      // until the typewriter catches up, then the commit effect persists it.
-      finalizeRef.current = {
-        id: doneMessageId ?? `local-asst-${Date.now()}`,
-        text: buffered,
-      };
-      setPhase("revealing");
-    } else {
-      setStreamTarget("");
-      setPhase("idle");
-      void refreshRail();
-    }
-  }, [text, busy, activeThreadId, ecoKey, refreshRail]);
-
-  // ─── Commit the reply once the typewriter catches up ─────────────────────
-  useEffect(() => {
-    if (phase !== "revealing") return;
-    if (displayed.length < streamTarget.length) return;
-    const fin = finalizeRef.current;
-    finalizeRef.current = null;
-    if (fin && fin.text) {
-      setMessages((m) => [
-        ...m,
-        {
-          id: fin.id,
-          kind: "assistant",
-          textCiphertext: null,
-          textNonce: null,
-          assistantText: fin.text,
-          suggestedBookId: null,
-          createdAt: new Date(),
-        },
-      ]);
-    }
-    setPhase("idle");
-    setStreamTarget("");
-    void refreshRail();
-  }, [phase, displayed, streamTarget, refreshRail]);
-
-  // ─── Switch / create thread ──────────────────────────────────────────────
 
   const handleNewThread = useCallback(async () => {
     try {
@@ -459,9 +120,6 @@ export default function EcoScreen() {
   }
 
   if (!ecoKey) {
-    // Unlock IN PLACE (parity with web) — deriving the shared key fills the
-    // context and this screen re-renders straight into the chat. No detour to
-    // Diario. Eco-framed copy via the `context` prop.
     return (
       <KeyboardAvoidingView
         style={styles.root}
@@ -485,77 +143,20 @@ export default function EcoScreen() {
     >
       <Header persona={persona} onSwitchThread={() => setRailModalOpen(true)} />
 
-      <ScrollView
-        ref={scrollRef}
-        style={styles.body}
-        contentContainerStyle={styles.bodyContent}
-        onContentSizeChange={() => {
-          // Don't auto-scroll-to-end while paginating older messages —
-          // the user is reading at the top, not the bottom.
-          if (loadingMore) return;
-          scrollRef.current?.scrollToEnd({ animated: true });
-        }}
-      >
-        {hasMore && messages.length > 0 ? (
-          <Pressable
-            onPress={() => void loadOlder()}
-            disabled={loadingMore}
-            style={({ pressed }) => [
-              styles.loadOlderBtn,
-              pressed && { opacity: 0.7 },
-              loadingMore && { opacity: 0.5 },
-            ]}
-          >
-            {loadingMore ? (
-              <ActivityIndicator color={Colors.lavender[600]} size="small" />
-            ) : (
-              <Text style={styles.loadOlderText}>↑ Mensajes anteriores</Text>
-            )}
-          </Pressable>
-        ) : null}
-        {loadingThread ? (
-          <ActivityIndicator color={Colors.lavender[500]} />
-        ) : messages.length === 0 ? (
-          <Welcome persona={persona} />
-        ) : (
-          messages.map((msg) => (
-            <Bubble
-              key={msg.id}
-              message={msg}
-              ecoKey={ecoKey}
-              onLongPress={
-                msg.kind === "assistant" && !msg.id.startsWith("local-")
-                  ? () => setReportingId(msg.id)
-                  : undefined
-              }
-            />
-          ))
-        )}
-        {busy ? (
-          <Bubble
-            key="streaming"
-            message={{
-              id: "streaming",
-              kind: "assistant",
-              textCiphertext: null,
-              textNonce: null,
-              assistantText: displayed,
-              suggestedBookId: null,
-              createdAt: new Date(),
-            }}
-            ecoKey={ecoKey}
-            streaming
-          />
-        ) : null}
-      </ScrollView>
-
-      <Composer
-        text={text}
-        onChange={setText}
-        onSend={() => void send()}
-        streaming={busy}
-        error={sendError}
-      />
+      {activeThreadId ? (
+        <EcoChat
+          threadId={activeThreadId}
+          ecoKey={ecoKey}
+          personaName={persona?.name ?? "Eco"}
+          seed={seed}
+          onSeedConsumed={() => setSeed(null)}
+          onMessageSent={refreshRail}
+        />
+      ) : (
+        <View style={styles.centered}>
+          <Text style={styles.centeredText}>Abriendo tu conversación…</Text>
+        </View>
+      )}
 
       <ThreadRailModal
         visible={railModalOpen}
@@ -569,34 +170,6 @@ export default function EcoScreen() {
         onNew={handleNewThread}
         onClose={() => setRailModalOpen(false)}
       />
-
-      {crisisData ? (
-        <CrisisModal
-          text={crisisData.text}
-          hotline={crisisData.hotline}
-          crisisPath={crisisData.crisisPath}
-          onClose={() => setCrisisData(null)}
-        />
-      ) : null}
-
-      {reportingId ? (
-        <ReportModal
-          messageId={reportingId}
-          onClose={(sent) => {
-            setReportingId(null);
-            if (sent) {
-              setReportFlash("Gracias — recibimos tu reporte.");
-              setTimeout(() => setReportFlash(null), 4000);
-            }
-          }}
-        />
-      ) : null}
-
-      {reportFlash ? (
-        <View style={styles.flash} pointerEvents="none">
-          <Text style={styles.flashText}>{reportFlash}</Text>
-        </View>
-      ) : null}
     </KeyboardAvoidingView>
   );
 }
@@ -628,274 +201,6 @@ function Header({
       >
         <Ionicons name="list" size={20} color={Colors.warm[600]} />
       </Pressable>
-    </View>
-  );
-}
-
-function Welcome({ persona }: { persona: EcoPersona | null }) {
-  return (
-    <View style={styles.welcome}>
-      <Text style={styles.welcomeTitle}>¿Cómo te sientes hoy?</Text>
-      <Text style={styles.welcomeBody}>
-        Hola. Soy {persona?.name ?? "Eco"}. Escribe lo que necesites. Si me
-        cuentas algo grave, te conecto con ayuda profesional.
-      </Text>
-    </View>
-  );
-}
-
-function Bubble({
-  message,
-  ecoKey,
-  streaming = false,
-  onLongPress,
-}: {
-  message: EcoMessage;
-  ecoKey: Uint8Array;
-  streaming?: boolean;
-  /** When provided, long-press opens the report flow (assistant msgs only). */
-  onLongPress?: () => void;
-}) {
-  const isUser = message.kind === "user";
-  const isCrisis = message.kind === "crisis";
-
-  const body = useMemo(() => {
-    if (isUser && message.textCiphertext && message.textNonce) {
-      try {
-        return decryptString(
-          { ciphertext: message.textCiphertext, nonce: message.textNonce },
-          ecoKey,
-        );
-      } catch {
-        return "🔒 Mensaje cifrado";
-      }
-    }
-    return message.assistantText ?? "";
-  }, [
-    isUser,
-    message.textCiphertext,
-    message.textNonce,
-    message.assistantText,
-    ecoKey,
-  ]);
-
-  const bubbleStyle = [
-    styles.bubble,
-    isCrisis
-      ? styles.bubbleCrisis
-      : isUser
-        ? styles.bubbleUser
-        : styles.bubbleAssistant,
-  ];
-  const textStyle = [
-    styles.bubbleText,
-    {
-      color: isCrisis ? "#7F1D1D" : isUser ? Colors.white : Colors.warm[800],
-    },
-  ];
-
-  // Before the first token lands, show the animated thinking dots instead of
-  // an empty bubble (parity with web).
-  const thinking = streaming && body.length === 0;
-  const content = thinking ? (
-    <TypingDots />
-  ) : (
-    <Text style={textStyle}>
-      {body}
-      {streaming ? <Text style={{ opacity: 0.5 }}> ▍</Text> : null}
-    </Text>
-  );
-
-  const Inner = onLongPress ? (
-    <Pressable
-      onLongPress={onLongPress}
-      delayLongPress={400}
-      style={({ pressed }) => [...bubbleStyle, pressed && { opacity: 0.7 }]}
-    >
-      {content}
-    </Pressable>
-  ) : (
-    <View style={bubbleStyle}>{content}</View>
-  );
-
-  return (
-    <View
-      style={[
-        styles.bubbleRow,
-        { justifyContent: isUser ? "flex-end" : "flex-start" },
-      ]}
-    >
-      {Inner}
-    </View>
-  );
-}
-
-// ─── ReportModal ──────────────────────────────────────────────────────────
-
-const REPORT_REASONS: Array<{
-  value: EcoMessageReportReason;
-  label: string;
-  hint: string;
-}> = [
-  {
-    value: "HALLUCINATION",
-    label: "Eco inventó información",
-    hint: "Hechos o citas que no existen.",
-  },
-  {
-    value: "OFF_TONE",
-    label: "El tono no fue apropiado",
-    hint: "Frío, sermoneador, condescendiente.",
-  },
-  {
-    value: "SENSITIVE_CONTENT",
-    label: "Tocó algo sensible mal",
-    hint: "Trivializó o dijo algo dañino.",
-  },
-  {
-    value: "CRISIS_MISHANDLED",
-    label: "No detectó una crisis",
-    hint: "Yo necesitaba ayuda urgente.",
-  },
-  { value: "OTHER", label: "Otra cosa", hint: "Cuéntanos en el comentario." },
-];
-
-function ReportModal({
-  messageId,
-  onClose,
-}: {
-  messageId: string;
-  onClose: (sent: boolean) => void;
-}) {
-  const [reason, setReason] = useState<EcoMessageReportReason | null>(null);
-  const [comment, setComment] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function submit() {
-    if (!reason) return;
-    setSubmitting(true);
-    setErr(null);
-    try {
-      await ecoApi.reportMessage(messageId, {
-        reason,
-        comment: comment.trim() || undefined,
-      });
-      onClose(true);
-    } catch {
-      setErr("No pudimos enviar el reporte. Reintenta.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Modal
-      visible
-      transparent
-      animationType="fade"
-      onRequestClose={() => onClose(false)}
-    >
-      <View style={styles.reportBackdrop}>
-        <View style={styles.reportCard}>
-          <Text style={styles.reportTitle}>Reportar respuesta de Eco</Text>
-          <Text style={styles.reportSub}>
-            Nos ayuda a que el companion no te falle de la misma manera dos
-            veces.
-          </Text>
-
-          <ScrollView style={{ maxHeight: 280, marginTop: Spacing.md }}>
-            {REPORT_REASONS.map((r) => {
-              const active = r.value === reason;
-              return (
-                <Pressable
-                  key={r.value}
-                  onPress={() => setReason(r.value)}
-                  style={[styles.reasonRow, active && styles.reasonRowActive]}
-                >
-                  <Text style={styles.reasonLabel}>{r.label}</Text>
-                  <Text style={styles.reasonHint}>{r.hint}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-
-          <Text style={styles.commentLabel}>COMENTARIO (OPCIONAL)</Text>
-          <TextInput
-            value={comment}
-            onChangeText={(t) => setComment(t.slice(0, 500))}
-            placeholder="¿Qué hubieras necesitado escuchar?"
-            placeholderTextColor={Colors.warm[400]}
-            multiline
-            style={styles.commentInput}
-          />
-          <Text style={styles.commentCount}>{comment.length}/500</Text>
-
-          {err ? <Text style={styles.reportErr}>{err}</Text> : null}
-
-          <View style={styles.reportActions}>
-            <Pressable
-              onPress={() => onClose(false)}
-              style={styles.reportCancel}
-            >
-              <Text style={styles.reportCancelText}>Cancelar</Text>
-            </Pressable>
-            <Pressable
-              onPress={submit}
-              disabled={!reason || submitting}
-              style={[
-                styles.reportSubmit,
-                (!reason || submitting) && { opacity: 0.5 },
-              ]}
-            >
-              <Text style={styles.reportSubmitText}>
-                {submitting ? "Enviando…" : "Enviar"}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function Composer({
-  text,
-  onChange,
-  onSend,
-  streaming,
-  error,
-}: {
-  text: string;
-  onChange: (v: string) => void;
-  onSend: () => void;
-  streaming: boolean;
-  error: string | null;
-}) {
-  return (
-    <View style={styles.composer}>
-      {error ? <Text style={styles.composerErr}>{error}</Text> : null}
-      <View style={styles.composerRow}>
-        <TextInput
-          value={text}
-          onChangeText={onChange}
-          editable={!streaming}
-          multiline
-          placeholder="Escribe lo que necesites…"
-          placeholderTextColor={Colors.warm[400]}
-          style={styles.composerInput}
-        />
-        <Pressable
-          onPress={onSend}
-          disabled={streaming || !text.trim()}
-          style={[
-            styles.sendBtn,
-            (streaming || !text.trim()) && { opacity: 0.5 },
-          ]}
-        >
-          <Ionicons name="send" size={18} color={Colors.white} />
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -1014,27 +319,8 @@ function Centered({ text }: { text: string }) {
 // ─── Styles ───────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: Colors.warm[50],
-  },
-  unlockScroll: {
-    flexGrow: 1,
-    justifyContent: "center",
-    padding: Spacing.lg,
-  },
-  typingDots: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingVertical: 4,
-  },
-  typingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.sage[400],
-  },
+  root: { flex: 1, backgroundColor: Colors.warm[50] },
+  unlockScroll: { flexGrow: 1, justifyContent: "center", padding: Spacing.lg },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -1049,129 +335,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.sm,
   },
-  headerIcon: {
-    fontSize: 22,
-  },
-  headerName: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: Colors.warm[900],
-  },
-  headerSub: {
-    fontSize: 11,
-    color: Colors.warm[500],
-  },
+  headerIcon: { fontSize: 22 },
+  headerName: { fontSize: 18, fontWeight: "700", color: Colors.warm[900] },
+  headerSub: { fontSize: 11, color: Colors.warm[500] },
   switchBtn: {
     width: 36,
     height: 36,
     borderRadius: Radius.md,
     backgroundColor: Colors.warm[100],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  body: {
-    flex: 1,
-  },
-  bodyContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  loadOlderBtn: {
-    alignSelf: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.lavender[50],
-    borderWidth: 1.5,
-    borderColor: Colors.lavender[200],
-    marginBottom: Spacing.sm,
-  },
-  loadOlderText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: Colors.lavender[700],
-  },
-  welcome: {
-    paddingVertical: Spacing.xl,
-    paddingHorizontal: Spacing.md,
-  },
-  welcomeTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: Colors.warm[800],
-    textAlign: "center",
-  },
-  welcomeBody: {
-    marginTop: Spacing.sm,
-    fontSize: 14,
-    color: Colors.warm[600],
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  bubbleRow: {
-    flexDirection: "row",
-    width: "100%",
-  },
-  bubble: {
-    maxWidth: "82%",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
-  },
-  bubbleUser: {
-    backgroundColor: Colors.lavender[500],
-  },
-  bubbleAssistant: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.warm[100],
-  },
-  bubbleCrisis: {
-    backgroundColor: "#FEE2E2",
-    borderWidth: 1,
-    borderColor: "#FCA5A5",
-  },
-  bubbleText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  composer: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.warm[200],
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.md,
-    backgroundColor: Colors.white,
-  },
-  composerErr: {
-    fontSize: 12,
-    color: "#B91C1C",
-    marginBottom: 4,
-  },
-  composerRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: Spacing.sm,
-  },
-  composerInput: {
-    flex: 1,
-    minHeight: 40,
-    maxHeight: 120,
-    backgroundColor: Colors.warm[50],
-    borderRadius: Radius.md,
-    borderWidth: 1.5,
-    borderColor: Colors.warm[200],
-    paddingHorizontal: Spacing.sm + 2,
-    paddingVertical: 8,
-    fontSize: 14,
-    color: Colors.warm[800],
-  },
-  sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.sage[400],
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1205,11 +376,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.md,
   },
-  railTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: Colors.warm[900],
-  },
+  railTitle: { fontSize: 18, fontWeight: "700", color: Colors.warm[900] },
   newBtn: {
     paddingVertical: 12,
     borderRadius: Radius.md,
@@ -1217,11 +384,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.sm,
   },
-  newBtnText: {
-    color: Colors.white,
-    fontWeight: "700",
-    fontSize: 14,
-  },
+  newBtnText: { color: Colors.white, fontWeight: "700", fontSize: 14 },
   railEmpty: {
     fontSize: 12,
     color: Colors.warm[500],
@@ -1234,137 +397,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     marginBottom: 4,
   },
-  railRowActive: {
-    backgroundColor: Colors.lavender[50],
-  },
-  railRowTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: Colors.warm[800],
-  },
-  railRowSub: {
-    fontSize: 11,
-    color: Colors.warm[400],
-    marginTop: 2,
-  },
-  // Report modal
-  reportBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing.md,
-  },
-  reportCard: {
-    width: "100%",
-    maxWidth: 420,
-    backgroundColor: Colors.white,
-    borderRadius: Radius.xl,
-    padding: Spacing.lg,
-  },
-  reportTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: Colors.warm[900],
-  },
-  reportSub: {
-    fontSize: 12.5,
-    color: Colors.warm[500],
-    marginTop: 4,
-  },
-  reasonRow: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: Radius.md,
-    borderWidth: 1.5,
-    borderColor: Colors.warm[200],
-    backgroundColor: Colors.white,
-    marginBottom: 6,
-  },
-  reasonRowActive: {
-    backgroundColor: Colors.lavender[50],
-    borderColor: Colors.lavender[500],
-  },
-  reasonLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: Colors.warm[900],
-  },
-  reasonHint: {
-    fontSize: 11.5,
-    color: Colors.warm[500],
-    marginTop: 2,
-  },
-  commentLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-    color: Colors.warm[500],
-    marginTop: Spacing.md,
-    marginBottom: 6,
-  },
-  commentInput: {
-    minHeight: 70,
-    borderRadius: Radius.md,
-    borderWidth: 1.5,
-    borderColor: Colors.warm[200],
-    backgroundColor: Colors.warm[50],
-    padding: 10,
-    color: Colors.warm[800],
-    fontSize: 13,
-    textAlignVertical: "top",
-  },
-  commentCount: {
-    textAlign: "right",
-    marginTop: 4,
-    fontSize: 10.5,
-    color: Colors.warm[400],
-  },
-  reportErr: {
-    color: "#B91C1C",
-    fontSize: 12,
-    marginTop: 6,
-  },
-  reportActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: Spacing.sm,
-    marginTop: Spacing.md,
-  },
-  reportCancel: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  reportCancelText: {
-    color: Colors.warm[600],
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  reportSubmit: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.lavender[500],
-  },
-  reportSubmitText: {
-    color: Colors.white,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  // Flash toast
-  flash: {
-    position: "absolute",
-    top: 60,
-    left: 16,
-    right: 16,
-    backgroundColor: Colors.sage[50],
-    borderRadius: Radius.md,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  flashText: {
-    color: Colors.sage[600],
-    fontSize: 12.5,
-    textAlign: "center",
-  },
+  railRowActive: { backgroundColor: Colors.lavender[50] },
+  railRowTitle: { fontSize: 13, fontWeight: "700", color: Colors.warm[800] },
+  railRowSub: { fontSize: 11, color: Colors.warm[400], marginTop: 2 },
 });

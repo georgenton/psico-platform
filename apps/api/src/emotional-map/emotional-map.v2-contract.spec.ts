@@ -368,13 +368,20 @@ describe("V2 data-source contract — characterization (ratchet)", () => {
     );
   });
 
-  it("Fase C — flag EMOTIONAL_MAP_V2 defaults to OFF (behavior unchanged)", () => {
-    const prev = process.env.EMOTIONAL_MAP_V2;
+  it("Fase G — flag EMOTIONAL_MAP_V2 defaults to ON, LEGACY_UI to OFF (V2 is the product)", () => {
+    // Inverts the Fase C default pin: since Fase G the V2 contract is what
+    // ships with no env set; EMOTIONAL_MAP_V2=off remains the rollback lever.
+    const prevV2 = process.env.EMOTIONAL_MAP_V2;
+    const prevLegacy = process.env.EMOTIONAL_MAP_LEGACY_UI;
     delete process.env.EMOTIONAL_MAP_V2;
+    delete process.env.EMOTIONAL_MAP_LEGACY_UI;
     try {
-      expect(flagEnabled("EMOTIONAL_MAP_V2")).toBe(false);
+      expect(flagEnabled("EMOTIONAL_MAP_V2")).toBe(true);
+      expect(flagEnabled("EMOTIONAL_MAP_LEGACY_UI")).toBe(false);
     } finally {
-      if (prev !== undefined) process.env.EMOTIONAL_MAP_V2 = prev;
+      if (prevV2 !== undefined) process.env.EMOTIONAL_MAP_V2 = prevV2;
+      if (prevLegacy !== undefined)
+        process.env.EMOTIONAL_MAP_LEGACY_UI = prevLegacy;
     }
   });
 

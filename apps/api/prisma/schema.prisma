@@ -2044,7 +2044,13 @@ model EmotionalMapSnapshot {
   /// stable cohort anchor — every snapshot for July maps to the same date.
   month       DateTime
   /// Same `pct` shape as `EmotionalMapResult.pct` (0..100, rounded).
+  /// LEGACY since Fase G — kept for historical rows; the Evolución chart
+  /// now reads `coverage`.
   pct         Int
+  /// Fase G — data coverage (0..1) backing the map that month. The honest
+  /// replacement for pct in the Evolución series: it measures how much
+  /// signal exists, not a psychological score. Null on pre-Fase-G rows.
+  coverage    Float?
   /// 6-axis vector as Float[]. Order matches Radar: Calma · Claridad ·
   /// Conexión · Propósito · Compasión · Consciencia.
   values      Float[]

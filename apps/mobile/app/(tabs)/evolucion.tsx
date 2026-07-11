@@ -246,30 +246,38 @@ function EvoChartMobile({
   map: EmotionalMapResult | null;
   series: EvolucionEmotionalSeriesPoint[];
 }) {
-  const hasSeries = series.length >= 2;
-  const snapshotPct = map?.pct ?? 0;
-  const lastPct = hasSeries ? series[series.length - 1]!.pct : snapshotPct;
-  const firstPct = hasSeries ? series[0]!.pct : snapshotPct;
-  const delta = lastPct - firstPct;
+  // Fase G — the chart plots data COVERAGE (how much signal backs the map),
+  // never a psychological score. Pre-Fase-G snapshot rows have no coverage
+  // and are skipped rather than faked.
+  const usable = series
+    .filter((p) => p.coverage != null)
+    .map((p) => ({ monthIso: p.monthIso, value: p.coverage as number }));
+  const hasSeries = usable.length >= 2;
+  const snapshotValue = Math.round((map?.coverage ?? 0) * 100);
+  const lastValue = hasSeries
+    ? usable[usable.length - 1]!.value
+    : snapshotValue;
+  const firstValue = hasSeries ? usable[0]!.value : snapshotValue;
+  const delta = lastValue - firstValue;
 
   // Snapshot fallback: synthesize a 6-bar series with the snapshot at the end.
   const displaySeries = hasSeries
-    ? series
+    ? usable
     : Array.from({ length: 6 }, (_, i) => ({
         monthIso: i === 5 ? "now" : `gap-${i}`,
-        pct: i === 5 ? snapshotPct : 0,
+        value: i === 5 ? snapshotValue : 0,
       }));
 
   return (
     <View style={styles.chartCard}>
-      <Text style={styles.chartTag}>Comprensión emocional</Text>
+      <Text style={styles.chartTag}>Cobertura de tu mapa</Text>
       <View style={styles.chartScore}>
-        <Text style={styles.chartValue}>{lastPct}%</Text>
+        <Text style={styles.chartValue}>{lastValue}%</Text>
         <View style={styles.chartDelta}>
           <Ionicons name="trending-up" size={11} color={Colors.sage[600]} />
           <Text style={styles.chartDeltaText}>
             {hasSeries
-              ? `${delta >= 0 ? "+" : ""}${delta} pts en ${series.length === 1 ? "1 mes" : `${series.length} meses`}`
+              ? `${delta >= 0 ? "+" : ""}${delta} pts en ${usable.length === 1 ? "1 mes" : `${usable.length} meses`}`
               : "Snapshot actual"}
           </Text>
         </View>
@@ -281,7 +289,7 @@ function EvoChartMobile({
           const isPlaceholder = !hasSeries && !isLast;
           const heightPx = Math.max(
             isPlaceholder ? 6 : 12,
-            (p.pct / 100) * MAX_BAR_HEIGHT,
+            (p.value / 100) * MAX_BAR_HEIGHT,
           );
           return (
             <View key={p.monthIso} style={styles.chartBarCol}>
@@ -298,7 +306,7 @@ function EvoChartMobile({
                   },
                 ]}
                 accessibilityRole="image"
-                accessibilityLabel={`${p.pct}% — ${i === displaySeries.length - 1 ? "último mes" : formatMonth(p.monthIso)}`}
+                accessibilityLabel={`${p.value}% — ${i === displaySeries.length - 1 ? "último mes" : formatMonth(p.monthIso)}`}
               />
             </View>
           );
@@ -307,7 +315,7 @@ function EvoChartMobile({
 
       <View style={styles.chartXAxis}>
         {hasSeries
-          ? series.map((p) => (
+          ? usable.map((p) => (
               <Text key={p.monthIso} style={styles.chartXLabel}>
                 {formatMonth(p.monthIso)}
               </Text>
@@ -318,12 +326,13 @@ function EvoChartMobile({
               </Text>
             ))}
       </View>
-      {!hasSeries ? (
-        <Text style={styles.chartHint}>
-          Cuando acumules más meses de práctica, aquí verás tu evolución real.
-          Por ahora, solo tu snapshot de hoy.
-        </Text>
-      ) : null}
+      <Text style={styles.chartHint}>
+        La cobertura mide cuánta señal respalda tu mapa — cuánta información
+        tienes, no cómo estás.
+        {!hasSeries
+          ? " Cuando acumules más meses, aquí verás cómo se fue llenando."
+          : ""}
+      </Text>
     </View>
   );
 }

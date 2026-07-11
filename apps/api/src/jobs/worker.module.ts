@@ -12,6 +12,7 @@ import { PatronesModule } from "../patrones/patrones.module";
 // Sprint G2 — EmotionalMapModule provides the service the monthly
 // snapshot processor reuses to recompute each user's score.
 import { EmotionalMapModule } from "../emotional-map/emotional-map.module";
+import { createBullConnection } from "./bull-connection";
 import { QueueName } from "./queue-names";
 import { EmailProcessor } from "./processors/email.processor";
 import { DataExportProcessor } from "./processors/data-export.processor";
@@ -59,12 +60,9 @@ import type { Env } from "../config";
     EmotionalMapModule,
     BullModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService<Env, true>) => {
-        const url = config.get("REDIS_URL", { infer: true });
-        return {
-          connection: url ? { url } : { host: "127.0.0.1", port: 6379 },
-        };
-      },
+      useFactory: (config: ConfigService<Env, true>) => ({
+        connection: createBullConnection(config),
+      }),
     }),
     BullModule.registerQueue(
       { name: QueueName.EMAIL },

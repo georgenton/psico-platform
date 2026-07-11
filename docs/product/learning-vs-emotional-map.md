@@ -2,7 +2,7 @@
 
 **Regla madre:** la actividad de uso alimenta el **LearningDashboard**; el **Mapa Emocional** solo se alimenta de señales explícitas o confirmadas. Ninguna acción entra al mapa silenciosamente.
 
-**Enforcement:** hoy, tests de caracterización en [`emotional-map.v2-contract.spec.ts`](../../apps/api/src/emotional-map/emotional-map.v2-contract.spec.ts) (violaciones pineadas como ratchet). En Fase C, los mismos tests se invierten: `+minutos/+highlights/+mensajes ⇒ el V2 no cambia`.
+**Enforcement:** tests de caracterización en [`emotional-map.v2-contract.spec.ts`](../../apps/api/src/emotional-map/emotional-map.v2-contract.spec.ts) (violaciones pineadas como ratchet). Fase C cableó la palanca `EMOTIONAL_MAP_V2` con su test de inversión: con el flag encendido, `+minutos/+highlights/+mensajes ⇒ el mapa no cambia` y el payload del LLM no lleva contadores de actividad. El flag sigue **off por default** — encenderlo es una decisión de producto (config), no un deploy.
 
 | Acción                             | Aprendizaje           | Mapa emocional                       | Estado hoy                                     |
 | ---------------------------------- | --------------------- | ------------------------------------ | ---------------------------------------------- |
@@ -25,3 +25,5 @@
 | Abandonar lección / tardar leyendo | Analítica / ergonomía | **No**                               | ✓                                              |
 
 Cada ❌ tiene su test de caracterización o su entrada en el copy contract; se van invirtiendo fase a fase (C, D, F) — nunca se agregan nuevos.
+
+**Estado tras Fase C:** los ❌ de actividad (lectura, racha, capítulos, highlights, mensajes a Eco, voz) siguen vigentes **por default**, pero la palanca `EMOTIONAL_MAP_V2` ya los apaga todos de una vez (ejes, confianzas y payload del LLM). Además, la PRESENTACIÓN ya cambió sin flag: el mapa dejó de listar esos contadores como fuentes — viven en **Mi Evolución** (el LearningDashboard), que ganó `conversacionesEco` y `marcasLectura`.

@@ -89,6 +89,77 @@ describe("V2 data-source contract — characterization (ratchet)", () => {
     expect(result).toHaveProperty("pct");
   });
 
+  it("Fase C — flag EMOTIONAL_MAP_V2=on: engagement no longer moves any axis", async () => {
+    // The inversion promised by learning-vs-emotional-map.md: with the V2
+    // lever on, +minutos/+highlights/+mensajes leave the map UNCHANGED.
+    const sessions = [
+      { progressPct: 50, completedAt: null, timeSpentSec: 600 },
+      { progressPct: 20, completedAt: null, timeSpentSec: 300 },
+    ];
+    const bare = await scoreEmotionalMap(
+      baseInput({ emotionalMapV2: true }),
+      mockProvider(),
+    );
+    const engaged = await scoreEmotionalMap(
+      baseInput({
+        emotionalMapV2: true,
+        readingSessions: sessions,
+        highlightCount: 8,
+        annotationCount: 4,
+        ecoMessages: [0, 1, 2].map((n) => ({ createdAt: day(n) })),
+        voiceCount: 5,
+        currentStreakDays: 12,
+      }),
+      mockProvider(),
+    );
+    const axis = (
+      r: Awaited<ReturnType<typeof scoreEmotionalMap>>,
+      key: string,
+    ) => r.dimensions.find((d) => d.key === key)!;
+    for (const key of ["conexion", "proposito"] as const) {
+      expect(axis(engaged, key).value).toBe(axis(bare, key).value);
+      expect(axis(engaged, key).confidence).toBe(0);
+    }
+  });
+
+  it("Fase C — flag EMOTIONAL_MAP_V2=on: the LLM payload carries no engagement counters", async () => {
+    const provider = mockProvider();
+    // 4 hard-mood entries → confCompasion ≥ floor even without ecoDays.
+    const entries = [0, 1, 2, 3].map((n) => ({
+      mood: "hard",
+      tags: [],
+      createdAt: day(n),
+    }));
+    await scoreEmotionalMap(
+      baseInput({
+        emotionalMapV2: true,
+        entries,
+        ecoMessages: [0, 1].map((n) => ({ createdAt: day(n) })),
+        voiceCount: 3,
+        currentStreakDays: 9,
+        readingSessions: [
+          { progressPct: 10, completedAt: null, timeSpentSec: 60 },
+        ],
+      }),
+      provider,
+    );
+    expect(provider.score).toHaveBeenCalledTimes(1);
+    const payload = provider.score.mock.calls[0][0] as {
+      stats: Record<string, unknown>;
+    };
+    expect(payload.stats).toEqual({ entryCount: 4, activeDays: 4 });
+  });
+
+  it("Fase C — flag EMOTIONAL_MAP_V2 defaults to OFF (behavior unchanged)", () => {
+    const prev = process.env.EMOTIONAL_MAP_V2;
+    delete process.env.EMOTIONAL_MAP_V2;
+    try {
+      expect(flagEnabled("EMOTIONAL_MAP_V2")).toBe(false);
+    } finally {
+      if (prev !== undefined) process.env.EMOTIONAL_MAP_V2 = prev;
+    }
+  });
+
   it("flag EMOTIONAL_MAP_LLM_SCORING=off: provider never called, axes fall back to gathering", async () => {
     const provider = mockProvider();
     const entries = [0, 1, 2, 3].map((n) => ({

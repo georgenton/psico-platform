@@ -20,20 +20,27 @@ export interface EmotionalMapMetadataPayload {
     /** ISO timestamp — used for time-of-week patterns. */
     createdAtIso: string;
   }>;
-  /** Aggregated counters the provider may want to short-circuit on. */
+  /**
+   * Aggregated counters the provider may want to short-circuit on.
+   *
+   * Fase C (V2 contract): the engagement counters are OPTIONAL — under the
+   * EMOTIONAL_MAP_V2 flag the scoring omits them entirely, so usage activity
+   * never reaches the LLM (learning-vs-emotional-map.md). Only explicit
+   * self-report aggregates (entryCount, activeDays) are always present.
+   */
   stats: {
     entryCount: number;
-    streakDays: number;
+    streakDays?: number;
     /** Distinct days with at least 1 entry in the window. */
     activeDays: number;
     /** Eco USER messages in the window (conversation engagement). */
-    ecoMessages: number;
+    ecoMessages?: number;
     /** Distinct days with at least 1 Eco USER message. */
-    ecoActiveDays: number;
+    ecoActiveDays?: number;
     /** Voice transcriptions in the window (naming feelings out loud). */
-    voiceCount: number;
+    voiceCount?: number;
     /** Reading sessions touched in the window. */
-    readingSessions: number;
+    readingSessions?: number;
   };
 }
 

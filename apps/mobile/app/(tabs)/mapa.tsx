@@ -11,12 +11,11 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { evolucionApi, homeApi } from "@psico/api-client";
+import { homeApi } from "@psico/api-client";
 import type {
   EmotionalMapAffectDynamics,
   EmotionalMapDimension,
   EmotionalMapResult,
-  EvolucionStats,
 } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 import {
@@ -29,14 +28,13 @@ import {
  * Mapa Emocional — Sprint H1b · Mobile parity with design v2 (s-mapa).
  *
  * The web `/dashboard/mapa` page uses a 2-col grid: `map-stage` (dark
- * radar) + `map-dims` (axis bars), plus `map-feed` chips below. On a
- * phone the radar visual is too small to read, so we lead with the
- * comprehension score and the 6 axis bars stacked vertically, then a
- * feed-equivalent summary card with the evolución stats.
+ * radar) + `map-dims` (axis bars). On a phone the radar visual is too
+ * small to read, so we lead with the comprehension score and the 6 axis
+ * bars stacked vertically.
  *
- * Two parallel fetches: `/home` (cached emotional map, Sprint D) and
- * `/evolucion` (stats for the feed counts). Pull-to-refresh re-fires
- * both.
+ * Fase C (V2 contract): the engagement counters left this screen — they
+ * live on Mi Evolución now, so the map only fetches `/home` (cached
+ * emotional map). A pointer card below sends the user there.
  */
 
 type AxisIcon = React.ComponentProps<typeof Ionicons>["name"];
@@ -65,7 +63,6 @@ const AXIS_ICONS: Record<EmotionalMapDimension["key"], AxisIcon> = {
 export default function MapaScreen() {
   const router = useRouter();
   const [map, setMap] = useState<EmotionalMapResult | null>(null);
-  const [stats, setStats] = useState<EvolucionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,10 +70,7 @@ export default function MapaScreen() {
 
   const load = useCallback(async () => {
     setError(null);
-    const [homeResult, evolucionResult] = await Promise.allSettled([
-      homeApi.get(),
-      evolucionApi.get(),
-    ]);
+    const [homeResult] = await Promise.allSettled([homeApi.get()]);
     if (homeResult.status !== "fulfilled") {
       setError("No pudimos cargar tu mapa emocional.");
       setLoading(false);
@@ -84,11 +78,6 @@ export default function MapaScreen() {
       return;
     }
     setMap(homeResult.value.emotionalMap);
-    setStats(
-      evolucionResult.status === "fulfilled"
-        ? evolucionResult.value.stats
-        : null,
-    );
     setLoading(false);
     setRefreshing(false);
   }, []);
@@ -284,51 +273,25 @@ export default function MapaScreen() {
               </View>
             ) : null}
 
-            {/* map-feed equivalent — resumen card */}
-            {stats ? (
-              <View style={styles.feed}>
-                <Text style={styles.feedTag}>Lo que alimenta tu mapa</Text>
-                <FeedRow
-                  icon="create-outline"
-                  value={stats.reflexiones}
-                  label={
-                    stats.reflexiones === 1
-                      ? "reflexión escrita"
-                      : "reflexiones escritas"
-                  }
-                />
-                <FeedRow
-                  icon="book-outline"
-                  value={stats.capitulosCompletados}
-                  label={
-                    stats.capitulosCompletados === 1
-                      ? "capítulo terminado"
-                      : "capítulos terminados"
-                  }
-                />
-                <FeedRow
-                  icon="time-outline"
-                  value={stats.minutosLectura}
-                  label="minutos de lectura"
-                />
-                <FeedRow
-                  icon="flame-outline"
-                  value={stats.rachaActual}
-                  label={
-                    stats.rachaActual === 1
-                      ? "día seguido"
-                      : "días seguidos hoy"
-                  }
-                />
-              </View>
-            ) : null}
+            {/* Fase C — engagement counters moved to Mi Evolución; the map
+                keeps only a quiet pointer there (copy contract). */}
+            <View style={styles.feed}>
+              <Text style={styles.feedTag}>Tu actividad</Text>
+              <Text style={styles.feedPointerText}>
+                Los conteos de lectura, escritura y de tus charlas con Eco viven
+                ahora en Mi Evolución — son parte de tu recorrido, no una medida
+                de tu mundo interior.
+              </Text>
+            </View>
 
             <Pressable
               style={styles.evoCta}
               onPress={() => router.push("/(tabs)/evolucion")}
               accessibilityRole="button"
             >
-              <Text style={styles.evoCtaText}>Ver mi evolución →</Text>
+              <Text style={styles.evoCtaText}>
+                Ver mi actividad en Evolución →
+              </Text>
             </Pressable>
           </>
         )}
@@ -394,28 +357,6 @@ export default function MapaScreen() {
         </Pressable>
       </Modal>
     </>
-  );
-}
-
-// ─── FeedRow ──────────────────────────────────────────────────────────────
-
-function FeedRow({
-  icon,
-  value,
-  label,
-}: {
-  icon: AxisIcon;
-  value: number;
-  label: string;
-}) {
-  return (
-    <View style={styles.feedRow}>
-      <View style={styles.feedRowIcon}>
-        <Ionicons name={icon} size={16} color={Colors.sage[600]} />
-      </View>
-      <Text style={styles.feedRowValue}>{value}</Text>
-      <Text style={styles.feedRowLabel}>{label}</Text>
-    </View>
   );
 }
 
@@ -891,29 +832,10 @@ const styles = StyleSheet.create({
     color: Colors.sage[600],
     marginBottom: 6,
   },
-  feedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  feedRowIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: Colors.sage[100],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  feedRowValue: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: Colors.warm[900],
-    minWidth: 30,
-  },
-  feedRowLabel: {
-    fontSize: 13,
+  feedPointerText: {
+    fontSize: 13.5,
+    lineHeight: 20,
     color: Colors.warm[600],
-    flex: 1,
   },
 
   // CTA

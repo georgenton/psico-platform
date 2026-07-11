@@ -33,6 +33,13 @@ export interface EvolucionStats {
   rachaMasLarga: number;
   /** Distinct days the user opened anything in the last 30 days. */
   diasActivos30d: number;
+  /**
+   * Fase C (V2) — Evolución IS the learning dashboard: engagement counters
+   * live here, not on the emotional map. Eco USER messages, all time.
+   */
+  conversacionesEco: number;
+  /** Highlights + annotations created while reading, all time. */
+  marcasLectura: number;
 }
 
 /**
@@ -115,7 +122,14 @@ export class EvolucionService {
   ): Promise<EvolucionStats> {
     const since30 = new Date(Date.now() - 30 * 86400_000);
 
-    const [reflexiones, readingSessions, activeDaysRows] = await Promise.all([
+    const [
+      reflexiones,
+      readingSessions,
+      activeDaysRows,
+      conversacionesEco,
+      highlights,
+      annotations,
+    ] = await Promise.all([
       this.prisma.diaryEntry.count({ where: { userId } }),
       this.prisma.readingSession.findMany({
         where: { userId },
@@ -125,6 +139,12 @@ export class EvolucionService {
         where: { userId, createdAt: { gte: since30 } },
         select: { createdAt: true },
       }),
+      // Fase C — engagement counters belong to the learning dashboard.
+      this.prisma.ecoMessage.count({
+        where: { thread: { userId }, kind: "USER" },
+      }),
+      this.prisma.highlight.count({ where: { userId } }),
+      this.prisma.annotation.count({ where: { userId } }),
     ]);
 
     const capitulosCompletados = readingSessions.filter(
@@ -144,6 +164,8 @@ export class EvolucionService {
       rachaActual: user.currentStreakDays,
       rachaMasLarga: user.longestStreakDays,
       diasActivos30d,
+      conversacionesEco,
+      marcasLectura: highlights + annotations,
     };
   }
 

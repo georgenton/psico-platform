@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   RefreshControl,
@@ -11,11 +12,12 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { homeApi } from "@psico/api-client";
+import { homeApi, resonancesApi } from "@psico/api-client";
 import type {
   EmotionalMapAffectDynamics,
   EmotionalMapDimension,
   EmotionalMapResult,
+  ResonanceSummary,
 } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 import {
@@ -63,6 +65,7 @@ const AXIS_ICONS: Record<EmotionalMapDimension["key"], AxisIcon> = {
 export default function MapaScreen() {
   const router = useRouter();
   const [map, setMap] = useState<EmotionalMapResult | null>(null);
+  const [resonances, setResonances] = useState<ResonanceSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +73,10 @@ export default function MapaScreen() {
 
   const load = useCallback(async () => {
     setError(null);
-    const [homeResult] = await Promise.allSettled([homeApi.get()]);
+    const [homeResult, resonancesResult] = await Promise.allSettled([
+      homeApi.get(),
+      resonancesApi.list(),
+    ]);
     if (homeResult.status !== "fulfilled") {
       setError("No pudimos cargar tu mapa emocional.");
       setLoading(false);
@@ -78,9 +84,33 @@ export default function MapaScreen() {
       return;
     }
     setMap(homeResult.value.emotionalMap);
+    setResonances(
+      resonancesResult.status === "fulfilled"
+        ? resonancesResult.value.resonances
+        : [],
+    );
     setLoading(false);
     setRefreshing(false);
   }, []);
+
+  function removeResonance(id: string, label: string) {
+    Alert.alert(
+      "¿Quitar esta resonancia?",
+      `«${label}» dejará de formar parte de tu mapa.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Quitar",
+          style: "destructive",
+          onPress: () => {
+            const prev = resonances;
+            setResonances((list) => list.filter((r) => r.id !== id));
+            void resonancesApi.remove(id).catch(() => setResonances(prev));
+          },
+        },
+      ],
+    );
+  }
 
   useEffect(() => {
     load();
@@ -272,6 +302,43 @@ export default function MapaScreen() {
                 )}
               </View>
             ) : null}
+
+            {/* Fase E (ARC) — confirmed resonances: the first V2 section.
+                Every row is an explicit user tap, with provenance + delete. */}
+            <View style={styles.feed}>
+              <Text style={styles.feedTag}>Mis resonancias</Text>
+              {resonances.length === 0 ? (
+                <Text style={styles.feedPointerText}>
+                  Aún no confirmaste ninguna. Cuando algo de una lectura te
+                  resuene, el lector te ofrecerá añadirla aquí.
+                </Text>
+              ) : (
+                resonances.map((r) => (
+                  <View key={r.id} style={styles.resonanceRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.resonanceLabel}>
+                        🌱 {r.conceptLabel}
+                      </Text>
+                      <Text style={styles.resonanceMeta}>
+                        Confirmado por ti · Cap. {r.chapterOrder} ·{" "}
+                        {new Date(r.confirmedAt).toLocaleDateString("es-EC", {
+                          day: "numeric",
+                          month: "short",
+                        })}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => removeResonance(r.id, r.conceptLabel)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Quitar resonancia ${r.conceptLabel}`}
+                    >
+                      <Text style={styles.resonanceRemove}>Quitar</Text>
+                    </Pressable>
+                  </View>
+                ))
+              )}
+            </View>
 
             {/* Fase C — engagement counters moved to Mi Evolución; the map
                 keeps only a quiet pointer there (copy contract). */}
@@ -842,6 +909,29 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 20,
     color: Colors.warm[600],
+  },
+  resonanceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.warm[100],
+  },
+  resonanceLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.warm[900],
+  },
+  resonanceMeta: {
+    marginTop: 2,
+    fontSize: 11.5,
+    color: Colors.warm[500],
+  },
+  resonanceRemove: {
+    fontSize: 12,
+    color: Colors.warm[500],
+    textDecorationLine: "underline",
   },
 
   // CTA

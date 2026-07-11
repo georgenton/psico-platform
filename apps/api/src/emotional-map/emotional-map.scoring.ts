@@ -118,10 +118,28 @@ export interface EmotionalMapScoringInput {
    * preserve current behavior.
    */
   emotionalMapV2?: boolean;
+  /**
+   * Fase E (ARC cycle, model ARC-C1) — the user's CONFIRMED resonances.
+   * The only content-side signal allowed into the map: each row is an
+   * explicit "me resonó" tap. Under EMOTIONAL_MAP_V2 they become the source
+   * of the conexion axis; under legacy scoring they are ignored (conexion
+   * stays engagement-based, pinned by the ratchet). Optional so pre-Fase-E
+   * callers/fixtures keep compiling.
+   */
+  resonances?: ReadonlyArray<{ conceptKey: string; confirmedAt: Date }>;
 }
 
 /** Checkin answers per axis at which the measured confidence saturates. */
 export const CHECKIN_GOOD_N = 5;
+
+/**
+ * Fase E (ARC-C1) — distinct confirmed concepts at which the conexion value
+ * saturates under EMOTIONAL_MAP_V2. Confidence saturates at
+ * RESONANCE_CONF_N so a single explicit confirmation already lights the axis
+ * (it IS a self-report, unlike the engagement proxies it replaces).
+ */
+export const RESONANCE_GOOD_N = 4;
+export const RESONANCE_CONF_N = 2;
 
 /**
  * Etapa 2 — aggregate checkin answers into per-axis measured signals.
@@ -228,6 +246,7 @@ export async function scoreEmotionalMap(
     ewsPublic = true,
     llmScoringEnabled = true,
     emotionalMapV2 = false,
+    resonances = [],
   } = input;
 
   // ── Tier 2: fit the OU model to the mood series ─────────────────────────
@@ -273,8 +292,11 @@ export async function scoreEmotionalMap(
   const confClaridad = emotionalMapV2
     ? clamp01(taggedEntries / 6)
     : clamp01((taggedEntries + voiceCount) / 6);
+  // Fase E (ARC-C1) — under V2, conexion is fed EXCLUSIVELY by confirmed
+  // resonances (explicit taps); with none, it gathers honestly.
+  const resonanceConcepts = new Set(resonances.map((r) => r.conceptKey)).size;
   const confConexion = emotionalMapV2
-    ? 0
+    ? clamp01(resonanceConcepts / RESONANCE_CONF_N)
     : clamp01((readingSessions.length + ecoMessages.length) / 8);
   const confProposito = emotionalMapV2
     ? 0
@@ -287,11 +309,11 @@ export async function scoreEmotionalMap(
     : clamp01((diaryDays + ecoDays) / 10);
 
   // ── Mechanical axes (deterministic) ──────────────────────────────────────
-  // Under V2 these two axes have no legitimate source yet (they wait for
-  // confirmed resonances, Fase E) — they stay at 0 with 0 confidence so the
-  // client renders the honest gathering state instead of an engagement score.
+  // Under V2: conexion = confirmed resonances (Fase E); proposito still has
+  // no legitimate source (waits for confirmed important-themes) — it stays
+  // at 0 with 0 confidence so the client renders the honest gathering state.
   const conexionRaw = emotionalMapV2
-    ? 0
+    ? clamp01(resonanceConcepts / RESONANCE_GOOD_N)
     : clamp01(
         Math.min(readingSessions.length / 6, 1) * 0.35 +
           Math.min(readingMinutes / 90, 1) * 0.15 +
@@ -427,13 +449,17 @@ export async function scoreEmotionalMap(
       value: conexionRaw,
       confidence: confConexion,
       sources: emotionalMapV2
-        ? "Se medirá con las resonancias que confirmes sobre lo que lees (en construcción)"
+        ? resonanceConcepts > 0
+          ? "Las resonancias que confirmaste sobre tus lecturas"
+          : "Se llenará con las resonancias que confirmes sobre lo que lees"
         : "Tu lectura y tus conversaciones con Eco",
-      measured: false,
-      evidence: {
-        modelId: "H1",
-        n: readingSessions.length + ecoMessages.length,
-      },
+      measured: emotionalMapV2 && resonanceConcepts > 0,
+      evidence: emotionalMapV2
+        ? { modelId: "ARC-C1", n: resonanceConcepts }
+        : {
+            modelId: "H1",
+            n: readingSessions.length + ecoMessages.length,
+          },
     },
     {
       key: "proposito",

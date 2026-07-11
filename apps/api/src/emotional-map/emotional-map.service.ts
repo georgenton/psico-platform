@@ -91,6 +91,7 @@ export class EmotionalMapService {
       moodLogRows,
       checkins,
       privacy,
+      resonances,
     ] = await Promise.all([
       this.prisma.diaryEntry.findMany({
         where: { userId, createdAt: { gte: since } },
@@ -138,6 +139,15 @@ export class EmotionalMapService {
         where: { userId },
         select: { localTextAnalysis: true },
       }),
+      // Fase E (ARC-C1) — confirmed resonances: explicit user taps, the only
+      // content-side signal allowed into the map. Durable (all-time) and
+      // deletable by the user.
+      flagEnabled("CONTENT_RESONANCE")
+        ? this.prisma.resonance.findMany({
+            where: { userId },
+            select: { conceptKey: true, confirmedAt: true },
+          })
+        : Promise.resolve([]),
     ]);
 
     // Etapa 6 — on-device text features (numbers only; the text never left
@@ -174,6 +184,7 @@ export class EmotionalMapService {
         moodSeries: [...diaryMoodRows, ...moodLogRows],
         checkins,
         textFeatures,
+        resonances,
         // Fase B flags (shared/flags.ts). Defaults preserve current behavior;
         // flipping any of these is a deliberate product decision, not a deploy
         // side-effect. EMOTIONAL_MAP_OU keeps its legacy "off" semantics.

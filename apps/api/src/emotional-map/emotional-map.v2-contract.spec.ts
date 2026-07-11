@@ -150,6 +150,45 @@ describe("V2 data-source contract — characterization (ratchet)", () => {
     expect(payload.stats).toEqual({ entryCount: 4, activeDays: 4 });
   });
 
+  it("Fase E — under V2, confirmed resonances become the conexion source (ARC-C1)", async () => {
+    const result = await scoreEmotionalMap(
+      baseInput({
+        emotionalMapV2: true,
+        resonances: [
+          { conceptKey: "eec-cuerpo-antes-que-mente", confirmedAt: day(0) },
+          { conceptKey: "eec-como-aprendiste-a-sentir", confirmedAt: day(1) },
+          // duplicate concept must not double-count
+          { conceptKey: "eec-cuerpo-antes-que-mente", confirmedAt: day(2) },
+        ],
+      }),
+      mockProvider(),
+    );
+    const conexion = result.dimensions.find((d) => d.key === "conexion")!;
+    expect(conexion.value).toBe(0.5); // 2 distinct concepts / 4
+    expect(conexion.confidence).toBe(1); // saturates at 2
+    expect(conexion.measured).toBe(true);
+    expect(conexion.evidence).toEqual({ modelId: "ARC-C1", n: 2 });
+    expect(conexion.sources).toContain("resonancias que confirmaste");
+  });
+
+  it("Fase E — legacy scoring ignores resonances (conexion stays engagement-based)", async () => {
+    const without = await scoreEmotionalMap(baseInput({}), mockProvider());
+    const withResonances = await scoreEmotionalMap(
+      baseInput({
+        resonances: [
+          { conceptKey: "eec-cuerpo-antes-que-mente", confirmedAt: day(0) },
+        ],
+      }),
+      mockProvider(),
+    );
+    const conexion = (r: Awaited<ReturnType<typeof scoreEmotionalMap>>) =>
+      r.dimensions.find((d) => d.key === "conexion")!;
+    expect(conexion(withResonances).value).toBe(conexion(without).value);
+    expect(conexion(withResonances).confidence).toBe(
+      conexion(without).confidence,
+    );
+  });
+
   it("Fase C — flag EMOTIONAL_MAP_V2 defaults to OFF (behavior unchanged)", () => {
     const prev = process.env.EMOTIONAL_MAP_V2;
     delete process.env.EMOTIONAL_MAP_V2;

@@ -155,6 +155,18 @@ export function MapInfoButton({
                   >
                     {dim.sources}
                   </p>
+                  {dim.evidence ? (
+                    <p
+                      style={{
+                        margin: "3px 0 0",
+                        fontSize: 11.5,
+                        color: "var(--color-warm-500)",
+                      }}
+                    >
+                      Método {dim.evidence.modelId} · basado en {dim.evidence.n}{" "}
+                      {dim.evidence.n === 1 ? "registro" : "registros"}
+                    </p>
+                  ) : null}
                 </div>
               ))}
             </div>

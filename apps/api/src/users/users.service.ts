@@ -3,11 +3,13 @@ import {
   ConflictException,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { createHash, randomBytes } from "crypto";
+import type { Redis } from "ioredis";
 import * as bcrypt from "bcryptjs";
 import type {
   AvatarUploadResponse,
@@ -25,6 +27,8 @@ import { JobsService } from "../jobs";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";
 import type { Env } from "../config";
+import { REDIS_CLIENT } from "../redis";
+import { emotionalMapCacheKey } from "../emotional-map/emotional-map.service";
 import { emailShell, escape } from "../notifications/templates/base";
 import type { UpdateProfileDto } from "./dto/update-profile.dto";
 import type { UpdateTimezoneDto } from "./dto/update-timezone.dto";
@@ -71,6 +75,8 @@ const DEFAULT_PRIVACY = {
   shareDiaryWithTherapist: false,
   anonymizedAnalytics: true,
   marketingEmail: false,
+  // Fase D (L4) — on-device text analysis requires explicit opt-in.
+  localTextAnalysis: false,
 };
 
 const EMAIL_VERIFICATION_TTL_HOURS = 24;
@@ -85,6 +91,7 @@ export class UsersService {
     private readonly storage: StorageService,
     private readonly jobs: JobsService,
     private readonly config: ConfigService<Env, true>,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   // ── GET /api/user/me ───────────────────────────────────────────────────────
@@ -187,6 +194,9 @@ export class UsersService {
         marketingEmail:
           user.privacySettings?.marketingEmail ??
           DEFAULT_PRIVACY.marketingEmail,
+        localTextAnalysis:
+          user.privacySettings?.localTextAnalysis ??
+          DEFAULT_PRIVACY.localTextAnalysis,
         dataExportRequested:
           user.privacySettings?.dataExportRequestedAt ?? null,
         accountDeleteRequested: user.deleteRequestedAt,
@@ -334,6 +344,16 @@ export class UsersService {
       create: { userId, ...dto },
       update: dto,
     });
+    // Fase D (L4) — the on-device text-analysis consent has side effects:
+    // opting OUT deletes every derived numeric row (consent cascade — the
+    // derived data is sensitive); either flip busts the map cache so the
+    // change is visible right away.
+    if (dto.localTextAnalysis === false) {
+      await this.prisma.diaryTextFeature.deleteMany({ where: { userId } });
+    }
+    if (dto.localTextAnalysis !== undefined) {
+      await this.redis.del(emotionalMapCacheKey(userId)).catch(() => undefined);
+    }
     return this.getMe(userId);
   }
 

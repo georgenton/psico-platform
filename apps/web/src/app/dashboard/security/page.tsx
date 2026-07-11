@@ -4,6 +4,7 @@ import type { UserMeResponse } from "@psico/types";
 import { getAccessToken, serverFetch } from "@/lib/api.server";
 import { ChangePasswordCard } from "@/components/dashboard/security/ChangePasswordCard";
 import { DiaryLockCard } from "@/components/dashboard/security/DiaryLockCard";
+import { LocalTextAnalysisCard } from "@/components/dashboard/security/LocalTextAnalysisCard";
 import { ReplayTourCard } from "@/components/dashboard/security/ReplayTourCard";
 import { ShowSeedPhraseCard } from "@/components/dashboard/security/ShowSeedPhraseCard";
 
@@ -45,6 +46,11 @@ export default async function SecurityPage() {
           token={token}
         />
         <DiaryLockCard />
+        <LocalTextAnalysisCard
+          initialEnabled={meResult.privacy.localTextAnalysis}
+          apiBase={API_BASE}
+          token={token}
+        />
         <ShowSeedPhraseCard cryptoSalt={meResult.cryptoSalt} />
         <ReplayTourCard />
       </div>

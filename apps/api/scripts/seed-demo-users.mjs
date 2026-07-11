@@ -228,6 +228,13 @@ async function main() {
         where: { userId: user.id, createdAt: { gte: windowStart } },
       });
       if (u.days >= 14) {
+        // Fase D (L4) — text analysis is opt-in; demo accounts consent so
+        // the seeded features keep feeding their map.
+        await prisma.privacySettings.upsert({
+          where: { userId: user.id },
+          create: { userId: user.id, localTextAnalysis: true },
+          update: { localTextAnalysis: true },
+        });
         const kind = u.pattern === "volatile" ? 0.005 : 0.02;
         const critic = u.pattern === "volatile" ? 0.02 : 0.002;
         const featureRows = [];

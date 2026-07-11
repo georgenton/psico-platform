@@ -1884,7 +1884,7 @@ export interface paths {
         delete: operations["ResonancesController_remove"];
         options?: never;
         head?: never;
-        patch?: never;
+        patch: operations["ResonancesController_setImportant"];
         trace?: never;
     };
     "/api/evolucion": {
@@ -3583,6 +3583,10 @@ export interface components {
              */
             stepsCompleted: number;
         };
+        EcoScopeDto: {
+            bookSlug: string;
+            chapterOrder: number;
+        };
         SendEcoMessageDto: {
             /**
              * @description Server-side ID of the thread the message belongs to. The user must
@@ -3624,6 +3628,8 @@ export interface components {
              *     dispatch can come later if recommendation tuning needs it.
              */
             intent?: Record<string, never>;
+            /** @description Fase H — optional reading context (reader dock/sheet handoff). */
+            scope?: components["schemas"]["EcoScopeDto"];
         };
         ReportEcoMessageDto: {
             /**
@@ -3745,6 +3751,9 @@ export interface components {
              * @enum {string}
              */
             source: ConfirmResonanceDtoSource;
+        };
+        UpdateResonanceDto: {
+            important: boolean;
         };
         MarkResolvedDto: {
             note?: string;
@@ -9035,6 +9044,55 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    ResonancesController_setImportant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateResonanceDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
             400: {
                 headers: {

@@ -350,6 +350,56 @@ describe("V2 data-source contract — characterization (ratchet)", () => {
     expect(conexion.sources).toContain("resonancias que confirmaste");
   });
 
+  it("Fase H — under V2, IMPORTANT themes become the proposito source (ARC-P1)", async () => {
+    const result = await scoreEmotionalMap(
+      baseInput({
+        emotionalMapV2: true,
+        resonances: [
+          {
+            conceptKey: "eec-cuerpo-antes-que-mente",
+            confirmedAt: day(0),
+            important: true,
+          },
+          {
+            conceptKey: "eec-como-aprendiste-a-sentir",
+            confirmedAt: day(1),
+            important: true,
+          },
+          // confirmed but NOT important — must not count toward proposito
+          {
+            conceptKey: "eec-mente-que-adelanta",
+            confirmedAt: day(2),
+            important: false,
+          },
+        ],
+      }),
+      mockProvider(),
+    );
+    const proposito = result.dimensions.find((d) => d.key === "proposito")!;
+    // 2 distinct important concepts / 3 (saturating)
+    expect(proposito.value).toBeCloseTo(0.67, 1);
+    expect(proposito.confidence).toBe(1); // saturates at 1 important theme
+    expect(proposito.measured).toBe(true);
+    expect(proposito.evidence).toEqual({ modelId: "ARC-P1", n: 2 });
+    expect(proposito.sources).toContain("importantes para ti");
+  });
+
+  it("Fase H — proposito gathers under V2 when no theme is marked important", async () => {
+    const result = await scoreEmotionalMap(
+      baseInput({
+        emotionalMapV2: true,
+        resonances: [
+          { conceptKey: "eec-cuerpo-antes-que-mente", confirmedAt: day(0) },
+        ],
+      }),
+      mockProvider(),
+    );
+    const proposito = result.dimensions.find((d) => d.key === "proposito")!;
+    expect(proposito.confidence).toBe(0);
+    expect(proposito.value).toBe(0);
+    expect(proposito.measured).toBe(false);
+  });
+
   it("Fase E — legacy scoring ignores resonances (conexion stays engagement-based)", async () => {
     const without = await scoreEmotionalMap(baseInput({}), mockProvider());
     const withResonances = await scoreEmotionalMap(

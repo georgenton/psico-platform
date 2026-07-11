@@ -526,6 +526,10 @@ export default function LectorScreen() {
         onClearPending={() => setPendingBlockId(null)}
         onCreateNote={createAnnotation}
         onDeleteNote={deleteAnnotation}
+        scope={{
+          bookSlug: chapter.book.slug,
+          chapterOrder: chapter.chapter.order,
+        }}
       />
 
       {breatheExercise ? (

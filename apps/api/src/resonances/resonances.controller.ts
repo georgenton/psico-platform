@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from "@nestjs/common";
@@ -25,13 +26,16 @@ import { CurrentUser } from "../shared";
 import { ResonancesService } from "./resonances.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfirmResonanceDto } from "./dto/confirm-resonance.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { UpdateResonanceDto } from "./dto/update-resonance.dto";
 
 /**
- * ResonancesController — Fase E (V2, ARC cycle).
+ * ResonancesController — Fase E (V2, ARC cycle) + Fase H (important themes).
  *
- * `GET /api/resonances`        → the user's confirmed resonances (map section).
- * `POST /api/resonances`       → explicit confirmation (idempotent upsert).
- * `DELETE /api/resonances/:id` → remove from the map for real.
+ * `GET /api/resonances`         → the user's confirmed resonances (map section).
+ * `POST /api/resonances`        → explicit confirmation (idempotent upsert).
+ * `PATCH /api/resonances/:id`   → toggle "important to me" (ARC-P1 → Propósito).
+ * `DELETE /api/resonances/:id`  → remove from the map for real.
  */
 @ApiTags("Resonances")
 @ApiBadRequestResponse({ type: ErrorEnvelopeDto })
@@ -55,6 +59,15 @@ export class ResonancesController {
     @Body() dto: ConfirmResonanceDto,
   ) {
     return this.resonances.confirm(user.userId, dto);
+  }
+
+  @Patch(":id")
+  setImportant(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+    @Body() dto: UpdateResonanceDto,
+  ) {
+    return this.resonances.setImportant(user.userId, id, dto.important);
   }
 
   @Delete(":id")

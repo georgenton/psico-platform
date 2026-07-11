@@ -2,14 +2,19 @@
 
 import { useState, useTransition } from "react";
 import type { ResonanceSummary } from "@psico/types";
-import { deleteResonanceAction } from "@/app/dashboard/mapa/actions";
+import {
+  deleteResonanceAction,
+  setResonanceImportantAction,
+} from "@/app/dashboard/mapa/actions";
 
 /**
- * MapResonances — Fase E (ARC cycle): the first V2 section of the map.
+ * MapResonances — Fase E (ARC cycle) + Fase H (important themes).
  *
  * Lists the themes the user EXPLICITLY confirmed ("me resonó") with full
  * provenance — source + chapter + date — and lets them delete any entry for
- * real. Nothing here was inferred: every row is a user tap.
+ * real. Fase H adds a ⭐ toggle: marking a theme "important to me" is what
+ * feeds the Propósito axis (ARC-P1). Nothing here was inferred: every row is
+ * a user tap.
  */
 export function MapResonances({ initial }: { initial: ResonanceSummary[] }) {
   const [items, setItems] = useState(initial);
@@ -30,6 +35,22 @@ export function MapResonances({ initial }: { initial: ResonanceSummary[] }) {
     });
   }
 
+  function toggleImportant(id: string, next: boolean) {
+    const prev = items;
+    setItems((list) =>
+      list.map((r) => (r.id === id ? { ...r, important: next } : r)),
+    );
+    setError(null);
+    startTransition(async () => {
+      try {
+        await setResonanceImportantAction(id, next);
+      } catch {
+        setItems(prev);
+        setError("No pudimos actualizar el tema. Reintenta.");
+      }
+    });
+  }
+
   return (
     <div className="map-feed" style={{ marginTop: 18 }}>
       <div className="sec-label">Mis resonancias</div>
@@ -42,7 +63,8 @@ export function MapResonances({ initial }: { initial: ResonanceSummary[] }) {
         }}
       >
         Temas que confirmaste al leer — solo entra a tu mapa lo que tú marcas, y
-        puedes quitarlo cuando quieras.
+        puedes quitarlo cuando quieras. Marca con ⭐ los que sean importantes
+        para ti ahora: eso alimenta tu Propósito.
       </p>
 
       {items.length === 0 ? (
@@ -82,8 +104,31 @@ export function MapResonances({ initial }: { initial: ResonanceSummary[] }) {
                 >
                   Confirmado por ti · Cap. {r.chapterOrder} ·{" "}
                   {formatDate(r.confirmedAt)}
+                  {r.important ? " · Importante para ti" : ""}
                 </div>
               </div>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => toggleImportant(r.id, !r.important)}
+                aria-pressed={r.important}
+                aria-label={
+                  r.important
+                    ? `Quitar "${r.conceptLabel}" de tus temas importantes`
+                    : `Marcar "${r.conceptLabel}" como importante para ti`
+                }
+                title="Importante para mí"
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  fontSize: 16,
+                  lineHeight: 1,
+                  opacity: r.important ? 1 : 0.4,
+                }}
+              >
+                {r.important ? "⭐" : "☆"}
+              </button>
               <button
                 type="button"
                 disabled={pending}

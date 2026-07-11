@@ -425,6 +425,29 @@ export interface EcoThreadResponse {
   hasMore: boolean;
 }
 
+/**
+ * Fase H — structured reading context for an Eco message. When present, the
+ * server (a) scopes the RAG retrieval to that book, (b) anchors the system
+ * prompt in the chapter's theme, and (c) offers the chapter's concept as a
+ * confirmable resonance in the `done` event (ARC: Eco PROPOSES, the user
+ * confirms — Eco never writes to the map by itself).
+ */
+export interface EcoScope {
+  bookSlug: string;
+  chapterOrder: number;
+}
+
+/**
+ * Fase H — deterministic source attribution: which book/chapter passages
+ * were RETRIEVED as context for the reply. Built from the actual RAG hits,
+ * never from LLM claims — honest label is "contexto consultado".
+ */
+export interface EcoSource {
+  bookTitle: string;
+  /** Null when the retrieved chunk is book-level (no chapter anchor). */
+  chapterTitle: string | null;
+}
+
 export interface EcoSendMessageRequest {
   threadId: string;
   /**
@@ -435,6 +458,8 @@ export interface EcoSendMessageRequest {
   textCiphertext: string;
   textNonce: string;
   intent?: "free" | "suggest";
+  /** Fase H — optional reading context (reader dock/sheet conversations). */
+  scope?: EcoScope;
 }
 
 /**
@@ -467,6 +492,23 @@ export type EcoSseEvent =
       data: {
         messageId: string;
         quotaRemaining: number | null;
+        /**
+         * Fase H — book/chapter passages retrieved as context for this
+         * reply (deterministic, from the actual RAG hits). Optional so
+         * pre-Fase-H consumers keep parsing.
+         */
+        sources?: EcoSource[];
+        /**
+         * Fase H — the ARC proposal: when the message carried a reading
+         * scope, the server OFFERS the chapter's concept. Only an explicit
+         * user tap (POST /resonances, source "eco") persists anything.
+         */
+        resonanceOffer?: {
+          conceptKey: string;
+          conceptLabel: string;
+          bookSlug: string;
+          chapterOrder: number;
+        } | null;
       };
     }
   | {

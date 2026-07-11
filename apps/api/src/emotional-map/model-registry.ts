@@ -266,6 +266,29 @@ export const MODEL_REGISTRY: readonly ModelRegistryEntry[] = [
     reviewedAt: "2026-07-11",
   },
   {
+    id: "ARC-P1",
+    version: "1.0",
+    status: "EXPERIMENTAL",
+    description:
+      "Important themes (Fase H): the user flags a confirmed resonance as important to them right now (Eco proposes in the reader, the user confirms). proposito value = distinct important themes / 3 (saturating); confidence saturates at 1. Only feeds axes under EMOTIONAL_MAP_V2.",
+    inputs: ["Resonance.important toggle (explicit user taps)"],
+    outputs: ["proposito value + important-theme count"],
+    assumptions: [
+      "an explicitly flagged important theme is a valid self-report of what matters to the user now",
+    ],
+    minimumData: { observationCount: 1 },
+    knownLimitations: [
+      "count-based v1 — no semantics between themes; self-report, not a psychometric measure",
+    ],
+    productCopyAllowed: [
+      "Los temas que marcaste como importantes para ti",
+      "N temas importantes",
+    ],
+    productCopyForbidden: ["Medido (implies psychometric validity)"],
+    owner: "emotional-map",
+    reviewedAt: "2026-07-12",
+  },
+  {
     id: "NAR-L1",
     version: "1.0",
     status: "EXPERIMENTAL",

@@ -854,6 +854,7 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
         onDeleteNote={deleteAnnotation}
         apiBase={apiBase}
         token={token}
+        scope={{ bookSlug, chapterOrder: chapter.order }}
       />
 
       {breatheExercise ? (

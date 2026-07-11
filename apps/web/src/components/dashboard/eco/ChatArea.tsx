@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   EcoMessage,
   EcoPersona,
+  EcoScope,
+  EcoSource,
   EcoSseEvent,
   EcoThreadResponse,
 } from "@psico/types";
-import { ecoApi } from "@psico/api-client";
+import { ecoApi, resonancesApi } from "@psico/api-client";
 import { decryptString, encryptString } from "@psico/crypto";
 import { CrisisModal } from "./CrisisModal";
 import { ReportMessageModal } from "./ReportMessageModal";
@@ -47,6 +49,7 @@ export function ChatArea({
   onMessageSent,
   initialComposerText,
   onComposerSeedConsumed,
+  scope,
 }: {
   threadId: string;
   caps: EcoPersona;
@@ -57,6 +60,12 @@ export function ChatArea({
   /** Sprint B — reader→Eco handoff: pre-fill the composer once (then clear). */
   initialComposerText?: string | null;
   onComposerSeedConsumed?: () => void;
+  /**
+   * Fase H — reading context for a reader-dock conversation. Scopes the RAG
+   * to the book and lets the server offer the chapter's concept as a
+   * confirmable resonance. Absent on the standalone Eco page.
+   */
+  scope?: EcoScope;
 }) {
   const [messages, setMessages] = useState<EcoMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,6 +91,17 @@ export function ChatArea({
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Fase H — sources retrieved for the last reply + the resonance offer.
+  const [lastSources, setLastSources] = useState<EcoSource[]>([]);
+  const [offer, setOffer] = useState<{
+    conceptKey: string;
+    conceptLabel: string;
+    bookSlug: string;
+    chapterOrder: number;
+  } | null>(null);
+  const [offerState, setOfferState] = useState<
+    "idle" | "saving" | "done" | "error"
+  >("idle");
 
   // Sprint B — seed the composer from a reader→Eco handoff exactly once.
   const seededRef = useRef(false);
@@ -253,6 +273,7 @@ export function ChatArea({
           textPlaintext: plain,
           textCiphertext: envelope.ciphertext,
           textNonce: envelope.nonce,
+          ...(scope ? { scope } : {}),
         },
         {
           baseUrl: apiBase.replace(/\/api$/, ""), // ecoApi adds /api itself
@@ -273,6 +294,12 @@ export function ChatArea({
                 break;
               case "done":
                 doneMessageId = ev.data.messageId;
+                // Fase H — surface the retrieved sources + the resonance offer.
+                setLastSources(ev.data.sources ?? []);
+                if (ev.data.resonanceOffer) {
+                  setOffer(ev.data.resonanceOffer);
+                  setOfferState("idle");
+                }
                 break;
               case "error":
                 setSendError(ev.data.message);
@@ -332,7 +359,18 @@ export function ChatArea({
       setPhase("idle");
       onMessageSent();
     }
-  }, [text, busy, ecoKey, threadId, apiBase, token, onMessageSent]);
+  }, [text, busy, ecoKey, threadId, apiBase, token, onMessageSent, scope]);
+
+  const confirmOffer = useCallback(async () => {
+    if (!offer) return;
+    setOfferState("saving");
+    try {
+      await resonancesApi.confirm({ ...offer, source: "eco" });
+      setOfferState("done");
+    } catch {
+      setOfferState("error");
+    }
+  }, [offer]);
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
@@ -459,6 +497,81 @@ export function ChatArea({
             />
           ) : null}
         </div>
+
+        {/* Fase H — retrieved sources (deterministic, "contexto consultado") */}
+        {lastSources.length > 0 ? (
+          <div
+            className="mx-5 mb-1 text-[11px]"
+            style={{ color: "var(--color-warm-400)" }}
+          >
+            Contexto consultado:{" "}
+            {lastSources
+              .map((s) =>
+                s.chapterTitle
+                  ? `${s.bookTitle} · ${s.chapterTitle}`
+                  : s.bookTitle,
+              )
+              .join(" · ")}
+          </div>
+        ) : null}
+
+        {/* Fase H — the ARC resonance offer (Eco proposes, the user confirms) */}
+        {offer ? (
+          <div
+            className="mx-5 mb-2 rounded-xl px-3 py-2"
+            role="status"
+            style={{
+              background: "var(--color-lavender-50)",
+              border: "1px solid var(--color-lavender-200)",
+            }}
+          >
+            {offerState === "done" ? (
+              <p
+                className="text-[12.5px]"
+                style={{ color: "var(--color-lavender-700)" }}
+              >
+                🌱 Añadido a tu mapa. Puedes verlo en <b>Mis resonancias</b>.
+              </p>
+            ) : (
+              <div className="flex items-center justify-between gap-3">
+                <p
+                  className="text-[12.5px] leading-snug"
+                  style={{ color: "var(--color-warm-700)" }}
+                >
+                  ¿Te resonó el tema <b>«{offer.conceptLabel}»</b>? Solo entra a
+                  tu mapa si tú lo confirmas.
+                </p>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={offerState === "saving"}
+                    onClick={() => void confirmOffer()}
+                    className="rounded-lg px-3 py-1.5 text-[12px] font-bold text-white"
+                    style={{ background: "var(--color-lavender-500)" }}
+                  >
+                    {offerState === "saving" ? "…" : "🌱 Añadir"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOffer(null)}
+                    className="rounded-lg px-2 py-1.5 text-[12px]"
+                    style={{ color: "var(--color-warm-500)" }}
+                  >
+                    Ahora no
+                  </button>
+                </div>
+              </div>
+            )}
+            {offerState === "error" ? (
+              <p
+                className="mt-1 text-[11px]"
+                style={{ color: "var(--color-rose-600, #b25454)" }}
+              >
+                No pudimos guardarlo. Reintenta.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         {/* Composer */}
         <Composer

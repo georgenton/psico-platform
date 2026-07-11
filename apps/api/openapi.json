@@ -6676,6 +6676,79 @@
       }
     },
     "/api/resonances/{id}": {
+      "patch": {
+        "operationId": "ResonancesController_setImportant",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateResonanceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Resonances"
+        ]
+      },
       "delete": {
         "operationId": "ResonancesController_remove",
         "parameters": [
@@ -11428,6 +11501,24 @@
           "stepsCompleted"
         ]
       },
+      "EcoScopeDto": {
+        "type": "object",
+        "properties": {
+          "bookSlug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "chapterOrder": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "bookSlug",
+          "chapterOrder"
+        ]
+      },
       "SendEcoMessageDto": {
         "type": "object",
         "properties": {
@@ -11458,6 +11549,14 @@
           "intent": {
             "type": "object",
             "description": "Optional intent hint. `\"suggest\"` nudges Eco to recommend a book or\nexercise instead of free-form chat. v1 routes both through the same\nLLM call with the intent injected into the system prompt — explicit\ndispatch can come later if recommendation tuning needs it."
+          },
+          "scope": {
+            "description": "Fase H — optional reading context (reader dock/sheet handoff).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EcoScopeDto"
+              }
+            ]
           }
         },
         "required": [
@@ -11652,6 +11751,17 @@
           "bookSlug",
           "chapterOrder",
           "source"
+        ]
+      },
+      "UpdateResonanceDto": {
+        "type": "object",
+        "properties": {
+          "important": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "important"
         ]
       },
       "MarkResolvedDto": {

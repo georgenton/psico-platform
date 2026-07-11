@@ -73,6 +73,17 @@ export interface ResonanceSummary {
   source: ResonanceSource;
   /** ISO timestamp of the explicit confirmation. */
   confirmedAt: string;
+  /**
+   * Fase H (ARC-P1) — the user marked this theme as IMPORTANT for them
+   * right now. Distinct important themes are the source of the Propósito
+   * axis under the V2 contract. Another explicit tap; reversible.
+   */
+  important: boolean;
+}
+
+/** Fase H — body for `PATCH /api/resonances/:id`. */
+export interface UpdateResonanceRequest {
+  important: boolean;
 }
 
 export interface ResonanceListResponse {

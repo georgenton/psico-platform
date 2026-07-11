@@ -7,8 +7,13 @@ import { MapResonances } from "./MapResonances";
 const deleteResonanceAction = vi.fn(async (_id: string) => ({
   ok: true as const,
 }));
+const setResonanceImportantAction = vi.fn(
+  async (_id: string, _important: boolean) => ({ ok: true as const }),
+);
 vi.mock("@/app/dashboard/mapa/actions", () => ({
   deleteResonanceAction: (id: string) => deleteResonanceAction(id),
+  setResonanceImportantAction: (id: string, important: boolean) =>
+    setResonanceImportantAction(id, important),
 }));
 
 function resonance(over: Partial<ResonanceSummary> = {}): ResonanceSummary {
@@ -20,6 +25,7 @@ function resonance(over: Partial<ResonanceSummary> = {}): ResonanceSummary {
     chapterOrder: 1,
     source: "highlight",
     confirmedAt: "2026-07-10T12:00:00.000Z",
+    important: false,
     ...over,
   };
 }
@@ -49,5 +55,26 @@ describe("MapResonances — Fase E (ARC)", () => {
       screen.queryByText(/El cuerpo sabe antes que la mente/),
     ).not.toBeInTheDocument();
     expect(deleteResonanceAction).toHaveBeenCalledWith("res-1");
+  });
+
+  it("Fase H — toggles 'important to me' via the server action (ARC-P1)", async () => {
+    const user = userEvent.setup();
+    render(<MapResonances initial={[resonance({ important: false })]} />);
+    // Empty star → mark important.
+    await user.click(
+      screen.getByRole("button", { name: /Marcar .* como importante/i }),
+    );
+    expect(setResonanceImportantAction).toHaveBeenCalledWith("res-1", true);
+    // Optimistic: the row now reads as important.
+    expect(screen.getByText(/Importante para ti/)).toBeInTheDocument();
+  });
+
+  it("Fase H — an already-important theme offers to unmark it", () => {
+    render(<MapResonances initial={[resonance({ important: true })]} />);
+    expect(
+      screen.getByRole("button", {
+        name: /Quitar .* de tus temas importantes/i,
+      }),
+    ).toBeInTheDocument();
   });
 });

@@ -3148,6 +3148,26 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-07-11 ✅ COMPLETADA — Mapa Emocional V2 · Fase F (UI V2 + L2 + L3)
+
+**Rama:** `feature/emotional-map-fase-f-ui-v2`
+**Bitácora:** [docs/informes/sprint-v2-fase-f-ui-v2.md](docs/informes/sprint-v2-fase-f-ui-v2.md)
+**Tests:** API 820/821 (+8) · Web 312 (+11) · Mobile 70 (+3) · typecheck ×3 + lints + OpenAPI verdes.
+
+**Qué cierra:** la última fase del núcleo V2 — las dos decisiones abiertas (**L2** y **L3**) + la UI V2 completa, todo detrás de un rollout server-driven con **cero cambio público** hoy (flags en default).
+
+1. **L3 — el LLM jamás puntúa bajo V2** — `provider.score()` no se invoca (invierte la KNOWN VIOLATION 5.3 bajo el flag); ejes interpretativos sin check-in → "Reuniendo datos". Nace el **Narrator NAR-L1** (`EMOTIONAL_MAP_NARRATOR` default off): método opcional `narrate(facts)` que recibe SOLO números ya calculados y devuelve copy `{headline, body}`; cualquier fallo → mapa intacto sin narrative. Apagarlo no cambia datos (Facts/Narrator, principio 3).
+2. **L2 — radar restringido a autoinforme** — la UI V2 no tiene radar de 6 ejes ni "Comprensión emocional N %"; el radar queda solo como **«Cómo me describí»** (3 ejes CHK-S1, chip "Autoinformado", triángulo solo con los 3 respondidos). El mini-map de Inicio usa el mismo componente en modo compact.
+3. **Wire V2 + secciones** — `v2` marker (solo con `EMOTIONAL_MAP_V2` on **y** `EMOTIONAL_MAP_LEGACY_UI` off; el service lo strippea en la ventana de dual-run) · `momento` (último ánimo literal) · `lenguaje` (**TXT-L1 pasa a descriptivo-only bajo V2** — cierra deuda de Fase D: el texto ya no puntúa ejes) · `narrative`. `pct` queda en el wire por compat (cron snapshots/Evolución) pero la UI V2 nunca lo renderiza. Gate de tendencia bajo V2: dirección retenida hasta `TREND_PUBLIC_MIN_OBS=60`.
+4. **UI V2 web + mobile** — componentes `MapMomento`/`MapSelfReport`/`MapLenguaje`/`MapNarrative` (web) + `MapSelfReportCard` (mobile); páginas ramifican por `map.v2`; modal ⓘ con copy V2 y «charlas con Eco» (única frase pública que cambia hoy).
+5. **Ratchets:** copy-contract +6 archivos limpios y snapshot 4→3 (MapInfoButton limpio; lo pineado vive solo en ramas legacy → Fase G las borra); v2-contract +6 tests; service spec +3 (dual-run); registry +NAR-L1 con spec pineando IDs.
+
+**Privacidad (ADR 0007):** el Narrator recibe solo números/tokens categóricos ya calculados — nunca texto ni ciphertext.
+
+**Encender la UI V2** = `EMOTIONAL_MAP_V2=on` + `EMOTIONAL_MAP_LEGACY_UI=off` (decisión de producto por config, con dual-run intermedio opcional). **Siguiente:** Fase G (retiro del layout legacy + serie de Evolución) · Fase H (Eco contextual + flujo de «temas importantes» para Propósito).
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

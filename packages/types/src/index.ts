@@ -1357,7 +1357,9 @@ export interface EmotionalMapResult {
   /** 6 dimension details (radar order) for the transparency UI. */
   dimensions: EmotionalMapDimension[];
   /** 0–100 overall comprehension percentage shown next to the radar.
-   *  Averages ONLY the axes with real signal, so low-data maps don't inflate. */
+   *  Averages ONLY the axes with real signal, so low-data maps don't inflate.
+   *  LEGACY (V2 principle: no global pct) — kept on the wire for cache/cron
+   *  compat, but the V2 UI never renders it. */
   pct: number;
   /** 0..1 overall data coverage — gates the "aún reuniendo datos" banner. */
   coverage: number;
@@ -1366,6 +1368,33 @@ export interface EmotionalMapResult {
   computedAt: string;
   /** Which provider answered the LLM axes ("anthropic" / "rule-based" / …). */
   provider: string;
+  /**
+   * Fase F — V2 contract marker. Present (true) only when the server computed
+   * the map under EMOTIONAL_MAP_V2 AND the legacy UI window is over
+   * (EMOTIONAL_MAP_LEGACY_UI off). Clients branch their layout on this field
+   * — server-driven rollout, no client env needed. Optional so cached and
+   * legacy blobs keep parsing.
+   */
+  v2?: true;
+  /**
+   * Fase F (V2 sections) — "Mi momento": the latest self-reported mood
+   * observation (diary or mood log). Null when the user never logged one.
+   * Only populated under the V2 contract.
+   */
+  momento?: { mood: string; at: string } | null;
+  /**
+   * Fase F (V2 sections) — "Patrones de lenguaje", descriptive-only: how many
+   * reflections the on-device analyzer (TXT-L1) processed in the window.
+   * Under V2 the text features NO LONGER score any axis — they surface here
+   * as an opt-in descriptive card instead. Null without consented data.
+   */
+  lenguaje?: { n: number } | null;
+  /**
+   * Fase F (decision L3) — optional narrative over the computed facts
+   * (NAR-L1, copy only). Null when the narrator flag is off or the call
+   * failed; switching it off never changes the data above.
+   */
+  narrative?: { headline: string; body: string; modelId: string } | null;
 }
 
 // ─── Sprint D — Activity feed ───────────────────────────────────────────

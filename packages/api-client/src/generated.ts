@@ -1855,6 +1855,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resonances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ResonancesController_list"];
+        put?: never;
+        post: operations["ResonancesController_confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resonances/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["ResonancesController_remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/evolucion": {
         parameters: {
             query?: never;
@@ -3377,6 +3409,12 @@ export interface components {
             shareDiaryWithTherapist?: boolean;
             anonymizedAnalytics?: boolean;
             marketingEmail?: boolean;
+            /**
+             * @description Fase D (V2, decision L4) — consent for the on-device reflection text
+             *     analysis (TXT-L1). Setting it to false also deletes every derived
+             *     numeric row the user uploaded (consent cascade).
+             */
+            localTextAnalysis?: boolean;
         };
         UpdateMoodDto: {
             /**
@@ -3694,6 +3732,19 @@ export interface components {
         };
         ShareWithTherapistDto: {
             therapistId: string;
+        };
+        ConfirmResonanceDto: {
+            /** @description Stable concept key (persisted; never renamed in the catalog). */
+            conceptKey: string;
+            /** @description Human label shown on the map ("Mis resonancias"). */
+            conceptLabel: string;
+            bookSlug: string;
+            chapterOrder: number;
+            /**
+             * @description Where the confirmation happened (provenance).
+             * @enum {string}
+             */
+            source: ConfirmResonanceDtoSource;
         };
         MarkResolvedDto: {
             note?: string;
@@ -8878,6 +8929,139 @@ export interface operations {
             };
         };
     };
+    ResonancesController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    ResonancesController_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmResonanceDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    ResonancesController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     EvolucionController_get: {
         parameters: {
             query?: never;
@@ -11598,6 +11782,11 @@ export enum OnboardingStep3DtoVoicePreference {
     marina = "marina",
     tomas = "tomas",
     none = "none"
+}
+export enum ConfirmResonanceDtoSource {
+    highlight = "highlight",
+    eco = "eco",
+    exercise = "exercise"
 }
 export enum ChangeRoleDtoRole {
     USER = "USER",

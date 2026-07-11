@@ -32,6 +32,6 @@
 
 ## Violaciones conocidas hoy (snapshot del ratchet)
 
-Ver `KNOWN_VIOLATIONS` en el spec. Fase B' (L1) limpió el bloque afectivo completo (`MapAffectDynamics` + los dos `affect-copy`); Fase C movió los contadores de actividad fuera del mapa (`MapFeed` ahora es un puntero a Mi Evolución y el feed del mapa mobile desapareció) — el snapshot bajó de 8 → 5 → 4 archivos. Lo que queda pineado pertenece a Fase F: el % global + badge "Medido" y las menciones benignas del modal de privacidad.
+Ver `KNOWN_VIOLATIONS` en el spec. Fase B' (L1) limpió el bloque afectivo completo (`MapAffectDynamics` + los dos `affect-copy`); Fase C movió los contadores de actividad fuera del mapa (`MapFeed` ahora es un puntero a Mi Evolución y el feed del mapa mobile desapareció) — el snapshot bajó de 8 → 5 → 4 → **3 archivos** (Fase F reescribió el modal de privacidad — «charlas con Eco» — y sumó los componentes V2 nuevos al contrato con cero violaciones). Lo que queda pineado (% global + badge "Medido") vive SOLO en las ramas legacy de MapStage/MapDims/mapa mobile, renderizadas mientras `EMOTIONAL_MAP_LEGACY_UI` siga encendido; se eliminan cuando el layout legacy se retire (Fase G).
 
 **Landing corregida en Fase B':** el chat de demostración de [\_landing-html.ts](../../apps/web/src/app/_landing-html.ts) ya no dice "Releyendo lo que escribiste esta semana, noto algo" (imposible con E2E — Eco no puede releer mensajes pasados del usuario). El diálogo nuevo solo muestra a Eco reflexionando sobre lo que la persona dice en esa misma conversación.

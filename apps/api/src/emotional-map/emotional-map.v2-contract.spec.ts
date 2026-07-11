@@ -122,15 +122,18 @@ describe("V2 data-source contract — characterization (ratchet)", () => {
     }
   });
 
-  it("Fase C — flag EMOTIONAL_MAP_V2=on: the LLM payload carries no engagement counters", async () => {
+  it("Fase F (L3) — under V2 the LLM provider NEVER produces axis scores", async () => {
+    // Inverts KNOWN VIOLATION 5.3 under the flag (supersedes the Fase C
+    // payload check: there is no payload anymore because there is no call).
+    // Even with plenty of signal, provider.score is not invoked — uncovered
+    // interpretive axes gather honestly instead of carrying an LLM number.
     const provider = mockProvider();
-    // 4 hard-mood entries → confCompasion ≥ floor even without ecoDays.
     const entries = [0, 1, 2, 3].map((n) => ({
       mood: "hard",
-      tags: [],
+      tags: ["trabajo"],
       createdAt: day(n),
     }));
-    await scoreEmotionalMap(
+    const result = await scoreEmotionalMap(
       baseInput({
         emotionalMapV2: true,
         entries,
@@ -143,11 +146,187 @@ describe("V2 data-source contract — characterization (ratchet)", () => {
       }),
       provider,
     );
-    expect(provider.score).toHaveBeenCalledTimes(1);
-    const payload = provider.score.mock.calls[0][0] as {
-      stats: Record<string, unknown>;
+    expect(provider.score).not.toHaveBeenCalled();
+    const compasion = result.dimensions.find((d) => d.key === "compasion")!;
+    expect(compasion.confidence).toBe(0);
+    expect(compasion.value).toBe(0);
+    expect(compasion.measured).toBe(false);
+  });
+
+  it("Fase F — under V2 the result carries the V2 sections (marker, momento, lenguaje)", async () => {
+    const result = await scoreEmotionalMap(
+      baseInput({
+        emotionalMapV2: true,
+        moodSeries: [
+          { mood: "ok", createdAt: day(0) },
+          { mood: "good", createdAt: day(3) },
+        ],
+      }),
+      mockProvider(),
+    );
+    expect(result.v2).toBe(true);
+    // Momento = the LATEST self-reported mood observation.
+    expect(result.momento).toEqual({
+      mood: "good",
+      at: day(3).toISOString(),
+    });
+    // No consented text features → the descriptive section stays null.
+    expect(result.lenguaje).toBeNull();
+    // Narrator off by default → no narrative, and the map is complete anyway.
+    expect(result.narrative).toBeNull();
+
+    // Legacy blobs carry none of the V2 sections.
+    const legacy = await scoreEmotionalMap(baseInput({}), mockProvider());
+    expect(legacy).not.toHaveProperty("v2");
+    expect(legacy).not.toHaveProperty("momento");
+  });
+
+  it("Fase F — under V2 text features are DESCRIPTIVE only (lenguaje.n, no axis scoring)", async () => {
+    const features = Array.from({ length: 9 }, (_, i) => ({
+      wordCount: 120,
+      selfFocus: 0.05,
+      positive: 0.03,
+      negative: 0.02,
+      insight: 0.04,
+      causal: 0.02,
+      absolutist: 0.01,
+      social: 0.02,
+      selfKind: 0.03,
+      selfCritic: 0.0,
+      createdAt: day(i),
+    }));
+    const v2 = await scoreEmotionalMap(
+      baseInput({ emotionalMapV2: true, textFeatures: features }),
+      mockProvider(),
+    );
+    // The section reports the analyzed-entry count…
+    expect(v2.lenguaje).toEqual({ n: 9 });
+    // …but NO axis is measured by TXT-L1 anymore (audit: language ≠ traits).
+    for (const dim of v2.dimensions) {
+      expect(dim.evidence?.modelId).not.toBe("TXT-L1");
+    }
+    const claridad = v2.dimensions.find((d) => d.key === "claridad")!;
+    expect(claridad.measured).toBe(false);
+    expect(claridad.confidence).toBe(0);
+
+    // Legacy behavior unchanged: the same rows still measure claridad.
+    const legacy = await scoreEmotionalMap(
+      baseInput({ textFeatures: features }),
+      mockProvider(),
+    );
+    const legacyClaridad = legacy.dimensions.find((d) => d.key === "claridad")!;
+    expect(legacyClaridad.evidence?.modelId).toBe("TXT-L1");
+  });
+
+  it("Fase F (L3) — the Narrator only narrates computed facts, and only when enabled", async () => {
+    const narrate = vi.fn(async () => ({
+      headline: "Tus registros de esta semana",
+      body: "Registraste tu ánimo dos veces y confirmaste un tema.",
+    }));
+    const provider = { ...mockProvider(), narrate };
+    const result = await scoreEmotionalMap(
+      baseInput({
+        emotionalMapV2: true,
+        narratorEnabled: true,
+        moodSeries: [{ mood: "ok", createdAt: day(0) }],
+        resonances: [
+          { conceptKey: "eec-cuerpo-antes-que-mente", confirmedAt: day(1) },
+        ],
+      }),
+      provider,
+    );
+    expect(result.narrative).toEqual({
+      headline: "Tus registros de esta semana",
+      body: "Registraste tu ánimo dos veces y confirmaste un tema.",
+      modelId: "NAR-L1",
+    });
+    // The narrator receives ONLY computed numbers/tokens — never text, never
+    // an instruction to score.
+    const facts = narrate.mock.calls[0][0] as unknown as Record<
+      string,
+      unknown
+    >;
+    expect(Object.keys(facts).sort()).toEqual([
+      "activeDays",
+      "dynamics",
+      "entryCount",
+      "lenguajeN",
+      "momento",
+      "resonanceCount",
+      "selfReport",
+    ]);
+    expect(facts.resonanceCount).toBe(1);
+
+    // Off by default: same input without the flag → null narrative, same data.
+    const off = await scoreEmotionalMap(
+      baseInput({
+        emotionalMapV2: true,
+        moodSeries: [{ mood: "ok", createdAt: day(0) }],
+        resonances: [
+          { conceptKey: "eec-cuerpo-antes-que-mente", confirmedAt: day(1) },
+        ],
+      }),
+      provider,
+    );
+    expect(off.narrative).toBeNull();
+    expect(off.dimensions).toEqual(result.dimensions);
+  });
+
+  it("Fase F — narrator failure never breaks the map (facts stay intact)", async () => {
+    const provider = {
+      ...mockProvider(),
+      narrate: vi.fn(async () => {
+        throw new Error("LLM down");
+      }),
     };
-    expect(payload.stats).toEqual({ entryCount: 4, activeDays: 4 });
+    const result = await scoreEmotionalMap(
+      baseInput({
+        emotionalMapV2: true,
+        narratorEnabled: true,
+        moodSeries: [{ mood: "ok", createdAt: day(0) }],
+      }),
+      provider,
+    );
+    expect(result.narrative).toBeNull();
+    expect(result.v2).toBe(true);
+    expect(result.dimensions).toHaveLength(6);
+  });
+
+  it("Fase F — under V2 the trend direction is withheld below 60 observations", async () => {
+    // A clean upward ramp: significant trend for the fit (legacy shows "up"),
+    // but below TREND_PUBLIC_MIN_OBS for the V2 public wire until n ≥ 60.
+    const ramp = (count: number) =>
+      Array.from({ length: count }, (_, i) => {
+        const frac = i / (count - 1);
+        const mood =
+          frac < 0.25
+            ? "hard"
+            : frac < 0.5
+              ? "low"
+              : frac < 0.75
+                ? "ok"
+                : "good";
+        return { mood, createdAt: day(i * 2) };
+      });
+
+    const legacy = await scoreEmotionalMap(
+      baseInput({ moodSeries: ramp(30) }),
+      mockProvider(),
+    );
+    expect(legacy.affectDynamics?.trend).toBe("up");
+
+    const v2Short = await scoreEmotionalMap(
+      baseInput({ emotionalMapV2: true, moodSeries: ramp(30) }),
+      mockProvider(),
+    );
+    expect(v2Short.affectDynamics?.status).toBe("active");
+    expect(v2Short.affectDynamics?.trend).toBeNull();
+
+    const v2Long = await scoreEmotionalMap(
+      baseInput({ emotionalMapV2: true, moodSeries: ramp(70) }),
+      mockProvider(),
+    );
+    expect(v2Long.affectDynamics?.trend).toBe("up");
   });
 
   it("Fase E — under V2, confirmed resonances become the conexion source (ARC-C1)", async () => {

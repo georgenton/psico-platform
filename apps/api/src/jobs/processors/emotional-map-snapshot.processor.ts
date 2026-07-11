@@ -103,11 +103,15 @@ export class EmotionalMapSnapshotProcessor extends WorkerHost {
             userId,
             month,
             pct: result.pct,
+            // Fase G — the Evolución chart plots coverage (signal backing
+            // the map), not the legacy global pct.
+            coverage: result.coverage,
             values: Array.from(result.values),
             provider: result.provider,
           },
           update: {
             pct: result.pct,
+            coverage: result.coverage,
             values: Array.from(result.values),
             provider: result.provider,
           },

@@ -72,10 +72,14 @@ describe("InicioV2", () => {
     expect(screen.getByText(/Quito/i)).toBeInTheDocument();
   });
 
-  it("renders the mini-map with pct from emotionalMap", () => {
+  it("renders the mini-map as the self-report summary (Fase G — no global %)", () => {
     render(<InicioV2 home={buildHome()} />);
-    expect(screen.getByText("50%")).toBeInTheDocument();
     expect(screen.getByText(/Tu Mapa Emocional/i)).toBeInTheDocument();
+    // No check-in answers in the fixture → the honest CTA, never a global %.
+    expect(
+      screen.getByText(/Responde el check-in de 5 segundos/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("50%")).not.toBeInTheDocument();
   });
 
   it("falls back to the neutral 'empieza con una respiración' when activity is empty", () => {

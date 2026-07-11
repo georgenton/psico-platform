@@ -5,16 +5,20 @@ import type {
 import { IconTrendUp } from "@/components/dashboard/shell/icons";
 
 /**
- * EvoChart — Sprint F2, extended in Sprint G2.
+ * EvoChart — Sprint F2/G2, reframed in Fase G (V2 principle 2).
  *
- * The `.card.evo-chart` from the design's `s-evolucion` screen — a line
- * chart of "Comprensión emocional" over the last months.
+ * The `.card.evo-chart` from the design's `s-evolucion` screen, now a line
+ * chart of the map's data COVERAGE over the last months: how much signal
+ * backs the map (an honest data-availability metric), never a psychological
+ * score. The legacy "Comprensión emocional" pct series had no defensible
+ * interpretation and retired with the legacy layout.
  *
  * Behavior:
- *  - With `series.length >= 2` we render the polyline + filled area + one
- *    dot per month + month labels along the x-axis.
- *  - With 0–1 points we render the snapshot-only fallback (single dot at
- *    the current `map.pct`) with the "we'll fill in over time" copy.
+ *  - With ≥2 monthly snapshots that carry coverage we render the polyline +
+ *    filled area + one dot per month + month labels along the x-axis.
+ *  - Otherwise the snapshot-only fallback (single dot at the map's current
+ *    coverage) with the "we'll fill in over time" copy. Pre-Fase-G snapshot
+ *    rows have no coverage and are skipped rather than faked.
  *
  * The monthly snapshots are produced by the `EmotionalMapSnapshotProcessor`
  * cron (1st of month, 04:00 UTC). New users see the fallback until their
@@ -50,17 +54,20 @@ interface Props {
 }
 
 export function EvoChart({ map, series = [] }: Props) {
-  const pct = map.pct;
-  const hasSeries = series.length >= 2;
+  // Fase G — only points with coverage count; pre-Fase-G rows are skipped.
+  const usable = series
+    .filter((p): p is typeof p & { coverage: number } => p.coverage != null)
+    .map((p) => ({ monthIso: p.monthIso, value: p.coverage }));
+  const currentCoverage = Math.round((map.coverage ?? 0) * 100);
 
-  if (!hasSeries) {
-    return <SnapshotFallback pct={pct} />;
+  if (usable.length < 2) {
+    return <SnapshotFallback value={currentCoverage} />;
   }
 
-  const points = series.map((p, i) => ({
-    x: scaleX(i, series.length),
-    y: mapPctToY(p.pct),
-    pct: p.pct,
+  const points = usable.map((p, i) => ({
+    x: scaleX(i, usable.length),
+    y: mapValueToY(p.value),
+    value: p.value,
     monthIso: p.monthIso,
   }));
 
@@ -69,19 +76,17 @@ export function EvoChart({ map, series = [] }: Props) {
     .join(" ");
   const areaD = `${pathD} L ${points[points.length - 1]!.x} ${Y_BOTTOM} L ${points[0]!.x} ${Y_BOTTOM} Z`;
   const last = points[points.length - 1]!;
-  const first = series[0]!;
-  const lastPoint = series[series.length - 1]!;
-  const delta = lastPoint.pct - first.pct;
+  const delta = usable[usable.length - 1]!.value - usable[0]!.value;
 
   return (
     <div className="card evo-chart">
-      <span className="card-tag">Comprensión emocional</span>
+      <span className="card-tag">Cobertura de tu mapa</span>
       <div className="ec-score">
-        <b>{lastPoint.pct}%</b>
+        <b>{last.value}%</b>
         <span className="delta">
           <IconTrendUp size={14} />
           {delta > 0 ? `+${delta} pts` : `${delta} pts`} en{" "}
-          {series.length === 1 ? "1 mes" : `${series.length} meses`}
+          {usable.length === 1 ? "1 mes" : `${usable.length} meses`}
         </span>
       </div>
       <svg
@@ -89,7 +94,7 @@ export function EvoChart({ map, series = [] }: Props) {
         preserveAspectRatio="none"
         style={{ maxHeight: 230 }}
         role="img"
-        aria-label={`Comprensión emocional · serie de ${series.length} meses`}
+        aria-label={`Cobertura del mapa · serie de ${usable.length} meses`}
       >
         <defs>
           <linearGradient id="evoFill" x1="0" y1="0" x2="0" y2="1">
@@ -121,25 +126,36 @@ export function EvoChart({ map, series = [] }: Props) {
         ))}
         {/* For accessibility — invisible-but-named title for screen readers. */}
         <title>
-          Comprensión emocional al cierre del último mes: {last.pct}%
+          Cobertura del mapa al cierre del último mes: {last.value}%
         </title>
       </svg>
       <div className="ec-x">
-        {series.map((p) => (
+        {usable.map((p) => (
           <span key={p.monthIso}>{formatMonth(p.monthIso)}</span>
         ))}
       </div>
+      <p
+        style={{
+          margin: "12px 0 0",
+          color: "var(--color-warm-500)",
+          fontSize: 12,
+          lineHeight: 1.5,
+        }}
+      >
+        La cobertura mide cuánta señal respalda tu mapa cada mes — cuánta
+        información tienes, no cómo estás.
+      </p>
     </div>
   );
 }
 
-function SnapshotFallback({ pct }: { pct: number }) {
-  const y = mapPctToY(pct);
+function SnapshotFallback({ value }: { value: number }) {
+  const y = mapValueToY(value);
   return (
     <div className="card evo-chart">
-      <span className="card-tag">Comprensión emocional</span>
+      <span className="card-tag">Cobertura de tu mapa</span>
       <div className="ec-score">
-        <b>{pct}%</b>
+        <b>{value}%</b>
         <span className="delta">
           <IconTrendUp size={14} />
           Snapshot actual
@@ -150,7 +166,7 @@ function SnapshotFallback({ pct }: { pct: number }) {
         preserveAspectRatio="none"
         style={{ maxHeight: 230 }}
         role="img"
-        aria-label={`Comprensión emocional actual: ${pct}%`}
+        aria-label={`Cobertura actual del mapa: ${value}%`}
       >
         <line className="ec-grid" x1="40" y1="152.5" x2="600" y2="152.5" />
         <line className="ec-grid" x1="40" y1="115" x2="600" y2="115" />
@@ -173,8 +189,9 @@ function SnapshotFallback({ pct }: { pct: number }) {
           lineHeight: 1.5,
         }}
       >
-        Cuando acumules más meses de práctica, aquí vas a ver tu evolución real.
-        Por ahora, solo tu snapshot de hoy.
+        La cobertura mide cuánta señal respalda tu mapa — cuánta información
+        tienes, no cómo estás. Cuando acumules más meses, aquí verás cómo se fue
+        llenando.
       </p>
     </div>
   );
@@ -186,8 +203,8 @@ function scaleX(i: number, total: number): number {
   return PAD_LEFT + (i / (total - 1)) * usable;
 }
 
-function mapPctToY(pct: number): number {
-  const clamped = Math.max(0, Math.min(100, pct));
+function mapValueToY(value: number): number {
+  const clamped = Math.max(0, Math.min(100, value));
   return Y_BOTTOM - (clamped / 100) * (Y_BOTTOM - Y_TOP);
 }
 

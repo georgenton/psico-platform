@@ -35,10 +35,9 @@ const FORBIDDEN_TERMS = [
   "dominas esta habilidad",
 ] as const;
 
-/** Public map surfaces under contract (relative to repo root). */
+/** Public map surfaces under contract (relative to repo root).
+ *  Fase G retired MapStage/MapDims (legacy layout deleted). */
 const FILES = [
-  "apps/web/src/components/dashboard/mapa/MapStage.tsx",
-  "apps/web/src/components/dashboard/mapa/MapDims.tsx",
   "apps/web/src/components/dashboard/mapa/MapAffectDynamics.tsx",
   "apps/web/src/components/dashboard/mapa/MapFeed.tsx",
   "apps/web/src/components/dashboard/mapa/MapInfoButton.tsx",
@@ -58,19 +57,14 @@ const FILES = [
  * the same PR — never adding. Keys are repo-relative paths; values are the
  * sorted forbidden terms present in that file.
  */
-const KNOWN_VIOLATIONS: Record<string, string[]> = {
-  // Fase F: the V2 layout has no pct / "Medido" / engagement copy, and the
-  // privacy-modal "conversaciones con Eco" mentions were reworded ("charlas").
-  // What remains lives ONLY in the LEGACY branches of these files — they are
-  // rendered while EMOTIONAL_MAP_LEGACY_UI holds and get DELETED when the
-  // legacy layout retires (Fase G), which is when these entries shrink to
-  // zero.
-  "apps/web/src/components/dashboard/mapa/MapStage.tsx": [
-    "comprensión emocional",
-  ],
-  "apps/web/src/components/dashboard/mapa/MapDims.tsx": ["medido"],
-  "apps/mobile/app/(tabs)/mapa.tsx": ["comprensión emocional", "medido"],
-};
+/**
+ * Fase G — the ratchet reached ZERO: the legacy layout (MapStage/MapDims +
+ * the mobile stage/dims branch) was deleted, taking the last pinned terms
+ * ("comprensión emocional", "medido") with it. From here on, ANY forbidden
+ * term in a public map surface fails the build — there is no legacy excuse
+ * left to pin.
+ */
+const KNOWN_VIOLATIONS: Record<string, string[]> = {};
 
 function violationsIn(content: string): string[] {
   const lower = content.toLowerCase();

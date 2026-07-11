@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { ActivityFeedItemType, HomeResponse } from "@psico/types";
 
-import { Radar } from "@/components/dashboard/shell/Radar";
 import { MapSelfReport } from "@/components/dashboard/mapa/MapSelfReport";
 import {
   IconArrowRight,
@@ -155,46 +154,11 @@ export function InicioV2({ home }: { home: HomeResponse }) {
               Ver completo →
             </Link>
           </div>
-          {home.emotionalMap.v2 ? (
-            // Fase F (decision L2): under the V2 contract the mini-map shows
-            // the self-report summary — no 6-axis radar, no global %.
-            <div style={{ padding: "10px 4px 4px" }}>
-              <MapSelfReport
-                dimensions={home.emotionalMap.dimensions}
-                compact
-              />
-            </div>
-          ) : home.emotionalMap.pct === 0 &&
-            home.emotionalMap.values.every((v) => v === 0) ? (
-            <div className="radar-holder">
-              <div
-                style={{
-                  padding: "36px 20px",
-                  textAlign: "center",
-                  fontSize: 13,
-                  lineHeight: 1.55,
-                  color: "var(--color-warm-500)",
-                }}
-              >
-                Empieza a leer o a escribir una reflexión y tu Mapa Emocional se
-                irá dibujando aquí.
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="radar-holder">
-                <Radar size={200} values={home.emotionalMap.values} />
-              </div>
-              <div className="mm-foot">
-                <b>{home.emotionalMap.pct}%</b>
-                <span>
-                  Comprensión
-                  <br />
-                  emocional
-                </span>
-              </div>
-            </>
-          )}
+          {/* Fase F/G (decision L2): the mini-map is the self-report summary
+              — the 6-axis radar + global % retired with the legacy layout. */}
+          <div style={{ padding: "10px 4px 4px" }}>
+            <MapSelfReport dimensions={home.emotionalMap.dimensions} compact />
+          </div>
         </div>
       </div>
 

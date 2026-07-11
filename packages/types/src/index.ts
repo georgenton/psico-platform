@@ -1454,8 +1454,16 @@ export interface EvolucionMilestone {
 export interface EvolucionEmotionalSeriesPoint {
   /** First day of the month in UTC, ISO date format `YYYY-MM-DD`. */
   monthIso: string;
-  /** Same 0..100 percent shape as `EmotionalMapResult.pct`. */
+  /** Same 0..100 percent shape as `EmotionalMapResult.pct`.
+   *  LEGACY since Fase G — kept for wire compat; clients chart `coverage`. */
   pct: number;
+  /**
+   * Fase G — map data coverage that month, as a 0..100 percent. This is what
+   * the Evolución chart plots now: how much signal backs the map (an honest
+   * data-availability metric), never a psychological score. Null on
+   * pre-Fase-G snapshots.
+   */
+  coverage: number | null;
 }
 
 export interface EvolucionResponse {

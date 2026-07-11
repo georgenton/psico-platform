@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import type { EvolucionResponse, HomeResponse } from "@psico/types";
+import type { HomeResponse } from "@psico/types";
 
 import { serverFetch } from "@/lib/api.server";
 import { ExportButton } from "@/components/dashboard/shell/ExportButton";
@@ -16,14 +16,13 @@ export const dynamic = "force-dynamic";
  *
  * Aligns with `docs/design/redesign-v2/dashboard/index.html` (s-mapa):
  * `screen-head` with eb + Exportar + `.map-grid` 2-col (`.map-stage` dark
- * gradient + `.map-dims` axis bars) + `.map-feed` chips. Reuses the
- * cached emotional map from `/home` and the evolución stats for the feed
- * counts.
+ * gradient + `.map-dims` axis bars). Fase C: the engagement counters left
+ * this page — `MapFeed` is now a pointer to Mi Evolución, so the map only
+ * needs the cached emotional map from `/home`.
  */
 export default async function MapaPage() {
-  const [homeResult, evolucionResult] = await Promise.allSettled([
+  const [homeResult] = await Promise.allSettled([
     serverFetch<HomeResponse>("/home"),
-    serverFetch<EvolucionResponse>("/evolucion"),
   ]);
 
   if (homeResult.status !== "fulfilled") {
@@ -47,8 +46,6 @@ export default async function MapaPage() {
   }
 
   const home = homeResult.value;
-  const stats =
-    evolucionResult.status === "fulfilled" ? evolucionResult.value.stats : null;
 
   return (
     <>
@@ -75,7 +72,7 @@ export default async function MapaPage() {
 
       <MapAffectDynamics data={home.emotionalMap.affectDynamics} />
 
-      <MapFeed stats={stats} />
+      <MapFeed />
     </>
   );
 }

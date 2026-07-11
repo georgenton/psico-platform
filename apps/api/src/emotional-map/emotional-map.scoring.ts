@@ -108,6 +108,16 @@ export interface EmotionalMapScoringInput {
    * true to preserve current behavior; V2 forbids LLM-created scores.
    */
   llmScoringEnabled?: boolean;
+  /**
+   * EMOTIONAL_MAP_V2 (Fase C). When true, usage activity stops feeding the
+   * psychological axes (learning-vs-emotional-map.md): conexion/proposito
+   * are no longer derived from reading/Eco/highlights (they gather until an
+   * explicit source exists — resonances, Fase E), voiceCount leaves the
+   * claridad confidence, ecoDays leave compasion/consciencia confidences,
+   * and the LLM payload carries no engagement counters. Defaults to false to
+   * preserve current behavior.
+   */
+  emotionalMapV2?: boolean;
 }
 
 /** Checkin answers per axis at which the measured confidence saturates. */
@@ -211,6 +221,7 @@ export async function scoreEmotionalMap(
     ouEnabled,
     ewsPublic = true,
     llmScoringEnabled = true,
+    emotionalMapV2 = false,
   } = input;
 
   // ── Tier 2: fit the OU model to the mood series ─────────────────────────
@@ -250,25 +261,40 @@ export async function scoreEmotionalMap(
     : 0;
 
   // ── Confidence per axis ──────────────────────────────────────────────────
+  // Fase C (V2 contract): under EMOTIONAL_MAP_V2, engagement counters leave
+  // every confidence formula — only explicit self-report signals remain.
   const confCalma = clamp01(entries.length / 8);
-  const confClaridad = clamp01((taggedEntries + voiceCount) / 6);
-  const confConexion = clamp01(
-    (readingSessions.length + ecoMessages.length) / 8,
-  );
-  const confProposito = clamp01(readingSessions.length / 4);
-  const confCompasion = clamp01((hardEntries + ecoDays) / 4);
-  const confConsciencia = clamp01((diaryDays + ecoDays) / 10);
+  const confClaridad = emotionalMapV2
+    ? clamp01(taggedEntries / 6)
+    : clamp01((taggedEntries + voiceCount) / 6);
+  const confConexion = emotionalMapV2
+    ? 0
+    : clamp01((readingSessions.length + ecoMessages.length) / 8);
+  const confProposito = emotionalMapV2
+    ? 0
+    : clamp01(readingSessions.length / 4);
+  const confCompasion = emotionalMapV2
+    ? clamp01(hardEntries / 4)
+    : clamp01((hardEntries + ecoDays) / 4);
+  const confConsciencia = emotionalMapV2
+    ? clamp01(diaryDays / 10)
+    : clamp01((diaryDays + ecoDays) / 10);
 
   // ── Mechanical axes (deterministic) ──────────────────────────────────────
-  const conexionRaw = clamp01(
-    Math.min(readingSessions.length / 6, 1) * 0.35 +
-      Math.min(readingMinutes / 90, 1) * 0.15 +
-      Math.min(ecoMessages.length / 12, 1) * 0.35 +
-      Math.min((highlightCount + annotationCount) / 8, 1) * 0.15,
-  );
-  const propositoRaw = clamp01(
-    avgProgress * 0.7 + Math.min(booksCompleted / 2, 1) * 0.3,
-  );
+  // Under V2 these two axes have no legitimate source yet (they wait for
+  // confirmed resonances, Fase E) — they stay at 0 with 0 confidence so the
+  // client renders the honest gathering state instead of an engagement score.
+  const conexionRaw = emotionalMapV2
+    ? 0
+    : clamp01(
+        Math.min(readingSessions.length / 6, 1) * 0.35 +
+          Math.min(readingMinutes / 90, 1) * 0.15 +
+          Math.min(ecoMessages.length / 12, 1) * 0.35 +
+          Math.min((highlightCount + annotationCount) / 8, 1) * 0.15,
+      );
+  const propositoRaw = emotionalMapV2
+    ? 0
+    : clamp01(avgProgress * 0.7 + Math.min(booksCompleted / 2, 1) * 0.3);
 
   // ── LLM axes (interpretive) ──────────────────────────────────────────────
   let calmaRaw = 0;
@@ -291,14 +317,20 @@ export async function scoreEmotionalMap(
         tags: e.tags,
         createdAtIso: e.createdAt.toISOString(),
       })),
+      // Fase C (V2 contract): under EMOTIONAL_MAP_V2 the payload carries NO
+      // engagement counters — usage activity never reaches the LLM.
       stats: {
         entryCount: entries.length,
-        streakDays,
         activeDays: diaryDays,
-        ecoMessages: ecoMessages.length,
-        ecoActiveDays: ecoDays,
-        voiceCount,
-        readingSessions: readingSessions.length,
+        ...(emotionalMapV2
+          ? {}
+          : {
+              streakDays,
+              ecoMessages: ecoMessages.length,
+              ecoActiveDays: ecoDays,
+              voiceCount,
+              readingSessions: readingSessions.length,
+            }),
       },
     };
     try {
@@ -377,14 +409,18 @@ export async function scoreEmotionalMap(
       key: "conexion",
       value: conexionRaw,
       confidence: confConexion,
-      sources: "Tu lectura y tus conversaciones con Eco",
+      sources: emotionalMapV2
+        ? "Se medirá con las resonancias que confirmes sobre lo que lees (en construcción)"
+        : "Tu lectura y tus conversaciones con Eco",
       measured: false,
     },
     {
       key: "proposito",
       value: propositoRaw,
       confidence: confProposito,
-      sources: "Tu avance en las lecturas que empiezas",
+      sources: emotionalMapV2
+        ? "Se medirá con los temas que confirmes como importantes para ti (en construcción)"
+        : "Tu avance en las lecturas que empiezas",
       measured: false,
     },
     {

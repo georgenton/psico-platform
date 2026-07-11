@@ -154,7 +154,9 @@ export default function EvolucionScreen() {
             {/* evo-chart */}
             <EvoChartMobile map={map} series={evolucion.emotionalSeries} />
 
-            {/* evo-quarter — 3 stat rows */}
+            {/* evo-quarter — stat rows. Fase C: Evolución IS the learning
+                dashboard, so the engagement counters that used to sit on the
+                map screen (Eco chats, reading marks) land here. */}
             <View style={styles.quarter}>
               <Text style={styles.quarterTag}>Este trimestre</Text>
               <QuarterRow
@@ -177,6 +179,24 @@ export default function EvolucionScreen() {
               />
               <QuarterRow
                 icon="leaf-outline"
+                value={
+                  evolucion.stats.conversacionesEco === 1
+                    ? "1 mensaje con Eco"
+                    : `${evolucion.stats.conversacionesEco} mensajes con Eco`
+                }
+                label="conversaciones que iniciaste tú"
+              />
+              <QuarterRow
+                icon="create-outline"
+                value={
+                  evolucion.stats.marcasLectura === 1
+                    ? "1 subrayado o nota"
+                    : `${evolucion.stats.marcasLectura} subrayados y notas`
+                }
+                label="marcas que dejaste al leer"
+              />
+              <QuarterRow
+                icon="flame-outline"
                 value={
                   evolucion.stats.rachaActual === 0
                     ? "Aún sin racha activa"

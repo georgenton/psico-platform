@@ -67,7 +67,7 @@ Estado tras Fase B' (L1 aplicada): `RECOVERY_MIN_OBS = 100` en el scoring — re
 
 **B (✅ mergeada):** Model Registry + flags + contratos + tests de caracterización + FK cascade de `DiaryTextFeature`. Cero cambio público.
 **B' (✅ mergeada — L1):** EWS fuera del wire · gate recuperación 20→100 · copy afectivo neutro descriptivo · landing sin claims falsos.
-**C:** LearningDashboard; el scoring V2 deja de leer engagement (flag `EMOTIONAL_MAP_V2`).
+**C (✅ mergeada):** LearningDashboard resuelto sobre lo existente — **Evolución ES el LearningDashboard** (`EvolucionStats` ganó `conversacionesEco` + `marcasLectura`); el mapa dejó de presentar contadores de actividad como fuentes (MapFeed/feed mobile → puntero a Evolución); palanca `EMOTIONAL_MAP_V2` cableada en el scoring (engagement fuera de ejes, confianzas y payload del LLM cuando se encienda; default off).
 **D:** Evidence Ledger + secciones V2 + opt-in TXT-L1 + borrado/consentimiento.
 **E:** Content graph (Concept/ContentUnit/BookManifest) + ciclo ARC (`CONTENT_RESONANCE`).
 **F/G:** UI V2 web/mobile (legacy tras `EMOTIONAL_MAP_LEGACY_UI`).
@@ -78,11 +78,11 @@ Estado tras Fase B' (L1 aplicada): `RECOVERY_MIN_OBS = 100` en el scoring — re
 
 ## 6. Decisiones abiertas (requieren aprobación)
 
-| #   | Decisión                                                          | Recomendación                                               | Estado                               |
-| --- | ----------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------ |
-| L1  | Hotfix B' (EWS off + gate 100 + copy neutro)                      | Sí — riesgo ético más alto, fix barato                      | ✅ aprobada e implementada (Fase B') |
-| L2  | Radar: solo autoinforme ("Resumen de tus respuestas") vs quitarlo | Conservarlo restringido (mapa se transforma, no se elimina) | ⬜ pendiente                         |
-| L3  | Provider LLM → Narrator (solo copy) vs eliminar                   | Narrator opcional apagable                                  | ⬜ pendiente                         |
-| L4  | Opt-in análisis local                                             | Default off + pantalla de consentimiento                    | ⬜ pendiente                         |
-| L5  | Naming                                                            | Mantener **Eco** / **Psico Platform**                       | ✅ implícita                         |
-| L6  | Alcance Fase C                                                    | Endpoint + página LearningDashboard propios                 | ⬜ pendiente                         |
+| #   | Decisión                                                          | Recomendación                                               | Estado                                                                                                                                                                |
+| --- | ----------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| L1  | Hotfix B' (EWS off + gate 100 + copy neutro)                      | Sí — riesgo ético más alto, fix barato                      | ✅ aprobada e implementada (Fase B')                                                                                                                                  |
+| L2  | Radar: solo autoinforme ("Resumen de tus respuestas") vs quitarlo | Conservarlo restringido (mapa se transforma, no se elimina) | ⬜ pendiente                                                                                                                                                          |
+| L3  | Provider LLM → Narrator (solo copy) vs eliminar                   | Narrator opcional apagable                                  | ⬜ pendiente                                                                                                                                                          |
+| L4  | Opt-in análisis local                                             | Default off + pantalla de consentimiento                    | ⬜ pendiente                                                                                                                                                          |
+| L5  | Naming                                                            | Mantener **Eco** / **Psico Platform**                       | ✅ implícita                                                                                                                                                          |
+| L6  | Alcance Fase C                                                    | Endpoint + página LearningDashboard propios                 | ✅ resuelta (Fase C): Evolución ES el LearningDashboard — página y endpoint ya existían; se completaron con los contadores que faltaban en vez de duplicar superficie |

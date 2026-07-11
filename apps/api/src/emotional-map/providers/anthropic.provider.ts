@@ -48,17 +48,34 @@ export class AnthropicEmotionalMapProvider implements IEmotionalMapProvider {
     const tagLine = formatCounts(tagCounts, 8);
     const weekdayLine = formatCounts(weekdayCounts);
 
+    // Fase C (V2 contract): engagement counters are optional — when the
+    // scoring omits them (EMOTIONAL_MAP_V2 on), the prompt carries no usage
+    // activity at all (learning-vs-emotional-map.md).
+    const engagementLines = [
+      payload.stats.streakDays != null
+        ? `- Racha actual (días): ${payload.stats.streakDays}`
+        : null,
+      payload.stats.ecoMessages != null
+        ? `- Mensajes a Eco (30d): ${payload.stats.ecoMessages}`
+        : null,
+      payload.stats.ecoActiveDays != null
+        ? `- Días activos con Eco: ${payload.stats.ecoActiveDays}`
+        : null,
+      payload.stats.voiceCount != null
+        ? `- Notas de voz (30d): ${payload.stats.voiceCount}`
+        : null,
+      payload.stats.readingSessions != null
+        ? `- Sesiones de lectura (30d): ${payload.stats.readingSessions}`
+        : null,
+    ].filter((l): l is string => l !== null);
+
     const userPrompt = [
       `Analiza estos patrones del diario y devuelve 4 ejes de comprensión emocional.`,
       ``,
       `DATOS (agregados, sin texto del diario ni de Eco):`,
       `- Entradas de diario (30d): ${payload.stats.entryCount}`,
       `- Días activos con diario: ${payload.stats.activeDays}`,
-      `- Racha actual (días): ${payload.stats.streakDays}`,
-      `- Mensajes a Eco (30d): ${payload.stats.ecoMessages}`,
-      `- Días activos con Eco: ${payload.stats.ecoActiveDays}`,
-      `- Notas de voz (30d): ${payload.stats.voiceCount}`,
-      `- Sesiones de lectura (30d): ${payload.stats.readingSessions}`,
+      ...engagementLines,
       `- Mood counts: ${moodLine || "(ninguno)"}`,
       `- Tag counts: ${tagLine || "(ninguno)"}`,
       `- Distribución por día de semana: ${weekdayLine || "(ninguna)"}`,

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EmotionalMapService } from "./emotional-map.service";
 import type {
@@ -106,7 +106,27 @@ function makeRedis() {
   };
 }
 
+/**
+ * Fase G — the flag defaults flipped to the V2 contract. The legacy scoring
+ * path survives ONLY as the env rollback lever (EMOTIONAL_MAP_V2=off), so the
+ * legacy-behavior suites below pin that env explicitly: they characterize the
+ * rollback path, not the defaults. Default-mode behavior is covered by the
+ * "Fase F/G dual-run" describe at the bottom and by the v2-contract spec.
+ */
+function pinLegacyMode() {
+  let prevV2: string | undefined;
+  beforeEach(() => {
+    prevV2 = process.env.EMOTIONAL_MAP_V2;
+    process.env.EMOTIONAL_MAP_V2 = "off";
+  });
+  afterEach(() => {
+    if (prevV2 === undefined) delete process.env.EMOTIONAL_MAP_V2;
+    else process.env.EMOTIONAL_MAP_V2 = prevV2;
+  });
+}
+
 describe("EmotionalMapService — hybrid rework (confidence per axis)", () => {
+  pinLegacyMode();
   let prisma: ReturnType<typeof makePrisma>;
   let redis: ReturnType<typeof makeRedis>;
 
@@ -535,6 +555,9 @@ describe("EmotionalMapService.logTextFeatures — Etapa 6 (numbers only)", () =>
 });
 
 describe("EmotionalMapService — Fase D consent gates the text signal", () => {
+  // Evidence-lite + text-scoring fixtures exercise the LEGACY path (H1/TXT
+  // feeding axes) — pinned to the rollback env since Fase G.
+  pinLegacyMode();
   const provider = makeProvider(async () => ({
     calma: 0.5,
     claridad: 0.5,
@@ -605,29 +628,9 @@ describe("EmotionalMapService — Fase F dual-run window (LEGACY_UI gates the v2
     });
   }
 
-  it("V2 on + LEGACY_UI on (default): the data contract runs but the marker is stripped", async () => {
+  it("Fase G defaults: the V2 contract + marker ship with NO env set", async () => {
     await withFlags(
-      { EMOTIONAL_MAP_V2: "on", EMOTIONAL_MAP_LEGACY_UI: undefined },
-      async () => {
-        const service = new EmotionalMapService(
-          makePrisma({}) as never,
-          provider,
-          makeRedis() as never,
-        );
-        const result = await service.compute("user-1");
-        // Marker stripped → clients keep rendering the legacy layout…
-        expect(result).not.toHaveProperty("v2");
-        // …while the V2 data contract is already live underneath (dual-run):
-        // proposito no longer derives from engagement, so it gathers.
-        const proposito = result.dimensions.find((d) => d.key === "proposito")!;
-        expect(proposito.confidence).toBe(0);
-      },
-    );
-  });
-
-  it("V2 on + LEGACY_UI off: the v2 marker reaches the wire and flips the client layout", async () => {
-    await withFlags(
-      { EMOTIONAL_MAP_V2: "on", EMOTIONAL_MAP_LEGACY_UI: "off" },
+      { EMOTIONAL_MAP_V2: undefined, EMOTIONAL_MAP_LEGACY_UI: undefined },
       async () => {
         const service = new EmotionalMapService(
           makePrisma({}) as never,
@@ -637,13 +640,16 @@ describe("EmotionalMapService — Fase F dual-run window (LEGACY_UI gates the v2
         const result = await service.compute("user-1");
         expect(result.v2).toBe(true);
         expect(result).toHaveProperty("momento");
+        // V2 data contract live: proposito no longer derives from engagement.
+        const proposito = result.dimensions.find((d) => d.key === "proposito")!;
+        expect(proposito.confidence).toBe(0);
       },
     );
   });
 
-  it("V2 off (default): nothing changes — no marker regardless of LEGACY_UI", async () => {
+  it("LEGACY_UI=on (explicit dual-run window): the marker is stripped, the V2 data stays", async () => {
     await withFlags(
-      { EMOTIONAL_MAP_V2: undefined, EMOTIONAL_MAP_LEGACY_UI: "off" },
+      { EMOTIONAL_MAP_V2: undefined, EMOTIONAL_MAP_LEGACY_UI: "on" },
       async () => {
         const service = new EmotionalMapService(
           makePrisma({}) as never,
@@ -652,6 +658,30 @@ describe("EmotionalMapService — Fase F dual-run window (LEGACY_UI gates the v2
         );
         const result = await service.compute("user-1");
         expect(result).not.toHaveProperty("v2");
+        const proposito = result.dimensions.find((d) => d.key === "proposito")!;
+        expect(proposito.confidence).toBe(0);
+      },
+    );
+  });
+
+  it("EMOTIONAL_MAP_V2=off (rollback lever): the legacy scoring path still works", async () => {
+    await withFlags(
+      { EMOTIONAL_MAP_V2: "off", EMOTIONAL_MAP_LEGACY_UI: undefined },
+      async () => {
+        const service = new EmotionalMapService(
+          makePrisma({
+            readingSessions: [
+              { progressPct: 60, completedAt: null, timeSpentSec: 900 },
+            ],
+          }) as never,
+          provider,
+          makeRedis() as never,
+        );
+        const result = await service.compute("user-1");
+        expect(result).not.toHaveProperty("v2");
+        // Legacy scoring: proposito derives from reading progress again.
+        const proposito = result.dimensions.find((d) => d.key === "proposito")!;
+        expect(proposito.confidence).toBeGreaterThan(0);
       },
     );
   });

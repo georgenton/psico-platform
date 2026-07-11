@@ -24,17 +24,29 @@ export interface FlagDef {
 }
 
 export const FLAGS = {
-  /** Master switch for the V2 map response (facts/evidence shape). */
+  /**
+   * Master switch for the V2 map response (facts/evidence shape).
+   * Default ON since Fase G (2026-07-11): the V2 contract IS the product —
+   * engagement never feeds axes, the LLM never scores, conexion comes from
+   * confirmed resonances. Setting the env to "off" is the data-level
+   * rollback lever (legacy scoring path is kept alive for that).
+   */
   EMOTIONAL_MAP_V2: {
     env: "EMOTIONAL_MAP_V2",
-    default: false,
+    default: true,
     description: "Serve the V2 emotional-map contract (facts + provenance).",
   },
-  /** Keep the legacy radar/pct UI while V2 rolls out. */
+  /**
+   * Keep the legacy radar/pct UI while V2 rolls out. Default OFF since
+   * Fase G: the legacy layout was DELETED from the clients — turning this
+   * on only strips the `v2` marker (clients still render the V2 layout,
+   * tolerantly, over whatever data arrives).
+   */
   EMOTIONAL_MAP_LEGACY_UI: {
     env: "EMOTIONAL_MAP_LEGACY_UI",
-    default: true,
-    description: "Render the legacy map UI (radar + pct) on the clients.",
+    default: false,
+    description:
+      "Strip the v2 marker (legacy dual-run window; UI deleted in Fase G).",
   },
   /** Tier-2 OU affect dynamics (legacy kill-switch, was `EMOTIONAL_MAP_OU`). */
   EMOTIONAL_MAP_OU: {

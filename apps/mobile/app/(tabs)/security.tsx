@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiClient, diarioApi } from "@psico/api-client";
 import { useAuth } from "@/context/auth";
 import { ShowSeedPhraseCard } from "@/components/dashboard/security/ShowSeedPhraseCard";
+import { LocalTextAnalysisCard } from "@/components/dashboard/security/LocalTextAnalysisCard";
 import { DiaryLockCard } from "@/components/dashboard/security/DiaryLockCard";
 import type {
   DiaryRawCipherEntry,
@@ -286,6 +287,8 @@ export default function SecurityScreen() {
       </View>
 
       <DiaryLockCard />
+
+      <LocalTextAnalysisCard />
 
       <ShowSeedPhraseCard cryptoSalt={user?.cryptoSalt ?? null} />
     </ScrollView>

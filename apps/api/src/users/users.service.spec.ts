@@ -80,6 +80,10 @@ const mockPrisma = {
   diaryEntry: {
     count: vi.fn().mockResolvedValue(0),
   },
+  // Fase D (L4) — consent cascade deletes derived text-feature rows.
+  diaryTextFeature: {
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  },
   $queryRaw: vi.fn(),
   $transaction: vi.fn(),
 };
@@ -99,6 +103,10 @@ const mockConfig = {
     if (key === "APP_URL") return "https://app.example.com";
     return undefined;
   }),
+};
+
+const mockRedis = {
+  del: vi.fn().mockResolvedValue(1),
 };
 
 // ─── Suite ────────────────────────────────────────────────────────────────────
@@ -127,6 +135,7 @@ describe("UsersService", () => {
       mockStorage as never,
       mockJobs as never,
       mockConfig as never,
+      mockRedis as never,
     );
   });
 
@@ -294,6 +303,24 @@ describe("UsersService", () => {
       mockPrisma.privacySettings.upsert.mockResolvedValue({});
       await service.updatePrivacy(userId, { marketingEmail: true });
       expect(mockPrisma.privacySettings.upsert).toHaveBeenCalled();
+      // Unrelated privacy flips never touch the derived text-feature rows.
+      expect(mockPrisma.diaryTextFeature.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("Fase D (L4): opting OUT of text analysis deletes derived rows and busts the map cache", async () => {
+      mockPrisma.privacySettings.upsert.mockResolvedValue({});
+      await service.updatePrivacy(userId, { localTextAnalysis: false });
+      expect(mockPrisma.diaryTextFeature.deleteMany).toHaveBeenCalledWith({
+        where: { userId },
+      });
+      expect(mockRedis.del).toHaveBeenCalledWith(`emotional-map:${userId}`);
+    });
+
+    it("Fase D (L4): opting IN keeps the rows but busts the map cache", async () => {
+      mockPrisma.privacySettings.upsert.mockResolvedValue({});
+      await service.updatePrivacy(userId, { localTextAnalysis: true });
+      expect(mockPrisma.diaryTextFeature.deleteMany).not.toHaveBeenCalled();
+      expect(mockRedis.del).toHaveBeenCalledWith(`emotional-map:${userId}`);
     });
   });
 

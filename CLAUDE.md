@@ -3106,7 +3106,26 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 **Privacidad (ADR 0007):** intacta — solo counts y metadata categórica.
 
-**Decisiones abiertas restantes:** L2 (radar solo autoinforme) · L3 (LLM→Narrator) · L4 (opt-in análisis local) — Fases D/F. Encender `EMOTIONAL_MAP_V2` queda como decisión de producto por config.
+**Decisiones abiertas restantes:** L2 (radar solo autoinforme) · L3 (LLM→Narrator) · ~~L4~~ (✅ resuelta en Fase D — ver sesión siguiente). Encender `EMOTIONAL_MAP_V2` queda como decisión de producto por config.
+
+---
+
+### Sesión — 2026-07-11 ✅ COMPLETADA — Mapa Emocional V2 · Fase D (opt-in del análisis local + evidencia)
+
+**Rama:** `feature/emotional-map-fase-d-consent`
+**Bitácora:** [docs/informes/sprint-v2-fase-d-consent.md](docs/informes/sprint-v2-fase-d-consent.md)
+**Tests:** API 806/807 (+6) · Web 298 · Mobile 65 · typecheck ×3 + lints + OpenAPI verdes.
+
+**Qué cierra:** la Fase D del programa V2 y la decisión **L4** — el análisis on-device del texto (TXT-L1) pasa de silencioso a **consentimiento explícito con borrado en cascada**, más la versión lite del Evidence Ledger.
+
+1. **Opt-in con tres capas de enforcement** — `PrivacySettings.localTextAnalysis` default **false** (migración aditiva `20260711120000`); `POST /emotional-map/text-features` → **403 `TEXT_ANALYSIS_NOT_ENABLED`** sin consentimiento; `compute()` no lee `DiaryTextFeature` sin opt-in (filas pre-consentimiento quedan dormidas). **Opt-out ⇒ `deleteMany` de derivados** + invalidación del cache (`emotionalMapCacheKey` exportado; `UsersService` ganó inject de Redis).
+2. **Clientes** — helper cacheado `textAnalysisConsent()` (twins web/mobile, fails closed); los 4 puntos de análisis (composers Diario + pestaña Reflexión del dock/sheet) verifican consentimiento ANTES de analizar. Consent cards en Seguridad (web switch + confirm inline "Desactivar y borrar"; mobile Switch + Alert destructivo, auto-cargada).
+3. **Evidence lite** — `EmotionalMapDimension.evidence?: {modelId, n} | null` (cache-tolerant) con IDs del Model Registry (OU-GT/OU-G0 · CHK-S1 · TXT-L1 · H1) + n de observaciones; el modal ⓘ (web + mobile) muestra "Método X · basado en N registros". El Ledger persistido llega con ARC (Fase E).
+4. **Cambio público intencional:** con default off, el texto deja de alimentar el mapa para TODOS hasta optar in — ejes "Medido" por texto vuelven a LLM/"Reuniendo datos". Seed demo consiente (`localTextAnalysis: true`) para conservar la fuente; re-correr `seed-demo-users.mjs` post-deploy.
+
+**Privacidad (ADR 0007):** reforzada — el consentimiento gobierna incluso los datos numéricos derivados; el texto sigue E2E siempre.
+
+**Decisiones abiertas restantes:** L2 (radar solo autoinforme) · L3 (LLM→Narrator) — Fase F. Deuda: migración + re-seed en Railway; el texto consentido aún puntúa ejes (V2 lo quiere descriptivo, Fase F).
 
 ---
 

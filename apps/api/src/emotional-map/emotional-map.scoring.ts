@@ -129,7 +129,9 @@ export const CHECKIN_GOOD_N = 5;
  */
 export function computeCheckinAxes(
   checkins: ReadonlyArray<{ itemKey: string; score: number }>,
-): Partial<Record<CheckinAxis, { value: number; confidence: number }>> {
+): Partial<
+  Record<CheckinAxis, { value: number; confidence: number; n: number }>
+> {
   const axisOf = new Map(CHECKIN_ITEMS.map((i) => [i.key, i.axis]));
   const buckets = new Map<CheckinAxis, number[]>();
   for (const c of checkins) {
@@ -140,13 +142,14 @@ export function computeCheckinAxes(
     buckets.set(axis, list);
   }
   const out: Partial<
-    Record<CheckinAxis, { value: number; confidence: number }>
+    Record<CheckinAxis, { value: number; confidence: number; n: number }>
   > = {};
   for (const [axis, scores] of buckets) {
     const mean = scores.reduce((a, s) => a + s, 0) / scores.length;
     out[axis] = {
       value: mean / 4,
       confidence: Math.min(1, scores.length / CHECKIN_GOOD_N),
+      n: scores.length,
     };
   }
   return out;
@@ -170,7 +173,9 @@ const TEXT_COMPASSION_SCALE = 0.04;
  */
 export function computeTextAxes(
   rows: ReadonlyArray<ReflectionTextFeatures>,
-): Partial<Record<CheckinAxis, { value: number; confidence: number }>> {
+): Partial<
+  Record<CheckinAxis, { value: number; confidence: number; n: number }>
+> {
   const n = rows.length;
   if (n === 0) return {};
   const mean = (f: (r: ReflectionTextFeatures) => number) =>
@@ -186,10 +191,10 @@ export function computeTextAxes(
   const kind = mean((r) => r.selfKind);
   const critic = mean((r) => r.selfCritic);
   const out: Partial<
-    Record<CheckinAxis, { value: number; confidence: number }>
+    Record<CheckinAxis, { value: number; confidence: number; n: number }>
   > = {
-    claridad: { value: claridad, confidence },
-    consciencia: { value: consciencia, confidence },
+    claridad: { value: claridad, confidence, n },
+    consciencia: { value: consciencia, confidence, n },
   };
   // Compassion needs SOME self-talk evidence either way; otherwise stay quiet
   // rather than reporting a fabricated neutral.
@@ -197,6 +202,7 @@ export function computeTextAxes(
     out.compasion = {
       value: clamp01(0.5 + (kind - critic) / TEXT_COMPASSION_SCALE),
       confidence,
+      n,
     };
   }
   return out;
@@ -354,6 +360,10 @@ export async function scoreEmotionalMap(
   // For the interpretive axes, the precedence is: checkin (explicit answers) >
   // on-device text features (Etapa 6) > LLM interpretation — same pattern as
   // OU→Calma. Both checkin and text signals count as MEASURED.
+  // Fase D — Evidence lite: every covered axis declares which Model Registry
+  // entry produced it and how many observations back it (the ⓘ modal shows
+  // "Método · N registros" so provenance is never implicit).
+  const llmEvidence = { modelId: "H1", n: entries.length };
   const measuredAxis = (
     axis: CheckinAxis,
     fallback: { value: number; confidence: number; sources: string },
@@ -365,6 +375,7 @@ export async function scoreEmotionalMap(
         confidence: m.confidence,
         sources: "Tus respuestas al check-in diario",
         measured: true,
+        evidence: { modelId: "CHK-S1", n: m.n },
       };
     }
     const t = textAxes[axis];
@@ -375,9 +386,10 @@ export async function scoreEmotionalMap(
         sources:
           "El lenguaje de tus reflexiones — analizado en tu dispositivo; solo números salen de él",
         measured: true,
+        evidence: { modelId: "TXT-L1", n: t.n },
       };
     }
-    return { ...fallback, measured: false };
+    return { ...fallback, measured: false, evidence: llmEvidence };
   };
 
   const raw: Array<{
@@ -386,6 +398,7 @@ export async function scoreEmotionalMap(
     confidence: number;
     sources: string;
     measured: boolean;
+    evidence: { modelId: string; n: number };
   }> = [
     {
       key: "calma",
@@ -395,6 +408,10 @@ export async function scoreEmotionalMap(
         ? "Volatilidad medida de tu ánimo (modelo de dinámica afectiva)"
         : "Variedad y tono de tus estados de ánimo en el diario",
       measured: Boolean(ouCalma),
+      evidence:
+        affect?.status === "active"
+          ? { modelId: affect.trend ? "OU-GT" : "OU-G0", n: affect.nObs }
+          : llmEvidence,
     },
     {
       key: "claridad",
@@ -413,6 +430,10 @@ export async function scoreEmotionalMap(
         ? "Se medirá con las resonancias que confirmes sobre lo que lees (en construcción)"
         : "Tu lectura y tus conversaciones con Eco",
       measured: false,
+      evidence: {
+        modelId: "H1",
+        n: readingSessions.length + ecoMessages.length,
+      },
     },
     {
       key: "proposito",
@@ -422,6 +443,7 @@ export async function scoreEmotionalMap(
         ? "Se medirá con los temas que confirmes como importantes para ti (en construcción)"
         : "Tu avance en las lecturas que empiezas",
       measured: false,
+      evidence: { modelId: "H1", n: readingSessions.length },
     },
     {
       key: "compasion",
@@ -449,6 +471,9 @@ export async function scoreEmotionalMap(
     confidence: round2(d.confidence),
     sources: d.sources,
     measured: d.measured && d.confidence >= CONFIDENCE_FLOOR,
+    // Evidence only when the axis is actually shown — a gathering axis has
+    // no number to justify.
+    evidence: d.confidence >= CONFIDENCE_FLOOR ? d.evidence : null,
   }));
 
   const values = dimensions.map((d) => d.value) as unknown as EmotionalMapAxes;

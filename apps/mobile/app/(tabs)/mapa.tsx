@@ -19,12 +19,14 @@ import type {
   EmotionalMapResult,
   ResonanceSummary,
 } from "@psico/types";
+import { DIARY_MOODS } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 import {
   buildAffectStory,
   evidenceBaseLabel,
   formatInertia,
 } from "@/components/dashboard/mapa/affect-copy";
+import { MapSelfReportCard } from "@/components/dashboard/mapa/MapSelfReportCard";
 
 /**
  * Mapa Emocional — Sprint H1b · Mobile parity with design v2 (s-mapa).
@@ -164,118 +166,166 @@ export default function MapaScreen() {
               <Text style={styles.eyebrow}>El corazón de tu experiencia</Text>
               <Text style={styles.title}>Tu Mapa Emocional</Text>
               <Text style={styles.sub}>
-                Una representación viva de tu mundo interior. Se actualiza sola
-                a medida que lees, escribes y conversas.
+                {map.v2
+                  ? "Lo que tú registras y confirmas: tu ánimo, tus respuestas, tus resonancias. Nada entra a este mapa sin ti."
+                  : "Una representación viva de tu mundo interior. Se actualiza sola a medida que lees, escribes y conversas."}
               </Text>
             </View>
 
-            {/* map-stage replacement — dark card with score + provider chip */}
-            <View style={styles.stage}>
-              <View style={styles.stageHead}>
-                <View style={styles.stageDot} />
-                <Text style={styles.stageTitle}>
-                  Dimensiones del autoconocimiento
-                </Text>
-                <Pressable
-                  onPress={() => setInfoOpen(true)}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel="Cómo se mide tu Mapa Emocional"
-                  style={styles.infoBtn}
-                >
-                  <Text style={styles.infoBtnText}>i</Text>
-                </Pressable>
-              </View>
-              <Text style={styles.stageMeta}>
-                Actualizado · {formatDate(map.computedAt)}
-              </Text>
-              <View style={styles.scoreRow}>
-                <Text style={styles.scoreValue}>{map.pct}%</Text>
-                <Text style={styles.scoreLabel}>
-                  {map.coverage < 0.4
-                    ? "Tu mapa se está formando"
-                    : "Comprensión emocional"}
-                </Text>
-              </View>
-              <View style={styles.providerChip}>
-                <Ionicons name="trending-up" size={12} color={Colors.white} />
-                <Text style={styles.providerText}>
-                  {map.provider === "anthropic"
-                    ? "Análisis con IA"
-                    : "Análisis inicial"}
-                </Text>
-              </View>
-              {map.coverage < 0.4 ? (
-                <Text style={styles.stageGathering}>
-                  Todavía estamos reuniendo señales. Escribe una reflexión,
-                  conversa con Eco o avanza en una lectura y verás cómo cada
-                  dimensión se enciende.
-                </Text>
-              ) : null}
-            </View>
+            {/* Fase F — V2 layout (decision L2): no global %, no 6-axis list.
+                Independent sections, each with its own provenance. */}
+            {map.v2 ? (
+              <>
+                <View style={styles.feed}>
+                  <Text style={styles.feedTag}>Mi momento</Text>
+                  {map.momento ? (
+                    <View style={styles.momentoRow}>
+                      <Text style={styles.momentoEmoji}>
+                        {DIARY_MOODS.find((m) => m.id === map.momento?.mood)
+                          ?.emoji ?? "•"}
+                      </Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.momentoLabel}>
+                          {DIARY_MOODS.find((m) => m.id === map.momento?.mood)
+                            ?.label ?? map.momento.mood}
+                        </Text>
+                        <Text style={styles.momentoMeta}>
+                          Tu último registro · {formatDate(map.momento.at)}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <Text style={styles.feedPointerText}>
+                      Marca tu ánimo cuando quieras — ese registro es el punto
+                      de partida de tu mapa.
+                    </Text>
+                  )}
+                </View>
 
-            {/* map-dims — 6 stacked bars with honest "gathering" state */}
-            <View style={styles.dims}>
-              {map.dimensions.map((dim) => {
-                const covered = dim.confidence >= CONFIDENCE_FLOOR;
-                const pct = Math.round(dim.value * 100);
-                const icon = AXIS_ICONS[dim.key] ?? "ellipse-outline";
-                const measured =
-                  dim.measured ??
-                  (dim.key === "calma" &&
-                    map.affectDynamics?.status === "active");
-                return (
-                  <View key={dim.key} style={styles.dim}>
-                    <View style={styles.dimTop}>
-                      <View style={styles.dimName}>
-                        <View style={styles.dimIconWrap}>
-                          <Ionicons
-                            name={icon}
-                            size={15}
-                            color={Colors.lavender[600]}
+                <MapSelfReportCard
+                  dimensions={map.dimensions}
+                  onInfo={() => setInfoOpen(true)}
+                />
+              </>
+            ) : (
+              <>
+                {/* map-stage replacement — dark card with score + provider chip */}
+                <View style={styles.stage}>
+                  <View style={styles.stageHead}>
+                    <View style={styles.stageDot} />
+                    <Text style={styles.stageTitle}>
+                      Dimensiones del autoconocimiento
+                    </Text>
+                    <Pressable
+                      onPress={() => setInfoOpen(true)}
+                      hitSlop={10}
+                      accessibilityRole="button"
+                      accessibilityLabel="Cómo se mide tu Mapa Emocional"
+                      style={styles.infoBtn}
+                    >
+                      <Text style={styles.infoBtnText}>i</Text>
+                    </Pressable>
+                  </View>
+                  <Text style={styles.stageMeta}>
+                    Actualizado · {formatDate(map.computedAt)}
+                  </Text>
+                  <View style={styles.scoreRow}>
+                    <Text style={styles.scoreValue}>{map.pct}%</Text>
+                    <Text style={styles.scoreLabel}>
+                      {map.coverage < 0.4
+                        ? "Tu mapa se está formando"
+                        : "Comprensión emocional"}
+                    </Text>
+                  </View>
+                  <View style={styles.providerChip}>
+                    <Ionicons
+                      name="trending-up"
+                      size={12}
+                      color={Colors.white}
+                    />
+                    <Text style={styles.providerText}>
+                      {map.provider === "anthropic"
+                        ? "Análisis con IA"
+                        : "Análisis inicial"}
+                    </Text>
+                  </View>
+                  {map.coverage < 0.4 ? (
+                    <Text style={styles.stageGathering}>
+                      Todavía estamos reuniendo señales. Escribe una reflexión,
+                      conversa con Eco o avanza en una lectura y verás cómo cada
+                      dimensión se enciende.
+                    </Text>
+                  ) : null}
+                </View>
+
+                {/* map-dims — 6 stacked bars with honest "gathering" state */}
+                <View style={styles.dims}>
+                  {map.dimensions.map((dim) => {
+                    const covered = dim.confidence >= CONFIDENCE_FLOOR;
+                    const pct = Math.round(dim.value * 100);
+                    const icon = AXIS_ICONS[dim.key] ?? "ellipse-outline";
+                    const measured =
+                      dim.measured ??
+                      (dim.key === "calma" &&
+                        map.affectDynamics?.status === "active");
+                    return (
+                      <View key={dim.key} style={styles.dim}>
+                        <View style={styles.dimTop}>
+                          <View style={styles.dimName}>
+                            <View style={styles.dimIconWrap}>
+                              <Ionicons
+                                name={icon}
+                                size={15}
+                                color={Colors.lavender[600]}
+                              />
+                            </View>
+                            <Text style={styles.dimLabel}>
+                              {LABELS[dim.key]}
+                            </Text>
+                          </View>
+                          {covered ? (
+                            <View style={styles.dimValueWrap}>
+                              <Text
+                                style={
+                                  measured
+                                    ? styles.dimBasisMeasured
+                                    : styles.dimBasisActivity
+                                }
+                              >
+                                {measured ? "Medido" : "Tu actividad"}
+                              </Text>
+                              <Text style={styles.dimPct}>{pct}%</Text>
+                            </View>
+                          ) : (
+                            <Text style={styles.dimGathering}>
+                              Reuniendo datos
+                            </Text>
+                          )}
+                        </View>
+                        <View
+                          style={styles.dimBar}
+                          accessibilityRole="progressbar"
+                          accessibilityLabel={`${LABELS[dim.key]} ${
+                            covered ? `${pct}%` : "reuniendo datos"
+                          }`}
+                        >
+                          <View
+                            style={[
+                              styles.dimFill,
+                              {
+                                width: covered ? `${pct}%` : "0%",
+                                opacity: covered ? 1 : 0.35,
+                              },
+                            ]}
                           />
                         </View>
-                        <Text style={styles.dimLabel}>{LABELS[dim.key]}</Text>
+                        <Text style={styles.dimSources}>{dim.sources}</Text>
                       </View>
-                      {covered ? (
-                        <View style={styles.dimValueWrap}>
-                          <Text
-                            style={
-                              measured
-                                ? styles.dimBasisMeasured
-                                : styles.dimBasisActivity
-                            }
-                          >
-                            {measured ? "Medido" : "Tu actividad"}
-                          </Text>
-                          <Text style={styles.dimPct}>{pct}%</Text>
-                        </View>
-                      ) : (
-                        <Text style={styles.dimGathering}>Reuniendo datos</Text>
-                      )}
-                    </View>
-                    <View
-                      style={styles.dimBar}
-                      accessibilityRole="progressbar"
-                      accessibilityLabel={`${LABELS[dim.key]} ${
-                        covered ? `${pct}%` : "reuniendo datos"
-                      }`}
-                    >
-                      <View
-                        style={[
-                          styles.dimFill,
-                          {
-                            width: covered ? `${pct}%` : "0%",
-                            opacity: covered ? 1 : 0.35,
-                          },
-                        ]}
-                      />
-                    </View>
-                    <Text style={styles.dimSources}>{dim.sources}</Text>
-                  </View>
-                );
-              })}
-            </View>
+                    );
+                  })}
+                </View>
+              </>
+            )}
 
             {/* Tier 2 — affect dynamics (Ornstein–Uhlenbeck) */}
             {map.affectDynamics ? (
@@ -340,6 +390,44 @@ export default function MapaScreen() {
               )}
             </View>
 
+            {/* Fase F — V2 descriptive sections: on-device language patterns
+                (opt-in, never scores axes) + the optional NAR-L1 narrative. */}
+            {map.v2 && map.lenguaje && map.lenguaje.n > 0 ? (
+              <View style={styles.feed}>
+                <Text style={styles.feedTag}>Patrones de lenguaje</Text>
+                <Text style={styles.feedPointerText}>
+                  El analizador local procesó {map.lenguaje.n}{" "}
+                  {map.lenguaje.n === 1 ? "reflexión" : "reflexiones"} en los
+                  últimos 30 días. Es descriptivo: acompaña cómo escribes sobre
+                  ti, pero no puntúa ninguna dimensión de tu mapa.
+                </Text>
+                <Text style={styles.lenguajeNote}>
+                  Solo números derivados salen de tu dispositivo — el texto
+                  nunca. Puedes desactivarlo (y borrar lo derivado) en
+                  Seguridad.
+                </Text>
+              </View>
+            ) : null}
+
+            {map.v2 && map.narrative ? (
+              <View style={styles.narrativeCard}>
+                <View style={styles.narrativeHead}>
+                  <Text style={styles.feedTag}>Una lectura en palabras</Text>
+                  <View style={styles.affectBadge}>
+                    <Text style={styles.affectBadgeText}>Experimental</Text>
+                  </View>
+                </View>
+                <Text style={styles.narrativeHeadline}>
+                  {map.narrative.headline}
+                </Text>
+                <Text style={styles.narrativeBody}>{map.narrative.body}</Text>
+                <Text style={styles.lenguajeNote}>
+                  Generada a partir de tus datos ya calculados — no crea números
+                  nuevos y apagarla no cambia tu mapa.
+                </Text>
+              </View>
+            ) : null}
+
             {/* Fase C — engagement counters moved to Mi Evolución; the map
                 keeps only a quiet pointer there (copy contract). */}
             <View style={styles.feed}>
@@ -391,10 +479,9 @@ export default function MapaScreen() {
               </Pressable>
             </View>
             <Text style={styles.modalIntro}>
-              Tu mapa no mide cuánto haces, sino cuánto te vas comprendiendo. Se
-              arma con seis dimensiones. Cada una se enciende cuando reúne
-              señales suficientes — hasta entonces la verás como “Reuniendo
-              datos” en lugar de un número inventado.
+              {map?.v2
+                ? "Tu mapa se arma solo con lo que tú registras y confirmas. Cada dimensión se enciende cuando reúne señales suficientes — hasta entonces la verás como “Reuniendo datos” en lugar de un número inventado."
+                : "Tu mapa no mide cuánto haces, sino cuánto te vas comprendiendo. Se arma con seis dimensiones. Cada una se enciende cuando reúne señales suficientes — hasta entonces la verás como “Reuniendo datos” en lugar de un número inventado."}
             </Text>
             <ScrollView style={styles.modalList}>
               {(map?.dimensions ?? []).map((dim) => (
@@ -419,10 +506,11 @@ export default function MapaScreen() {
               <View style={styles.modalPrivacy}>
                 <Text style={styles.modalPrivacyText}>
                   🔒 Privacidad primero. El análisis nunca lee el texto de tu
-                  diario ni de tus conversaciones con Eco — están cifrados de
-                  extremo a extremo. Solo usamos señales sin contenido: tu
-                  ánimo, tus etiquetas, con qué frecuencia y a qué horas
-                  escribes, lees o conversas.
+                  diario ni de tus charlas con Eco — están cifrados de extremo a
+                  extremo.{" "}
+                  {map?.v2
+                    ? "Solo usamos señales sin contenido: tu ánimo, tus etiquetas, tus respuestas al check-in y los temas que tú confirmas — nunca el texto."
+                    : "Solo usamos señales sin contenido: tu ánimo, tus etiquetas, con qué frecuencia y a qué horas escribes, lees o conversas."}
                 </Text>
               </View>
             </ScrollView>
@@ -932,6 +1020,60 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.warm[500],
     textDecorationLine: "underline",
+  },
+
+  // Fase F — V2 sections
+  momentoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  momentoEmoji: {
+    fontSize: 32,
+    lineHeight: 38,
+  },
+  momentoLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.warm[900],
+  },
+  momentoMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    color: Colors.warm[500],
+  },
+  lenguajeNote: {
+    marginTop: 6,
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: Colors.warm[500],
+  },
+  narrativeCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1.5,
+    borderColor: Colors.lavender[200],
+  },
+  narrativeHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  narrativeHeadline: {
+    marginTop: 8,
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 21,
+    color: Colors.warm[900],
+  },
+  narrativeBody: {
+    marginTop: 4,
+    fontSize: 13.5,
+    lineHeight: 19.5,
+    color: Colors.warm[700],
   },
 
   // CTA

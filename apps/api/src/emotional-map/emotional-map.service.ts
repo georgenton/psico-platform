@@ -172,7 +172,7 @@ export class EmotionalMapService {
         })
       : [];
 
-    return scoreEmotionalMap(
+    const result = await scoreEmotionalMap(
       {
         entries,
         readingSessions,
@@ -192,10 +192,22 @@ export class EmotionalMapService {
         ewsPublic: flagEnabled("EMOTIONAL_MAP_EWS_PUBLIC"),
         llmScoringEnabled: flagEnabled("EMOTIONAL_MAP_LLM_SCORING"),
         emotionalMapV2: flagEnabled("EMOTIONAL_MAP_V2"),
+        narratorEnabled: flagEnabled("EMOTIONAL_MAP_NARRATOR"),
       },
       this.provider,
       this.logger,
     );
+
+    // Fase F — dual-run window: while EMOTIONAL_MAP_LEGACY_UI (default on)
+    // holds, clients keep the legacy layout even if the V2 data contract is
+    // already active. Stripping the marker (not the data) is what flips the
+    // UI — server-driven rollout, no client env involved.
+    if (result.v2 && flagEnabled("EMOTIONAL_MAP_LEGACY_UI")) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- strip the marker, keep the rest
+      const { v2: _v2, ...legacyView } = result;
+      return legacyView;
+    }
+    return result;
   }
 
   /** Cache-busting hook for the daily cron and post-write paths. */

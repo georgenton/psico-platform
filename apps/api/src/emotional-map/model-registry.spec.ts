@@ -29,6 +29,8 @@ describe("MODEL_REGISTRY", () => {
         "EWS-R1",
         "TXT-L1",
         "CHK-S1",
+        "ARC-C1",
+        "NAR-L1",
       ]),
     );
   });

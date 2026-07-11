@@ -61,6 +61,18 @@ export const FLAGS = {
     description: "Include the early-warning-signal block in the public wire.",
   },
   /**
+   * Narrator (Fase F, decision L3). When on AND the V2 contract is active,
+   * an LLM turns the ALREADY-COMPUTED facts into a short narrative (copy
+   * only). It can never create or alter numbers — switching it off changes
+   * no data (facts/narrator separation, V2 principle 3). Default off.
+   */
+  EMOTIONAL_MAP_NARRATOR: {
+    env: "EMOTIONAL_MAP_NARRATOR",
+    default: false,
+    description:
+      "Generate the optional V2 narrative (NAR-L1, copy only) over computed facts.",
+  },
+  /**
    * ARC resonance cycle (Fase E). Default ON since Fase E shipped: the whole
    * feature is explicit-consent by design (every resonance is a user tap and
    * can be deleted), so there is no silent-data risk in enabling it. Gates

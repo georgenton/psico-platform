@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ActivityFeedItemType, HomeResponse } from "@psico/types";
 
 import { Radar } from "@/components/dashboard/shell/Radar";
+import { MapSelfReport } from "@/components/dashboard/mapa/MapSelfReport";
 import {
   IconArrowRight,
   IconBook,
@@ -154,8 +155,17 @@ export function InicioV2({ home }: { home: HomeResponse }) {
               Ver completo →
             </Link>
           </div>
-          {home.emotionalMap.pct === 0 &&
-          home.emotionalMap.values.every((v) => v === 0) ? (
+          {home.emotionalMap.v2 ? (
+            // Fase F (decision L2): under the V2 contract the mini-map shows
+            // the self-report summary — no 6-axis radar, no global %.
+            <div style={{ padding: "10px 4px 4px" }}>
+              <MapSelfReport
+                dimensions={home.emotionalMap.dimensions}
+                compact
+              />
+            </div>
+          ) : home.emotionalMap.pct === 0 &&
+            home.emotionalMap.values.every((v) => v === 0) ? (
             <div className="radar-holder">
               <div
                 style={{

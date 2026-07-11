@@ -23,6 +23,7 @@ import { useDiaryKey } from "@/crypto/diary-key-context";
 import { SeedPhraseModal } from "@/components/dashboard/diario/SeedPhraseModal";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
 import { consumeVoiceHandoff } from "@/lib/voice/handoff";
+import { textAnalysisConsent } from "@/lib/text-analysis-consent";
 import { Colors, Radius, Spacing } from "@/theme";
 import { apiClient } from "@psico/api-client";
 import type { UserMeResponse } from "@psico/types";
@@ -182,15 +183,18 @@ function ActiveDiarioBody({
       };
       const created = await diarioApi.create(body);
       // Etapa 6 — analyze the plaintext ON DEVICE and upload ONLY numbers
-      // (the text never goes on the wire). Best-effort fire-and-forget.
-      const features = analyzeReflectionText(trimmed);
-      if (features) {
-        void emotionalMapApi
-          .logTextFeatures({
-            ...features,
-            entryId: (created as { id?: string } | null)?.id,
-          })
-          .catch(() => undefined);
+      // (the text never goes on the wire). Fase D (L4): requires explicit
+      // consent — without it we don't analyze at all. Best-effort.
+      if (await textAnalysisConsent().catch(() => false)) {
+        const features = analyzeReflectionText(trimmed);
+        if (features) {
+          void emotionalMapApi
+            .logTextFeatures({
+              ...features,
+              entryId: (created as { id?: string } | null)?.id,
+            })
+            .catch(() => undefined);
+        }
       }
       setText("");
       onCreated();

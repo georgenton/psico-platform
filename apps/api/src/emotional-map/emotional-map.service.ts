@@ -13,6 +13,15 @@ import { scoreEmotionalMap } from "./emotional-map.scoring";
  *  it from this module. The source of truth lives in `@psico/types`. */
 export type { EmotionalMapResult } from "@psico/types";
 
+/**
+ * Single source of truth for the per-user map cache key — UsersService busts
+ * it when the text-analysis consent flips (Fase D) without importing the
+ * whole module graph.
+ */
+export function emotionalMapCacheKey(userId: string): string {
+  return `emotional-map:${userId}`;
+}
+
 const WINDOW_DAYS = 30;
 /**
  * Tier 2 (affect dynamics) reads a longer mood history than the 30-day signal
@@ -40,7 +49,7 @@ export class EmotionalMapService {
   ) {}
 
   async getForUser(userId: string): Promise<EmotionalMapResult> {
-    const cacheKey = `emotional-map:${userId}`;
+    const cacheKey = emotionalMapCacheKey(userId);
     const cached = await this.redis.get(cacheKey);
     if (cached) {
       try {
@@ -81,6 +90,7 @@ export class EmotionalMapService {
       diaryMoodRows,
       moodLogRows,
       checkins,
+      privacy,
     ] = await Promise.all([
       this.prisma.diaryEntry.findMany({
         where: { userId, createdAt: { gte: since } },
@@ -123,26 +133,34 @@ export class EmotionalMapService {
         where: { userId, createdAt: { gte: since } },
         select: { itemKey: true, score: true, createdAt: true },
       }),
+      // Fase D (L4) — text-analysis consent gates the feature rows below.
+      this.prisma.privacySettings.findUnique({
+        where: { userId },
+        select: { localTextAnalysis: true },
+      }),
     ]);
 
     // Etapa 6 — on-device text features (numbers only; the text never left
-    // the client). Separate await keeps the Promise.all tuple readable.
-    const textFeatures = await this.prisma.diaryTextFeature.findMany({
-      where: { userId, createdAt: { gte: since } },
-      select: {
-        wordCount: true,
-        selfFocus: true,
-        positive: true,
-        negative: true,
-        insight: true,
-        causal: true,
-        absolutist: true,
-        social: true,
-        selfKind: true,
-        selfCritic: true,
-        createdAt: true,
-      },
-    });
+    // the client). Fase D (L4): read them ONLY with explicit consent — rows
+    // stored before consent existed stay dormant until the user opts in.
+    const textFeatures = privacy?.localTextAnalysis
+      ? await this.prisma.diaryTextFeature.findMany({
+          where: { userId, createdAt: { gte: since } },
+          select: {
+            wordCount: true,
+            selfFocus: true,
+            positive: true,
+            negative: true,
+            insight: true,
+            causal: true,
+            absolutist: true,
+            social: true,
+            selfKind: true,
+            selfCritic: true,
+            createdAt: true,
+          },
+        })
+      : [];
 
     return scoreEmotionalMap(
       {
@@ -171,7 +189,7 @@ export class EmotionalMapService {
 
   /** Cache-busting hook for the daily cron and post-write paths. */
   async invalidate(userId: string): Promise<void> {
-    await this.redis.del(`emotional-map:${userId}`);
+    await this.redis.del(emotionalMapCacheKey(userId));
   }
 
   /**
@@ -196,6 +214,16 @@ export class EmotionalMapService {
       selfCritic: number;
     },
   ): Promise<{ ok: true; id: string }> {
+    // Fase D (L4) — hard server-side consent gate. Clients check the
+    // preference before calling, but a stale client must not be able to
+    // upload derived data the user never consented to.
+    const privacy = await this.prisma.privacySettings.findUnique({
+      where: { userId },
+      select: { localTextAnalysis: true },
+    });
+    if (!privacy?.localTextAnalysis) {
+      throw new ForbiddenException("TEXT_ANALYSIS_NOT_ENABLED");
+    }
     const { entryId, ...features } = dto;
     if (entryId) {
       // Ownership guard: entryId is client-supplied — never let one user

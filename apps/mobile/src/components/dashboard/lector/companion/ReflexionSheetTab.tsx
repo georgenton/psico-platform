@@ -14,6 +14,7 @@ import type { CreateDiaryEntryRequest } from "@psico/types";
 import { encryptString } from "@psico/crypto";
 import { useDiaryKey } from "@/crypto/diary-key-context";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
+import { textAnalysisConsent } from "@/lib/text-analysis-consent";
 import { Colors, Radius, Spacing } from "@/theme";
 
 /**
@@ -79,12 +80,15 @@ export function ReflexionSheetTab({
         excerptNonce: excerpt.nonce,
       };
       const created = await diarioApi.create(body);
-      // Etapa 6 — analyze on device, upload ONLY numbers. Best-effort.
-      const features = analyzeReflectionText(trimmed);
-      if (features) {
-        void emotionalMapApi
-          .logTextFeatures({ ...features, entryId: created.id })
-          .catch(() => undefined);
+      // Etapa 6 — analyze on device, upload ONLY numbers. Fase D (L4):
+      // requires explicit consent — without it we don't analyze at all.
+      if (await textAnalysisConsent().catch(() => false)) {
+        const features = analyzeReflectionText(trimmed);
+        if (features) {
+          void emotionalMapApi
+            .logTextFeatures({ ...features, entryId: created.id })
+            .catch(() => undefined);
+        }
       }
       setText("");
       setSaved(true);

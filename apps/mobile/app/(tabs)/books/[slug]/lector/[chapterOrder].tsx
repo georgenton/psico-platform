@@ -11,7 +11,12 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { lectorApi, annotationsApi, highlightsApi } from "@psico/api-client";
+import {
+  lectorApi,
+  annotationsApi,
+  highlightsApi,
+  resonancesApi,
+} from "@psico/api-client";
 import type {
   AnnotationSummary,
   BreatheExercise,
@@ -26,6 +31,7 @@ import {
   breatheEcoSeed,
   reflexionEcoSeed,
   videoBlockInfo,
+  chapterConcept,
 } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 import { LectorAudioBar } from "@/components/dashboard/lector/LectorAudioBar";
@@ -452,6 +458,36 @@ export default function LectorScreen() {
             const block = chapter.blocks.find((b) => b.id === actionBlockId);
             setActionBlockId(null);
             if (block) openCompanion("eco", { passage: block.content });
+          }}
+          resonanceLabel={
+            chapterConcept(
+              chapter.book.slug,
+              chapter.chapter.order,
+              chapter.chapter.title,
+            ).label
+          }
+          onResonar={async () => {
+            setActionBlockId(null);
+            const concept = chapterConcept(
+              chapter.book.slug,
+              chapter.chapter.order,
+              chapter.chapter.title,
+            );
+            try {
+              await resonancesApi.confirm({
+                conceptKey: concept.key,
+                conceptLabel: concept.label,
+                bookSlug: chapter.book.slug,
+                chapterOrder: chapter.chapter.order,
+                source: "highlight",
+              });
+              Alert.alert(
+                "Añadido a tu mapa 🌱",
+                "Puedes verlo (y quitarlo) en Mis resonancias, dentro de tu Mapa Emocional.",
+              );
+            } catch {
+              Alert.alert("No pudimos guardarlo", "Reintenta en un momento.");
+            }
           }}
           onRemoveHighlights={async () => {
             const list = highlightsByBlock.get(actionBlockId) ?? [];

@@ -46,6 +46,8 @@ export function BlockActionsSheet({
   onAddNote,
   onReflect,
   onAskEco,
+  onResonar,
+  resonanceLabel,
   onRemoveHighlights,
   onCancel,
 }: {
@@ -56,6 +58,14 @@ export function BlockActionsSheet({
   onReflect: () => void;
   /** Companion sheet — open Eco seeded with this paragraph. */
   onAskEco: () => void;
+  /**
+   * Fase E (ARC) — explicit confirmation that the chapter's concept
+   * resonated. Only this tap persists a Resonance (nothing enters the map
+   * silently). Optional so pre-Fase-E callers keep compiling.
+   */
+  onResonar?: () => void;
+  /** The chapter concept label shown on the resonance row. */
+  resonanceLabel?: string;
   onRemoveHighlights: () => void;
   onCancel: () => void;
 }) {
@@ -113,6 +123,22 @@ export function BlockActionsSheet({
           >
             <Text style={styles.actionRowText}>🌿 Conversar con Eco</Text>
           </Pressable>
+
+          {onResonar && resonanceLabel ? (
+            <Pressable
+              onPress={onResonar}
+              style={styles.actionRow}
+              accessibilityRole="button"
+              accessibilityLabel={`Me resonó: ${resonanceLabel}`}
+            >
+              <Text style={styles.actionRowText}>
+                🌱 Me resonó «{resonanceLabel}»
+              </Text>
+              <Text style={styles.actionRowHint}>
+                Se añade a tu mapa solo si lo confirmas
+              </Text>
+            </Pressable>
+          ) : null}
 
           {hasHighlight && (
             <Pressable
@@ -173,6 +199,7 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.warm[100],
   },
   actionRowText: { fontSize: 15, color: Colors.warm[900], fontWeight: "500" },
+  actionRowHint: { marginTop: 2, fontSize: 11.5, color: Colors.warm[500] },
   destructiveRow: {},
   destructiveText: { color: "#B91C1C" },
   cancelRow: { marginTop: 4 },

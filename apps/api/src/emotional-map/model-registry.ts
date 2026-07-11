@@ -240,6 +240,30 @@ export const MODEL_REGISTRY: readonly ModelRegistryEntry[] = [
     owner: "emotional-map",
     reviewedAt: "2026-07-11",
   },
+  {
+    id: "ARC-C1",
+    version: "1.0",
+    status: "EXPERIMENTAL",
+    description:
+      "Confirmed resonances (Fase E, ARC cycle): the user explicitly confirms a chapter concept resonated. conexion value = distinct confirmed concepts / 4 (saturating); confidence saturates at 2. Only feeds axes under EMOTIONAL_MAP_V2.",
+    inputs: ["Resonance conceptKey + confirmedAt (explicit user taps)"],
+    outputs: ["conexion value + confirmed-concept count"],
+    assumptions: [
+      "an explicit confirmation is a valid self-report of content resonance",
+    ],
+    minimumData: { observationCount: 1 },
+    knownLimitations: [
+      "count-based v1 — no semantics between concepts; self-report, not a psychometric measure",
+    ],
+    productCopyAllowed: [
+      "Confirmado por ti",
+      "Las resonancias que confirmaste",
+      "N temas confirmados",
+    ],
+    productCopyForbidden: ["Medido (implies psychometric validity)"],
+    owner: "emotional-map",
+    reviewedAt: "2026-07-11",
+  },
 ] as const;
 
 export function getModel(id: string): ModelRegistryEntry | undefined {

@@ -26,6 +26,7 @@ import { EcoModule } from "./eco";
 import { LectorModule } from "./lector";
 import { PatronesModule } from "./patrones";
 import { EmotionalMapModule } from "./emotional-map";
+import { ResonancesModule } from "./resonances";
 import { ActivityModule } from "./activity";
 import { EvolucionModule } from "./evolucion";
 import { PulsoModule } from "./pulso";
@@ -65,6 +66,7 @@ import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
     LectorModule, // Sprint S6 — /api/lector/*, /api/highlights/*, /api/annotations/*
     PatronesModule, // Sprint S10 — /api/patrones/* (Pro)
     EmotionalMapModule, // Sprint D — /api/emotional-map (radar driver)
+    ResonancesModule, // Fase E (V2) — /api/resonances (ARC cycle)
     ActivityModule, // Sprint D — /api/activity (feed for Inicio timeline)
     EvolucionModule, // Sprint E1 — /api/evolucion (stats + achievements)
     PulsoModule, // Sprint S42 — /api/pulso/* (ADMIN only)

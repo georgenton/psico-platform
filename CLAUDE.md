@@ -3087,7 +3087,26 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 **Sin migración, sin endpoint nuevo, sin cambio de shape** — `ews` era opcional desde Etapa 5. ADR 0007 intacto.
 
-**Decisiones abiertas restantes:** L2 (radar solo autoinforme) · L3 (LLM→Narrator) · L4 (opt-in análisis local) · L6 (LearningDashboard) — ver `docs/architecture/emotional-map-v2.md` §6.
+**Decisiones abiertas restantes:** L2 (radar solo autoinforme) · L3 (LLM→Narrator) · L4 (opt-in análisis local) · ~~L6~~ (✅ resuelta en Fase C — ver sesión siguiente).
+
+---
+
+### Sesión — 2026-07-11 ✅ COMPLETADA — Mapa Emocional V2 · Fase C (aprendizaje ≠ mapa)
+
+**Rama:** `feature/emotional-map-fase-c-learning`
+**Bitácora:** [docs/informes/sprint-v2-fase-c-learning.md](docs/informes/sprint-v2-fase-c-learning.md)
+**Tests:** API 800/801 (+3 palanca) · Web 298 · Mobile 65 · typecheck ×3 + lints + OpenAPI verdes.
+
+**Qué cierra:** la Fase C del programa V2 y la decisión **L6**, con un ajuste razonado sobre la recomendación: **Evolución ES el LearningDashboard** (ya existía con página + endpoint + hitos); en vez de duplicar superficie, se completó con los contadores que faltaban.
+
+1. **`EvolucionStats` +2 campos** — `conversacionesEco` (mensajes USER, all-time) + `marcasLectura` (highlights + annotations). Web `EvoQuarter` y mobile evolución ganan las dos filas. Sin migración, sin cambio OpenAPI.
+2. **El mapa deja de presentar actividad como fuentes** (cambio público) — web `MapFeed` y el feed del mapa mobile se reemplazan por un puntero a Mi Evolución ("son parte de tu recorrido, no una medida de tu mundo interior"); ambas pantallas del mapa ya no fetchean `/evolucion`.
+3. **Palanca `EMOTIONAL_MAP_V2` cableada** (default off) — con el flag: conexión/propósito dejan de derivar de engagement (confianza 0, "Reuniendo datos" hasta resonancias de Fase E), voz sale de claridad, ecoDays sale de compasión/consciencia, y el **payload del LLM queda en `{entryCount, activeDays}`** (campos de engagement ahora opcionales en el provider interface, prompt condicional).
+4. **Ratchets encogidos:** copy-contract 5 → 4 archivos (MapFeed limpio; mapa mobile pierde "minutos de lectura"); v2-contract +3 tests (inversión `+highlights ⇒ mapa no cambia` con flag on · payload sin engagement · default off).
+
+**Privacidad (ADR 0007):** intacta — solo counts y metadata categórica.
+
+**Decisiones abiertas restantes:** L2 (radar solo autoinforme) · L3 (LLM→Narrator) · L4 (opt-in análisis local) — Fases D/F. Encender `EMOTIONAL_MAP_V2` queda como decisión de producto por config.
 
 ---
 

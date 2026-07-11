@@ -162,6 +162,7 @@ export class EmotionalMapService {
         ouEnabled: flagEnabled("EMOTIONAL_MAP_OU"),
         ewsPublic: flagEnabled("EMOTIONAL_MAP_EWS_PUBLIC"),
         llmScoringEnabled: flagEnabled("EMOTIONAL_MAP_LLM_SCORING"),
+        emotionalMapV2: flagEnabled("EMOTIONAL_MAP_V2"),
       },
       this.provider,
       this.logger,

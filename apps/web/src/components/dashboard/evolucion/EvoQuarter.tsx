@@ -2,23 +2,24 @@ import type { EvolucionStats } from "@psico/types";
 import {
   IconBook,
   IconEco,
+  IconFlame,
+  IconPencil,
   IconReflections,
 } from "@/components/dashboard/shell/icons";
 
 /**
- * EvoQuarter — Sprint F2.
+ * EvoQuarter — Sprint F2 · extendido en Fase C.
  *
  * The `.card.evo-quarter` from the design's `s-evolucion` screen — a
- * right-column highlights card with 3 rows. We map them to the most
- * concrete numbers we already track in `EvolucionStats`:
+ * right-column highlights card. Fase C (V2 contract): Evolución IS the
+ * learning dashboard, so the engagement counters that used to sit on the
+ * map page (Eco chats, reading marks) land here:
  *
  *  - {reflexiones} reflexiones — el flujo principal del usuario
  *  - {capitulosCompletados} capítulos — el otro flujo principal
+ *  - {conversacionesEco} mensajes con Eco — conversación acumulada
+ *  - {marcasLectura} subrayados y notas — lectura activa
  *  - {rachaActual} / {rachaMasLarga} días seguidos — la métrica de hábito
- *
- * Diseño original muestra "3 patrones nuevos", "17 insights" y "+18%
- * autocompasión". Esas requieren backend que todavía no tenemos. Mejor
- * surface cifras honestas que ya son ciertas.
  */
 export function EvoQuarter({ stats }: { stats: EvolucionStats }) {
   const rows = [
@@ -40,6 +41,22 @@ export function EvoQuarter({ stats }: { stats: EvolucionStats }) {
     },
     {
       value:
+        stats.conversacionesEco === 1
+          ? "1 mensaje con Eco"
+          : `${stats.conversacionesEco} mensajes con Eco`,
+      label: "conversaciones que iniciaste tú",
+      Icon: IconEco,
+    },
+    {
+      value:
+        stats.marcasLectura === 1
+          ? "1 subrayado o nota"
+          : `${stats.marcasLectura} subrayados y notas`,
+      label: "marcas que dejaste al leer",
+      Icon: IconPencil,
+    },
+    {
+      value:
         stats.rachaActual === 0
           ? "Aún sin racha activa"
           : `${stats.rachaActual} días seguidos`,
@@ -47,7 +64,7 @@ export function EvoQuarter({ stats }: { stats: EvolucionStats }) {
         stats.rachaMasLarga > stats.rachaActual
           ? `tu mejor racha fue ${stats.rachaMasLarga} días`
           : "tu racha más larga hasta hoy",
-      Icon: IconEco,
+      Icon: IconFlame,
     },
   ];
 

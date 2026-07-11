@@ -53,9 +53,49 @@ export interface EmotionalMapProviderResult {
   consciencia: number;
 }
 
+/**
+ * Fase F (decision L3) — the facts the Narrator may describe. Every field is
+ * ALREADY COMPUTED by the scoring: the narrator receives numbers and turns
+ * them into copy; it can never create or alter a score (facts/narrator
+ * separation, V2 principle 3). Privacy (ADR 0007): categorical mood tokens +
+ * counts only — never text.
+ */
+export interface EmotionalMapNarratorFacts {
+  momento: { mood: string; atIso: string } | null;
+  entryCount: number;
+  activeDays: number;
+  /** Check-in axes that actually have answers (CHK-S1). */
+  selfReport: ReadonlyArray<{ axis: string; value: number; n: number }>;
+  dynamics: {
+    status: "active" | "gathering";
+    nObs: number;
+    baseline: number | null;
+    stability: number | null;
+    trend: "up" | "down" | null;
+  } | null;
+  /** Distinct confirmed resonance concepts (ARC-C1). */
+  resonanceCount: number;
+  /** Reflections analyzed on-device (TXT-L1, descriptive only). */
+  lenguajeN: number;
+}
+
+/** Narrator output — copy only, no numbers the scoring didn't provide. */
+export interface EmotionalMapNarrativeResult {
+  headline: string;
+  body: string;
+}
+
 export interface IEmotionalMapProvider {
   readonly name: string;
   score(
     payload: EmotionalMapMetadataPayload,
   ): Promise<EmotionalMapProviderResult>;
+  /**
+   * Fase F (L3) — optional narrative over computed facts (NAR-L1). Providers
+   * without it simply produce maps with `narrative: null`. Must throw on
+   * failure; the scoring swallows and renders the map without narrative.
+   */
+  narrate?(
+    facts: EmotionalMapNarratorFacts,
+  ): Promise<EmotionalMapNarrativeResult>;
 }

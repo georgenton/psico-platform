@@ -5,6 +5,8 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import type {
   EmotionalMapMetadataPayload,
+  EmotionalMapNarratorFacts,
+  EmotionalMapNarrativeResult,
   EmotionalMapProviderResult,
   IEmotionalMapProvider,
 } from "./provider.interface";
@@ -117,6 +119,70 @@ export class AnthropicEmotionalMapProvider implements IEmotionalMapProvider {
     );
     return parsed;
   }
+
+  /**
+   * Fase F (decision L3) — NAR-L1: turn the ALREADY-COMPUTED facts into a
+   * short narrative. The prompt forbids new numbers, advice and diagnosis —
+   * the narrator describes; the scoring measured. Throws on parse/network
+   * failure so the caller renders the map without narrative.
+   */
+  async narrate(
+    facts: EmotionalMapNarratorFacts,
+  ): Promise<EmotionalMapNarrativeResult> {
+    const factLines = [
+      facts.momento
+        ? `- Último ánimo registrado: ${facts.momento.mood} (${facts.momento.atIso.slice(0, 10)})`
+        : `- Sin registros de ánimo todavía`,
+      `- Reflexiones (30d): ${facts.entryCount} · días activos: ${facts.activeDays}`,
+      facts.selfReport.length
+        ? facts.selfReport
+            .map(
+              (s) =>
+                `- Check-in ${s.axis}: ${Math.round(s.value * 100)}/100 (${s.n} respuestas)`,
+            )
+            .join("\n")
+        : `- Sin respuestas de check-in`,
+      facts.dynamics && facts.dynamics.status === "active"
+        ? `- Dinámica de ánimo (${facts.dynamics.nObs} registros): nivel ${facts.dynamics.baseline != null ? Math.round(facts.dynamics.baseline * 100) : "?"}/100, variación ${facts.dynamics.stability != null ? Math.round((1 - facts.dynamics.stability) * 100) : "?"}/100${facts.dynamics.trend ? `, tendencia ${facts.dynamics.trend === "up" ? "ascendente" : "descendente"}` : ""}`
+        : `- Dinámica de ánimo: aún reuniendo registros`,
+      `- Temas confirmados como resonantes: ${facts.resonanceCount}`,
+      facts.lenguajeN > 0
+        ? `- Reflexiones analizadas en el dispositivo: ${facts.lenguajeN}`
+        : null,
+    ].filter((l): l is string => l !== null);
+
+    const response = await this.anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 300,
+      system: [
+        {
+          type: "text",
+          text: NARRATOR_SYSTEM_PROMPT,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      messages: [
+        {
+          role: "user",
+          content: [
+            `HECHOS ya calculados (no inventes ni alteres ninguno):`,
+            ...factLines,
+            ``,
+            `Devuelve SOLO JSON: {"headline":"...","body":"..."}`,
+          ].join("\n"),
+        },
+      ],
+    });
+
+    const text =
+      response.content[0]?.type === "text" ? response.content[0].text : "";
+    const parsed = parseNarrativeJson(text);
+    if (!parsed) throw new Error("EMOTIONAL_MAP_NARRATIVE_PARSE_FAILED");
+    this.logger.log(
+      `EmotionalMap narrative tokens in=${response.usage.input_tokens} out=${response.usage.output_tokens}`,
+    );
+    return parsed;
+  }
 }
 
 // ─── Module-level helpers (exported for unit tests) ──────────────────────
@@ -132,6 +198,40 @@ REGLAS:
 
 Tu output alimenta un radar visual. Mantén los valores conservadores cuando
 la muestra es pequeña (<5 entries en 30d → todo cerca de 0.5).`;
+
+export const NARRATOR_SYSTEM_PROMPT = `Eres el narrador del Mapa Emocional de Psico Platform (modelo NAR-L1).
+Recibes HECHOS ya calculados y los cuentas en palabras cálidas y neutras.
+
+REGLAS DURAS:
+- NO inventes números, porcentajes ni comparaciones que no estén en los hechos.
+- NO diagnostiques, NO des consejos clínicos, NO uses etiquetas DSM.
+- NO prometas mejoras ni califiques la dirección como buena o mala.
+- Describe en segunda persona (tú), español neutro latinoamericano, 2-3 frases en el body.
+- Si un hecho dice "aún reuniendo", dilo con honestidad — nunca lo rellenes.
+- Output: JSON parseable {"headline":"...","body":"..."} sin markdown ni texto extra.`;
+
+export function parseNarrativeJson(
+  text: string,
+): EmotionalMapNarrativeResult | null {
+  const stripped = text
+    .trim()
+    .replace(/^```(?:json)?\s*|\s*```$/g, "")
+    .trim();
+  try {
+    const obj = JSON.parse(stripped) as Record<string, unknown>;
+    if (
+      typeof obj.headline !== "string" ||
+      typeof obj.body !== "string" ||
+      obj.headline.trim() === "" ||
+      obj.body.trim() === ""
+    ) {
+      return null;
+    }
+    return { headline: obj.headline.trim(), body: obj.body.trim() };
+  } catch {
+    return null;
+  }
+}
 
 export function parseEmotionalMapJson(
   text: string,

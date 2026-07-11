@@ -75,6 +75,7 @@ export const MODEL_REGISTRY: readonly ModelRegistryEntry[] = [
       "Engagement is not psychology (V2 principle 5.1).",
       "LLM creates psychological scores (violates V2 principle 5.3).",
       "Global pct has no defensible interpretation (5.2).",
+      "Never invoked under EMOTIONAL_MAP_V2 (Fase F, decision L3) — legacy only.",
     ],
     productCopyAllowed: [],
     productCopyForbidden: [
@@ -206,8 +207,8 @@ export const MODEL_REGISTRY: readonly ModelRegistryEntry[] = [
     ],
     minimumData: { observationCount: 8 },
     knownLimitations: [
-      "currently runs WITHOUT explicit opt-in (post-save hook) — known violation",
-      "currently scores claridad/consciencia/compasion axes — V2 moves it to descriptive language patterns, never traits",
+      "explicit opt-in since Fase D (PrivacySettings.localTextAnalysis, default off; opt-out deletes derived rows)",
+      "scores claridad/consciencia/compasion axes ONLY under legacy; under EMOTIONAL_MAP_V2 it is descriptive-only ('Patrones de lenguaje', Fase F) — never traits",
       "derived numbers are sensitive data; deletion cascade added in Fase B",
       "prompt-induced language (seeded composers, exercises) is not marked (measurement contamination)",
     ],
@@ -261,6 +262,34 @@ export const MODEL_REGISTRY: readonly ModelRegistryEntry[] = [
       "N temas confirmados",
     ],
     productCopyForbidden: ["Medido (implies psychometric validity)"],
+    owner: "emotional-map",
+    reviewedAt: "2026-07-11",
+  },
+  {
+    id: "NAR-L1",
+    version: "1.0",
+    status: "EXPERIMENTAL",
+    description:
+      "Narrator (Fase F, decision L3): an LLM turns the ALREADY-COMPUTED facts (momento, self-report values, dynamics params, resonance count) into a short narrative. It cannot create or alter numbers; switching it off changes no data (facts/narrator separation, V2 principle 3). Only runs under EMOTIONAL_MAP_V2.",
+    inputs: [
+      "computed facts only: latest mood token, entry/active-day counts, CHK-S1 values+n, OU params, resonance count, lenguaje n",
+    ],
+    outputs: ["headline + body (copy only, no scores)"],
+    assumptions: [
+      "an LLM constrained to given facts produces faithful descriptive copy (prompt-enforced, spot-checked)",
+    ],
+    minimumData: {},
+    knownLimitations: [
+      "copy generation only — on any failure the map renders without narrative",
+      "faithfulness to facts is prompt-enforced, not formally verified",
+    ],
+    productCopyAllowed: [
+      "Una lectura en palabras de tus datos",
+      "experimental",
+      "no cambia tus datos",
+    ],
+    productCopyForbidden: ["numeric scores", "diagnóstico", "consejo clínico"],
+    featureFlag: "EMOTIONAL_MAP_NARRATOR",
     owner: "emotional-map",
     reviewedAt: "2026-07-11",
   },

@@ -578,3 +578,81 @@ describe("EmotionalMapService — Fase D consent gates the text signal", () => {
     expect(conexion.evidence).toBeNull();
   });
 });
+
+describe("EmotionalMapService — Fase F dual-run window (LEGACY_UI gates the v2 marker)", () => {
+  const provider: IEmotionalMapProvider = makeProvider(async () => ({
+    calma: 0.5,
+    claridad: 0.5,
+    compasion: 0.5,
+    consciencia: 0.5,
+  }));
+
+  function withFlags(
+    env: Record<string, string | undefined>,
+    fn: () => Promise<void>,
+  ) {
+    const prev: Record<string, string | undefined> = {};
+    for (const key of Object.keys(env)) {
+      prev[key] = process.env[key];
+      if (env[key] === undefined) delete process.env[key];
+      else process.env[key] = env[key];
+    }
+    return fn().finally(() => {
+      for (const key of Object.keys(env)) {
+        if (prev[key] === undefined) delete process.env[key];
+        else process.env[key] = prev[key];
+      }
+    });
+  }
+
+  it("V2 on + LEGACY_UI on (default): the data contract runs but the marker is stripped", async () => {
+    await withFlags(
+      { EMOTIONAL_MAP_V2: "on", EMOTIONAL_MAP_LEGACY_UI: undefined },
+      async () => {
+        const service = new EmotionalMapService(
+          makePrisma({}) as never,
+          provider,
+          makeRedis() as never,
+        );
+        const result = await service.compute("user-1");
+        // Marker stripped → clients keep rendering the legacy layout…
+        expect(result).not.toHaveProperty("v2");
+        // …while the V2 data contract is already live underneath (dual-run):
+        // proposito no longer derives from engagement, so it gathers.
+        const proposito = result.dimensions.find((d) => d.key === "proposito")!;
+        expect(proposito.confidence).toBe(0);
+      },
+    );
+  });
+
+  it("V2 on + LEGACY_UI off: the v2 marker reaches the wire and flips the client layout", async () => {
+    await withFlags(
+      { EMOTIONAL_MAP_V2: "on", EMOTIONAL_MAP_LEGACY_UI: "off" },
+      async () => {
+        const service = new EmotionalMapService(
+          makePrisma({}) as never,
+          provider,
+          makeRedis() as never,
+        );
+        const result = await service.compute("user-1");
+        expect(result.v2).toBe(true);
+        expect(result).toHaveProperty("momento");
+      },
+    );
+  });
+
+  it("V2 off (default): nothing changes — no marker regardless of LEGACY_UI", async () => {
+    await withFlags(
+      { EMOTIONAL_MAP_V2: undefined, EMOTIONAL_MAP_LEGACY_UI: "off" },
+      async () => {
+        const service = new EmotionalMapService(
+          makePrisma({}) as never,
+          provider,
+          makeRedis() as never,
+        );
+        const result = await service.compute("user-1");
+        expect(result).not.toHaveProperty("v2");
+      },
+    );
+  });
+});

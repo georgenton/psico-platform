@@ -2,6 +2,7 @@ import { Global, Module } from "@nestjs/common";
 import { BullModule } from "@nestjs/bullmq";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";
+import { createBullConnection } from "./bull-connection";
 import { JobsService } from "./jobs.service";
 import { QueueName } from "./queue-names";
 import type { Env } from "../config";
@@ -12,10 +13,11 @@ import type { Env } from "../config";
  * Configuration:
  *  - Shared Redis connection (reuses REDIS_URL — same Redis instance used
  *    by the Throttler and Idempotency cache).
- *  - In dev without REDIS_URL, BullMQ connects to localhost:6379 — typically
- *    `docker run redis` for E2E worker testing. The API alone (no worker)
- *    works fine with ioredis-mock from `RedisModule`; only full producer
- *    + consumer flows need a real Redis.
+ *  - Without REDIS_URL, `createBullConnection` picks ioredis-mock in test
+ *    (queues must never dial a real socket in CI) and localhost:6379 in dev
+ *    — typically `docker run redis` for E2E worker testing. The API alone
+ *    (no worker) works fine with ioredis-mock from `RedisModule`; only full
+ *    producer + consumer flows need a real Redis.
  *
  * Three queues registered globally so any service can enqueue without
  * importing JobsModule explicitly.
@@ -29,14 +31,9 @@ import type { Env } from "../config";
   imports: [
     BullModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService<Env, true>) => {
-        const url = config.get("REDIS_URL", { infer: true });
-        // BullMQ accepts a URL or a connection object. When REDIS_URL is
-        // unset (dev without `docker run redis`), default to localhost.
-        return {
-          connection: url ? { url } : { host: "127.0.0.1", port: 6379 },
-        };
-      },
+      useFactory: (config: ConfigService<Env, true>) => ({
+        connection: createBullConnection(config),
+      }),
     }),
     BullModule.registerQueue(
       { name: QueueName.EMAIL },

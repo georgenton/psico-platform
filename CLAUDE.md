@@ -3168,6 +3168,25 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-07-11 ✅ COMPLETADA — Mapa Emocional V2 · Fase G (el V2 es el producto)
+
+**Rama:** `feature/emotional-map-fase-g-legacy-retirement`
+**Bitácora:** [docs/informes/sprint-v2-fase-g-legacy-retirement.md](docs/informes/sprint-v2-fase-g-legacy-retirement.md)
+**Tests:** API 820/821 · Web 306 · Mobile 70 · typecheck ×3 + lints + OpenAPI verdes.
+
+**Qué cierra:** la fase de transición del programa V2 — a diferencia de B–F (todo detrás de flags), **este PR SÍ cambia el producto**:
+
+1. **Defaults flipped** — `EMOTIONAL_MAP_V2` default **on** · `EMOTIONAL_MAP_LEGACY_UI` default **off**. `EMOTIONAL_MAP_V2=off` en Railway queda como palanca de rollback a nivel de datos (el scoring legacy sobrevive solo para eso; specs pineados con `pinLegacyMode()`).
+2. **Layout legacy BORRADO** — MapStage/MapDims (web, + test) + rama stage/dims del mapa mobile + radar 6-ejes/% del mini-map de Inicio; los clientes renderizan la UI V2 siempre, null-tolerant ante rollback. MapInfoButton con copy V2 único.
+3. **Copy-ratchet en CERO** — `KNOWN_VIOLATIONS = {}`; cualquier término prohibido en superficie pública del mapa rompe el build, sin excusa legacy.
+4. **Evolución: «Cobertura de tu mapa»** — `EmotionalMapSnapshot.coverage` (migración aditiva `20260711180000`), cron escribe pct+coverage, charts web/mobile trazan cobertura («cuánta información tienes, no cómo estás») y saltan filas pre-Fase-G. `pct` queda sin consumidor de UI — solo historial + rollback.
+5. **Seed demo** confirma 2 resonancias de la Parte I (Conexión se enciende bajo V2). Re-correr `seed-demo-users.mjs` post-deploy.
+
+**Deuda ops:** migraciones `20260711120000` + `20260711140000` + `20260711180000` + re-seed en Railway.
+**Siguiente:** Fase H — Eco contextual (scopes + citas + propuestas confirmables) + flujo de «temas importantes confirmados» → fuente de Propósito. Remoción total de `pct` cuando cierre la ventana de rollback.
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

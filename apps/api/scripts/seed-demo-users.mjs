@@ -258,6 +258,42 @@ async function main() {
         await prisma.diaryTextFeature.createMany({ data: featureRows });
       }
 
+      // ── Confirmed resonances (Fase E, ARC cycle). Under the V2 contract
+      // (default since Fase G) Conexión is fed EXCLUSIVELY by these explicit
+      // confirmations — demo accounts with history confirm the curated
+      // Parte I concepts so the axis lights up. Catalog metadata only.
+      if (u.days >= 14) {
+        const DEMO_RESONANCES = [
+          {
+            conceptKey: "eec-cuerpo-antes-que-mente",
+            conceptLabel: "El cuerpo sabe antes que la mente",
+            chapterOrder: 1,
+          },
+          {
+            conceptKey: "eec-como-aprendiste-a-sentir",
+            conceptLabel: "Cómo aprendiste a sentir",
+            chapterOrder: 2,
+          },
+        ];
+        for (const [i, r] of DEMO_RESONANCES.entries()) {
+          await prisma.resonance.upsert({
+            where: {
+              userId_conceptKey: { userId: user.id, conceptKey: r.conceptKey },
+            },
+            create: {
+              userId: user.id,
+              conceptKey: r.conceptKey,
+              conceptLabel: r.conceptLabel,
+              bookSlug: "emociones-en-construccion",
+              chapterOrder: r.chapterOrder,
+              source: "HIGHLIGHT",
+              confirmedAt: new Date(now - (3 + i * 4) * DAY),
+            },
+            update: {},
+          });
+        }
+      }
+
       // ── A reading session → Conexión / Propósito axes
       if (u.reading && chapter) {
         await prisma.readingSession.upsert({

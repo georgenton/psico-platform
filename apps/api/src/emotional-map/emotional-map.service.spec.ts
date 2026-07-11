@@ -30,6 +30,10 @@ function makePrisma(overrides: {
   annotationCount?: number;
   moodLogs?: Array<{ mood: string; createdAt: Date }>;
   user?: { currentStreakDays: number } | null;
+  /** Fase D (L4) — text-analysis consent. Defaults to true so pre-Fase-D
+   *  fixtures (which seed text features) keep exercising the text path. */
+  localTextAnalysis?: boolean;
+  textFeatureRows?: Array<Record<string, number | Date>>;
 }) {
   return {
     // Used for both the 30-day Phase-A fetch and the 180-day OU fetch; the
@@ -59,10 +63,16 @@ function makePrisma(overrides: {
       findMany: vi.fn().mockResolvedValue([]),
     },
     diaryTextFeature: {
-      findMany: vi.fn().mockResolvedValue([]),
+      findMany: vi.fn().mockResolvedValue(overrides.textFeatureRows ?? []),
       findUnique: vi.fn().mockResolvedValue(null),
       upsert: vi.fn().mockResolvedValue({ id: "tf-1" }),
       create: vi.fn().mockResolvedValue({ id: "tf-1" }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    privacySettings: {
+      findUnique: vi.fn().mockResolvedValue({
+        localTextAnalysis: overrides.localTextAnalysis ?? true,
+      }),
     },
     user: {
       findUnique: vi.fn().mockResolvedValue(overrides.user ?? null),
@@ -487,5 +497,80 @@ describe("EmotionalMapService.logTextFeatures — Etapa 6 (numbers only)", () =>
         data: expect.objectContaining({ userId: "user-1" }),
       }),
     );
+  });
+
+  it("Fase D (L4): rejects uploads without explicit consent (403)", async () => {
+    const prisma = makePrisma({ localTextAnalysis: false });
+    const service = new EmotionalMapService(
+      prisma as never,
+      provider,
+      makeRedis() as never,
+    );
+    await expect(service.logTextFeatures("user-1", FEATURES)).rejects.toThrow(
+      "TEXT_ANALYSIS_NOT_ENABLED",
+    );
+    expect(
+      (prisma as Record<string, any>).diaryTextFeature.create,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("Fase D (L4): a missing PrivacySettings row means NO consent (403)", async () => {
+    const prisma = makePrisma({});
+    (prisma as Record<string, any>).privacySettings.findUnique = vi
+      .fn()
+      .mockResolvedValue(null);
+    const service = new EmotionalMapService(
+      prisma as never,
+      provider,
+      makeRedis() as never,
+    );
+    await expect(service.logTextFeatures("user-1", FEATURES)).rejects.toThrow(
+      "TEXT_ANALYSIS_NOT_ENABLED",
+    );
+  });
+});
+
+describe("EmotionalMapService — Fase D consent gates the text signal", () => {
+  const provider = makeProvider(async () => ({
+    calma: 0.5,
+    claridad: 0.5,
+    compasion: 0.5,
+    consciencia: 0.5,
+  }));
+
+  it("compute() never reads DiaryTextFeature rows without consent", async () => {
+    const prisma = makePrisma({ localTextAnalysis: false });
+    const service = new EmotionalMapService(
+      prisma as never,
+      provider,
+      makeRedis() as never,
+    );
+    await service.compute("user-1");
+    expect(
+      (prisma as Record<string, any>).diaryTextFeature.findMany,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("Fase D — evidence lite: covered axes declare modelId + n; gathering axes carry null", async () => {
+    // 4 hard-mood entries → calma/compasion/consciencia covered via LLM (H1).
+    const day = (n: number) => new Date(Date.UTC(2026, 5, 1 + n));
+    const prisma = makePrisma({
+      diaryEntries: [0, 1, 2, 3].map((n) => ({
+        mood: "hard",
+        tags: [],
+        createdAt: day(n),
+      })),
+    });
+    const service = new EmotionalMapService(
+      prisma as never,
+      provider,
+      makeRedis() as never,
+    );
+    const result = await service.compute("user-1");
+    const compasion = result.dimensions.find((d) => d.key === "compasion")!;
+    expect(compasion.evidence).toEqual({ modelId: "H1", n: 4 });
+    // Conexion has zero signal → gathering → no evidence to justify.
+    const conexion = result.dimensions.find((d) => d.key === "conexion")!;
+    expect(conexion.evidence).toBeNull();
   });
 });

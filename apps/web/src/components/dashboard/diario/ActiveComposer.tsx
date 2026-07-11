@@ -11,6 +11,7 @@ import type {
 import { encryptString } from "@psico/crypto";
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
 import { consumeVoiceHandoff } from "@/lib/voice/handoff";
+import { textAnalysisConsent } from "@/lib/text-analysis-consent";
 
 /**
  * ActiveComposer — runs when the diary key is unlocked.
@@ -98,22 +99,25 @@ export function ActiveComposer({
           throw new Error(`HTTP ${res.status}`);
         }
         // Etapa 6 — analyze the plaintext ON DEVICE and upload ONLY numbers
-        // (the text itself never goes on the wire). Best-effort: any failure
-        // here must not affect the save the user just made.
+        // (the text itself never goes on the wire). Fase D (L4): requires the
+        // user's explicit consent — without it we don't even analyze locally.
+        // Best-effort: any failure here must not affect the save.
         try {
           const created = (await res.json().catch(() => null)) as {
             id?: string;
           } | null;
-          const features = analyzeReflectionText(trimmed);
-          if (features) {
-            void fetch(`${apiBase}/emotional-map/text-features`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({ ...features, entryId: created?.id }),
-            }).catch(() => undefined);
+          if (await textAnalysisConsent(apiBase, token)) {
+            const features = analyzeReflectionText(trimmed);
+            if (features) {
+              void fetch(`${apiBase}/emotional-map/text-features`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ ...features, entryId: created?.id }),
+              }).catch(() => undefined);
+            }
           }
         } catch {
           // ignore — self-knowledge signal is optional, the entry is saved

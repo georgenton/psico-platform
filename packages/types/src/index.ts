@@ -663,6 +663,13 @@ export interface UserPrivacySettings {
   shareDiaryWithTherapist: boolean;
   anonymizedAnalytics: boolean;
   marketingEmail: boolean;
+  /**
+   * Fase D (V2, decision L4) — consent for the ON-DEVICE reflection text
+   * analysis (TXT-L1). Default false: without opt-in the client must not
+   * upload numeric features and the server rejects/ignores them. Turning it
+   * off deletes the derived rows (consent cascade).
+   */
+  localTextAnalysis: boolean;
   dataExportRequested: Date | null;
   accountDeleteRequested: Date | null;
 }
@@ -724,7 +731,10 @@ export interface UpdateTimezoneRequest {
 export type UpdatePrivacyRequest = Partial<
   Pick<
     UserPrivacySettings,
-    "shareDiaryWithTherapist" | "anonymizedAnalytics" | "marketingEmail"
+    | "shareDiaryWithTherapist"
+    | "anonymizedAnalytics"
+    | "marketingEmail"
+    | "localTextAnalysis"
   >
 >;
 
@@ -1252,6 +1262,13 @@ export interface EmotionalMapDimension {
    * before Etapa 2 keep parsing; UIs fall back to their own heuristic.
    */
   measured?: boolean;
+  /**
+   * Fase D — Evidence lite: the provenance the transparency modal shows.
+   * `modelId` is a canonical Model Registry id (H1 / OU-G0 / OU-GT / CHK-S1
+   * / TXT-L1); `n` is how many observations back the axis. Null while the
+   * axis is still gathering; optional so pre-Fase-D cached maps keep parsing.
+   */
+  evidence?: { modelId: string; n: number } | null;
 }
 
 /**

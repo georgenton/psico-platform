@@ -7,6 +7,7 @@ import type { CreateDiaryEntryRequest } from "@psico/types";
 import { encryptString } from "@psico/crypto";
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
+import { textAnalysisConsent } from "@/lib/text-analysis-consent";
 
 /**
  * ReflexionTab — the "Reflexión" tab of the reader companion dock.
@@ -96,21 +97,24 @@ export function ReflexionTab({
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      // Etapa 6 — analyze on device, upload ONLY numbers. Best-effort.
+      // Etapa 6 — analyze on device, upload ONLY numbers. Fase D (L4):
+      // requires explicit consent — without it we don't analyze at all.
       try {
         const created = (await res.json().catch(() => null)) as {
           id?: string;
         } | null;
-        const features = analyzeReflectionText(trimmed);
-        if (features) {
-          void fetch(`${apiBase}/emotional-map/text-features`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ ...features, entryId: created?.id }),
-          }).catch(() => undefined);
+        if (await textAnalysisConsent(apiBase, token)) {
+          const features = analyzeReflectionText(trimmed);
+          if (features) {
+            void fetch(`${apiBase}/emotional-map/text-features`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ ...features, entryId: created?.id }),
+            }).catch(() => undefined);
+          }
         }
       } catch {
         // ignore — self-knowledge signal is optional; the entry is saved

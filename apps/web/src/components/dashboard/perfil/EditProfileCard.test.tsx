@@ -64,6 +64,7 @@ function buildMe(
       shareDiaryWithTherapist: false,
       anonymizedAnalytics: true,
       marketingEmail: false,
+      localTextAnalysis: false,
       dataExportRequested: null,
       accountDeleteRequested: null,
     },

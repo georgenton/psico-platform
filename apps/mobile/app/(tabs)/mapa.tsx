@@ -341,6 +341,12 @@ export default function MapaScreen() {
                     </Text>
                   </View>
                   <Text style={styles.modalRowSources}>{dim.sources}</Text>
+                  {dim.evidence ? (
+                    <Text style={styles.modalRowEvidence}>
+                      Método {dim.evidence.modelId} · basado en {dim.evidence.n}{" "}
+                      {dim.evidence.n === 1 ? "registro" : "registros"}
+                    </Text>
+                  ) : null}
                 </View>
               ))}
               <View style={styles.modalPrivacy}>
@@ -909,6 +915,11 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     lineHeight: 17,
     color: Colors.warm[600],
+  },
+  modalRowEvidence: {
+    marginTop: 3,
+    fontSize: 11.5,
+    color: Colors.warm[500],
   },
   modalPrivacy: {
     marginTop: 4,

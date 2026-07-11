@@ -1208,6 +1208,11 @@ model PrivacySettings {
   shareDiaryWithTherapist  Boolean   @default(false)
   anonymizedAnalytics      Boolean   @default(true)
   marketingEmail           Boolean   @default(false)
+  // Fase D (V2, decision L4) — consent for the ON-DEVICE reflection text
+  // analysis (TXT-L1). Default OFF: without explicit opt-in the client must
+  // not upload numeric features, the endpoint rejects them, and the scoring
+  // ignores any stored rows. Turning it off deletes the derived rows.
+  localTextAnalysis        Boolean   @default(false)
   // Mirrors of DataExportRequest / User.deleteRequestedAt so the FE has them in one read
   dataExportRequestedAt    DateTime?
   accountDeleteRequestedAt DateTime?

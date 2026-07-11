@@ -12,6 +12,8 @@ export { moodApi } from "./mood";
 export { journeysApi } from "./journeys";
 // Sprint D — GET /api/emotional-map (radar driver for Inicio).
 export { emotionalMapApi } from "./emotional-map";
+// Fase E (V2) — ARC cycle: confirmed resonances feed the map explicitly.
+export { resonancesApi } from "./resonances";
 // Sprint D — GET /api/activity (Inicio timeline feed).
 export { activityApi } from "./activity";
 // Sprint E1 — GET /api/evolucion (stats + achievements for "Mi Evolución").

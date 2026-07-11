@@ -15,6 +15,7 @@ import {
   breatheReflectSeed,
   breatheEcoSeed,
   reflexionEcoSeed,
+  chapterConcept,
 } from "@psico/types";
 import {
   ReaderCompanionDock,
@@ -26,6 +27,7 @@ import { EcoTopicCard } from "./EcoTopicCard";
 import { ChapterExercises } from "./exercises/ChapterExercises";
 import { BreathingExercise } from "./exercises/BreathingExercise";
 import { HighlightPopover } from "./HighlightPopover";
+import { ResonanceNudge } from "./ResonanceNudge";
 import {
   ReaderPreferencesModal,
   type ReaderPrefs,
@@ -117,6 +119,9 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
 
   // Prefs modal.
   const [prefsOpen, setPrefsOpen] = useState(false);
+  // Fase E (ARC) — offer the chapter concept as a resonance after the first
+  // highlight of the session. sessionStorage keeps it to once per chapter.
+  const [resonanceOffer, setResonanceOffer] = useState(false);
   const [prefs, setPrefs] = useState<ReaderPrefs>(preferences);
   const prefsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -297,6 +302,17 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
       setHighlights((prev) =>
         prev.map((h) => (h.id === optimisticId ? body.highlight : h)),
       );
+      // Fase E (ARC) — the highlight is the ANCHOR; offer the chapter concept
+      // once per chapter+session. Only an explicit tap persists anything.
+      const nudgeKey = `resonance-nudge-${bookSlug}-${chapter.order}`;
+      try {
+        if (!sessionStorage.getItem(nudgeKey)) {
+          sessionStorage.setItem(nudgeKey, "1");
+          setResonanceOffer(true);
+        }
+      } catch {
+        // sessionStorage unavailable — skip the nudge quietly
+      }
     } catch {
       setHighlights((prev) => prev.filter((h) => h.id !== optimisticId));
     }
@@ -755,6 +771,18 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
           </button>
         </footer>
       </main>
+
+      {/* Fase E — resonance offer after the first highlight */}
+      {resonanceOffer ? (
+        <ResonanceNudge
+          concept={chapterConcept(bookSlug, chapter.order, chapter.title)}
+          bookSlug={bookSlug}
+          chapterOrder={chapter.order}
+          apiBase={apiBase}
+          token={token}
+          onClose={() => setResonanceOffer(false)}
+        />
+      ) : null}
 
       {/* Selection popover */}
       {selection && (

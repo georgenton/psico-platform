@@ -146,6 +146,7 @@ model User {
   moodLogs                MoodLog[]
   checkinResponses        CheckinResponse[]
   diaryTextFeatures       DiaryTextFeature[]
+  resonances              Resonance[]
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -1171,6 +1172,33 @@ model CheckinResponse {
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, itemKey, createdAt(sort: Desc)])
+}
+
+// Fase E (V2) — ARC cycle (Anchor → Relate → Confirm). Every row IS an
+// explicit user confirmation ("me resonó este tema"); proposals never
+// persist. The only content-side signal allowed into the emotional map.
+// Deleting the row removes the resonance for real (V2: every insight can
+// be eliminated). conceptKey comes from the shared CHAPTER_CONCEPTS catalog.
+enum ResonanceSource {
+  HIGHLIGHT
+  ECO
+  EXERCISE
+}
+
+model Resonance {
+  id           String          @id @default(cuid())
+  userId       String
+  conceptKey   String
+  conceptLabel String
+  bookSlug     String
+  chapterOrder Int
+  source       ResonanceSource @default(HIGHLIGHT)
+  confirmedAt  DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conceptKey])
+  @@index([userId, confirmedAt(sort: Desc)])
 }
 
 model ReaderPreferences {

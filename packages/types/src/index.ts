@@ -3138,3 +3138,6 @@ export * from "./eco-chapter-prompts";
 
 // ─── Backlog — interactive chapter exercises (reflect + breathe) ─────────
 export * from "./chapter-exercises";
+
+// ─── Fase E (V2) — ARC cycle: chapter concepts + resonance wire types ─────
+export * from "./chapter-concepts";

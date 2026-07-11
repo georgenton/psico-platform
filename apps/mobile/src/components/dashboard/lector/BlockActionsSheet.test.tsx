@@ -117,6 +117,27 @@ describe("BlockActionsSheet — callbacks", () => {
   });
 });
 
+describe("BlockActionsSheet — Fase E resonance row (ARC)", () => {
+  it("hides the resonance row when the props are absent (pre-Fase-E callers)", () => {
+    renderSheet();
+    expect(screen.queryByText(/Me resonó/)).toBeNull();
+  });
+
+  it("renders the concept label + explicit-confirmation hint and fires onResonar", () => {
+    const onResonar = jest.fn();
+    renderSheet({
+      onResonar,
+      resonanceLabel: "El cuerpo sabe antes que la mente",
+    });
+    expect(
+      screen.getByText(/Me resonó «El cuerpo sabe antes que la mente»/),
+    ).toBeOnTheScreen();
+    expect(screen.getByText(/solo si lo confirmas/i)).toBeOnTheScreen();
+    fireEvent.press(screen.getByText(/Me resonó/));
+    expect(onResonar).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("highlightStyleFor", () => {
   it("returns a tinted style with the right bg + borderLeftColor per color", () => {
     const yellow = highlightStyleFor("YELLOW");

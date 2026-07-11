@@ -6555,6 +6555,184 @@
         ]
       }
     },
+    "/api/resonances": {
+      "get": {
+        "operationId": "ResonancesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Resonances"
+        ]
+      },
+      "post": {
+        "operationId": "ResonancesController_confirm",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmResonanceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Resonances"
+        ]
+      }
+    },
+    "/api/resonances/{id}": {
+      "delete": {
+        "operationId": "ResonancesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Resonances"
+        ]
+      }
+    },
     "/api/evolucion": {
       "get": {
         "operationId": "EvolucionController_get",
@@ -11016,6 +11194,10 @@
           },
           "marketingEmail": {
             "type": "boolean"
+          },
+          "localTextAnalysis": {
+            "type": "boolean",
+            "description": "Fase D (V2, decision L4) — consent for the on-device reflection text\nanalysis (TXT-L1). Setting it to false also deletes every derived\nnumeric row the user uploaded (consent cascade)."
           }
         }
       },
@@ -11428,6 +11610,48 @@
         },
         "required": [
           "therapistId"
+        ]
+      },
+      "ConfirmResonanceDto": {
+        "type": "object",
+        "properties": {
+          "conceptKey": {
+            "type": "string",
+            "description": "Stable concept key (persisted; never renamed in the catalog).",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "conceptLabel": {
+            "type": "string",
+            "description": "Human label shown on the map (\"Mis resonancias\").",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "bookSlug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "chapterOrder": {
+            "type": "number",
+            "minimum": 1
+          },
+          "source": {
+            "type": "string",
+            "description": "Where the confirmation happened (provenance).",
+            "enum": [
+              "highlight",
+              "eco",
+              "exercise"
+            ]
+          }
+        },
+        "required": [
+          "conceptKey",
+          "conceptLabel",
+          "bookSlug",
+          "chapterOrder",
+          "source"
         ]
       },
       "MarkResolvedDto": {

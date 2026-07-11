@@ -23,8 +23,11 @@ const LABELS: Record<EmotionalMapDimension["key"], string> = {
 
 export function MapInfoButton({
   dimensions,
+  v2 = false,
 }: {
   dimensions: EmotionalMapDimension[];
+  /** Fase F — V2 layout: self-report-only intro + privacy line (L2). */
+  v2?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -116,10 +119,22 @@ export function MapInfoButton({
                 color: "var(--color-warm-600)",
               }}
             >
-              Tu mapa no mide cuánto haces, sino cuánto te vas comprendiendo. Se
-              arma con seis dimensiones. Cada una se “enciende” cuando reúne
-              señales suficientes — hasta entonces la verás como{" "}
-              <b>Reuniendo datos</b> en lugar de un número inventado.
+              {v2 ? (
+                <>
+                  Tu mapa se arma solo con lo que tú registras y confirmas. Cada
+                  dimensión se “enciende” cuando reúne señales suficientes —
+                  hasta entonces la verás como <b>Reuniendo datos</b> en lugar
+                  de un número inventado.
+                </>
+              ) : (
+                <>
+                  Tu mapa no mide cuánto haces, sino cuánto te vas
+                  comprendiendo. Se arma con seis dimensiones. Cada una se
+                  “enciende” cuando reúne señales suficientes — hasta entonces
+                  la verás como <b>Reuniendo datos</b> en lugar de un número
+                  inventado.
+                </>
+              )}
             </p>
 
             <div style={{ marginTop: 18, display: "grid", gap: 14 }}>
@@ -189,10 +204,11 @@ export function MapInfoButton({
                 }}
               >
                 🔒 <b>Privacidad primero.</b> El análisis nunca lee el texto de
-                tu diario ni de tus conversaciones con Eco — están cifrados de
-                extremo a extremo. Solo usamos señales sin contenido: tu ánimo,
-                tus etiquetas, con qué frecuencia y a qué horas escribes, lees o
-                conversas.
+                tu diario ni de tus charlas con Eco — están cifrados de extremo
+                a extremo.{" "}
+                {v2
+                  ? "Solo usamos señales sin contenido: tu ánimo, tus etiquetas, tus respuestas al check-in y los temas que tú confirmas — nunca el texto."
+                  : "Solo usamos señales sin contenido: tu ánimo, tus etiquetas, con qué frecuencia y a qué horas escribes, lees o conversas."}
               </p>
             </div>
           </div>

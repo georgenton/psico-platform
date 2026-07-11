@@ -43,7 +43,13 @@ const FILES = [
   "apps/web/src/components/dashboard/mapa/MapFeed.tsx",
   "apps/web/src/components/dashboard/mapa/MapInfoButton.tsx",
   "apps/web/src/components/dashboard/mapa/affect-copy.ts",
+  // Fase F — V2 layout components enter the contract clean (zero violations).
+  "apps/web/src/components/dashboard/mapa/MapMomento.tsx",
+  "apps/web/src/components/dashboard/mapa/MapSelfReport.tsx",
+  "apps/web/src/components/dashboard/mapa/MapLenguaje.tsx",
+  "apps/web/src/components/dashboard/mapa/MapNarrative.tsx",
   "apps/mobile/src/components/dashboard/mapa/affect-copy.ts",
+  "apps/mobile/src/components/dashboard/mapa/MapSelfReportCard.tsx",
   "apps/mobile/app/(tabs)/mapa.tsx",
 ] as const;
 
@@ -53,26 +59,17 @@ const FILES = [
  * sorted forbidden terms present in that file.
  */
 const KNOWN_VIOLATIONS: Record<string, string[]> = {
-  // Fase B' (L1) cleaned the affect block: MapAffectDynamics + both
-  // affect-copy twins are term-free. Fase C moved the engagement counters
-  // off the map (MapFeed is now a pointer to Mi Evolución) — its entry is
-  // gone. What remains belongs to Fase F: the global pct + "Medido" badge,
-  // plus the benign privacy-modal mentions.
+  // Fase F: the V2 layout has no pct / "Medido" / engagement copy, and the
+  // privacy-modal "conversaciones con Eco" mentions were reworded ("charlas").
+  // What remains lives ONLY in the LEGACY branches of these files — they are
+  // rendered while EMOTIONAL_MAP_LEGACY_UI holds and get DELETED when the
+  // legacy layout retires (Fase G), which is when these entries shrink to
+  // zero.
   "apps/web/src/components/dashboard/mapa/MapStage.tsx": [
     "comprensión emocional",
   ],
   "apps/web/src/components/dashboard/mapa/MapDims.tsx": ["medido"],
-  // Benign occurrence: the privacy modal SAYS Eco conversations are encrypted
-  // — it does not present them as a map source. Pinned all the same; context
-  // review happens when the modal is rewritten in Fase F.
-  "apps/web/src/components/dashboard/mapa/MapInfoButton.tsx": [
-    "conversaciones con eco",
-  ],
-  "apps/mobile/app/(tabs)/mapa.tsx": [
-    "comprensión emocional",
-    "conversaciones con eco",
-    "medido",
-  ],
+  "apps/mobile/app/(tabs)/mapa.tsx": ["comprensión emocional", "medido"],
 };
 
 function violationsIn(content: string): string[] {

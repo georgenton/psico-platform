@@ -10,6 +10,7 @@ import { CHECKIN_ITEMS } from "@psico/types";
 
 import type {
   EmotionalMapMetadataPayload,
+  EmotionalMapNarratorFacts,
   IEmotionalMapProvider,
 } from "./providers/provider.interface";
 import {
@@ -49,6 +50,14 @@ export const OU_MAX_OBS = 1000;
  */
 export const RECOVERY_MIN_OBS = 100;
 /**
+ * Fase F — public gate for the trend direction under the V2 contract
+ * (emotional-map-v2.md §4: "60–99: + tendencia"). Below this the detrended
+ * fit still runs internally (stability/baseline stay correct) but the
+ * up/down label is withheld from the wire. Legacy keeps the old behavior
+ * until the flag flips.
+ */
+export const TREND_PUBLIC_MIN_OBS = 60;
+/**
  * Below this confidence an axis is treated as "still gathering data" — the
  * value is forced to 0 and the client renders "reuniendo datos" instead of a
  * fabricated number.
@@ -57,6 +66,10 @@ export const CONFIDENCE_FLOOR = 0.15;
 
 /** Moods that signal a hard emotional moment (DIARY_MOODS ids). */
 const HARD_MOODS = new Set(["low", "hard"]);
+
+/** Fase F — honest V2 source line for interpretive axes awaiting check-ins. */
+const CHECKIN_PENDING_SOURCE =
+  "Se llenará con tus respuestas al check-in diario (5 segundos al marcar tu ánimo)";
 
 export interface ScoringLogger {
   log?(message: string): void;
@@ -127,6 +140,14 @@ export interface EmotionalMapScoringInput {
    * callers/fixtures keep compiling.
    */
   resonances?: ReadonlyArray<{ conceptKey: string; confirmedAt: Date }>;
+  /**
+   * EMOTIONAL_MAP_NARRATOR (Fase F, decision L3). When true AND the V2
+   * contract is active AND the provider implements `narrate`, the map gains
+   * an optional narrative built from the ALREADY-COMPUTED facts (NAR-L1,
+   * copy only). Defaults to false — the narrator is apagable by design and
+   * turning it off never changes the data.
+   */
+  narratorEnabled?: boolean;
 }
 
 /** Checkin answers per axis at which the measured confidence saturates. */
@@ -247,14 +268,19 @@ export async function scoreEmotionalMap(
     llmScoringEnabled = true,
     emotionalMapV2 = false,
     resonances = [],
+    narratorEnabled = false,
   } = input;
 
   // ── Tier 2: fit the OU model to the mood series ─────────────────────────
+  // Fase F — under the V2 contract the trend direction is withheld until
+  // TREND_PUBLIC_MIN_OBS (gates table, emotional-map-v2.md §4); the detrended
+  // fit itself still runs so stability/baseline stay correct.
   const affect = computeAffectDynamics(
     moodSeries,
     ouEnabled,
     logger,
     ewsPublic,
+    emotionalMapV2 ? TREND_PUBLIC_MIN_OBS : 0,
   );
   const ouCalma =
     affect?.status === "active" && affect.stability != null
@@ -265,7 +291,10 @@ export async function scoreEmotionalMap(
   const checkinAxes = computeCheckinAxes(checkins);
 
   // ── Etapa 6: on-device text features (numbers computed by the client) ───
-  const textAxes = computeTextAxes(textFeatures);
+  // Fase F — under the V2 contract TXT-L1 is DESCRIPTIVE only: the features
+  // surface as the "Patrones de lenguaje" section (`lenguaje.n`) and never
+  // score an axis (the audit's "language patterns ≠ traits" line).
+  const textAxes = emotionalMapV2 ? {} : computeTextAxes(textFeatures);
 
   // ── Derived counters ─────────────────────────────────────────────────────
   const dayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -338,7 +367,11 @@ export async function scoreEmotionalMap(
     confCompasion >= CONFIDENCE_FLOOR ||
     confConsciencia >= CONFIDENCE_FLOOR;
 
-  if (llmHasSignal && llmScoringEnabled) {
+  // Fase F (decision L3) — under the V2 contract the LLM NEVER produces axis
+  // numbers (facts/narrator separation, V2 principle 3): uncovered
+  // interpretive axes gather honestly instead. The optional Narrator below
+  // only turns already-computed facts into copy.
+  if (llmHasSignal && llmScoringEnabled && !emotionalMapV2) {
     const payload: EmotionalMapMetadataPayload = {
       entries: entries.map((e) => ({
         mood: e.mood,
@@ -440,8 +473,9 @@ export async function scoreEmotionalMap(
       ...measuredAxis("claridad", {
         value: claridadRaw,
         confidence: confClaridad * llmConfidenceScale,
-        sources:
-          "Con qué frecuencia nombras y etiquetas lo que sientes (diario y voz)",
+        sources: emotionalMapV2
+          ? CHECKIN_PENDING_SOURCE
+          : "Con qué frecuencia nombras y etiquetas lo que sientes (diario y voz)",
       }),
     },
     {
@@ -476,8 +510,9 @@ export async function scoreEmotionalMap(
       ...measuredAxis("compasion", {
         value: compasionRaw,
         confidence: confCompasion * llmConfidenceScale,
-        sources:
-          "Seguir presente en los momentos difíciles (escribir o conversar)",
+        sources: emotionalMapV2
+          ? CHECKIN_PENDING_SOURCE
+          : "Seguir presente en los momentos difíciles (escribir o conversar)",
       }),
     },
     {
@@ -485,8 +520,9 @@ export async function scoreEmotionalMap(
       ...measuredAxis("consciencia", {
         value: conscienciaRaw,
         confidence: confConsciencia * llmConfidenceScale,
-        sources:
-          "La regularidad con que te observas (días activos en diario y Eco)",
+        sources: emotionalMapV2
+          ? CHECKIN_PENDING_SOURCE
+          : "La regularidad con que te observas (días activos en diario y Eco)",
       }),
     },
   ];
@@ -517,6 +553,57 @@ export async function scoreEmotionalMap(
     dimensions.reduce((a, d) => a + d.confidence, 0) / dimensions.length,
   );
 
+  // ── Fase F — V2-only sections ────────────────────────────────────────────
+  // "Mi momento": the latest self-reported mood observation. "Patrones de
+  // lenguaje": descriptive count of on-device-analyzed reflections (TXT-L1
+  // stops scoring axes under V2). Both absent from legacy blobs.
+  const latest = moodSeries.reduce<{ mood: string; createdAt: Date } | null>(
+    (best, r) => (best === null || r.createdAt > best.createdAt ? r : best),
+    null,
+  );
+  const momento = latest
+    ? { mood: latest.mood, at: latest.createdAt.toISOString() }
+    : null;
+  const lenguaje = textFeatures.length > 0 ? { n: textFeatures.length } : null;
+
+  // ── Fase F (decision L3) — optional Narrator over computed facts ────────
+  // NAR-L1 turns numbers into copy; it never creates them. Any failure just
+  // drops the narrative — the map itself is unaffected (apagable by design).
+  let narrative: EmotionalMapResult["narrative"] = null;
+  if (emotionalMapV2 && narratorEnabled && provider.narrate) {
+    const facts: EmotionalMapNarratorFacts = {
+      momento: momento ? { mood: momento.mood, atIso: momento.at } : null,
+      entryCount: entries.length,
+      activeDays: diaryDays,
+      selfReport: dimensions
+        .filter((d) => d.evidence?.modelId === "CHK-S1")
+        .map((d) => ({ axis: d.key, value: d.value, n: d.evidence!.n })),
+      dynamics: affect
+        ? {
+            status: affect.status,
+            nObs: affect.nObs,
+            baseline: affect.baseline,
+            stability: affect.stability,
+            trend: affect.trend ?? null,
+          }
+        : null,
+      resonanceCount: resonanceConcepts,
+      lenguajeN: lenguaje?.n ?? 0,
+    };
+    try {
+      const told = await provider.narrate(facts);
+      narrative = {
+        headline: told.headline,
+        body: told.body,
+        modelId: "NAR-L1",
+      };
+    } catch (err) {
+      logger?.warn?.(
+        `EmotionalMap narrator failed; serving the map without narrative. ${(err as Error).message}`,
+      );
+    }
+  }
+
   return {
     values,
     confidence,
@@ -526,6 +613,11 @@ export async function scoreEmotionalMap(
     affectDynamics: affect,
     computedAt: new Date().toISOString(),
     provider: providerName,
+    // Fase F — the V2 marker + sections travel only under the V2 contract so
+    // cached legacy blobs (and the legacy UI) are untouched.
+    ...(emotionalMapV2
+      ? { v2: true as const, momento, lenguaje, narrative }
+      : {}),
   };
 }
 
@@ -540,6 +632,12 @@ export function computeAffectDynamics(
   ouEnabled: boolean,
   logger?: ScoringLogger,
   ewsPublic = true,
+  /**
+   * Fase F — observations required before the trend DIRECTION is exposed on
+   * the wire (0 = legacy behavior, TREND_PUBLIC_MIN_OBS under V2). The
+   * detrended fit itself always runs when a trend is significant.
+   */
+  trendMinObs = 0,
 ): EmotionalMapAffectDynamics | null {
   if (!ouEnabled) return null;
 
@@ -584,11 +682,12 @@ export function computeAffectDynamics(
   const baseline = trendFit.trending
     ? clamp01((trendFit.levelNow + 1) / 2)
     : axes.baseline;
-  const trend = trendFit.trending
-    ? trendFit.slopePerDay > 0
-      ? ("up" as const)
-      : ("down" as const)
-    : null;
+  const trend =
+    trendFit.trending && nObs >= trendMinObs
+      ? trendFit.slopePerDay > 0
+        ? ("up" as const)
+        : ("down" as const)
+      : null;
   // Etapa 1 — reliable axes first: baseline + stability are shown from the fit
   // floor; recovery/inertia (θ-derived) are withheld until RECOVERY_MIN_OBS.
   const recoveryReady = nObs >= RECOVERY_MIN_OBS;

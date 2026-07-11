@@ -1378,6 +1378,13 @@ export interface EvolucionStats {
   rachaActual: number;
   rachaMasLarga: number;
   diasActivos30d: number;
+  /**
+   * Fase C (V2) — Evolución IS the learning dashboard: engagement counters
+   * live here, not on the emotional map. Eco USER messages, all time.
+   */
+  conversacionesEco: number;
+  /** Highlights + annotations created while reading, all time. */
+  marcasLectura: number;
 }
 
 export interface EvolucionMilestone {

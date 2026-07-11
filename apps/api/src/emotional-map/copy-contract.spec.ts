@@ -54,18 +54,14 @@ const FILES = [
  */
 const KNOWN_VIOLATIONS: Record<string, string[]> = {
   // Fase B' (L1) cleaned the affect block: MapAffectDynamics + both
-  // affect-copy twins are now term-free. What remains belongs to later
-  // phases: the global pct + "Medido" badge (Fase F) and the engagement
-  // chips (Fase C → LearningDashboard).
+  // affect-copy twins are term-free. Fase C moved the engagement counters
+  // off the map (MapFeed is now a pointer to Mi Evolución) — its entry is
+  // gone. What remains belongs to Fase F: the global pct + "Medido" badge,
+  // plus the benign privacy-modal mentions.
   "apps/web/src/components/dashboard/mapa/MapStage.tsx": [
     "comprensión emocional",
   ],
   "apps/web/src/components/dashboard/mapa/MapDims.tsx": ["medido"],
-  "apps/web/src/components/dashboard/mapa/MapFeed.tsx": [
-    "conversaciones con eco",
-    "minutos de lectura",
-    "racha actual",
-  ],
   // Benign occurrence: the privacy modal SAYS Eco conversations are encrypted
   // — it does not present them as a map source. Pinned all the same; context
   // review happens when the modal is rewritten in Fase F.
@@ -76,7 +72,6 @@ const KNOWN_VIOLATIONS: Record<string, string[]> = {
     "comprensión emocional",
     "conversaciones con eco",
     "medido",
-    "minutos de lectura",
   ],
 };
 

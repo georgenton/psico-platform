@@ -18,6 +18,10 @@ function makePrisma() {
     emotionalMapSnapshot: {
       findMany: vi.fn().mockResolvedValue([]),
     },
+    // Fase C — learning-dashboard engagement counters. Default 0.
+    ecoMessage: { count: vi.fn().mockResolvedValue(0) },
+    highlight: { count: vi.fn().mockResolvedValue(0) },
+    annotation: { count: vi.fn().mockResolvedValue(0) },
   };
 }
 

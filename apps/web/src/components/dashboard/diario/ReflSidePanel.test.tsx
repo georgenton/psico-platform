@@ -11,6 +11,8 @@ function buildStats(overrides: Partial<EvolucionStats> = {}): EvolucionStats {
     rachaActual: 7,
     rachaMasLarga: 14,
     diasActivos30d: 18,
+    conversacionesEco: 0,
+    marcasLectura: 0,
     ...overrides,
   };
 }

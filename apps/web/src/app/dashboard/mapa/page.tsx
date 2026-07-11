@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import type { HomeResponse } from "@psico/types";
+import type { HomeResponse, ResonanceListResponse } from "@psico/types";
 
 import { serverFetch } from "@/lib/api.server";
+import { MapResonances } from "@/components/dashboard/mapa/MapResonances";
 import { ExportButton } from "@/components/dashboard/shell/ExportButton";
 import { MapDims } from "@/components/dashboard/mapa/MapDims";
 import { MapFeed } from "@/components/dashboard/mapa/MapFeed";
@@ -21,8 +22,9 @@ export const dynamic = "force-dynamic";
  * needs the cached emotional map from `/home`.
  */
 export default async function MapaPage() {
-  const [homeResult] = await Promise.allSettled([
+  const [homeResult, resonancesResult] = await Promise.allSettled([
     serverFetch<HomeResponse>("/home"),
+    serverFetch<ResonanceListResponse>("/resonances"),
   ]);
 
   if (homeResult.status !== "fulfilled") {
@@ -71,6 +73,14 @@ export default async function MapaPage() {
       </div>
 
       <MapAffectDynamics data={home.emotionalMap.affectDynamics} />
+
+      <MapResonances
+        initial={
+          resonancesResult.status === "fulfilled"
+            ? resonancesResult.value.resonances
+            : []
+        }
+      />
 
       <MapFeed />
     </>

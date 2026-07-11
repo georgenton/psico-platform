@@ -3129,6 +3129,25 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-07-11 ✅ COMPLETADA — Mapa Emocional V2 · Fase E (ciclo ARC: resonancias confirmadas)
+
+**Rama:** `feature/emotional-map-fase-e-arc`
+**Bitácora:** [docs/informes/sprint-v2-fase-e-arc.md](docs/informes/sprint-v2-fase-e-arc.md)
+**Tests:** API 812/813 (+6) · Web 301 (+3 MapResonances) · Mobile 67 (+2 sheet) · typecheck ×3 + lints + OpenAPI verdes.
+
+**Qué cierra:** la Fase E — el principio "nada entra al mapa silenciosamente" se vuelve código. Subrayar ya no es señal implícita: nace la **resonancia confirmada** (Anclar → Relacionar → Confirmar), la única señal de contenido admitida en el mapa y la fuente legítima que Conexión esperaba bajo V2.
+
+1. **`Resonance` + `ResonancesModule`** — schema (conceptKey único por user, fuente, fecha; sin texto, sin status: toda fila ES una confirmación) + migración `20260711140000`; GET/POST (upsert idempotente)/DELETE (borrado real + ownership) con invalidación del cache del mapa.
+2. **Catálogo `CHAPTER_CONCEPTS`** en @psico/types (patrón ECO_CHAPTER_PROMPTS) — concepto curado por capítulo para los 3 de la Parte I + fallback estable. El content graph con tablas (Concept/ContentUnit/BookManifest) se difiere a Author B2B (mismo criterio que L6).
+3. **Modelo `ARC-C1`** (registry + scoring): bajo `EMOTIONAL_MAP_V2`, conexión = conceptos confirmados distintos / 4, confianza satura a 2, `measured: true`, evidencia `{ARC-C1, n}`, sources «Las resonancias que confirmaste sobre tus lecturas». El scoring legacy las ignora (ratchet). Flag `CONTENT_RESONANCE` default **on** (el ciclo es consentimiento explícito por diseño).
+4. **UI:** web `ResonanceNudge` post-subrayado (una vez por capítulo+sesión, sessionStorage) + sección **«Mis resonancias»** en el mapa (procedencia completa: Confirmado por ti · Cap. N · fecha + Quitar con server action optimistic); mobile fila «🌱 Me resonó» en `BlockActionsSheet` (props opcionales, hint «solo si lo confirmas») + sección paridad en el mapa (Alert destructivo + rollback).
+
+**Privacidad (ADR 0007):** la fila lleva solo metadata de catálogo — nunca el texto subrayado; todo es un tap explícito y todo puede borrarse.
+
+**Deuda:** migración en Railway · propósito sigue "Reuniendo datos" bajo V2 (flujo de temas importantes → Fase F) · fuentes ECO/EXERCISE del enum sin UI (Fase H).
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

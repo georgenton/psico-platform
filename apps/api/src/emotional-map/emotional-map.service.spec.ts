@@ -74,6 +74,10 @@ function makePrisma(overrides: {
         localTextAnalysis: overrides.localTextAnalysis ?? true,
       }),
     },
+    // Fase E — confirmed resonances (ARC). Default none.
+    resonance: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     user: {
       findUnique: vi.fn().mockResolvedValue(overrides.user ?? null),
     },

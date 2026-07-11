@@ -60,11 +60,16 @@ export const FLAGS = {
     default: false,
     description: "Include the early-warning-signal block in the public wire.",
   },
-  /** ARC resonance cycle (Fase E). */
+  /**
+   * ARC resonance cycle (Fase E). Default ON since Fase E shipped: the whole
+   * feature is explicit-consent by design (every resonance is a user tap and
+   * can be deleted), so there is no silent-data risk in enabling it. Gates
+   * whether the map service reads confirmed resonances.
+   */
   CONTENT_RESONANCE: {
     env: "CONTENT_RESONANCE",
-    default: false,
-    description: "Enable the resonance (ARC) endpoints and UI hooks.",
+    default: true,
+    description: "Enable the resonance (ARC) cycle feeding the map.",
   },
 } as const satisfies Record<string, FlagDef>;
 

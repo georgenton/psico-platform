@@ -3227,6 +3227,23 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-07-12 ✅ COMPLETADA — Encender el Narrator del Mapa (NAR-L1 default on)
+
+**Rama:** `feature/emotional-map-narrator-on`
+**Tests:** API +1 (default pin) · sin cambios en web/mobile/crypto.
+
+**Qué cierra:** decisión de producto pendiente tras Fase H — el **Narrator** (NAR-L1, Fase F) pasa de apagado a **encendido por defecto**. `EMOTIONAL_MAP_NARRATOR` default `false → true` en `shared/flags.ts` (mismo patrón de flip que Fase G).
+
+- Bajo V2, cuando el provider implementa `narrate`, el mapa gana una narrativa corta (`{headline, body}`) construida SOLO de los facts ya calculados (momento, valores de autoinforme, params de dinámica, conteo de resonancias). **Nunca crea ni altera números** (facts/narrator separation, principio 3).
+- **Sigue apagable:** `EMOTIONAL_MAP_NARRATOR=off` es el rollback. Cualquier fallo de `narrate()` (incl. `ANTHROPIC_API_KEY` ausente) cae a narrative null y el mapa renderiza igual.
+- Test nuevo (ratchet) fija el default on, invirtiendo el pin de Fase F. `MapNarrative` ya estaba en el copy-contract limpio.
+
+**Privacidad (ADR 0007):** el Narrator recibe solo números/tokens categóricos ya calculados — nunca texto ni ciphertext.
+
+**Deuda ops:** para que se vean narrativas en prod hay que configurar `ANTHROPIC_API_KEY` en el servicio API de Railway. Sin la key, el mapa sigue completo sin narrative (comportamiento definido).
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

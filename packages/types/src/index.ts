@@ -1189,10 +1189,52 @@ export interface HomeContinueBook {
   lastReadAt: Date;
 }
 
+/**
+ * Adaptive Eco suggestions — rule-based conversation openers that adapt to
+ * how the user has been interacting (reading, reflecting) and to their
+ * self-reported Emotional-Map "momento".
+ *
+ * Design invariants:
+ *   - READ-ONLY. Suggestions PROPOSE a conversation; they never write to the
+ *     map (V2 principle: nothing enters the map silently).
+ *   - Curated + deterministic (no LLM cost, no non-determinism).
+ *   - Honest copy: `reason` reflects an EXPLICIT signal (a chapter you're
+ *     reading, a mood YOU logged) — never "la IA notó cómo te sientes".
+ */
+export type EcoSuggestionKind =
+  | "continue-chapter"
+  | "after-chapter"
+  | "mood-supportive"
+  | "mood-savoring"
+  | "after-reflection"
+  | "cold-start";
+
+export interface EcoSuggestion {
+  /** Stable rule id — also the React key + analytics tag. */
+  id: EcoSuggestionKind;
+  /** Short card label. */
+  title: string;
+  /** Text seeded into the Eco composer when the user taps the suggestion. */
+  prompt: string;
+  /** Honest "why you're seeing this" — reflects an explicit user signal. */
+  reason: string;
+  /** Reader scope when the opener is chapter-anchored, else null. */
+  scope: EcoScope | null;
+}
+
+export interface EcoSuggestionsResponse {
+  suggestions: EcoSuggestion[];
+}
+
 export interface HomeEcoMoment {
   prompt: string;
   lastActiveAt: Date | null;
   pendingMessages: number;
+  /**
+   * Adaptive openers (top 2) surfaced on the Home Eco card. Read-only
+   * proposals — tapping one opens Eco seeded, never touches the map.
+   */
+  suggestions: EcoSuggestion[];
 }
 
 export interface HomeReco {

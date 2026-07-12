@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   EcoPersona,
+  EcoScope,
   EcoThreadCreatedResponse,
   EcoThreadListResponse,
   EcoThreadRailItem,
@@ -11,6 +12,7 @@ import { useDiaryKey } from "@/lib/crypto/diary-key-context";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
 import { consumeEcoReaderHandoff } from "@/lib/eco/reader-handoff";
 import { ChatArea } from "./ChatArea";
+import { EcoSuggestions } from "./EcoSuggestions";
 import { ThreadRail } from "./ThreadRail";
 
 /**
@@ -73,13 +75,25 @@ export function EcoShell({
   // Sprint B — reader→Eco handoff. If the user arrived by tapping "🌿 Eco"
   // on a highlight or a chapter topic, pre-fill the composer with the passage
   // + lead-in. Read once on mount (the consume() clears sessionStorage).
+  // Adaptive suggestions — a reading scope may ride along with a chapter-
+  // anchored opener. We show the strip until the user picks one or sends
+  // their first message this session.
+  const [scope, setScope] = useState<EcoScope | undefined>(undefined);
+  const [showSuggestions, setShowSuggestions] = useState(true);
+
   const [composerSeed, setComposerSeed] = useState<string | null>(null);
   const handoffChecked = useRef(false);
   useEffect(() => {
     if (handoffChecked.current) return;
     handoffChecked.current = true;
     const handoff = consumeEcoReaderHandoff();
-    if (handoff) setComposerSeed(handoff.text);
+    if (handoff) {
+      // Arrived from the reader or a Home suggestion → seed the composer (and
+      // scope, if the opener was chapter-anchored) and hide the strip.
+      setComposerSeed(handoff.text);
+      if (handoff.scope) setScope(handoff.scope);
+      setShowSuggestions(false);
+    }
   }, []);
 
   // After a new message lands, the rail row's lastMessageAt + messageCount
@@ -150,16 +164,33 @@ export function EcoShell({
     <div className="eco-layout">
       <div className="min-w-0">
         {activeThreadId ? (
-          <ChatArea
-            threadId={activeThreadId}
-            caps={caps}
-            apiBase={apiBase}
-            token={token}
-            ecoKey={ecoKey}
-            onMessageSent={refreshRail}
-            initialComposerText={composerSeed}
-            onComposerSeedConsumed={() => setComposerSeed(null)}
-          />
+          <>
+            {showSuggestions && (
+              <EcoSuggestions
+                apiBase={apiBase}
+                token={token}
+                onPick={(s) => {
+                  setComposerSeed(s.prompt);
+                  setScope(s.scope ?? undefined);
+                  setShowSuggestions(false);
+                }}
+              />
+            )}
+            <ChatArea
+              threadId={activeThreadId}
+              caps={caps}
+              apiBase={apiBase}
+              token={token}
+              ecoKey={ecoKey}
+              onMessageSent={() => {
+                setShowSuggestions(false);
+                void refreshRail();
+              }}
+              initialComposerText={composerSeed}
+              onComposerSeedConsumed={() => setComposerSeed(null)}
+              scope={scope}
+            />
+          </>
         ) : (
           <EmptyState onNew={createThread} />
         )}

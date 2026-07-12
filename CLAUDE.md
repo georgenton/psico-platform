@@ -3208,6 +3208,25 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-07-12 ✅ COMPLETADA — Sugerencias adaptativas de Eco (backlog de producto)
+
+**Rama:** `feature/eco-adaptive-suggestions`
+**Bitácora:** [docs/informes/sprint-eco-adaptive-suggestions.md](docs/informes/sprint-eco-adaptive-suggestions.md)
+**Tests:** API +11 · Web +4 · Mobile +4 · typecheck ×3 + lints + OpenAPI verdes.
+
+**Qué cierra:** el último ítem del backlog de producto aprobado — Eco propone aperturas de conversación adaptadas a la actividad reciente (lectura, reflexión) y al ánimo autoinformado del Mapa. **Read-only**: las sugerencias LEEN el mapa/actividad para PROPONER; nunca escriben nada (principio V2). Curadas por reglas, cero LLM, copy honesto (refleja auto-reportes explícitos, jamás "la IA notó").
+
+1. **`GET /api/eco/suggestions`** — selector puro `buildEcoSuggestions(signals)` con reglas priorizadas: continue-chapter (scope) → after-chapter → mood (desde el `momento` del Mapa: hard/low→apoyo, good/great→saborear, ok→nada) → after-reflection (solo el hecho, jamás el texto) → cold-start fallback. `EcoSuggestionService` reúne señales (ReadingSession + `EmotionalMapService.getForUser` cacheado + DiaryEntry.createdAt + conteo EcoMessage).
+2. **Home** — `HomeEcoMoment.suggestions` (top 2) vía `topForHome`, en el agregador de `/api/home`.
+3. **Web** — `EcoSuggestions` (strip en EcoShell, siembra composer + scope) + `EcoMomentSuggestions` (chips en la Home Eco card → handoff + navega). Handoff reader→Eco generalizado (`source` opcional + `scope?`; EcoShell aplica el scope).
+4. **Mobile** — paridad: strip en la pantalla Eco + chips en la Home Eco card; handoff generalizado igual que web.
+
+**Privacidad (ADR 0007):** el selector lee solo metadata categórica/temporal (libro/capítulo, timestamps, token de ánimo autoinformado, conteos). Ningún ciphertext se selecciona.
+
+**Deuda:** sin integration test del service (queries Prisma reales); oferta de resonancia desde `EXERCISE` sigue sin UI.
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

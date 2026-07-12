@@ -13,17 +13,25 @@
  * Diario), so there is no privacy concern in carrying a passage this way.
  */
 
+import type { EcoScope } from "@psico/types";
+
 const HANDOFF_KEY = "psico_eco_reader_handoff";
 
 export interface EcoReaderHandoff {
   /** Composer text to pre-fill (passage quote + a lead-in question). */
   text: string;
   /** Where it came from — book slug + chapter, for lightweight analytics. */
-  source: {
+  source?: {
     bookSlug: string;
     chapterOrder: number;
     kind: "highlight" | "topic";
   };
+  /**
+   * Optional reading scope carried alongside a chapter-anchored opener (e.g.
+   * a Home "continue-chapter" suggestion). EcoShell applies it so the RAG
+   * focuses on that book. Absent for generic openers.
+   */
+  scope?: EcoScope;
   createdAt: string;
 }
 
@@ -37,14 +45,16 @@ export function passageToPrompt(passage: string): string {
 
 export function setEcoReaderHandoff(
   text: string,
-  source: EcoReaderHandoff["source"],
+  source?: EcoReaderHandoff["source"],
+  scope?: EcoScope,
 ): void {
   try {
     sessionStorage.setItem(
       HANDOFF_KEY,
       JSON.stringify({
         text,
-        source,
+        ...(source ? { source } : {}),
+        ...(scope ? { scope } : {}),
         createdAt: new Date().toISOString(),
       } satisfies EcoReaderHandoff),
     );

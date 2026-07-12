@@ -2000,6 +2000,1122 @@
         ]
       }
     },
+    "/api/eco/caps": {
+      "get": {
+        "operationId": "EcoController_getCaps",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      }
+    },
+    "/api/eco/suggestions": {
+      "get": {
+        "operationId": "EcoController_getSuggestions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      }
+    },
+    "/api/eco/threads": {
+      "get": {
+        "operationId": "EcoController_listThreads",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      },
+      "post": {
+        "operationId": "EcoController_createThread",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      }
+    },
+    "/api/eco/threads/{id}": {
+      "get": {
+        "operationId": "EcoController_getThread",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      },
+      "delete": {
+        "operationId": "EcoController_deleteThread",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      }
+    },
+    "/api/eco/messages": {
+      "post": {
+        "operationId": "EcoController_sendMessage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendEcoMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      }
+    },
+    "/api/eco/messages/{id}/report": {
+      "post": {
+        "operationId": "EcoController_reportMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportEcoMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Eco"
+        ]
+      }
+    },
+    "/api/ai/chat": {
+      "post": {
+        "operationId": "AIController_chat",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "AI · Eco"
+        ]
+      }
+    },
+    "/api/ai/conversations": {
+      "get": {
+        "operationId": "AIController_getConversations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "AI · Eco"
+        ]
+      }
+    },
+    "/api/ai/conversations/{id}/messages": {
+      "get": {
+        "operationId": "AIController_getMessages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "AI · Eco"
+        ]
+      }
+    },
+    "/api/ai/ingest/{bookId}": {
+      "post": {
+        "operationId": "AIController_ingestBook",
+        "parameters": [
+          {
+            "name": "bookId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "AI · Eco"
+        ]
+      }
+    },
+    "/api/subscriptions/plans": {
+      "get": {
+        "operationId": "SubscriptionController_getPlans",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Subscription (deprecated)"
+        ]
+      }
+    },
+    "/api/subscriptions/me": {
+      "get": {
+        "operationId": "SubscriptionController_getMySubscription",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Subscription (deprecated)"
+        ]
+      }
+    },
+    "/api/subscriptions/checkout": {
+      "post": {
+        "operationId": "SubscriptionController_createCheckoutSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCheckoutSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Subscription (deprecated)"
+        ]
+      }
+    },
+    "/api/subscriptions/portal": {
+      "post": {
+        "operationId": "SubscriptionController_createPortalSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePortalSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Subscription (deprecated)"
+        ]
+      }
+    },
+    "/api/subscriptions/usage": {
+      "get": {
+        "operationId": "SubscriptionController_getUsage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Subscription (deprecated)"
+        ]
+      }
+    },
+    "/api/subscriptions/invoices": {
+      "get": {
+        "operationId": "SubscriptionController_listInvoices",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Max number of invoices to fetch (1–50). Default 12 when omitted —\nmatches the row count of the Mi Plan invoice table.\n\nStripe returns newest-first; no cursor is exposed yet (single-page\nUX). When pagination is needed, add `starting_after`.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Subscription (deprecated)"
+        ]
+      }
+    },
+    "/api/subscriptions/cancel": {
+      "post": {
+        "operationId": "SubscriptionController_cancel",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelSubscriptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Subscription (deprecated)"
+        ]
+      }
+    },
+    "/api/subscriptions/reactivate": {
+      "post": {
+        "operationId": "SubscriptionController_reactivate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Subscription (deprecated)"
+        ]
+      }
+    },
+    "/subscriptions/webhook": {
+      "post": {
+        "operationId": "SubscriptionController_handleWebhook",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Subscription (deprecated)"
+        ]
+      }
+    },
     "/api/reflexiones/entries": {
       "get": {
         "operationId": "ReflexionesController_list",
@@ -2805,413 +3921,6 @@
         ]
       }
     },
-    "/api/subscriptions/plans": {
-      "get": {
-        "operationId": "SubscriptionController_getPlans",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Subscription (deprecated)"
-        ]
-      }
-    },
-    "/api/subscriptions/me": {
-      "get": {
-        "operationId": "SubscriptionController_getMySubscription",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Subscription (deprecated)"
-        ]
-      }
-    },
-    "/api/subscriptions/checkout": {
-      "post": {
-        "operationId": "SubscriptionController_createCheckoutSession",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateCheckoutSessionDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Subscription (deprecated)"
-        ]
-      }
-    },
-    "/api/subscriptions/portal": {
-      "post": {
-        "operationId": "SubscriptionController_createPortalSession",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreatePortalSessionDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Subscription (deprecated)"
-        ]
-      }
-    },
-    "/api/subscriptions/usage": {
-      "get": {
-        "operationId": "SubscriptionController_getUsage",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Subscription (deprecated)"
-        ]
-      }
-    },
-    "/api/subscriptions/invoices": {
-      "get": {
-        "operationId": "SubscriptionController_listInvoices",
-        "parameters": [
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "description": "Max number of invoices to fetch (1–50). Default 12 when omitted —\nmatches the row count of the Mi Plan invoice table.\n\nStripe returns newest-first; no cursor is exposed yet (single-page\nUX). When pagination is needed, add `starting_after`.",
-            "schema": {
-              "minimum": 1,
-              "maximum": 50,
-              "type": "number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Subscription (deprecated)"
-        ]
-      }
-    },
-    "/api/subscriptions/cancel": {
-      "post": {
-        "operationId": "SubscriptionController_cancel",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CancelSubscriptionDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Subscription (deprecated)"
-        ]
-      }
-    },
-    "/api/subscriptions/reactivate": {
-      "post": {
-        "operationId": "SubscriptionController_reactivate",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Subscription (deprecated)"
-        ]
-      }
-    },
-    "/subscriptions/webhook": {
-      "post": {
-        "operationId": "SubscriptionController_handleWebhook",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Subscription (deprecated)"
-        ]
-      }
-    },
     "/api/billing/plans": {
       "get": {
         "operationId": "BillingController_getPlans",
@@ -3818,230 +4527,6 @@
         "summary": "Integrations status (ADMIN only)",
         "tags": [
           "Health"
-        ]
-      }
-    },
-    "/api/ai/chat": {
-      "post": {
-        "operationId": "AIController_chat",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChatRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "AI · Eco"
-        ]
-      }
-    },
-    "/api/ai/conversations": {
-      "get": {
-        "operationId": "AIController_getConversations",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "AI · Eco"
-        ]
-      }
-    },
-    "/api/ai/conversations/{id}/messages": {
-      "get": {
-        "operationId": "AIController_getMessages",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "AI · Eco"
-        ]
-      }
-    },
-    "/api/ai/ingest/{bookId}": {
-      "post": {
-        "operationId": "AIController_ingestBook",
-        "parameters": [
-          {
-            "name": "bookId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "AI · Eco"
         ]
       }
     },
@@ -5465,435 +5950,6 @@
         "summary": "`/voz/usage` from docs/design/handoff/07-voz.md. v1 is informational —\nthe server already counted seconds on `/transcribe`. The client posts\nits own measurement so the server can cross-check and return the\nauthoritative remaining-minutes value back.",
         "tags": [
           "Voice"
-        ]
-      }
-    },
-    "/api/eco/caps": {
-      "get": {
-        "operationId": "EcoController_getCaps",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Eco"
-        ]
-      }
-    },
-    "/api/eco/threads": {
-      "get": {
-        "operationId": "EcoController_listThreads",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Eco"
-        ]
-      },
-      "post": {
-        "operationId": "EcoController_createThread",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Eco"
-        ]
-      }
-    },
-    "/api/eco/threads/{id}": {
-      "get": {
-        "operationId": "EcoController_getThread",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "cursor",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Eco"
-        ]
-      },
-      "delete": {
-        "operationId": "EcoController_deleteThread",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": ""
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Eco"
-        ]
-      }
-    },
-    "/api/eco/messages": {
-      "post": {
-        "operationId": "EcoController_sendMessage",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SendEcoMessageDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Eco"
-        ]
-      }
-    },
-    "/api/eco/messages/{id}/report": {
-      "post": {
-        "operationId": "EcoController_reportMessage",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReportEcoMessageDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Eco"
         ]
       }
     },
@@ -10803,6 +10859,156 @@
           "selfCritic"
         ]
       },
+      "EcoScopeDto": {
+        "type": "object",
+        "properties": {
+          "bookSlug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "chapterOrder": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "bookSlug",
+          "chapterOrder"
+        ]
+      },
+      "SendEcoMessageDto": {
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "description": "Server-side ID of the thread the message belongs to. The user must\nown the thread or the service returns 404 (we do not 403 — would\nleak existence). Max length 128 to allow opaque IDs.",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "textPlaintext": {
+            "type": "string",
+            "description": "Ephemeral plaintext of the user's message. Server uses it for the\nLLM prompt + layer-1 crisis regex detection, then drops it. NEVER\npersists, NEVER logs, NEVER returns in any response. The privacy\nspec enforces this at CI time.\n\nHard cap 2000 chars (~500 tokens) to control LLM cost and stay\nunder the design's \"respuestas cortas\" voice.",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "textCiphertext": {
+            "type": "string",
+            "description": "XChaCha20-Poly1305 ciphertext of the same message, base64url-encoded.\nEncrypted client-side under the eco subkey (HKDF from master key\nwith `ECO_KEY_INFO`). Server persists as-is, decrypts never.\n\nFor replays / history reads, this is what the client decrypts\nlocally to render the message bubble.",
+            "maxLength": 4096,
+            "format": "base64"
+          },
+          "textNonce": {
+            "type": "string",
+            "description": "Fresh 24-byte XChaCha20 nonce paired with `textCiphertext`,\nbase64url-encoded (32 chars exactly). Must be a new random nonce on\nevery send — reuse under the same key breaks confidentiality.",
+            "maxLength": 32,
+            "format": "base64"
+          },
+          "intent": {
+            "type": "object",
+            "description": "Optional intent hint. `\"suggest\"` nudges Eco to recommend a book or\nexercise instead of free-form chat. v1 routes both through the same\nLLM call with the intent injected into the system prompt — explicit\ndispatch can come later if recommendation tuning needs it."
+          },
+          "scope": {
+            "description": "Fase H — optional reading context (reader dock/sheet handoff).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EcoScopeDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "threadId",
+          "textPlaintext",
+          "textCiphertext",
+          "textNonce"
+        ]
+      },
+      "ReportEcoMessageDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "object",
+            "description": "Category of the issue. One of:\n- `HALLUCINATION` — Eco invented facts or sources\n- `OFF_TONE` — wrong register (too clinical, too casual, etc)\n- `SENSITIVE_CONTENT` — produced content that crosses safety lines\n- `CRISIS_MISHANDLED` — failed to detect or respond appropriately to a crisis signal\n- `OTHER` — falls outside the above (description in `comment`)\n\nPlugin emits the enum in OpenAPI from `@IsEnum`."
+          },
+          "comment": {
+            "type": "string",
+            "description": "Optional free-text explanation, up to 500 chars. Recommended when\n`reason === \"OTHER\"`. Stored as-is — the user is signaling intent,\nnot entering encrypted content.",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "ChatRequestDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "conversationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "CreateCheckoutSessionDto": {
+        "type": "object",
+        "properties": {
+          "billingPlan": {
+            "description": "Plan tier to purchase. Plugin emits the enum in OpenAPI.",
+            "enum": [
+              "PRO_MONTHLY",
+              "PRO_YEARLY",
+              "B2B"
+            ],
+            "type": "string"
+          },
+          "successUrl": {
+            "type": "string",
+            "description": "Where Stripe should redirect after successful payment. Stripe\nappends `?session_id=...` automatically. The front passes that to\n`/billing/return` to confirm.",
+            "format": "uri"
+          },
+          "cancelUrl": {
+            "type": "string",
+            "description": "Where Stripe should redirect if the user aborts payment. No state\nchange happens; the front can just return the user to the plan\npicker.",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "billingPlan",
+          "successUrl",
+          "cancelUrl"
+        ]
+      },
+      "CreatePortalSessionDto": {
+        "type": "object",
+        "properties": {
+          "returnUrl": {
+            "type": "string",
+            "description": "Where Stripe should redirect after the user closes the portal.\nWeb: `/dashboard/plan`. Mobile: a Universal Link / deep link back\nto `(tabs)/plan`. The session is single-use — Stripe burns it\nwhen the user finishes.",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "returnUrl"
+        ]
+      },
+      "CancelSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Optional free-text reason the user typed in the cancel modal.\nCapped at 480 chars (Stripe metadata cap). Not validated for\nsentiment / category — analytics teams categorize later.",
+            "maxLength": 480
+          }
+        }
+      },
       "CreateDiaryEntryDto": {
         "type": "object",
         "properties": {
@@ -10997,58 +11203,6 @@
           "score"
         ]
       },
-      "CreateCheckoutSessionDto": {
-        "type": "object",
-        "properties": {
-          "billingPlan": {
-            "description": "Plan tier to purchase. Plugin emits the enum in OpenAPI.",
-            "enum": [
-              "PRO_MONTHLY",
-              "PRO_YEARLY",
-              "B2B"
-            ],
-            "type": "string"
-          },
-          "successUrl": {
-            "type": "string",
-            "description": "Where Stripe should redirect after successful payment. Stripe\nappends `?session_id=...` automatically. The front passes that to\n`/billing/return` to confirm.",
-            "format": "uri"
-          },
-          "cancelUrl": {
-            "type": "string",
-            "description": "Where Stripe should redirect if the user aborts payment. No state\nchange happens; the front can just return the user to the plan\npicker.",
-            "format": "uri"
-          }
-        },
-        "required": [
-          "billingPlan",
-          "successUrl",
-          "cancelUrl"
-        ]
-      },
-      "CreatePortalSessionDto": {
-        "type": "object",
-        "properties": {
-          "returnUrl": {
-            "type": "string",
-            "description": "Where Stripe should redirect after the user closes the portal.\nWeb: `/dashboard/plan`. Mobile: a Universal Link / deep link back\nto `(tabs)/plan`. The session is single-use — Stripe burns it\nwhen the user finishes.",
-            "format": "uri"
-          }
-        },
-        "required": [
-          "returnUrl"
-        ]
-      },
-      "CancelSubscriptionDto": {
-        "type": "object",
-        "properties": {
-          "reason": {
-            "type": "string",
-            "description": "Optional free-text reason the user typed in the cancel modal.\nCapped at 480 chars (Stripe metadata cap). Not validated for\nsentiment / category — analytics teams categorize later.",
-            "maxLength": 480
-          }
-        }
-      },
       "PatchSubscriptionDto": {
         "type": "object",
         "properties": {
@@ -11073,22 +11227,6 @@
         },
         "required": [
           "action"
-        ]
-      },
-      "ChatRequestDto": {
-        "type": "object",
-        "properties": {
-          "message": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 2000
-          },
-          "conversationId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "message"
         ]
       },
       "UpdateProfileDto": {
@@ -11499,88 +11637,6 @@
         },
         "required": [
           "stepsCompleted"
-        ]
-      },
-      "EcoScopeDto": {
-        "type": "object",
-        "properties": {
-          "bookSlug": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120
-          },
-          "chapterOrder": {
-            "type": "number",
-            "minimum": 1
-          }
-        },
-        "required": [
-          "bookSlug",
-          "chapterOrder"
-        ]
-      },
-      "SendEcoMessageDto": {
-        "type": "object",
-        "properties": {
-          "threadId": {
-            "type": "string",
-            "description": "Server-side ID of the thread the message belongs to. The user must\nown the thread or the service returns 404 (we do not 403 — would\nleak existence). Max length 128 to allow opaque IDs.",
-            "minLength": 1,
-            "maxLength": 128
-          },
-          "textPlaintext": {
-            "type": "string",
-            "description": "Ephemeral plaintext of the user's message. Server uses it for the\nLLM prompt + layer-1 crisis regex detection, then drops it. NEVER\npersists, NEVER logs, NEVER returns in any response. The privacy\nspec enforces this at CI time.\n\nHard cap 2000 chars (~500 tokens) to control LLM cost and stay\nunder the design's \"respuestas cortas\" voice.",
-            "minLength": 1,
-            "maxLength": 2000
-          },
-          "textCiphertext": {
-            "type": "string",
-            "description": "XChaCha20-Poly1305 ciphertext of the same message, base64url-encoded.\nEncrypted client-side under the eco subkey (HKDF from master key\nwith `ECO_KEY_INFO`). Server persists as-is, decrypts never.\n\nFor replays / history reads, this is what the client decrypts\nlocally to render the message bubble.",
-            "maxLength": 4096,
-            "format": "base64"
-          },
-          "textNonce": {
-            "type": "string",
-            "description": "Fresh 24-byte XChaCha20 nonce paired with `textCiphertext`,\nbase64url-encoded (32 chars exactly). Must be a new random nonce on\nevery send — reuse under the same key breaks confidentiality.",
-            "maxLength": 32,
-            "format": "base64"
-          },
-          "intent": {
-            "type": "object",
-            "description": "Optional intent hint. `\"suggest\"` nudges Eco to recommend a book or\nexercise instead of free-form chat. v1 routes both through the same\nLLM call with the intent injected into the system prompt — explicit\ndispatch can come later if recommendation tuning needs it."
-          },
-          "scope": {
-            "description": "Fase H — optional reading context (reader dock/sheet handoff).",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/EcoScopeDto"
-              }
-            ]
-          }
-        },
-        "required": [
-          "threadId",
-          "textPlaintext",
-          "textCiphertext",
-          "textNonce"
-        ]
-      },
-      "ReportEcoMessageDto": {
-        "type": "object",
-        "properties": {
-          "reason": {
-            "type": "object",
-            "description": "Category of the issue. One of:\n- `HALLUCINATION` — Eco invented facts or sources\n- `OFF_TONE` — wrong register (too clinical, too casual, etc)\n- `SENSITIVE_CONTENT` — produced content that crosses safety lines\n- `CRISIS_MISHANDLED` — failed to detect or respond appropriately to a crisis signal\n- `OTHER` — falls outside the above (description in `comment`)\n\nPlugin emits the enum in OpenAPI from `@IsEnum`."
-          },
-          "comment": {
-            "type": "string",
-            "description": "Optional free-text explanation, up to 500 chars. Recommended when\n`reason === \"OTHER\"`. Stored as-is — the user is signaling intent,\nnot entering encrypted content.",
-            "maxLength": 500
-          }
-        },
-        "required": [
-          "reason"
         ]
       },
       "LectorSessionHeartbeatDto": {

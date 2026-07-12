@@ -69,6 +69,7 @@ describe("HomeService.getHome", () => {
         }),
       } as never,
       { feed: async () => ({ items: [] }) } as never,
+      { topForHome: async () => [] } as never,
     );
   });
 
@@ -212,6 +213,7 @@ describe("HomeService.updateMood", () => {
         }),
       } as never,
       { feed: async () => ({ items: [] }) } as never,
+      { topForHome: async () => [] } as never,
     );
   });
 
@@ -282,6 +284,7 @@ describe("HomeService.dismissPrompt", () => {
         }),
       } as never,
       { feed: async () => ({ items: [] }) } as never,
+      { topForHome: async () => [] } as never,
     );
   });
 

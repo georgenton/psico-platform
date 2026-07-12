@@ -15,6 +15,7 @@ import { homeApi, moodApi } from "@psico/api-client";
 import type { CheckinItem, HomeResponse, LogMoodRequest } from "@psico/types";
 import { CHECKIN_SCALE } from "@psico/types";
 import { useAuth } from "@/context/auth";
+import { setEcoReaderHandoff } from "@/lib/eco/reader-handoff";
 import { Colors, Radius, Spacing } from "@/theme";
 
 /**
@@ -348,6 +349,34 @@ export default function HomeScreen() {
             </View>
           </View>
           <Text style={styles.meBody}>{home.ecoMoment.prompt}</Text>
+          {home.ecoMoment.suggestions.length > 0 ? (
+            <View style={styles.meSuggestions}>
+              {home.ecoMoment.suggestions.map((s) => (
+                <Pressable
+                  key={s.id}
+                  style={styles.meSuggestion}
+                  onPress={() => {
+                    setEcoReaderHandoff(
+                      s.prompt,
+                      s.scope
+                        ? {
+                            bookSlug: s.scope.bookSlug,
+                            chapterOrder: s.scope.chapterOrder,
+                            kind: "topic",
+                          }
+                        : undefined,
+                      s.scope ?? undefined,
+                    );
+                    router.push("/(tabs)/eco");
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.meSuggestionTitle}>{s.title}</Text>
+                  <Text style={styles.meSuggestionReason}>{s.reason}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
           <View style={styles.meBtn}>
             <Text style={styles.meBtnText}>Ver la conexión →</Text>
           </View>
@@ -784,6 +813,19 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 19,
     color: "rgba(255,255,255,0.92)",
+  },
+  meSuggestions: { marginTop: 12, gap: 8 },
+  meSuggestion: {
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderRadius: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+  },
+  meSuggestionTitle: { fontSize: 13, fontWeight: "700", color: Colors.white },
+  meSuggestionReason: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.75)",
+    marginTop: 2,
   },
   meBtn: {
     marginTop: 14,

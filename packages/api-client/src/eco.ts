@@ -3,6 +3,7 @@ import type {
   EcoReportMessageRequest,
   EcoSendMessageRequest,
   EcoSseEvent,
+  EcoSuggestionsResponse,
   EcoThreadCreatedResponse,
   EcoThreadListResponse,
   EcoThreadResponse,
@@ -25,6 +26,12 @@ export const ecoApi = {
   // ─── Persona ─────────────────────────────────────────────────────────────
 
   getCaps: () => apiClient.get<EcoPersona>("/eco/caps"),
+
+  // ─── Adaptive suggestions ──────────────────────────────────────────────────
+
+  /** Rule-based conversation openers adapted to recent activity + mood. */
+  getSuggestions: () =>
+    apiClient.get<EcoSuggestionsResponse>("/eco/suggestions"),
 
   // ─── Threads ─────────────────────────────────────────────────────────────
 

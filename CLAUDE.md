@@ -3187,6 +3187,27 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-07-12 ✅ COMPLETADA — Mapa Emocional V2 · Fase H (Eco contextual + ARC-P1 Propósito)
+
+**Rama:** `feature/emotional-map-fase-h-eco-contextual`
+**Bitácora:** [docs/informes/sprint-v2-fase-h-eco-contextual.md](docs/informes/sprint-v2-fase-h-eco-contextual.md)
+**Tests:** API 828/829 (+4) · Web 308 (+2) · Mobile 70 · typecheck ×3 + lints + OpenAPI verdes.
+
+**Qué cierra:** la última fase del programa V2 — Eco se vuelve contextual al lector y **Propósito** obtiene su fuente legítima (cerraba el último eje que reunía datos bajo V2).
+
+1. **Scope de lectura** — `EcoScope {bookSlug, chapterOrder}` opcional en `POST /api/eco/messages` (dock web / sheet mobile). Acota el RAG al libro, ancla el prompt al tema del capítulo y ofrece el concepto como resonancia confirmable. Sin scope, Eco standalone sin cambios.
+2. **Citas deterministas** — `done.sources: EcoSource[]` lista los pasajes libro/capítulo realmente recuperados (de los hits del RAG, nunca claims del LLM); UI «Contexto consultado: …».
+3. **Ciclo ARC completo** — `done.resonanceOffer` propone el concepto del capítulo; solo un tap explícito lo persiste con `source: "eco"` (nada silencioso). Chip web + card mobile.
+4. **ARC-P1 → Propósito** — `Resonance.important` (migración aditiva `20260712000000`) + `PATCH /api/resonances/:id` + toggle ⭐ en «Mis resonancias». Bajo V2, Propósito = temas importantes distintos / 3 (satura), «Medido», evidencia `{ARC-P1, n}`. Legacy conserva el propósito por progreso de lectura (ratchet).
+5. **Registry** +ARC-P1 · **spec** pinea el id.
+
+**Privacidad (ADR 0007):** `EcoScope`/`EcoSource` = metadata de catálogo (contenido público), `important` es un booleano; el mensaje a Eco sigue cifrado E2E.
+
+**Deuda ops:** aplicar migración `20260712000000` en Railway.
+**Programa V2 CERRADO** con Fase H (A→H): aprendizaje ≠ mapa, sin pct global, LLM nunca puntúa, todo con procedencia + confirmación explícita. Fase I/J (media multimodal + safety tiers) post-v1.
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

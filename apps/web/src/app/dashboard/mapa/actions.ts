@@ -14,3 +14,20 @@ export async function deleteResonanceAction(id: string): Promise<{ ok: true }> {
   revalidatePath("/dashboard/mapa");
   return { ok: true };
 }
+
+/**
+ * Fase H (ARC-P1) — toggle a confirmed resonance's "important to me" flag.
+ * Distinct important themes are the Propósito source under the V2 contract.
+ */
+export async function setResonanceImportantAction(
+  id: string,
+  important: boolean,
+): Promise<{ ok: true }> {
+  await serverFetch<{ ok: true }>(`/resonances/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ important }),
+    headers: { "Content-Type": "application/json" },
+  });
+  revalidatePath("/dashboard/mapa");
+  return { ok: true };
+}

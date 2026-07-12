@@ -1,11 +1,16 @@
 import {
   IsBase64,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
+  Length,
   MaxLength,
+  Min,
   MinLength,
+  ValidateNested,
 } from "class-validator";
+import { Type } from "class-transformer";
 
 /**
  * Max chars accepted in `textPlaintext`. ~2000 chars ≈ 500 tokens — well
@@ -39,6 +44,21 @@ const NONCE_B64_LEN = 32; // 24 raw bytes → 32 base64url chars
  * thread key — only the current turn's plaintext is available to the
  * LLM; assistant past turns are LLM output (plaintext-at-rest by design).
  */
+/**
+ * Fase H — reading context for a reader-dock conversation. Scopes the RAG
+ * retrieval to the book and anchors the prompt in the chapter theme; the
+ * server also offers the chapter's concept as a confirmable resonance.
+ */
+export class EcoScopeDto {
+  @IsString()
+  @Length(1, 120)
+  bookSlug!: string;
+
+  @IsInt()
+  @Min(1)
+  chapterOrder!: number;
+}
+
 export class SendEcoMessageDto {
   /**
    * Server-side ID of the thread the message belongs to. The user must
@@ -96,4 +116,10 @@ export class SendEcoMessageDto {
   @IsOptional()
   @IsEnum(["free", "suggest"])
   intent?: "free" | "suggest";
+
+  /** Fase H — optional reading context (reader dock/sheet handoff). */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EcoScopeDto)
+  scope?: EcoScopeDto;
 }

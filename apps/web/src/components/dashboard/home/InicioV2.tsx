@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ActivityFeedItemType, HomeResponse } from "@psico/types";
 
 import { MapSelfReport } from "@/components/dashboard/mapa/MapSelfReport";
+import { EcoMomentSuggestions } from "@/components/dashboard/home/EcoMomentSuggestions";
 import {
   IconArrowRight,
   IconBook,
@@ -272,6 +273,9 @@ export function InicioV2({ home }: { home: HomeResponse }) {
               </div>
             </div>
             <div className="er-body">{ecoMoment.prompt}</div>
+            {ecoMoment.suggestions.length > 0 ? (
+              <EcoMomentSuggestions suggestions={ecoMoment.suggestions} />
+            ) : null}
             <div className="er-actions">
               <Link
                 href="/dashboard/eco"

@@ -10,15 +10,19 @@
  * carrying a passage in memory is fine — nothing sensitive, gone on app kill.
  */
 
+import type { EcoScope } from "@psico/types";
+
 export interface EcoReaderHandoff {
   /** Composer text to pre-fill (passage quote + a lead-in question). */
   text: string;
   /** Where it came from — book slug + chapter, for lightweight analytics. */
-  source: {
+  source?: {
     bookSlug: string;
     chapterOrder: number;
     kind: "highlight" | "topic";
   };
+  /** Optional reading scope carried alongside a chapter-anchored opener. */
+  scope?: EcoScope;
   createdAt: string;
 }
 
@@ -34,9 +38,15 @@ export function passageToEcoPrompt(passage: string): string {
 
 export function setEcoReaderHandoff(
   text: string,
-  source: EcoReaderHandoff["source"],
+  source?: EcoReaderHandoff["source"],
+  scope?: EcoScope,
 ): void {
-  pending = { text, source, createdAt: new Date().toISOString() };
+  pending = {
+    text,
+    ...(source ? { source } : {}),
+    ...(scope ? { scope } : {}),
+    createdAt: new Date().toISOString(),
+  };
 }
 
 /** Read + clear. Call in a `useFocusEffect` on the Eco screen. */

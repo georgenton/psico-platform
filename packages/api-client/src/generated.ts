@@ -526,30 +526,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/reflexiones/entries": {
+    "/api/eco/caps": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["ReflexionesController_list"];
-        put?: never;
-        post: operations["ReflexionesController_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/reflexiones/prompt-of-the-day": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["ReflexionesController_getPromptOfTheDay"];
+        get: operations["EcoController_getCaps"];
         put?: never;
         post?: never;
         delete?: never;
@@ -558,14 +542,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/reflexiones/entries/raw-ciphers": {
+    "/api/eco/suggestions": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["ReflexionesController_listRawCiphers"];
+        get: operations["EcoController_getSuggestions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -574,23 +558,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/reflexiones/entries/{id}": {
+    "/api/eco/threads": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["ReflexionesController_getDetail"];
+        get: operations["EcoController_listThreads"];
         put?: never;
-        post?: never;
-        delete: operations["ReflexionesController_remove"];
+        post: operations["EcoController_createThread"];
+        delete?: never;
         options?: never;
         head?: never;
-        patch: operations["ReflexionesController_update"];
+        patch?: never;
         trace?: never;
     };
-    "/api/reflexiones/entries/{id}/share": {
+    "/api/eco/threads/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["EcoController_getThread"];
+        put?: never;
+        post?: never;
+        delete: operations["EcoController_deleteThread"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/eco/messages": {
         parameters: {
             query?: never;
             header?: never;
@@ -599,14 +599,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["ReflexionesController_share"];
+        post: operations["EcoController_sendMessage"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/mood": {
+    "/api/eco/messages/{id}/report": {
         parameters: {
             query?: never;
             header?: never;
@@ -615,34 +615,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["MoodController_log"];
+        post: operations["EcoController_reportMessage"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/mood/checkin/next": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Which micro-checkin question to ask next (Mapa Emocional · Etapa 2).
-         *     `item: null` when today's question was already answered.
-         */
-        get: operations["MoodController_nextCheckin"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/mood/checkin": {
+    "/api/ai/chat": {
         parameters: {
             query?: never;
             header?: never;
@@ -651,24 +631,55 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Persist one 0–4 checkin answer. Plain ordinal, no text (ADR 0007). */
-        post: operations["MoodController_logCheckin"];
+        post: operations["AIController_chat"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/journeys": {
+    "/api/ai/conversations": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["JourneysController_list"];
+        get: operations["AIController_getConversations"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ai/conversations/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AIController_getMessages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ai/ingest/{bookId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AIController_ingestBook"];
         delete?: never;
         options?: never;
         head?: never;
@@ -813,6 +824,155 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["SubscriptionController_handleWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reflexiones/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReflexionesController_list"];
+        put?: never;
+        post: operations["ReflexionesController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reflexiones/prompt-of-the-day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReflexionesController_getPromptOfTheDay"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reflexiones/entries/raw-ciphers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReflexionesController_listRawCiphers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reflexiones/entries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReflexionesController_getDetail"];
+        put?: never;
+        post?: never;
+        delete: operations["ReflexionesController_remove"];
+        options?: never;
+        head?: never;
+        patch: operations["ReflexionesController_update"];
+        trace?: never;
+    };
+    "/api/reflexiones/entries/{id}/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReflexionesController_share"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mood": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["MoodController_log"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mood/checkin/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which micro-checkin question to ask next (Mapa Emocional · Etapa 2).
+         *     `item: null` when today's question was already answered.
+         */
+        get: operations["MoodController_nextCheckin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mood/checkin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Persist one 0–4 checkin answer. Plain ordinal, no text (ADR 0007). */
+        post: operations["MoodController_logCheckin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/journeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["JourneysController_list"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1053,70 +1213,6 @@ export interface paths {
         get: operations["HealthController_integrationsReport"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ai/chat": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AIController_chat"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ai/conversations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AIController_getConversations"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ai/conversations/{id}/messages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AIController_getMessages"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ai/ingest/{bookId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AIController_ingestBook"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1593,86 +1689,6 @@ export interface paths {
          *     authoritative remaining-minutes value back.
          */
         post: operations["VoiceController_reportUsage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/eco/caps": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["EcoController_getCaps"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/eco/threads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["EcoController_listThreads"];
-        put?: never;
-        post: operations["EcoController_createThread"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/eco/threads/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["EcoController_getThread"];
-        put?: never;
-        post?: never;
-        delete: operations["EcoController_deleteThread"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/eco/messages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["EcoController_sendMessage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/eco/messages/{id}/report": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["EcoController_reportMessage"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3046,6 +3062,116 @@ export interface components {
             /** @description Self-critical talk density in [0,1]. */
             selfCritic: number;
         };
+        EcoScopeDto: {
+            bookSlug: string;
+            chapterOrder: number;
+        };
+        SendEcoMessageDto: {
+            /**
+             * @description Server-side ID of the thread the message belongs to. The user must
+             *     own the thread or the service returns 404 (we do not 403 — would
+             *     leak existence). Max length 128 to allow opaque IDs.
+             */
+            threadId: string;
+            /**
+             * @description Ephemeral plaintext of the user's message. Server uses it for the
+             *     LLM prompt + layer-1 crisis regex detection, then drops it. NEVER
+             *     persists, NEVER logs, NEVER returns in any response. The privacy
+             *     spec enforces this at CI time.
+             *
+             *     Hard cap 2000 chars (~500 tokens) to control LLM cost and stay
+             *     under the design's "respuestas cortas" voice.
+             */
+            textPlaintext: string;
+            /**
+             * Format: base64
+             * @description XChaCha20-Poly1305 ciphertext of the same message, base64url-encoded.
+             *     Encrypted client-side under the eco subkey (HKDF from master key
+             *     with `ECO_KEY_INFO`). Server persists as-is, decrypts never.
+             *
+             *     For replays / history reads, this is what the client decrypts
+             *     locally to render the message bubble.
+             */
+            textCiphertext: string;
+            /**
+             * Format: base64
+             * @description Fresh 24-byte XChaCha20 nonce paired with `textCiphertext`,
+             *     base64url-encoded (32 chars exactly). Must be a new random nonce on
+             *     every send — reuse under the same key breaks confidentiality.
+             */
+            textNonce: string;
+            /**
+             * @description Optional intent hint. `"suggest"` nudges Eco to recommend a book or
+             *     exercise instead of free-form chat. v1 routes both through the same
+             *     LLM call with the intent injected into the system prompt — explicit
+             *     dispatch can come later if recommendation tuning needs it.
+             */
+            intent?: Record<string, never>;
+            /** @description Fase H — optional reading context (reader dock/sheet handoff). */
+            scope?: components["schemas"]["EcoScopeDto"];
+        };
+        ReportEcoMessageDto: {
+            /**
+             * @description Category of the issue. One of:
+             *     - `HALLUCINATION` — Eco invented facts or sources
+             *     - `OFF_TONE` — wrong register (too clinical, too casual, etc)
+             *     - `SENSITIVE_CONTENT` — produced content that crosses safety lines
+             *     - `CRISIS_MISHANDLED` — failed to detect or respond appropriately to a crisis signal
+             *     - `OTHER` — falls outside the above (description in `comment`)
+             *
+             *     Plugin emits the enum in OpenAPI from `@IsEnum`.
+             */
+            reason: Record<string, never>;
+            /**
+             * @description Optional free-text explanation, up to 500 chars. Recommended when
+             *     `reason === "OTHER"`. Stored as-is — the user is signaling intent,
+             *     not entering encrypted content.
+             */
+            comment?: string;
+        };
+        ChatRequestDto: {
+            message: string;
+            conversationId?: string;
+        };
+        CreateCheckoutSessionDto: {
+            /**
+             * @description Plan tier to purchase. Plugin emits the enum in OpenAPI.
+             * @enum {string}
+             */
+            billingPlan: CreateCheckoutSessionDtoBillingPlan;
+            /**
+             * Format: uri
+             * @description Where Stripe should redirect after successful payment. Stripe
+             *     appends `?session_id=...` automatically. The front passes that to
+             *     `/billing/return` to confirm.
+             */
+            successUrl: string;
+            /**
+             * Format: uri
+             * @description Where Stripe should redirect if the user aborts payment. No state
+             *     change happens; the front can just return the user to the plan
+             *     picker.
+             */
+            cancelUrl: string;
+        };
+        CreatePortalSessionDto: {
+            /**
+             * Format: uri
+             * @description Where Stripe should redirect after the user closes the portal.
+             *     Web: `/dashboard/plan`. Mobile: a Universal Link / deep link back
+             *     to `(tabs)/plan`. The session is single-use — Stripe burns it
+             *     when the user finishes.
+             */
+            returnUrl: string;
+        };
+        CancelSubscriptionDto: {
+            /**
+             * @description Optional free-text reason the user typed in the cancel modal.
+             *     Capped at 480 chars (Stripe metadata cap). Not validated for
+             *     sentiment / category — analytics teams categorize later.
+             */
+            reason?: string;
+        };
         CreateDiaryEntryDto: {
             /**
              * @description Mood token from the shared `DIARY_MOODS` catalog (calma / foco /
@@ -3209,45 +3335,6 @@ export interface components {
             /** @description Answer on the shared CHECKIN_SCALE: 0 = "Para nada" … 4 = "Totalmente". */
             score: number;
         };
-        CreateCheckoutSessionDto: {
-            /**
-             * @description Plan tier to purchase. Plugin emits the enum in OpenAPI.
-             * @enum {string}
-             */
-            billingPlan: CreateCheckoutSessionDtoBillingPlan;
-            /**
-             * Format: uri
-             * @description Where Stripe should redirect after successful payment. Stripe
-             *     appends `?session_id=...` automatically. The front passes that to
-             *     `/billing/return` to confirm.
-             */
-            successUrl: string;
-            /**
-             * Format: uri
-             * @description Where Stripe should redirect if the user aborts payment. No state
-             *     change happens; the front can just return the user to the plan
-             *     picker.
-             */
-            cancelUrl: string;
-        };
-        CreatePortalSessionDto: {
-            /**
-             * Format: uri
-             * @description Where Stripe should redirect after the user closes the portal.
-             *     Web: `/dashboard/plan`. Mobile: a Universal Link / deep link back
-             *     to `(tabs)/plan`. The session is single-use — Stripe burns it
-             *     when the user finishes.
-             */
-            returnUrl: string;
-        };
-        CancelSubscriptionDto: {
-            /**
-             * @description Optional free-text reason the user typed in the cancel modal.
-             *     Capped at 480 chars (Stripe metadata cap). Not validated for
-             *     sentiment / category — analytics teams categorize later.
-             */
-            reason?: string;
-        };
         PatchSubscriptionDto: {
             /**
              * @description What to do with the subscription:
@@ -3273,10 +3360,6 @@ export interface components {
              * @enum {string}
              */
             newPlanId?: PatchSubscriptionDtoNewPlanId;
-        };
-        ChatRequestDto: {
-            message: string;
-            conversationId?: string;
         };
         UpdateProfileDto: {
             /**
@@ -3582,73 +3665,6 @@ export interface components {
              *     catalog size); "Saltar" sends the current step index.
              */
             stepsCompleted: number;
-        };
-        EcoScopeDto: {
-            bookSlug: string;
-            chapterOrder: number;
-        };
-        SendEcoMessageDto: {
-            /**
-             * @description Server-side ID of the thread the message belongs to. The user must
-             *     own the thread or the service returns 404 (we do not 403 — would
-             *     leak existence). Max length 128 to allow opaque IDs.
-             */
-            threadId: string;
-            /**
-             * @description Ephemeral plaintext of the user's message. Server uses it for the
-             *     LLM prompt + layer-1 crisis regex detection, then drops it. NEVER
-             *     persists, NEVER logs, NEVER returns in any response. The privacy
-             *     spec enforces this at CI time.
-             *
-             *     Hard cap 2000 chars (~500 tokens) to control LLM cost and stay
-             *     under the design's "respuestas cortas" voice.
-             */
-            textPlaintext: string;
-            /**
-             * Format: base64
-             * @description XChaCha20-Poly1305 ciphertext of the same message, base64url-encoded.
-             *     Encrypted client-side under the eco subkey (HKDF from master key
-             *     with `ECO_KEY_INFO`). Server persists as-is, decrypts never.
-             *
-             *     For replays / history reads, this is what the client decrypts
-             *     locally to render the message bubble.
-             */
-            textCiphertext: string;
-            /**
-             * Format: base64
-             * @description Fresh 24-byte XChaCha20 nonce paired with `textCiphertext`,
-             *     base64url-encoded (32 chars exactly). Must be a new random nonce on
-             *     every send — reuse under the same key breaks confidentiality.
-             */
-            textNonce: string;
-            /**
-             * @description Optional intent hint. `"suggest"` nudges Eco to recommend a book or
-             *     exercise instead of free-form chat. v1 routes both through the same
-             *     LLM call with the intent injected into the system prompt — explicit
-             *     dispatch can come later if recommendation tuning needs it.
-             */
-            intent?: Record<string, never>;
-            /** @description Fase H — optional reading context (reader dock/sheet handoff). */
-            scope?: components["schemas"]["EcoScopeDto"];
-        };
-        ReportEcoMessageDto: {
-            /**
-             * @description Category of the issue. One of:
-             *     - `HALLUCINATION` — Eco invented facts or sources
-             *     - `OFF_TONE` — wrong register (too clinical, too casual, etc)
-             *     - `SENSITIVE_CONTENT` — produced content that crosses safety lines
-             *     - `CRISIS_MISHANDLED` — failed to detect or respond appropriately to a crisis signal
-             *     - `OTHER` — falls outside the above (description in `comment`)
-             *
-             *     Plugin emits the enum in OpenAPI from `@IsEnum`.
-             */
-            reason: Record<string, never>;
-            /**
-             * @description Optional free-text explanation, up to 500 chars. Recommended when
-             *     `reason === "OTHER"`. Stored as-is — the user is signaling intent,
-             *     not entering encrypted content.
-             */
-            comment?: string;
         };
         LectorSessionHeartbeatDto: {
             /**
@@ -5526,6 +5542,868 @@ export interface operations {
             };
         };
     };
+    EcoController_getCaps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    EcoController_getSuggestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    EcoController_listThreads: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    EcoController_createThread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    EcoController_getThread: {
+        parameters: {
+            query: {
+                cursor: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    EcoController_deleteThread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    EcoController_sendMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendEcoMessageDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    EcoController_reportMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportEcoMessageDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    AIController_chat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequestDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    AIController_getConversations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    AIController_getMessages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    AIController_ingestBook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    SubscriptionController_getPlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    SubscriptionController_getMySubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    SubscriptionController_createCheckoutSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCheckoutSessionDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    SubscriptionController_createPortalSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePortalSessionDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    SubscriptionController_getUsage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    SubscriptionController_listInvoices: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Max number of invoices to fetch (1–50). Default 12 when omitted —
+                 *     matches the row count of the Mi Plan invoice table.
+                 *
+                 *     Stripe returns newest-first; no cursor is exposed yet (single-page
+                 *     UX). When pagination is needed, add `starting_after`.
+                 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    SubscriptionController_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelSubscriptionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    SubscriptionController_reactivate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    SubscriptionController_handleWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     ReflexionesController_list: {
         parameters: {
             query?: {
@@ -6069,340 +6947,6 @@ export interface operations {
             };
         };
     };
-    SubscriptionController_getPlans: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>[];
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    SubscriptionController_getMySubscription: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    SubscriptionController_createCheckoutSession: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateCheckoutSessionDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    SubscriptionController_createPortalSession: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreatePortalSessionDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    SubscriptionController_getUsage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    SubscriptionController_listInvoices: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Max number of invoices to fetch (1–50). Default 12 when omitted —
-                 *     matches the row count of the Mi Plan invoice table.
-                 *
-                 *     Stripe returns newest-first; no cursor is exposed yet (single-page
-                 *     UX). When pagination is needed, add `starting_after`.
-                 */
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    SubscriptionController_cancel: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CancelSubscriptionDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    SubscriptionController_reactivate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    SubscriptionController_handleWebhook: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
     BillingController_getPlans: {
         parameters: {
             query?: never;
@@ -6880,178 +7424,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    AIController_chat: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChatRequestDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    AIController_getConversations: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    AIController_getMessages: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    AIController_ingestBook: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                bookId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
             401: {
@@ -8122,319 +8494,6 @@ export interface operations {
                 };
             };
             403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    EcoController_getCaps: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    EcoController_listThreads: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    EcoController_createThread: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    EcoController_getThread: {
-        parameters: {
-            query: {
-                cursor: string;
-            };
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    EcoController_deleteThread: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    EcoController_sendMessage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SendEcoMessageDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-        };
-    };
-    EcoController_reportMessage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReportEcoMessageDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
-                };
-            };
-            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11746,6 +11805,11 @@ export enum CreateBookDtoPlan {
     ANNUAL = "ANNUAL",
     B2B = "B2B"
 }
+export enum CreateCheckoutSessionDtoBillingPlan {
+    PRO_MONTHLY = "PRO_MONTHLY",
+    PRO_YEARLY = "PRO_YEARLY",
+    B2B = "B2B"
+}
 export enum CreateDiaryEntryDtoMood {
     great = "great",
     good = "good",
@@ -11779,11 +11843,6 @@ export enum LogCheckinDtoItemKey {
     compasion_juicio = "compasion_juicio",
     consciencia_presente = "consciencia_presente",
     consciencia_pausa = "consciencia_pausa"
-}
-export enum CreateCheckoutSessionDtoBillingPlan {
-    PRO_MONTHLY = "PRO_MONTHLY",
-    PRO_YEARLY = "PRO_YEARLY",
-    B2B = "B2B"
 }
 export enum PatchSubscriptionDtoNewPlanId {
     PRO_MONTHLY = "PRO_MONTHLY",

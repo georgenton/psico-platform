@@ -76,11 +76,16 @@ export const FLAGS = {
    * Narrator (Fase F, decision L3). When on AND the V2 contract is active,
    * an LLM turns the ALREADY-COMPUTED facts into a short narrative (copy
    * only). It can never create or alter numbers — switching it off changes
-   * no data (facts/narrator separation, V2 principle 3). Default off.
+   * no data (facts/narrator separation, V2 principle 3).
+   *
+   * Default ON since 2026-07-12: the narrative is part of the V2 map product.
+   * It stays fully apagable — `EMOTIONAL_MAP_NARRATOR=off` is the rollback
+   * lever, and any narrate() failure (e.g. missing ANTHROPIC_API_KEY) drops
+   * the narrative to null while the map itself renders unchanged.
    */
   EMOTIONAL_MAP_NARRATOR: {
     env: "EMOTIONAL_MAP_NARRATOR",
-    default: false,
+    default: true,
     description:
       "Generate the optional V2 narrative (NAR-L1, copy only) over computed facts.",
   },

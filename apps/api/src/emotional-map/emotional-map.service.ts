@@ -145,7 +145,7 @@ export class EmotionalMapService {
       flagEnabled("CONTENT_RESONANCE")
         ? this.prisma.resonance.findMany({
             where: { userId },
-            select: { conceptKey: true, confirmedAt: true },
+            select: { conceptKey: true, confirmedAt: true, important: true },
           })
         : Promise.resolve([]),
     ]);

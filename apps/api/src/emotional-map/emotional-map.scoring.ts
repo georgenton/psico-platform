@@ -139,7 +139,17 @@ export interface EmotionalMapScoringInput {
    * stays engagement-based, pinned by the ratchet). Optional so pre-Fase-E
    * callers/fixtures keep compiling.
    */
-  resonances?: ReadonlyArray<{ conceptKey: string; confirmedAt: Date }>;
+  resonances?: ReadonlyArray<{
+    conceptKey: string;
+    confirmedAt: Date;
+    /**
+     * Fase H (ARC-P1) — the user flagged this confirmed theme as important
+     * to them right now. Distinct important themes feed the Propósito axis
+     * under V2 (Eco proposes, the user confirms; nothing silent). Optional
+     * so pre-Fase-H callers/fixtures keep compiling.
+     */
+    important?: boolean;
+  }>;
   /**
    * EMOTIONAL_MAP_NARRATOR (Fase F, decision L3). When true AND the V2
    * contract is active AND the provider implements `narrate`, the map gains
@@ -161,6 +171,14 @@ export const CHECKIN_GOOD_N = 5;
  */
 export const RESONANCE_GOOD_N = 4;
 export const RESONANCE_CONF_N = 2;
+
+/**
+ * Fase H (ARC-P1) — distinct IMPORTANT themes at which the Propósito value
+ * saturates under EMOTIONAL_MAP_V2. Confidence saturates at one: marking a
+ * single theme as important already lights the axis (explicit self-report).
+ */
+export const IMPORTANT_GOOD_N = 3;
+export const IMPORTANT_CONF_N = 1;
 
 /**
  * Etapa 2 — aggregate checkin answers into per-axis measured signals.
@@ -324,11 +342,16 @@ export async function scoreEmotionalMap(
   // Fase E (ARC-C1) — under V2, conexion is fed EXCLUSIVELY by confirmed
   // resonances (explicit taps); with none, it gathers honestly.
   const resonanceConcepts = new Set(resonances.map((r) => r.conceptKey)).size;
+  // Fase H (ARC-P1) — distinct themes the user explicitly flagged as
+  // important right now. This is the Propósito source under V2.
+  const importantConcepts = new Set(
+    resonances.filter((r) => r.important).map((r) => r.conceptKey),
+  ).size;
   const confConexion = emotionalMapV2
     ? clamp01(resonanceConcepts / RESONANCE_CONF_N)
     : clamp01((readingSessions.length + ecoMessages.length) / 8);
   const confProposito = emotionalMapV2
-    ? 0
+    ? clamp01(importantConcepts / IMPORTANT_CONF_N)
     : clamp01(readingSessions.length / 4);
   const confCompasion = emotionalMapV2
     ? clamp01(hardEntries / 4)
@@ -338,9 +361,9 @@ export async function scoreEmotionalMap(
     : clamp01((diaryDays + ecoDays) / 10);
 
   // ── Mechanical axes (deterministic) ──────────────────────────────────────
-  // Under V2: conexion = confirmed resonances (Fase E); proposito still has
-  // no legitimate source (waits for confirmed important-themes) — it stays
-  // at 0 with 0 confidence so the client renders the honest gathering state.
+  // Under V2: conexion = confirmed resonances (Fase E); proposito =
+  // confirmed IMPORTANT themes (Fase H, ARC-P1). Both are explicit taps;
+  // with none, they gather honestly instead of showing a fabricated number.
   const conexionRaw = emotionalMapV2
     ? clamp01(resonanceConcepts / RESONANCE_GOOD_N)
     : clamp01(
@@ -350,7 +373,7 @@ export async function scoreEmotionalMap(
           Math.min((highlightCount + annotationCount) / 8, 1) * 0.15,
       );
   const propositoRaw = emotionalMapV2
-    ? 0
+    ? clamp01(importantConcepts / IMPORTANT_GOOD_N)
     : clamp01(avgProgress * 0.7 + Math.min(booksCompleted / 2, 1) * 0.3);
 
   // ── LLM axes (interpretive) ──────────────────────────────────────────────
@@ -500,10 +523,14 @@ export async function scoreEmotionalMap(
       value: propositoRaw,
       confidence: confProposito,
       sources: emotionalMapV2
-        ? "Se medirá con los temas que confirmes como importantes para ti (en construcción)"
+        ? importantConcepts > 0
+          ? "Los temas que marcaste como importantes para ti"
+          : "Se llenará con los temas que marques como importantes para ti"
         : "Tu avance en las lecturas que empiezas",
-      measured: false,
-      evidence: { modelId: "H1", n: readingSessions.length },
+      measured: emotionalMapV2 && importantConcepts > 0,
+      evidence: emotionalMapV2
+        ? { modelId: "ARC-P1", n: importantConcepts }
+        : { modelId: "H1", n: readingSessions.length },
     },
     {
       key: "compasion",

@@ -13,11 +13,13 @@ import type {
   EcoMessageReportReason,
   EcoPersona,
   EcoSendMessageRequest,
+  EcoSource,
   EcoSseEvent,
   EcoThreadCreatedResponse,
   EcoThreadListResponse,
   EcoThreadResponse,
 } from "@psico/types";
+import { chapterConcept } from "@psico/types";
 import { Observable, Subject } from "rxjs";
 import type { Env } from "../config";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -328,17 +330,59 @@ export class EcoService {
     }
 
     // ── 5. RAG lookup + Anthropic stream ─────────────────────────────────
+    // Fase H — reading scope: when the message comes from the reader dock,
+    // scope RAG to that book, anchor the prompt in the chapter theme, and
+    // prepare the resonance offer (Eco PROPOSES; the user confirms).
+    let scopeBookId: string | undefined;
+    let chapterTheme: string | undefined;
+    let resonanceOffer: {
+      conceptKey: string;
+      conceptLabel: string;
+      bookSlug: string;
+      chapterOrder: number;
+    } | null = null;
+    if (body.scope) {
+      const [book, chapter] = await Promise.all([
+        this.prisma.book.findUnique({
+          where: { slug: body.scope.bookSlug },
+          select: { id: true },
+        }),
+        this.prisma.chapter.findFirst({
+          where: {
+            book: { slug: body.scope.bookSlug },
+            order: body.scope.chapterOrder,
+          },
+          select: { title: true },
+        }),
+      ]);
+      scopeBookId = book?.id;
+      const concept = chapterConcept(
+        body.scope.bookSlug,
+        body.scope.chapterOrder,
+        chapter?.title ?? "",
+      );
+      chapterTheme = concept.label || undefined;
+      resonanceOffer = {
+        conceptKey: concept.key,
+        conceptLabel: concept.label,
+        bookSlug: body.scope.bookSlug,
+        chapterOrder: body.scope.chapterOrder,
+      };
+    }
+
     const queryEmbedding = await this.embeddingService.embed(
       body.textPlaintext,
     );
     const chunks = await this.vectorStore.searchSimilar(
       queryEmbedding,
       this.maxContextChunks,
+      scopeBookId, // undefined = platform-wide (unchanged pre-Fase-H behavior)
     );
     const bookContext =
       chunks.length > 0
         ? chunks.map((c, i) => `[${i + 1}] ${c.content}`).join("\n\n")
         : undefined;
+    const sources = await this.buildSources(chunks);
 
     const history = await this.loadHistoryForLLM(thread.id);
 
@@ -348,7 +392,7 @@ export class EcoService {
       system: [
         {
           type: "text",
-          text: buildSystemPrompt({ bookContext }),
+          text: buildSystemPrompt({ bookContext, chapterTheme }),
           cache_control: { type: "ephemeral" },
         },
       ],
@@ -423,8 +467,59 @@ export class EcoService {
         assistant.id,
         subject,
         remainingBefore,
+        // Fase H — surface the retrieved book/chapter sources and (for reader
+        // conversations) the confirmable resonance offer.
+        { sources, resonanceOffer },
       );
     }
+  }
+
+  /**
+   * Fase H — deterministic source attribution from the actual RAG hits.
+   * Dedups by book+chapter and resolves titles. Never LLM-claimed; the UI
+   * labels it "contexto consultado".
+   */
+  private async buildSources(
+    chunks: ReadonlyArray<{ bookId: string; chapterId: string | null }>,
+  ): Promise<EcoSource[]> {
+    if (chunks.length === 0) return [];
+    const bookIds = [...new Set(chunks.map((c) => c.bookId))];
+    const chapterIds = [
+      ...new Set(
+        chunks.map((c) => c.chapterId).filter((x): x is string => !!x),
+      ),
+    ];
+    const [books, chapters] = await Promise.all([
+      this.prisma.book.findMany({
+        where: { id: { in: bookIds } },
+        select: { id: true, title: true },
+      }),
+      chapterIds.length
+        ? this.prisma.chapter.findMany({
+            where: { id: { in: chapterIds } },
+            select: { id: true, title: true },
+          })
+        : Promise.resolve([]),
+    ]);
+    const bookTitle = new Map(books.map((b) => [b.id, b.title]));
+    const chapterTitle = new Map(chapters.map((c) => [c.id, c.title]));
+
+    const seen = new Set<string>();
+    const sources: EcoSource[] = [];
+    for (const c of chunks) {
+      const key = `${c.bookId}:${c.chapterId ?? ""}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const bt = bookTitle.get(c.bookId);
+      if (!bt) continue;
+      sources.push({
+        bookTitle: bt,
+        chapterTitle: c.chapterId
+          ? (chapterTitle.get(c.chapterId) ?? null)
+          : null,
+      });
+    }
+    return sources;
   }
 
   private async emitCrisis(
@@ -457,6 +552,17 @@ export class EcoService {
     messageId: string,
     subject: Subject<{ data: EcoSseEvent }>,
     remainingBefore: number | null,
+    // Fase H — normal (non-crisis) replies carry the retrieved sources and
+    // the optional reader resonance offer. Crisis paths omit both.
+    extras?: {
+      sources?: EcoSource[];
+      resonanceOffer?: {
+        conceptKey: string;
+        conceptLabel: string;
+        bookSlug: string;
+        chapterOrder: number;
+      } | null;
+    },
   ): Promise<void> {
     // Invalidate the /usage cache so the next dashboard load shows fresh
     // counts. We don't INCR a Redis counter because /usage SUMs live.
@@ -468,7 +574,16 @@ export class EcoService {
     subject.next({
       data: {
         event: "done",
-        data: { messageId, quotaRemaining: remainingAfter },
+        data: {
+          messageId,
+          quotaRemaining: remainingAfter,
+          ...(extras?.sources && extras.sources.length > 0
+            ? { sources: extras.sources }
+            : {}),
+          ...(extras && "resonanceOffer" in extras
+            ? { resonanceOffer: extras.resonanceOffer ?? null }
+            : {}),
+        },
       },
     });
   }

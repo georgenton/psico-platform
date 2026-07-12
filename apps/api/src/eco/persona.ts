@@ -31,6 +31,11 @@ export const ECO_PERSONA = {
 export function buildSystemPrompt(opts: {
   /** Optional RAG context to ground answers in book content. */
   bookContext?: string;
+  /**
+   * Fase H — the chapter theme the reader is currently on. When present,
+   * Eco anchors the conversation there (the reader dock/sheet handoff).
+   */
+  chapterTheme?: string;
 }): string {
   const intro = `Eres ${ECO_PERSONA.name}, el companion conversacional de Psico Platform.
 
@@ -57,8 +62,13 @@ usuario a una línea profesional.
 
 Si NO detectas crisis, responde normalmente sin mencionar este protocolo.`;
 
+  const themeBlock = opts.chapterTheme
+    ? `\n\nEl usuario está leyendo un capítulo cuyo tema es "${opts.chapterTheme}". ` +
+      `Conecta tu respuesta con ese tema cuando ayude, sin forzarlo.`
+    : "";
+
   if (opts.bookContext) {
-    return `${intro}\n\nCONTEXTO DE LOS LIBROS DE LA PLATAFORMA (usa cuando sea relevante):\n${opts.bookContext}`;
+    return `${intro}${themeBlock}\n\nCONTEXTO DE LOS LIBROS DE LA PLATAFORMA (usa cuando sea relevante):\n${opts.bookContext}`;
   }
-  return intro;
+  return `${intro}${themeBlock}`;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import type { AnnotationSummary } from "@psico/types";
+import type { AnnotationSummary, EcoScope } from "@psico/types";
 import { passageToPrompt } from "@/lib/eco/reader-handoff";
 import { EcoTab } from "./EcoTab";
 import { NotesTab } from "./NotesTab";
@@ -44,6 +44,7 @@ export function ReaderCompanionDock({
   onDeleteNote,
   apiBase,
   token,
+  scope,
 }: {
   open: boolean;
   tab: DockTab;
@@ -67,6 +68,8 @@ export function ReaderCompanionDock({
   onDeleteNote: (id: string) => Promise<void>;
   apiBase: string;
   token: string | null;
+  /** Fase H — reading context passed to the Eco tab (RAG scope + offer). */
+  scope?: EcoScope;
 }) {
   // Escape closes the dock.
   useEffect(() => {
@@ -164,6 +167,7 @@ export function ReaderCompanionDock({
           token={token}
           seed={ecoSeedText}
           onSeedConsumed={onPassageConsumed}
+          scope={scope}
         />
       ) : tab === "reflexion" ? (
         <ReflexionTab

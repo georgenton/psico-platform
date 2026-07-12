@@ -11,10 +11,12 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { apiClient, ecoApi } from "@psico/api-client";
+import { apiClient, ecoApi, resonancesApi } from "@psico/api-client";
 import type {
   EcoMessage,
   EcoMessageReportReason,
+  EcoScope,
+  EcoSource,
   EcoSseEvent,
   EcoThreadResponse,
 } from "@psico/types";
@@ -43,6 +45,7 @@ export function EcoChat({
   seed,
   onSeedConsumed,
   onMessageSent,
+  scope,
 }: {
   threadId: string;
   ecoKey: Uint8Array;
@@ -50,6 +53,8 @@ export function EcoChat({
   seed?: string | null;
   onSeedConsumed?: () => void;
   onMessageSent?: () => void;
+  /** Fase H — reading context (scopes RAG + enables the resonance offer). */
+  scope?: EcoScope;
 }) {
   const [messages, setMessages] = useState<EcoMessage[]>([]);
   const [loadingThread, setLoadingThread] = useState(false);
@@ -72,6 +77,17 @@ export function EcoChat({
   const [reportingId, setReportingId] = useState<string | null>(null);
   const [reportFlash, setReportFlash] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView | null>(null);
+  // Fase H — sources for the last reply + the resonance offer.
+  const [lastSources, setLastSources] = useState<EcoSource[]>([]);
+  const [offer, setOffer] = useState<{
+    conceptKey: string;
+    conceptLabel: string;
+    bookSlug: string;
+    chapterOrder: number;
+  } | null>(null);
+  const [offerState, setOfferState] = useState<
+    "idle" | "saving" | "done" | "error"
+  >("idle");
 
   // Seed the composer once from a reader → Eco handoff.
   const seededRef = useRef(false);
@@ -167,6 +183,7 @@ export function EcoChat({
           textPlaintext: plain,
           textCiphertext: envelope.ciphertext,
           textNonce: envelope.nonce,
+          ...(scope ? { scope } : {}),
         },
         {
           baseUrl: API_ROOT.replace(/\/$/, ""),
@@ -186,6 +203,11 @@ export function EcoChat({
                 break;
               case "done":
                 doneMessageId = ev.data.messageId;
+                setLastSources(ev.data.sources ?? []);
+                if (ev.data.resonanceOffer) {
+                  setOffer(ev.data.resonanceOffer);
+                  setOfferState("idle");
+                }
                 break;
               case "error":
                 setSendError(ev.data.message);
@@ -240,7 +262,18 @@ export function EcoChat({
       setPhase("idle");
       onMessageSent?.();
     }
-  }, [text, busy, threadId, ecoKey, onMessageSent]);
+  }, [text, busy, threadId, ecoKey, onMessageSent, scope]);
+
+  const confirmOffer = useCallback(async () => {
+    if (!offer) return;
+    setOfferState("saving");
+    try {
+      await resonancesApi.confirm({ ...offer, source: "eco" });
+      setOfferState("done");
+    } catch {
+      setOfferState("error");
+    }
+  }, [offer]);
 
   // ─── Commit the reply once the typewriter catches up ─────────────────────
   useEffect(() => {
@@ -330,6 +363,57 @@ export function EcoChat({
           />
         ) : null}
       </ScrollView>
+
+      {/* Fase H — retrieved sources ("contexto consultado") */}
+      {lastSources.length > 0 ? (
+        <Text style={styles.sourcesLine}>
+          Contexto consultado:{" "}
+          {lastSources
+            .map((s) =>
+              s.chapterTitle
+                ? `${s.bookTitle} · ${s.chapterTitle}`
+                : s.bookTitle,
+            )
+            .join(" · ")}
+        </Text>
+      ) : null}
+
+      {/* Fase H — the ARC resonance offer (Eco proposes, the user confirms) */}
+      {offer ? (
+        <View style={styles.offerCard}>
+          {offerState === "done" ? (
+            <Text style={styles.offerDone}>
+              🌱 Añadido a tu mapa. Míralo en Mis resonancias.
+            </Text>
+          ) : (
+            <View style={styles.offerRow}>
+              <Text style={styles.offerText}>
+                ¿Te resonó «{offer.conceptLabel}»? Solo entra a tu mapa si tú lo
+                confirmas.
+              </Text>
+              <View style={styles.offerActions}>
+                <Pressable
+                  disabled={offerState === "saving"}
+                  onPress={() => void confirmOffer()}
+                  style={styles.offerConfirm}
+                >
+                  <Text style={styles.offerConfirmText}>
+                    {offerState === "saving" ? "…" : "🌱 Añadir"}
+                  </Text>
+                </Pressable>
+                <Pressable onPress={() => setOffer(null)}>
+                  <Text style={styles.offerDismiss}>Ahora no</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+          {offerState === "error" ? (
+            <Text style={styles.offerError}>
+              No pudimos guardarlo. Reintenta.
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
 
       <Composer
         text={text}
@@ -914,4 +998,58 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   flashText: { color: Colors.sage[600], fontSize: 12.5, textAlign: "center" },
+
+  // Fase H — sources + resonance offer
+  sourcesLine: {
+    marginHorizontal: Spacing.md,
+    marginBottom: 4,
+    fontSize: 11,
+    color: Colors.warm[400],
+  },
+  offerCard: {
+    marginHorizontal: Spacing.md,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.lavender[50],
+    borderWidth: 1,
+    borderColor: Colors.lavender[200],
+  },
+  offerRow: {
+    gap: 8,
+  },
+  offerText: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: Colors.warm[700],
+  },
+  offerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  offerConfirm: {
+    backgroundColor: Colors.lavender[500],
+    borderRadius: Radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  offerConfirmText: {
+    color: Colors.white,
+    fontSize: 12.5,
+    fontWeight: "700",
+  },
+  offerDismiss: {
+    fontSize: 12.5,
+    color: Colors.warm[500],
+  },
+  offerDone: {
+    fontSize: 12.5,
+    color: Colors.lavender[700],
+  },
+  offerError: {
+    marginTop: 4,
+    fontSize: 11,
+    color: Colors.rose[500],
+  },
 });

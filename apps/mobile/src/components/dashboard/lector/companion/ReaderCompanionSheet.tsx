@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import type { AnnotationSummary } from "@psico/types";
+import type { AnnotationSummary, EcoScope } from "@psico/types";
 import { passageToEcoPrompt } from "@/lib/eco/reader-handoff";
 import { Colors, Radius, Spacing } from "@/theme";
 import { EcoSheetTab } from "./EcoSheetTab";
@@ -43,6 +43,7 @@ export function ReaderCompanionSheet({
   onClearPending,
   onCreateNote,
   onDeleteNote,
+  scope,
 }: {
   visible: boolean;
   tab: SheetTab;
@@ -62,6 +63,8 @@ export function ReaderCompanionSheet({
   onClearPending: () => void;
   onCreateNote: (blockId: string, text: string) => Promise<void>;
   onDeleteNote: (id: string) => void;
+  /** Fase H — reading context passed to the Eco tab (RAG scope + offer). */
+  scope?: EcoScope;
 }) {
   const TABS: Array<{ id: SheetTab; label: string }> = [
     { id: "eco", label: "🌿 Eco" },
@@ -126,6 +129,7 @@ export function ReaderCompanionSheet({
                   ecoSeed ?? (passage ? passageToEcoPrompt(passage) : null)
                 }
                 onSeedConsumed={onPassageConsumed}
+                scope={scope}
               />
             ) : tab === "reflexion" ? (
               <ReflexionSheetTab

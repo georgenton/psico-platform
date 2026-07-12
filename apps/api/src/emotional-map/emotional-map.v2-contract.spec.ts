@@ -472,6 +472,19 @@ describe("V2 EWS gate — flag plumbing", () => {
     }
   });
 
+  it("the Narrator flag defaults to ON (2026-07-12) — narrative is part of the V2 product", () => {
+    // Inverts the Fase F default pin: the narrative now ships with no env set.
+    // `EMOTIONAL_MAP_NARRATOR=off` remains the rollback lever. Turning it off
+    // changes no data (facts/narrator separation) — only drops the copy.
+    const prev = process.env.EMOTIONAL_MAP_NARRATOR;
+    delete process.env.EMOTIONAL_MAP_NARRATOR;
+    try {
+      expect(flagEnabled("EMOTIONAL_MAP_NARRATOR")).toBe(true);
+    } finally {
+      if (prev !== undefined) process.env.EMOTIONAL_MAP_NARRATOR = prev;
+    }
+  });
+
   it("research view: the pure scoring still computes EWS when not overridden (benchmark)", async () => {
     // The scoring FUNCTION defaults to ewsPublic=true so research/benchmark
     // callers keep seeing the detector; the public wire is governed by the

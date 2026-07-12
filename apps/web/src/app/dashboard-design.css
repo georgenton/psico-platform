@@ -143,6 +143,11 @@
   body.amb-noche .eco-rec .er-btn.w { color: #5e42c0; }
   body.amb-noche .pat-wide .pw-cta { color: #5e42c0; }
   .eco-rec .er-btn.o { background: rgba(255,255,255,.12); color: #fff; }
+  /* adaptive suggestions on the Eco card (read-only openers) */
+  .eco-rec .er-suggestion { display: flex; flex-direction: column; gap: 2px; text-align: left; width: 100%; border: 0; cursor: pointer; border-radius: 12px; padding: 10px 12px; background: rgba(255,255,255,.12); transition: background .15s ease; }
+  .eco-rec .er-suggestion:hover { background: rgba(255,255,255,.2); }
+  .eco-rec .er-suggestion .ers-title { font: 600 13.5px/1.3 var(--font-sans); color: #fff; }
+  .eco-rec .er-suggestion .ers-reason { font: 400 11.5px/1.3 var(--font-sans); color: rgba(255,255,255,.72); }
 
   /* activity */
   .activity { margin-top: 26px; }

@@ -3,6 +3,8 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma";
 import { EmotionalMapService } from "../emotional-map";
 import { ActivityService } from "../activity";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { EcoSuggestionService } from "../eco/eco-suggestions.service";
 import type {
   AmbientId,
   CoverToken,
@@ -82,6 +84,7 @@ export class HomeService {
     private readonly prisma: PrismaService,
     private readonly emotionalMap: EmotionalMapService,
     private readonly activity: ActivityService,
+    private readonly ecoSuggestions: EcoSuggestionService,
   ) {}
 
   /**
@@ -382,14 +385,17 @@ export class HomeService {
   }
 
   private async fetchEcoMoment(userId: string): Promise<HomeEcoMoment | null> {
-    // The "Eco" prompt rotates daily. We pick a stable prompt of the day —
-    // good enough for v1 until the AI-driven personalization arrives in S10.
-    // We surface the last conversation activity + a pending message badge.
-    const lastConvo = await this.prisma.conversation.findFirst({
-      where: { userId },
-      orderBy: { updatedAt: "desc" },
-      select: { updatedAt: true },
-    });
+    // The generic prompt is the first-touch fallback; the adaptive openers
+    // (from EcoSuggestionService) carry the personalization. Both run in
+    // parallel — suggestions read a Redis-cached map, so cost stays low.
+    const [lastConvo, suggestions] = await Promise.all([
+      this.prisma.conversation.findFirst({
+        where: { userId },
+        orderBy: { updatedAt: "desc" },
+        select: { updatedAt: true },
+      }),
+      this.ecoSuggestions.topForHome(userId),
+    ]);
 
     // No conversation history → still show the default prompt for first-touch.
     return {
@@ -398,6 +404,7 @@ export class HomeService {
       // Pending messages: design says Eco notif badge. Without a model for
       // unread we return 0; Sprint S10 wires this.
       pendingMessages: 0,
+      suggestions,
     };
   }
 

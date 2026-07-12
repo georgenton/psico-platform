@@ -12,11 +12,12 @@ import {
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { ecoApi } from "@psico/api-client";
-import type { EcoPersona, EcoThreadRailItem } from "@psico/types";
+import type { EcoPersona, EcoScope, EcoThreadRailItem } from "@psico/types";
 import { decryptString } from "@psico/crypto";
 import { consumeEcoReaderHandoff } from "@/lib/eco/reader-handoff";
 import { useDiaryKey } from "@/crypto/diary-key-context";
 import { EcoChat } from "@/components/dashboard/eco/EcoChat";
+import { EcoSuggestions } from "@/components/dashboard/eco/EcoSuggestions";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
 import { Colors, Radius, Spacing } from "@/theme";
 
@@ -36,6 +37,8 @@ export default function EcoScreen() {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [railModalOpen, setRailModalOpen] = useState(false);
   const [seed, setSeed] = useState<string | null>(null);
+  const [scope, setScope] = useState<EcoScope | undefined>(undefined);
+  const [showSuggestions, setShowSuggestions] = useState(true);
 
   // ─── Boot: load persona + rail; auto-create first thread if needed ──────
 
@@ -96,7 +99,11 @@ export default function EcoScreen() {
   useFocusEffect(
     useCallback(() => {
       const handoff = consumeEcoReaderHandoff();
-      if (handoff) setSeed(handoff.text);
+      if (handoff) {
+        setSeed(handoff.text);
+        if (handoff.scope) setScope(handoff.scope);
+        setShowSuggestions(false);
+      }
     }, []),
   );
 
@@ -143,14 +150,28 @@ export default function EcoScreen() {
     >
       <Header persona={persona} onSwitchThread={() => setRailModalOpen(true)} />
 
+      {showSuggestions ? (
+        <EcoSuggestions
+          onPick={(s) => {
+            setSeed(s.prompt);
+            setScope(s.scope ?? undefined);
+            setShowSuggestions(false);
+          }}
+        />
+      ) : null}
+
       {activeThreadId ? (
         <EcoChat
           threadId={activeThreadId}
           ecoKey={ecoKey}
           personaName={persona?.name ?? "Eco"}
           seed={seed}
+          scope={scope}
           onSeedConsumed={() => setSeed(null)}
-          onMessageSent={refreshRail}
+          onMessageSent={() => {
+            setShowSuggestions(false);
+            void refreshRail();
+          }}
         />
       ) : (
         <View style={styles.centered}>

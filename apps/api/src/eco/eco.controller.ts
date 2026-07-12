@@ -29,6 +29,8 @@ import { CurrentUser } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { EcoService } from "./eco.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { EcoSuggestionService } from "./eco-suggestions.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ReportEcoMessageDto } from "./dto/report-message.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { SendEcoMessageDto } from "./dto/send-message.dto";
@@ -53,13 +55,28 @@ import { SendEcoMessageDto } from "./dto/send-message.dto";
 @Controller("eco")
 @UseGuards(JwtAuthGuard)
 export class EcoController {
-  constructor(private readonly ecoService: EcoService) {}
+  constructor(
+    private readonly ecoService: EcoService,
+    private readonly suggestionService: EcoSuggestionService,
+  ) {}
 
   // ─── Persona ─────────────────────────────────────────────────────────────
 
   @Get("caps")
   getCaps() {
     return this.ecoService.getCaps();
+  }
+
+  // ─── Adaptive suggestions ────────────────────────────────────────────────
+
+  /**
+   * Rule-based conversation openers adapted to recent reading/reflecting and
+   * the user's self-reported mood. Read-only: proposing an opener never writes
+   * to the Emotional Map.
+   */
+  @Get("suggestions")
+  getSuggestions(@CurrentUser() user: AuthenticatedUser) {
+    return this.suggestionService.getForUser(user.userId);
   }
 
   // ─── Threads ─────────────────────────────────────────────────────────────

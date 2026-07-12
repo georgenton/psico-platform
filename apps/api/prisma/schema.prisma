@@ -1194,6 +1194,9 @@ model Resonance {
   chapterOrder Int
   source       ResonanceSource @default(HIGHLIGHT)
   confirmedAt  DateTime        @default(now())
+  // Fase H (ARC-P1) — the user marked this theme as important to them right
+  // now. Distinct important themes feed the Propósito axis under V2.
+  important    Boolean         @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

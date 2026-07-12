@@ -30,6 +30,7 @@ describe("MODEL_REGISTRY", () => {
         "TXT-L1",
         "CHK-S1",
         "ARC-C1",
+        "ARC-P1",
         "NAR-L1",
       ]),
     );

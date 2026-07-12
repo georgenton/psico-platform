@@ -103,6 +103,17 @@ export default function MapaScreen() {
     );
   }
 
+  // Fase H (ARC-P1) — toggle "important to me": feeds the Propósito axis.
+  function toggleImportant(id: string, next: boolean) {
+    const prev = resonances;
+    setResonances((list) =>
+      list.map((r) => (r.id === id ? { ...r, important: next } : r)),
+    );
+    void resonancesApi
+      .setImportant(id, { important: next })
+      .catch(() => setResonances(prev));
+  }
+
   useEffect(() => {
     load();
   }, [load]);
@@ -243,8 +254,30 @@ export default function MapaScreen() {
                           day: "numeric",
                           month: "short",
                         })}
+                        {r.important ? " · Importante para ti" : ""}
                       </Text>
                     </View>
+                    <Pressable
+                      onPress={() => toggleImportant(r.id, !r.important)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: r.important }}
+                      accessibilityLabel={
+                        r.important
+                          ? `Quitar ${r.conceptLabel} de temas importantes`
+                          : `Marcar ${r.conceptLabel} como importante`
+                      }
+                      style={{ marginRight: 12 }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 18,
+                          opacity: r.important ? 1 : 0.4,
+                        }}
+                      >
+                        {r.important ? "⭐" : "☆"}
+                      </Text>
+                    </Pressable>
                     <Pressable
                       onPress={() => removeResonance(r.id, r.conceptLabel)}
                       hitSlop={8}

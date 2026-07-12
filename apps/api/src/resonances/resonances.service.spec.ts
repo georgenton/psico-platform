@@ -8,6 +8,8 @@ function makePrisma() {
     resonance: {
       findMany: vi.fn().mockResolvedValue([]),
       upsert: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      findUniqueOrThrow: vi.fn(),
       deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
   };
@@ -25,6 +27,7 @@ const ROW = {
   chapterOrder: 1,
   source: "HIGHLIGHT",
   confirmedAt: new Date("2026-07-10T12:00:00Z"),
+  important: false,
 };
 
 describe("ResonancesService — Fase E (ARC cycle)", () => {
@@ -54,6 +57,7 @@ describe("ResonancesService — Fase E (ARC cycle)", () => {
         chapterOrder: 1,
         source: "highlight",
         confirmedAt: "2026-07-10T12:00:00.000Z",
+        important: false,
       },
     ]);
   });
@@ -84,6 +88,28 @@ describe("ResonancesService — Fase E (ARC cycle)", () => {
     expect(res.ok).toBe(true);
     expect(res.resonance.source).toBe("highlight");
     expect(emotionalMap.invalidate).toHaveBeenCalledWith("user-1");
+  });
+
+  it("Fase H — setImportant toggles the flag scoped by userId and busts the cache", async () => {
+    prisma.resonance.findUniqueOrThrow.mockResolvedValue({
+      ...ROW,
+      important: true,
+    });
+    const res = await service.setImportant("user-1", "res-1", true);
+    expect(prisma.resonance.updateMany).toHaveBeenCalledWith({
+      where: { id: "res-1", userId: "user-1" },
+      data: { important: true },
+    });
+    expect(res.resonance.important).toBe(true);
+    expect(emotionalMap.invalidate).toHaveBeenCalledWith("user-1");
+  });
+
+  it("Fase H — setImportant throws 404 when the row is not the user's", async () => {
+    prisma.resonance.updateMany.mockResolvedValue({ count: 0 });
+    await expect(
+      service.setImportant("user-1", "someone-elses", true),
+    ).rejects.toThrow(NotFoundException);
+    expect(emotionalMap.invalidate).not.toHaveBeenCalled();
   });
 
   it("remove deletes scoped by userId (ownership) and busts the cache", async () => {

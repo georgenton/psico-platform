@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { ecoApi } from "@psico/api-client";
+import type { EcoScope } from "@psico/types";
 import { useDiaryKey } from "@/crypto/diary-key-context";
 import { EcoChat } from "@/components/dashboard/eco/EcoChat";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
@@ -24,9 +25,12 @@ import { Colors, Spacing } from "@/theme";
 export function EcoSheetTab({
   passagePrompt,
   onSeedConsumed,
+  scope,
 }: {
   passagePrompt: string | null;
   onSeedConsumed: () => void;
+  /** Fase H — reading context (scopes RAG + enables the resonance offer). */
+  scope?: EcoScope;
 }) {
   const { ecoKey, isLegacyAccount } = useDiaryKey();
 
@@ -108,6 +112,7 @@ export function EcoSheetTab({
       ecoKey={ecoKey}
       seed={passagePrompt}
       onSeedConsumed={onSeedConsumed}
+      scope={scope}
     />
   );
 }

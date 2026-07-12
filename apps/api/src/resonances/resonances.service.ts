@@ -71,6 +71,28 @@ export class ResonancesService {
     return { ok: true, resonance: toSummary(row) };
   }
 
+  /**
+   * Fase H (ARC-P1) — toggle a resonance's "important to me right now" flag.
+   * Distinct important themes are the Propósito source under V2. Ownership
+   * enforced by scoping the update to the user; unknown/foreign id → 404.
+   */
+  async setImportant(
+    userId: string,
+    id: string,
+    important: boolean,
+  ): Promise<ConfirmResonanceResponse> {
+    const res = await this.prisma.resonance.updateMany({
+      where: { id, userId },
+      data: { important },
+    });
+    if (res.count === 0) throw new NotFoundException("RESONANCE_NOT_FOUND");
+    const row = await this.prisma.resonance.findUniqueOrThrow({
+      where: { id },
+    });
+    void this.emotionalMap.invalidate(userId).catch(() => undefined);
+    return { ok: true, resonance: toSummary(row) };
+  }
+
   async remove(userId: string, id: string): Promise<{ ok: true }> {
     // deleteMany scoped by userId doubles as the ownership check: deleting
     // someone else's id simply matches zero rows.
@@ -91,6 +113,7 @@ function toSummary(row: {
   chapterOrder: number;
   source: string;
   confirmedAt: Date;
+  important: boolean;
 }): ResonanceSummary {
   return {
     id: row.id,
@@ -100,5 +123,6 @@ function toSummary(row: {
     chapterOrder: row.chapterOrder,
     source: SOURCE_TO_WIRE[row.source] ?? "highlight",
     confirmedAt: row.confirmedAt.toISOString(),
+    important: row.important,
   };
 }

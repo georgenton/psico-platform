@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { EcoPersona, EcoThreadListResponse } from "@psico/types";
+import type { EcoPersona, EcoScope, EcoThreadListResponse } from "@psico/types";
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
 import { ChatArea } from "@/components/dashboard/eco/ChatArea";
@@ -44,12 +44,15 @@ export function EcoTab({
   token,
   seed,
   onSeedConsumed,
+  scope,
 }: {
   apiBase: string;
   token: string | null;
   /** Composer pre-fill from a highlighted passage (consumed once). */
   seed: string | null;
   onSeedConsumed: () => void;
+  /** Fase H — reading context (scopes RAG + enables the resonance offer). */
+  scope?: EcoScope;
 }) {
   const { ecoKey, isLegacyAccount } = useDiaryKey();
 
@@ -153,6 +156,7 @@ export function EcoTab({
         onMessageSent={() => undefined}
         initialComposerText={seed}
         onComposerSeedConsumed={onSeedConsumed}
+        scope={scope}
       />
     </div>
   );

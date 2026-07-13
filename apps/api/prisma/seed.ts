@@ -81,6 +81,11 @@ async function main() {
       categoryId: "cat-emociones",
       publishedAt: new Date("2026-01-15"),
     },
+    // NOTE: totalChapters is intentionally NOT in `update`. The real content is
+    // ingested via scripts/ingest-chapter-md.mjs, which sets totalChapters to
+    // the actual chapter count (3 for Parte I). Re-affirming 2 here on every
+    // deploy would revert it and break chapter navigation (cap 2 → cap 3). The
+    // `create` above still seeds 2 for a fresh/empty database.
     update: {
       title: "Emociones en Construcción",
       subtitle: "Una guía práctica desde adentro",
@@ -88,7 +93,6 @@ async function main() {
       durationMinutes: 20,
       pages: 96,
       isPublished: true,
-      totalChapters: 2,
       authorId: marina.id,
       categoryId: "cat-emociones",
     },

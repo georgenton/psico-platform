@@ -3244,6 +3244,26 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-07-12 ✅ COMPLETADA — Resonancia desde ejercicios (tercer origen del ciclo ARC)
+
+**Rama:** `feature/arc-exercise-resonance`
+**Bitácora:** [docs/informes/sprint-arc-exercise-resonance.md](docs/informes/sprint-arc-exercise-resonance.md)
+**Tests:** Web +3 · Mobile +3 · typecheck + lint ×2 · API/crypto sin cambios · OpenAPI sin cambio de wire.
+
+**Qué cierra:** la deuda explícita de Fase H — «oferta de resonancia desde `EXERCISE` (el enum ya la contempla; falta el flujo desde los ejercicios)». El ciclo ARC alimentaba Conexión desde `HIGHLIGHT` (Fase E) y `ECO` (Fase H); el tercer valor `EXERCISE` estaba cableado end-to-end en backend pero sin productor de UI. Un lector que interactúa por ejercicios no tenía forma de confirmar una resonancia.
+
+- **`ExerciseResonanceOffer`** (web + mobile) — componente presentacional standalone (testeable fuera de la pestaña cripto-gated): «Hiciste este ejercicio sobre «X». ¿Te resonó?» → confirma con `source: "exercise"`.
+- **ReflexionTab / ReflexionSheetTab** — en el estado guardado, si la reflexión se abrió desde un ejercicio (`fromExercise`), renderizan la oferta sobre los botones existentes.
+- **Dock / Sheet / LectorShell / pantalla mobile** — propagan `reflexionFromExercise` + `concept`; se marca `true` SOLO al abrir la reflexión desde un ejercicio (card de reflexión + nudge del ejercicio de respiración). El subrayado→reflexión queda `false` (ya lo cubre el nudge de highlight).
+
+**ARC respetado:** ancla = completar el ejercicio; confirmación = tap explícito; descartar no guarda nada; idempotente por `(user, conceptKey)`.
+
+**Privacidad (ADR 0007):** la resonancia lleva solo metadata de catálogo — nunca el texto de la reflexión (sigue cifrado E2E).
+
+**Deuda:** sin test del flujo completo (crypto gate); character-level highlights mobile + m4a/videos a R2 siguen abiertos.
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

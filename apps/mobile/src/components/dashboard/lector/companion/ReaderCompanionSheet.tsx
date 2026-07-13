@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import type { AnnotationSummary, EcoScope } from "@psico/types";
+import type { AnnotationSummary, ChapterConcept, EcoScope } from "@psico/types";
 import { passageToEcoPrompt } from "@/lib/eco/reader-handoff";
 import { Colors, Radius, Spacing } from "@/theme";
 import { EcoSheetTab } from "./EcoSheetTab";
@@ -38,6 +38,8 @@ export function ReaderCompanionSheet({
   reflexionSeedOverride,
   onPassageConsumed,
   onReflexionAskEco,
+  reflexionFromExercise = false,
+  concept,
   annotations,
   pendingBlockId,
   onClearPending,
@@ -58,6 +60,9 @@ export function ReaderCompanionSheet({
   onPassageConsumed: () => void;
   /** After saving a reflexión, jump to Eco seeded (post-exercise nudge). */
   onReflexionAskEco?: () => void;
+  /** ARC — opened from a chapter exercise → offer `concept` on save. */
+  reflexionFromExercise?: boolean;
+  concept?: ChapterConcept;
   annotations: AnnotationSummary[];
   pendingBlockId: string | null;
   onClearPending: () => void;
@@ -139,6 +144,10 @@ export function ReaderCompanionSheet({
                 }
                 onSeedConsumed={onPassageConsumed}
                 onAskEco={onReflexionAskEco}
+                fromExercise={reflexionFromExercise}
+                concept={concept}
+                bookSlug={scope?.bookSlug}
+                chapterOrder={scope?.chapterOrder}
               />
             ) : (
               <NotesSheetTab

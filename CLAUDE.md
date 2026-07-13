@@ -3264,6 +3264,31 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-07-13 ✅ COMPLETADA — Auditoría de env + fix del seed (desbloqueo de Railway)
+
+**Rama:** `fix/seed-idempotent-chapterblocks` · **PR** #522 (develop) + #523 (sync main) · commits `d2da8fa` → `d8ad8a7`
+**Bitácora:** [docs/informes/deploy-2026-07-13-seed-fix.md](docs/informes/deploy-2026-07-13-seed-fix.md)
+
+**Contexto:** prod servía un build del 07-10 (`/api/eco/suggestions` → 404). El usuario pidió auditar las variables de entorno de Railway/Vercel, disparar el deploy y corregir lo que persistiera; adjuntó el log del deploy fallido.
+
+**Auditoría de env (solo nombres + set/missing, valores redactados):**
+- Railway API (46 vars): 13/13 requeridas ✅ + opcionales (REDIS/RESEND/GOOGLE/OPENAI/VOICE_PROVIDER/VAPID/JWT/NODE_ENV). Faltan solo `DEEPGRAM_API_KEY` (irrelevante, Voice usa Whisper) y `SENTRY_DSN`.
+- Railway Worker (40 vars): 13 requeridas + REDIS_URL ✅.
+- Vercel web: `NEXT_PUBLIC_API_URL` + `NEXT_PUBLIC_GOOGLE_CLIENT_ID` + `NEXT_PUBLIC_VAPID_PUBLIC_KEY` ✅.
+- DB: **38/38 migraciones aplicadas** (incluye Fases D–H) — la deuda de migraciones acumuladas quedó **resuelta**.
+
+**Causa raíz (del log):** `prisma migrate deploy` (Prisma 7) encadena el seed (`migrations.seed`); `seed.ts` crasheaba con **P2002** en `chapterBlock.upsert` — el contenido real ingerido (Parte I, IDs cuid) chocaba con los IDs estables del seed en `(chapterId, order)`. Además el seed revertía los títulos reales a placeholder en cada deploy.
+
+**Fix (`apps/api/prisma/seed.ts`):** seed idempotente + no-destructivo — (1) salta capítulos que ya tienen bloques (contenido ingerido gana), (2) alinea títulos de book1 ch1/ch2 al canónico (`titles.json`) para auto-curarlos.
+
+**Verificación:** `main`=`d8ad8a7`, Railway auto-desplegó, build nuevo online ~5 min. `/api/eco/suggestions` 404→**401**, más `/api/emotional-map/text-features`, `/api/resonances`, `/api/eco/messages`, `/api/patrones` todas 401 (vivas). Env ✅ + DB al día ✅ + seed idempotente ✅ → listo para probar E2E.
+
+**Housekeeping documental (misma sesión):** corregido en docs el flag NAR-L1 (`docs/research/emotional-map-model-registry.md`) que decía "default off" → **default on** (flip del 07-12).
+
+**Deuda:** Stripe price IDs reales (confirmar en dashboard) · Sentry DSN · ingesta de los 3 capítulos reales contra la DB destino para el E2E del lector (ver checklist abajo).
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

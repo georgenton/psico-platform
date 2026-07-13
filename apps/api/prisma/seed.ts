@@ -99,14 +99,16 @@ async function main() {
     create: {
       bookId: book1.id,
       order: 1,
-      title: "Introducción: Entendiendo tus Emociones",
+      title: "¿Realmente sabemos qué es una emoción?",
       description:
-        "¿Qué son las emociones y por qué las sentimos? El origen y la función de las emociones en la vida cotidiana.",
+        "Cuestionamos la definición popular de emoción y por qué es más difícil de fijar de lo que parece.",
       durationMinutes: 8,
       isPublished: true,
     },
+    // Title kept in sync with the canonical ingestion (titles.json) so the seed
+    // self-heals it instead of reverting to a placeholder on every deploy.
     update: {
-      title: "Introducción: Entendiendo tus Emociones",
+      title: "¿Realmente sabemos qué es una emoción?",
       isPublished: true,
     },
   });
@@ -116,14 +118,14 @@ async function main() {
     create: {
       bookId: book1.id,
       order: 2,
-      title: "Las Emociones Básicas y su Función",
+      title: "¿Existen realmente las emociones universales?",
       description:
-        "Alegría, tristeza, miedo, ira, sorpresa y asco: las seis emociones universales y cómo cada una cuida nuestro bienestar.",
+        "Revisamos la idea de las seis emociones universales y la evidencia que la pone en duda.",
       durationMinutes: 12,
       isPublished: true,
     },
     update: {
-      title: "Las Emociones Básicas y su Función",
+      title: "¿Existen realmente las emociones universales?",
       isPublished: true,
     },
   });
@@ -664,11 +666,20 @@ async function main() {
     },
   ];
 
-  // Group by chapter to resolve chapter ID once.
+  // Group by chapter to resolve chapter ID once. Skip any chapter that already
+  // has blocks: real content ingested via scripts/ingest-chapter-md.mjs owns
+  // those chapters and its block IDs are cuids, not the seed's stable IDs — so
+  // an upsert keyed on `id` would take the create branch and collide on the
+  // (chapterId, order) unique constraint (P2002), crashing the whole deploy.
+  // Seed blocks are a bootstrap fallback for empty chapters only; they never
+  // overwrite ingested content.
   const chapterIdCache: Record<string, string> = {};
+  const chapterHasBlocks: Record<string, boolean> = {};
+  let seededBlocks = 0;
+  let skippedBlocks = 0;
   for (const b of chapterBlocks) {
     const key = `${b.chapterBookId}:${b.chapterOrder}`;
-    if (!chapterIdCache[key]) {
+    if (!(key in chapterIdCache)) {
       const ch = await prisma.chapter.findUnique({
         where: {
           bookId_order: {
@@ -684,6 +695,12 @@ async function main() {
         );
       }
       chapterIdCache[key] = ch.id;
+      chapterHasBlocks[key] =
+        (await prisma.chapterBlock.count({ where: { chapterId: ch.id } })) > 0;
+    }
+    if (chapterHasBlocks[key]) {
+      skippedBlocks++;
+      continue;
     }
     await prisma.chapterBlock.upsert({
       where: { id: b.id },
@@ -701,8 +718,11 @@ async function main() {
         meta: (b.meta ?? undefined) as never,
       },
     });
+    seededBlocks++;
   }
-  console.log(`✅  ChapterBlock catalog: ${chapterBlocks.length} entries`);
+  console.log(
+    `✅  ChapterBlock catalog: ${seededBlocks} seeded · ${skippedBlocks} skipped (real content present)`,
+  );
 
   // ── Therapists (Sprint S63) ────────────────────────────────────────────
   const therapists = [

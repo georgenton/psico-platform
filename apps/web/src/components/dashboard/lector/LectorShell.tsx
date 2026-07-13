@@ -93,6 +93,9 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
   const [dockReflexionSeed, setDockReflexionSeed] = useState<string | null>(
     null,
   );
+  // ARC — was the current Reflexión open triggered by a chapter exercise? If
+  // so, the tab offers the chapter concept as a resonance on save.
+  const [reflexionFromExercise, setReflexionFromExercise] = useState(false);
 
   // Breathing exercise overlay (chapter activity).
   const [breatheExercise, setBreatheExercise] =
@@ -109,10 +112,11 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
     setDockTab("eco");
     setDockOpen(true);
   }
-  function openReflexionInDock(seed: string) {
+  function openReflexionInDock(seed: string, fromExercise = false) {
     setDockPassage(null);
     setDockEcoSeed(null);
     setDockReflexionSeed(seed);
+    setReflexionFromExercise(fromExercise);
     setDockTab("reflexion");
     setDockOpen(true);
   }
@@ -702,7 +706,7 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
           bookSlug={bookSlug}
           chapterOrder={chapter.order}
           onReflect={(prompt) =>
-            openReflexionInDock(reflectExerciseSeed(prompt))
+            openReflexionInDock(reflectExerciseSeed(prompt), true)
           }
           onBreathe={(ex) => setBreatheExercise(ex)}
         />
@@ -802,6 +806,7 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
           onReflect={() => {
             const passage = window.getSelection()?.toString() ?? "";
             setDockPassage(passage.trim() || null);
+            setReflexionFromExercise(false);
             setDockTab("reflexion");
             setDockOpen(true);
             setSelection(null);
@@ -839,6 +844,8 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
         passage={dockPassage}
         ecoSeed={dockEcoSeed}
         reflexionSeedOverride={dockReflexionSeed}
+        reflexionFromExercise={reflexionFromExercise}
+        concept={chapterConcept(bookSlug, chapter.order, chapter.title)}
         onPassageConsumed={() => {
           setDockPassage(null);
           setDockEcoSeed(null);
@@ -861,7 +868,7 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
         <BreathingExercise
           exercise={breatheExercise}
           onClose={() => setBreatheExercise(null)}
-          onReflect={() => openReflexionInDock(breatheReflectSeed())}
+          onReflect={() => openReflexionInDock(breatheReflectSeed(), true)}
           onAskEco={() => openEcoInDock(breatheEcoSeed())}
         />
       ) : null}

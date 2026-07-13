@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import type { AnnotationSummary, EcoScope } from "@psico/types";
+import type { AnnotationSummary, ChapterConcept, EcoScope } from "@psico/types";
 import { passageToPrompt } from "@/lib/eco/reader-handoff";
 import { EcoTab } from "./EcoTab";
 import { NotesTab } from "./NotesTab";
@@ -35,6 +35,8 @@ export function ReaderCompanionDock({
   reflexionSeedOverride,
   onPassageConsumed,
   onReflexionAskEco,
+  reflexionFromExercise = false,
+  concept,
   annotations,
   focusBlockId,
   pendingBlockId,
@@ -59,6 +61,13 @@ export function ReaderCompanionDock({
   onPassageConsumed: () => void;
   /** After saving a reflexión, jump to Eco seeded (post-exercise nudge). */
   onReflexionAskEco?: () => void;
+  /**
+   * ARC — true when the Reflexión tab was opened from a chapter exercise. On
+   * save the tab offers the chapter `concept` as a confirmable resonance
+   * (`source: "exercise"`).
+   */
+  reflexionFromExercise?: boolean;
+  concept?: ChapterConcept;
   annotations: AnnotationSummary[];
   focusBlockId: string | null;
   pendingBlockId: string | null;
@@ -176,6 +185,10 @@ export function ReaderCompanionDock({
           seed={reflexionSeedText}
           onSeedConsumed={onPassageConsumed}
           onAskEco={onReflexionAskEco}
+          fromExercise={reflexionFromExercise}
+          concept={concept}
+          bookSlug={scope?.bookSlug}
+          chapterOrder={scope?.chapterOrder}
         />
       ) : (
         <NotesTab

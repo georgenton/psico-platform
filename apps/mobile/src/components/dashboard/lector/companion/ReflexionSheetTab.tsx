@@ -10,12 +10,13 @@ import {
 import { useRouter } from "expo-router";
 import { diarioApi, emotionalMapApi } from "@psico/api-client";
 import { analyzeReflectionText, DIARY_MOODS } from "@psico/types";
-import type { CreateDiaryEntryRequest } from "@psico/types";
+import type { ChapterConcept, CreateDiaryEntryRequest } from "@psico/types";
 import { encryptString } from "@psico/crypto";
 import { useDiaryKey } from "@/crypto/diary-key-context";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
 import { textAnalysisConsent } from "@/lib/text-analysis-consent";
 import { Colors, Radius, Spacing } from "@/theme";
+import { ExerciseResonanceOffer } from "./ExerciseResonanceOffer";
 
 /**
  * ReflexionSheetTab — the "Reflexión" tab of the reader companion sheet.
@@ -39,12 +40,25 @@ export function ReflexionSheetTab({
   seed,
   onSeedConsumed,
   onAskEco,
+  fromExercise = false,
+  concept,
+  bookSlug,
+  chapterOrder,
 }: {
   /** Pre-computed composer seed (a quoted passage or an exercise prompt). */
   seed: string | null;
   onSeedConsumed: () => void;
   /** Post-save nudge — switch the sheet to Eco, seeded (backlog). */
   onAskEco?: () => void;
+  /**
+   * ARC (exercise source): true when opened from a chapter exercise. On save
+   * we offer the chapter `concept` as a confirmable resonance
+   * (`source: "exercise"`) — the exercise-focused reader's path into conexión.
+   */
+  fromExercise?: boolean;
+  concept?: ChapterConcept;
+  bookSlug?: string;
+  chapterOrder?: number;
 }) {
   const { key, isLegacyAccount } = useDiaryKey();
   const router = useRouter();
@@ -129,6 +143,13 @@ export function ReflexionSheetTab({
         <Text style={styles.savedBody}>
           Tu reflexión quedó cifrada y sumó a tu Mapa Emocional.
         </Text>
+        {fromExercise && concept && bookSlug && chapterOrder != null ? (
+          <ExerciseResonanceOffer
+            concept={concept}
+            bookSlug={bookSlug}
+            chapterOrder={chapterOrder}
+          />
+        ) : null}
         {onAskEco ? (
           <Pressable onPress={onAskEco} style={styles.savedEcoBtn}>
             <Text style={styles.savedAgainText}>🌿 Conversarlo con Eco</Text>

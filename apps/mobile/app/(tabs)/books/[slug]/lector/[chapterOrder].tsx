@@ -95,6 +95,10 @@ export default function LectorScreen() {
   const [sheetReflexionSeed, setSheetReflexionSeed] = useState<string | null>(
     null,
   );
+  // ARC — was the Reflexión sheet opened from a chapter exercise? If so, the
+  // tab offers the chapter concept as a resonance on save.
+  const [sheetReflexionFromExercise, setSheetReflexionFromExercise] =
+    useState(false);
 
   // Breathing exercise overlay (chapter activity).
   const [breatheExercise, setBreatheExercise] =
@@ -107,12 +111,14 @@ export default function LectorScreen() {
       ecoSeed?: string;
       reflexionSeed?: string;
       blockId?: string;
+      fromExercise?: boolean;
     },
   ) {
     setSheetTab(tab);
     setSheetPassage(opts?.passage ?? null);
     setSheetEcoSeed(opts?.ecoSeed ?? null);
     setSheetReflexionSeed(opts?.reflexionSeed ?? null);
+    setSheetReflexionFromExercise(opts?.fromExercise ?? false);
     if (opts?.blockId) setPendingBlockId(opts.blockId);
     setSheetOpen(true);
   }
@@ -424,6 +430,7 @@ export default function LectorScreen() {
           onReflect={(prompt) =>
             openCompanion("reflexion", {
               reflexionSeed: reflectExerciseSeed(prompt),
+              fromExercise: true,
             })
           }
           onBreathe={(ex) => setBreatheExercise(ex)}
@@ -513,6 +520,12 @@ export default function LectorScreen() {
         passage={sheetPassage}
         ecoSeed={sheetEcoSeed}
         reflexionSeedOverride={sheetReflexionSeed}
+        reflexionFromExercise={sheetReflexionFromExercise}
+        concept={chapterConcept(
+          chapter.book.slug,
+          chapter.chapter.order,
+          chapter.chapter.title,
+        )}
         onPassageConsumed={() => {
           setSheetPassage(null);
           setSheetEcoSeed(null);
@@ -537,7 +550,10 @@ export default function LectorScreen() {
           exercise={breatheExercise}
           onClose={() => setBreatheExercise(null)}
           onReflect={() =>
-            openCompanion("reflexion", { reflexionSeed: breatheReflectSeed() })
+            openCompanion("reflexion", {
+              reflexionSeed: breatheReflectSeed(),
+              fromExercise: true,
+            })
           }
           onAskEco={() => openCompanion("eco", { ecoSeed: breatheEcoSeed() })}
         />

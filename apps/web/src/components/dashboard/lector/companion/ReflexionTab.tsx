@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { analyzeReflectionText, DIARY_MOODS } from "@psico/types";
-import type { CreateDiaryEntryRequest } from "@psico/types";
+import type { ChapterConcept, CreateDiaryEntryRequest } from "@psico/types";
 import { encryptString } from "@psico/crypto";
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
 import { textAnalysisConsent } from "@/lib/text-analysis-consent";
+import { ExerciseResonanceOffer } from "./ExerciseResonanceOffer";
 
 /**
  * ReflexionTab — the "Reflexión" tab of the reader companion dock.
@@ -40,6 +41,10 @@ export function ReflexionTab({
   seed,
   onSeedConsumed,
   onAskEco,
+  fromExercise = false,
+  concept,
+  bookSlug,
+  chapterOrder,
 }: {
   apiBase: string;
   token: string | null;
@@ -48,6 +53,16 @@ export function ReflexionTab({
   onSeedConsumed: () => void;
   /** Post-save nudge — switch the dock to Eco, seeded (backlog). */
   onAskEco?: () => void;
+  /**
+   * ARC (exercise source): true when this reflexión was opened from a chapter
+   * exercise. On save we offer the chapter's concept as a confirmable
+   * resonance (`source: "exercise"`) — the ONLY way an exercise-focused reader
+   * feeds their conexión axis. Only an explicit tap persists anything.
+   */
+  fromExercise?: boolean;
+  concept?: ChapterConcept;
+  bookSlug?: string;
+  chapterOrder?: number;
 }) {
   const { key, isLegacyAccount } = useDiaryKey();
 
@@ -165,6 +180,15 @@ export function ReflexionTab({
         >
           Tu reflexión quedó cifrada y sumó a tu Mapa Emocional.
         </p>
+        {fromExercise && concept && bookSlug && chapterOrder != null ? (
+          <ExerciseResonanceOffer
+            concept={concept}
+            bookSlug={bookSlug}
+            chapterOrder={chapterOrder}
+            apiBase={apiBase}
+            token={token}
+          />
+        ) : null}
         <div className="mt-4 flex flex-col items-center gap-2">
           {onAskEco ? (
             <button

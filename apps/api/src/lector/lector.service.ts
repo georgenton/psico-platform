@@ -17,6 +17,7 @@ import type {
 import type { Env } from "../config";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+import { StorageService } from "../storage";
 import type { LectorSessionHeartbeatDto } from "./dto/heartbeat.dto";
 
 /**
@@ -39,6 +40,7 @@ export class LectorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<Env, true>,
+    private readonly storage: StorageService,
   ) {}
 
   // ─── GET /api/lector/:bookId/:chapterN ──────────────────────────────────
@@ -311,10 +313,15 @@ export class LectorService {
 
     const audio = chapter.audios[0]!;
 
-    // R2 signed URL — v1 returns the raw fileUrl which already points at the
-    // R2 public bucket. When we move audio to the private bucket, this is
-    // where we'd swap to an S3-style presigned URL with 1h TTL.
-    // TODO senior: switch to presigned URLs once R2 bucket goes private.
+    // Audio.fileUrl stores the R2 object KEY (e.g. "audio/<book>/cap-1.mp3").
+    // R2 is not served as a public bucket here (R2_PUBLIC_URL points at the
+    // authenticated S3 endpoint), so we mint a short-lived presigned GET URL
+    // the client streams directly. A 6h TTL comfortably covers a full chapter.
+    // Legacy rows that stored a full http(s) URL are returned as-is.
+    const isKey = !/^https?:\/\//i.test(audio.fileUrl);
+    const url = isKey
+      ? await this.storage.getSignedUrl(audio.fileUrl, 60 * 60 * 6)
+      : audio.fileUrl;
 
     // Transcript split: server-side we keep the transcript as a single
     // string in `Audio.transcription`. For v1 we ship it as one segment so
@@ -351,7 +358,7 @@ export class LectorService {
     };
 
     return {
-      url: audio.fileUrl,
+      url,
       durationSec: audio.durationSeconds,
       transcript: segments,
       metadata,

@@ -15,7 +15,7 @@ for the design contract.
 
 ```jsonc
 {
-  "url": "https://r2.example/.../chapter.m4a?token=…", // signed, 1h TTL
+  "url": "https://…r2.cloudflarestorage.com/…/cap-1.mp3?X-Amz-…", // presigned, 6h TTL
   "durationSec": 600,
   "transcript": [{ "start": 0.0, "end": 4.2, "text": "...", "blockId": "..." }],
   "metadata": {
@@ -66,12 +66,43 @@ ffmpeg -i input.mp3 -i cover.png -map 0 -map 1 -c copy -id3v2_version 3 \
 Keep cover art square and ≤ 500×500 — iOS Control Center scales it down
 and Android Auto refuses anything above ~600×600 in some builds.
 
+### Ops: generating & publishing chapter audio (Modo Guía)
+
+`Audio.fileUrl` stores the **R2 object key** (e.g. `audio/<bookSlug>/cap-1.mp3`)
+and `getAudio()` mints a **presigned GET URL** (6h TTL) — R2 is served via the
+authenticated S3 endpoint here, not a public bucket, so a raw URL would 400.
+Modo Guía shows an honest "Audio en producción" placeholder until an `Audio`
+row exists for the chapter.
+
+Two ways to populate it:
+
+**A) TTS narration (fast, swappable stand-in).** `scripts/generate-chapter-audio.mjs`
+reads each chapter's narratable blocks (PARAGRAPH/HEADING/QUOTE/PAUSE),
+synthesizes speech with OpenAI TTS, uploads the mp3 to R2 at
+`audio/<bookSlug>/cap-<order>.mp3`, and upserts the `Audio` row (idempotent per
+chapter). Env: `DATABASE_URL`, `R2_*`, `OPENAI_API_KEY`.
+
+```bash
+# from apps/api — dry-run first (parse + estimate, no TTS/upload/DB)
+node scripts/generate-chapter-audio.mjs --dry-run
+node scripts/generate-chapter-audio.mjs --voice nova --model tts-1   # all chapters
+node scripts/generate-chapter-audio.mjs --only 1                     # a single chapter
+# against prod: inject env with `railway run --service psico-platform -- \
+#   env DATABASE_URL="<public-proxy>" node scripts/generate-chapter-audio.mjs`
+```
+
+**B) Professional recordings (drop-in replacement, no code change).** Upload the
+`.m4a`/`.mp3` to the same R2 key and update `Audio.fileUrl` (embed lock-screen
+tags first with the ffmpeg snippet above). The clients never change — they only
+read `fileUrl`.
+
 ### Privacy
 
-The audio file URL is a **signed R2 URL with a 1h TTL**. The audio bar
-fetches it on demand (no eager loading). The transcript is included in the
-JSON payload — it's also stored alongside the audio file in DB, public
-licensed content, not E2E.
+The audio file URL is a **presigned R2 URL** (6h TTL), minted on demand — the
+audio bar fetches `getAudio()` each time it opens, so a fresh URL is always
+handed out. Books are licensed public content, not E2E; the presign here is
+just because the bucket isn't served publicly. The transcript is included in
+the JSON payload and stored in `Audio.transcription` — public content.
 
 The `metadata` block contains the chapter title + book title + author
 name. None of those are user-derived data — they come from `Book` /

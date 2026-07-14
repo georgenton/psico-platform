@@ -11,10 +11,20 @@ interface JobLike {
 }
 
 function makePrisma() {
-  return {
+  const base = {
     user: { findMany: vi.fn() },
     emotionalMapSnapshot: { upsert: vi.fn().mockResolvedValue({}) },
+    // PR-0.1 — the processor now persists inside a short transaction that takes
+    // a SHARED lock on the user row and re-reads the privacy revision, so a
+    // revocation that lands during `compute()` (an LLM round-trip, seconds wide)
+    // cannot be overwritten by numbers derived from data it just deleted.
+    privacySettings: {
+      findUnique: vi.fn().mockResolvedValue({ emotionalMapPrivacyRevision: 0 }),
+    },
+    $queryRaw: vi.fn().mockResolvedValue([{ id: "u1" }]),
+    $transaction: vi.fn((cb: (tx: unknown) => Promise<unknown>) => cb(base)),
   };
+  return base;
 }
 
 function makeEmotionalMap() {

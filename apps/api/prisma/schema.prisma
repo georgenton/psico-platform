@@ -1244,6 +1244,19 @@ model PrivacySettings {
   // not upload numeric features, the endpoint rejects them, and the scoring
   // ignores any stored rows. Turning it off deletes the derived rows.
   localTextAnalysis        Boolean   @default(false)
+  /// PR-0.1 — the DURABLE half of the emotional-map cache identity.
+  ///
+  /// Incremented IN THE SAME TRANSACTION that changes the consent and deletes
+  /// the derived rows, and part of every cache key for this user. The point is
+  /// that revoking consent must not depend on Redis: if the Redis INCR failed
+  /// we would have committed the revocation to Postgres while the cached map —
+  /// built from the very data the user just revoked — stayed readable for up to
+  /// 24h. Now the key itself moves with the transaction, so the old payload is
+  /// unreachable the moment the revocation commits.
+  ///
+  /// The Redis generation counter still exists, but only for freshness. The
+  /// SAFETY of a revocation lives in Postgres.
+  emotionalMapPrivacyRevision Int    @default(0)
   // Mirrors of DataExportRequest / User.deleteRequestedAt so the FE has them in one read
   dataExportRequestedAt    DateTime?
   accountDeleteRequestedAt DateTime?
@@ -2060,6 +2073,31 @@ model EmotionalMapSnapshot {
   /// Which provider answered the LLM axes ("anthropic", "fallback", …).
   provider    String
   createdAt   DateTime @default(now())
+
+  /// PR-0.1 — identity of the code + config that produced these NUMBERS. A row
+  /// computed under a different facts schema, scoring version, facts-config or
+  /// facts epoch describes a DIFFERENT model, so the API must not present it as
+  /// this model's history. Null on pre-PR-0.1 rows, which are therefore never
+  /// served (they are not deleted — we just cannot vouch for them).
+  ///
+  /// Note this is the FACTS schema, not the wire schema: reshaping the API
+  /// response must not discard a year of history, because no number moved.
+  factsSchemaVersion Int?
+  scoringVersion     Int?
+  /// Digest of the flags that can change the computed numbers (see
+  /// `cache-identity.ts` → `factsFingerprint`). Excludes copy-only flags like
+  /// the Narrator: muting it must not invalidate real history.
+  configFingerprint  String?
+  /// EMOTIONAL_MAP_FACTS_EPOCH at write time — the manual break-glass for
+  /// facts, independent from the cache epoch.
+  factsEpoch         Int?
+
+  /// PR-0.1 — PROVENANCE, not a guard. Which `PrivacySettings.
+  /// emotionalMapPrivacyRevision` this row was computed under. The barrier (a
+  /// shared lock on the User row, re-validated at write time) is what makes the
+  /// write safe; this column is what lets us AUDIT it afterwards: given a row,
+  /// which consent state produced these numbers. Null on pre-PR-0.1 rows.
+  privacyRevision    Int?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

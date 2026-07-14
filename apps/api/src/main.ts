@@ -8,12 +8,24 @@ initSentry();
 import { writeFileSync } from "fs";
 import { join } from "path";
 import { NestFactory } from "@nestjs/core";
-import { RequestMethod, ValidationPipe, VersioningType } from "@nestjs/common";
+import {
+  Logger,
+  RequestMethod,
+  ValidationPipe,
+  VersioningType,
+} from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./shared";
+import { assertEmotionalMapConfigured } from "./emotional-map/cache-identity";
 
 async function bootstrap(): Promise<void> {
+  // PR-0.1 — refuse to boot with a missing/malformed epoch, or with a critical
+  // safety flag out of position. A silent fallback would let this API serve
+  // values from an epoch nobody chose — or, worse, let an LLM score axes because
+  // EMOTIONAL_MAP_LLM_SCORING defaults to `true` in code and the box forgot it.
+  assertEmotionalMapConfigured();
+
   // rawBody: true enables req.rawBody for Stripe webhook signature verification.
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
@@ -177,6 +189,30 @@ async function bootstrap(): Promise<void> {
     }
   } catch {
     // Non-fatal — the banner is observability, not a contract.
+  }
+
+  // ── 7. Emotional-map identity ─────────────────────────────────────────────
+  // PR-0.1 — log the identity (versions, fingerprints, epochs, flags) and
+  // publish it so `GET /api/health/emotional-map` can compare it against the
+  // worker's. Booleans and hashes only; never a secret.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const { MapIdentityService } = require("./health/map-identity.service");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const { REDIS_CLIENT } = require("./redis");
+    // Heartbeat, not a one-shot: a key with no refresh would let a dead service
+    // keep asserting "we agree" long after it stopped running.
+    MapIdentityService.startHeartbeat(
+      app.get(REDIS_CLIENT),
+      "api",
+      new Logger("Bootstrap"),
+    );
+  } catch (err) {
+    // Non-fatal: the probe will simply report the API identity it computes
+    // live. The epochs themselves were already validated below/at boot.
+    console.warn(
+      `Could not publish the emotional-map identity: ${(err as Error).message}`,
+    );
   }
 }
 

@@ -6,6 +6,7 @@ import {
   IDENTITY_TTL_SECONDS,
   identityKey,
   releaseSha,
+  resolveEnvironment,
   runtimeFingerprint,
   runtimeIdentity,
 } from "../emotional-map/cache-identity";
@@ -23,7 +24,31 @@ const ENVS = [
   "EMOTIONAL_MAP_CACHE_EPOCH",
   "EMOTIONAL_MAP_FACTS_EPOCH",
   "RAILWAY_GIT_COMMIT_SHA",
+  "RELEASE_SHA",
+  "GIT_COMMIT_SHA",
+  "SOURCE_VERSION",
+  "PSICO_ENV",
+  "NODE_ENV",
+  "EMOTIONAL_MAP_V2",
+  "EMOTIONAL_MAP_LEGACY_UI",
+  "EMOTIONAL_MAP_LLM_SCORING",
+  "EMOTIONAL_MAP_EWS_PUBLIC",
+  "EMOTIONAL_MAP_NARRATOR",
+  "CONTENT_RESONANCE",
+  "EMOTIONAL_MAP_OU",
 ] as const;
+
+/** A correctly-configured deployed box. */
+function pinDeployed() {
+  process.env.PSICO_ENV = "production";
+  process.env.EMOTIONAL_MAP_V2 = "on";
+  process.env.EMOTIONAL_MAP_LEGACY_UI = "off";
+  process.env.EMOTIONAL_MAP_LLM_SCORING = "off";
+  process.env.EMOTIONAL_MAP_EWS_PUBLIC = "off";
+  process.env.EMOTIONAL_MAP_NARRATOR = "off";
+  process.env.CONTENT_RESONANCE = "off";
+  process.env.EMOTIONAL_MAP_OU = "on";
+}
 
 function makeRedis() {
   const store = new Map<string, string>();
@@ -43,6 +68,7 @@ function workerPayload(publishedAt: Date, overrides: Record<string, unknown> = {
     ...runtimeIdentity(),
     fingerprint: runtimeFingerprint(),
     releaseSha: releaseSha(),
+    environment: resolveEnvironment(),
     publishedAt: publishedAt.toISOString(),
     ...overrides,
   });
@@ -124,6 +150,33 @@ describe("MapIdentityService — API vs worker probe (PR-0.1)", () => {
     expect(result.match).toBe(false);
     expect(result.reason).toMatch(/disagree on/i);
     expect(result.reason).toMatch(/factsEpoch/);
+  });
+
+  it("does NOT match when a build SHA is unknown on a deployed box", async () => {
+    // "We could not tell which build is running" must never read as "they match".
+    // On Railway the commit SHA is always exposed, so a null means the identity
+    // is incomplete — and an unknown build cannot be certified.
+    pinDeployed();
+
+    for (const [apiSha, workerSha] of [
+      [undefined, "abc123def456"], // API unknown
+      ["abc123def456", null], // worker unknown
+      [undefined, null], // both unknown — the tempting "they agree" case
+    ] as Array<[string | undefined, string | null]>) {
+      const redis = makeRedis();
+      if (apiSha) process.env.RAILWAY_GIT_COMMIT_SHA = apiSha;
+      else delete process.env.RAILWAY_GIT_COMMIT_SHA;
+
+      redis.store.set(
+        identityKey("worker"),
+        workerPayload(new Date(), { releaseSha: workerSha }),
+      );
+
+      const result = await new MapIdentityService(redis as never).compare();
+
+      expect(result.match).toBe(false);
+      expect(result.reason).toMatch(/cannot establish which build/i);
+    }
   });
 
   it("does NOT match when the two services run different builds", async () => {

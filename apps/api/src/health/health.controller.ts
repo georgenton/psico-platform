@@ -58,7 +58,7 @@ export class HealthController {
   @ApiOperation({
     summary: "Emotional-map identity probe (ADMIN only)",
     description:
-      "Compares the emotional-map identity (schema versions, scoring version, config fingerprints, epochs, flags) of the API against the one the worker published at ITS boot. They are separate Railway services with separate environments: importing the same code does not make them agree. A mismatch means the cron is writing snapshots the API will silently refuse to read — run this after every deploy. Names and booleans only; no secrets.",
+      "Compares the emotional-map identity (schema versions, scoring version, config fingerprints, epochs, flags, environment, release SHA) of this API against the one MAINTAINED BY A LIVE WORKER HEARTBEAT. The worker republishes its identity every 60s under a 180s TTL, so a dead worker — or a deploy that never came up — reports as a MISMATCH rather than silently agreeing from a stale key. An unknown build (missing commit SHA) is also a mismatch: we do not certify what we cannot identify. A mismatch means the cron is writing snapshots this API will refuse to read — run this after every deploy. Names, numbers and booleans only; no secrets.",
   })
   @ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
   @ApiForbiddenResponse({ type: ErrorEnvelopeDto })

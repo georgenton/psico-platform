@@ -65,8 +65,73 @@ export const FACTS_EPOCH_ENV = "EMOTIONAL_MAP_FACTS_EPOCH";
 /** Dev/test convenience only — production MUST set the epochs explicitly. */
 const DEV_EPOCH_DEFAULT = 1;
 
+// ── Environment identity ────────────────────────────────────────────────────
+
+export type PsicoEnvironment =
+  | "production"
+  | "staging"
+  | "development"
+  | "test";
+
+const VALID_ENVIRONMENTS: readonly string[] = [
+  "production",
+  "staging",
+  "development",
+  "test",
+];
+
+/**
+ * Relying on NODE_ENV alone is fragile: a Railway box that ships without it
+ * silently looks like "development" and every safety barrier below quietly
+ * turns itself off. That is precisely the failure we are trying to make
+ * impossible, so a DEPLOYED box must say what it is.
+ *
+ * `PSICO_ENV` is the explicit answer. NODE_ENV is accepted as a fallback for
+ * local work and CI. If neither is valid AND we can see we are on Railway, we
+ * refuse to guess — and refuse to boot.
+ */
+export function resolveEnvironment(): PsicoEnvironment {
+  const explicit = process.env.PSICO_ENV?.trim().toLowerCase();
+  if (explicit && VALID_ENVIRONMENTS.includes(explicit)) {
+    return explicit as PsicoEnvironment;
+  }
+  if (explicit) {
+    throw new Error(
+      `PSICO_ENV must be one of ${VALID_ENVIRONMENTS.join(" | ")} (got ${JSON.stringify(explicit)}).`,
+    );
+  }
+
+  const node = process.env.NODE_ENV?.trim().toLowerCase();
+  if (node && VALID_ENVIRONMENTS.includes(node)) {
+    return node as PsicoEnvironment;
+  }
+
+  if (looksDeployed()) {
+    throw new Error(
+      "This box is running on Railway but declares no valid environment. Set PSICO_ENV=production|staging (NODE_ENV is accepted too). Without it the safety barriers would silently disable themselves.",
+    );
+  }
+
+  return "development";
+}
+
+/** True when platform variables say we are on Railway, whatever the env claims. */
+function looksDeployed(): boolean {
+  return Boolean(
+    process.env.RAILWAY_ENVIRONMENT ??
+      process.env.RAILWAY_PROJECT_ID ??
+      process.env.RAILWAY_SERVICE_ID,
+  );
+}
+
+/** Deployed environments enforce the barriers; local ones stay ergonomic. */
+export function isDeployedEnvironment(): boolean {
+  const env = resolveEnvironment();
+  return env === "production" || env === "staging";
+}
+
 function isProduction(): boolean {
-  return process.env.NODE_ENV === "production";
+  return isDeployedEnvironment();
 }
 
 /**
@@ -125,7 +190,18 @@ export const CRITICAL_FLAGS: Readonly<Partial<Record<FlagName, boolean>>> = {
   EMOTIONAL_MAP_LLM_SCORING: false,
   EMOTIONAL_MAP_EWS_PUBLIC: false,
   EMOTIONAL_MAP_NARRATOR: false,
+  // Until PR-3 retires the ARC axes, confirmed resonances still feed Conexión
+  // and Propósito — psychological scores the corrigendum reclassified as
+  // unsupported. Off until the axes are gone.
+  CONTENT_RESONANCE: false,
 };
+
+/**
+ * Flags with no fixed safety value, but which a deployed box must still DECLARE.
+ * An implicit default is a decision nobody made; on a deployed box we want the
+ * decision written down, whatever it is.
+ */
+export const REQUIRED_DEFINED_FLAGS: readonly FlagName[] = ["EMOTIONAL_MAP_OU"];
 
 /**
  * Read a flag with NO fallback: an unset or unrecognized value is an error, not
@@ -147,16 +223,22 @@ export function readFlagStrict(name: FlagName): boolean {
 }
 
 export function assertCriticalFlagsConfigured(): void {
-  if (!isProduction()) return;
+  if (!isDeployedEnvironment()) return;
+
   for (const [name, required] of Object.entries(CRITICAL_FLAGS) as Array<
     [FlagName, boolean]
   >) {
     const actual = readFlagStrict(name);
     if (actual !== required) {
       throw new Error(
-        `${FLAGS[name].env} must be "${required ? "on" : "off"}" in production. It encodes a safety decision (see ADR 0014); a different value would re-open a behaviour we deliberately closed.`,
+        `${FLAGS[name].env} must be "${required ? "on" : "off"}" in a deployed environment. It encodes a safety decision (see ADR 0014); a different value would re-open a behaviour we deliberately closed.`,
       );
     }
+  }
+
+  // No fixed value — but it must be stated.
+  for (const name of REQUIRED_DEFINED_FLAGS) {
+    readFlagStrict(name);
   }
 }
 
@@ -166,6 +248,9 @@ export function assertCriticalFlagsConfigured(): void {
  * strange cache miss — or worse, a stale hit.
  */
 export function assertEmotionalMapConfigured(): void {
+  // Throws when a deployed box declares no valid environment — we will not guess
+  // our way into disabling the barriers below.
+  resolveEnvironment();
   cacheEpoch();
   factsEpoch();
   assertCriticalFlagsConfigured();
@@ -173,28 +258,37 @@ export function assertEmotionalMapConfigured(): void {
 
 // ── Fingerprints ────────────────────────────────────────────────────────────
 
-/** Flags that can change the SERVED RESPONSE (copy + wire + numbers). */
-const RESPONSE_FLAGS: readonly FlagName[] = [
+/**
+ * Flags that can change the COMPUTED NUMBERS (pct / coverage / values).
+ * Excludes NARRATOR (copy only), EWS_PUBLIC (nulls a wire field) and LEGACY_UI
+ * (strips a marker): none of them can move a number.
+ */
+export const FACTS_FLAGS: readonly FlagName[] = [
   "EMOTIONAL_MAP_V2",
-  "EMOTIONAL_MAP_LEGACY_UI",
   "EMOTIONAL_MAP_OU",
   "EMOTIONAL_MAP_LLM_SCORING",
-  "EMOTIONAL_MAP_EWS_PUBLIC",
-  "EMOTIONAL_MAP_NARRATOR",
   "CONTENT_RESONANCE",
 ];
 
+/** Flags that change ONLY the rendered response — never a number. */
+export const RESPONSE_ONLY_FLAGS: readonly FlagName[] = [
+  "EMOTIONAL_MAP_LEGACY_UI",
+  "EMOTIONAL_MAP_EWS_PUBLIC",
+  "EMOTIONAL_MAP_NARRATOR",
+];
+
 /**
- * Flags that can change the COMPUTED NUMBERS. A strict subset of RESPONSE_FLAGS
- * — which is why the response fingerprint alone covers the config side of both
- * identities. Excludes NARRATOR (copy only), EWS_PUBLIC (nulls a wire field) and
- * LEGACY_UI (strips a marker): none can move pct/coverage/values.
+ * Flags that can change the SERVED RESPONSE.
+ *
+ * Built as FACTS + RESPONSE_ONLY rather than hand-listed, so `facts ⊂ response`
+ * is STRUCTURAL: you cannot add a facts flag and forget to bust the cache,
+ * because the response set is derived from the facts set. Anything that voids a
+ * snapshot voids the cached response by construction — the response is rendered
+ * from those very numbers.
  */
-const FACTS_FLAGS: readonly FlagName[] = [
-  "EMOTIONAL_MAP_V2",
-  "EMOTIONAL_MAP_OU",
-  "EMOTIONAL_MAP_LLM_SCORING",
-  "CONTENT_RESONANCE",
+export const RESPONSE_FLAGS: readonly FlagName[] = [
+  ...FACTS_FLAGS,
+  ...RESPONSE_ONLY_FLAGS,
 ];
 
 /** Flag value as it is actually used at runtime (default-tolerant, like the app). */
@@ -313,10 +407,26 @@ export interface CacheKeyParts {
   responseFingerprint: string;
   factsEpoch: number;
   cacheEpoch: number;
+  /**
+   * DURABLE, Postgres-backed. Bumped in the same transaction that changes a
+   * privacy consent and deletes the derived rows. This is what makes a
+   * revocation safe WITHOUT Redis: the key moves when the transaction commits,
+   * so the payload built from the revoked data becomes unreachable even if the
+   * Redis INCR below never ran.
+   */
+  privacyRevision: number;
+  /**
+   * Redis-backed. A freshness optimisation — bumped on ordinary writes so the
+   * user sees their new mood immediately. NOT a safety mechanism: Redis can
+   * fail, and a revocation must not depend on it.
+   */
   generation: number;
 }
 
-export function currentCacheKeyParts(generation: number): CacheKeyParts {
+export function currentCacheKeyParts(
+  privacyRevision: number,
+  generation: number,
+): CacheKeyParts {
   return {
     wireSchemaVersion: WIRE_SCHEMA_VERSION,
     factsSchemaVersion: FACTS_SCHEMA_VERSION,
@@ -324,6 +434,7 @@ export function currentCacheKeyParts(generation: number): CacheKeyParts {
     responseFingerprint: responseFingerprint(),
     factsEpoch: factsEpoch(),
     cacheEpoch: cacheEpoch(),
+    privacyRevision,
     generation,
   };
 }
@@ -335,7 +446,7 @@ export function currentCacheKeyParts(generation: number): CacheKeyParts {
  * assumption rather than something we check.
  *
  * Shape:
- *   emotional-map:w<wire>:f<facts>:s<scoring>:r<responseFp>:fe<factsEpoch>:ce<cacheEpoch>:g<gen>:<userId>
+ *   emotional-map:w<wire>:f<facts>:s<scoring>:r<responseFp>:fe<factsEpoch>:ce<cacheEpoch>:p<privacyRev>:g<gen>:<userId>
  */
 export function buildCacheKey(parts: CacheKeyParts, userId: string): string {
   return [
@@ -346,22 +457,37 @@ export function buildCacheKey(parts: CacheKeyParts, userId: string): string {
     `r${parts.responseFingerprint}`,
     `fe${parts.factsEpoch}`,
     `ce${parts.cacheEpoch}`,
+    `p${parts.privacyRevision}`,
     `g${parts.generation}`,
     userId,
   ].join(":");
 }
 
 /**
- * THE per-user cache key. Async because the generation lives in Redis: a key
- * derivable without touching Redis could not express "everything this user had
- * cached is void", which is exactly what invalidation means.
+ * THE per-user cache key.
+ *
+ * Takes the DURABLE privacy revision (read from Postgres by the caller) and
+ * reads the Redis generation itself. The two halves have different jobs:
+ *
+ *   - privacyRevision — SAFETY. Moves with the transaction that revokes consent,
+ *     so the revocation holds even if Redis is unreachable.
+ *   - generation      — FRESHNESS. Moves on ordinary writes so the user sees
+ *     their new mood right away. Best-effort by design.
+ *
+ * If Redis is down, `readGeneration` throws and the request fails — but it can
+ * never SILENTLY serve a payload from before a revocation, because the revision
+ * that made that payload unreachable lives in Postgres.
  */
 export async function resolveCacheKey(
   redis: CacheRedis,
   userId: string,
+  privacyRevision: number,
 ): Promise<string> {
   const generation = await readGeneration(redis, userId);
-  return buildCacheKey(currentCacheKeyParts(generation), userId);
+  return buildCacheKey(
+    currentCacheKeyParts(privacyRevision, generation),
+    userId,
+  );
 }
 
 // ── Runtime identity (API vs worker) ────────────────────────────────────────

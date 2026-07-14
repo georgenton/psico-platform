@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EmotionalMapService } from "./emotional-map.service";
-import { generationKey, resolveCacheKey } from "./cache-identity";
+import {
+  bumpGeneration,
+  generationKey,
+  resolveCacheKey,
+} from "./cache-identity";
 import type {
   EmotionalMapMetadataPayload,
   IEmotionalMapProvider,
@@ -766,5 +770,113 @@ describe("EmotionalMapService — cache identity (PR-0.1)", () => {
       JSON.stringify({ stale: true }),
     );
     expect(redis.del).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * PR-0.1 — the DURABLE half of the identity.
+ *
+ * The P0 this closes: revoking the text-analysis consent used to depend on Redis
+ * for its SAFETY. We committed the consent change and deleted the derived rows
+ * in Postgres, then bumped a Redis counter to make the cached map unreachable.
+ * If that INCR failed, the revocation was already committed while the cached map
+ * — built from the very data the user had just revoked — stayed readable: worse,
+ * `getForUser` consulted Redis BEFORE it ever re-read the consent, so the stale
+ * payload kept being served for up to 24h.
+ *
+ * Now `PrivacySettings.emotionalMapPrivacyRevision` is bumped in the SAME
+ * transaction as the revocation and is part of every cache key, and `getForUser`
+ * reads it from Postgres BEFORE consulting Redis. Redis can be on fire; the
+ * revoked map is still unreachable.
+ */
+describe("EmotionalMapService — privacy revision (PR-0.1, durable)", () => {
+  it("never serves the pre-revocation payload, even when the Redis INCR failed", async () => {
+    const store = new Map<string, string>();
+    // A Redis where every INCR fails — i.e. the invalidation we USED to depend on
+    // is completely unavailable.
+    const redis = {
+      get: vi.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
+      set: vi.fn((k: string, v: string) => {
+        store.set(k, v);
+        return Promise.resolve("OK");
+      }),
+      incr: vi.fn(() => Promise.reject(new Error("redis down"))),
+      del: vi.fn(),
+      __store: store,
+    };
+
+    // The user consented, so their map was computed WITH the text features and
+    // cached under privacy revision 0.
+    let privacyRevision = 0;
+    const prisma = makePrisma({
+      localTextAnalysis: true,
+      textFeatureRows: [
+        {
+          wordCount: 120,
+          selfFocus: 0.3,
+          positive: 0.4,
+          negative: 0.1,
+          insight: 0.5,
+          causal: 0.4,
+          absolutist: 0.05,
+          social: 0.2,
+          selfKind: 0.4,
+          selfCritic: 0.1,
+          createdAt: new Date(),
+        },
+      ],
+    }) as unknown as Record<string, { findUnique: ReturnType<typeof vi.fn> }>;
+    prisma.privacySettings.findUnique = vi.fn(({ select }: never) =>
+      // The service reads the revision through this same model.
+      Promise.resolve(
+        (select as Record<string, boolean>)?.emotionalMapPrivacyRevision
+          ? { emotionalMapPrivacyRevision: privacyRevision }
+          : { localTextAnalysis: true },
+      ),
+    ) as never;
+
+    const provider = makeProvider(async () => ({
+      calma: 0.5,
+      claridad: 0.5,
+      compasion: 0.5,
+      consciencia: 0.5,
+    }));
+    const service = new EmotionalMapService(
+      prisma as never,
+      provider,
+      redis as never,
+    );
+
+    await service.getForUser("user-1");
+    const keyBeforeRevocation = [...store.keys()][0];
+    expect(keyBeforeRevocation).toBeDefined();
+    // Poison the cached payload so a HIT would be unmistakable.
+    store.set(keyBeforeRevocation, JSON.stringify({ revoked: "should be gone" }));
+
+    // ── The user revokes consent ────────────────────────────────────────────
+    // UsersService bumps the revision inside the transaction; the Redis INCR that
+    // follows FAILS (our incr always rejects). Under the old design, that left
+    // the poisoned payload perfectly readable.
+    privacyRevision = 1;
+    await expect(
+      bumpGeneration(redis as never, "user-1"),
+    ).rejects.toThrow(/redis down/);
+
+    // ── The user loads their map again ──────────────────────────────────────
+    const fresh = (await service.getForUser("user-1")) as unknown as {
+      revoked?: string;
+    };
+
+    // The pre-revocation payload is UNREACHABLE: the durable revision moved the
+    // key, and Redis had no say in it.
+    expect(fresh.revoked).toBeUndefined();
+    expect(fresh).toHaveProperty("dimensions");
+    // Postgres was consulted for the revision BEFORE Redis was consulted for the
+    // payload — that ordering is the whole guarantee.
+    expect(prisma.privacySettings.findUnique).toHaveBeenCalled();
+    // The orphan is still on disk, unreachable, and expires on its own TTL.
+    expect(store.get(keyBeforeRevocation)).toBe(
+      JSON.stringify({ revoked: "should be gone" }),
+    );
   });
 });

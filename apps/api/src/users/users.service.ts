@@ -339,32 +339,49 @@ export class UsersService {
   // ── PATCH /api/user/privacy ────────────────────────────────────────────────
 
   async updatePrivacy(userId: string, dto: UpdatePrivacyDto) {
-    await this.prisma.privacySettings.upsert({
-      where: { userId },
-      create: { userId, ...dto },
-      update: dto,
+    // Fase D (L4) — the on-device text-analysis consent has side effects: opting
+    // OUT deletes every derived numeric row (the derived data is sensitive).
+    const consentChanged = dto.localTextAnalysis !== undefined;
+
+    // PR-0.1 — the revocation is ATOMIC and its safety does NOT depend on Redis.
+    //
+    // The previous shape was: commit the consent, delete the rows, then bump a
+    // Redis counter to make the cached map unreachable. If that INCR failed we
+    // had already committed the revocation while the cached map — built from the
+    // very data the user just revoked — stayed readable for up to 24h. Throwing
+    // afterwards did not undo that: `getForUser` consulted Redis before it ever
+    // re-read the consent, so the stale payload kept being served.
+    //
+    // Now the consent change, the deletion of the derived rows and the bump of
+    // `emotionalMapPrivacyRevision` happen in ONE transaction. The revision is
+    // part of every cache key for this user, so the moment the revocation
+    // commits, the old payload is unreachable — Redis has no say in it.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.privacySettings.upsert({
+        where: { userId },
+        create: {
+          userId,
+          ...dto,
+          ...(consentChanged ? { emotionalMapPrivacyRevision: 1 } : {}),
+        },
+        update: {
+          ...dto,
+          ...(consentChanged
+            ? { emotionalMapPrivacyRevision: { increment: 1 } }
+            : {}),
+        },
+      });
+
+      if (dto.localTextAnalysis === false) {
+        await tx.diaryTextFeature.deleteMany({ where: { userId } });
+      }
     });
-    // Fase D (L4) — the on-device text-analysis consent has side effects:
-    // opting OUT deletes every derived numeric row (consent cascade — the
-    // derived data is sensitive); either flip busts the map cache so the
-    // change is visible right away.
-    if (dto.localTextAnalysis === false) {
-      await this.prisma.diaryTextFeature.deleteMany({ where: { userId } });
-    }
-    if (dto.localTextAnalysis !== undefined) {
-      // PR-0.1 — REQUIRED invalidation: this one fails CLOSED.
-      //
-      // We just deleted the derived rows on opt-out. If the cached map survived,
-      // the user would keep seeing axes built from data they explicitly revoked,
-      // for up to 24h — a silent failure of a privacy promise. Swallowing the
-      // error here would report success while the promise went unkept, so we let
-      // it throw: the request fails, the user can retry, and the retry is
-      // idempotent (deleteMany on nothing is a no-op; a second INCR is harmless).
-      //
-      // It also bumps a per-user GENERATION rather than deleting one key:
-      // deleting the key for the CURRENT config would leave entries written
-      // under other configs readable if we ever flipped back to them.
-      await bumpGeneration(this.redis, userId);
+
+    if (consentChanged) {
+      // Freshness only, and explicitly best-effort: the guarantee already
+      // committed above. If Redis is unreachable the user still cannot be served
+      // the revoked map, so failing the whole request here would be theatre.
+      await bumpGeneration(this.redis, userId).catch(() => undefined);
     }
     return this.getMe(userId);
   }

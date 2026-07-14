@@ -1244,6 +1244,19 @@ model PrivacySettings {
   // not upload numeric features, the endpoint rejects them, and the scoring
   // ignores any stored rows. Turning it off deletes the derived rows.
   localTextAnalysis        Boolean   @default(false)
+  /// PR-0.1 — the DURABLE half of the emotional-map cache identity.
+  ///
+  /// Incremented IN THE SAME TRANSACTION that changes the consent and deletes
+  /// the derived rows, and part of every cache key for this user. The point is
+  /// that revoking consent must not depend on Redis: if the Redis INCR failed
+  /// we would have committed the revocation to Postgres while the cached map —
+  /// built from the very data the user just revoked — stayed readable for up to
+  /// 24h. Now the key itself moves with the transaction, so the old payload is
+  /// unreachable the moment the revocation commits.
+  ///
+  /// The Redis generation counter still exists, but only for freshness. The
+  /// SAFETY of a revocation lives in Postgres.
+  emotionalMapPrivacyRevision Int    @default(0)
   // Mirrors of DataExportRequest / User.deleteRequestedAt so the FE has them in one read
   dataExportRequestedAt    DateTime?
   accountDeleteRequestedAt DateTime?

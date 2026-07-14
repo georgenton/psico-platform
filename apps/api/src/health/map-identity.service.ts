@@ -9,7 +9,9 @@ import {
   type RuntimeIdentity,
   identityKey,
   identityLogLine,
+  isDeployedEnvironment,
   releaseSha,
+  resolveEnvironment,
   runtimeFingerprint,
   runtimeIdentity,
 } from "../emotional-map/cache-identity";
@@ -37,6 +39,8 @@ export interface PublishedIdentity extends RuntimeIdentity {
   fingerprint: string;
   /** Short commit SHA — public information, and the only way to spot a half-deploy. */
   releaseSha: string | null;
+  /** production | staging | development | test. No secrets. */
+  environment: string;
   publishedAt: string;
 }
 
@@ -56,6 +60,7 @@ function snapshotIdentity(): PublishedIdentity {
     ...runtimeIdentity(),
     fingerprint: runtimeFingerprint(),
     releaseSha: releaseSha(),
+    environment: resolveEnvironment(),
     publishedAt: new Date().toISOString(),
   };
 }
@@ -149,12 +154,35 @@ export class MapIdentityService {
       };
     }
 
+    // An UNKNOWN build is not an agreeing build. On a deployed box the platform
+    // always exposes the commit SHA, so a null means the identity is incomplete —
+    // and "we could not tell" must never read as "they match".
+    if (isDeployedEnvironment() && (!api.releaseSha || !worker.releaseSha)) {
+      return {
+        api,
+        worker,
+        match: false,
+        reason: `Cannot establish which build is running (api=${api.releaseSha ?? "unknown"} worker=${worker.releaseSha ?? "unknown"}). On a deployed box the commit SHA must be present (RAILWAY_GIT_COMMIT_SHA / RELEASE_SHA). An unknown build cannot be certified as matching.`,
+        workerHeartbeatAgeSeconds: ageSeconds,
+      };
+    }
+
     if (worker.releaseSha !== api.releaseSha) {
       return {
         api,
         worker,
         match: false,
         reason: `API and worker are running different builds (api=${api.releaseSha ?? "unknown"} worker=${worker.releaseSha ?? "unknown"}). Finish the deploy on both services before trusting the snapshots.`,
+        workerHeartbeatAgeSeconds: ageSeconds,
+      };
+    }
+
+    if (worker.environment !== api.environment) {
+      return {
+        api,
+        worker,
+        match: false,
+        reason: `API and worker declare different environments (api=${api.environment} worker=${worker.environment}). One of them is not the box you think it is.`,
         workerHeartbeatAgeSeconds: ageSeconds,
       };
     }

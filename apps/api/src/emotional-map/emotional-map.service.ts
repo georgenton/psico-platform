@@ -52,7 +52,19 @@ export class EmotionalMapService {
   ) {}
 
   async getForUser(userId: string): Promise<EmotionalMapResult> {
-    const cacheKey = await resolveKeyFor(this.redis, userId);
+    // PR-0.1 — read the DURABLE privacy revision from Postgres BEFORE touching
+    // the cache. This is the ordering that makes a revocation safe:
+    //
+    //   old: consult Redis → maybe return a cached map → (never re-read consent)
+    //   new: read the revision → derive the key → consult Redis
+    //
+    // If the user revoked the text-analysis consent, that transaction bumped the
+    // revision, so the key we derive here cannot address the payload built from
+    // the revoked data — regardless of whether the Redis INCR succeeded, or
+    // whether Redis was even reachable at the time. Safety lives in Postgres;
+    // Redis only buys freshness.
+    const privacyRevision = await this.readPrivacyRevision(userId);
+    const cacheKey = await resolveKeyFor(this.redis, userId, privacyRevision);
     const cached = await this.redis.get(cacheKey);
     if (cached) {
       try {
@@ -68,6 +80,19 @@ export class EmotionalMapService {
         : CACHE_TTL_SECONDS;
     await this.redis.set(cacheKey, JSON.stringify(result), "EX", ttl);
     return result;
+  }
+
+  /**
+   * The durable half of this user's cache identity. A user with no
+   * PrivacySettings row has never granted or revoked anything, so revision 0 is
+   * the honest answer.
+   */
+  private async readPrivacyRevision(userId: string): Promise<number> {
+    const row = await this.prisma.privacySettings.findUnique({
+      where: { userId },
+      select: { emotionalMapPrivacyRevision: true },
+    });
+    return row?.emotionalMapPrivacyRevision ?? 0;
   }
 
   /**

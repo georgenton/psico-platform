@@ -48,7 +48,7 @@ const FILES = [
   "apps/web/src/components/dashboard/mapa/MapLenguaje.tsx",
   "apps/web/src/components/dashboard/mapa/MapNarrative.tsx",
   "apps/mobile/src/components/dashboard/mapa/affect-copy.ts",
-  "apps/mobile/src/components/dashboard/mapa/MapSelfReportCard.tsx",
+  "apps/mobile/src/components/dashboard/mapa/MapRadarCard.tsx",
   "apps/mobile/app/(tabs)/mapa.tsx",
 ] as const;
 

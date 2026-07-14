@@ -3301,7 +3301,9 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 **Privacidad (ADR 0007):** el radar es solo UI — consume `EmotionalMapDimension[]` (números + procedencia), nunca texto.
 
-**Deuda:** paridad mobile (requiere `react-native-svg` + rebuild EAS) · badge "Comprensión emocional 74 %" heredado en el nav shell (fuera del mapa, inconsistente con "sin % global") · `shell/Radar.tsx` + `MapaPreviewCard.tsx` quedan sin uso.
+**3) Paridad mobile (mismo PR).** `react-native-svg 15.8.0` instalado (SDK 52); **`MapRadarCard.tsx`** con el hexágono en react-native-svg + filas honestas, reemplaza a `MapSelfReportCard` en `(tabs)/mapa.tsx` (mobile no tiene mini-mapa en Inicio). 4 tests nuevos, suite mobile 78/78. Requiere **rebuild EAS** para que el binario incluya la dep nativa.
+
+**Deuda:** badge "Comprensión emocional 74 %" heredado en el nav shell web (fuera del mapa, inconsistente con "sin % global") · `shell/Radar.tsx` + `MapaPreviewCard.tsx` quedan sin uso.
 
 ---
 

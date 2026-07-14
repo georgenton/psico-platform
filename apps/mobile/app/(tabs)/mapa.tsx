@@ -26,7 +26,7 @@ import {
   evidenceBaseLabel,
   formatInertia,
 } from "@/components/dashboard/mapa/affect-copy";
-import { MapSelfReportCard } from "@/components/dashboard/mapa/MapSelfReportCard";
+import { MapRadarCard } from "@/components/dashboard/mapa/MapRadarCard";
 
 /**
  * Mapa Emocional — V2 layout (Fase F; legacy retired in Fase G).
@@ -200,7 +200,7 @@ export default function MapaScreen() {
                 )}
               </View>
 
-              <MapSelfReportCard
+              <MapRadarCard
                 dimensions={map.dimensions}
                 onInfo={() => setInfoOpen(true)}
               />

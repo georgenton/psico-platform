@@ -1,8 +1,8 @@
-# Sprint — Mapa Emocional · el radar hexagonal honesto (web)
+# Sprint — Mapa Emocional · el radar hexagonal honesto (web + mobile)
 
 **Rama:** `feature/emotional-map-hexagon-radar`
 **Fecha:** 2026-07-14
-**Tests:** Web 316/316 (MapRadar 5 nuevos, InicioV2 1 actualizado) · API copy-contract + v2-contract verdes · typecheck + lint web limpios.
+**Tests:** Web 316/316 (MapRadar 5 nuevos) · Mobile 78/78 (MapRadarCard 4 nuevos) · API copy-contract + v2-contract verdes · typecheck + lint ×3 limpios.
 
 ## Contexto
 
@@ -75,11 +75,22 @@ consumiendo `EmotionalMapDimension[]` (números + procedencia), nunca texto.
 4. SVG propio dentro de `MapRadar` (el `Radar` genérico no maneja el estado
    "gathering"); el `shell/Radar` queda sin uso pero se conserva.
 
+## Paridad mobile (mismo PR)
+
+- **`react-native-svg 15.8.0`** instalado (`npx expo install`, pineado a SDK 52).
+  Renderiza en jest-expo sin mock (el `jest.config` ya lo whitelisteaba).
+- **`MapRadarCard.tsx`** (nuevo) — hexágono con react-native-svg (`Svg`/`Polygon`/
+  `Line`/`Circle`/`Text`) + filas por eje con la misma lógica honesta. Reemplaza
+  a `MapSelfReportCard` en `app/(tabs)/mapa.tsx`. Mobile no tiene mini-mapa en
+  Inicio, así que solo la pantalla del mapa cambia.
+- `MapSelfReportCard.tsx` + test eliminados; copy-contract mobile actualizado.
+- **4 tests** (`MapRadarCard.test.tsx`) — empty state, filas, source-label
+  mapping (ARC-C1 → "Tus resonancias", OU → "Tu ánimo"). Suite mobile 78/78.
+- Requiere **rebuild EAS** para que el binario incluya `react-native-svg` (dep
+  nativa); en Expo Go / dev-client se ve al recargar.
+
 ## Deuda / follow-ups
 
-- **Paridad mobile** — requiere instalar `react-native-svg` (dep nativa +
-  rebuild EAS); el `jest.config` ya la contempla en `transformIgnorePatterns`.
-  Sprint aparte.
 - El sidebar del nav shell (`_DashboardShell`) todavía muestra un badge
   "Comprensión emocional 74 %" (heredado, fuera del mapa). Inconsistente con el
   principio V2 de "sin % global" — candidato a limpiar en su propio PR.

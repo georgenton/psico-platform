@@ -44,7 +44,7 @@ const FILES = [
   "apps/web/src/components/dashboard/mapa/affect-copy.ts",
   // Fase F — V2 layout components enter the contract clean (zero violations).
   "apps/web/src/components/dashboard/mapa/MapMomento.tsx",
-  "apps/web/src/components/dashboard/mapa/MapSelfReport.tsx",
+  "apps/web/src/components/dashboard/mapa/MapRadar.tsx",
   "apps/web/src/components/dashboard/mapa/MapLenguaje.tsx",
   "apps/web/src/components/dashboard/mapa/MapNarrative.tsx",
   "apps/mobile/src/components/dashboard/mapa/affect-copy.ts",

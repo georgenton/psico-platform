@@ -214,11 +214,18 @@ export class EmotionalMapService {
   }
 
   /**
-   * Cache-busting hook for post-write paths (a new resonance, a mood, a
-   * consent flip).
+   * REQUIRED invalidation — the caller must fail if this fails.
    *
-   * PR-0.1 — this BUMPS the per-user generation rather than deleting the key
-   * for the current config. Deleting only the current key is not invalidation:
+   * Use it whenever a stale map would be a PRIVACY or CORRECTNESS defect rather
+   * than a freshness one. The motivating case is withdrawing consent for the
+   * on-device text analysis: we delete the derived rows, and if the cached map
+   * survives, the user keeps seeing axes built from data they just revoked. A
+   * swallowed error there is a silent failure of a privacy promise, so this
+   * throws and the request fails closed.
+   *
+   * PR-0.1 — invalidation BUMPS the per-user generation rather than deleting the
+   * key for the current config. Deleting only the current key is not
+   * invalidation:
    *
    *     config A → cache written under key(A)
    *     config B → user changes a mood → we delete key(B), key(A) survives
@@ -230,6 +237,25 @@ export class EmotionalMapService {
    */
   async invalidate(userId: string): Promise<void> {
     await bumpUserGeneration(this.redis, userId);
+  }
+
+  /**
+   * BEST-EFFORT invalidation — for additive writes (a mood, a resonance, text
+   * features) where a stale cache is a freshness bug, not a leak: the user sees
+   * their previous map for a little longer, and nothing they revoked comes back.
+   *
+   * Logs loudly instead of failing the user's write. The distinction from
+   * `invalidate()` is deliberate and load-bearing: a single method that always
+   * swallowed would have made the consent path fail open.
+   */
+  async invalidateBestEffort(userId: string): Promise<void> {
+    try {
+      await bumpUserGeneration(this.redis, userId);
+    } catch (err) {
+      this.logger.warn(
+        `Emotional-map cache invalidation failed for a non-critical write (user cache may be stale for up to 24h): ${(err as Error).message}`,
+      );
+    }
   }
 
   /**
@@ -288,7 +314,7 @@ export class EmotionalMapService {
           select: { id: true },
         });
     // Fire-and-forget: a fresh map should reflect the new signal soon.
-    void this.invalidate(userId).catch(() => undefined);
+    void this.invalidateBestEffort(userId);
     return { ok: true, id: row.id };
   }
 }

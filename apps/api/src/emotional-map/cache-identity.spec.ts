@@ -6,7 +6,9 @@ import {
   FACTS_SCHEMA_VERSION,
   SCORING_VERSION,
   WIRE_SCHEMA_VERSION,
-  assertEpochsConfigured,
+  CRITICAL_FLAGS,
+  assertCriticalFlagsConfigured,
+  assertEmotionalMapConfigured,
   buildCacheKey,
   bumpGeneration,
   cacheEpoch,
@@ -22,6 +24,7 @@ import {
   runtimeFingerprint,
   runtimeIdentity,
 } from "./cache-identity";
+import { FLAGS, type FlagName } from "../shared/flags";
 
 /**
  * PR-0.1 — the cache/snapshot identity.
@@ -56,6 +59,18 @@ function makeRedis() {
       return Promise.resolve(next);
     },
   };
+}
+
+/** A correctly-configured production box: every barrier explicitly in place. */
+function pinProductionFlags() {
+  process.env.NODE_ENV = "production";
+  process.env.EMOTIONAL_MAP_CACHE_EPOCH = "1";
+  process.env.EMOTIONAL_MAP_FACTS_EPOCH = "1";
+  process.env.EMOTIONAL_MAP_V2 = "on";
+  process.env.EMOTIONAL_MAP_LEGACY_UI = "off";
+  process.env.EMOTIONAL_MAP_LLM_SCORING = "off";
+  process.env.EMOTIONAL_MAP_EWS_PUBLIC = "off";
+  process.env.EMOTIONAL_MAP_NARRATOR = "off";
 }
 
 describe("emotional-map cache identity (PR-0.1)", () => {
@@ -94,9 +109,11 @@ describe("emotional-map cache identity (PR-0.1)", () => {
     for (const mutated of [
       { ...parts, scoringVersion: parts.scoringVersion + 1 },
       { ...parts, wireSchemaVersion: parts.wireSchemaVersion + 1 },
+      { ...parts, factsSchemaVersion: parts.factsSchemaVersion + 1 },
       { ...parts, cacheEpoch: parts.cacheEpoch + 1 },
+      { ...parts, factsEpoch: parts.factsEpoch + 1 },
       { ...parts, generation: parts.generation + 1 },
-      { ...parts, configFingerprint: "deadbeef01" },
+      { ...parts, responseFingerprint: "deadbeef01" },
     ]) {
       expect(buildCacheKey(mutated, "user-1")).not.toBe(now);
     }
@@ -106,7 +123,7 @@ describe("emotional-map cache identity (PR-0.1)", () => {
     const redis = makeRedis();
     const key = await resolveCacheKey(redis, "user-1");
     expect(key).toBe(
-      `emotional-map:w${WIRE_SCHEMA_VERSION}:s${SCORING_VERSION}:c${responseFingerprint()}:e${cacheEpoch()}:g0:user-1`,
+      `emotional-map:w${WIRE_SCHEMA_VERSION}:f${FACTS_SCHEMA_VERSION}:s${SCORING_VERSION}:r${responseFingerprint()}:fe${factsEpoch()}:ce${cacheEpoch()}:g0:user-1`,
     );
   });
 
@@ -223,22 +240,47 @@ describe("emotional-map cache identity (PR-0.1)", () => {
 
   // ── Epochs: separate, strict, no silent defaults ─────────────────────────
 
-  it("keeps the cache epoch and the facts epoch independent", async () => {
+  it("FACTS epoch: changes the cache key AND rejects the snapshot", async () => {
+    // The cache key must be a SUPERSET of the facts identity: the cached
+    // response is rendered FROM those numbers, so anything that voids a snapshot
+    // must void the response too. Before this, a facts-epoch bump discarded the
+    // history and kept serving a cached map built from it.
     const redis = makeRedis();
-    process.env[CACHE_EPOCH_ENV] = "1";
-    process.env[FACTS_EPOCH_ENV] = "1";
-    const key1 = await resolveCacheKey(redis, "user-1");
-    const facts1 = factsIdentity();
+    const keyBefore = await resolveCacheKey(redis, "user-1");
+    const factsBefore = factsIdentity();
 
-    // Bumping the CACHE epoch must not invalidate snapshots…
-    process.env[CACHE_EPOCH_ENV] = "2";
-    expect(await resolveCacheKey(redis, "user-1")).not.toBe(key1);
-    expect(matchesFactsIdentity(facts1)).toBe(true);
-
-    // …and bumping the FACTS epoch must invalidate them.
     process.env[FACTS_EPOCH_ENV] = "2";
-    expect(factsEpoch()).toBe(2);
-    expect(matchesFactsIdentity(facts1)).toBe(false);
+
+    expect(await resolveCacheKey(redis, "user-1")).not.toBe(keyBefore); // cache miss
+    expect(matchesFactsIdentity(factsBefore)).toBe(false); // snapshot rejected
+  });
+
+  it("CACHE epoch: changes the cache key but does NOT reject the snapshot", async () => {
+    // The other direction is not symmetric. Busting the rendered response says
+    // nothing about the numbers behind it.
+    const redis = makeRedis();
+    const keyBefore = await resolveCacheKey(redis, "user-1");
+    const factsBefore = factsIdentity();
+
+    process.env[CACHE_EPOCH_ENV] = "2";
+
+    expect(await resolveCacheKey(redis, "user-1")).not.toBe(keyBefore); // cache miss
+    expect(matchesFactsIdentity(factsBefore)).toBe(true); // history survives
+  });
+
+  it("FACTS schema version: changes the cache key AND rejects the snapshot", () => {
+    const parts = currentCacheKeyParts(0);
+    const bumped = { ...parts, factsSchemaVersion: parts.factsSchemaVersion + 1 };
+
+    expect(buildCacheKey(bumped, "user-1")).not.toBe(
+      buildCacheKey(parts, "user-1"),
+    );
+    expect(
+      matchesFactsIdentity({
+        ...factsIdentity(),
+        factsSchemaVersion: FACTS_SCHEMA_VERSION + 1,
+      }),
+    ).toBe(false);
   });
 
   it("rejects a malformed epoch instead of silently reading a prefix", () => {
@@ -251,17 +293,62 @@ describe("emotional-map cache identity (PR-0.1)", () => {
   });
 
   it("refuses to boot in production when an epoch is missing", () => {
-    process.env.NODE_ENV = "production";
+    pinProductionFlags();
 
     delete process.env[CACHE_EPOCH_ENV];
-    expect(() => assertEpochsConfigured()).toThrow(/CACHE_EPOCH.*required/s);
+    expect(() => assertEmotionalMapConfigured()).toThrow(
+      /CACHE_EPOCH.*required/s,
+    );
 
     process.env[CACHE_EPOCH_ENV] = "1";
     delete process.env[FACTS_EPOCH_ENV];
-    expect(() => assertEpochsConfigured()).toThrow(/FACTS_EPOCH.*required/s);
+    expect(() => assertEmotionalMapConfigured()).toThrow(
+      /FACTS_EPOCH.*required/s,
+    );
 
     process.env[FACTS_EPOCH_ENV] = "1";
-    expect(() => assertEpochsConfigured()).not.toThrow();
+    expect(() => assertEmotionalMapConfigured()).not.toThrow();
+  });
+
+  // ── Critical flags: safety barriers, never defaulted ─────────────────────
+
+  it("refuses to boot in production when a critical flag is missing or invalid", () => {
+    pinProductionFlags();
+
+    // Missing. `flagEnabled` would silently fall back to the code default —
+    // and LLM_SCORING defaults to TRUE, so a box that simply forgot it would let
+    // an LLM invent psychological scores. That is exactly what must not happen.
+    delete process.env.EMOTIONAL_MAP_LLM_SCORING;
+    expect(() => assertCriticalFlagsConfigured()).toThrow(/required/i);
+
+    // Invalid value → not a shrug, an error.
+    process.env.EMOTIONAL_MAP_LLM_SCORING = "maybe";
+    expect(() => assertCriticalFlagsConfigured()).toThrow(/on\/off/i);
+
+    // Set, valid, but the WRONG value for a barrier.
+    process.env.EMOTIONAL_MAP_LLM_SCORING = "on";
+    expect(() => assertCriticalFlagsConfigured()).toThrow(/must be "off"/);
+
+    process.env.EMOTIONAL_MAP_LLM_SCORING = "off";
+    expect(() => assertCriticalFlagsConfigured()).not.toThrow();
+  });
+
+  it("requires every critical flag to hold its safety value in production", () => {
+    for (const [name, required] of Object.entries(CRITICAL_FLAGS) as Array<
+      [FlagName, boolean]
+    >) {
+      pinProductionFlags();
+      // Flip this one barrier to the wrong side; the rest stay correct.
+      process.env[FLAGS[name].env] = required ? "off" : "on";
+      expect(() => assertCriticalFlagsConfigured()).toThrow();
+    }
+  });
+
+  it("does not gate critical flags outside production", () => {
+    process.env.NODE_ENV = "test";
+    delete process.env.EMOTIONAL_MAP_LLM_SCORING;
+    // Dev and CI must stay ergonomic — the barrier is a production guarantee.
+    expect(() => assertCriticalFlagsConfigured()).not.toThrow();
   });
 
   // ── API vs worker ────────────────────────────────────────────────────────
@@ -278,6 +365,23 @@ describe("emotional-map cache identity (PR-0.1)", () => {
 
     expect(apiFingerprint).not.toBe(workerFingerprint);
   });
+
+  it.each(Object.keys(FLAGS) as FlagName[])(
+    "runtimeFingerprint changes when %s is toggled",
+    (name) => {
+      // Guards the canonicalization. `JSON.stringify(id, Object.keys(id).sort())`
+      // applies the replacer array at EVERY level, so a nested `flags` object was
+      // serialized in insertion order AND any key not in the top-level whitelist
+      // was silently dropped — a flag could have moved without moving the
+      // fingerprint. That is a false MATCH, which is the dangerous direction.
+      process.env[FLAGS[name].env] = "on";
+      const on = runtimeFingerprint();
+      process.env[FLAGS[name].env] = "off";
+      const off = runtimeFingerprint();
+
+      expect(on).not.toBe(off);
+    },
+  );
 
   it("publishes an identity with no secrets — names, numbers and booleans only", () => {
     const id = runtimeIdentity();

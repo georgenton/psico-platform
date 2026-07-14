@@ -27,7 +27,13 @@ function makeService(overrides: {
     moodLog: { create: vi.fn() },
     user: { update: vi.fn() },
   };
-  const emotionalMap = { invalidate: vi.fn().mockResolvedValue(undefined) };
+  const emotionalMap = {
+    // PR-0.1 — additive writes use the BEST-EFFORT invalidation: a stale map
+    // here is a freshness bug, not a leak. The consent path uses the REQUIRED
+    // one, which fails closed (see UsersService).
+    invalidateBestEffort: vi.fn().mockResolvedValue(undefined),
+    invalidate: vi.fn().mockResolvedValue(undefined),
+  };
   const service = new MoodService(prisma as never, emotionalMap as never);
   return { service, prisma, emotionalMap };
 }
@@ -78,6 +84,6 @@ describe("MoodService · checkins", () => {
       select: { id: true, itemKey: true, score: true, createdAt: true },
     });
     expect(res).toMatchObject({ ok: true, itemKey: "claridad_nombrar" });
-    expect(emotionalMap.invalidate).toHaveBeenCalledWith("u1");
+    expect(emotionalMap.invalidateBestEffort).toHaveBeenCalledWith("u1");
   });
 });

@@ -7,7 +7,7 @@ import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import type { Redis } from "ioredis";
 import { WorkerAppModule } from "./jobs/worker.module";
-import { assertEpochsConfigured } from "./emotional-map/cache-identity";
+import { assertEmotionalMapConfigured } from "./emotional-map/cache-identity";
 import { MapIdentityService } from "./health/map-identity.service";
 import { REDIS_CLIENT } from "./redis";
 
@@ -28,10 +28,11 @@ import { REDIS_CLIENT } from "./redis";
 async function bootstrap(): Promise<void> {
   const logger = new Logger("WorkerBootstrap");
 
-  // PR-0.1 — refuse to boot with a missing or malformed epoch. A worker running
-  // on a different epoch than the API would write snapshots the API silently
-  // refuses to read; failing loudly here beats discovering that weeks later.
-  assertEpochsConfigured();
+  // PR-0.1 — refuse to boot with a missing/malformed epoch or a critical safety
+  // flag out of position. A worker on a different epoch than the API writes
+  // snapshots the API silently refuses to read; failing loudly here beats
+  // discovering that weeks later.
+  assertEmotionalMapConfigured();
 
   const app = await NestFactory.createApplicationContext(WorkerAppModule, {
     // Slightly less chatty than the API — workers run quietly in the background.
@@ -50,11 +51,7 @@ async function bootstrap(): Promise<void> {
   // Publish the emotional-map identity so `GET /api/health/emotional-map` can
   // prove the API and this worker agree. Same code does NOT imply same config:
   // these are two Railway services with two environments.
-  await MapIdentityService.publish(
-    app.get<Redis>(REDIS_CLIENT),
-    "worker",
-    logger,
-  );
+  MapIdentityService.startHeartbeat(app.get<Redis>(REDIS_CLIENT), "worker", logger);
 
   logger.log("Awaiting jobs from Redis…");
 

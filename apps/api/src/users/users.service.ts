@@ -352,10 +352,19 @@ export class UsersService {
       await this.prisma.diaryTextFeature.deleteMany({ where: { userId } });
     }
     if (dto.localTextAnalysis !== undefined) {
-      // PR-0.1 — bump the user's cache generation instead of deleting one key.
-      // Deleting the key for the CURRENT config would leave entries written
+      // PR-0.1 — REQUIRED invalidation: this one fails CLOSED.
+      //
+      // We just deleted the derived rows on opt-out. If the cached map survived,
+      // the user would keep seeing axes built from data they explicitly revoked,
+      // for up to 24h — a silent failure of a privacy promise. Swallowing the
+      // error here would report success while the promise went unkept, so we let
+      // it throw: the request fails, the user can retry, and the retry is
+      // idempotent (deleteMany on nothing is a no-op; a second INCR is harmless).
+      //
+      // It also bumps a per-user GENERATION rather than deleting one key:
+      // deleting the key for the CURRENT config would leave entries written
       // under other configs readable if we ever flipped back to them.
-      await bumpGeneration(this.redis, userId).catch(() => undefined);
+      await bumpGeneration(this.redis, userId);
     }
     return this.getMe(userId);
   }

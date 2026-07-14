@@ -17,13 +17,14 @@ import {
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./shared";
-import { assertEpochsConfigured } from "./emotional-map/cache-identity";
+import { assertEmotionalMapConfigured } from "./emotional-map/cache-identity";
 
 async function bootstrap(): Promise<void> {
-  // PR-0.1 — refuse to boot with a missing or malformed emotional-map epoch.
-  // A silent fallback would let this API serve values from an epoch nobody
-  // chose, and could resurrect caches from a previous one.
-  assertEpochsConfigured();
+  // PR-0.1 — refuse to boot with a missing/malformed epoch, or with a critical
+  // safety flag out of position. A silent fallback would let this API serve
+  // values from an epoch nobody chose — or, worse, let an LLM score axes because
+  // EMOTIONAL_MAP_LLM_SCORING defaults to `true` in code and the box forgot it.
+  assertEmotionalMapConfigured();
 
   // rawBody: true enables req.rawBody for Stripe webhook signature verification.
   const app = await NestFactory.create(AppModule, { rawBody: true });
@@ -199,7 +200,9 @@ async function bootstrap(): Promise<void> {
     const { MapIdentityService } = require("./health/map-identity.service");
     // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
     const { REDIS_CLIENT } = require("./redis");
-    await MapIdentityService.publish(
+    // Heartbeat, not a one-shot: a key with no refresh would let a dead service
+    // keep asserting "we agree" long after it stopped running.
+    MapIdentityService.startHeartbeat(
       app.get(REDIS_CLIENT),
       "api",
       new Logger("Bootstrap"),

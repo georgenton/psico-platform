@@ -86,8 +86,11 @@ consumiendo `EmotionalMapDimension[]` (números + procedencia), nunca texto.
 - `MapSelfReportCard.tsx` + test eliminados; copy-contract mobile actualizado.
 - **4 tests** (`MapRadarCard.test.tsx`) — empty state, filas, source-label
   mapping (ARC-C1 → "Tus resonancias", OU → "Tu ánimo"). Suite mobile 78/78.
-- Requiere **rebuild EAS** para que el binario incluya `react-native-svg` (dep
-  nativa); en Expo Go / dev-client se ve al recargar.
+- **Sin rebuild:** el proyecto corre en **Expo Go** (no dev-client, no EAS
+  configurado) y `react-native-svg@15.8.0` es un módulo **bundleado en Expo Go**
+  (versión exacta del SDK 52, confirmado con `expo install --check`) → el radar
+  se ve al **recargar** la app. Solo un custom dev-client o un build de tienda
+  (EAS) necesitaría reconstruirse para incluir la dep nativa.
 
 ## Deuda / follow-ups
 

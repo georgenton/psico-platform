@@ -3301,9 +3301,11 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 **Privacidad (ADR 0007):** el radar es solo UI — consume `EmotionalMapDimension[]` (números + procedencia), nunca texto.
 
-**3) Paridad mobile (mismo PR).** `react-native-svg 15.8.0` instalado (SDK 52); **`MapRadarCard.tsx`** con el hexágono en react-native-svg + filas honestas, reemplaza a `MapSelfReportCard` en `(tabs)/mapa.tsx` (mobile no tiene mini-mapa en Inicio). 4 tests nuevos, suite mobile 78/78. Requiere **rebuild EAS** para que el binario incluya la dep nativa.
+**3) Paridad mobile (mismo PR).** `react-native-svg 15.8.0` instalado (SDK 52); **`MapRadarCard.tsx`** con el hexágono en react-native-svg + filas honestas, reemplaza a `MapSelfReportCard` en `(tabs)/mapa.tsx` (mobile no tiene mini-mapa en Inicio). 4 tests nuevos, suite mobile 78/78. **Sin rebuild:** el proyecto corre en Expo Go, que ya trae `react-native-svg` bundleado (versión del SDK 52) → el radar se ve al recargar; solo un dev-client/build de tienda necesitaría reconstruirse.
 
-**Deuda:** badge "Comprensión emocional 74 %" heredado en el nav shell web (fuera del mapa, inconsistente con "sin % global") · `shell/Radar.tsx` + `MapaPreviewCard.tsx` quedan sin uso.
+**Cierres posteriores (2026-07-14):** `/logout` 500 → Route Handler (PR #536, en prod); card "Comprensión emocional 74 %" del nav shell reemplazada por un CTA honesto al Mapa (sin % global inventado).
+
+**Deuda:** `shell/Radar.tsx` + `MapaPreviewCard.tsx` quedan sin uso (limpieza opcional) · Google/VAPID `NEXT_PUBLIC_*` sensitive-vacías en Vercel.
 
 ---
 

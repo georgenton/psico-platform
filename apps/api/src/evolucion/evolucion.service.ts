@@ -111,18 +111,21 @@ export class EvolucionService {
         month: true,
         pct: true,
         coverage: true,
-        wireSchemaVersion: true,
+        factsSchemaVersion: true,
         scoringVersion: true,
         configFingerprint: true,
+        factsEpoch: true,
       },
     });
     return (
       rows
-        // PR-0.1 — a snapshot produced by a different wire schema, scoring
-        // version or facts-config was computed by a DIFFERENT model. Plotting it
-        // next to today's numbers would draw a trend that never happened, so we
-        // drop it instead of rescuing it. Pre-PR-0.1 rows carry NULL identity and
-        // are dropped for the same reason: we cannot vouch for how they were made.
+        // PR-0.1 — a snapshot produced by a different FACTS schema, scoring
+        // version, facts-config or facts epoch was computed by a DIFFERENT
+        // model. Plotting it next to today's numbers would draw a trend that
+        // never happened, so we drop it instead of rescuing it. Pre-PR-0.1 rows
+        // carry NULL identity and are dropped for the same reason: we cannot
+        // vouch for how they were made. (Note this is the facts identity, not
+        // the wire one: reshaping the response moves no number.)
         .filter((r) => matchesFactsIdentity(r))
         .map((r) => ({
           monthIso: r.month.toISOString().slice(0, 10),

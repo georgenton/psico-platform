@@ -8,7 +8,7 @@ import {
 } from "@nestjs/common";
 import * as bcrypt from "bcryptjs";
 import { UsersService } from "./users.service";
-import { emotionalMapCacheKey } from "../emotional-map/cache-identity";
+import { generationKey } from "../emotional-map/cache-identity";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -108,6 +108,9 @@ const mockConfig = {
 
 const mockRedis = {
   del: vi.fn().mockResolvedValue(1),
+  // PR-0.1 — invalidating a user's map bumps a generation counter; it no longer
+  // deletes a single config-scoped key (which an old config could outlive).
+  incr: vi.fn().mockResolvedValue(1),
 };
 
 // ─── Suite ────────────────────────────────────────────────────────────────────
@@ -314,14 +317,14 @@ describe("UsersService", () => {
       expect(mockPrisma.diaryTextFeature.deleteMany).toHaveBeenCalledWith({
         where: { userId },
       });
-      expect(mockRedis.del).toHaveBeenCalledWith(emotionalMapCacheKey(userId));
+      expect(mockRedis.incr).toHaveBeenCalledWith(generationKey(userId));
     });
 
     it("Fase D (L4): opting IN keeps the rows but busts the map cache", async () => {
       mockPrisma.privacySettings.upsert.mockResolvedValue({});
       await service.updatePrivacy(userId, { localTextAnalysis: true });
       expect(mockPrisma.diaryTextFeature.deleteMany).not.toHaveBeenCalled();
-      expect(mockRedis.del).toHaveBeenCalledWith(emotionalMapCacheKey(userId));
+      expect(mockRedis.incr).toHaveBeenCalledWith(generationKey(userId));
     });
   });
 

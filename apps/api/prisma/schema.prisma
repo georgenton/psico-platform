@@ -2061,17 +2061,23 @@ model EmotionalMapSnapshot {
   provider    String
   createdAt   DateTime @default(now())
 
-  /// PR-0.1 — identity of the code + config that produced this row. A
-  /// snapshot computed under a different wire schema, a different scoring
-  /// version or a different facts-config describes a DIFFERENT model, so the
-  /// API must not present it as this model's history. Null on pre-PR-0.1
-  /// rows, which are therefore never served.
-  wireSchemaVersion Int?
-  scoringVersion    Int?
+  /// PR-0.1 — identity of the code + config that produced these NUMBERS. A row
+  /// computed under a different facts schema, scoring version, facts-config or
+  /// facts epoch describes a DIFFERENT model, so the API must not present it as
+  /// this model's history. Null on pre-PR-0.1 rows, which are therefore never
+  /// served (they are not deleted — we just cannot vouch for them).
+  ///
+  /// Note this is the FACTS schema, not the wire schema: reshaping the API
+  /// response must not discard a year of history, because no number moved.
+  factsSchemaVersion Int?
+  scoringVersion     Int?
   /// Digest of the flags that can change the computed numbers (see
-  /// `cache-identity.ts` → `factsFingerprint`). Excludes copy-only flags
-  /// like the Narrator: turning it off must not invalidate real history.
-  configFingerprint String?
+  /// `cache-identity.ts` → `factsFingerprint`). Excludes copy-only flags like
+  /// the Narrator: muting it must not invalidate real history.
+  configFingerprint  String?
+  /// EMOTIONAL_MAP_FACTS_EPOCH at write time — the manual break-glass for
+  /// facts, independent from the cache epoch.
+  factsEpoch         Int?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

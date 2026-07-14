@@ -4530,6 +4530,49 @@
         ]
       }
     },
+    "/api/health/emotional-map": {
+      "get": {
+        "description": "Compares the emotional-map identity (schema versions, scoring version, config fingerprints, epochs, flags) of the API against the one the worker published at ITS boot. They are separate Railway services with separate environments: importing the same code does not make them agree. A mismatch means the cron is writing snapshots the API will silently refuse to read — run this after every deploy. Names and booleans only; no secrets.",
+        "operationId": "HealthController_emotionalMapIdentity",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Emotional-map identity probe (ADMIN only)",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
     "/api/user/me": {
       "get": {
         "operationId": "UsersController_getMe",

@@ -28,7 +28,7 @@ import { JobsService } from "../jobs";
 import { ConfigService } from "@nestjs/config";
 import type { Env } from "../config";
 import { REDIS_CLIENT } from "../redis";
-import { emotionalMapCacheKey } from "../emotional-map/emotional-map.service";
+import { bumpGeneration } from "../emotional-map/cache-identity";
 import { emailShell, escape } from "../notifications/templates/base";
 import type { UpdateProfileDto } from "./dto/update-profile.dto";
 import type { UpdateTimezoneDto } from "./dto/update-timezone.dto";
@@ -352,7 +352,10 @@ export class UsersService {
       await this.prisma.diaryTextFeature.deleteMany({ where: { userId } });
     }
     if (dto.localTextAnalysis !== undefined) {
-      await this.redis.del(emotionalMapCacheKey(userId)).catch(() => undefined);
+      // PR-0.1 — bump the user's cache generation instead of deleting one key.
+      // Deleting the key for the CURRENT config would leave entries written
+      // under other configs readable if we ever flipped back to them.
+      await bumpGeneration(this.redis, userId).catch(() => undefined);
     }
     return this.getMe(userId);
   }

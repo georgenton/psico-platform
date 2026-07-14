@@ -8,19 +8,22 @@ import { flagEnabled } from "../shared/flags";
 import type { IEmotionalMapProvider } from "./providers/provider.interface";
 import { EMOTIONAL_MAP_PROVIDER } from "./tokens";
 import { scoreEmotionalMap } from "./emotional-map.scoring";
-import { emotionalMapCacheKey as cacheKeyFor } from "./cache-identity";
+import {
+  bumpGeneration as bumpUserGeneration,
+  resolveCacheKey as resolveKeyFor,
+} from "./cache-identity";
 
 /** Re-export the shared wire shape so the controller + barrel keep importing
  *  it from this module. The source of truth lives in `@psico/types`. */
 export type { EmotionalMapResult } from "@psico/types";
 
 /**
- * PR-0.1 — the cache key now lives in `cache-identity.ts` and embeds the
- * code + config that produced the value, so a flag flip is visible on the
- * next request instead of after the TTL. Re-exported here because
- * UsersService (and any future caller) already imports it from this module.
+ * PR-0.1 — the cache key lives in `cache-identity.ts` and embeds the code +
+ * config + per-user generation that produced the value, so a flag flip is
+ * visible on the next request instead of after the TTL. Re-exported here
+ * because UsersService already reaches for these through this module.
  */
-export { emotionalMapCacheKey } from "./cache-identity";
+export { resolveCacheKey, bumpGeneration } from "./cache-identity";
 
 const WINDOW_DAYS = 30;
 /**
@@ -49,7 +52,7 @@ export class EmotionalMapService {
   ) {}
 
   async getForUser(userId: string): Promise<EmotionalMapResult> {
-    const cacheKey = cacheKeyFor(userId);
+    const cacheKey = await resolveKeyFor(this.redis, userId);
     const cached = await this.redis.get(cacheKey);
     if (cached) {
       try {
@@ -212,13 +215,21 @@ export class EmotionalMapService {
 
   /**
    * Cache-busting hook for post-write paths (a new resonance, a mood, a
-   * consent flip). Deletes the key for the CURRENT identity — which is the
-   * only key any running process can read. Entries left behind by an older
-   * config are unreachable by construction and expire on their own TTL; we
-   * never scan or purge globally on an ordinary write (PR-0.1).
+   * consent flip).
+   *
+   * PR-0.1 — this BUMPS the per-user generation rather than deleting the key
+   * for the current config. Deleting only the current key is not invalidation:
+   *
+   *     config A → cache written under key(A)
+   *     config B → user changes a mood → we delete key(B), key(A) survives
+   *     config A again → key(A) is served: stale, missing that mood
+   *
+   * One INCR moves the user to a new generation, so every variant — including
+   * configs we are not running and might roll back to — becomes unreachable at
+   * once. The orphans expire on their own TTL: no KEYS, no global purge.
    */
   async invalidate(userId: string): Promise<void> {
-    await this.redis.del(cacheKeyFor(userId));
+    await bumpUserGeneration(this.redis, userId);
   }
 
   /**

@@ -1219,6 +1219,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/health/emotional-map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Emotional-map identity probe (ADMIN only)
+         * @description Compares the emotional-map identity (schema versions, scoring version, config fingerprints, epochs, flags) of the API against the one the worker published at ITS boot. They are separate Railway services with separate environments: importing the same code does not make them agree. A mismatch means the cron is writing snapshots the API will silently refuse to read — run this after every deploy. Names and booleans only; no secrets.
+         */
+        get: operations["HealthController_emotionalMapIdentity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/user/me": {
         parameters: {
             query?: never;
@@ -7410,6 +7430,41 @@ export interface operations {
         };
     };
     HealthController_integrationsReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    HealthController_emotionalMapIdentity: {
         parameters: {
             query?: never;
             header?: never;

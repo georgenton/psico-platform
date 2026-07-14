@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EmotionalMapService } from "./emotional-map.service";
-import { emotionalMapCacheKey } from "./cache-identity";
+import { generationKey, resolveCacheKey } from "./cache-identity";
 import type {
   EmotionalMapMetadataPayload,
   IEmotionalMapProvider,
@@ -98,11 +98,18 @@ function makeRedis() {
       store.delete(key);
       return Promise.resolve(1);
     }),
+    // PR-0.1 — invalidation is an INCR of the per-user generation, not a DEL.
+    incr: vi.fn((key: string) => {
+      const next = Number(store.get(key) ?? "0") + 1;
+      store.set(key, String(next));
+      return Promise.resolve(next);
+    }),
     __store: store,
   } as unknown as {
     get: ReturnType<typeof vi.fn>;
     set: ReturnType<typeof vi.fn>;
     del: ReturnType<typeof vi.fn>;
+    incr: ReturnType<typeof vi.fn>;
     __store: Map<string, string>;
   };
 }
@@ -345,7 +352,9 @@ describe("EmotionalMapService — hybrid rework (confidence per axis)", () => {
 
     await service.getForUser("user-1");
     expect(redis.set).toHaveBeenCalledTimes(1);
-    expect(redis.get).toHaveBeenCalledTimes(2);
+    // PR-0.1 — two GETs per call now: the per-user generation, then the payload
+    // under the key that generation produces.
+    expect(redis.get).toHaveBeenCalledTimes(4);
   });
 
   // ── Tier 2 — Ornstein–Uhlenbeck wiring (live in production) ───────────────
@@ -489,9 +498,11 @@ describe("EmotionalMapService.logTextFeatures — Etapa 6 (numbers only)", () =>
         create: expect.objectContaining({ userId: "user-1", wordCount: 60 }),
       }),
     );
-    // PR-0.1 — the key is derived from the running code + config, never a
-    // literal. Asserting the literal would let the two drift apart silently.
-    expect(redis.del).toHaveBeenCalledWith(emotionalMapCacheKey("user-1"));
+    // PR-0.1 — invalidation bumps the per-user generation rather than deleting
+    // one key: deleting the key for the CURRENT config would leave entries
+    // written under other configs readable if we flipped back to them.
+    expect(redis.incr).toHaveBeenCalledWith(generationKey("user-1"));
+    expect(redis.del).not.toHaveBeenCalled();
   });
 
   it("rejects an entryId owned by another user (403)", async () => {
@@ -734,7 +745,7 @@ describe("EmotionalMapService — cache identity (PR-0.1)", () => {
     // Warm the cache with the Narrator ON.
     process.env.EMOTIONAL_MAP_NARRATOR = "on";
     await service.getForUser("user-1");
-    const keyWithNarrator = [...redis.__store.keys()][0];
+    const keyWithNarrator = await resolveCacheKey(redis as never, "user-1");
     expect(keyWithNarrator).toBeDefined();
     // Poison it so a cache HIT would be unmistakable.
     redis.__store.set(keyWithNarrator, JSON.stringify({ stale: true }));

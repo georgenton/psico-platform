@@ -9,6 +9,10 @@ import { EmotionalMapService } from "../../emotional-map/emotional-map.service";
 // PR-0.1 — the worker stamps snapshots with the SAME identity helper the API
 // reads them back with. One module, so the two can never disagree.
 import { factsIdentity } from "../../emotional-map/cache-identity";
+// NOTE: importing the same helper does NOT guarantee the worker and the API
+// agree — they are separate Railway services with separate environments. The
+// startup log + the `/api/health/emotional-map` probe are what actually catch a
+// divergence (see cache-identity.ts → runtimeIdentity).
 import {
   JobName,
   QueueName,

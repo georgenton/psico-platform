@@ -12,6 +12,8 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RequiredRole, RolesGuard } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { IntegrationsService } from "./integrations.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { MapIdentityService } from "./map-identity.service";
 
 @ApiTags("Health")
 @Controller("health")
@@ -21,7 +23,10 @@ import { IntegrationsService } from "./integrations.service";
 // always-available — opting out of throttling is the safe choice.
 @SkipThrottle()
 export class HealthController {
-  constructor(private readonly integrations: IntegrationsService) {}
+  constructor(
+    private readonly integrations: IntegrationsService,
+    private readonly identity: MapIdentityService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -45,5 +50,19 @@ export class HealthController {
   @ApiForbiddenResponse({ type: ErrorEnvelopeDto })
   integrationsReport() {
     return this.integrations.report();
+  }
+
+  @Get("emotional-map")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequiredRole("ADMIN")
+  @ApiOperation({
+    summary: "Emotional-map identity probe (ADMIN only)",
+    description:
+      "Compares the emotional-map identity (schema versions, scoring version, config fingerprints, epochs, flags) of the API against the one the worker published at ITS boot. They are separate Railway services with separate environments: importing the same code does not make them agree. A mismatch means the cron is writing snapshots the API will silently refuse to read — run this after every deploy. Names and booleans only; no secrets.",
+  })
+  @ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+  @ApiForbiddenResponse({ type: ErrorEnvelopeDto })
+  emotionalMapIdentity() {
+    return this.identity.compare();
   }
 }

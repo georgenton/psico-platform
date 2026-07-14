@@ -3289,6 +3289,24 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-07-14 ✅ COMPLETADA — Login prod fix + Mapa Emocional · radar hexagonal honesto (web)
+
+**Ramas:** fix del login (env Vercel) + `feature/emotional-map-hexagon-radar`
+**Bitácora:** [docs/informes/sprint-mapa-radar-hexagono.md](docs/informes/sprint-mapa-radar-hexagono.md)
+**Tests:** Web 316/316 (+5 MapRadar, InicioV2 actualizado) · copy-contract + v2-contract verdes.
+
+**1) Fix de login en producción.** El error `digest: 4082070354` era un Server Action de Next crasheando: `NEXT_PUBLIC_API_URL` estaba guardada como **"sensitive"** en Vercel → vacía en build → `lib/api.ts` con `??` no atrapaba el string vacío → URL relativa `/api/...` → `fetch` server-side inválido. Fix: re-agregar la env como `--no-sensitive` con el valor de Railway + `vercel redeploy`. Verificado end-to-end en el navegador (login demo → dashboard). **Ojo:** `NEXT_PUBLIC_GOOGLE_CLIENT_ID` y `NEXT_PUBLIC_VAPID_PUBLIC_KEY` también están sensitive-vacías (afecta Google Sign-in + Web Push); pendiente re-agregarlas con sus valores.
+
+**2) Radar hexagonal honesto.** El usuario pidió recuperar el estilo radar del mapa anterior. Se construyó **`MapRadar.tsx`** (web): hexágono SVG de 6 ejes donde cada punta llega a su valor **solo con señal real** (`confidence >= 0.15`); las que faltan se dibujan punteadas + "Reuniendo datos", nunca un valor por defecto (el `?? 0.5` fabricado del radar viejo). El polígono conecta solo las puntas con datos y crece conforme el usuario alimenta el mapa. Sin porcentaje global. Procedencia por punta (Tu check-in / Tu ánimo / Tus resonancias, mapeado de `evidence.modelId`). Reemplaza a `MapSelfReport` (triángulo de 3 ejes) en `mapa/page.tsx` y en el mini-mapa de Inicio (`compact`). `MapSelfReport` + test eliminados; copy-contract actualizado (cuidado: **"medido"** y **"confianza"** son términos prohibidos). Verificado en el navegador con la cuenta demo: Calma 72 % · Claridad 88 % · Compasión 78 % · Consciencia 83 %, Conexión + Propósito reuniendo datos.
+
+**Privacidad (ADR 0007):** el radar es solo UI — consume `EmotionalMapDimension[]` (números + procedencia), nunca texto.
+
+**3) Paridad mobile (mismo PR).** `react-native-svg 15.8.0` instalado (SDK 52); **`MapRadarCard.tsx`** con el hexágono en react-native-svg + filas honestas, reemplaza a `MapSelfReportCard` en `(tabs)/mapa.tsx` (mobile no tiene mini-mapa en Inicio). 4 tests nuevos, suite mobile 78/78. Requiere **rebuild EAS** para que el binario incluya la dep nativa.
+
+**Deuda:** badge "Comprensión emocional 74 %" heredado en el nav shell web (fuera del mapa, inconsistente con "sin % global") · `shell/Radar.tsx` + `MapaPreviewCard.tsx` quedan sin uso.
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

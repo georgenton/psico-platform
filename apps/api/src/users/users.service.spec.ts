@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import * as bcrypt from "bcryptjs";
 import { UsersService } from "./users.service";
+import { emotionalMapCacheKey } from "../emotional-map/cache-identity";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -313,14 +314,14 @@ describe("UsersService", () => {
       expect(mockPrisma.diaryTextFeature.deleteMany).toHaveBeenCalledWith({
         where: { userId },
       });
-      expect(mockRedis.del).toHaveBeenCalledWith(`emotional-map:${userId}`);
+      expect(mockRedis.del).toHaveBeenCalledWith(emotionalMapCacheKey(userId));
     });
 
     it("Fase D (L4): opting IN keeps the rows but busts the map cache", async () => {
       mockPrisma.privacySettings.upsert.mockResolvedValue({});
       await service.updatePrivacy(userId, { localTextAnalysis: true });
       expect(mockPrisma.diaryTextFeature.deleteMany).not.toHaveBeenCalled();
-      expect(mockRedis.del).toHaveBeenCalledWith(`emotional-map:${userId}`);
+      expect(mockRedis.del).toHaveBeenCalledWith(emotionalMapCacheKey(userId));
     });
   });
 

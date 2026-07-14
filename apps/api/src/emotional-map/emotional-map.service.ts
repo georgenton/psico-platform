@@ -8,19 +8,19 @@ import { flagEnabled } from "../shared/flags";
 import type { IEmotionalMapProvider } from "./providers/provider.interface";
 import { EMOTIONAL_MAP_PROVIDER } from "./tokens";
 import { scoreEmotionalMap } from "./emotional-map.scoring";
+import { emotionalMapCacheKey as cacheKeyFor } from "./cache-identity";
 
 /** Re-export the shared wire shape so the controller + barrel keep importing
  *  it from this module. The source of truth lives in `@psico/types`. */
 export type { EmotionalMapResult } from "@psico/types";
 
 /**
- * Single source of truth for the per-user map cache key — UsersService busts
- * it when the text-analysis consent flips (Fase D) without importing the
- * whole module graph.
+ * PR-0.1 — the cache key now lives in `cache-identity.ts` and embeds the
+ * code + config that produced the value, so a flag flip is visible on the
+ * next request instead of after the TTL. Re-exported here because
+ * UsersService (and any future caller) already imports it from this module.
  */
-export function emotionalMapCacheKey(userId: string): string {
-  return `emotional-map:${userId}`;
-}
+export { emotionalMapCacheKey } from "./cache-identity";
 
 const WINDOW_DAYS = 30;
 /**
@@ -49,7 +49,7 @@ export class EmotionalMapService {
   ) {}
 
   async getForUser(userId: string): Promise<EmotionalMapResult> {
-    const cacheKey = emotionalMapCacheKey(userId);
+    const cacheKey = cacheKeyFor(userId);
     const cached = await this.redis.get(cacheKey);
     if (cached) {
       try {
@@ -210,9 +210,15 @@ export class EmotionalMapService {
     return result;
   }
 
-  /** Cache-busting hook for the daily cron and post-write paths. */
+  /**
+   * Cache-busting hook for post-write paths (a new resonance, a mood, a
+   * consent flip). Deletes the key for the CURRENT identity — which is the
+   * only key any running process can read. Entries left behind by an older
+   * config are unreachable by construction and expire on their own TTL; we
+   * never scan or purge globally on an ordinary write (PR-0.1).
+   */
   async invalidate(userId: string): Promise<void> {
-    await this.redis.del(emotionalMapCacheKey(userId));
+    await this.redis.del(cacheKeyFor(userId));
   }
 
   /**

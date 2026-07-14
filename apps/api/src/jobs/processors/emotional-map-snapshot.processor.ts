@@ -6,6 +6,9 @@ import type { Job } from "bullmq";
 // override for *.processor.ts).
 import { PrismaService } from "../../prisma";
 import { EmotionalMapService } from "../../emotional-map/emotional-map.service";
+// PR-0.1 — the worker stamps snapshots with the SAME identity helper the API
+// reads them back with. One module, so the two can never disagree.
+import { factsIdentity } from "../../emotional-map/cache-identity";
 import {
   JobName,
   QueueName,
@@ -95,6 +98,10 @@ export class EmotionalMapSnapshotProcessor extends WorkerHost {
     for (const { id: userId } of userRows) {
       try {
         const result = await this.emotionalMap.compute(userId);
+        // PR-0.1 — stamp the identity of the code + config that produced
+        // these numbers, so the API can refuse to serve them as its own
+        // history after a scoring or config change.
+        const identity = factsIdentity();
         await this.prisma.emotionalMapSnapshot.upsert({
           where: {
             userId_month: { userId, month },
@@ -108,12 +115,14 @@ export class EmotionalMapSnapshotProcessor extends WorkerHost {
             coverage: result.coverage,
             values: Array.from(result.values),
             provider: result.provider,
+            ...identity,
           },
           update: {
             pct: result.pct,
             coverage: result.coverage,
             values: Array.from(result.values),
             provider: result.provider,
+            ...identity,
           },
         });
         persisted++;

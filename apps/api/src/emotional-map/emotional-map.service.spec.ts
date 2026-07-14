@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EmotionalMapService } from "./emotional-map.service";
+import { emotionalMapCacheKey } from "./cache-identity";
 import type {
   EmotionalMapMetadataPayload,
   IEmotionalMapProvider,
@@ -488,7 +489,9 @@ describe("EmotionalMapService.logTextFeatures — Etapa 6 (numbers only)", () =>
         create: expect.objectContaining({ userId: "user-1", wordCount: 60 }),
       }),
     );
-    expect(redis.del).toHaveBeenCalledWith("emotional-map:user-1");
+    // PR-0.1 — the key is derived from the running code + config, never a
+    // literal. Asserting the literal would let the two drift apart silently.
+    expect(redis.del).toHaveBeenCalledWith(emotionalMapCacheKey("user-1"));
   });
 
   it("rejects an entryId owned by another user (403)", async () => {
@@ -684,5 +687,73 @@ describe("EmotionalMapService — Fase F dual-run window (LEGACY_UI gates the v2
         expect(proposito.confidence).toBeGreaterThan(0);
       },
     );
+  });
+});
+
+/**
+ * PR-0.1 — a config change must take effect on the NEXT request, not after the
+ * 24h TTL.
+ *
+ * This is the regression test for a real production incident: we set
+ * EMOTIONAL_MAP_NARRATOR=off, the deploy went green, and the API kept serving
+ * narrated maps — because the cached payload had been computed under the old
+ * config and the cache key had not changed. An "off" switch that keeps
+ * emitting the thing you switched off is not an off switch, and the same held
+ * for the rollback direction.
+ */
+describe("EmotionalMapService — cache identity (PR-0.1)", () => {
+  const KEYS = ["EMOTIONAL_MAP_NARRATOR", "EMOTIONAL_MAP_CACHE_EPOCH"] as const;
+  const saved = new Map<string, string | undefined>();
+
+  beforeEach(() => {
+    for (const k of KEYS) saved.set(k, process.env[k]);
+  });
+  afterEach(() => {
+    for (const k of KEYS) {
+      const v = saved.get(k);
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  });
+
+  it("does not serve a payload cached under a different config (no TTL wait)", async () => {
+    const prisma = makePrisma({});
+    const redis = makeRedis();
+    const provider = makeProvider(async () => ({
+      calma: 0.5,
+      claridad: 0.5,
+      compasion: 0.5,
+      consciencia: 0.5,
+    }));
+    const service = new EmotionalMapService(
+      prisma as never,
+      provider,
+      redis as never,
+    );
+
+    // Warm the cache with the Narrator ON.
+    process.env.EMOTIONAL_MAP_NARRATOR = "on";
+    await service.getForUser("user-1");
+    const keyWithNarrator = [...redis.__store.keys()][0];
+    expect(keyWithNarrator).toBeDefined();
+    // Poison it so a cache HIT would be unmistakable.
+    redis.__store.set(keyWithNarrator, JSON.stringify({ stale: true }));
+
+    // Flip the Narrator off — nothing else changes, no TTL elapses.
+    process.env.EMOTIONAL_MAP_NARRATOR = "off";
+    const fresh = (await service.getForUser("user-1")) as unknown as {
+      stale?: boolean;
+    };
+
+    // The stale payload is unreachable: the key it lives under is no longer
+    // the key this configuration derives.
+    expect(fresh.stale).toBeUndefined();
+    expect(fresh).toHaveProperty("dimensions");
+    // The poisoned entry is still there — untouched, and it will expire on its
+    // own TTL. We never had to scan or purge to make the flip take effect.
+    expect(redis.__store.get(keyWithNarrator)).toBe(
+      JSON.stringify({ stale: true }),
+    );
+    expect(redis.del).not.toHaveBeenCalled();
   });
 });

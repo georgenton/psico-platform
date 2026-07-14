@@ -2092,6 +2092,13 @@ model EmotionalMapSnapshot {
   /// facts, independent from the cache epoch.
   factsEpoch         Int?
 
+  /// PR-0.1 — PROVENANCE, not a guard. Which `PrivacySettings.
+  /// emotionalMapPrivacyRevision` this row was computed under. The barrier (a
+  /// shared lock on the User row, re-validated at write time) is what makes the
+  /// write safe; this column is what lets us AUDIT it afterwards: given a row,
+  /// which consent state produced these numbers. Null on pre-PR-0.1 rows.
+  privacyRevision    Int?
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, month])

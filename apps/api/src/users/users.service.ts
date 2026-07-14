@@ -29,6 +29,7 @@ import { ConfigService } from "@nestjs/config";
 import type { Env } from "../config";
 import { REDIS_CLIENT } from "../redis";
 import { bumpGeneration } from "../emotional-map/cache-identity";
+import { lockUserExclusive } from "../emotional-map/privacy-barrier";
 import { emailShell, escape } from "../notifications/templates/base";
 import type { UpdateProfileDto } from "./dto/update-profile.dto";
 import type { UpdateTimezoneDto } from "./dto/update-timezone.dto";
@@ -339,10 +340,6 @@ export class UsersService {
   // ── PATCH /api/user/privacy ────────────────────────────────────────────────
 
   async updatePrivacy(userId: string, dto: UpdatePrivacyDto) {
-    // Fase D (L4) — the on-device text-analysis consent has side effects: opting
-    // OUT deletes every derived numeric row (the derived data is sensitive).
-    const consentChanged = dto.localTextAnalysis !== undefined;
-
     // PR-0.1 — the revocation is ATOMIC and its safety does NOT depend on Redis.
     //
     // The previous shape was: commit the consent, delete the rows, then bump a
@@ -356,23 +353,48 @@ export class UsersService {
     // `emotionalMapPrivacyRevision` happen in ONE transaction. The revision is
     // part of every cache key for this user, so the moment the revocation
     // commits, the old payload is unreachable — Redis has no say in it.
-    await this.prisma.$transaction(async (tx) => {
+    const consentChanged = await this.prisma.$transaction(async (tx) => {
+      // The BARRIER. Every writer of a derived row holds a shared lock on this
+      // same user row for the whole of its own transaction, so taking the
+      // exclusive lock here means: no text-feature upload and no snapshot write
+      // for this user is in flight right now, and none can start until we
+      // commit. Without it, a writer that read `localTextAnalysis = true` a
+      // moment ago would land its upsert on the far side of our deletion and
+      // resurrect the derivative we were asked to destroy.
+      //
+      // We lock the USER row, not `PrivacySettings`: the settings row is created
+      // lazily, and a FOR UPDATE over a row that does not exist locks nothing.
+      await lockUserExclusive(tx, userId);
+
+      // "Changed" means the VALUE moved, not "the field was present in the DTO".
+      // A client that re-sends the same consent (a settings page saving the whole
+      // form, a double-tap) must not bump the revision: that would churn the
+      // cache, and — read as a revocation — would delete history the user never
+      // asked to lose.
+      const current = await tx.privacySettings.findUnique({
+        where: { userId },
+        select: { localTextAnalysis: true },
+      });
+      const currentConsent = current?.localTextAnalysis ?? false;
+      const nextConsent = dto.localTextAnalysis;
+      const changed =
+        nextConsent !== undefined && nextConsent !== currentConsent;
+      const revoking = changed && nextConsent === false;
+
       await tx.privacySettings.upsert({
         where: { userId },
         create: {
           userId,
           ...dto,
-          ...(consentChanged ? { emotionalMapPrivacyRevision: 1 } : {}),
+          emotionalMapPrivacyRevision: changed ? 1 : 0,
         },
         update: {
           ...dto,
-          ...(consentChanged
-            ? { emotionalMapPrivacyRevision: { increment: 1 } }
-            : {}),
+          ...(changed ? { emotionalMapPrivacyRevision: { increment: 1 } } : {}),
         },
       });
 
-      if (dto.localTextAnalysis === false) {
+      if (revoking) {
         await tx.diaryTextFeature.deleteMany({ where: { userId } });
 
         // The revision above hides the CURRENT map, but `EmotionalMapSnapshot`
@@ -390,12 +412,17 @@ export class UsersService {
         // — and the cron rebuilds it from the remaining, consented sources.
         await tx.emotionalMapSnapshot.deleteMany({ where: { userId } });
       }
+
+      return changed;
     });
 
     if (consentChanged) {
       // Freshness only, and explicitly best-effort: the guarantee already
       // committed above. If Redis is unreachable the user still cannot be served
       // the revoked map, so failing the whole request here would be theatre.
+      //
+      // Only on a REAL change — re-saving the same consent must not churn the
+      // cache of a user who changed nothing.
       await bumpGeneration(this.redis, userId).catch(() => undefined);
     }
     return this.getMe(userId);

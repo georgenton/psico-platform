@@ -19,7 +19,8 @@
     "migrate:deploy": "prisma migrate deploy",
     "gen:vapid": "node scripts/gen-vapid.mjs",
     "seed:test": "ts-node prisma/seed-test.ts",
-    "seed:test:wipe": "ts-node prisma/seed-test.ts --wipe"
+    "seed:test:wipe": "ts-node prisma/seed-test.ts --wipe",
+    "test:locks": "vitest run --config vitest.locks.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

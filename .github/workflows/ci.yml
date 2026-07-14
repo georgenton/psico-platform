@@ -95,6 +95,25 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    # PR-0.1 — the privacy barrier is a Postgres row lock, and its correctness is
+    # a claim ABOUT POSTGRES: that `FOR SHARE` conflicts with `FOR UPDATE` and
+    # with a plain UPDATE, and that shares do not conflict with each other. A mock
+    # cannot answer that question — it can only replay what we believe. So CI runs
+    # a real database and asks it. Without this service the lock suite would skip,
+    # and a skipped barrier test is worse than none: it reads as coverage.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: psico_locks
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -132,6 +151,16 @@ jobs:
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+      # The lock suite runs against the `postgres` service above, NOT against a
+      # double. It creates the one table it needs (`User(id)`) and drives two
+      # genuinely concurrent transactions. If TEST_DATABASE_URL were missing these
+      # specs would skip silently — so this step exists precisely to make sure
+      # they cannot.
+      - name: Test · API locks (real PostgreSQL — privacy barrier)
+        run: pnpm --filter @psico/api test:locks
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/psico_locks
 
       - name: Test · Crypto (Argon2id + AEAD roundtrip)
         run: pnpm turbo run test --filter=@psico/crypto

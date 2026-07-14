@@ -63,6 +63,9 @@ const mockPrisma = {
   },
   privacySettings: {
     upsert: vi.fn(),
+    // PR-0.1 — "consent changed" now means the VALUE moved, not "the field was
+    // in the DTO", so the revocation reads the stored value first.
+    findUnique: vi.fn().mockResolvedValue({ localTextAnalysis: true }),
   },
   refreshToken: {
     updateMany: vi.fn(),
@@ -90,7 +93,10 @@ const mockPrisma = {
   emotionalMapSnapshot: {
     deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
-  $queryRaw: vi.fn(),
+  // PR-0.1 — `updatePrivacy` takes an EXCLUSIVE lock on the user row before it
+  // touches anything, so no in-flight writer can land a derived row on the far
+  // side of the deletion. The double just answers the lock query.
+  $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
   $transaction: vi.fn(),
 };
 
@@ -136,6 +142,9 @@ describe("UsersService", () => {
     mockPrisma.userProgress.count.mockResolvedValue(0);
     mockPrisma.userProgress.findMany.mockResolvedValue([]);
     mockPrisma.$queryRaw.mockResolvedValue([]);
+    mockPrisma.privacySettings.findUnique.mockResolvedValue({
+      localTextAnalysis: true,
+    });
     mockJobs.enqueueEmail.mockResolvedValue(undefined);
     mockJobs.enqueueDataExport.mockResolvedValue(undefined);
     mockJobs.enqueueAccountDeletion.mockResolvedValue(undefined);
@@ -334,6 +343,13 @@ describe("UsersService", () => {
     });
 
     it("Fase D (L4): opting IN keeps the rows but busts the map cache", async () => {
+      // Stored value is OFF, so `true` is a REAL change: the map's inputs move,
+      // the cache must miss — and nothing is deleted. (PR-0.1: "changed" means
+      // the value moved, not "the field was in the DTO". Every transition is
+      // covered in privacy-revocation.spec.)
+      mockPrisma.privacySettings.findUnique.mockResolvedValue({
+        localTextAnalysis: false,
+      });
       mockPrisma.privacySettings.upsert.mockResolvedValue({});
       await service.updatePrivacy(userId, { localTextAnalysis: true });
       expect(mockPrisma.diaryTextFeature.deleteMany).not.toHaveBeenCalled();

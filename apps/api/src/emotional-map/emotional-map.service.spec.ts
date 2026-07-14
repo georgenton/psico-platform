@@ -40,7 +40,7 @@ function makePrisma(overrides: {
   localTextAnalysis?: boolean;
   textFeatureRows?: Array<Record<string, number | Date>>;
 }) {
-  return {
+  const base = {
     // Used for both the 30-day Phase-A fetch and the 180-day OU fetch; the
     // mock returns the same rows for both, which is fine for these tests.
     diaryEntry: {
@@ -86,8 +86,15 @@ function makePrisma(overrides: {
     user: {
       findUnique: vi.fn().mockResolvedValue(overrides.user ?? null),
     },
+    // PR-0.1 — `logTextFeatures` now runs consent-check + ownership + write in
+    // ONE transaction that takes a shared lock on the user row, so a revocation
+    // cannot slip between the check and the write. The double runs the callback
+    // against the same models and answers the lock query.
+    $transaction: vi.fn((cb: (tx: unknown) => Promise<unknown>) => cb(base)),
+    $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
   } as unknown as Parameters<typeof EmotionalMapService.prototype.compute>[0] &
     Record<string, unknown>;
+  return base;
 }
 
 function makeRedis() {
@@ -851,16 +858,19 @@ describe("EmotionalMapService — privacy revision (PR-0.1, durable)", () => {
     const keyBeforeRevocation = [...store.keys()][0];
     expect(keyBeforeRevocation).toBeDefined();
     // Poison the cached payload so a HIT would be unmistakable.
-    store.set(keyBeforeRevocation, JSON.stringify({ revoked: "should be gone" }));
+    store.set(
+      keyBeforeRevocation,
+      JSON.stringify({ revoked: "should be gone" }),
+    );
 
     // ── The user revokes consent ────────────────────────────────────────────
     // UsersService bumps the revision inside the transaction; the Redis INCR that
     // follows FAILS (our incr always rejects). Under the old design, that left
     // the poisoned payload perfectly readable.
     privacyRevision = 1;
-    await expect(
-      bumpGeneration(redis as never, "user-1"),
-    ).rejects.toThrow(/redis down/);
+    await expect(bumpGeneration(redis as never, "user-1")).rejects.toThrow(
+      /redis down/,
+    );
 
     // ── The user loads their map again ──────────────────────────────────────
     const fresh = (await service.getForUser("user-1")) as unknown as {

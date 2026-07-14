@@ -9,6 +9,10 @@ import type { IEmotionalMapProvider } from "./providers/provider.interface";
 import { EMOTIONAL_MAP_PROVIDER } from "./tokens";
 import { scoreEmotionalMap } from "./emotional-map.scoring";
 import {
+  lockUserShared,
+  readPrivacyRevision as readRevision,
+} from "./privacy-barrier";
+import {
   bumpGeneration as bumpUserGeneration,
   resolveCacheKey as resolveKeyFor,
 } from "./cache-identity";
@@ -24,6 +28,7 @@ export type { EmotionalMapResult } from "@psico/types";
  * because UsersService already reaches for these through this module.
  */
 export { resolveCacheKey, bumpGeneration } from "./cache-identity";
+export { lockUserShared, readPrivacyRevision } from "./privacy-barrier";
 
 const WINDOW_DAYS = 30;
 /**
@@ -95,11 +100,9 @@ export class EmotionalMapService {
    * the honest answer.
    */
   private async readPrivacyRevision(userId: string): Promise<number> {
-    const row = await this.prisma.privacySettings.findUnique({
-      where: { userId },
-      select: { emotionalMapPrivacyRevision: true },
-    });
-    return row?.emotionalMapPrivacyRevision ?? 0;
+    // Shared with the snapshot processor, which re-reads it under the barrier
+    // before persisting. One definition of "which revision am I working under".
+    return readRevision(this.prisma, userId);
   }
 
   /**
@@ -312,39 +315,62 @@ export class EmotionalMapService {
       selfCritic: number;
     },
   ): Promise<{ ok: true; id: string }> {
-    // Fase D (L4) — hard server-side consent gate. Clients check the
-    // preference before calling, but a stale client must not be able to
-    // upload derived data the user never consented to.
-    const privacy = await this.prisma.privacySettings.findUnique({
-      where: { userId },
-      select: { localTextAnalysis: true },
-    });
-    if (!privacy?.localTextAnalysis) {
-      throw new ForbiddenException("TEXT_ANALYSIS_NOT_ENABLED");
-    }
     const { entryId, ...features } = dto;
-    if (entryId) {
-      // Ownership guard: entryId is client-supplied — never let one user
-      // overwrite another user's row by guessing an id.
-      const existing = await this.prisma.diaryTextFeature.findUnique({
-        where: { entryId },
-        select: { userId: true },
+
+    // PR-0.1 — consent check, ownership guard and write are ONE serialized
+    // transaction. They used to be three separate statements, which made this a
+    // textbook time-of-check/time-of-use race:
+    //
+    //     read consent = true
+    //                              ← revocation deletes every feature row
+    //     upsert  ← the deleted row comes back
+    //
+    // Nothing about that read was wrong. It was true when it happened. It just
+    // stopped being true while we were still working, and our write landed on
+    // the far side of the deletion. The shared lock on the user row makes the
+    // two orderings the only two possible: either we commit first and the
+    // revocation then deletes what we wrote, or the revocation commits first and
+    // the read below sees `false` and refuses. Either way the user's revocation
+    // wins, which is the only acceptable outcome.
+    const row = await this.prisma.$transaction(async (tx) => {
+      await lockUserShared(tx, userId);
+
+      // Hard server-side consent gate. Clients check the preference before
+      // calling, but a stale client must not be able to upload derived data the
+      // user never consented to — and now, neither can a stale TRANSACTION.
+      const privacy = await tx.privacySettings.findUnique({
+        where: { userId },
+        select: { localTextAnalysis: true },
       });
-      if (existing && existing.userId !== userId) {
-        throw new ForbiddenException("TEXT_FEATURE_NOT_YOURS");
+      if (!privacy?.localTextAnalysis) {
+        throw new ForbiddenException("TEXT_ANALYSIS_NOT_ENABLED");
       }
-    }
-    const row = entryId
-      ? await this.prisma.diaryTextFeature.upsert({
+
+      if (entryId) {
+        // Ownership guard: entryId is client-supplied — never let one user
+        // overwrite another user's row by guessing an id.
+        const existing = await tx.diaryTextFeature.findUnique({
           where: { entryId },
-          create: { userId, entryId, ...features },
-          update: { ...features },
-          select: { id: true },
-        })
-      : await this.prisma.diaryTextFeature.create({
-          data: { userId, ...features },
-          select: { id: true },
+          select: { userId: true },
         });
+        if (existing && existing.userId !== userId) {
+          throw new ForbiddenException("TEXT_FEATURE_NOT_YOURS");
+        }
+      }
+
+      return entryId
+        ? tx.diaryTextFeature.upsert({
+            where: { entryId },
+            create: { userId, entryId, ...features },
+            update: { ...features },
+            select: { id: true },
+          })
+        : tx.diaryTextFeature.create({
+            data: { userId, ...features },
+            select: { id: true },
+          });
+    });
+
     // Fire-and-forget: a fresh map should reflect the new signal soon.
     void this.invalidateBestEffort(userId);
     return { ok: true, id: row.id };

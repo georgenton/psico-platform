@@ -9,6 +9,11 @@ import { EmotionalMapService } from "../../emotional-map/emotional-map.service";
 // PR-0.1 — the worker stamps snapshots with the SAME identity helper the API
 // reads them back with. One module, so the two can never disagree.
 import { factsIdentity } from "../../emotional-map/cache-identity";
+// PR-0.1 — the same barrier the revocation takes, from the same module.
+import {
+  lockUserShared,
+  readPrivacyRevision,
+} from "../../emotional-map/privacy-barrier";
 // NOTE: importing the same helper does NOT guarantee the worker and the API
 // agree — they are separate Railway services with separate environments. The
 // startup log + the `/api/health/emotional-map` probe are what actually catch a
@@ -54,6 +59,8 @@ export class EmotionalMapSnapshotProcessor extends WorkerHost {
   async process(job: Job<EmotionalMapSnapshotJobPayload>): Promise<{
     candidates: number;
     persisted: number;
+    /** Computed, then dropped: the user's privacy revision moved mid-compute. */
+    skippedRevoked: number;
     failed: number;
     monthIso: string;
     dryRun: boolean;
@@ -64,6 +71,7 @@ export class EmotionalMapSnapshotProcessor extends WorkerHost {
       return {
         candidates: 0,
         persisted: 0,
+        skippedRevoked: 0,
         failed: 0,
         monthIso: "",
         dryRun: !!job.data?.dryRun,
@@ -91,6 +99,7 @@ export class EmotionalMapSnapshotProcessor extends WorkerHost {
       return {
         candidates: userRows.length,
         persisted: 0,
+        skippedRevoked: 0,
         failed: 0,
         monthIso,
         dryRun: true,
@@ -99,37 +108,74 @@ export class EmotionalMapSnapshotProcessor extends WorkerHost {
 
     let persisted = 0;
     let failed = 0;
+    let skippedRevoked = 0;
     for (const { id: userId } of userRows) {
       try {
+        // PR-0.1 — the revision we are working UNDER. `compute()` is the widest
+        // stale-read window in the system: it reads the user's consent, then may
+        // spend seconds inside an LLM call. If the user revokes while we are in
+        // there, the numbers we are holding were derived from data that no longer
+        // exists — and an unguarded upsert would write them back into the very
+        // table the revocation just emptied.
+        const revisionAtCompute = await readPrivacyRevision(
+          this.prisma,
+          userId,
+        );
+
         const result = await this.emotionalMap.compute(userId);
-        // PR-0.1 — stamp the identity of the code + config that produced
-        // these numbers, so the API can refuse to serve them as its own
-        // history after a scoring or config change.
-        const identity = factsIdentity();
-        await this.prisma.emotionalMapSnapshot.upsert({
-          where: {
-            userId_month: { userId, month },
-          },
-          create: {
-            userId,
-            month,
-            pct: result.pct,
-            // Fase G — the Evolución chart plots coverage (signal backing
-            // the map), not the legacy global pct.
-            coverage: result.coverage,
-            values: Array.from(result.values),
-            provider: result.provider,
-            ...identity,
-          },
-          update: {
-            pct: result.pct,
-            coverage: result.coverage,
-            values: Array.from(result.values),
-            provider: result.provider,
-            ...identity,
-          },
+
+        // A SHORT transaction to land the write: take the same shared lock the
+        // revocation's exclusive lock conflicts with, re-read the revision, and
+        // only persist if nothing moved underneath us. If it moved, we throw the
+        // numbers away — they describe a consent state the user has left behind.
+        // Next month's run (or an ops backfill) recomputes from what remains.
+        const wrote = await this.prisma.$transaction(async (tx) => {
+          await lockUserShared(tx, userId);
+          const revisionNow = await readPrivacyRevision(tx, userId);
+          if (revisionNow !== revisionAtCompute) return false;
+
+          // PR-0.1 — stamp the identity of the code + config that produced
+          // these numbers, so the API can refuse to serve them as its own
+          // history after a scoring or config change. `privacyRevision` is
+          // PROVENANCE, not a guard: the lock above is what makes the write
+          // safe. It records which consent state these numbers were computed
+          // under, so a row can be audited after the fact.
+          const stamp = {
+            ...factsIdentity(),
+            privacyRevision: revisionNow,
+          };
+          const values = Array.from(result.values);
+          await tx.emotionalMapSnapshot.upsert({
+            where: { userId_month: { userId, month } },
+            create: {
+              userId,
+              month,
+              pct: result.pct,
+              // Fase G — the Evolución chart plots coverage (signal backing
+              // the map), not the legacy global pct.
+              coverage: result.coverage,
+              values,
+              provider: result.provider,
+              ...stamp,
+            },
+            update: {
+              pct: result.pct,
+              coverage: result.coverage,
+              values,
+              provider: result.provider,
+              ...stamp,
+            },
+          });
+          return true;
         });
-        persisted++;
+
+        if (wrote) persisted++;
+        else {
+          skippedRevoked++;
+          this.logger.log(
+            `EmotionalMapSnapshot skipped user=${userId} · privacy revision moved during compute`,
+          );
+        }
       } catch (err) {
         failed++;
         this.logger.warn(
@@ -139,12 +185,13 @@ export class EmotionalMapSnapshotProcessor extends WorkerHost {
     }
 
     this.logger.log(
-      `EmotionalMapSnapshot done · month=${monthIso} · persisted=${persisted}/${userRows.length} · failed=${failed}`,
+      `EmotionalMapSnapshot done · month=${monthIso} · persisted=${persisted}/${userRows.length} · skippedRevoked=${skippedRevoked} · failed=${failed}`,
     );
 
     return {
       candidates: userRows.length,
       persisted,
+      skippedRevoked,
       failed,
       monthIso,
       dryRun: false,

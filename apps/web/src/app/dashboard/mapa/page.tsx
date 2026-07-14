@@ -10,7 +10,7 @@ import { MapInfoButton } from "@/components/dashboard/mapa/MapInfoButton";
 import { MapLenguaje } from "@/components/dashboard/mapa/MapLenguaje";
 import { MapMomento } from "@/components/dashboard/mapa/MapMomento";
 import { MapNarrative } from "@/components/dashboard/mapa/MapNarrative";
-import { MapSelfReport } from "@/components/dashboard/mapa/MapSelfReport";
+import { MapRadar } from "@/components/dashboard/mapa/MapRadar";
 
 export const metadata: Metadata = { title: "Mapa Emocional" };
 export const dynamic = "force-dynamic";
@@ -72,7 +72,7 @@ export default async function MapaPage() {
       </p>
 
       <MapMomento momento={map.momento} />
-      <MapSelfReport
+      <MapRadar
         dimensions={map.dimensions}
         info={<MapInfoButton dimensions={map.dimensions} />}
       />

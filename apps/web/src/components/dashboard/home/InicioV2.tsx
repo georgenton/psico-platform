@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ActivityFeedItemType, HomeResponse } from "@psico/types";
 
-import { MapSelfReport } from "@/components/dashboard/mapa/MapSelfReport";
+import { MapRadar } from "@/components/dashboard/mapa/MapRadar";
 import { EcoMomentSuggestions } from "@/components/dashboard/home/EcoMomentSuggestions";
 import {
   IconArrowRight,
@@ -155,10 +155,11 @@ export function InicioV2({ home }: { home: HomeResponse }) {
               Ver completo →
             </Link>
           </div>
-          {/* Fase F/G (decision L2): the mini-map is the self-report summary
-              — the 6-axis radar + global % retired with the legacy layout. */}
+          {/* The honest hexagon: the 6-axis radar returns, but each punta only
+              fills with a real signal — gathering axes render dashed, never a
+              fabricated midpoint, and there is no global %. */}
           <div style={{ padding: "10px 4px 4px" }}>
-            <MapSelfReport dimensions={home.emotionalMap.dimensions} compact />
+            <MapRadar dimensions={home.emotionalMap.dimensions} compact />
           </div>
         </div>
       </div>

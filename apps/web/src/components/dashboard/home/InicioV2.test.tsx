@@ -72,12 +72,13 @@ describe("InicioV2", () => {
     expect(screen.getByText(/Quito/i)).toBeInTheDocument();
   });
 
-  it("renders the mini-map as the self-report summary (Fase G — no global %)", () => {
+  it("renders the mini-map as the honest hexagon radar (no global %)", () => {
     render(<InicioV2 home={buildHome()} />);
     expect(screen.getByText(/Tu Mapa Emocional/i)).toBeInTheDocument();
-    // No check-in answers in the fixture → the honest CTA, never a global %.
+    // The compact radar renders as an SVG; with no ready axes it's the empty
+    // hexagon, never a fabricated global %.
     expect(
-      screen.getByText(/Responde el check-in de 5 segundos/i),
+      screen.getByRole("img", { name: /radar de tu mapa emocional/i }),
     ).toBeInTheDocument();
     expect(screen.queryByText("50%")).not.toBeInTheDocument();
   });

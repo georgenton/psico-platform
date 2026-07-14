@@ -16,25 +16,34 @@ import { lockUserExclusive, lockUserShared } from "./privacy-barrier";
  * impossible to notice, so this file asks the database itself, with two genuinely
  * concurrent transactions.
  *
- * A note on the mode, because the first version of this file got it wrong. Both
- * `FOR SHARE` and the weaker `FOR KEY SHARE` conflict with `FOR UPDATE`, so
+ * A note on the mode, because the first two versions of this file got it wrong.
+ * Both `FOR SHARE` and the weaker `FOR KEY SHARE` conflict with `FOR UPDATE`, so
  * either would keep the revocation from cutting in front of a writer — the first
- * four tests below pass under both. The difference is `FOR NO KEY UPDATE`, which
- * is what a plain `UPDATE "User" SET …` takes: `FOR SHARE` conflicts with it,
- * `FOR KEY SHARE` does not. That is the last test, and it is the one that pins
- * the mode we chose. We pay that contention deliberately: a revocation must not
- * be able to slip through on any path that touches the user row, including one a
- * future refactor writes as a plain UPDATE instead of an explicit lock.
+ * four tests below pass under both. The difference is `FOR NO KEY UPDATE`, the
+ * lock a plain UPDATE of a NON-KEY column takes: `FOR SHARE` conflicts with it,
+ * `FOR KEY SHARE` does not. That is the last test, and it pins the mode we chose.
+ *
+ * The subtlety that bit the earlier version: Postgres upgrades a plain UPDATE to
+ * the STRONG `FOR UPDATE` when the updated columns overlap the key, so
+ * `UPDATE "User" SET id = id` is NOT a clean probe of `FOR NO KEY UPDATE` — it
+ * would conflict with `FOR KEY SHARE` too, and the test would pass under both
+ * modes, proving nothing. So the table carries a throwaway non-key column
+ * `marker`, and the last test updates THAT: an UPDATE that genuinely takes
+ * `FOR NO KEY UPDATE`. We pay this contention deliberately — a revocation must
+ * not be able to slip through on any path that touches the user row, including
+ * one a future refactor writes as a plain column update instead of a lock.
  *
  * It runs only when `TEST_DATABASE_URL` is set — locally against a throwaway
- * container, in CI against the `postgres` service.
+ * container, in CI against the `postgres` service. CI uses postgres:18 to match
+ * production; lock semantics are stable across versions but we align anyway.
  *
- *   docker run --rm -d -p 55432:5432 -e POSTGRES_PASSWORD=x -e POSTGRES_DB=locks postgres:16
+ *   docker run --rm -d -p 55432:5432 -e POSTGRES_PASSWORD=x -e POSTGRES_DB=locks postgres:18
  *   TEST_DATABASE_URL=postgresql://postgres:x@localhost:55432/locks \
  *     pnpm --filter @psico/api test:locks
  *
- * The table it needs is a `User` with an `id` — the barrier locks nothing else,
- * so the spec creates that much itself rather than dragging in the full schema.
+ * The table it needs is a `User(id)` plus a `marker` column — the barrier locks
+ * nothing else, so the spec creates that much itself rather than dragging in the
+ * full schema.
  */
 
 const url = process.env.TEST_DATABASE_URL;
@@ -63,6 +72,12 @@ suite("privacy barrier — real PostgreSQL lock semantics (PR-0.1)", () => {
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
     await prisma.$executeRawUnsafe(
       `CREATE TABLE IF NOT EXISTS "User" (id text PRIMARY KEY)`,
+    );
+    // A non-key column. The mode-pinning test updates THIS, so its UPDATE takes
+    // FOR NO KEY UPDATE — not the strong FOR UPDATE that Postgres would use if we
+    // touched the primary key.
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS marker integer NOT NULL DEFAULT 0`,
     );
     await prisma.$executeRawUnsafe(
       `INSERT INTO "User" (id) VALUES ('u1'), ('u2') ON CONFLICT DO NOTHING`,
@@ -190,14 +205,18 @@ suite("privacy barrier — real PostgreSQL lock semantics (PR-0.1)", () => {
     await Promise.all([revokerU1, writerU2]);
   });
 
-  it("pins the MODE: a writer's shared lock also blocks a plain UPDATE of that row", async () => {
+  it("pins the MODE: a writer's shared lock also blocks a plain UPDATE of a non-key column", async () => {
     // The test that distinguishes `FOR SHARE` from `FOR KEY SHARE` — every other
     // test in this file passes under both, because both conflict with FOR UPDATE.
     //
-    // This one fails under `FOR KEY SHARE`, which is exactly why it is here: it
-    // is the only assertion that would notice someone "optimising" the barrier
-    // into a weaker lock and quietly opening a path — any plain UPDATE of the
-    // user row — that a revocation could slip through.
+    // It updates the NON-KEY `marker` column, so the UPDATE takes FOR NO KEY
+    // UPDATE. `FOR SHARE` conflicts with it (the update waits); `FOR KEY SHARE`
+    // does NOT (the update sails through, and the `toBe(false)` below fails).
+    // That is exactly why it is here: it is the only assertion that would notice
+    // someone "optimising" the barrier into a weaker lock and quietly opening a
+    // path — a plain column update of the user row — a revocation could slip
+    // through. Touching `id` instead would let Postgres upgrade the UPDATE to the
+    // strong lock and pass under both modes, proving nothing.
     const holding = latch();
     const release = latch();
 
@@ -211,7 +230,9 @@ suite("privacy barrier — real PostgreSQL lock semantics (PR-0.1)", () => {
 
     let plainUpdateDone = false;
     const updater = prisma
-      .$executeRawUnsafe(`UPDATE "User" SET id = id WHERE id = 'u1'`)
+      .$executeRawUnsafe(
+        `UPDATE "User" SET marker = marker + 1 WHERE id = 'u1'`,
+      )
       .then(() => {
         plainUpdateDone = true;
       });

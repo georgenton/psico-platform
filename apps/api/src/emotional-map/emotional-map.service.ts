@@ -58,11 +58,18 @@ export class EmotionalMapService {
     //   old: consult Redis → maybe return a cached map → (never re-read consent)
     //   new: read the revision → derive the key → consult Redis
     //
-    // If the user revoked the text-analysis consent, that transaction bumped the
-    // revision, so the key we derive here cannot address the payload built from
-    // the revoked data — regardless of whether the Redis INCR succeeded, or
-    // whether Redis was even reachable at the time. Safety lives in Postgres;
-    // Redis only buys freshness.
+    // The guarantee, stated precisely: EVERY REQUEST THAT BEGINS AFTER THE
+    // REVOCATION COMMITS reads the new revision here, and therefore derives a key
+    // that cannot address the payload built from the revoked data — regardless of
+    // whether the Redis INCR succeeded, or whether Redis was reachable at all.
+    //
+    // It is not an absolute exclusion: a request that had ALREADY read the old
+    // revision microseconds before the commit will finish with the old key. That
+    // window is the ordinary read-write race of any database, it is bounded by a
+    // single request, and it is not what a revocation is protecting against —
+    // which is the map staying revoked-but-visible for the next 24 hours.
+    //
+    // Safety lives in Postgres; Redis only buys freshness.
     const privacyRevision = await this.readPrivacyRevision(userId);
     const cacheKey = await resolveKeyFor(this.redis, userId, privacyRevision);
     const cached = await this.redis.get(cacheKey);

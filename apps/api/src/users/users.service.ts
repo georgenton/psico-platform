@@ -374,6 +374,21 @@ export class UsersService {
 
       if (dto.localTextAnalysis === false) {
         await tx.diaryTextFeature.deleteMany({ where: { userId } });
+
+        // The revision above hides the CURRENT map, but `EmotionalMapSnapshot`
+        // is a SECOND, durable derivative: the cron persisted pct/coverage/values
+        // that were computed WITH these text features, and Evolución serves those
+        // rows on their own facts identity — the privacy revision never enters
+        // that path. Hiding the live map while a monthly aggregate built from the
+        // revoked source stayed on the chart would keep the letter of the promise
+        // and break its meaning.
+        //
+        // The snapshot carries no per-source provenance today, so we cannot tell
+        // which of its numbers came from the text. The conservative reading of
+        // "we delete the derivatives" is the correct one: drop the rows. The user
+        // loses their Evolución history, which is the honest price of a revocation
+        // — and the cron rebuilds it from the remaining, consented sources.
+        await tx.emotionalMapSnapshot.deleteMany({ where: { userId } });
       }
     });
 

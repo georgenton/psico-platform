@@ -284,7 +284,10 @@ describe("emotional-map cache identity (PR-0.1)", () => {
 
   it("FACTS schema version: changes the cache key AND rejects the snapshot", () => {
     const parts = currentCacheKeyParts(0, 0);
-    const bumped = { ...parts, factsSchemaVersion: parts.factsSchemaVersion + 1 };
+    const bumped = {
+      ...parts,
+      factsSchemaVersion: parts.factsSchemaVersion + 1,
+    };
 
     expect(buildCacheKey(bumped, "user-1")).not.toBe(
       buildCacheKey(parts, "user-1"),
@@ -472,6 +475,60 @@ describe("emotional-map — structural invariants and environment (PR-0.1)", () 
   it("rejects an invalid PSICO_ENV rather than falling back", () => {
     process.env.PSICO_ENV = "prod"; // not one of the four
     expect(() => resolveEnvironment()).toThrow(/PSICO_ENV must be one of/);
+  });
+
+  // ── A deployed box cannot talk its way out of the barriers ─────────────────
+  //
+  // The hole this closes: PSICO_ENV was read BEFORE we asked the platform where
+  // we were running, so `PSICO_ENV=development` on a Railway box resolved to a
+  // local environment and turned every barrier off — a production disable, one
+  // typo wide. The platform's answer now wins, and PSICO_ENV may only refine it.
+
+  it("refuses to boot on Railway when PSICO_ENV claims development", () => {
+    process.env.RAILWAY_PROJECT_ID = "proj_abc";
+    process.env.PSICO_ENV = "development";
+
+    expect(() => resolveEnvironment()).toThrow(/not valid on a deployed box/i);
+    expect(() => assertEmotionalMapConfigured()).toThrow(
+      /not valid on a deployed box/i,
+    );
+  });
+
+  it("refuses to boot on Railway when PSICO_ENV claims test", () => {
+    process.env.RAILWAY_ENVIRONMENT = "production";
+    process.env.PSICO_ENV = "test";
+
+    expect(() => resolveEnvironment()).toThrow(/not valid on a deployed box/i);
+  });
+
+  it("refuses to boot on Railway when only NODE_ENV is set — NODE_ENV is not a posture", () => {
+    // NODE_ENV=test is set by a hundred tools for a hundred reasons. It must
+    // never be the word that decides whether production's guardrails are up.
+    process.env.RAILWAY_SERVICE_ID = "svc_abc";
+    process.env.NODE_ENV = "test";
+    delete process.env.PSICO_ENV;
+
+    expect(() => resolveEnvironment()).toThrow(/running on Railway/i);
+  });
+
+  it("boots on Railway with PSICO_ENV=staging, and treats it as deployed", () => {
+    process.env.RAILWAY_PROJECT_ID = "proj_abc";
+    process.env.PSICO_ENV = "staging";
+
+    expect(resolveEnvironment()).toBe("staging");
+    expect(isDeployedEnvironment()).toBe(true);
+  });
+
+  it("still boots locally with PSICO_ENV=development, barriers relaxed", () => {
+    // The strictness is about DEPLOYED boxes. A laptop stays a laptop.
+    delete process.env.RAILWAY_PROJECT_ID;
+    delete process.env.RAILWAY_ENVIRONMENT;
+    delete process.env.RAILWAY_SERVICE_ID;
+    process.env.PSICO_ENV = "development";
+
+    expect(resolveEnvironment()).toBe("development");
+    expect(isDeployedEnvironment()).toBe(false);
+    expect(() => assertEmotionalMapConfigured()).not.toThrow();
   });
 
   it("treats staging as deployed, and local as not", () => {

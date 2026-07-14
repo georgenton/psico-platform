@@ -92,24 +92,46 @@ const VALID_ENVIRONMENTS: readonly string[] = [
  */
 export function resolveEnvironment(): PsicoEnvironment {
   const explicit = process.env.PSICO_ENV?.trim().toLowerCase();
-  if (explicit && VALID_ENVIRONMENTS.includes(explicit)) {
-    return explicit as PsicoEnvironment;
+
+  // ── On a deployed box, the rules are strict and PSICO_ENV is the ONLY word ──
+  //
+  // The previous version accepted PSICO_ENV=development on a Railway box, and
+  // that quietly turned every safety barrier off — the exact failure this whole
+  // mechanism exists to prevent, now reachable by writing "development" into a
+  // variable. A box the platform says is deployed IS deployed; it does not get
+  // to claim otherwise.
+  //
+  // NODE_ENV does not substitute for PSICO_ENV here either: it is set by tooling
+  // for a hundred reasons that have nothing to do with our safety posture (a test
+  // runner, a build step, a base image default). Deployment posture must be
+  // stated deliberately, in a variable that means only that.
+  if (looksDeployed()) {
+    if (!explicit) {
+      throw new Error(
+        "This box is running on Railway but does not declare PSICO_ENV. Set PSICO_ENV=production or PSICO_ENV=staging. NODE_ENV is not accepted here: a deployed box must state its posture deliberately, and an unset value would silently disable every safety barrier.",
+      );
+    }
+    if (explicit !== "production" && explicit !== "staging") {
+      throw new Error(
+        `PSICO_ENV=${JSON.stringify(explicit)} is not valid on a deployed box — only "production" or "staging" are. A deployed box cannot opt out of the safety barriers by calling itself a development machine.`,
+      );
+    }
+    return explicit;
   }
+
+  // ── Local / CI ─────────────────────────────────────────────────────────────
   if (explicit) {
-    throw new Error(
-      `PSICO_ENV must be one of ${VALID_ENVIRONMENTS.join(" | ")} (got ${JSON.stringify(explicit)}).`,
-    );
+    if (!VALID_ENVIRONMENTS.includes(explicit)) {
+      throw new Error(
+        `PSICO_ENV must be one of ${VALID_ENVIRONMENTS.join(" | ")} (got ${JSON.stringify(explicit)}).`,
+      );
+    }
+    return explicit as PsicoEnvironment;
   }
 
   const node = process.env.NODE_ENV?.trim().toLowerCase();
   if (node && VALID_ENVIRONMENTS.includes(node)) {
     return node as PsicoEnvironment;
-  }
-
-  if (looksDeployed()) {
-    throw new Error(
-      "This box is running on Railway but declares no valid environment. Set PSICO_ENV=production|staging (NODE_ENV is accepted too). Without it the safety barriers would silently disable themselves.",
-    );
   }
 
   return "development";
@@ -119,8 +141,8 @@ export function resolveEnvironment(): PsicoEnvironment {
 function looksDeployed(): boolean {
   return Boolean(
     process.env.RAILWAY_ENVIRONMENT ??
-      process.env.RAILWAY_PROJECT_ID ??
-      process.env.RAILWAY_SERVICE_ID,
+    process.env.RAILWAY_PROJECT_ID ??
+    process.env.RAILWAY_SERVICE_ID,
   );
 }
 
@@ -597,5 +619,5 @@ export const IDENTITY_STALE_AFTER_MS = 150_000;
 export function identityLogLine(service: "api" | "worker"): string {
   const id = runtimeIdentity();
   const sha = releaseSha() ?? "unknown";
-  return `EmotionalMap identity [${service}] rt=${runtimeFingerprint()} sha=${sha} wire=${id.wireSchemaVersion} facts=${id.factsSchemaVersion} scoring=${id.scoringVersion} responseFp=${id.responseFingerprint} factsFp=${id.factsFingerprint} cacheEpoch=${id.cacheEpoch} factsEpoch=${id.factsEpoch}`;
+  return `EmotionalMap identity [${service}] rt=${runtimeFingerprint()} env=${resolveEnvironment()} sha=${sha} wire=${id.wireSchemaVersion} facts=${id.factsSchemaVersion} scoring=${id.scoringVersion} responseFp=${id.responseFingerprint} factsFp=${id.factsFingerprint} cacheEpoch=${id.cacheEpoch} factsEpoch=${id.factsEpoch}`;
 }

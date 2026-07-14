@@ -81,8 +81,13 @@ const mockPrisma = {
   diaryEntry: {
     count: vi.fn().mockResolvedValue(0),
   },
-  // Fase D (L4) — consent cascade deletes derived text-feature rows.
+  // Fase D (L4) — consent cascade deletes BOTH derivatives of the analysed text:
+  // the feature rows the map reads live, and the snapshots Evolución serves from
+  // its own facts identity (the privacy revision never reaches that path).
   diaryTextFeature: {
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  },
+  emotionalMapSnapshot: {
     deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
   $queryRaw: vi.fn(),
@@ -311,10 +316,18 @@ describe("UsersService", () => {
       expect(mockPrisma.diaryTextFeature.deleteMany).not.toHaveBeenCalled();
     });
 
-    it("Fase D (L4): opting OUT of text analysis deletes derived rows and busts the map cache", async () => {
+    it("Fase D (L4): opting OUT deletes BOTH derivatives and busts the map cache", async () => {
       mockPrisma.privacySettings.upsert.mockResolvedValue({});
       await service.updatePrivacy(userId, { localTextAnalysis: false });
+      // The live map's input…
       expect(mockPrisma.diaryTextFeature.deleteMany).toHaveBeenCalledWith({
+        where: { userId },
+      });
+      // …and the durable aggregate the cron persisted FROM that input. Hiding the
+      // row behind a new privacy revision would not be enough: the policy says we
+      // delete the derivatives, and Evolución reads snapshots on their own
+      // identity, where the revision never appears.
+      expect(mockPrisma.emotionalMapSnapshot.deleteMany).toHaveBeenCalledWith({
         where: { userId },
       });
       expect(mockRedis.incr).toHaveBeenCalledWith(generationKey(userId));
@@ -324,6 +337,7 @@ describe("UsersService", () => {
       mockPrisma.privacySettings.upsert.mockResolvedValue({});
       await service.updatePrivacy(userId, { localTextAnalysis: true });
       expect(mockPrisma.diaryTextFeature.deleteMany).not.toHaveBeenCalled();
+      expect(mockPrisma.emotionalMapSnapshot.deleteMany).not.toHaveBeenCalled();
       expect(mockRedis.incr).toHaveBeenCalledWith(generationKey(userId));
     });
   });

@@ -1,2 +1,7 @@
+# Skip in CI. Hooks are a local-dev safety net; the CI "Test" job already runs
+# the full suite, and the changesets release action must be able to `git push`
+# without a hook re-running (and possibly flaking) the tests.
+[ "$CI" = "true" ] && exit 0
+
 # TODO senior: replace with turbo test --filter=...[HEAD] to run only affected tests
 pnpm test

@@ -35,9 +35,10 @@ module.exports = {
   },
   // CI runs jest in cold cache + a slower CPU than dev. `waitFor` queues
   // a useEffect → setState → react test renderer flush that can take
-  // a few seconds on the first run. Bumping the global timeout from 5s
-  // to 15s gives the slowest path enough room without masking real bugs.
-  testTimeout: 15000,
+  // a few seconds on the first run, and jest-expo suites boot slowly
+  // (~25s). 15s occasionally flaked under a loaded runner; 30s gives the
+  // slowest path enough room without masking a real hang.
+  testTimeout: 30000,
   // Sprint S41: coverage opt-in via `pnpm --filter @psico/mobile test:cov`.
   // We collect from src/ but exclude test files. Reporter is text +
   // json-summary so CI can grep the percentages later if we want to add a

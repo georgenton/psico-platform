@@ -305,23 +305,27 @@ function Sidebar({
 
       <div className="side-spacer" />
 
-      {/* Comprensión emocional block — v1 ships sample numbers; Sprint D wires
-          them to the real /api/emotional-map summary. */}
-      <div className="side-comp">
+      {/* Rail promo → Mapa Emocional. Replaces the old fabricated
+          "Comprensión emocional 74%" sample card: under V2 (ADR 0014) the map
+          has no global percentage and nothing is invented, so the rail points
+          to the map with its honest framing instead of a made-up number. */}
+      <Link
+        href="/dashboard/mapa"
+        onClick={() => onNav?.()}
+        className="side-comp"
+        style={{ display: "block", textDecoration: "none" }}
+      >
         <div className="sc-h">
-          <span>Comprensión emocional</span>
+          <span>Tu Mapa Emocional</span>
         </div>
-        <div className="sc-val">
-          <b>74%</b>
-          <span>+12 este mes</span>
+        <div className="sc-foot" style={{ marginTop: 0 }}>
+          Lo que tú registras y confirmas — cada eje con su procedencia, sin
+          porcentaje global.
         </div>
-        <div className="sc-bar">
-          <i />
+        <div className="sc-foot" style={{ fontWeight: 700 }}>
+          Ver mi mapa →
         </div>
-        <div className="sc-foot">
-          Tu mapa creció con 9 reflexiones esta semana.
-        </div>
-      </div>
+      </Link>
 
       {/* User menu trigger + collapsible items + logout, kept from B2 because
           the design source defers the user menu to the topbar avatar. We

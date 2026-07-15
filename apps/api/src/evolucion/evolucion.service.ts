@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 
 import { PrismaService } from "../prisma";
 import { matchesFactsIdentity } from "../emotional-map/cache-identity";
+import { flagEnabled } from "../shared/flags";
 import { ACHIEVEMENT_CATALOG } from "./achievement-catalog";
 import type { AchievementSeed, ProgressKey } from "./achievement-catalog";
 
@@ -50,16 +51,29 @@ export interface EvolucionStats {
 export interface EvolucionEmotionalSeriesPoint {
   /** ISO date YYYY-MM-DD anchored to the first of the month UTC. */
   monthIso: string;
-  /** 0..100 percent, same shape as `EmotionalMapResult.pct`. */
+  /** 0..100 percent, same shape as `EmotionalMapResult.pct`. LEGACY (Fase G). */
   pct: number;
+  /** Fase G — map data coverage that month (0..100), null pre-Fase-G. */
+  coverage: number | null;
 }
 
 export interface EvolucionResponse {
   stats: EvolucionStats;
   /** All achievements from the catalog, sorted by (unlocked desc → progress desc). */
   milestones: EvolucionMilestone[];
-  /** Sprint G2 — monthly comprehension snapshots, sorted asc. */
-  emotionalSeries: EvolucionEmotionalSeriesPoint[];
+  /**
+   * PR-0.2 — false when the emotional map is switched off
+   * (EMOTIONAL_MAP_PUBLIC). Distinct from an empty series: the clients show a
+   * "temporarily unavailable" note for the emotional history section, not "no
+   * history yet". Stats + milestones stay available.
+   */
+  emotionalMapAvailable: boolean;
+  /**
+   * Sprint G2 — monthly comprehension snapshots, sorted asc. PR-0.2 — `null`
+   * (not `[]`) when `emotionalMapAvailable` is false: the history is withheld,
+   * not absent.
+   */
+  emotionalSeries: EvolucionEmotionalSeriesPoint[] | null;
 }
 
 /** Sprint G2 — how many months of historical snapshots to surface. The
@@ -72,6 +86,13 @@ export class EvolucionService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getForUser(userId: string): Promise<EvolucionResponse> {
+    // PR-0.2 — the emotional map kill switch also hides the emotional HISTORY.
+    // When off, we do NOT read the snapshots at all (they are the same derived
+    // data the live map serves), and the client shows a maintenance note for
+    // the emotional section — not "no history yet". Stats + milestones are
+    // engagement/achievement data, unaffected, so they stay available.
+    const emotionalMapAvailable = flagEnabled("EMOTIONAL_MAP_PUBLIC");
+
     const [user, existingUserAchievements, emotionalSeries] = await Promise.all(
       [
         this.prisma.user.findUnique({
@@ -79,7 +100,9 @@ export class EvolucionService {
           select: { currentStreakDays: true, longestStreakDays: true },
         }),
         this.prisma.userAchievement.findMany({ where: { userId } }),
-        this.fetchEmotionalSeries(userId),
+        emotionalMapAvailable
+          ? this.fetchEmotionalSeries(userId)
+          : Promise.resolve(null),
       ],
     );
 
@@ -92,7 +115,7 @@ export class EvolucionService {
       existingUserAchievements,
     );
 
-    return { stats, milestones, emotionalSeries };
+    return { stats, milestones, emotionalMapAvailable, emotionalSeries };
   }
 
   /**

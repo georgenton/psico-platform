@@ -151,8 +151,24 @@ export default function EvolucionScreen() {
               </Text>
             </View>
 
-            {/* evo-chart */}
-            <EvoChartMobile map={map} series={evolucion.emotionalSeries} />
+            {/* evo-chart. PR-0.2 — the emotional map kill switch also hides the
+                emotional HISTORY. When off we say "en pausa por mantenimiento"
+                (NOT "aún sin historia") and never render the series. */}
+            {evolucion.emotionalMapAvailable ? (
+              <EvoChartMobile
+                map={map}
+                series={evolucion.emotionalSeries ?? []}
+              />
+            ) : (
+              <View style={styles.chartCard}>
+                <Text style={styles.chartTag}>Cobertura de tu mapa</Text>
+                <Text style={styles.maintenanceText}>
+                  Tu historia emocional está en pausa por mantenimiento. Estamos
+                  afinando cómo la calculamos y vuelve en un rato. Tus registros
+                  siguen guardados.
+                </Text>
+              </View>
+            )}
 
             {/* evo-quarter — stat rows. Fase C: Evolución IS the learning
                 dashboard, so the engagement counters that used to sit on the
@@ -252,21 +268,54 @@ function EvoChartMobile({
   const usable = series
     .filter((p) => p.coverage != null)
     .map((p) => ({ monthIso: p.monthIso, value: p.coverage as number }));
+
+  // PR-0.2 — with NO live map (the kill switch left the home snapshot null)
+  // AND no historical points, there is nothing real to show. Render an honest
+  // "snapshot no disponible" note — NEVER a fabricated 0%.
+  if (usable.length === 0 && map == null) {
+    return (
+      <View style={styles.chartCard}>
+        <Text style={styles.chartTag}>Cobertura de tu mapa</Text>
+        <Text style={styles.chartHint}>
+          Aún no hay un snapshot disponible. Cuando acumules más registros, aquí
+          verás cuánta señal respalda tu mapa.
+        </Text>
+      </View>
+    );
+  }
+
   const hasSeries = usable.length >= 2;
+  // Exactly one historical point → show THAT point (its real coverage), never
+  // fall through to a null-map 0%.
+  const single = usable.length === 1 ? usable[0]! : null;
+  // 0 points but a live map → the current snapshot's real coverage. When map is
+  // null this is never used (handled by `single` or the early return above).
   const snapshotValue = Math.round((map?.coverage ?? 0) * 100);
+
   const lastValue = hasSeries
     ? usable[usable.length - 1]!.value
-    : snapshotValue;
-  const firstValue = hasSeries ? usable[0]!.value : snapshotValue;
+    : single
+      ? single.value
+      : snapshotValue;
+  const firstValue = hasSeries ? usable[0]!.value : lastValue;
   const delta = lastValue - firstValue;
 
-  // Snapshot fallback: synthesize a 6-bar series with the snapshot at the end.
+  // Bars: history → all points; single → the one real point; snapshot → a
+  // 6-bar synthetic with the real value at the end (leading bars are muted).
   const displaySeries = hasSeries
     ? usable
-    : Array.from({ length: 6 }, (_, i) => ({
-        monthIso: i === 5 ? "now" : `gap-${i}`,
-        value: i === 5 ? snapshotValue : 0,
-      }));
+    : single
+      ? [single]
+      : Array.from({ length: 6 }, (_, i) => ({
+          monthIso: i === 5 ? "now" : `gap-${i}`,
+          value: i === 5 ? snapshotValue : 0,
+        }));
+
+  const captionText = hasSeries
+    ? `${delta >= 0 ? "+" : ""}${delta} pts en ${usable.length === 1 ? "1 mes" : `${usable.length} meses`}`
+    : single
+      ? "Un mes con datos"
+      : "Snapshot actual";
 
   return (
     <View style={styles.chartCard}>
@@ -275,18 +324,14 @@ function EvoChartMobile({
         <Text style={styles.chartValue}>{lastValue}%</Text>
         <View style={styles.chartDelta}>
           <Ionicons name="trending-up" size={11} color={Colors.sage[600]} />
-          <Text style={styles.chartDeltaText}>
-            {hasSeries
-              ? `${delta >= 0 ? "+" : ""}${delta} pts en ${usable.length === 1 ? "1 mes" : `${usable.length} meses`}`
-              : "Snapshot actual"}
-          </Text>
+          <Text style={styles.chartDeltaText}>{captionText}</Text>
         </View>
       </View>
 
       <View style={styles.chartBars}>
         {displaySeries.map((p, i) => {
           const isLast = i === displaySeries.length - 1;
-          const isPlaceholder = !hasSeries && !isLast;
+          const isPlaceholder = !hasSeries && !single && !isLast;
           const heightPx = Math.max(
             isPlaceholder ? 6 : 12,
             (p.value / 100) * MAX_BAR_HEIGHT,
@@ -306,7 +351,7 @@ function EvoChartMobile({
                   },
                 ]}
                 accessibilityRole="image"
-                accessibilityLabel={`${p.value}% — ${i === displaySeries.length - 1 ? "último mes" : formatMonth(p.monthIso)}`}
+                accessibilityLabel={`${p.value}% — ${isLast ? "último mes" : formatMonth(p.monthIso)}`}
               />
             </View>
           );
@@ -314,17 +359,21 @@ function EvoChartMobile({
       </View>
 
       <View style={styles.chartXAxis}>
-        {hasSeries
-          ? usable.map((p) => (
-              <Text key={p.monthIso} style={styles.chartXLabel}>
-                {formatMonth(p.monthIso)}
-              </Text>
-            ))
-          : ["—", "—", "—", "—", "—", "Hoy"].map((s, i) => (
-              <Text key={i} style={styles.chartXLabel}>
-                {s}
-              </Text>
-            ))}
+        {hasSeries ? (
+          usable.map((p) => (
+            <Text key={p.monthIso} style={styles.chartXLabel}>
+              {formatMonth(p.monthIso)}
+            </Text>
+          ))
+        ) : single ? (
+          <Text style={styles.chartXLabel}>{formatMonth(single.monthIso)}</Text>
+        ) : (
+          ["—", "—", "—", "—", "—", "Hoy"].map((s, i) => (
+            <Text key={i} style={styles.chartXLabel}>
+              {s}
+            </Text>
+          ))
+        )}
       </View>
       <Text style={styles.chartHint}>
         La cobertura mide cuánta señal respalda tu mapa — cuánta información
@@ -535,6 +584,12 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     textTransform: "uppercase",
     color: Colors.lavender[600],
+  },
+  maintenanceText: {
+    marginTop: 12,
+    fontSize: 13,
+    lineHeight: 19,
+    color: Colors.warm[500],
   },
   chartScore: {
     marginTop: 12,

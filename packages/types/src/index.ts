@@ -1299,8 +1299,13 @@ export interface HomeResponse {
    */
   insightToday: InsightToday | null;
   // ─── Sprint D additions ────────────────────────────────────────
-  /** Emotional Map for the Inicio radar (6 axes, cached 24h server-side). */
-  emotionalMap: EmotionalMapResult;
+  /**
+   * Emotional Map for the Inicio radar (6 axes, cached 24h server-side).
+   * PR-0.2: `null` when the map is temporarily unavailable (the
+   * EMOTIONAL_MAP_PUBLIC kill switch is off). The client shows an
+   * "unavailable" state — never zeros or an empty radar.
+   */
+  emotionalMap: EmotionalMapResult | null;
   /** Top-5 interleaved activity feed for the Inicio timeline card. */
   activity: ActivityFeedResponse;
 }
@@ -1554,11 +1559,21 @@ export interface EvolucionResponse {
   stats: EvolucionStats;
   milestones: EvolucionMilestone[];
   /**
+   * PR-0.2 — false when the emotional map is switched off
+   * (EMOTIONAL_MAP_PUBLIC). Distinct from "an empty series": the clients must
+   * show a "temporarily unavailable" note for the emotional history section,
+   * NOT "you have no history yet". stats + milestones stay available.
+   */
+  emotionalMapAvailable: boolean;
+  /**
    * Sprint G2 — Historical line chart series. Empty array when no
    * snapshots exist yet (new account or pre-cron period). Sorted by
    * month ascending. Client shows a single-dot fallback when length < 2.
+   *
+   * PR-0.2 — `null` (not `[]`) when `emotionalMapAvailable` is false: the map
+   * is switched off, so the history is withheld, not absent.
    */
-  emotionalSeries: EvolucionEmotionalSeriesPoint[];
+  emotionalSeries: EvolucionEmotionalSeriesPoint[] | null;
 }
 
 export interface UpdateUserMoodRequest {

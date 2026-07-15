@@ -3,7 +3,7 @@ import type { EvolucionResponse, HomeResponse } from "@psico/types";
 
 import { serverFetch } from "@/lib/api.server";
 import { ExportButton } from "@/components/dashboard/shell/ExportButton";
-import { EvoChart } from "@/components/dashboard/evolucion/EvoChart";
+import { EvolucionEmotionalSection } from "@/components/dashboard/evolucion/EmotionalSection";
 import { EvoQuarter } from "@/components/dashboard/evolucion/EvoQuarter";
 import { MilestonesTimeline } from "@/components/dashboard/evolucion/MilestonesTimeline";
 
@@ -66,22 +66,11 @@ export default async function EvolucionPage() {
       </p>
 
       <div className="evo-top">
-        {map ? (
-          <EvoChart map={map} series={evolucion.emotionalSeries} />
-        ) : (
-          <div className="card evo-chart">
-            <span className="card-tag">Comprensión emocional</span>
-            <p
-              style={{
-                margin: "12px 0 0",
-                color: "var(--color-warm-500)",
-                fontSize: 13,
-              }}
-            >
-              No pudimos cargar tu snapshot actual. Reintenta en un momento.
-            </p>
-          </div>
-        )}
+        <EvolucionEmotionalSection
+          emotionalMapAvailable={evolucion.emotionalMapAvailable}
+          map={map}
+          series={evolucion.emotionalSeries}
+        />
         <EvoQuarter stats={evolucion.stats} />
       </div>
 

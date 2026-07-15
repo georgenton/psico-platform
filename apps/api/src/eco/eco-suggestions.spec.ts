@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   buildEcoSuggestions,
   type EcoSuggestionSignals,
 } from "./eco-suggestions";
+import { EcoSuggestionService } from "./eco-suggestions.service";
 
 const NOW = new Date("2026-07-12T12:00:00.000Z");
 const daysAgo = (n: number) =>
@@ -146,5 +147,52 @@ describe("buildEcoSuggestions", () => {
       "continue-chapter",
       "mood-supportive",
     ]);
+  });
+});
+
+describe("EcoSuggestionService — PR-0.2 map kill switch", () => {
+  function makeService(getForHome: () => Promise<unknown>) {
+    const prisma = {
+      readingSession: { findFirst: vi.fn().mockResolvedValue(null) },
+      diaryEntry: { findFirst: vi.fn().mockResolvedValue(null) },
+      ecoMessage: { count: vi.fn().mockResolvedValue(0) },
+    };
+    const emotionalMap = {
+      getForHome: vi.fn(getForHome),
+      // getForUser must NEVER be called on these surfaces — it throws 503 when
+      // the map is off, which would take Eco (and /api/home) down with it.
+      getForUser: vi.fn(async () => {
+        throw new Error("getForUser must not be called by Eco suggestions");
+      }),
+    };
+    const service = new EcoSuggestionService(
+      prisma as never,
+      emotionalMap as never,
+    );
+    return { service, emotionalMap };
+  }
+
+  it("degrades gracefully when the map is off (getForHome → null): no throw, no mood opener", async () => {
+    const { service, emotionalMap } = makeService(async () => null);
+
+    const res = await service.getForUser("user-1");
+
+    // The map being down must not break Eco: we still return openers, the
+    // mood-based ones just don't fire (no self-reported mood available).
+    expect(res.suggestions.length).toBeGreaterThan(0);
+    expect(res.suggestions.some((s) => s.id.startsWith("mood"))).toBe(false);
+    // It consulted the null-returning accessor, never the throwing one.
+    expect(emotionalMap.getForHome).toHaveBeenCalledWith("user-1");
+    expect(emotionalMap.getForUser).not.toHaveBeenCalled();
+  });
+
+  it("uses the map's momento when available (getForHome → result)", async () => {
+    const { service } = makeService(async () => ({
+      momento: { mood: "hard", at: new Date().toISOString() },
+    }));
+
+    const res = await service.getForUser("user-1");
+
+    expect(res.suggestions.some((s) => s.id === "mood-supportive")).toBe(true);
   });
 });

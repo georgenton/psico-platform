@@ -223,7 +223,14 @@ export const CRITICAL_FLAGS: Readonly<Partial<Record<FlagName, boolean>>> = {
  * An implicit default is a decision nobody made; on a deployed box we want the
  * decision written down, whatever it is.
  */
-export const REQUIRED_DEFINED_FLAGS: readonly FlagName[] = ["EMOTIONAL_MAP_OU"];
+export const REQUIRED_DEFINED_FLAGS: readonly FlagName[] = [
+  "EMOTIONAL_MAP_OU",
+  // PR-0.2 — the fail-closed kill switch. No fixed value (on is normal, off is
+  // a deliberate take-down), but a deployed box must STATE which one it is:
+  // silently defaulting the whole map on or off is exactly the kind of implicit
+  // decision this barrier exists to forbid.
+  "EMOTIONAL_MAP_PUBLIC",
+];
 
 /**
  * Read a flag with NO fallback: an unset or unrecognized value is an error, not
@@ -297,6 +304,12 @@ export const RESPONSE_ONLY_FLAGS: readonly FlagName[] = [
   "EMOTIONAL_MAP_LEGACY_UI",
   "EMOTIONAL_MAP_EWS_PUBLIC",
   "EMOTIONAL_MAP_NARRATOR",
+  // PR-0.2 — the public kill switch. Response-only: flipping it decides whether
+  // the map is served at all, but never moves a stored number, so a snapshot
+  // written while it was on is still a valid snapshot when it comes back on.
+  // In RESPONSE_FLAGS (so it is part of runtime identity + responseFingerprint),
+  // NOT in FACTS_FLAGS (so it does not void a year of snapshots).
+  "EMOTIONAL_MAP_PUBLIC",
 ];
 
 /**

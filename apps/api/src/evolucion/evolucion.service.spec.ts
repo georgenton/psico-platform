@@ -133,6 +133,55 @@ describe("EvolucionService — Sprint E2 (catalog + auto-unlock)", () => {
     expect(firstReflectionUpsert).toBeUndefined();
   });
 
+  it("PR-0.2: when EMOTIONAL_MAP_PUBLIC is off, withholds the series (null) but keeps stats + milestones", async () => {
+    const prev = process.env.EMOTIONAL_MAP_PUBLIC;
+    process.env.EMOTIONAL_MAP_PUBLIC = "off";
+    try {
+      prisma.user.findUnique.mockResolvedValue({
+        currentStreakDays: 3,
+        longestStreakDays: 7,
+      });
+      prisma.diaryEntry.count.mockResolvedValue(4);
+      prisma.readingSession.findMany.mockResolvedValue([]);
+      prisma.diaryEntry.findMany.mockResolvedValue([]);
+      prisma.userAchievement.findMany.mockResolvedValue([]);
+
+      const service = new EvolucionService(prisma as never);
+      const result = await service.getForUser("user-1");
+
+      // The emotional HISTORY is withheld — null, not [] (distinct from
+      // "no history yet") — and the snapshot table is never touched.
+      expect(result.emotionalMapAvailable).toBe(false);
+      expect(result.emotionalSeries).toBeNull();
+      expect(prisma.emotionalMapSnapshot.findMany).not.toHaveBeenCalled();
+
+      // Engagement + achievements are unaffected.
+      expect(result.stats.reflexiones).toBe(4);
+      expect(result.milestones).toHaveLength(ACHIEVEMENT_CATALOG.length);
+    } finally {
+      if (prev === undefined) delete process.env.EMOTIONAL_MAP_PUBLIC;
+      else process.env.EMOTIONAL_MAP_PUBLIC = prev;
+    }
+  });
+
+  it("PR-0.2: with the map available (default), returns emotionalMapAvailable=true and a series", async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      currentStreakDays: 0,
+      longestStreakDays: 0,
+    });
+    prisma.diaryEntry.count.mockResolvedValue(0);
+    prisma.readingSession.findMany.mockResolvedValue([]);
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+    prisma.userAchievement.findMany.mockResolvedValue([]);
+
+    const service = new EvolucionService(prisma as never);
+    const result = await service.getForUser("user-1");
+
+    expect(result.emotionalMapAvailable).toBe(true);
+    expect(result.emotionalSeries).toEqual([]);
+    expect(prisma.emotionalMapSnapshot.findMany).toHaveBeenCalled();
+  });
+
   it("sorts unlocked milestones (recent first) before in-progress (high % first)", async () => {
     prisma.user.findUnique.mockResolvedValue({
       currentStreakDays: 0,

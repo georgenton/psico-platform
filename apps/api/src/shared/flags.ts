@@ -100,6 +100,30 @@ export const FLAGS = {
     default: true,
     description: "Enable the resonance (ARC) cycle feeding the map.",
   },
+  /**
+   * PR-0.2 — the fail-closed kill switch for the WHOLE emotional map.
+   *
+   * When off, the map is temporarily unavailable, deliberately and completely:
+   * `GET /api/emotional-map` returns 503 (code `EMOTIONAL_MAP_UNAVAILABLE`) and
+   * never touches compute or scoring; `/home` returns `emotionalMap: null`; the
+   * snapshot worker computes and persists nothing. It is a switch we can flip
+   * from Railway to take the surface down during a data-quality incident (the
+   * mood-history normalisation before PR-2, say) WITHOUT reverting code — and
+   * the clients show a plain "temporarily unavailable" state, not zeros, an
+   * empty radar, or "gathering data".
+   *
+   * Default ON: preserves today's behaviour (the map is public). It is a
+   * RESPONSE-ONLY flag — flipping it changes what is served, never a stored
+   * number, so snapshots written while it was on stay valid when it comes back.
+   * Mandatory (must be declared, no implicit fallback) on a deployed box; see
+   * `REQUIRED_DEFINED_FLAGS`.
+   */
+  EMOTIONAL_MAP_PUBLIC: {
+    env: "EMOTIONAL_MAP_PUBLIC",
+    default: true,
+    description:
+      "Serve the emotional map at all (fail-closed kill switch; off → 503 + null).",
+  },
 } as const satisfies Record<string, FlagDef>;
 
 export type FlagName = keyof typeof FLAGS;

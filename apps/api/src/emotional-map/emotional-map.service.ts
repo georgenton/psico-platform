@@ -8,19 +8,27 @@ import { flagEnabled } from "../shared/flags";
 import type { IEmotionalMapProvider } from "./providers/provider.interface";
 import { EMOTIONAL_MAP_PROVIDER } from "./tokens";
 import { scoreEmotionalMap } from "./emotional-map.scoring";
+import {
+  lockUserShared,
+  readPrivacyRevision as readRevision,
+} from "./privacy-barrier";
+import {
+  bumpGeneration as bumpUserGeneration,
+  resolveCacheKey as resolveKeyFor,
+} from "./cache-identity";
 
 /** Re-export the shared wire shape so the controller + barrel keep importing
  *  it from this module. The source of truth lives in `@psico/types`. */
 export type { EmotionalMapResult } from "@psico/types";
 
 /**
- * Single source of truth for the per-user map cache key — UsersService busts
- * it when the text-analysis consent flips (Fase D) without importing the
- * whole module graph.
+ * PR-0.1 — the cache key lives in `cache-identity.ts` and embeds the code +
+ * config + per-user generation that produced the value, so a flag flip is
+ * visible on the next request instead of after the TTL. Re-exported here
+ * because UsersService already reaches for these through this module.
  */
-export function emotionalMapCacheKey(userId: string): string {
-  return `emotional-map:${userId}`;
-}
+export { resolveCacheKey, bumpGeneration } from "./cache-identity";
+export { lockUserShared, readPrivacyRevision } from "./privacy-barrier";
 
 const WINDOW_DAYS = 30;
 /**
@@ -49,7 +57,26 @@ export class EmotionalMapService {
   ) {}
 
   async getForUser(userId: string): Promise<EmotionalMapResult> {
-    const cacheKey = emotionalMapCacheKey(userId);
+    // PR-0.1 — read the DURABLE privacy revision from Postgres BEFORE touching
+    // the cache. This is the ordering that makes a revocation safe:
+    //
+    //   old: consult Redis → maybe return a cached map → (never re-read consent)
+    //   new: read the revision → derive the key → consult Redis
+    //
+    // The guarantee, stated precisely: EVERY REQUEST THAT BEGINS AFTER THE
+    // REVOCATION COMMITS reads the new revision here, and therefore derives a key
+    // that cannot address the payload built from the revoked data — regardless of
+    // whether the Redis INCR succeeded, or whether Redis was reachable at all.
+    //
+    // It is not an absolute exclusion: a request that had ALREADY read the old
+    // revision microseconds before the commit will finish with the old key. That
+    // window is the ordinary read-write race of any database, it is bounded by a
+    // single request, and it is not what a revocation is protecting against —
+    // which is the map staying revoked-but-visible for the next 24 hours.
+    //
+    // Safety lives in Postgres; Redis only buys freshness.
+    const privacyRevision = await this.readPrivacyRevision(userId);
+    const cacheKey = await resolveKeyFor(this.redis, userId, privacyRevision);
     const cached = await this.redis.get(cacheKey);
     if (cached) {
       try {
@@ -65,6 +92,17 @@ export class EmotionalMapService {
         : CACHE_TTL_SECONDS;
     await this.redis.set(cacheKey, JSON.stringify(result), "EX", ttl);
     return result;
+  }
+
+  /**
+   * The durable half of this user's cache identity. A user with no
+   * PrivacySettings row has never granted or revoked anything, so revision 0 is
+   * the honest answer.
+   */
+  private async readPrivacyRevision(userId: string): Promise<number> {
+    // Shared with the snapshot processor, which re-reads it under the barrier
+    // before persisting. One definition of "which revision am I working under".
+    return readRevision(this.prisma, userId);
   }
 
   /**
@@ -210,9 +248,49 @@ export class EmotionalMapService {
     return result;
   }
 
-  /** Cache-busting hook for the daily cron and post-write paths. */
+  /**
+   * REQUIRED invalidation — the caller must fail if this fails.
+   *
+   * Use it whenever a stale map would be a PRIVACY or CORRECTNESS defect rather
+   * than a freshness one. The motivating case is withdrawing consent for the
+   * on-device text analysis: we delete the derived rows, and if the cached map
+   * survives, the user keeps seeing axes built from data they just revoked. A
+   * swallowed error there is a silent failure of a privacy promise, so this
+   * throws and the request fails closed.
+   *
+   * PR-0.1 — invalidation BUMPS the per-user generation rather than deleting the
+   * key for the current config. Deleting only the current key is not
+   * invalidation:
+   *
+   *     config A → cache written under key(A)
+   *     config B → user changes a mood → we delete key(B), key(A) survives
+   *     config A again → key(A) is served: stale, missing that mood
+   *
+   * One INCR moves the user to a new generation, so every variant — including
+   * configs we are not running and might roll back to — becomes unreachable at
+   * once. The orphans expire on their own TTL: no KEYS, no global purge.
+   */
   async invalidate(userId: string): Promise<void> {
-    await this.redis.del(emotionalMapCacheKey(userId));
+    await bumpUserGeneration(this.redis, userId);
+  }
+
+  /**
+   * BEST-EFFORT invalidation — for additive writes (a mood, a resonance, text
+   * features) where a stale cache is a freshness bug, not a leak: the user sees
+   * their previous map for a little longer, and nothing they revoked comes back.
+   *
+   * Logs loudly instead of failing the user's write. The distinction from
+   * `invalidate()` is deliberate and load-bearing: a single method that always
+   * swallowed would have made the consent path fail open.
+   */
+  async invalidateBestEffort(userId: string): Promise<void> {
+    try {
+      await bumpUserGeneration(this.redis, userId);
+    } catch (err) {
+      this.logger.warn(
+        `Emotional-map cache invalidation failed for a non-critical write (user cache may be stale for up to 24h): ${(err as Error).message}`,
+      );
+    }
   }
 
   /**
@@ -237,41 +315,64 @@ export class EmotionalMapService {
       selfCritic: number;
     },
   ): Promise<{ ok: true; id: string }> {
-    // Fase D (L4) — hard server-side consent gate. Clients check the
-    // preference before calling, but a stale client must not be able to
-    // upload derived data the user never consented to.
-    const privacy = await this.prisma.privacySettings.findUnique({
-      where: { userId },
-      select: { localTextAnalysis: true },
-    });
-    if (!privacy?.localTextAnalysis) {
-      throw new ForbiddenException("TEXT_ANALYSIS_NOT_ENABLED");
-    }
     const { entryId, ...features } = dto;
-    if (entryId) {
-      // Ownership guard: entryId is client-supplied — never let one user
-      // overwrite another user's row by guessing an id.
-      const existing = await this.prisma.diaryTextFeature.findUnique({
-        where: { entryId },
-        select: { userId: true },
+
+    // PR-0.1 — consent check, ownership guard and write are ONE serialized
+    // transaction. They used to be three separate statements, which made this a
+    // textbook time-of-check/time-of-use race:
+    //
+    //     read consent = true
+    //                              ← revocation deletes every feature row
+    //     upsert  ← the deleted row comes back
+    //
+    // Nothing about that read was wrong. It was true when it happened. It just
+    // stopped being true while we were still working, and our write landed on
+    // the far side of the deletion. The shared lock on the user row makes the
+    // two orderings the only two possible: either we commit first and the
+    // revocation then deletes what we wrote, or the revocation commits first and
+    // the read below sees `false` and refuses. Either way the user's revocation
+    // wins, which is the only acceptable outcome.
+    const row = await this.prisma.$transaction(async (tx) => {
+      await lockUserShared(tx, userId);
+
+      // Hard server-side consent gate. Clients check the preference before
+      // calling, but a stale client must not be able to upload derived data the
+      // user never consented to — and now, neither can a stale TRANSACTION.
+      const privacy = await tx.privacySettings.findUnique({
+        where: { userId },
+        select: { localTextAnalysis: true },
       });
-      if (existing && existing.userId !== userId) {
-        throw new ForbiddenException("TEXT_FEATURE_NOT_YOURS");
+      if (!privacy?.localTextAnalysis) {
+        throw new ForbiddenException("TEXT_ANALYSIS_NOT_ENABLED");
       }
-    }
-    const row = entryId
-      ? await this.prisma.diaryTextFeature.upsert({
+
+      if (entryId) {
+        // Ownership guard: entryId is client-supplied — never let one user
+        // overwrite another user's row by guessing an id.
+        const existing = await tx.diaryTextFeature.findUnique({
           where: { entryId },
-          create: { userId, entryId, ...features },
-          update: { ...features },
-          select: { id: true },
-        })
-      : await this.prisma.diaryTextFeature.create({
-          data: { userId, ...features },
-          select: { id: true },
+          select: { userId: true },
         });
+        if (existing && existing.userId !== userId) {
+          throw new ForbiddenException("TEXT_FEATURE_NOT_YOURS");
+        }
+      }
+
+      return entryId
+        ? tx.diaryTextFeature.upsert({
+            where: { entryId },
+            create: { userId, entryId, ...features },
+            update: { ...features },
+            select: { id: true },
+          })
+        : tx.diaryTextFeature.create({
+            data: { userId, ...features },
+            select: { id: true },
+          });
+    });
+
     // Fire-and-forget: a fresh map should reflect the new signal soon.
-    void this.invalidate(userId).catch(() => undefined);
+    void this.invalidateBestEffort(userId);
     return { ok: true, id: row.id };
   }
 }

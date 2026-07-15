@@ -5,7 +5,11 @@ initSentry();
 
 import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import type { Redis } from "ioredis";
 import { WorkerAppModule } from "./jobs/worker.module";
+import { assertEmotionalMapConfigured } from "./emotional-map/cache-identity";
+import { MapIdentityService } from "./health/map-identity.service";
+import { REDIS_CLIENT } from "./redis";
 
 /**
  * Worker entry point — same codebase as the API, different process.
@@ -24,6 +28,12 @@ import { WorkerAppModule } from "./jobs/worker.module";
 async function bootstrap(): Promise<void> {
   const logger = new Logger("WorkerBootstrap");
 
+  // PR-0.1 — refuse to boot with a missing/malformed epoch or a critical safety
+  // flag out of position. A worker on a different epoch than the API writes
+  // snapshots the API silently refuses to read; failing loudly here beats
+  // discovering that weeks later.
+  assertEmotionalMapConfigured();
+
   const app = await NestFactory.createApplicationContext(WorkerAppModule, {
     // Slightly less chatty than the API — workers run quietly in the background.
     logger: ["log", "warn", "error"],
@@ -37,6 +47,12 @@ async function bootstrap(): Promise<void> {
   logger.log(
     "Worker started · processors: email, data-export, account-deletion, daily-usage",
   );
+
+  // Publish the emotional-map identity so `GET /api/health/emotional-map` can
+  // prove the API and this worker agree. Same code does NOT imply same config:
+  // these are two Railway services with two environments.
+  MapIdentityService.startHeartbeat(app.get<Redis>(REDIS_CLIENT), "worker", logger);
+
   logger.log("Awaiting jobs from Redis…");
 
   // Don't `await app.close()` here — the worker stays alive until SIGTERM.

@@ -67,7 +67,7 @@ export class ResonancesService {
       create: { userId, conceptKey: dto.conceptKey, ...data },
       update: data,
     });
-    void this.emotionalMap.invalidate(userId).catch(() => undefined);
+    void this.emotionalMap.invalidateBestEffort(userId);
     return { ok: true, resonance: toSummary(row) };
   }
 
@@ -89,7 +89,7 @@ export class ResonancesService {
     const row = await this.prisma.resonance.findUniqueOrThrow({
       where: { id },
     });
-    void this.emotionalMap.invalidate(userId).catch(() => undefined);
+    void this.emotionalMap.invalidateBestEffort(userId);
     return { ok: true, resonance: toSummary(row) };
   }
 
@@ -100,7 +100,7 @@ export class ResonancesService {
       where: { id, userId },
     });
     if (res.count === 0) throw new NotFoundException("RESONANCE_NOT_FOUND");
-    void this.emotionalMap.invalidate(userId).catch(() => undefined);
+    void this.emotionalMap.invalidateBestEffort(userId);
     return { ok: true };
   }
 }

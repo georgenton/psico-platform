@@ -125,7 +125,8 @@ export class MoodService {
       select: { id: true, itemKey: true, score: true, createdAt: true },
     });
     // Fire-and-forget — a stale map is annoying, not fatal.
-    void this.emotionalMap.invalidate(userId).catch(() => undefined);
+    // Additive write: a stale map is a freshness bug, not a leak.
+    void this.emotionalMap.invalidateBestEffort(userId);
     return { ok: true, ...row };
   }
 }

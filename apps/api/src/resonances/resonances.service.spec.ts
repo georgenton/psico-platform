@@ -16,7 +16,13 @@ function makePrisma() {
 }
 
 function makeEmotionalMap() {
-  return { invalidate: vi.fn().mockResolvedValue(undefined) };
+  return {
+    // PR-0.1 — additive writes use the BEST-EFFORT invalidation: a stale map
+    // here is a freshness bug, not a leak. The consent path uses the REQUIRED
+    // one, which fails closed (see UsersService).
+    invalidateBestEffort: vi.fn().mockResolvedValue(undefined),
+    invalidate: vi.fn().mockResolvedValue(undefined),
+  };
 }
 
 const ROW = {
@@ -87,7 +93,7 @@ describe("ResonancesService — Fase E (ARC cycle)", () => {
     );
     expect(res.ok).toBe(true);
     expect(res.resonance.source).toBe("highlight");
-    expect(emotionalMap.invalidate).toHaveBeenCalledWith("user-1");
+    expect(emotionalMap.invalidateBestEffort).toHaveBeenCalledWith("user-1");
   });
 
   it("Fase H — setImportant toggles the flag scoped by userId and busts the cache", async () => {
@@ -101,7 +107,7 @@ describe("ResonancesService — Fase E (ARC cycle)", () => {
       data: { important: true },
     });
     expect(res.resonance.important).toBe(true);
-    expect(emotionalMap.invalidate).toHaveBeenCalledWith("user-1");
+    expect(emotionalMap.invalidateBestEffort).toHaveBeenCalledWith("user-1");
   });
 
   it("Fase H — setImportant throws 404 when the row is not the user's", async () => {
@@ -109,7 +115,7 @@ describe("ResonancesService — Fase E (ARC cycle)", () => {
     await expect(
       service.setImportant("user-1", "someone-elses", true),
     ).rejects.toThrow(NotFoundException);
-    expect(emotionalMap.invalidate).not.toHaveBeenCalled();
+    expect(emotionalMap.invalidateBestEffort).not.toHaveBeenCalled();
   });
 
   it("remove deletes scoped by userId (ownership) and busts the cache", async () => {
@@ -117,7 +123,7 @@ describe("ResonancesService — Fase E (ARC cycle)", () => {
     expect(prisma.resonance.deleteMany).toHaveBeenCalledWith({
       where: { id: "res-1", userId: "user-1" },
     });
-    expect(emotionalMap.invalidate).toHaveBeenCalledWith("user-1");
+    expect(emotionalMap.invalidateBestEffort).toHaveBeenCalledWith("user-1");
   });
 
   it("remove throws 404 when the row is not the user's (zero matches)", async () => {
@@ -125,6 +131,6 @@ describe("ResonancesService — Fase E (ARC cycle)", () => {
     await expect(service.remove("user-1", "someone-elses")).rejects.toThrow(
       NotFoundException,
     );
-    expect(emotionalMap.invalidate).not.toHaveBeenCalled();
+    expect(emotionalMap.invalidateBestEffort).not.toHaveBeenCalled();
   });
 });

@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import * as bcrypt from "bcryptjs";
 import { UsersService } from "./users.service";
+import { generationKey } from "../emotional-map/cache-identity";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,9 @@ const mockPrisma = {
   },
   privacySettings: {
     upsert: vi.fn(),
+    // PR-0.1 — "consent changed" now means the VALUE moved, not "the field was
+    // in the DTO", so the revocation reads the stored value first.
+    findUnique: vi.fn().mockResolvedValue({ localTextAnalysis: true }),
   },
   refreshToken: {
     updateMany: vi.fn(),
@@ -80,11 +84,19 @@ const mockPrisma = {
   diaryEntry: {
     count: vi.fn().mockResolvedValue(0),
   },
-  // Fase D (L4) — consent cascade deletes derived text-feature rows.
+  // Fase D (L4) — consent cascade deletes BOTH derivatives of the analysed text:
+  // the feature rows the map reads live, and the snapshots Evolución serves from
+  // its own facts identity (the privacy revision never reaches that path).
   diaryTextFeature: {
     deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
-  $queryRaw: vi.fn(),
+  emotionalMapSnapshot: {
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  },
+  // PR-0.1 — `updatePrivacy` takes an EXCLUSIVE lock on the user row before it
+  // touches anything, so no in-flight writer can land a derived row on the far
+  // side of the deletion. The double just answers the lock query.
+  $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
   $transaction: vi.fn(),
 };
 
@@ -107,6 +119,9 @@ const mockConfig = {
 
 const mockRedis = {
   del: vi.fn().mockResolvedValue(1),
+  // PR-0.1 — invalidating a user's map bumps a generation counter; it no longer
+  // deletes a single config-scoped key (which an old config could outlive).
+  incr: vi.fn().mockResolvedValue(1),
 };
 
 // ─── Suite ────────────────────────────────────────────────────────────────────
@@ -127,6 +142,9 @@ describe("UsersService", () => {
     mockPrisma.userProgress.count.mockResolvedValue(0);
     mockPrisma.userProgress.findMany.mockResolvedValue([]);
     mockPrisma.$queryRaw.mockResolvedValue([]);
+    mockPrisma.privacySettings.findUnique.mockResolvedValue({
+      localTextAnalysis: true,
+    });
     mockJobs.enqueueEmail.mockResolvedValue(undefined);
     mockJobs.enqueueDataExport.mockResolvedValue(undefined);
     mockJobs.enqueueAccountDeletion.mockResolvedValue(undefined);
@@ -307,20 +325,36 @@ describe("UsersService", () => {
       expect(mockPrisma.diaryTextFeature.deleteMany).not.toHaveBeenCalled();
     });
 
-    it("Fase D (L4): opting OUT of text analysis deletes derived rows and busts the map cache", async () => {
+    it("Fase D (L4): opting OUT deletes BOTH derivatives and busts the map cache", async () => {
       mockPrisma.privacySettings.upsert.mockResolvedValue({});
       await service.updatePrivacy(userId, { localTextAnalysis: false });
+      // The live map's input…
       expect(mockPrisma.diaryTextFeature.deleteMany).toHaveBeenCalledWith({
         where: { userId },
       });
-      expect(mockRedis.del).toHaveBeenCalledWith(`emotional-map:${userId}`);
+      // …and the durable aggregate the cron persisted FROM that input. Hiding the
+      // row behind a new privacy revision would not be enough: the policy says we
+      // delete the derivatives, and Evolución reads snapshots on their own
+      // identity, where the revision never appears.
+      expect(mockPrisma.emotionalMapSnapshot.deleteMany).toHaveBeenCalledWith({
+        where: { userId },
+      });
+      expect(mockRedis.incr).toHaveBeenCalledWith(generationKey(userId));
     });
 
     it("Fase D (L4): opting IN keeps the rows but busts the map cache", async () => {
+      // Stored value is OFF, so `true` is a REAL change: the map's inputs move,
+      // the cache must miss — and nothing is deleted. (PR-0.1: "changed" means
+      // the value moved, not "the field was in the DTO". Every transition is
+      // covered in privacy-revocation.spec.)
+      mockPrisma.privacySettings.findUnique.mockResolvedValue({
+        localTextAnalysis: false,
+      });
       mockPrisma.privacySettings.upsert.mockResolvedValue({});
       await service.updatePrivacy(userId, { localTextAnalysis: true });
       expect(mockPrisma.diaryTextFeature.deleteMany).not.toHaveBeenCalled();
-      expect(mockRedis.del).toHaveBeenCalledWith(`emotional-map:${userId}`);
+      expect(mockPrisma.emotionalMapSnapshot.deleteMany).not.toHaveBeenCalled();
+      expect(mockRedis.incr).toHaveBeenCalledWith(generationKey(userId));
     });
   });
 

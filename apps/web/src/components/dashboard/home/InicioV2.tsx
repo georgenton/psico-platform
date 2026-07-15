@@ -314,7 +314,7 @@ export function InicioV2({ home }: { home: HomeResponse }) {
       <div className="card continue activity">
         <div className="r-head">
           <span className="card-tag sage">
-            Tu hilo de reflexión · todo alimenta tu mapa
+            Tu hilo de reflexión · tu recorrido reciente
           </span>
           <Link href="/dashboard/reflexiones" className="r-all">
             Ver todas →

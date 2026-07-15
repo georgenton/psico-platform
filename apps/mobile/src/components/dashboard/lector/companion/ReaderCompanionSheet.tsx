@@ -23,7 +23,8 @@ export type SheetTab = "eco" | "notas" | "reflexion";
  * A bottom sheet with three tools (parity with the web companion dock):
  *   - 🌿 Eco       — chat without leaving the chapter (shared EcoChat).
  *   - ✎ Notas      — plaintext margin notes about the text.
- *   - 🪷 Reflexión — an E2E-encrypted diary entry about the reader (feeds the Mapa).
+ *   - 🪷 Reflexión — an E2E-encrypted diary entry about the reader (may feed the
+ *                    Mapa, only via signals the user explicitly provides).
  *
  * Opened from a highlighted passage (long-press) or the header. The active tab
  * is seeded with the passage; each tab consumes it once.

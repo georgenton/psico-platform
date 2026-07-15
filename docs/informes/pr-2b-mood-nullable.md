@@ -190,32 +190,39 @@ nuevo contra una API vieja (PR-2A) NO es compatible — el web nuevo puede **omi
 que PR-2A no conoce → 400 `forbidNonWhitelisted`). Por eso el backend va PRIMERO y el web
 DESPUÉS de confirmarlo.
 
-Secuencia obligatoria:
+**Secuencia definitiva (el ORDEN es obligatorio):**
 
-1. **`CACHE_EPOCH=2` en API y worker** (ambos servicios Railway), como skip-deploy o antes de
-   promover el build. Motivo: `momento` y la serie OU ahora filtran por elegibilidad; un mapa
-   cacheado pre-PR-2B podría contener moods que PR-2B excluiría. Bumpear `CACHE_EPOCH` invalida
-   los mapas cacheados sin tocar los facts persistidos. **`FACTS_EPOCH` sin cambio.**
-   `EMOTIONAL_MAP_OU` permanece **off**.
-2. **Migración** `20260715230000_pr2b_mood_selection_version` (aditiva, dos `ADD COLUMN`) vía
+1. **`CACHE_EPOCH=2` en API y worker** (ambos servicios Railway), como **skip-deploy** (setear el
+   env sin disparar un build todavía). Motivo: `momento`, la serie OU, Patrones y el digest ahora
+   filtran por elegibilidad; un mapa cacheado pre-PR-2B podría contener moods que PR-2B excluiría.
+   Bumpear `CACHE_EPOCH` invalida los mapas cacheados sin tocar los facts persistidos.
+   **`FACTS_EPOCH` sin cambio.** `EMOTIONAL_MAP_OU` permanece **off**.
+2. **Pausar la promoción a producción de Vercel** — desactivar el auto-deploy de la rama en
+   **Vercel → Project → Settings → Git** (o el _Ignored Build Step_) para que el web NO se promueva
+   antes que la API. Un web nuevo contra API PR-2A vieja rompe (omite `mood` → 400 requerido; manda
+   `moodSelectionVersion` → 400 `forbidNonWhitelisted`).
+3. **Migración** `20260715230000_pr2b_mood_selection_version` (aditiva, dos `ADD COLUMN`) vía
    `prisma migrate deploy` (corre en el `preDeployCommand` de Railway). Cero downtime; una API
    PR-2A previa tolera la columna nueva (la ignora).
-3. **Desplegar API + worker PRIMERO** (Railway). Esperar `SUCCESS` en ambos.
-4. **Confirmar identity match + smoke ANTES de tocar el web:** la línea de identidad
+4. **Desplegar API + worker PRIMERO** (Railway). Esperar `SUCCESS` en ambos.
+5. **Identity match + smoke ANTES de tocar el web:** la línea de identidad
    (`rt=… sha=<releaseSha> responseFp=… factsFp=… cacheEpoch=2 factsEpoch=1`) debe reflejar el
    nuevo `sha` y `cacheEpoch=2` en API y worker; smoke ADMIN (solo metadata/counts, sin texto):
    crear reflexión con pick → `eligible=true`; sin pick → `mood=null`; PATCH `mood:null` limpia;
    `POST /api/mood` con token legacy → 400.
-5. **Desplegar web DESPUÉS** (Vercel), una vez la API nueva está verificada.
-
-**Controlar Vercel / ventana de mantenimiento** (para que el web no promueva antes que la API):
-
-- Pausar el auto-deploy de la rama en **Vercel → Project → Settings → Git** (o el _Ignored Build
-  Step_), y promover el web **manualmente** (`vercel deploy --prod` / _Promote_) recién tras el
-  paso 4. Alternativamente, mergear a `develop`/`main` sólo tras confirmar la API, de modo que el
-  build del web dispare ya con el backend nuevo arriba.
-- Si se prefiere una ventana explícita: banner de mantenimiento breve mientras corren los pasos
-  3–4 (la ventana real es de minutos; la migración es aditiva y no bloquea).
+6. **Ejecutar la higiene de WeeklySummary** contra la DB de producción, desde un shell de
+   confianza:
+   ```bash
+   node apps/api/scripts/pr2b-weekly-summary-hygiene.mjs            # DRY RUN → weekly_summaries_found=<n>
+   node apps/api/scripts/pr2b-weekly-summary-hygiene.mjs --apply    # → weekly_summaries_deleted=<n>
+   ```
+   Borra los `WeeklySummary` construidos bajo las reglas viejas (raw/ambiguo o fallback `"calma"`);
+   el cron del domingo (S46) los reconstruye con la agregación corregida. Idempotente.
+7. **Promover el web DESPUÉS** (Vercel) — reanudar el auto-deploy o promover manualmente
+   (`vercel deploy --prod` / _Promote_), una vez la API nueva está verificada (paso 5).
+8. **Smoke del web:** crear reflexión sin tocar el ánimo → guarda con `mood=null` y **el chip
+   queda deseleccionado** para la siguiente entrada (reset-on-save); copy "guardada en tu diario".
+9. **Cerrar / revocar la sesión de Railway** usada para los pasos ops.
 
 **Sin backfill** de `moodSelectionVersion` para filas legacy — quedan `null` (ineligibles),
 consistente con PR-2A. El CHECK **no** se endurece para exigir `moodSelectionVersion` (eso es

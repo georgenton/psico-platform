@@ -15,7 +15,8 @@ export type DockTab = "eco" | "notas" | "reflexion";
  * One docked surface, three tools (Copilot-style):
  *   - 🌿 Eco       — chat with the companion without leaving the chapter.
  *   - ✎ Notas      — plaintext margin notes about the text.
- *   - 🪷 Reflexión — an E2E-encrypted diary entry about the reader (feeds the Mapa).
+ *   - 🪷 Reflexión — an E2E-encrypted diary entry about the reader (may feed the
+ *                    Mapa, only via signals the user explicitly provides).
  *
  * The reader stays mounted behind the dock, so the user never loses their
  * place. When opened from a highlighted passage, the active tab is seeded with

@@ -33,7 +33,11 @@ import { ExerciseResonanceOffer } from "./ExerciseResonanceOffer";
  * stirred in them (distinct from a nota, which is plaintext and about the text).
  * Same crypto as the Diario composer: encrypt in the app with the diary key,
  * upload only ciphertext; analyze on device and upload only numbers (Etapa 6).
- * Feeds the Mapa Emocional.
+ * Its contribution to the Mapa Emocional is CONDITIONAL — only signals the user
+ * explicitly provides feed the map (an explicitly-picked mood, opted-in
+ * on-device text analysis, a confirmed resonance). A reflexión saved with no
+ * mood and no consent still lives in the diary but does not, by itself, move
+ * the map.
  */
 
 /** Build the reflexión seed from a highlighted passage. */
@@ -119,6 +123,11 @@ export function ReflexionSheetTab({
         }
       }
       setText("");
+      // PR-2B: reset the mood to null AFTER a successful save (before the
+      // "Escribir otra" path can return to the composer). Otherwise the prior
+      // pick lingers as a false explicit selection. Only clears on success —
+      // a thrown create is caught below and keeps the pick for retry.
+      setMood(null);
       setSaved(true);
     } catch {
       setError("No pudimos guardar tu reflexión. Reintenta.");
@@ -155,7 +164,7 @@ export function ReflexionSheetTab({
         <Text style={styles.savedIcon}>🪷</Text>
         <Text style={styles.savedTitle}>Guardado en tu diario</Text>
         <Text style={styles.savedBody}>
-          Tu reflexión quedó cifrada y sumó a tu Mapa Emocional.
+          Tu reflexión quedó cifrada y guardada en tu diario.
         </Text>
         {fromExercise && concept && bookSlug && chapterOrder != null ? (
           <ExerciseResonanceOffer

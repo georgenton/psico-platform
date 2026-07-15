@@ -23,7 +23,11 @@ import { ExerciseResonanceOffer } from "./ExerciseResonanceOffer";
  *
  * A reflexión is an E2E-encrypted diary entry (`DiaryEntry`) about the READER
  * — what a passage stirred in them. Distinct from a nota (plaintext, about the
- * text). It carries a mood + tags and feeds the Mapa Emocional.
+ * text). It may carry a mood + tags. Its contribution to the Mapa Emocional is
+ * CONDITIONAL — only signals the user explicitly provides feed the map (an
+ * explicitly-picked mood, opted-in on-device text analysis, a confirmed
+ * resonance). A reflexión saved with no mood and no consent still lives in the
+ * diary but does not, by itself, move the map.
  *
  * Crypto: identical to the Diario composer (ActiveComposer). The plaintext is
  * encrypted in the browser with the diary key; only base64url ciphertext goes
@@ -150,6 +154,11 @@ export function ReflexionTab({
         // ignore — self-knowledge signal is optional; the entry is saved
       }
       setText("");
+      // PR-2B: reset the mood to null AFTER a successful save (and before the
+      // "Escribir otra" path can return to the composer). Otherwise the prior
+      // pick would linger as a false explicit selection for the next reflexión.
+      // Only clears on success; a failed request keeps the pick for retry.
+      setMood(null);
       setSaved(true);
     } catch {
       setError("No pudimos guardar tu reflexión. Reintenta.");
@@ -193,7 +202,7 @@ export function ReflexionTab({
           className="mx-auto mt-1 max-w-xs text-[12.5px]"
           style={{ color: "var(--color-warm-500)" }}
         >
-          Tu reflexión quedó cifrada y sumó a tu Mapa Emocional.
+          Tu reflexión quedó cifrada y guardada en tu diario.
         </p>
         {fromExercise && concept && bookSlug && chapterOrder != null ? (
           <ExerciseResonanceOffer

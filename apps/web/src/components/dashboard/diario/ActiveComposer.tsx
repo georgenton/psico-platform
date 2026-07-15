@@ -138,6 +138,12 @@ export function ActiveComposer({
           // ignore — self-knowledge signal is optional, the entry is saved
         }
         setText("");
+        // PR-2B: reset the mood to null AFTER a successful save. Otherwise the
+        // previous pick lingers as a false "explicit selection" for the next
+        // reflexión — the user would silently attest a mood they didn't choose.
+        // Only clears on success; a failed request keeps the pick so the user
+        // can retry without re-selecting.
+        setMood(null);
         // Force the Server Component to re-fetch the list so the new entry
         // shows up immediately.
         router.refresh();

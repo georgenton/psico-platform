@@ -93,4 +93,44 @@ describe("ActiveComposer · mood (PR-2B null-capable)", () => {
     expect(body.mood).toBe("low");
     expect(body.moodSelectionVersion).toBe("explicit-v1");
   });
+
+  // Test A (sequential): a successful save must RESET the mood to null so the
+  // previous pick never becomes a silent explicit selection for the next entry.
+  it("A: resets mood after a successful save — a second entry with no fresh pick omits mood + moodSelectionVersion", async () => {
+    const user = userEvent.setup();
+    renderComposer();
+
+    // First entry — pick `low`, write, save.
+    await user.click(screen.getByRole("button", { name: /Bajo/i }));
+    await user.type(screen.getByRole("textbox"), "Un día difícil.");
+    await user.click(screen.getByRole("button", { name: /Guardar entrada/i }));
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    const first = JSON.parse(
+      (fetchSpy.mock.calls[0]![1] as RequestInit).body as string,
+    );
+    expect(first.mood).toBe("low");
+    expect(first.moodSelectionVersion).toBe("explicit-v1");
+
+    // The composer stays mounted; after the save the chip must be deselected
+    // and the "no mood" hint must be back — the mood reset happened.
+    await waitFor(() =>
+      expect(screen.getByText(/Sin ánimo registrado/i)).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: /Bajo/i })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+
+    // Second entry — DON'T touch the mood. Write + save.
+    await user.type(screen.getByRole("textbox"), "Hoy mejor.");
+    await user.click(screen.getByRole("button", { name: /Guardar entrada/i }));
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2));
+    const second = JSON.parse(
+      (fetchSpy.mock.calls[1]![1] as RequestInit).body as string,
+    );
+    // The prior `low` must NOT leak into the second payload.
+    expect(second.mood).toBeUndefined();
+    expect(second.moodSelectionVersion).toBeUndefined();
+    expect(second.textCiphertext).toContain("cipher:Hoy mejor.");
+  });
 });

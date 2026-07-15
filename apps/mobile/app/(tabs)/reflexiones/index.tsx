@@ -137,7 +137,9 @@ function DiarioInner() {
 
 // ─── Active body ─────────────────────────────────────────────────────────────
 
-function ActiveDiarioBody({
+// Exported for the PR-2B sequential mood-reset test (Test A). Not a route
+// export — expo-router only treats the default export as a screen.
+export function ActiveDiarioBody({
   entries,
   prompt,
   loading,
@@ -209,6 +211,11 @@ function ActiveDiarioBody({
         }
       }
       setText("");
+      // PR-2B: reset the mood to null AFTER a successful save. Otherwise the
+      // previous pick lingers as a false explicit selection for the next
+      // reflexión. Runs only on success — a thrown create jumps to `finally`,
+      // so a failed request keeps the pick for retry.
+      setMood(null);
       onCreated();
     } finally {
       setSubmitting(false);

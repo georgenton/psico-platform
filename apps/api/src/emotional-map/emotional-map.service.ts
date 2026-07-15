@@ -1,4 +1,10 @@
-import { ForbiddenException, Inject, Injectable, Logger } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import type { Redis } from "ioredis";
 import type { EmotionalMapResult } from "@psico/types";
 
@@ -56,7 +62,28 @@ export class EmotionalMapService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
+  /**
+   * PR-0.2 — the fail-closed kill switch, at the single boundary every read
+   * flows through. `getForUser` is called by BOTH the controller and (via
+   * `getForHome`) the home aggregator, so gating here — before privacy revision,
+   * before cache, before compute — guarantees that when the map is taken down NO
+   * scoring runs, on either path. The direct endpoint surfaces this as a 503; the
+   * home path swallows it into `null` (see `getForHome`).
+   */
+  private assertPublicOrThrow(): void {
+    if (!flagEnabled("EMOTIONAL_MAP_PUBLIC")) {
+      throw new ServiceUnavailableException({
+        code: "EMOTIONAL_MAP_UNAVAILABLE",
+        message: "El mapa emocional no está disponible temporalmente.",
+      });
+    }
+  }
+
   async getForUser(userId: string): Promise<EmotionalMapResult> {
+    // PR-0.2 — fail closed FIRST: no compute, no scoring, no cache read when the
+    // map is switched off. This throw is the endpoint's 503.
+    this.assertPublicOrThrow();
+
     // PR-0.1 — read the DURABLE privacy revision from Postgres BEFORE touching
     // the cache. This is the ordering that makes a revocation safe:
     //
@@ -92,6 +119,19 @@ export class EmotionalMapService {
         : CACHE_TTL_SECONDS;
     await this.redis.set(cacheKey, JSON.stringify(result), "EX", ttl);
     return result;
+  }
+
+  /**
+   * PR-0.2 — the home aggregator's view of the map. When the kill switch is off,
+   * home must keep working with `emotionalMap: null` (the client renders a
+   * "temporarily unavailable" state, never zeros). We check the flag HERE and
+   * return null WITHOUT calling `getForUser`, so its 503 never rejects the
+   * `Promise.all` that builds the rest of Home — and, just as importantly, no
+   * scoring runs on the home path either.
+   */
+  async getForHome(userId: string): Promise<EmotionalMapResult | null> {
+    if (!flagEnabled("EMOTIONAL_MAP_PUBLIC")) return null;
+    return this.getForUser(userId);
   }
 
   /**

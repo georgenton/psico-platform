@@ -6,6 +6,7 @@ import type { Job } from "bullmq";
 // override for *.processor.ts).
 import { PrismaService } from "../../prisma";
 import { EmotionalMapService } from "../../emotional-map/emotional-map.service";
+import { flagEnabled } from "../../shared/flags";
 // PR-0.1 — the worker stamps snapshots with the SAME identity helper the API
 // reads them back with. One module, so the two can never disagree.
 import { factsIdentity } from "../../emotional-map/cache-identity";
@@ -68,6 +69,24 @@ export class EmotionalMapSnapshotProcessor extends WorkerHost {
     if (job.name !== JobName.RUN_EMOTIONAL_MAP_SNAPSHOT) {
       // Unknown sub-job — no-op rather than fail to keep the queue clean.
       this.logger.warn(`Unknown job name "${job.name}" on emotional-map queue`);
+      return {
+        candidates: 0,
+        persisted: 0,
+        skippedRevoked: 0,
+        failed: 0,
+        monthIso: "",
+        dryRun: !!job.data?.dryRun,
+      };
+    }
+
+    // PR-0.2 — fail closed. When the map kill switch is off, the worker computes
+    // and persists NOTHING: no `compute()`, no scoring, no snapshot rows. It is
+    // not a dry run (that still iterates candidates) — it is a hard no-op, so a
+    // data-quality incident can take the whole surface down from one env var.
+    if (!flagEnabled("EMOTIONAL_MAP_PUBLIC")) {
+      this.logger.log(
+        "EmotionalMapSnapshot skipped — EMOTIONAL_MAP_PUBLIC is off",
+      );
       return {
         candidates: 0,
         persisted: 0,

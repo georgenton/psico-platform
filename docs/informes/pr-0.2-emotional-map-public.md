@@ -80,8 +80,11 @@ different world than the one we now want to serve. Do this in order:
    from the Evolución series), so history plotted after re-enabling reflects the
    corrected model, not the incident's.
 
-3. **Set the flag on** (`EMOTIONAL_MAP_PUBLIC=on`, or remove the override) on the
-   API and the worker.
+3. **Set the flag explicitly to `on`** (`EMOTIONAL_MAP_PUBLIC=on`) on the API
+   **and** the worker. `EMOTIONAL_MAP_PUBLIC` is **`REQUIRED_DEFINED`** — a
+   deployed box refuses to boot if it is undefined — so **never reactivate by
+   "removing the override".** Deleting the env would fail boot, not fall back to
+   the default. Always set the literal value `on`.
 
 4. **Probe identity parity.** Confirm API and worker report the same
    `runtimeIdentity` (same critical flags, same epochs). A split-brain here means

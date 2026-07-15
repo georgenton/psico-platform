@@ -3,7 +3,7 @@ import type { EvolucionResponse, HomeResponse } from "@psico/types";
 
 import { serverFetch } from "@/lib/api.server";
 import { ExportButton } from "@/components/dashboard/shell/ExportButton";
-import { EvoChart } from "@/components/dashboard/evolucion/EvoChart";
+import { EvolucionEmotionalSection } from "@/components/dashboard/evolucion/EmotionalSection";
 import { EvoQuarter } from "@/components/dashboard/evolucion/EvoQuarter";
 import { MilestonesTimeline } from "@/components/dashboard/evolucion/MilestonesTimeline";
 
@@ -66,41 +66,11 @@ export default async function EvolucionPage() {
       </p>
 
       <div className="evo-top">
-        {!evolucion.emotionalMapAvailable ? (
-          // PR-0.2 — the emotional map kill switch is off. This is NOT "no
-          // history yet": the section is temporarily withheld, so we say so
-          // plainly. Tus registros siguen guardados.
-          <div className="card evo-chart">
-            <span className="card-tag">Cobertura de tu mapa</span>
-            <p
-              style={{
-                margin: "12px 0 0",
-                color: "var(--color-warm-500)",
-                fontSize: 13,
-                lineHeight: 1.5,
-              }}
-            >
-              Tu historia emocional está en pausa por mantenimiento. Estamos
-              afinando cómo la calculamos y vuelve en un rato. Tus registros
-              siguen guardados.
-            </p>
-          </div>
-        ) : map ? (
-          <EvoChart map={map} series={evolucion.emotionalSeries ?? []} />
-        ) : (
-          <div className="card evo-chart">
-            <span className="card-tag">Comprensión emocional</span>
-            <p
-              style={{
-                margin: "12px 0 0",
-                color: "var(--color-warm-500)",
-                fontSize: 13,
-              }}
-            >
-              No pudimos cargar tu snapshot actual. Reintenta en un momento.
-            </p>
-          </div>
-        )}
+        <EvolucionEmotionalSection
+          emotionalMapAvailable={evolucion.emotionalMapAvailable}
+          map={map}
+          series={evolucion.emotionalSeries}
+        />
         <EvoQuarter stats={evolucion.stats} />
       </div>
 

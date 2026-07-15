@@ -647,3 +647,148 @@ describe("ReflexionesService.getPromptOfTheDay", () => {
     expect(a).not.toBeNull();
   });
 });
+
+// ─── ReflexionesService.getDetail · related entries (PR-2B) ────────────────────────
+
+describe("ReflexionesService.getDetail — related entries (PR-2B)", () => {
+  let service: ReflexionesService;
+  let prisma: ReturnType<typeof buildPrismaMock>;
+
+  beforeEach(() => {
+    prisma = buildPrismaMock();
+    service = new ReflexionesService(
+      prisma as never,
+      emotionalMapMock() as never,
+    );
+  });
+
+  it("C: mood=null + tags=[] → related=[] and NEVER queries a related set (no OR {})", async () => {
+    prisma.diaryEntry.findFirst.mockResolvedValue(
+      buildEntryRow({ id: "e1", mood: null, tags: [] }),
+    );
+
+    const res = await service.getDetail("user-1", "e1");
+
+    expect(res.relatedEntryIds).toEqual([]);
+    // Nothing to relate on → the related query is never issued, so a match-all
+    // `{}` OR clause can never leak.
+    expect(prisma.diaryEntry.findMany).not.toHaveBeenCalled();
+  });
+
+  it("C: mood=null but tags present → OR carries ONLY the tags clause (no {mood:null})", async () => {
+    prisma.diaryEntry.findFirst.mockResolvedValue(
+      buildEntryRow({ id: "e1", mood: null, tags: ["trabajo"] }),
+    );
+    prisma.diaryEntry.findMany.mockResolvedValue([{ id: "rel-1" }]);
+
+    await service.getDetail("user-1", "e1");
+
+    const arg = prisma.diaryEntry.findMany.mock.calls[0]![0] as {
+      where: { OR: unknown[] };
+    };
+    expect(arg.where.OR).toEqual([{ tags: { hasSome: ["trabajo"] } }]);
+    expect(arg.where.OR).not.toContainEqual({});
+  });
+
+  it("C: mood + tags → OR carries both clauses, never {}", async () => {
+    prisma.diaryEntry.findFirst.mockResolvedValue(
+      buildEntryRow({ id: "e1", mood: "good", tags: ["familia"] }),
+    );
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+
+    await service.getDetail("user-1", "e1");
+
+    const arg = prisma.diaryEntry.findMany.mock.calls[0]![0] as {
+      where: { OR: unknown[] };
+    };
+    expect(arg.where.OR).toEqual([
+      { mood: "good" },
+      { tags: { hasSome: ["familia"] } },
+    ]);
+    expect(arg.where.OR).not.toContainEqual({});
+  });
+});
+
+// ─── ReflexionesService · map-cache invalidation (PR-2B) ───────────────────────────
+
+describe("ReflexionesService — map cache invalidation (PR-2B)", () => {
+  let service: ReflexionesService;
+  let prisma: ReturnType<typeof buildPrismaMock>;
+  let map: ReturnType<typeof emotionalMapMock>;
+
+  beforeEach(() => {
+    prisma = buildPrismaMock();
+    map = emotionalMapMock();
+    service = new ReflexionesService(prisma as never, map as never);
+  });
+
+  it("E: create invalidates the map cache", async () => {
+    prisma.diaryEntry.create.mockResolvedValue({
+      id: "n",
+      createdAt: new Date(),
+      excerptCiphertext: null,
+    });
+    await service.create("user-1", {
+      mood: "good",
+      moodSelectionVersion: "explicit-v1",
+      textCiphertext: CIPHER_B64,
+      textNonce: NONCE_B64,
+    });
+    expect(map.invalidateBestEffort).toHaveBeenCalledWith("user-1");
+  });
+
+  it("E: delete invalidates the map cache", async () => {
+    prisma.diaryEntry.findFirst.mockResolvedValue({ id: "e1" });
+    prisma.diaryEntry.delete.mockResolvedValue({});
+    await service.remove("user-1", "e1");
+    expect(map.invalidateBestEffort).toHaveBeenCalledWith("user-1");
+  });
+
+  it("E: an update that changes the mood invalidates", async () => {
+    prisma.diaryEntry.findFirst
+      .mockResolvedValueOnce({
+        id: "e1",
+        mood: "ok",
+        moodEligibleForDynamics: false,
+      })
+      .mockResolvedValueOnce(buildEntryRow({ id: "e1", mood: "good" }));
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+    prisma.diaryEntry.update.mockResolvedValue({});
+    await service.update("user-1", "e1", {
+      mood: "good",
+      moodSelectionVersion: "explicit-v1",
+    });
+    expect(map.invalidateBestEffort).toHaveBeenCalledWith("user-1");
+  });
+
+  it("E: an update that changes tags invalidates", async () => {
+    prisma.diaryEntry.findFirst
+      .mockResolvedValueOnce({
+        id: "e1",
+        mood: "good",
+        moodEligibleForDynamics: true,
+      })
+      .mockResolvedValueOnce(buildEntryRow({ id: "e1", mood: "good" }));
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+    prisma.diaryEntry.update.mockResolvedValue({});
+    await service.update("user-1", "e1", { tags: ["nuevo"] });
+    expect(map.invalidateBestEffort).toHaveBeenCalledWith("user-1");
+  });
+
+  it("E: a text-only update does NOT invalidate (opaque to the map)", async () => {
+    prisma.diaryEntry.findFirst
+      .mockResolvedValueOnce({
+        id: "e1",
+        mood: "good",
+        moodEligibleForDynamics: true,
+      })
+      .mockResolvedValueOnce(buildEntryRow({ id: "e1", mood: "good" }));
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+    prisma.diaryEntry.update.mockResolvedValue({});
+    await service.update("user-1", "e1", {
+      textCiphertext: CIPHER_B64,
+      textNonce: NONCE_B64,
+    });
+    expect(map.invalidateBestEffort).not.toHaveBeenCalled();
+  });
+});

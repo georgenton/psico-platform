@@ -463,7 +463,7 @@ interface MoodRow {
  *     This covers historical pre-PR-2A check-ins (no normalization columns) —
  *     safe because a check-in's raw was always an explicit ordinal pick.
  */
-function buildMoodSeries(
+export function buildMoodSeries(
   diaryRows: ReadonlyArray<MoodRow>,
   moodLogRows: ReadonlyArray<MoodRow>,
 ): Array<{ mood: string; createdAt: Date }> {

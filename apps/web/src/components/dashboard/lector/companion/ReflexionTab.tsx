@@ -2,8 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { analyzeReflectionText, DIARY_MOODS } from "@psico/types";
-import type { ChapterConcept, CreateDiaryEntryRequest } from "@psico/types";
+import {
+  analyzeReflectionText,
+  DIARY_MOODS,
+  EXPLICIT_SELECTION_VERSION,
+} from "@psico/types";
+import type {
+  ChapterConcept,
+  CreateDiaryEntryRequest,
+  DiaryMoodId,
+} from "@psico/types";
 import { encryptString } from "@psico/crypto";
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
@@ -67,7 +75,9 @@ export function ReflexionTab({
   const { key, isLegacyAccount } = useDiaryKey();
 
   const [text, setText] = useState("");
-  const [mood, setMood] = useState<string>("ok");
+  // PR-2B: no mood is picked by default. A reflexión saved without a pick has
+  // no mood — never coerce to "ok"/neutral.
+  const [mood, setMood] = useState<DiaryMoodId | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,13 +106,18 @@ export function ReflexionTab({
         trimmed.length > 140 ? `${trimmed.slice(0, 140).trimEnd()}…` : trimmed;
       const excerpt = encryptString(excerptText, key);
       const body: CreateDiaryEntryRequest = {
-        mood,
         kind: "free",
         textCiphertext: envelope.ciphertext,
         textNonce: envelope.nonce,
         excerptCiphertext: excerpt.ciphertext,
         excerptNonce: excerpt.nonce,
       };
+      // PR-2B: only attach a mood when the user explicitly tapped one, with the
+      // `explicit-v1` attestation. No pick → omit both fields.
+      if (mood) {
+        body.mood = mood;
+        body.moodSelectionVersion = EXPLICIT_SELECTION_VERSION;
+      }
       const res = await fetch(`${apiBase}/reflexiones/entries`, {
         method: "POST",
         headers: {
@@ -239,7 +254,9 @@ export function ReflexionTab({
             <button
               key={m.id}
               type="button"
-              onClick={() => setMood(m.id)}
+              // PR-2B: tapping the active chip deselects it (back to no mood).
+              onClick={() => setMood((prev) => (prev === m.id ? null : m.id))}
+              aria-pressed={active}
               disabled={saving}
               className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] px-3 py-1 text-[11.5px] font-semibold transition-colors"
               style={
@@ -261,6 +278,14 @@ export function ReflexionTab({
             </button>
           );
         })}
+        {mood === null ? (
+          <span
+            className="text-[11px] italic"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            Sin ánimo registrado
+          </span>
+        ) : null}
       </div>
 
       <textarea

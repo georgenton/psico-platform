@@ -13,8 +13,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { diarioApi } from "@psico/api-client";
 import { decryptString, encryptString } from "@psico/crypto";
-import { DIARY_MOODS } from "@psico/types";
-import type { DiaryDetailResponse } from "@psico/types";
+import { DIARY_MOODS, EXPLICIT_SELECTION_VERSION } from "@psico/types";
+import type { DiaryDetailResponse, DiaryMoodId } from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { DiaryKeyProvider, useDiaryKey } from "@/crypto/diary-key-context";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
@@ -30,6 +30,18 @@ function normalizeTag(raw: string): string | null {
   if (!cleaned) return null;
   if (cleaned.length > TAG_MAX_CHARS) return null;
   return cleaned;
+}
+
+/**
+ * PR-2B: render a (possibly null) mood honestly. null → "Sin ánimo registrado".
+ * Never fabricate a mood for an entry saved without an explicit pick.
+ */
+function moodLabel(mood: DiaryMoodId | null): string {
+  if (!mood) return "Sin ánimo registrado";
+  return (
+    DIARY_MOODS.find((m) => m.id === mood)?.label ??
+    mood.charAt(0).toUpperCase() + mood.slice(1)
+  );
 }
 
 /**
@@ -114,7 +126,10 @@ function Decrypted({
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  const [draftMood, setDraftMood] = useState<string>(detail.entry.mood);
+  // PR-2B: load the entry's mood (may be null). Allow select/deselect.
+  const [draftMood, setDraftMood] = useState<DiaryMoodId | null>(
+    detail.entry.mood,
+  );
   const [draftTags, setDraftTags] = useState<string[]>(detail.entry.tags);
   const [tagDraft, setTagDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -212,7 +227,13 @@ function Decrypted({
         excerptCiphertext: excerpt.ciphertext,
         excerptNonce: excerpt.nonce,
       };
-      if (draftMood !== detail.entry.mood) payload.mood = draftMood;
+      if (draftMood !== detail.entry.mood) {
+        // PR-2B: send the current selection — a canonical id (attested as an
+        // explicit pick with explicit-v1) if picked, or null to CLEAR the mood.
+        payload.mood = draftMood;
+        if (draftMood)
+          payload.moodSelectionVersion = EXPLICIT_SELECTION_VERSION;
+      }
       const tagsChanged =
         draftTags.length !== detail.entry.tags.length ||
         draftTags.some((t, i) => t !== detail.entry.tags[i]);
@@ -270,11 +291,16 @@ function Decrypted({
 
       <View style={styles.moodRow}>
         <View
-          style={[styles.moodSwatch, { backgroundColor: Colors.lavender[400] }]}
+          style={[
+            styles.moodSwatch,
+            {
+              backgroundColor: detail.entry.mood
+                ? Colors.lavender[400]
+                : Colors.warm[300],
+            },
+          ]}
         />
-        <Text style={styles.moodName}>
-          {detail.entry.mood[0]?.toUpperCase() + detail.entry.mood.slice(1)}
-        </Text>
+        <Text style={styles.moodName}>{moodLabel(detail.entry.mood)}</Text>
       </View>
 
       {detail.entry.promptText ? (
@@ -309,7 +335,9 @@ function Decrypted({
               return (
                 <Pressable
                   key={m.id}
-                  onPress={() => setDraftMood(m.id)}
+                  onPress={() =>
+                    setDraftMood((cur) => (cur === m.id ? null : m.id))
+                  }
                   disabled={saving}
                   style={[
                     styles.moodChip,

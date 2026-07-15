@@ -3,9 +3,14 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { analyzeReflectionText, DIARY_MOODS } from "@psico/types";
+import {
+  analyzeReflectionText,
+  DIARY_MOODS,
+  EXPLICIT_SELECTION_VERSION,
+} from "@psico/types";
 import type {
   CreateDiaryEntryRequest,
+  DiaryMoodId,
   DiaryPromptOfTheDay,
 } from "@psico/types";
 import { encryptString } from "@psico/crypto";
@@ -41,7 +46,10 @@ export function ActiveComposer({
   const { key, lock } = useDiaryKey();
   const router = useRouter();
   const [text, setText] = useState("");
-  const [mood, setMood] = useState<string>("ok");
+  // PR-2B: no mood is picked by default. Never coerce to "ok"/neutral — a
+  // reflexión saved without a pick has no mood, and the OU dynamics model must
+  // only ever read moods the user actively selected.
+  const [mood, setMood] = useState<DiaryMoodId | null>(null);
   const [submitting, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -79,7 +87,6 @@ export function ActiveComposer({
             : trimmed;
         const excerpt = encryptString(excerptText, key);
         const body: CreateDiaryEntryRequest = {
-          mood,
           kind: prompt ? "prompted" : "free",
           promptId: prompt?.id,
           textCiphertext: envelope.ciphertext,
@@ -87,6 +94,14 @@ export function ActiveComposer({
           excerptCiphertext: excerpt.ciphertext,
           excerptNonce: excerpt.nonce,
         };
+        // PR-2B: only attach a mood when the user explicitly tapped one. A
+        // tapped mood is eligible for the dynamics model, so we send the
+        // attestation (`explicit-v1`) alongside it. No pick → omit BOTH
+        // fields (sending the version without a mood is a 400).
+        if (mood) {
+          body.mood = mood;
+          body.moodSelectionVersion = EXPLICIT_SELECTION_VERSION;
+        }
         const res = await fetch(`${apiBase}/reflexiones/entries`, {
           method: "POST",
           headers: {
@@ -145,7 +160,9 @@ export function ActiveComposer({
               <button
                 key={m.id}
                 type="button"
-                onClick={() => setMood(m.id)}
+                // PR-2B: tapping the active chip deselects it (back to no mood).
+                onClick={() => setMood((prev) => (prev === m.id ? null : m.id))}
+                aria-pressed={active}
                 disabled={submitting}
                 className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] px-3 py-1 text-[11.5px] font-semibold transition-colors"
                 style={
@@ -170,6 +187,14 @@ export function ActiveComposer({
               </button>
             );
           })}
+          {mood === null ? (
+            <span
+              className="text-[11px] italic"
+              style={{ color: "var(--color-warm-500)" }}
+            >
+              Sin ánimo registrado
+            </span>
+          ) : null}
         </div>
         <span className="font-mono" style={{ color: "var(--color-warm-500)" }}>
           {todayLabel}

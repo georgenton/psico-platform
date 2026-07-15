@@ -12,10 +12,15 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { diarioApi, emotionalMapApi } from "@psico/api-client";
 import { decryptString, encryptString } from "@psico/crypto";
-import { DIARY_MOODS, analyzeReflectionText } from "@psico/types";
+import {
+  DIARY_MOODS,
+  EXPLICIT_SELECTION_VERSION,
+  analyzeReflectionText,
+} from "@psico/types";
 import type {
   CreateDiaryEntryRequest,
   DiaryEntrySummary,
+  DiaryMoodId,
   DiaryPromptOfTheDay,
 } from "@psico/types";
 import { useAuth } from "@/context/auth";
@@ -146,7 +151,9 @@ function ActiveDiarioBody({
   const { key, lock } = useDiaryKey();
   const router = useRouter();
   const [text, setText] = useState("");
-  const [mood, setMood] = useState("ok");
+  // PR-2B: no mood is picked by default (null). Tapping a chip selects it;
+  // tapping the selected chip again deselects it. We NEVER coerce null to "ok".
+  const [mood, setMood] = useState<DiaryMoodId | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Sprint front-voz: when the Diario screen regains focus (i.e. the user
@@ -173,13 +180,18 @@ function ActiveDiarioBody({
         trimmed.length > 140 ? `${trimmed.slice(0, 140).trimEnd()}…` : trimmed;
       const excerpt = encryptString(excerptText, key);
       const body: CreateDiaryEntryRequest = {
-        mood,
         kind: prompt ? "prompted" : "free",
         promptId: prompt?.id,
         textCiphertext: envelope.ciphertext,
         textNonce: envelope.nonce,
         excerptCiphertext: excerpt.ciphertext,
         excerptNonce: excerpt.nonce,
+        // PR-2B: only send a mood when the user explicitly picked one. Tapping
+        // a chip IS the explicit signal → attest with explicit-v1. No pick →
+        // omit BOTH fields (the version without a mood is a 400).
+        ...(mood
+          ? { mood, moodSelectionVersion: EXPLICIT_SELECTION_VERSION }
+          : {}),
       };
       const created = await diarioApi.create(body);
       // Etapa 6 — analyze the plaintext ON DEVICE and upload ONLY numbers
@@ -218,7 +230,7 @@ function ActiveDiarioBody({
             return (
               <Pressable
                 key={m.id}
-                onPress={() => setMood(m.id)}
+                onPress={() => setMood((cur) => (cur === m.id ? null : m.id))}
                 disabled={submitting}
                 style={[
                   styles.moodChip,
@@ -391,11 +403,16 @@ function EntryCard({ entry }: { entry: DiaryEntrySummary }) {
 
       <View style={styles.moodRow}>
         <View
-          style={[styles.moodSwatch, { backgroundColor: Colors.lavender[400] }]}
+          style={[
+            styles.moodSwatch,
+            {
+              backgroundColor: entry.mood
+                ? Colors.lavender[400]
+                : Colors.warm[300],
+            },
+          ]}
         />
-        <Text style={styles.moodName}>
-          {entry.mood[0]?.toUpperCase() + entry.mood.slice(1)}
-        </Text>
+        <Text style={styles.moodName}>{moodLabel(entry.mood)}</Text>
       </View>
 
       {entry.promptText ? (
@@ -453,6 +470,18 @@ function EntryCard({ entry }: { entry: DiaryEntrySummary }) {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const MOODS = DIARY_MOODS;
+
+/**
+ * PR-2B: render a (possibly null) mood honestly. null → "Sin ánimo registrado".
+ * Never fabricate a mood for an entry the user saved without picking one.
+ */
+function moodLabel(mood: DiaryMoodId | null): string {
+  if (!mood) return "Sin ánimo registrado";
+  return (
+    DIARY_MOODS.find((m) => m.id === mood)?.label ??
+    mood.charAt(0).toUpperCase() + mood.slice(1)
+  );
+}
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 

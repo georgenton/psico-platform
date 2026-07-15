@@ -9,8 +9,16 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { diarioApi, emotionalMapApi } from "@psico/api-client";
-import { analyzeReflectionText, DIARY_MOODS } from "@psico/types";
-import type { ChapterConcept, CreateDiaryEntryRequest } from "@psico/types";
+import {
+  analyzeReflectionText,
+  DIARY_MOODS,
+  EXPLICIT_SELECTION_VERSION,
+} from "@psico/types";
+import type {
+  ChapterConcept,
+  CreateDiaryEntryRequest,
+  DiaryMoodId,
+} from "@psico/types";
 import { encryptString } from "@psico/crypto";
 import { useDiaryKey } from "@/crypto/diary-key-context";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
@@ -64,7 +72,9 @@ export function ReflexionSheetTab({
   const router = useRouter();
 
   const [text, setText] = useState("");
-  const [mood, setMood] = useState("ok");
+  // PR-2B: no mood picked by default (null). Tap a chip to select; tap the
+  // selected chip again to deselect. Never coerce null to "ok".
+  const [mood, setMood] = useState<DiaryMoodId | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,12 +96,16 @@ export function ReflexionSheetTab({
         trimmed.length > 140 ? `${trimmed.slice(0, 140).trimEnd()}…` : trimmed;
       const excerpt = encryptString(excerptText, key);
       const body: CreateDiaryEntryRequest = {
-        mood,
         kind: "free",
         textCiphertext: envelope.ciphertext,
         textNonce: envelope.nonce,
         excerptCiphertext: excerpt.ciphertext,
         excerptNonce: excerpt.nonce,
+        // PR-2B: only send a mood when explicitly picked (tapping a chip). No
+        // pick → omit BOTH fields (the version without a mood is a 400).
+        ...(mood
+          ? { mood, moodSelectionVersion: EXPLICIT_SELECTION_VERSION }
+          : {}),
       };
       const created = await diarioApi.create(body);
       // Etapa 6 — analyze on device, upload ONLY numbers. Fase D (L4):
@@ -181,7 +195,7 @@ export function ReflexionSheetTab({
           return (
             <Pressable
               key={m.id}
-              onPress={() => setMood(m.id)}
+              onPress={() => setMood((cur) => (cur === m.id ? null : m.id))}
               disabled={saving}
               style={[styles.moodChip, active && styles.moodChipActive]}
             >

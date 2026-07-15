@@ -1139,7 +1139,9 @@ enum MoodProvenance {
   UNKNOWN
 }
 
-// Why an observation is NOT eligible for the dynamics model (null ⇔ eligible).
+// Why an observation is NOT eligible for the dynamics model. An eligible
+// observation always has exclusionReason = null. NOT the converse: rows not yet
+// normalized can have reason = null while they remain eligible = false.
 enum MoodExclusionReason {
   not_selected
   ambiguous_default

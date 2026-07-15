@@ -1831,7 +1831,11 @@ export const MOOD_PROVENANCES = [
 ] as const;
 export type MoodProvenance = (typeof MOOD_PROVENANCES)[number];
 
-/** Why an observation is NOT eligible for the dynamics model (null ⇔ eligible). */
+/**
+ * Why an observation is NOT eligible for the dynamics model. An eligible
+ * observation always has exclusionReason = null. NOT the converse: rows not yet
+ * normalized can have reason = null while they remain eligible = false.
+ */
 export const MOOD_EXCLUSION_REASONS = [
   "not_selected",
   "ambiguous_default",

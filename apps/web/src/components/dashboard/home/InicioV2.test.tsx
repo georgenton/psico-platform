@@ -110,4 +110,15 @@ describe("InicioV2", () => {
       "/dashboard/biblioteca/emociones-en-construccion/lector/3",
     );
   });
+
+  it("PR-0.2: shows a maintenance note (not an empty radar) when emotionalMap is null", () => {
+    render(<InicioV2 home={buildHome({ emotionalMap: null })} />);
+    // The kill switch is off — a plain "in pause for maintenance" line, and NO
+    // radar SVG (never zeros, never an empty hexagon).
+    expect(screen.getByText(/en pausa por mantenimiento/i)).toBeInTheDocument();
+    // The radar (aria-labelled) is NOT rendered — no empty hexagon, no zeros.
+    expect(
+      screen.queryByLabelText(/Radar de tu mapa emocional/i),
+    ).not.toBeInTheDocument();
+  });
 });

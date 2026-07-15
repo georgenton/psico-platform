@@ -46,6 +46,7 @@ const ENVS = [
   "EMOTIONAL_MAP_EWS_PUBLIC",
   "EMOTIONAL_MAP_NARRATOR",
   "CONTENT_RESONANCE",
+  "EMOTIONAL_MAP_PUBLIC",
   CACHE_EPOCH_ENV,
   FACTS_EPOCH_ENV,
   "NODE_ENV",
@@ -82,6 +83,9 @@ function pinProductionFlags() {
   process.env.EMOTIONAL_MAP_LLM_SCORING = "off";
   process.env.EMOTIONAL_MAP_EWS_PUBLIC = "off";
   process.env.EMOTIONAL_MAP_NARRATOR = "off";
+  // PR-0.2 — required-defined on a deployed box (no fixed value; here we pin on,
+  // the normal state). Without it, boot fails — which is the point.
+  process.env.EMOTIONAL_MAP_PUBLIC = "on";
 }
 
 describe("emotional-map cache identity (PR-0.1)", () => {
@@ -436,6 +440,7 @@ describe("emotional-map — structural invariants and environment (PR-0.1)", () 
     "EMOTIONAL_MAP_NARRATOR",
     "CONTENT_RESONANCE",
     "EMOTIONAL_MAP_OU",
+    "EMOTIONAL_MAP_PUBLIC",
   ] as const;
 
   beforeEach(() => {
@@ -460,6 +465,41 @@ describe("emotional-map — structural invariants and environment (PR-0.1)", () 
     expect(RESPONSE_FLAGS.length).toBeGreaterThan(FACTS_FLAGS.length);
     // No duplicates — a flag counted twice would be a silent fingerprint bug.
     expect(new Set(RESPONSE_FLAGS).size).toBe(RESPONSE_FLAGS.length);
+  });
+
+  // ── PR-0.2 — EMOTIONAL_MAP_PUBLIC is part of the identity, and mandatory ────
+
+  it("PR-0.2: PUBLIC is a response flag, so flipping it moves the response fingerprint (and thus runtime identity), NOT the facts one", () => {
+    process.env.EMOTIONAL_MAP_PUBLIC = "on";
+    const responseOn = responseFingerprint();
+    const factsOn = factsFingerprint();
+
+    process.env.EMOTIONAL_MAP_PUBLIC = "off";
+    const responseOff = responseFingerprint();
+    const factsOff = factsFingerprint();
+
+    expect(RESPONSE_FLAGS).toContain("EMOTIONAL_MAP_PUBLIC");
+    // Part of runtime identity (the API/worker probe compares this).
+    expect(responseOn).not.toBe(responseOff);
+    // But it moves no NUMBER, so snapshots written while on survive the flip.
+    expect(factsOn).toBe(factsOff);
+    expect(FACTS_FLAGS).not.toContain("EMOTIONAL_MAP_PUBLIC");
+  });
+
+  it("PR-0.2: a deployed box refuses to boot when EMOTIONAL_MAP_PUBLIC is unset (no implicit fallback)", () => {
+    pinProductionFlags();
+    delete process.env.EMOTIONAL_MAP_PUBLIC;
+    expect(() => assertEmotionalMapConfigured()).toThrow(
+      /EMOTIONAL_MAP_PUBLIC is required/i,
+    );
+  });
+
+  it("PR-0.2: a deployed box boots with EMOTIONAL_MAP_PUBLIC=off (off is a valid, deliberate take-down)", () => {
+    pinProductionFlags();
+    process.env.EMOTIONAL_MAP_PUBLIC = "off";
+    // Unlike CRITICAL_FLAGS (fixed value), PUBLIC has no required value: off is a
+    // legitimate rollback state, so it must NOT fail the boot gate.
+    expect(() => assertEmotionalMapConfigured()).not.toThrow();
   });
 
   it("refuses to boot on a deployed box that declares no valid environment", () => {
@@ -549,6 +589,7 @@ describe("emotional-map — structural invariants and environment (PR-0.1)", () 
     process.env.EMOTIONAL_MAP_EWS_PUBLIC = "off";
     process.env.EMOTIONAL_MAP_NARRATOR = "off";
     process.env.EMOTIONAL_MAP_OU = "on";
+    process.env.EMOTIONAL_MAP_PUBLIC = "on"; // PR-0.2 — required-defined
 
     // CONTENT_RESONANCE unset → until PR-3 retires the ARC axes, resonances
     // still feed Conexión/Propósito. It must be off, and it must be SAID.

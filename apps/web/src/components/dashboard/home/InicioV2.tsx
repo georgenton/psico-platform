@@ -157,9 +157,23 @@ export function InicioV2({ home }: { home: HomeResponse }) {
           </div>
           {/* The honest hexagon: the 6-axis radar returns, but each punta only
               fills with a real signal — gathering axes render dashed, never a
-              fabricated midpoint, and there is no global %. */}
+              fabricated midpoint, and there is no global %. PR-0.2: when the map
+              is switched off (emotionalMap === null) we show a plain
+              "unavailable" note here, never zeros or an empty radar. */}
           <div style={{ padding: "10px 4px 4px" }}>
-            <MapRadar dimensions={home.emotionalMap.dimensions} compact />
+            {home.emotionalMap ? (
+              <MapRadar dimensions={home.emotionalMap.dimensions} compact />
+            ) : (
+              <p
+                style={{
+                  margin: "8px 4px",
+                  color: "var(--color-warm-500)",
+                  fontSize: 13,
+                }}
+              >
+                Tu mapa está en pausa por mantenimiento. Vuelve en un rato.
+              </p>
+            )}
           </div>
         </div>
       </div>

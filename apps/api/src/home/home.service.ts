@@ -114,7 +114,9 @@ export class HomeService {
       this.fetchStats(userId),
       this.fetchReflectionPrompt(userId),
       this.fetchAmbient(userId),
-      this.emotionalMap.getForUser(userId),
+      // PR-0.2 — getForHome returns null (never throws) when the map kill switch
+      // is off, so Home keeps working with emotionalMap: null.
+      this.emotionalMap.getForHome(userId),
       this.activity.feed(userId),
     ]);
 

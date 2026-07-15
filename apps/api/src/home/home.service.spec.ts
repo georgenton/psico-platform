@@ -54,7 +54,7 @@ describe("HomeService.getHome", () => {
     service = new HomeService(
       prisma as never,
       {
-        getForUser: async () => ({
+        getForHome: async () => ({
           values: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5] as [
             number,
             number,
@@ -116,6 +116,37 @@ describe("HomeService.getHome", () => {
       "terapia",
     ]);
     expect(result.greeting.text).toBeDefined();
+  });
+
+  it("PR-0.2: emotionalMap is null when the map service returns null (kill switch off) — rest of Home works", async () => {
+    // Home consumes `getForHome`, which returns null when EMOTIONAL_MAP_PUBLIC
+    // is off. Home must NOT fail — it serves everything else and emotionalMap:
+    // null (the client renders "unavailable", never zeros).
+    const nullMapService = { getForHome: async () => null };
+    const svc = new HomeService(
+      prisma as never,
+      nullMapService as never,
+      { feed: async () => ({ items: [] }) } as never,
+      { topForHome: async () => [] } as never,
+    );
+    prisma.user.findUnique.mockResolvedValue({
+      ...fakeUserRow,
+      preferences: { weeklyGoalMinutes: 60 },
+    });
+    prisma.userProgress.findFirst.mockResolvedValue(null);
+    prisma.userProgress.findMany.mockResolvedValue([]);
+    prisma.userProgress.count.mockResolvedValue(0);
+    prisma.book.findMany.mockResolvedValue([]);
+    prisma.conversation.findFirst.mockResolvedValue(null);
+    prisma.dismissedReflectionPrompt.findMany.mockResolvedValue([]);
+    prisma.reflectionPrompt.findFirst.mockResolvedValue(null);
+
+    const result = await svc.getHome("user-1");
+
+    expect(result.emotionalMap).toBeNull();
+    // The rest of Home is unaffected.
+    expect(result.user.firstName).toBe("Jorge");
+    expect(result.shortcuts).toHaveLength(4);
   });
 
   it("computes continueBook from latest UserProgress", async () => {
@@ -198,7 +229,7 @@ describe("HomeService.updateMood", () => {
     service = new HomeService(
       prisma as never,
       {
-        getForUser: async () => ({
+        getForHome: async () => ({
           values: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5] as [
             number,
             number,
@@ -269,7 +300,7 @@ describe("HomeService.dismissPrompt", () => {
     service = new HomeService(
       prisma as never,
       {
-        getForUser: async () => ({
+        getForHome: async () => ({
           values: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5] as [
             number,
             number,

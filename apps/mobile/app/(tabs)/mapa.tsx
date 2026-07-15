@@ -60,6 +60,9 @@ export default function MapaScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // PR-0.2 — the map kill switch is off (home returned emotionalMap: null).
+  // Distinct from `error` (fetch failed) and from `!map` (no data yet).
+  const [unavailable, setUnavailable] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -74,6 +77,7 @@ export default function MapaScreen() {
       setRefreshing(false);
       return;
     }
+    setUnavailable(homeResult.value.emotionalMap === null);
     setMap(homeResult.value.emotionalMap);
     setResonances(
       resonancesResult.status === "fulfilled"
@@ -143,6 +147,16 @@ export default function MapaScreen() {
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator color={Colors.lavender[500]} />
+          </View>
+        ) : unavailable ? (
+          <View style={styles.center}>
+            <Text style={[styles.errorText, { fontWeight: "600" }]}>
+              Tu mapa está en pausa por mantenimiento.
+            </Text>
+            <Text style={styles.errorText}>
+              Estamos afinando cómo lo calculamos. Vuelve en un rato — tus datos
+              están intactos.
+            </Text>
           </View>
         ) : error || !map ? (
           <View style={styles.center}>

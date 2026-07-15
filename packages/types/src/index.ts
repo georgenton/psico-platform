@@ -1299,8 +1299,13 @@ export interface HomeResponse {
    */
   insightToday: InsightToday | null;
   // ─── Sprint D additions ────────────────────────────────────────
-  /** Emotional Map for the Inicio radar (6 axes, cached 24h server-side). */
-  emotionalMap: EmotionalMapResult;
+  /**
+   * Emotional Map for the Inicio radar (6 axes, cached 24h server-side).
+   * PR-0.2: `null` when the map is temporarily unavailable (the
+   * EMOTIONAL_MAP_PUBLIC kill switch is off). The client shows an
+   * "unavailable" state — never zeros or an empty radar.
+   */
+  emotionalMap: EmotionalMapResult | null;
   /** Top-5 interleaved activity feed for the Inicio timeline card. */
   activity: ActivityFeedResponse;
 }

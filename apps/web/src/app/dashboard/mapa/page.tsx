@@ -52,6 +52,38 @@ export default async function MapaPage() {
   }
 
   const map = homeResult.value.emotionalMap;
+
+  // PR-0.2 — the map is switched off (EMOTIONAL_MAP_PUBLIC). Show a plain
+  // "temporarily unavailable" state — NOT zeros, an empty radar, or "gathering
+  // data" (those mean "we don't have enough signal yet", a different thing).
+  if (map === null) {
+    return (
+      <>
+        <div className="screen-head">
+          <div className="screen-title">
+            <span className="eb">El corazón de tu experiencia</span>
+            Tu Mapa Emocional
+          </div>
+        </div>
+        <div className="card">
+          <p style={{ margin: 0, fontWeight: 600, fontSize: 15 }}>
+            Tu mapa está en pausa por mantenimiento.
+          </p>
+          <p
+            style={{
+              margin: "8px 0 0",
+              color: "var(--color-warm-500)",
+              fontSize: 14,
+            }}
+          >
+            Estamos afinando cómo lo calculamos. Vuelve en un rato — tus datos
+            están intactos y nada se pierde.
+          </p>
+        </div>
+      </>
+    );
+  }
+
   const resonances =
     resonancesResult.status === "fulfilled"
       ? resonancesResult.value.resonances

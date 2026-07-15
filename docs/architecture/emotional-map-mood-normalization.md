@@ -172,11 +172,17 @@ moodNormalizerVersion String?
 moodClientVersion     String?
 /// ¿Puede alimentar el OU? Precomputado (single source of truth para la fetch).
 moodEligibleForDynamics Boolean @default(false)
-/// Razón de exclusión. Null ⇔ elegible.
+/// Razón de exclusión. En una fila NORMALIZADA, reason=null ⇒ elegible; NO es
+/// un ⇔: una fila histórica (pre-normalizador) tiene reason=null Y eligible=false
+/// por el default de columna. La verdad de elegibilidad la lleva
+/// `moodEligibleForDynamics`, no la ausencia de razón.
 moodExclusionReason   MoodExclusionReason?
 ```
 
-Índice nuevo en cada modelo para la fetch del OU (reemplaza el scan por `mood` crudo):
+Índice nuevo en cada modelo para la fetch del OU (reemplaza el scan por `mood`
+crudo). Es un índice **compuesto** `(userId, eligible, createdAt desc)`, **no
+parcial**: cubre todas las filas y usa la elegibilidad como clave líder, no como
+filtro `WHERE`.
 
 ```prisma
 @@index([userId, moodEligibleForDynamics, createdAt(sort: Desc)])
@@ -220,10 +226,15 @@ El cliente aporta a lo sumo el token crudo del ánimo + su `moodClientVersion`.
 
 **Invariantes duros (constraints del contrato):**
 
-- **INV-1 — `eligible ⇒ normalized ∧ explicit`.** Ninguna fila puede tener
-  `moodEligibleForDynamics = true` sin `moodNormalized != null` **y**
-  `moodExplicitlySelected = true`. Elegibilidad implica categoría canónica
-  resuelta **y** elección explícita del usuario (test + CHECK a nivel app).
+- **INV-1 — `eligible ⇒ normalized ∧ explicit ∧ reason=null ∧ provenanced`.**
+  Ninguna fila puede tener `moodEligibleForDynamics = true` sin, a la vez:
+  `moodNormalized != null`, `moodExplicitlySelected = true`,
+  `moodExclusionReason IS NULL`, y estar **completamente provenanciada** —
+  `moodProvenance`, `moodNormalizerVersion` y `moodVocabularyVersion` todos
+  non-null. Elegibilidad implica categoría canónica resuelta, elección explícita,
+  y una observación reproducible. Es una **CHECK real de PostgreSQL** en
+  `MoodLog` y `DiaryEntry` (no un mirror en tabla temporal); se prueba corriendo
+  el `prisma migrate deploy` de verdad (`mood-normalization-migration.pg-spec.ts`).
 - **INV-2 — diario legacy/histórico sin prueba explícita ⇒ NO elegible.** Una
   fila de `DiaryEntry` cuyo canal es `reflexion` y cuya explicitud no está probada
   por versión de cliente (`moodClientVersion` anterior al rollout de
@@ -280,10 +291,16 @@ Notas:
 
 ### D.3 — Cambios de escritura (nuevos writes) — SIN activar OU
 
-- **Composers arrancan en `null`** (web + mobile: quitar el default `"ok"`). Si el
+- **Composers arrancan en `null`** — **esto es PR-2B, NO PR-2A.** En PR-2B (web +
+  mobile: quitar el default `"ok"`, `create-entry.dto` a `@IsOptional`), si el
   usuario guarda sin elegir → `DiaryEntry.mood = null`, `explicit=false`,
-  `eligible=false`, `exclusionReason=not_selected`. Guardar la reflexión **no**
-  falla por falta de ánimo (se relaja el `@IsOptional` en create).
+  `eligible=false`, `exclusionReason=not_selected`; guardar la reflexión no falla
+  por falta de ánimo. **En PR-2A el `create` mantiene `mood` requerido** (`mood!`,
+  sin `@IsOptional`): la columna ya es nullable en DB, pero la transición
+  request/response/cliente a nullable ocurre de forma atómica en PR-2B. Así PR-2A
+  no puede crear una fila `mood = null` por la API, y ningún mapper de lectura se
+  ve tentado a fabricar un `"ok"` neutro (falla explícito con integridad si
+  aparece un null inesperado).
 - **Reflexión con pick** → `explicit=true`, `provenance=reflexion`,
   `normalized=pick`, `vocab=diary-v1`, `normalizer=norm-1`, `eligible=true`,
   `clientVersion` estampado.

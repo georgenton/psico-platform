@@ -3194,11 +3194,17 @@ export interface components {
         };
         CreateDiaryEntryDto: {
             /**
-             * @description Mood token from the shared `DIARY_MOODS` catalog (calma / foco /
-             *     energia / …). Used for the patterns analytics (heatmap, hourly
-             *     distribution) — visible to the server in plaintext by design.
+             * @description Mood token from the shared `DIARY_MOODS` catalog (great / good / ok /
+             *     low / hard). Plaintext by design (patterns analytics). Server derives the
+             *     normalization columns; the client controls neither provenance nor
+             *     eligibility.
              *
-             *     The plugin auto-emits the enum in OpenAPI from the `@IsIn`.
+             *     PR-2A · **required**. The DB column is nullable (schema-forward for a
+             *     future null-capable composer), but the request/response/client transition
+             *     to nullable happens atomically in PR-2B — never here. Keeping this required
+             *     means PR-2A cannot create a `mood = null` row through the API, so no read
+             *     path is ever tempted to fabricate a neutral "ok". The plugin auto-emits the
+             *     enum in OpenAPI.
              * @enum {string}
              */
             mood: CreateDiaryEntryDtoMood;
@@ -3262,6 +3268,13 @@ export interface components {
              * @description New mood token from the shared `DIARY_MOODS` catalog. Server uses
              *     it for the patterns analytics — visible in plaintext by design.
              *     Plugin emits the enum in OpenAPI from `@IsIn`.
+             *
+             *     PR-2A · `@ValidateIf(value !== undefined)` instead of `@IsOptional`: a
+             *     MISSING property is allowed (leaves the mood untouched), but an EXPLICIT
+             *     `null` must be rejected — `@IsOptional` would skip all validators for null
+             *     and let a `mood = null` row slip in (which the read path then rejects with
+             *     a 500). So: omitted → OK; canonical string → OK; null / empty / legacy /
+             *     unknown → 400. The nullable transition lands atomically in PR-2B.
              * @enum {string}
              */
             mood?: UpdateDiaryEntryDtoMood;

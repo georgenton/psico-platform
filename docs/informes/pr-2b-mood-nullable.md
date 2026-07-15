@@ -124,10 +124,19 @@ normalized`, con **fallback temporal** al raw canónico solo para MoodLog histó
 ## D. Compatibilidad mobile (release gate)
 
 **Veredicto: sin builds externos antiguos → se puede shipear web+mobile juntos.**
+Auditado canal por canal (no solo "no hay eas.json"):
 
-- `apps/mobile` **no** tiene `eas.json` (sin perfiles de build EAS), sin config de submit,
-  `version: "1.0.0"` default, sin canal OTA. La app corre en **Expo Go** (dev) contra el bundle
-  de Metro de la rama actual. **No hay instalaciones externas** de un build pre-PR-2B.
+| Canal                        | Evidencia                                                                      | Resultado                                     |
+| ---------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------- |
+| EAS builds                   | sin `eas.json`, sin `projectId`/`owner`/`extra.eas` en `app.json`              | ninguno producido                             |
+| TestFlight                   | sin `.ipa`, sin `credentials`, sin `GoogleService*` trackeados                 | inexistente                                   |
+| Google Play internal testing | sin `.apk`, sin `store.config`, sin `.easignore`                               | inexistente                                   |
+| APK/IPA compartidos          | ninguno en el repo                                                             | inexistente                                   |
+| Expo Updates / canales OTA   | sin key `updates`, sin `runtimeVersion`, sin dep `expo-updates`, sin `channel` | ningún bundle publicado llega a app instalada |
+
+Solo `slug: "psico-platform"` (scaffold default). La app corre en **Expo Go** (dev) contra el
+bundle de Metro de la rama actual. **No hay instalaciones externas** de un build pre-PR-2B por
+NINGÚN canal.
 
 **Análisis forward-compat (si existiera un cliente viejo):** el backend es forward-compatible —
 un cliente viejo manda `mood: "<canónico>"` sin `moodSelectionVersion` → `ambiguous_default` /

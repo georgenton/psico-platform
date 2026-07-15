@@ -1117,16 +1117,65 @@ model UserPreferences {
 // día, and weekly digests. User.mood + User.moodUpdatedAt stay as denormalized
 // "current mood" cache so the existing /api/home payload doesn't need to JOIN
 // MoodLog on every request.
+// PR-2A · mood normalization (backend/schema only). The DB stores the canonical
+// CATEGORY; the ordinal number lives in model v0 (MOOD_SCALAR), never here.
+enum MoodCanonical {
+  hard
+  low
+  ok
+  good
+  great
+}
+
+// Server-derived provenance of a mood observation. READER_REFLECTION is reserved
+// for a future dedicated reader endpoint (unused in PR-2A).
+enum MoodProvenance {
+  MOOD_LOG
+  DIARY
+  READER_REFLECTION
+  ONBOARDING
+  IMPORT
+  SEED
+  UNKNOWN
+}
+
+// Why an observation is NOT eligible for the dynamics model. An eligible
+// observation always has exclusionReason = null. NOT the converse: rows not yet
+// normalized can have reason = null while they remain eligible = false.
+enum MoodExclusionReason {
+  not_selected
+  ambiguous_default
+  pre_normalizer_review
+  legacy_vocabulary
+  unknown_token
+  stale_normalizer
+}
+
 model MoodLog {
   id        String   @id @default(cuid())
   userId    String
-  // Token validated against DIARY_MOODS catalog at the DTO layer.
+  // RAW token as written (validated against DIARY_MOODS at the DTO layer).
+  // PR-2A NEVER mutates this — the normalized columns below are additive.
   mood      String
   createdAt DateTime @default(now())
+
+  // PR-2A · server-owned normalization. See mood-normalization.ts. INV-1
+  // (eligible ⇒ normalized != null ∧ explicit = true ∧ reason = null) is
+  // enforced by a CHECK constraint added in the migration.
+  moodNormalized          MoodCanonical?
+  moodProvenance          MoodProvenance?
+  moodExplicitlySelected  Boolean?
+  moodVocabularyVersion   String?
+  moodNormalizerVersion   String?
+  moodClientVersion       String?
+  moodEligibleForDynamics Boolean              @default(false)
+  moodExclusionReason     MoodExclusionReason?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt(sort: Desc)])
+  // Fast eligible-only scan for the future OU fetch (OU stays off in PR-2A).
+  @@index([userId, moodEligibleForDynamics, createdAt(sort: Desc)])
 }
 
 // Micro-checkin answer (Mapa Emocional · Etapa 2). One 0–4 ordinal score per
@@ -1366,7 +1415,10 @@ model DiaryEntry {
   excerptNonce      String?
 
   // Plaintext metadata — explicitly non-sensitive per the design contract.
-  mood     String // token: "calma" | "foco" | "energia" | … (validated against OnboardingMood)
+  // PR-2A · RAW token, now NULLABLE: a new composer may save without a mood
+  // pick. Validated against DIARY_MOODS at the DTO layer when present. Never
+  // mutated by PR-2A; the normalized columns below are additive.
+  mood     String?
   // "free" | "prompted" | "voz" — denormalized for filtering/analytics.
   kind     String   @default("free")
   promptId String? // FK is intentionally a soft pointer to DiaryPrompt
@@ -1377,6 +1429,17 @@ model DiaryEntry {
   // disk anyway. Only the URL + duration travel here.
   audioUrl         String?
   audioDurationSec Int?
+
+  // PR-2A · server-owned normalization (mirror of MoodLog). See
+  // mood-normalization.ts. INV-1 enforced by a CHECK constraint in the migration.
+  moodNormalized          MoodCanonical?
+  moodProvenance          MoodProvenance?
+  moodExplicitlySelected  Boolean?
+  moodVocabularyVersion   String?
+  moodNormalizerVersion   String?
+  moodClientVersion       String?
+  moodEligibleForDynamics Boolean              @default(false)
+  moodExclusionReason     MoodExclusionReason?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

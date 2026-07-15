@@ -28,6 +28,22 @@ import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 
 const MOODS = ["hard", "low", "ok", "good", "great"];
+
+// PR-2A · seeded MoodLog rows are canonical + explicit + eligible, but their
+// provenance is SEED — NOT MOOD_LOG. They must not masquerade as real user taps.
+// Raw `mood` preserved; these are the additive normalization columns.
+function moodNorm(mood) {
+  return {
+    moodNormalized: mood,
+    moodProvenance: "SEED",
+    moodExplicitlySelected: true,
+    moodVocabularyVersion: "diary-v1",
+    moodNormalizerVersion: "norm-1",
+    moodClientVersion: "seed",
+    moodEligibleForDynamics: true,
+    moodExclusionReason: null,
+  };
+}
 const DAY = 86400_000;
 
 function parseArgs(argv) {
@@ -181,9 +197,11 @@ async function main() {
         if (Math.random() < 0.25) continue; // irregular Δt
         const i = u.days - 1 - d;
         const jitter = Math.floor(Math.random() * DAY);
+        const mood = moodForDay(u.pattern, i, u.days);
         rows.push({
           userId: user.id,
-          mood: moodForDay(u.pattern, i, u.days),
+          mood,
+          ...moodNorm(mood),
           createdAt: new Date(now - d * DAY - jitter),
         });
       }

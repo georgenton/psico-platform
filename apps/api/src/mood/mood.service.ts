@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -10,6 +10,7 @@ import type {
   LogMoodResponse,
 } from "@psico/types";
 import { CHECKIN_ITEMS } from "@psico/types";
+import { deriveMoodNormalization } from "./mood-normalization";
 
 /**
  * MoodService — Sprint B1.
@@ -46,28 +47,74 @@ export class MoodService {
   ) {}
 
   async log(userId: string, mood: string): Promise<LogMoodResponse> {
-    // Swatch enrichment is best-effort. The DTO has already validated `mood`
-    // against the shared catalog; the DB lookup is just to surface a swatch
-    // for the optimistic UI confirmation. If the row is missing (DB seeded
-    // before Sprint B6b, fresh dev DB never seeded, etc.) we use the
-    // hardcoded fallback so the chip never dead-ends.
+    // PR-2A · never persist an empty check-in. The DTO already rejects a
+    // missing token; this is the server-side backstop — an absent mood creates
+    // NO MoodLog row.
+    if (!mood || mood.trim().length === 0) {
+      throw new BadRequestException(
+        "MOOD_REQUIRED: a check-in must carry a mood token",
+      );
+    }
+
+    // PR-2A · a check-in is inherently an EXPLICIT pick (the user taps a face)
+    // in the canonical ordinal vocabulary, so the server marks it MOOD_LOG /
+    // explicit and — being canonical — eligible. Provenance/eligibility are
+    // server-owned; the client sends only the token.
+    const normalization = deriveMoodNormalization({
+      raw: mood,
+      source: "MOOD_LOG",
+      explicitlySelected: true,
+    });
+
+    // Defense in depth (independent of the DTO's @IsIn): a check-in MUST
+    // resolve to a canonical, eligible observation. A legacy/unknown token
+    // normalizes to `moodNormalized = null` → not eligible → rejected here,
+    // BEFORE any write. We create NO MoodLog row and do NOT touch User.mood for
+    // an invalid token — the alternative would be a permanent non-canonical
+    // "current mood" that later scoring can never place on the ordinal scale.
+    if (!normalization.moodEligibleForDynamics) {
+      throw new BadRequestException(
+        `MOOD_INVALID: '${mood}' is not a canonical, eligible check-in token`,
+      );
+    }
+
+    // Persist the NORMALIZED canonical category, not the raw token. A check-in
+    // is a first-class ordinal observation, so a raw like " good " (extra
+    // whitespace) must not become an eligible row whose raw is non-canonical —
+    // we store the resolved category so raw always equals the canonical id.
+    // (Unreachable when null given the eligibility guard above; the check keeps
+    // the type honest and guarantees we never write a non-canonical eligible
+    // raw.)
+    const canonical = normalization.moodNormalized;
+    if (canonical == null) {
+      throw new BadRequestException(
+        `MOOD_INVALID: '${mood}' did not resolve to a canonical category`,
+      );
+    }
+
+    // Swatch enrichment is best-effort. `canonical` is a proven canonical id;
+    // the DB lookup is just to surface a swatch for the optimistic UI
+    // confirmation. If the row is missing (DB seeded before Sprint B6b, fresh
+    // dev DB never seeded, etc.) we use the hardcoded fallback so the chip never
+    // dead-ends.
     const moodRow = await this.prisma.onboardingMood.findUnique({
-      where: { id: mood },
+      where: { id: canonical },
       select: { id: true, swatch: true },
     });
     const swatch =
-      moodRow?.swatch ?? FALLBACK_SWATCH[mood] ?? "var(--color-warm-400)";
+      moodRow?.swatch ?? FALLBACK_SWATCH[canonical] ?? "var(--color-warm-400)";
 
     // Append to the time series + sync the denormalized "current" cache. The
-    // two writes are independent so we don't need a transaction.
+    // two writes are independent so we don't need a transaction. Raw = canonical
+    // so an eligible MoodLog row can never carry a non-canonical raw.
     const [entry] = await Promise.all([
       this.prisma.moodLog.create({
-        data: { userId, mood },
+        data: { userId, mood: canonical, ...normalization },
         select: { id: true, mood: true, createdAt: true },
       }),
       this.prisma.user.update({
         where: { id: userId },
-        data: { mood, moodUpdatedAt: new Date() },
+        data: { mood: canonical, moodUpdatedAt: new Date() },
       }),
     ]);
 

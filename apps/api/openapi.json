@@ -11057,7 +11057,7 @@
         "properties": {
           "mood": {
             "type": "string",
-            "description": "Mood token from the shared `DIARY_MOODS` catalog (calma / foco /\nenergia / …). Used for the patterns analytics (heatmap, hourly\ndistribution) — visible to the server in plaintext by design.\n\nThe plugin auto-emits the enum in OpenAPI from the `@IsIn`.",
+            "description": "Mood token from the shared `DIARY_MOODS` catalog (great / good / ok /\nlow / hard). Plaintext by design (patterns analytics). Server derives the\nnormalization columns; the client controls neither provenance nor\neligibility.\n\nPR-2A · **required**. The DB column is nullable (schema-forward for a\nfuture null-capable composer), but the request/response/client transition\nto nullable happens atomically in PR-2B — never here. Keeping this required\nmeans PR-2A cannot create a `mood = null` row through the API, so no read\npath is ever tempted to fabricate a neutral \"ok\". The plugin auto-emits the\nenum in OpenAPI.",
             "enum": [
               "great",
               "good",
@@ -11129,7 +11129,7 @@
         "properties": {
           "mood": {
             "type": "string",
-            "description": "New mood token from the shared `DIARY_MOODS` catalog. Server uses\nit for the patterns analytics — visible in plaintext by design.\nPlugin emits the enum in OpenAPI from `@IsIn`.",
+            "description": "New mood token from the shared `DIARY_MOODS` catalog. Server uses\nit for the patterns analytics — visible in plaintext by design.\nPlugin emits the enum in OpenAPI from `@IsIn`.\n\nPR-2A · `@ValidateIf(value !== undefined)` instead of `@IsOptional`: a\nMISSING property is allowed (leaves the mood untouched), but an EXPLICIT\n`null` must be rejected — `@IsOptional` would skip all validators for null\nand let a `mood = null` row slip in (which the read path then rejects with\na 500). So: omitted → OK; canonical string → OK; null / empty / legacy /\nunknown → 400. The nullable transition lands atomically in PR-2B.",
             "enum": [
               "great",
               "good",

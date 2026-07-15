@@ -2,10 +2,12 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+import { deriveMoodNormalization } from "../mood/mood-normalization";
 import type {
   CreateDiaryEntryResponse,
   DeleteDiaryEntryResponse,
@@ -120,7 +122,19 @@ export class ReflexionesService {
     const created = await this.prisma.diaryEntry.create({
       data: {
         userId,
+        // PR-2A · the raw mood is REQUIRED by the DTO, so it is preserved
+        // untouched here (never null in PR-2A). Normalization is server-owned:
+        // source=DIARY, and PR-2A carries NO explicit-selection signal from the
+        // composer, so a reflexion is never eligible yet (a defaulted "ok" →
+        // ambiguous_default, any other canonical → pre_normalizer_review,
+        // legacy/unknown → excluded raw). The null-capable composer lands in
+        // PR-2B, not here.
         mood: dto.mood,
+        ...deriveMoodNormalization({
+          raw: dto.mood,
+          source: "DIARY",
+          explicitlySelected: false,
+        }),
         kind: dto.kind ?? "free",
         promptId: dto.promptId ?? null,
         textCiphertext: dto.textCiphertext,
@@ -165,10 +179,30 @@ export class ReflexionesService {
     }
     this.assertExcerptPairing(dto.excerptCiphertext, dto.excerptNonce);
 
+    // PR-2A backstop (defense in depth beyond the DTO's @ValidateIf): an
+    // explicit null mood is not allowed until PR-2B makes the whole stack
+    // null-capable. Reject BEFORE writing so we never create the null row the
+    // read path would then 500 on.
+    if (dto.mood === null) {
+      throw new BadRequestException(
+        "DIARY_MOOD_NULL_NOT_ALLOWED_UNTIL_PR2B: mood cannot be set to null in PR-2A",
+      );
+    }
+
     await this.prisma.diaryEntry.update({
       where: { id: entryId },
       data: {
-        ...(dto.mood !== undefined && { mood: dto.mood }),
+        // PR-2A · when the mood changes, re-derive the server-owned columns.
+        // `dto.mood` here is a canonical token (null rejected above, undefined
+        // skips this block), never null.
+        ...(dto.mood !== undefined && {
+          mood: dto.mood,
+          ...deriveMoodNormalization({
+            raw: dto.mood,
+            source: "DIARY",
+            explicitlySelected: false,
+          }),
+        }),
         ...(dto.textCiphertext && {
           textCiphertext: dto.textCiphertext,
           textNonce: dto.textNonce!,
@@ -354,9 +388,11 @@ export class ReflexionesService {
     });
 
     // Most recent mood per day wins (the orderBy desc + first-write semantics
-    // of the Map fold give us that for free).
+    // of the Map fold give us that for free). PR-2A · a null-mood entry (no
+    // pick) contributes no mood — it is skipped, not defaulted.
     const byDay: Record<string, string> = {};
     for (const row of rows) {
+      if (row.mood == null) continue;
       const key = this.isoDate(row.createdAt);
       if (!(key in byDay)) byDay[key] = row.mood;
     }
@@ -420,7 +456,12 @@ export class ReflexionesService {
     id: string;
     createdAt: Date;
     updatedAt: Date;
-    mood: string;
+    // PR-2A · the DB column is nullable (schema-forward), but the PR-2A API
+    // cannot create a null-mood entry (the DTO requires `mood`). So a null here
+    // means a data-integrity violation — a row written outside the PR-2A API
+    // path before the null-capable PR-2B lands. We FAIL EXPLICITLY rather than
+    // fabricate a neutral "ok"; the response contract stays `mood: string`.
+    mood: string | null;
     kind: string;
     promptId: string | null;
     prompt: { id: string; text: string } | null;
@@ -430,6 +471,13 @@ export class ReflexionesService {
     audioUrl: string | null;
     audioDurationSec: number | null;
   }): DiaryEntrySummary {
+    if (row.mood == null) {
+      // Never coalesce to a mood the user didn't pick. PR-2B turns the whole
+      // stack null-capable atomically; until then a null row is a bug to surface.
+      throw new InternalServerErrorException(
+        `DIARY_MOOD_INTEGRITY: entry '${row.id}' has a null mood, which the PR-2A API cannot create`,
+      );
+    }
     return {
       id: row.id,
       createdAt: row.createdAt,
@@ -450,7 +498,7 @@ export class ReflexionesService {
     id: string;
     createdAt: Date;
     updatedAt: Date;
-    mood: string;
+    mood: string | null;
     kind: string;
     promptId: string | null;
     prompt: { id: string; text: string } | null;

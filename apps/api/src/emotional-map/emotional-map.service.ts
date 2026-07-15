@@ -252,6 +252,12 @@ export class EmotionalMapService {
 
     const result = await scoreEmotionalMap(
       {
+        // PR-2A — DiaryEntry.mood is nullable. A reflexión without an explicit
+        // check-in has mood = null: "no mood selected". The scoring input type
+        // is `mood: string | null`; the entry still counts for day/tag/entry
+        // aggregation, is never counted as a hard mood, and is never coerced to
+        // a "" / "ok" / neutral sentinel. (The mood SERIES below excludes nulls
+        // entirely — a null is not a series observation.)
         entries,
         readingSessions,
         ecoMessages,
@@ -259,7 +265,15 @@ export class EmotionalMapService {
         highlightCount,
         annotationCount,
         currentStreakDays: user?.currentStreakDays ?? 0,
-        moodSeries: [...diaryMoodRows, ...moodLogRows],
+        // A null mood is not a series observation — exclude it from the OU fit
+        // entirely (moodLog.mood stays NOT NULL, so only diary rows can be null).
+        moodSeries: [
+          ...diaryMoodRows.filter(
+            (r): r is (typeof diaryMoodRows)[number] & { mood: string } =>
+              r.mood !== null,
+          ),
+          ...moodLogRows,
+        ],
         checkins,
         textFeatures,
         resonances,

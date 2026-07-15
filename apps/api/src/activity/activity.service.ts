@@ -137,7 +137,10 @@ function clampLimit(raw: number | undefined): number {
 /** Human-friendly label for the new wellness vocabulary. Defensively
  *  handles the pre-B6b emotion tokens (calma/foco/…) so legacy entries
  *  still render something meaningful in the feed. */
-function moodLabel(mood: string): string {
+function moodLabel(mood: string | null): string {
+  // PR-2A — a reflexión without an explicit check-in has mood = null. There is
+  // no mood to label, so fall through to the neutral "Anotada" catch-all.
+  if (mood == null) return "Anotada";
   const NEW: Record<string, string> = {
     great: "Te sentiste muy bien",
     good: "Te sentiste bien",

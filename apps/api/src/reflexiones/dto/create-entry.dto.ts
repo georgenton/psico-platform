@@ -8,9 +8,10 @@ import {
   IsUrl,
   Length,
   Min,
+  ValidateIf,
 } from "class-validator";
-import { DIARY_MOOD_IDS } from "@psico/types";
-import type { DiaryMoodId } from "@psico/types";
+import { CLIENT_SELECTION_VERSIONS, DIARY_MOOD_IDS } from "@psico/types";
+import type { DiaryMoodId, MoodSelectionVersion } from "@psico/types";
 import { IsBase64UrlCipher, IsBase64UrlNonce } from "./ciphertext-validators";
 
 const KINDS = ["free", "prompted", "voz"] as const;
@@ -35,15 +36,32 @@ export class CreateDiaryEntryDto {
    * normalization columns; the client controls neither provenance nor
    * eligibility.
    *
-   * PR-2A · **required**. The DB column is nullable (schema-forward for a
-   * future null-capable composer), but the request/response/client transition
-   * to nullable happens atomically in PR-2B — never here. Keeping this required
-   * means PR-2A cannot create a `mood = null` row through the API, so no read
-   * path is ever tempted to fabricate a neutral "ok". The plugin auto-emits the
-   * enum in OpenAPI.
+   * PR-2B · **optional and null-capable**. A reflexion may carry no mood at
+   * all: an absent or explicit-`null` value both mean "no pick" → the server
+   * stores `mood = null` and marks it `not_selected` / ineligible. A present
+   * value MUST be canonical (`@ValidateIf` skips only when absent/null; a
+   * legacy / unknown / empty token → 400). Eligibility additionally requires a
+   * matching `moodSelectionVersion` attestation (see below) — a canonical mood
+   * with no attestation is preserved but stays ineligible. The plugin
+   * auto-emits the enum in OpenAPI.
    */
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
   @IsIn(DIARY_MOOD_IDS)
-  mood!: DiaryMoodId;
+  mood?: DiaryMoodId | null;
+
+  /**
+   * PR-2B · the client's versioned attestation that `mood` was an EXPLICIT
+   * pick. The ONLY value a client may send is `explicit-v1`
+   * (`CLIENT_SELECTION_VERSIONS`); the server-owned attestations (`mood-log-v1`,
+   * `seed-v1`) are stamped by their own endpoints and rejected here. This is a
+   * versioned attestation, NOT a cryptographic proof — the server still derives
+   * provenance/eligibility. Omit it (or send `null`) for a mood the composer
+   * defaulted rather than the user tapping. Sending it without a `mood` is a
+   * 400 (`MOOD_SELECTION_WITHOUT_MOOD`).
+   */
+  @IsOptional()
+  @IsIn(CLIENT_SELECTION_VERSIONS)
+  moodSelectionVersion?: MoodSelectionVersion;
 
   /**
    * Origin of the entry. `"free"` for user-initiated, `"prompted"` for a

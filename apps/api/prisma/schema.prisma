@@ -1168,6 +1168,11 @@ model MoodLog {
   moodVocabularyVersion   String?
   moodNormalizerVersion   String?
   moodClientVersion       String?
+  // PR-2B · versioned client attestation of explicit selection (NOT crypto
+  // proof). Server-owned: "mood-log-v1" (check-in), "explicit-v1" (Diary pick),
+  // "seed-v1" (seed), null (Diary legacy/no pick). Audit + drives eligibility;
+  // NOT yet required by the CHECK (PR-2A eligible rows still have it null).
+  moodSelectionVersion    String?
   moodEligibleForDynamics Boolean              @default(false)
   moodExclusionReason     MoodExclusionReason?
 
@@ -1438,6 +1443,11 @@ model DiaryEntry {
   moodVocabularyVersion   String?
   moodNormalizerVersion   String?
   moodClientVersion       String?
+  // PR-2B · versioned client attestation of explicit selection (NOT crypto
+  // proof). Server-owned: "mood-log-v1" (check-in), "explicit-v1" (Diary pick),
+  // "seed-v1" (seed), null (Diary legacy/no pick). Audit + drives eligibility;
+  // NOT yet required by the CHECK (PR-2A eligible rows still have it null).
+  moodSelectionVersion    String?
   moodEligibleForDynamics Boolean              @default(false)
   moodExclusionReason     MoodExclusionReason?
 

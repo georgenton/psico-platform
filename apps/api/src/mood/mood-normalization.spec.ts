@@ -35,16 +35,17 @@ describe("parseCanonicalMood", () => {
 });
 
 describe("deriveMoodNormalization", () => {
-  it("MOOD_LOG canonical + explicit → eligible, reason null (the only eligible shape)", () => {
+  it("MOOD_LOG canonical + mood-log-v1 → eligible, reason null (an eligible shape)", () => {
     const n = deriveMoodNormalization({
       raw: "good",
       source: "MOOD_LOG",
-      explicitlySelected: true,
+      selectionVersion: "mood-log-v1",
     });
     expect(n).toMatchObject({
       moodNormalized: "good",
       moodProvenance: "MOOD_LOG",
       moodExplicitlySelected: true,
+      moodSelectionVersion: "mood-log-v1",
       moodEligibleForDynamics: true,
       moodExclusionReason: null,
       moodVocabularyVersion: "diary-v1",
@@ -52,22 +53,46 @@ describe("deriveMoodNormalization", () => {
     });
   });
 
-  it("DIARY canonical 'ok' without an explicit signal → ambiguous_default, not eligible", () => {
+  it("SEED canonical + seed-v1 → eligible, seed-v1 attestation", () => {
+    const n = deriveMoodNormalization({
+      raw: "great",
+      source: "SEED",
+      selectionVersion: "seed-v1",
+    });
+    expect(n.moodEligibleForDynamics).toBe(true);
+    expect(n.moodExplicitlySelected).toBe(true);
+    expect(n.moodSelectionVersion).toBe("seed-v1");
+    expect(n.moodExclusionReason).toBeNull();
+  });
+
+  it("DIARY canonical + explicit-v1 → eligible (the client-attested shape)", () => {
+    const n = deriveMoodNormalization({
+      raw: "low",
+      source: "DIARY",
+      selectionVersion: "explicit-v1",
+    });
+    expect(n.moodNormalized).toBe("low");
+    expect(n.moodEligibleForDynamics).toBe(true);
+    expect(n.moodSelectionVersion).toBe("explicit-v1");
+    expect(n.moodExclusionReason).toBeNull();
+  });
+
+  it("DIARY canonical 'ok' without an attestation → ambiguous_default, not eligible", () => {
     const n = deriveMoodNormalization({
       raw: "ok",
       source: "DIARY",
-      explicitlySelected: false,
+      selectionVersion: null,
     });
     expect(n.moodNormalized).toBe("ok");
+    expect(n.moodSelectionVersion).toBeNull();
     expect(n.moodEligibleForDynamics).toBe(false);
     expect(n.moodExclusionReason).toBe("ambiguous_default");
   });
 
-  it("DIARY canonical non-'ok' without an explicit signal → pre_normalizer_review, not eligible", () => {
+  it("DIARY canonical non-'ok' without an attestation → pre_normalizer_review, not eligible", () => {
     const n = deriveMoodNormalization({
       raw: "good",
       source: "DIARY",
-      explicitlySelected: false,
     });
     expect(n.moodEligibleForDynamics).toBe(false);
     expect(n.moodExclusionReason).toBe("pre_normalizer_review");
@@ -77,10 +102,10 @@ describe("deriveMoodNormalization", () => {
     const n = deriveMoodNormalization({
       raw: null,
       source: "DIARY",
-      explicitlySelected: false,
     });
     expect(n).toMatchObject({
       moodNormalized: null,
+      moodSelectionVersion: null,
       moodEligibleForDynamics: false,
       moodExclusionReason: "not_selected",
     });
@@ -90,7 +115,6 @@ describe("deriveMoodNormalization", () => {
     const n = deriveMoodNormalization({
       raw: "calma",
       source: "DIARY",
-      explicitlySelected: false,
     });
     expect(n.moodNormalized).toBeNull();
     expect(n.moodExclusionReason).toBe("legacy_vocabulary");
@@ -102,21 +126,48 @@ describe("deriveMoodNormalization", () => {
     const n = deriveMoodNormalization({
       raw: "zzz",
       source: "DIARY",
-      explicitlySelected: false,
     });
     expect(n.moodNormalized).toBeNull();
     expect(n.moodExclusionReason).toBe("unknown_token");
     expect(n.moodEligibleForDynamics).toBe(false);
   });
 
+  it("throws on an UNKNOWN selection attestation (fail-loud, never silently degrade)", () => {
+    expect(() =>
+      deriveMoodNormalization({
+        raw: "good",
+        source: "DIARY",
+        selectionVersion: "forged-v9",
+      }),
+    ).toThrow(/MOOD_SELECTION_VERSION_UNKNOWN/);
+  });
+
+  it("throws when a KNOWN attestation carries no canonical mood (version without mood)", () => {
+    expect(() =>
+      deriveMoodNormalization({
+        raw: null,
+        source: "DIARY",
+        selectionVersion: "explicit-v1",
+      }),
+    ).toThrow(/MOOD_SELECTION_WITHOUT_MOOD/);
+    // A legacy raw is non-canonical → same guard fires.
+    expect(() =>
+      deriveMoodNormalization({
+        raw: "calma",
+        source: "DIARY",
+        selectionVersion: "explicit-v1",
+      }),
+    ).toThrow(/MOOD_SELECTION_WITHOUT_MOOD/);
+  });
+
   it("INV-1: eligible ⇒ normalized != null ∧ explicit = true ∧ reason = null; never a numeric normalized", () => {
     const cases = [
-      { raw: "great", source: "MOOD_LOG", explicitlySelected: true },
-      { raw: "ok", source: "DIARY", explicitlySelected: false },
-      { raw: "calma", source: "DIARY", explicitlySelected: false },
-      { raw: null, source: "MOOD_LOG", explicitlySelected: true },
-      { raw: "good", source: "MOOD_LOG", explicitlySelected: false },
-      { raw: "zzz", source: "MOOD_LOG", explicitlySelected: true },
+      { raw: "great", source: "MOOD_LOG", selectionVersion: "mood-log-v1" },
+      { raw: "ok", source: "DIARY", selectionVersion: null },
+      { raw: "calma", source: "DIARY", selectionVersion: null },
+      { raw: null, source: "MOOD_LOG", selectionVersion: null },
+      { raw: "good", source: "MOOD_LOG", selectionVersion: null },
+      { raw: "low", source: "DIARY", selectionVersion: "explicit-v1" },
     ] as const;
     for (const c of cases) {
       const n = deriveMoodNormalization(c);

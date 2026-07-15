@@ -5,16 +5,22 @@ import { describe, expect, it } from "vitest";
 import { UpdateDiaryEntryDto } from "./update-entry.dto";
 
 /**
- * PR-2A · the PATCH mood contract. `@ValidateIf(value !== undefined)` (not
- * `@IsOptional`) so a MISSING mood is fine (leaves it untouched) but an
- * EXPLICIT null is rejected — otherwise a `mood = null` row could be written,
- * which the read path then 500s on. The nullable transition lands in PR-2B.
+ * PR-2B · the PATCH mood contract is three-way. `@ValidateIf(value !==
+ * undefined && value !== null)` so both a MISSING mood (leaves it untouched)
+ * AND an EXPLICIT null (clears it) are valid, while a present value must still
+ * be canonical. The service distinguishes absent vs null via `hasOwnProperty`.
  */
 
 async function moodErrors(body: Record<string, unknown>): Promise<boolean> {
   const dto = plainToInstance(UpdateDiaryEntryDto, body);
   const errors = await validate(dto);
   return errors.some((e) => e.property === "mood");
+}
+
+async function versionErrors(body: Record<string, unknown>): Promise<boolean> {
+  const dto = plainToInstance(UpdateDiaryEntryDto, body);
+  const errors = await validate(dto);
+  return errors.some((e) => e.property === "moodSelectionVersion");
 }
 
 describe("UpdateDiaryEntryDto · mood", () => {
@@ -26,13 +32,36 @@ describe("UpdateDiaryEntryDto · mood", () => {
     expect(await moodErrors({ mood: "good" })).toBe(false);
   });
 
-  it("REJECTS an explicit null (until PR-2B)", async () => {
-    expect(await moodErrors({ mood: null })).toBe(true);
+  it("PR-2B: ALLOWS an explicit null (clears the mood)", async () => {
+    expect(await moodErrors({ mood: null })).toBe(false);
   });
 
   it("rejects empty / legacy / unknown tokens", async () => {
     for (const bad of ["", "calma", "energia", "zzz"]) {
       expect(await moodErrors({ mood: bad })).toBe(true);
     }
+  });
+});
+
+describe("UpdateDiaryEntryDto · moodSelectionVersion", () => {
+  it("allows the client attestation 'explicit-v1'", async () => {
+    expect(
+      await versionErrors({
+        mood: "good",
+        moodSelectionVersion: "explicit-v1",
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects server-owned attestations from a client (mood-log-v1 / seed-v1)", async () => {
+    expect(
+      await versionErrors({
+        mood: "good",
+        moodSelectionVersion: "mood-log-v1",
+      }),
+    ).toBe(true);
+    expect(
+      await versionErrors({ mood: "good", moodSelectionVersion: "seed-v1" }),
+    ).toBe(true);
   });
 });

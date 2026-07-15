@@ -10,6 +10,7 @@ import type { EmotionalMapResult } from "@psico/types";
 
 import { PrismaService } from "../prisma";
 import { REDIS_CLIENT } from "../redis";
+import { parseCanonicalMood } from "../mood/mood-normalization";
 import { flagEnabled } from "../shared/flags";
 import type { IEmotionalMapProvider } from "./providers/provider.interface";
 import { EMOTIONAL_MAP_PROVIDER } from "./tokens";
@@ -198,14 +199,24 @@ export class EmotionalMapService {
         select: { currentStreakDays: true },
       }),
       // Tier 2 — longer mood history for the OU fit. Only ordinal mood +
-      // timestamp; never text (ADR 0007).
+      // timestamp + the server-owned eligibility columns; never text (ADR 0007).
       this.prisma.diaryEntry.findMany({
         where: { userId, createdAt: { gte: ouSince } },
-        select: { mood: true, createdAt: true },
+        select: {
+          mood: true,
+          moodNormalized: true,
+          moodEligibleForDynamics: true,
+          createdAt: true,
+        },
       }),
       this.prisma.moodLog.findMany({
         where: { userId, createdAt: { gte: ouSince } },
-        select: { mood: true, createdAt: true },
+        select: {
+          mood: true,
+          moodNormalized: true,
+          moodEligibleForDynamics: true,
+          createdAt: true,
+        },
       }),
       // Etapa 2 — micro-checkin answers (ordinal 0–4 scores, no text).
       this.prisma.checkinResponse.findMany({
@@ -265,15 +276,17 @@ export class EmotionalMapService {
         highlightCount,
         annotationCount,
         currentStreakDays: user?.currentStreakDays ?? 0,
-        // A null mood is not a series observation — exclude it from the OU fit
-        // entirely (moodLog.mood stays NOT NULL, so only diary rows can be null).
-        moodSeries: [
-          ...diaryMoodRows.filter(
-            (r): r is (typeof diaryMoodRows)[number] & { mood: string } =>
-              r.mood !== null,
-          ),
-          ...moodLogRows,
-        ],
+        // PR-2B · the mood SERIES (momento + OU fit) admits only observations the
+        // server vouches for, so a fabricated/legacy mood never moves the map:
+        //   - DiaryEntry: ONLY eligible + normalized rows, using the canonical
+        //     `moodNormalized`. A null, legacy, or ambiguous-default reflexion is
+        //     excluded — never the raw diary token.
+        //   - MoodLog: eligible + normalized rows use `moodNormalized`; historical
+        //     pre-PR-2A rows (no normalization columns) fall back to their raw
+        //     mood IFF it is canonical — a check-in's raw was always an explicit
+        //     ordinal pick, so the temporal fallback is safe there (and only
+        //     there).
+        moodSeries: buildMoodSeries(diaryMoodRows, moodLogRows),
         checkins,
         textFeatures,
         resonances,
@@ -429,4 +442,46 @@ export class EmotionalMapService {
     void this.invalidateBestEffort(userId);
     return { ok: true, id: row.id };
   }
+}
+
+/** A row carrying the mood + the server-owned eligibility columns. */
+interface MoodRow {
+  mood: string | null;
+  moodNormalized: string | null;
+  moodEligibleForDynamics: boolean;
+  createdAt: Date;
+}
+
+/**
+ * PR-2B · assemble the mood observation series the map derives `momento` and the
+ * OU dynamics from, admitting only moods the server vouches for:
+ *   - DiaryEntry rows contribute ONLY when eligible + normalized (use the
+ *     canonical `moodNormalized`). A raw/legacy/ambiguous/null reflexion is
+ *     dropped — a reflexion mood counts only when the user attested it.
+ *   - MoodLog rows contribute their `moodNormalized` when eligible, else a
+ *     temporal fallback to the raw mood IFF it parses to a canonical category.
+ *     This covers historical pre-PR-2A check-ins (no normalization columns) —
+ *     safe because a check-in's raw was always an explicit ordinal pick.
+ */
+function buildMoodSeries(
+  diaryRows: ReadonlyArray<MoodRow>,
+  moodLogRows: ReadonlyArray<MoodRow>,
+): Array<{ mood: string; createdAt: Date }> {
+  const series: Array<{ mood: string; createdAt: Date }> = [];
+
+  for (const r of diaryRows) {
+    if (r.moodEligibleForDynamics && r.moodNormalized != null) {
+      series.push({ mood: r.moodNormalized, createdAt: r.createdAt });
+    }
+  }
+
+  for (const r of moodLogRows) {
+    const value =
+      r.moodEligibleForDynamics && r.moodNormalized != null
+        ? r.moodNormalized
+        : parseCanonicalMood(r.mood);
+    if (value != null) series.push({ mood: value, createdAt: r.createdAt });
+  }
+
+  return series;
 }

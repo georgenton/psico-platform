@@ -209,7 +209,9 @@ export class AIService {
 
   async generateWeeklyNarrative(stats: {
     entryCount: number;
-    dominantMood: string;
+    // PR-2B · null when the user recorded NO mood this week. The prompt tells
+    // the model to say nothing about mood in that case — it must not invent one.
+    dominantMood: string | null;
     moodCounts: Record<string, number>;
     topTags: string[]; // up to ~5 tags, ordered by frequency
     weekStartIso: string; // for context, formatted "YYYY-MM-DD"
@@ -223,13 +225,21 @@ export class AIService {
       ? stats.topTags.join(", ")
       : "(ninguna)";
 
+    // PR-2B · with no mood recorded, tell the model explicitly rather than
+    // handing it an empty/fabricated value — so it writes about the writing
+    // habit, not an imagined feeling.
+    const moodDominanteLine =
+      stats.dominantMood != null
+        ? `- Mood dominante: ${stats.dominantMood}`
+        : `- Mood dominante: (sin ánimo registrado esta semana — NO menciones ni inventes un estado de ánimo)`;
+
     const userPrompt = [
       `Genera un resumen editorial breve para la semana que comenzó el ${stats.weekStartIso}.`,
       ``,
       `DATOS (agregados, sin contenido del diario):`,
       `- Entradas: ${stats.entryCount}`,
-      `- Mood dominante: ${stats.dominantMood}`,
-      `- Conteo por mood: ${moodLine}`,
+      moodDominanteLine,
+      `- Conteo por mood: ${moodLine || "(ninguno)"}`,
       `- Tags más usados: ${tagsLine}`,
       ``,
       `FORMATO de salida (estricto):`,

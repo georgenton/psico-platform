@@ -289,12 +289,25 @@ export class PatronesService {
   } {
     const moodCounts: Record<string, number> = {};
     for (const e of entries) {
-      // PR-2A — null mood contributes no mood count (the entry still counts
+      // PR-2B — null mood contributes no mood count (the entry still counts
       // toward entries.length below).
       if (e.mood != null) moodCounts[e.mood] = (moodCounts[e.mood] ?? 0) + 1;
     }
     const sorted = Object.entries(moodCounts).sort((a, b) => b[1] - a[1]);
-    const dominant = sorted[0]?.[0] ?? "calma";
+    const dominant = sorted[0]?.[0] ?? null;
+
+    // PR-2B · when no mood was recorded, write about the writing habit — never
+    // name or invent a mood.
+    if (dominant == null) {
+      const headline = `Esta semana llegaste a ${entries.length} entradas.`;
+      const narrative = [
+        `Diste pasos pequeños y constantes esta semana — ${entries.length} entradas son una señal clara de que el espacio del diario te está sirviendo.`,
+        `Esta vez no registraste un estado de ánimo, y está perfectamente bien: el solo hecho de escribir ya es un cuidado.`,
+        `Para la próxima semana, si te nace, prueba nombrar cómo te sientes antes de describir el día. A veces ese pequeño cambio de orden destraba la escritura.`,
+      ].join("\n\n");
+      return { headline, narrative };
+    }
+
     const headline = `Esta semana llegaste a ${entries.length} entradas con ${dominant} como tono dominante.`;
     const narrative = [
       `Diste pasos pequeños y constantes esta semana — ${entries.length} entradas son una señal clara de que el espacio del diario te está sirviendo.`,
@@ -390,7 +403,9 @@ export function computeWeeklyStats(
   weekStart: Date,
 ): {
   entryCount: number;
-  dominantMood: string;
+  // PR-2B · null when the week has NO mood observation. Never fabricate a
+  // "calma" (or any) fallback — the downstream narrative branches on null.
+  dominantMood: string | null;
   moodCounts: Record<string, number>;
   topTags: string[];
   weekStartIso: string;
@@ -398,15 +413,15 @@ export function computeWeeklyStats(
   const moodCounts: Record<string, number> = {};
   const tagCounts: Record<string, number> = {};
   for (const e of entries) {
-    // PR-2A — a null mood contributes no mood count, but the entry's tags and
+    // PR-2B — a null mood contributes no mood count, but the entry's tags and
     // its presence in entryCount still stand (it is a real reflexión).
     if (e.mood != null) moodCounts[e.mood] = (moodCounts[e.mood] ?? 0) + 1;
     for (const t of e.tags) {
       tagCounts[t] = (tagCounts[t] ?? 0) + 1;
     }
   }
-  const dominantMood =
-    Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "calma";
+  const dominantMood: string | null =
+    Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
   const topTags = Object.entries(tagCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)

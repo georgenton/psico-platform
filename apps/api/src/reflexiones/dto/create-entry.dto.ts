@@ -30,14 +30,18 @@ const KINDS = ["free", "prompted", "voz"] as const;
  */
 export class CreateDiaryEntryDto {
   /**
-   * Mood token from the shared `DIARY_MOODS` catalog (calma / foco /
-   * energia / …). Used for the patterns analytics (heatmap, hourly
-   * distribution) — visible to the server in plaintext by design.
+   * Mood token from the shared `DIARY_MOODS` catalog (great / good / ok /
+   * low / hard). Plaintext by design (patterns analytics). Server derives the
+   * normalization columns; the client controls neither provenance nor
+   * eligibility.
    *
-   * The plugin auto-emits the enum in OpenAPI from the `@IsIn`.
+   * PR-2A · **optional**: a new composer may save a reflexion without a mood
+   * pick. When omitted the entry is stored with `mood = null` (no eligible
+   * observation is created). The plugin auto-emits the enum in OpenAPI.
    */
+  @IsOptional()
   @IsIn(DIARY_MOOD_IDS)
-  mood!: DiaryMoodId;
+  mood?: DiaryMoodId;
 
   /**
    * Origin of the entry. `"free"` for user-initiated, `"prompted"` for a

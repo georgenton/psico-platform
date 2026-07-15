@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -10,6 +10,7 @@ import type {
   LogMoodResponse,
 } from "@psico/types";
 import { CHECKIN_ITEMS } from "@psico/types";
+import { deriveMoodNormalization } from "./mood-normalization";
 
 /**
  * MoodService — Sprint B1.
@@ -46,6 +47,15 @@ export class MoodService {
   ) {}
 
   async log(userId: string, mood: string): Promise<LogMoodResponse> {
+    // PR-2A · never persist an empty check-in. The DTO already rejects a
+    // missing token; this is the server-side backstop — an absent mood creates
+    // NO MoodLog row.
+    if (!mood || mood.trim().length === 0) {
+      throw new BadRequestException(
+        "MOOD_REQUIRED: a check-in must carry a mood token",
+      );
+    }
+
     // Swatch enrichment is best-effort. The DTO has already validated `mood`
     // against the shared catalog; the DB lookup is just to surface a swatch
     // for the optimistic UI confirmation. If the row is missing (DB seeded
@@ -58,11 +68,23 @@ export class MoodService {
     const swatch =
       moodRow?.swatch ?? FALLBACK_SWATCH[mood] ?? "var(--color-warm-400)";
 
+    // PR-2A · a check-in is inherently an EXPLICIT pick (the user taps a face)
+    // in the canonical ordinal vocabulary (the DTO validated it), so the
+    // server marks it MOOD_LOG / explicit and — being canonical — eligible.
+    // Provenance/eligibility are server-owned; the client sends only the token.
+    const normalization = deriveMoodNormalization({
+      raw: mood,
+      source: "MOOD_LOG",
+      explicitlySelected: true,
+    });
+
     // Append to the time series + sync the denormalized "current" cache. The
     // two writes are independent so we don't need a transaction.
     const [entry] = await Promise.all([
       this.prisma.moodLog.create({
-        data: { userId, mood },
+        // The raw `mood` is preserved untouched; the normalization columns are
+        // additive alongside it.
+        data: { userId, mood, ...normalization },
         select: { id: true, mood: true, createdAt: true },
       }),
       this.prisma.user.update({

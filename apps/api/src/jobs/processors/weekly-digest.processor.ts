@@ -163,7 +163,10 @@ export class WeeklyDigestProcessor extends WorkerHost {
     const moodCounts: Record<string, number> = {};
     const tagCounts: Record<string, number> = {};
     for (const e of entries) {
-      moodCounts[e.mood] = (moodCounts[e.mood] ?? 0) + 1;
+      // PR-2A — a reflexión without an explicit check-in has mood = null: it is
+      // not a mood observation, so it contributes no mood count (its tags still
+      // count). Never coalesce a null mood into a neutral bucket.
+      if (e.mood != null) moodCounts[e.mood] = (moodCounts[e.mood] ?? 0) + 1;
       for (const t of e.tags) tagCounts[t] = (tagCounts[t] ?? 0) + 1;
     }
     const dominantMood =

@@ -28,6 +28,21 @@ import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 
 const MOODS = ["hard", "low", "ok", "good", "great"];
+
+// PR-2A · seeded MoodLog rows are canonical, explicit check-ins (MOOD_LOG) →
+// eligible. Raw `mood` preserved; these are the additive normalization columns.
+function moodNorm(mood) {
+  return {
+    moodNormalized: mood,
+    moodProvenance: "MOOD_LOG",
+    moodExplicitlySelected: true,
+    moodVocabularyVersion: "diary-v1",
+    moodNormalizerVersion: "norm-1",
+    moodClientVersion: "seed",
+    moodEligibleForDynamics: true,
+    moodExclusionReason: null,
+  };
+}
 const DAY = 86400_000;
 
 function parseArgs(argv) {
@@ -181,9 +196,11 @@ async function main() {
         if (Math.random() < 0.25) continue; // irregular Δt
         const i = u.days - 1 - d;
         const jitter = Math.floor(Math.random() * DAY);
+        const mood = moodForDay(u.pattern, i, u.days);
         rows.push({
           userId: user.id,
-          mood: moodForDay(u.pattern, i, u.days),
+          mood,
+          ...moodNorm(mood),
           createdAt: new Date(now - d * DAY - jitter),
         });
       }

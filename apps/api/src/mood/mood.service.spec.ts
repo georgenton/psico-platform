@@ -87,3 +87,59 @@ describe("MoodService · checkins", () => {
     expect(emotionalMap.invalidateBestEffort).toHaveBeenCalledWith("u1");
   });
 });
+
+describe("MoodService · log (PR-2A normalization)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("writes MOOD_LOG normalization for a canonical check-in — explicit + eligible", async () => {
+    const { service, prisma } = makeService({});
+    prisma.moodLog.create.mockResolvedValue({
+      id: "m1",
+      mood: "good",
+      createdAt: new Date("2026-07-15T12:00:00Z"),
+    });
+    prisma.user.update.mockResolvedValue({});
+
+    await service.log("u1", "good");
+
+    expect(prisma.moodLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "u1",
+          mood: "good", // raw preserved
+          moodNormalized: "good",
+          moodProvenance: "MOOD_LOG",
+          moodExplicitlySelected: true,
+          moodEligibleForDynamics: true,
+          moodExclusionReason: null,
+          moodVocabularyVersion: "diary-v1",
+          moodNormalizerVersion: "norm-1",
+        }),
+      }),
+    );
+  });
+
+  it("rejects an empty check-in and creates NO MoodLog row (rule #6)", async () => {
+    const { service, prisma } = makeService({});
+    await expect(service.log("u1", "")).rejects.toThrow(/MOOD_REQUIRED/);
+    expect(prisma.moodLog.create).not.toHaveBeenCalled();
+  });
+
+  it("the client cannot force eligibility — provenance/eligible are server-derived", async () => {
+    // The service signature only accepts (userId, mood). There is no channel for
+    // the client to pass provenance/eligible; the values come from the endpoint.
+    const { service, prisma } = makeService({});
+    prisma.moodLog.create.mockResolvedValue({
+      id: "m2",
+      mood: "great",
+      createdAt: new Date(),
+    });
+    prisma.user.update.mockResolvedValue({});
+    await service.log("u1", "great");
+    const arg = prisma.moodLog.create.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(arg.data.moodProvenance).toBe("MOOD_LOG");
+    expect(arg.data.moodEligibleForDynamics).toBe(true);
+  });
+});

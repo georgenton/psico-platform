@@ -198,6 +198,75 @@ describe("ReflexionesService.create", () => {
     expect(result.ok).toBe(true);
     expect(result.excerptCiphertext).toBe("EXCERPT");
   });
+
+  it("PR-2A: derives source=DIARY and is NOT eligible (no explicit signal) for a defaulted 'ok'", async () => {
+    prisma.diaryEntry.create.mockResolvedValue({
+      id: "n2",
+      createdAt: new Date(),
+      excerptCiphertext: null,
+    });
+    await service.create("user-1", {
+      mood: "ok",
+      textCiphertext: CIPHER_B64,
+      textNonce: NONCE_B64,
+    });
+    expect(prisma.diaryEntry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          mood: "ok",
+          moodProvenance: "DIARY",
+          moodExplicitlySelected: false,
+          moodEligibleForDynamics: false,
+          moodExclusionReason: "ambiguous_default",
+        }),
+      }),
+    );
+  });
+
+  it("PR-2A: allows a reflexion with NO mood (mood=null, not_selected, not eligible)", async () => {
+    prisma.diaryEntry.create.mockResolvedValue({
+      id: "n3",
+      createdAt: new Date(),
+      excerptCiphertext: null,
+    });
+    await service.create("user-1", {
+      textCiphertext: CIPHER_B64,
+      textNonce: NONCE_B64,
+    });
+    expect(prisma.diaryEntry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          mood: null,
+          moodNormalized: null,
+          moodEligibleForDynamics: false,
+          moodExclusionReason: "not_selected",
+        }),
+      }),
+    );
+  });
+
+  it("PR-2A: a legacy reflexion mood is preserved raw but NEVER eligible / never 0", async () => {
+    prisma.diaryEntry.create.mockResolvedValue({
+      id: "n4",
+      createdAt: new Date(),
+      excerptCiphertext: null,
+    });
+    await service.create("user-1", {
+      mood: "calma",
+      textCiphertext: CIPHER_B64,
+      textNonce: NONCE_B64,
+    } as never);
+    expect(prisma.diaryEntry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          mood: "calma", // raw preserved
+          moodNormalized: null,
+          moodEligibleForDynamics: false,
+          moodExclusionReason: "legacy_vocabulary",
+        }),
+      }),
+    );
+  });
 });
 
 // ─── ReflexionesService.update ────────────────────────────────────────────────────

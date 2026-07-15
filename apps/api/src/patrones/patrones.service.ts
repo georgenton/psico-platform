@@ -206,7 +206,7 @@ export class PatronesService {
   // ───────────────────────────────────────────────────────────────────
 
   private aggregateMoodMap(
-    entries: Array<{ mood: string; createdAt: Date }>,
+    entries: Array<{ mood: string | null; createdAt: Date }>,
     swatchByMoodId: Map<string, string>,
   ): PatronesMoodMapDay[] {
     // Group by ISO date — keep the most recent mood per day. If a user
@@ -214,10 +214,14 @@ export class PatronesService {
     // heatmap cell color (matches what the user "left the day as").
     const byDate = new Map<string, { mood: string; createdAt: Date }>();
     for (const e of entries) {
+      // PR-2A — a reflexión without an explicit check-in (mood = null) does
+      // not color a heatmap day. Skip it; a day with only null-mood entries
+      // simply has no cell.
+      if (e.mood == null) continue;
       const iso = e.createdAt.toISOString().slice(0, 10);
       const existing = byDate.get(iso);
       if (!existing || existing.createdAt < e.createdAt) {
-        byDate.set(iso, e);
+        byDate.set(iso, { mood: e.mood, createdAt: e.createdAt });
       }
     }
     return Array.from(byDate.entries())
@@ -230,11 +234,13 @@ export class PatronesService {
   }
 
   private aggregateHourMood(
-    entries: Array<{ mood: string; createdAt: Date }>,
+    entries: Array<{ mood: string | null; createdAt: Date }>,
   ): PatronesHourMoodBucket[] {
     const buckets: Record<number, Record<string, number>> = {};
     for (let h = 0; h < 24; h++) buckets[h] = {};
     for (const e of entries) {
+      // PR-2A — null mood is not a mood observation; it counts toward no hour.
+      if (e.mood == null) continue;
       const h = e.createdAt.getUTCHours();
       buckets[h]![e.mood] = (buckets[h]![e.mood] ?? 0) + 1;
     }
@@ -257,7 +263,7 @@ export class PatronesService {
    * plaintext content.
    */
   private async buildNarrative(
-    entries: Array<{ mood: string; createdAt: Date; tags: string[] }>,
+    entries: Array<{ mood: string | null; createdAt: Date; tags: string[] }>,
     weekStart: Date,
   ): Promise<{ headline: string; narrative: string }> {
     const stats = computeWeeklyStats(entries, weekStart);
@@ -275,13 +281,17 @@ export class PatronesService {
    * Deterministic fallback (also kept for the test path). Operates on the
    * SAME entry shape as `buildNarrative`, but only looks at mood + count.
    */
-  private composeNarrative(entries: Array<{ mood: string; createdAt: Date }>): {
+  private composeNarrative(
+    entries: Array<{ mood: string | null; createdAt: Date }>,
+  ): {
     headline: string;
     narrative: string;
   } {
     const moodCounts: Record<string, number> = {};
     for (const e of entries) {
-      moodCounts[e.mood] = (moodCounts[e.mood] ?? 0) + 1;
+      // PR-2A — null mood contributes no mood count (the entry still counts
+      // toward entries.length below).
+      if (e.mood != null) moodCounts[e.mood] = (moodCounts[e.mood] ?? 0) + 1;
     }
     const sorted = Object.entries(moodCounts).sort((a, b) => b[1] - a[1]);
     const dominant = sorted[0]?.[0] ?? "calma";
@@ -376,7 +386,7 @@ export class PatronesService {
  * fallback so both paths are auditable identically.
  */
 export function computeWeeklyStats(
-  entries: Array<{ mood: string; createdAt: Date; tags: string[] }>,
+  entries: Array<{ mood: string | null; createdAt: Date; tags: string[] }>,
   weekStart: Date,
 ): {
   entryCount: number;
@@ -388,7 +398,9 @@ export function computeWeeklyStats(
   const moodCounts: Record<string, number> = {};
   const tagCounts: Record<string, number> = {};
   for (const e of entries) {
-    moodCounts[e.mood] = (moodCounts[e.mood] ?? 0) + 1;
+    // PR-2A — a null mood contributes no mood count, but the entry's tags and
+    // its presence in entryCount still stand (it is a real reflexión).
+    if (e.mood != null) moodCounts[e.mood] = (moodCounts[e.mood] ?? 0) + 1;
     for (const t of e.tags) {
       tagCounts[t] = (tagCounts[t] ?? 0) + 1;
     }

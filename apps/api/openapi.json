@@ -11057,7 +11057,7 @@
         "properties": {
           "mood": {
             "type": "string",
-            "description": "Mood token from the shared `DIARY_MOODS` catalog (calma / foco /\nenergia / …). Used for the patterns analytics (heatmap, hourly\ndistribution) — visible to the server in plaintext by design.\n\nThe plugin auto-emits the enum in OpenAPI from the `@IsIn`.",
+            "description": "Mood token from the shared `DIARY_MOODS` catalog (great / good / ok /\nlow / hard). Plaintext by design (patterns analytics). Server derives the\nnormalization columns; the client controls neither provenance nor\neligibility.\n\nPR-2A · **optional**: a new composer may save a reflexion without a mood\npick. When omitted the entry is stored with `mood = null` (no eligible\nobservation is created). The plugin auto-emits the enum in OpenAPI.",
             "enum": [
               "great",
               "good",
@@ -11119,7 +11119,6 @@
           }
         },
         "required": [
-          "mood",
           "textCiphertext",
           "textNonce"
         ]

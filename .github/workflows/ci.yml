@@ -103,9 +103,12 @@ jobs:
     # and a skipped barrier test is worse than none: it reads as coverage.
     services:
       postgres:
-        # postgres:18 — matches production; lock semantics are stable across
-        # versions but we align the DB the barrier test runs against anyway.
-        image: postgres:18
+        # pgvector/pgvector:pg18 — postgres 18 (matches production) WITH the
+        # `vector` extension preinstalled. PR-2A's real-migration spec runs the
+        # full `prisma migrate deploy`, which includes the AI-RAG migration's
+        # `CREATE EXTENSION vector`; a vanilla postgres:18 fails that step. The
+        # lock/barrier specs are unaffected (pgvector is a strict superset).
+        image: pgvector/pgvector:pg18
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: psico_locks

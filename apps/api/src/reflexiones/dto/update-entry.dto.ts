@@ -8,7 +8,7 @@ import {
   ValidateIf,
 } from "class-validator";
 import { CLIENT_SELECTION_VERSIONS, DIARY_MOOD_IDS } from "@psico/types";
-import type { DiaryMoodId, MoodSelectionVersion } from "@psico/types";
+import type { ClientMoodSelectionVersion, DiaryMoodId } from "@psico/types";
 import { IsBase64UrlCipher, IsBase64UrlNonce } from "./ciphertext-validators";
 
 /**
@@ -56,7 +56,7 @@ export class UpdateDiaryEntryDto {
    */
   @IsOptional()
   @IsIn(CLIENT_SELECTION_VERSIONS)
-  moodSelectionVersion?: MoodSelectionVersion;
+  moodSelectionVersion?: ClientMoodSelectionVersion;
 
   /**
    * New XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.

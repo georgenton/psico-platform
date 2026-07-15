@@ -11,7 +11,7 @@ import {
   ValidateIf,
 } from "class-validator";
 import { CLIENT_SELECTION_VERSIONS, DIARY_MOOD_IDS } from "@psico/types";
-import type { DiaryMoodId, MoodSelectionVersion } from "@psico/types";
+import type { ClientMoodSelectionVersion, DiaryMoodId } from "@psico/types";
 import { IsBase64UrlCipher, IsBase64UrlNonce } from "./ciphertext-validators";
 
 const KINDS = ["free", "prompted", "voz"] as const;
@@ -61,7 +61,7 @@ export class CreateDiaryEntryDto {
    */
   @IsOptional()
   @IsIn(CLIENT_SELECTION_VERSIONS)
-  moodSelectionVersion?: MoodSelectionVersion;
+  moodSelectionVersion?: ClientMoodSelectionVersion;
 
   /**
    * Origin of the entry. `"free"` for user-initiated, `"prompted"` for a

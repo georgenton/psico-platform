@@ -11,25 +11,67 @@ import { buildMoodSeries } from "./emotional-map.service";
 const recent = new Date("2026-07-10T12:00:00.000Z");
 const older = new Date("2026-07-01T09:00:00.000Z");
 
+function diaryRow(
+  over: Partial<{
+    moodNormalized: string | null;
+    moodEligibleForDynamics: boolean;
+    createdAt: Date;
+  }> = {},
+) {
+  return {
+    moodNormalized: null,
+    moodEligibleForDynamics: false,
+    createdAt: recent,
+    ...over,
+  };
+}
+
+function moodLogRow(
+  over: Partial<{
+    mood: string | null;
+    moodNormalized: string | null;
+    moodEligibleForDynamics: boolean;
+    moodProvenance: string | null;
+    moodExplicitlySelected: boolean | null;
+    moodNormalizerVersion: string | null;
+    moodExclusionReason: string | null;
+    createdAt: Date;
+  }> = {},
+) {
+  return {
+    mood: null,
+    moodNormalized: null,
+    moodEligibleForDynamics: false,
+    moodProvenance: null,
+    moodExplicitlySelected: null,
+    moodNormalizerVersion: null,
+    moodExclusionReason: null,
+    createdAt: older,
+    ...over,
+  };
+}
+
 describe("buildMoodSeries — momento eligibility (PR-2B)", () => {
   it("B: a legacy/ineligible DiaryEntry 'ok' (most recent) is excluded; the eligible MoodLog 'good' (older) becomes momento", () => {
     const diaryRows = [
       // Most recent, but ineligible (e.g. an ambiguous default) → NOT vouched.
-      {
-        mood: "ok",
+      diaryRow({
         moodNormalized: "ok",
         moodEligibleForDynamics: false,
         createdAt: recent,
-      },
+      }),
     ];
     const moodLogRows = [
       // Older, but an explicit eligible check-in → the only real observation.
-      {
+      moodLogRow({
         mood: "good",
         moodNormalized: "good",
         moodEligibleForDynamics: true,
+        moodProvenance: "MOOD_LOG",
+        moodExplicitlySelected: true,
+        moodNormalizerVersion: "norm-1",
         createdAt: older,
-      },
+      }),
     ];
 
     const series = buildMoodSeries(diaryRows, moodLogRows);
@@ -48,52 +90,55 @@ describe("buildMoodSeries — momento eligibility (PR-2B)", () => {
 
   it("includes an eligible+normalized DiaryEntry mood via moodNormalized", () => {
     const series = buildMoodSeries(
-      [
-        {
-          mood: "great",
-          moodNormalized: "great",
-          moodEligibleForDynamics: true,
-          createdAt: recent,
-        },
-      ],
+      [diaryRow({ moodNormalized: "great", moodEligibleForDynamics: true })],
       [],
     );
     expect(series).toEqual([{ mood: "great", createdAt: recent }]);
   });
 
-  it("temporal fallback: a historical MoodLog with no normalization columns but a canonical raw is included", () => {
+  it("temporal fallback: a genuinely pre-normalization MoodLog (ALL metadata null) with a canonical raw is INCLUDED", () => {
     const series = buildMoodSeries(
       [],
-      [
-        {
-          mood: "low",
-          moodNormalized: null, // pre-PR-2A row — never normalized
-          moodEligibleForDynamics: false,
-          createdAt: older,
-        },
-      ],
+      [moodLogRow({ mood: "low" })], // every server-owned column null, raw canonical
     );
     expect(series).toEqual([{ mood: "low", createdAt: older }]);
   });
 
-  it("excludes a null-mood DiaryEntry and a non-canonical ineligible MoodLog", () => {
+  it("#1: a stale-normalizer MoodLog (normalizerVersion set, normalized null) with raw 'good' is EXCLUDED — never resurrected by the fallback", () => {
     const series = buildMoodSeries(
+      [],
       [
-        {
-          mood: null,
+        moodLogRow({
+          mood: "good",
           moodNormalized: null,
-          moodEligibleForDynamics: false,
-          createdAt: recent,
-        },
+          moodNormalizerVersion: "norm-0", // was processed → NOT pre-normalization
+        }),
       ],
+    );
+    expect(series).toEqual([]);
+  });
+
+  it("#1: an explicitly-EXCLUDED MoodLog (reason + provenance set) with raw 'good' is discarded", () => {
+    const series = buildMoodSeries(
+      [],
       [
-        {
-          mood: "garbage",
+        moodLogRow({
+          mood: "good",
           moodNormalized: null,
-          moodEligibleForDynamics: false,
-          createdAt: older,
-        },
+          moodProvenance: "MOOD_LOG",
+          moodExplicitlySelected: false,
+          moodNormalizerVersion: "norm-1",
+          moodExclusionReason: "ambiguous_default",
+        }),
       ],
+    );
+    expect(series).toEqual([]);
+  });
+
+  it("excludes a null-mood DiaryEntry and a non-canonical pre-normalization MoodLog", () => {
+    const series = buildMoodSeries(
+      [diaryRow({ moodNormalized: null, moodEligibleForDynamics: false })],
+      [moodLogRow({ mood: "garbage" })], // pre-normalization but raw non-canonical
     );
     expect(series).toEqual([]);
   });

@@ -69,6 +69,18 @@ function classifyVocabulary(raw: string | null): string | null {
 
 const KNOWN_SELECTION = new Set<string>(MOOD_SELECTION_VERSIONS);
 
+/**
+ * PR-2B · which provenance each selection attestation belongs to. A known
+ * attestation stamped onto the WRONG source is a contract violation — e.g. a
+ * `mood-log-v1` on a DIARY write, or `explicit-v1` on a MOOD_LOG write. The
+ * normalizer rejects the mismatch (fail-loud) rather than trusting it.
+ */
+const SELECTION_SOURCE: Record<string, MoodProvenance> = {
+  "mood-log-v1": "MOOD_LOG",
+  "explicit-v1": "DIARY",
+  "seed-v1": "SEED",
+};
+
 export interface DeriveMoodInput {
   /** The raw mood token exactly as it will be persisted (or null/absent). */
   raw: string | null | undefined;
@@ -112,6 +124,12 @@ export function deriveMoodNormalization(
     if (!KNOWN_SELECTION.has(rawSelection)) {
       throw new Error(
         `MOOD_SELECTION_VERSION_UNKNOWN: '${rawSelection}' is not a known selection attestation`,
+      );
+    }
+    const requiredSource = SELECTION_SOURCE[rawSelection];
+    if (requiredSource !== input.source) {
+      throw new Error(
+        `MOOD_SELECTION_SOURCE_MISMATCH: '${rawSelection}' requires source ${requiredSource}, got ${input.source}`,
       );
     }
     if (moodNormalized == null) {

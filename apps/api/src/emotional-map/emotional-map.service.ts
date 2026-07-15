@@ -215,6 +215,13 @@ export class EmotionalMapService {
           mood: true,
           moodNormalized: true,
           moodEligibleForDynamics: true,
+          // PR-2B · the full server-owned metadata so the temporal fallback can
+          // tell a genuinely pre-normalization row (all null) from a row the
+          // normalizer explicitly EXCLUDED (reason/provenance set).
+          moodProvenance: true,
+          moodExplicitlySelected: true,
+          moodNormalizerVersion: true,
+          moodExclusionReason: true,
           createdAt: true,
         },
       }),
@@ -444,12 +451,40 @@ export class EmotionalMapService {
   }
 }
 
-/** A row carrying the mood + the server-owned eligibility columns. */
-interface MoodRow {
-  mood: string | null;
+/** A DiaryEntry row: only the columns the eligible-only path needs. */
+interface DiaryMoodRow {
   moodNormalized: string | null;
   moodEligibleForDynamics: boolean;
   createdAt: Date;
+}
+
+/** A MoodLog row: full server-owned metadata so the fallback can be strict. */
+interface MoodLogRow {
+  mood: string | null;
+  moodNormalized: string | null;
+  moodEligibleForDynamics: boolean;
+  moodProvenance: string | null;
+  moodExplicitlySelected: boolean | null;
+  moodNormalizerVersion: string | null;
+  moodExclusionReason: string | null;
+  createdAt: Date;
+}
+
+/**
+ * A MoodLog row is "pre-normalization" ONLY when EVERY server-owned column the
+ * normalizer would have written is genuinely absent — i.e. the row predates the
+ * normalizer and was never processed. A row that WAS processed and explicitly
+ * excluded carries a `moodExclusionReason`/`moodProvenance`/etc, so it fails
+ * this test and is discarded rather than resurrected by the raw fallback.
+ */
+function isPreNormalizationMoodLog(r: MoodLogRow): boolean {
+  return (
+    r.moodNormalized == null &&
+    r.moodProvenance == null &&
+    r.moodExplicitlySelected == null &&
+    r.moodNormalizerVersion == null &&
+    r.moodExclusionReason == null
+  );
 }
 
 /**
@@ -458,14 +493,14 @@ interface MoodRow {
  *   - DiaryEntry rows contribute ONLY when eligible + normalized (use the
  *     canonical `moodNormalized`). A raw/legacy/ambiguous/null reflexion is
  *     dropped — a reflexion mood counts only when the user attested it.
- *   - MoodLog rows contribute their `moodNormalized` when eligible, else a
- *     temporal fallback to the raw mood IFF it parses to a canonical category.
- *     This covers historical pre-PR-2A check-ins (no normalization columns) —
- *     safe because a check-in's raw was always an explicit ordinal pick.
+ *   - MoodLog rows contribute their `moodNormalized` when eligible+normalized.
+ *     A temporal fallback to the raw canonical is allowed ONLY for a genuinely
+ *     pre-normalization row (all server-owned metadata null) — never for a row
+ *     the normalizer explicitly excluded (that stays excluded on purpose).
  */
 export function buildMoodSeries(
-  diaryRows: ReadonlyArray<MoodRow>,
-  moodLogRows: ReadonlyArray<MoodRow>,
+  diaryRows: ReadonlyArray<DiaryMoodRow>,
+  moodLogRows: ReadonlyArray<MoodLogRow>,
 ): Array<{ mood: string; createdAt: Date }> {
   const series: Array<{ mood: string; createdAt: Date }> = [];
 
@@ -476,11 +511,20 @@ export function buildMoodSeries(
   }
 
   for (const r of moodLogRows) {
-    const value =
-      r.moodEligibleForDynamics && r.moodNormalized != null
-        ? r.moodNormalized
-        : parseCanonicalMood(r.mood);
-    if (value != null) series.push({ mood: value, createdAt: r.createdAt });
+    if (r.moodEligibleForDynamics && r.moodNormalized != null) {
+      // Vouched, normalized observation.
+      series.push({ mood: r.moodNormalized, createdAt: r.createdAt });
+      continue;
+    }
+    // Temporal fallback: ONLY a truly pre-normalization row (never touched),
+    // and only if its raw is canonical. Everything else — including any row
+    // the normalizer excluded — is dropped.
+    if (isPreNormalizationMoodLog(r)) {
+      const canonical = parseCanonicalMood(r.mood);
+      if (canonical != null) {
+        series.push({ mood: canonical, createdAt: r.createdAt });
+      }
+    }
   }
 
   return series;

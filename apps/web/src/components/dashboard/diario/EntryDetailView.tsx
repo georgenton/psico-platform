@@ -102,10 +102,22 @@ function DecryptedDetail({
   const [deleting, startDelete] = useTransition();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  // PR-2B: the raw persisted mood is `string | null` and may be a legacy token.
+  // The selector only speaks canonical DiaryMoodIds, so narrow it: a legacy /
+  // unknown raw seeds the selector as "no pick" (null).
+  const initialDraftMood: DiaryMoodId | null =
+    detail.entry.mood != null &&
+    DIARY_MOODS.some((m) => m.id === detail.entry.mood)
+      ? (detail.entry.mood as DiaryMoodId)
+      : null;
   // PR-2B: nullable — an entry may have no mood, and the user can clear it.
   const [draftMood, setDraftMood] = useState<DiaryMoodId | null>(
-    detail.entry.mood,
+    initialDraftMood,
   );
+  // PR-2B: any interaction with the mood selector marks it "touched" so we can
+  // RE-ATTEST the same value — re-picking `good` on a legacy/ineligible row must
+  // send mood + explicit-v1, not be skipped because the value didn't change.
+  const [moodTouched, setMoodTouched] = useState(false);
   const [draftTags, setDraftTags] = useState<string[]>(detail.entry.tags);
   const [tagDraft, setTagDraft] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
@@ -149,7 +161,8 @@ function DecryptedDetail({
   function startEdit() {
     if (!decryption.ok) return;
     setDraft(decryption.text);
-    setDraftMood(detail.entry.mood);
+    setDraftMood(initialDraftMood);
+    setMoodTouched(false);
     setDraftTags(detail.entry.tags);
     setTagDraft("");
     setEditing(true);
@@ -200,9 +213,11 @@ function DecryptedDetail({
           excerptCiphertext: excerpt.ciphertext,
           excerptNonce: excerpt.nonce,
         };
-        // PR-2B three-way: omit when unchanged; send null to clear; send a
-        // canonical id + the `explicit-v1` attestation when the user picked one.
-        if (draftMood !== detail.entry.mood) {
+        // PR-2B three-way, gated on `moodTouched` (not value inequality) so the
+        // user can RE-ATTEST: re-picking the same `good` on a legacy/ineligible
+        // row still sends mood + explicit-v1. Untouched → omit; touched + null →
+        // clear; touched + canonical → set with the attestation.
+        if (moodTouched) {
           payload.mood = draftMood;
           if (draftMood)
             payload.moodSelectionVersion = EXPLICIT_SELECTION_VERSION;
@@ -375,10 +390,13 @@ function DecryptedDetail({
                     role="radio"
                     aria-checked={active}
                     disabled={saving}
-                    // PR-2B: tapping the active mood deselects it (clears mood).
-                    onClick={() =>
-                      setDraftMood((prev) => (prev === m.id ? null : m.id))
-                    }
+                    // PR-2B: tapping the active mood deselects it (clears mood);
+                    // any interaction marks the selector touched so an unchanged
+                    // value still re-attests on save.
+                    onClick={() => {
+                      setMoodTouched(true);
+                      setDraftMood((prev) => (prev === m.id ? null : m.id));
+                    }}
                     className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-semibold"
                     style={{
                       background: active

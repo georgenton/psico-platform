@@ -32,8 +32,9 @@ mobile en un solo PR) y habilita la atestación versionada de selección explíc
     `null` → limpia (`not_selected`); canónico + `explicit-v1` → eligible; canónico distinto
     sin versión → ineligible; **mismo canónico sin versión sobre fila eligible → preserva
     (no degrada)**; `selectionVersion` sin/`null` mood → 400.
-  - `toSummary` / `toDetail`: devuelven `mood: DiaryMoodId | null` real (se quitó el throw
-    `DIARY_MOOD_INTEGRITY`); nunca coaccionan a `"ok"`.
+  - `toSummary` / `toDetail`: devuelven el `mood` RAW `string | null` (sin cast a `DiaryMoodId`,
+    honesto con vocabulario legacy histórico; se quitó el throw `DIARY_MOOD_INTEGRITY`); nunca
+    coaccionan a `"ok"`.
   - **Invalidación best-effort** del cache del mapa: `create`/`delete` siempre; `update` solo
     si cambió mood o tags (text-only no). `ReflexionesModule` importa `EmotionalMapModule`.
 - **`mood.service.ts`** (`POST /api/mood`): rechaza token no canónico como `MOOD_INVALID`
@@ -57,9 +58,10 @@ normalized`, con **fallback temporal** al raw canónico solo para MoodLog histó
 ### Tipos + cliente
 
 - `@psico/types`: `EXPLICIT_SELECTION_VERSION`, `MOOD_SELECTION_VERSIONS`, `CLIENT_SELECTION_VERSIONS`,
-  `MoodSelectionVersion`; `MoodNormalization.moodSelectionVersion`; `DiaryEntrySummary.mood` y
-  `DiaryEntryDetail.mood` → `DiaryMoodId | null`; `Create/UpdateDiaryEntryRequest.mood?` nullable +
-  `moodSelectionVersion?`.
+  `MoodSelectionVersion` (server) + `ClientMoodSelectionVersion` (= `explicit-v1`, cliente);
+  `MoodNormalization.moodSelectionVersion`; **respuesta** `DiaryEntrySummary.mood` y
+  `DiaryEntryDetail.mood` → `string | null` (raw histórico); **request**
+  `Create/UpdateDiaryEntryRequest.mood?: DiaryMoodId | null` + `moodSelectionVersion?: ClientMoodSelectionVersion`.
 - `@psico/api-client`: `generated.ts` regenerado (booteando el API para emitir `openapi.json`).
 
 ### Front (web + mobile)
@@ -148,27 +150,61 @@ pre-PR-2B tiene mood no-null. **Estrategia si algún día hay builds en tienda:*
 mínima soportada / gating por `runtimeVersion`, y hacer que los lectores toleren `mood: null`
 (que es justo lo que hace PR-2B) antes de permitir crear entradas null.
 
+**El repositorio por sí solo NO prueba la ausencia de testers externos** — sólo prueba que este
+repo no configura ningún canal. Un build pudo hacerse fuera del repo (EAS remoto, Xcode/Android
+Studio local). Por eso el gate de deploy exige **confirmación humana** antes de desplegar (no
+bloquea CI):
+
+- [ ] **App Store Connect / TestFlight** — sin builds distribuidos a testers externos.
+- [ ] **Google Play Console** — sin builds en internal / closed / open testing.
+- [ ] **APK/IPA compartidos** — ninguno enviado fuera del repo (Drive, Slack, etc.).
+- [ ] **Expo / EAS Updates** — sin canal OTA publicado apuntando a un runtime instalado.
+
+Si CUALQUIERA existe: **detener el deploy** y aplicar la estrategia de compat de arriba
+(min-version / `runtimeVersion` + lectores null-tolerant) antes de habilitar la creación de
+entradas sin mood.
+
 ---
 
 ## E. Runbook de despliegue (para cuando se apruebe el merge)
 
-**No desplegar en esta sesión.** Cuando se despliegue:
+**No desplegar en esta sesión.** ⚠️ **El ORDEN es obligatorio: API antes que web.** Un web
+nuevo contra una API vieja (PR-2A) NO es compatible — el web nuevo puede **omitir** `mood`
+(que PR-2A rechaza como `mood` requerido → 400) y envía `moodSelectionVersion` (columna/campo
+que PR-2A no conoce → 400 `forbidNonWhitelisted`). Por eso el backend va PRIMERO y el web
+DESPUÉS de confirmarlo.
 
-1. **Aplicar la migración** `20260715230000_pr2b_mood_selection_version` (aditiva, dos `ADD COLUMN`)
-   vía `prisma migrate deploy` en Railway (API + worker comparten DB). Cero downtime.
-2. **`CACHE_EPOCH=2`** en **API y worker** (ambos servicios Railway). Motivo: `momento` y la serie
-   OU ahora filtran por elegibilidad; un mapa cacheado pre-PR-2B podría contener moods que PR-2B
-   excluiría. Bumpear `CACHE_EPOCH` invalida los mapas cacheados sin tocar los facts persistidos.
-3. **`FACTS_EPOCH` sin cambio.** (Decisión explícita del owner: no se toca este PR.)
-4. **`EMOTIONAL_MAP_OU` permanece off.** Sin backfill de ninguna columna.
-5. **Sin backfill** de `moodSelectionVersion` para filas legacy — quedan `null` (ineligibles),
-   consistente con PR-2A. El CHECK **no** se endurece para exigir `moodSelectionVersion` (eso sería
-   PR-2C, tras backfill).
-6. **Re-seed opcional** (`seed-demo-users.mjs`) si se quiere que las cuentas demo tengan
-   `moodSelectionVersion: "seed-v1"`.
-7. Smoke post-deploy (solo metadata/counts, sin texto): crear reflexión con pick → `eligible=true`;
-   crear sin pick → `mood=null` render "Sin ánimo registrado"; PATCH `mood:null` limpia; `POST /api/mood`
-   con token legacy → 400.
+Secuencia obligatoria:
+
+1. **`CACHE_EPOCH=2` en API y worker** (ambos servicios Railway), como skip-deploy o antes de
+   promover el build. Motivo: `momento` y la serie OU ahora filtran por elegibilidad; un mapa
+   cacheado pre-PR-2B podría contener moods que PR-2B excluiría. Bumpear `CACHE_EPOCH` invalida
+   los mapas cacheados sin tocar los facts persistidos. **`FACTS_EPOCH` sin cambio.**
+   `EMOTIONAL_MAP_OU` permanece **off**.
+2. **Migración** `20260715230000_pr2b_mood_selection_version` (aditiva, dos `ADD COLUMN`) vía
+   `prisma migrate deploy` (corre en el `preDeployCommand` de Railway). Cero downtime; una API
+   PR-2A previa tolera la columna nueva (la ignora).
+3. **Desplegar API + worker PRIMERO** (Railway). Esperar `SUCCESS` en ambos.
+4. **Confirmar identity match + smoke ANTES de tocar el web:** la línea de identidad
+   (`rt=… sha=<releaseSha> responseFp=… factsFp=… cacheEpoch=2 factsEpoch=1`) debe reflejar el
+   nuevo `sha` y `cacheEpoch=2` en API y worker; smoke ADMIN (solo metadata/counts, sin texto):
+   crear reflexión con pick → `eligible=true`; sin pick → `mood=null`; PATCH `mood:null` limpia;
+   `POST /api/mood` con token legacy → 400.
+5. **Desplegar web DESPUÉS** (Vercel), una vez la API nueva está verificada.
+
+**Controlar Vercel / ventana de mantenimiento** (para que el web no promueva antes que la API):
+
+- Pausar el auto-deploy de la rama en **Vercel → Project → Settings → Git** (o el _Ignored Build
+  Step_), y promover el web **manualmente** (`vercel deploy --prod` / _Promote_) recién tras el
+  paso 4. Alternativamente, mergear a `develop`/`main` sólo tras confirmar la API, de modo que el
+  build del web dispare ya con el backend nuevo arriba.
+- Si se prefiere una ventana explícita: banner de mantenimiento breve mientras corren los pasos
+  3–4 (la ventana real es de minutos; la migración es aditiva y no bloquea).
+
+**Sin backfill** de `moodSelectionVersion` para filas legacy — quedan `null` (ineligibles),
+consistente con PR-2A. El CHECK **no** se endurece para exigir `moodSelectionVersion` (eso es
+PR-2C, tras backfill). **Re-seed opcional** (`seed-demo-users.mjs`) si se quiere que las cuentas
+demo tengan `moodSelectionVersion: "seed-v1"`.
 
 ---
 

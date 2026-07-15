@@ -17,7 +17,6 @@ import type {
   DiaryEntryKind,
   DiaryEntrySummary,
   DiaryListResponse,
-  DiaryMoodId,
   DiaryMoodMap,
   DiaryPromptOfTheDay,
   DiaryRawCiphersResponse,
@@ -542,7 +541,9 @@ export class ReflexionesService {
       id: row.id,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
-      mood: (row.mood as DiaryMoodId | null) ?? null,
+      // PR-2B · the RAW persisted mood (string | null), no coercion — a legacy
+      // token stays legacy, null stays null; the client renders it honestly.
+      mood: row.mood,
       kind: this.toKind(row.kind),
       promptId: row.promptId,
       promptText: row.prompt?.text ?? null,

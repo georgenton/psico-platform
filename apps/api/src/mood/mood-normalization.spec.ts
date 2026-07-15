@@ -142,6 +142,39 @@ describe("deriveMoodNormalization", () => {
     ).toThrow(/MOOD_SELECTION_VERSION_UNKNOWN/);
   });
 
+  it.each([
+    ["MOOD_LOG", "explicit-v1"],
+    ["MOOD_LOG", "seed-v1"],
+    ["DIARY", "mood-log-v1"],
+    ["DIARY", "seed-v1"],
+    ["SEED", "explicit-v1"],
+    ["SEED", "mood-log-v1"],
+  ] as const)(
+    "throws MOOD_SELECTION_SOURCE_MISMATCH for source=%s + version=%s",
+    (source, selectionVersion) => {
+      expect(() =>
+        deriveMoodNormalization({ raw: "good", source, selectionVersion }),
+      ).toThrow(/MOOD_SELECTION_SOURCE_MISMATCH/);
+    },
+  );
+
+  it.each([
+    ["MOOD_LOG", "mood-log-v1"],
+    ["DIARY", "explicit-v1"],
+    ["SEED", "seed-v1"],
+  ] as const)(
+    "accepts the matching source=%s + version=%s (eligible)",
+    (source, selectionVersion) => {
+      const n = deriveMoodNormalization({
+        raw: "good",
+        source,
+        selectionVersion,
+      });
+      expect(n.moodEligibleForDynamics).toBe(true);
+      expect(n.moodSelectionVersion).toBe(selectionVersion);
+    },
+  );
+
   it("throws when a KNOWN attestation carries no canonical mood (version without mood)", () => {
     expect(() =>
       deriveMoodNormalization({

@@ -36,7 +36,7 @@ function normalizeTag(raw: string): string | null {
  * PR-2B: render a (possibly null) mood honestly. null → "Sin ánimo registrado".
  * Never fabricate a mood for an entry saved without an explicit pick.
  */
-function moodLabel(mood: DiaryMoodId | null): string {
+function moodLabel(mood: string | null): string {
   if (!mood) return "Sin ánimo registrado";
   return (
     DIARY_MOODS.find((m) => m.id === mood)?.label ??
@@ -126,10 +126,21 @@ function Decrypted({
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  // PR-2B: the raw persisted mood is `string | null` and may be a legacy token.
+  // The selector only speaks canonical DiaryMoodIds, so a legacy/unknown raw
+  // seeds the selector as "no pick" (null).
+  const initialDraftMood: DiaryMoodId | null =
+    detail.entry.mood != null &&
+    DIARY_MOODS.some((m) => m.id === detail.entry.mood)
+      ? (detail.entry.mood as DiaryMoodId)
+      : null;
   // PR-2B: load the entry's mood (may be null). Allow select/deselect.
   const [draftMood, setDraftMood] = useState<DiaryMoodId | null>(
-    detail.entry.mood,
+    initialDraftMood,
   );
+  // PR-2B: any interaction marks the selector touched so the user can RE-ATTEST
+  // the same value (re-pick `good` on a legacy/ineligible row → mood+explicit-v1).
+  const [moodTouched, setMoodTouched] = useState(false);
   const [draftTags, setDraftTags] = useState<string[]>(detail.entry.tags);
   const [tagDraft, setTagDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -180,7 +191,8 @@ function Decrypted({
   function startEdit() {
     if (!decryption.ok) return;
     setDraft(decryption.text);
-    setDraftMood(detail.entry.mood);
+    setDraftMood(initialDraftMood);
+    setMoodTouched(false);
     setDraftTags(detail.entry.tags);
     setTagDraft("");
     setEditing(true);
@@ -227,9 +239,10 @@ function Decrypted({
         excerptCiphertext: excerpt.ciphertext,
         excerptNonce: excerpt.nonce,
       };
-      if (draftMood !== detail.entry.mood) {
-        // PR-2B: send the current selection — a canonical id (attested as an
-        // explicit pick with explicit-v1) if picked, or null to CLEAR the mood.
+      // PR-2B: gate on `moodTouched` (not value inequality) so re-picking the
+      // same `good` on a legacy/ineligible row still re-attests. Untouched →
+      // omit; touched + null → clear; touched + canonical → set + explicit-v1.
+      if (moodTouched) {
         payload.mood = draftMood;
         if (draftMood)
           payload.moodSelectionVersion = EXPLICIT_SELECTION_VERSION;
@@ -335,9 +348,10 @@ function Decrypted({
               return (
                 <Pressable
                   key={m.id}
-                  onPress={() =>
-                    setDraftMood((cur) => (cur === m.id ? null : m.id))
-                  }
+                  onPress={() => {
+                    setMoodTouched(true);
+                    setDraftMood((cur) => (cur === m.id ? null : m.id));
+                  }}
                   disabled={saving}
                   style={[
                     styles.moodChip,

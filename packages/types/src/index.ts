@@ -1870,7 +1870,15 @@ export const MOOD_SELECTION_VERSIONS = [
 /** The selection-version values a CLIENT is allowed to send (only the explicit
  *  attestation). Anything else in the request body is a 400. */
 export const CLIENT_SELECTION_VERSIONS = ["explicit-v1"] as const;
+/** The FULL set — server / persistence side (explicit-v1 | mood-log-v1 | seed-v1). */
 export type MoodSelectionVersion = (typeof MOOD_SELECTION_VERSIONS)[number];
+/**
+ * The subset a CLIENT may put on a reflexion request — only the explicit
+ * attestation. Use this (not `MoodSelectionVersion`) on request DTOs so the wire
+ * type can't express a server-owned attestation.
+ */
+export type ClientMoodSelectionVersion =
+  (typeof CLIENT_SELECTION_VERSIONS)[number];
 
 /** The server-computed normalization written alongside the RAW mood. All nine
  *  fields are server-owned; the client controls none of them. */
@@ -1943,9 +1951,14 @@ export interface DiaryEntrySummary {
   id: string;
   createdAt: Date;
   updatedAt: Date;
-  /** PR-2B · nullable: a reflexión saved without an explicit pick has no mood.
-   *  Clients render "Sin ánimo registrado" — NEVER coerce null to "ok"/neutral. */
-  mood: DiaryMoodId | null;
+  /**
+   * PR-2B · the RAW persisted mood, `string | null`. Null = no pick (render
+   * "Sin ánimo registrado" — NEVER coerce to "ok"/neutral). It is typed `string`
+   * (not `DiaryMoodId`) on purpose: historical rows may carry a legacy
+   * vocabulary token, and the response must represent that honestly rather than
+   * pretend it's a current canonical id. REQUESTS stay `DiaryMoodId | null`.
+   */
+  mood: string | null;
   kind: DiaryEntryKind;
   promptId: string | null;
   promptText: string | null;
@@ -2013,7 +2026,7 @@ export interface CreateDiaryEntryRequest {
    * value a client may send is `explicit-v1`. Send it whenever the user taps a
    * mood; omit it for a defaulted mood. Sending it without a `mood` is a 400.
    */
-  moodSelectionVersion?: MoodSelectionVersion;
+  moodSelectionVersion?: ClientMoodSelectionVersion;
   kind?: DiaryEntryKind;
   promptId?: string;
   /** base64url ciphertext of the body. Up to ~1 MB. */
@@ -2035,7 +2048,7 @@ export interface UpdateDiaryEntryRequest {
    */
   mood?: DiaryMoodId | null;
   /** PR-2B · client attestation (`explicit-v1` only) that `mood` was tapped. */
-  moodSelectionVersion?: MoodSelectionVersion;
+  moodSelectionVersion?: ClientMoodSelectionVersion;
   textCiphertext?: string;
   textNonce?: string;
   excerptCiphertext?: string;

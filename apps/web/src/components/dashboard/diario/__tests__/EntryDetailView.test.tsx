@@ -149,6 +149,24 @@ describe("EntryDetailView · edit mode", () => {
     expect(body.textCiphertext).toBeDefined();
   });
 
+  it("#2 re-attests the SAME mood: re-picking 'good' on the entry sends mood + explicit-v1 even though the value didn't change", async () => {
+    fetchSpy.mockResolvedValue(new Response(null, { status: 200 }));
+    const user = userEvent.setup();
+    // Entry already has mood 'good' (imagine it's ineligible — no attestation).
+    renderDetail(makeDetail({ mood: "good" }));
+    await user.click(screen.getByRole("button", { name: /Editar/i }));
+    // Deselect then re-select the same 'good' — the final value equals the
+    // original, but the selector was touched, so it must be re-sent + attested.
+    await user.click(screen.getByRole("radio", { name: "Bien" }));
+    await user.click(screen.getByRole("radio", { name: "Bien" }));
+    await user.click(screen.getByRole("button", { name: /Guardar cambios/i }));
+    const body = JSON.parse(
+      ((fetchSpy.mock.calls[0]?.[1] as RequestInit).body as string) ?? "{}",
+    );
+    expect(body.mood).toBe("good");
+    expect(body.moodSelectionVersion).toBe("explicit-v1");
+  });
+
   it("renders 'Sin ánimo registrado' for a null-mood entry (never a fabricated mood)", () => {
     // PR-2B: a reflexión saved without an explicit pick has mood = null.
     renderDetail(makeDetail({ mood: null }));

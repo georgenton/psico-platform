@@ -32,6 +32,23 @@ import { Pool } from "pg";
 
 const MOODS = ["hard", "low", "ok", "good", "great"];
 
+// PR-2A · seeded MoodLog rows are canonical + explicit + eligible, but their
+// provenance is SEED — NOT MOOD_LOG: seeded rows must not masquerade as real
+// user taps. Raw `mood` is preserved; these are the additive normalization
+// columns (kept inline — this is a plain .mjs).
+function moodNorm(mood) {
+  return {
+    moodNormalized: mood, // seed moods are always canonical
+    moodProvenance: "SEED",
+    moodExplicitlySelected: true,
+    moodVocabularyVersion: "diary-v1",
+    moodNormalizerVersion: "norm-1",
+    moodClientVersion: "seed",
+    moodEligibleForDynamics: true,
+    moodExclusionReason: null,
+  };
+}
+
 function parseArgs(argv) {
   const out = {};
   for (const a of argv.slice(2)) {
@@ -112,9 +129,11 @@ async function main() {
       // Randomize the time-of-day so Δt isn't a clean integer.
       const jitterMs = Math.floor(Math.random() * 86400_000);
       const createdAt = new Date(now - d * 86400_000 - jitterMs);
+      const mood = moodForDay(pattern, i, days);
       rows.push({
         userId: user.id,
-        mood: moodForDay(pattern, i, days),
+        mood,
+        ...moodNorm(mood),
         createdAt,
       });
     }

@@ -198,6 +198,104 @@ describe("ReflexionesService.create", () => {
     expect(result.ok).toBe(true);
     expect(result.excerptCiphertext).toBe("EXCERPT");
   });
+
+  it("PR-2A: derives source=DIARY and is NOT eligible (no explicit signal) for a defaulted 'ok'", async () => {
+    prisma.diaryEntry.create.mockResolvedValue({
+      id: "n2",
+      createdAt: new Date(),
+      excerptCiphertext: null,
+    });
+    await service.create("user-1", {
+      mood: "ok",
+      textCiphertext: CIPHER_B64,
+      textNonce: NONCE_B64,
+    });
+    expect(prisma.diaryEntry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          mood: "ok",
+          moodProvenance: "DIARY",
+          moodExplicitlySelected: false,
+          moodEligibleForDynamics: false,
+          moodExclusionReason: "ambiguous_default",
+        }),
+      }),
+    );
+  });
+
+  it("PR-2A: derives source=DIARY and pre_normalizer_review for a non-'ok' canonical", async () => {
+    prisma.diaryEntry.create.mockResolvedValue({
+      id: "n3",
+      createdAt: new Date(),
+      excerptCiphertext: null,
+    });
+    await service.create("user-1", {
+      mood: "good",
+      textCiphertext: CIPHER_B64,
+      textNonce: NONCE_B64,
+    });
+    expect(prisma.diaryEntry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          mood: "good",
+          moodNormalized: "good",
+          moodProvenance: "DIARY",
+          moodEligibleForDynamics: false,
+          moodExclusionReason: "pre_normalizer_review",
+        }),
+      }),
+    );
+  });
+
+  it("PR-2A: a legacy reflexion mood is preserved raw but NEVER eligible / never 0", async () => {
+    prisma.diaryEntry.create.mockResolvedValue({
+      id: "n4",
+      createdAt: new Date(),
+      excerptCiphertext: null,
+    });
+    await service.create("user-1", {
+      mood: "calma",
+      textCiphertext: CIPHER_B64,
+      textNonce: NONCE_B64,
+    } as never);
+    expect(prisma.diaryEntry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          mood: "calma", // raw preserved
+          moodNormalized: null,
+          moodEligibleForDynamics: false,
+          moodExclusionReason: "legacy_vocabulary",
+        }),
+      }),
+    );
+  });
+});
+
+// ─── ReflexionesService · mood integrity (never fabricate "ok") ─────────────────────
+
+describe("ReflexionesService · mood integrity", () => {
+  let service: ReflexionesService;
+  let prisma: ReturnType<typeof buildPrismaMock>;
+
+  beforeEach(() => {
+    prisma = buildPrismaMock();
+    service = new ReflexionesService(prisma as never);
+  });
+
+  it("FAILS explicitly on a null-mood row — never coerces it to 'ok'", async () => {
+    // The PR-2A API can't create a null-mood entry (the DTO requires `mood`),
+    // but the column is nullable. If a null row is ever read back, the mapper
+    // must throw a data-integrity error rather than fabricate a neutral "ok".
+    prisma.diaryEntry.findMany
+      .mockResolvedValueOnce([buildEntryRow({ mood: null })]) // page rows
+      .mockResolvedValueOnce([]) // computeMoodMap
+      .mockResolvedValueOnce([]); // computeTagCounts
+    prisma.diaryEntry.count.mockResolvedValue(1);
+
+    await expect(service.list("user-1", {})).rejects.toThrow(
+      /DIARY_MOOD_INTEGRITY/,
+    );
+  });
 });
 
 // ─── ReflexionesService.update ────────────────────────────────────────────────────
@@ -235,6 +333,56 @@ describe("ReflexionesService.update", () => {
     await expect(
       service.update("user-1", "stolen-id", { mood: "alegria" }),
     ).rejects.toThrow(NotFoundException);
+  });
+
+  it("PR-2A: PATCH mood=null → 400 and writes nothing (backstop until PR-2B)", async () => {
+    prisma.diaryEntry.findFirst.mockResolvedValue({ id: "entry-1" });
+
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      service.update("user-1", "entry-1", { mood: null } as any),
+    ).rejects.toThrow(/DIARY_MOOD_NULL_NOT_ALLOWED_UNTIL_PR2B/);
+    expect(prisma.diaryEntry.update).not.toHaveBeenCalled();
+  });
+
+  it("PR-2A: PATCH without mood updates another field and leaves mood untouched", async () => {
+    prisma.diaryEntry.findFirst
+      .mockResolvedValueOnce({ id: "entry-1" }) // ownership
+      .mockResolvedValueOnce(buildEntryRow({ id: "entry-1", mood: "good" })); // getDetail
+    prisma.diaryEntry.findMany.mockResolvedValue([]); // related
+    prisma.diaryEntry.update.mockResolvedValue({});
+
+    await service.update("user-1", "entry-1", { tags: ["trabajo"] });
+
+    const data = prisma.diaryEntry.update.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(data.tags).toEqual(["trabajo"]);
+    expect("mood" in data).toBe(false);
+    expect("moodProvenance" in data).toBe(false);
+  });
+
+  it("PR-2A: PATCH mood=good re-derives DIARY / explicit=false / ineligible", async () => {
+    prisma.diaryEntry.findFirst
+      .mockResolvedValueOnce({ id: "entry-1" }) // ownership
+      .mockResolvedValueOnce(buildEntryRow({ id: "entry-1", mood: "good" })); // getDetail
+    prisma.diaryEntry.findMany.mockResolvedValue([]); // related
+    prisma.diaryEntry.update.mockResolvedValue({});
+
+    await service.update("user-1", "entry-1", { mood: "good" });
+
+    expect(prisma.diaryEntry.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          mood: "good",
+          moodProvenance: "DIARY",
+          moodExplicitlySelected: false,
+          moodEligibleForDynamics: false,
+          moodExclusionReason: "pre_normalizer_review",
+        }),
+      }),
+    );
   });
 });
 

@@ -1798,6 +1798,71 @@ export type DiaryMoodId = (typeof DIARY_MOODS)[number]["id"];
  */
 export const DIARY_MOOD_IDS: readonly string[] = DIARY_MOODS.map((m) => m.id);
 
+// ─── PR-2A · mood normalization (backend/schema only) ───────────────────────
+//
+// The OU affect-dynamics model must only ever consume mood observations we can
+// vouch for: an explicit user pick in the canonical ordinal vocabulary. PR-2A
+// lays the schema + a pure server-side normalizer; it does NOT backfill, does
+// NOT touch scoring, and does NOT activate OU. See
+// docs/architecture/emotional-map-mood-normalization.md (frozen contract).
+
+/** The single ordinal vocabulary the OU can read. The NUMBER (great=1 … hard=-1)
+ *  lives in model v0 (MOOD_SCALAR), never in the DB — the DB stores the CATEGORY. */
+export const MOOD_CANONICAL_IDS = [
+  "hard",
+  "low",
+  "ok",
+  "good",
+  "great",
+] as const;
+export type MoodCanonical = (typeof MOOD_CANONICAL_IDS)[number];
+
+/** Where a mood observation came from. Derived by the SERVER from the write
+ *  endpoint — never sent by the client. `READER_REFLECTION` is reserved for a
+ *  future dedicated reader endpoint and is not assigned in PR-2A. */
+export const MOOD_PROVENANCES = [
+  "MOOD_LOG",
+  "DIARY",
+  "READER_REFLECTION",
+  "ONBOARDING",
+  "IMPORT",
+  "SEED",
+  "UNKNOWN",
+] as const;
+export type MoodProvenance = (typeof MOOD_PROVENANCES)[number];
+
+/**
+ * Why an observation is NOT eligible for the dynamics model. An eligible
+ * observation always has exclusionReason = null. NOT the converse: rows not yet
+ * normalized can have reason = null while they remain eligible = false.
+ */
+export const MOOD_EXCLUSION_REASONS = [
+  "not_selected",
+  "ambiguous_default",
+  "pre_normalizer_review",
+  "legacy_vocabulary",
+  "unknown_token",
+  "stale_normalizer",
+] as const;
+export type MoodExclusionReason = (typeof MOOD_EXCLUSION_REASONS)[number];
+
+/** Current normalizer mapping version. Bump when the mapping changes so a
+ *  future re-normalization can find the rows it must redo (`stale_normalizer`). */
+export const MOOD_NORMALIZER_VERSION = "norm-1";
+
+/** The server-computed normalization written alongside the RAW mood. All eight
+ *  fields are server-owned; the client controls none of them. */
+export interface MoodNormalization {
+  moodNormalized: MoodCanonical | null;
+  moodProvenance: MoodProvenance;
+  moodExplicitlySelected: boolean;
+  moodVocabularyVersion: string | null;
+  moodNormalizerVersion: string;
+  moodClientVersion: string | null;
+  moodEligibleForDynamics: boolean;
+  moodExclusionReason: MoodExclusionReason | null;
+}
+
 /**
  * Shared catalog of post-session moods used by the Terapia feedback flow.
  * Independent from Diary moods — sessions use a coarser 5-option grid because

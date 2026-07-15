@@ -43,6 +43,10 @@ function buildEntryRow(overrides: Record<string, unknown> = {}) {
     id: "entry-1",
     userId: "user-1",
     mood: "calma",
+    // PR-2B — the server-vouched projection. Defaults model a legacy row:
+    // a raw mood exists, but nothing is normalized/eligible until proven.
+    moodNormalized: null,
+    moodEligibleForDynamics: false,
     kind: "free",
     promptId: null,
     prompt: null,
@@ -662,9 +666,16 @@ describe("ReflexionesService.getDetail — related entries (PR-2B)", () => {
     );
   });
 
-  it("C: mood=null + tags=[] → related=[] and NEVER queries a related set (no OR {})", async () => {
+  it("#4 (PR-2B): an ineligible raw mood ('ok') with no tags → related=[] and NEVER queries (no OR {})", async () => {
+    // A legacy/ineligible raw mood is NOT a shared feature: it must not relate.
     prisma.diaryEntry.findFirst.mockResolvedValue(
-      buildEntryRow({ id: "e1", mood: null, tags: [] }),
+      buildEntryRow({
+        id: "e1",
+        mood: "ok",
+        moodNormalized: null,
+        moodEligibleForDynamics: false,
+        tags: [],
+      }),
     );
 
     const res = await service.getDetail("user-1", "e1");
@@ -675,9 +686,15 @@ describe("ReflexionesService.getDetail — related entries (PR-2B)", () => {
     expect(prisma.diaryEntry.findMany).not.toHaveBeenCalled();
   });
 
-  it("C: mood=null but tags present → OR carries ONLY the tags clause (no {mood:null})", async () => {
+  it("#4 (PR-2B): an ineligible mood but tags present → OR carries ONLY the tags clause (no mood clause)", async () => {
     prisma.diaryEntry.findFirst.mockResolvedValue(
-      buildEntryRow({ id: "e1", mood: null, tags: ["trabajo"] }),
+      buildEntryRow({
+        id: "e1",
+        mood: "ok",
+        moodNormalized: null,
+        moodEligibleForDynamics: false,
+        tags: ["trabajo"],
+      }),
     );
     prisma.diaryEntry.findMany.mockResolvedValue([{ id: "rel-1" }]);
 
@@ -690,9 +707,15 @@ describe("ReflexionesService.getDetail — related entries (PR-2B)", () => {
     expect(arg.where.OR).not.toContainEqual({});
   });
 
-  it("C: mood + tags → OR carries both clauses, never {}", async () => {
+  it("#4 (PR-2B): an eligible+normalized mood relates ONLY against eligible entries carrying the same normalized mood", async () => {
     prisma.diaryEntry.findFirst.mockResolvedValue(
-      buildEntryRow({ id: "e1", mood: "good", tags: ["familia"] }),
+      buildEntryRow({
+        id: "e1",
+        mood: "good",
+        moodNormalized: "good",
+        moodEligibleForDynamics: true,
+        tags: ["familia"],
+      }),
     );
     prisma.diaryEntry.findMany.mockResolvedValue([]);
 
@@ -701,8 +724,10 @@ describe("ReflexionesService.getDetail — related entries (PR-2B)", () => {
     const arg = prisma.diaryEntry.findMany.mock.calls[0]![0] as {
       where: { OR: unknown[] };
     };
+    // The mood clause matches the NORMALIZED mood of other eligible entries —
+    // never the raw column, never a bare `{ mood: ... }`.
     expect(arg.where.OR).toEqual([
-      { mood: "good" },
+      { moodEligibleForDynamics: true, moodNormalized: "good" },
       { tags: { hasSome: ["familia"] } },
     ]);
     expect(arg.where.OR).not.toContainEqual({});

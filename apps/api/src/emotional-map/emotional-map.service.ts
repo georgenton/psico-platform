@@ -215,12 +215,15 @@ export class EmotionalMapService {
           mood: true,
           moodNormalized: true,
           moodEligibleForDynamics: true,
-          // PR-2B · the full server-owned metadata so the temporal fallback can
-          // tell a genuinely pre-normalization row (all null) from a row the
-          // normalizer explicitly EXCLUDED (reason/provenance set).
+          // PR-2B · EVERY server-owned column the normalizer would have written,
+          // so the temporal fallback can tell a genuinely pre-normalization row
+          // (all null) from a row the normalizer touched/excluded (any set).
           moodProvenance: true,
           moodExplicitlySelected: true,
+          moodVocabularyVersion: true,
           moodNormalizerVersion: true,
+          moodClientVersion: true,
+          moodSelectionVersion: true,
           moodExclusionReason: true,
           createdAt: true,
         },
@@ -465,7 +468,10 @@ interface MoodLogRow {
   moodEligibleForDynamics: boolean;
   moodProvenance: string | null;
   moodExplicitlySelected: boolean | null;
+  moodVocabularyVersion: string | null;
   moodNormalizerVersion: string | null;
+  moodClientVersion: string | null;
+  moodSelectionVersion: string | null;
   moodExclusionReason: string | null;
   createdAt: Date;
 }
@@ -473,16 +479,19 @@ interface MoodLogRow {
 /**
  * A MoodLog row is "pre-normalization" ONLY when EVERY server-owned column the
  * normalizer would have written is genuinely absent — i.e. the row predates the
- * normalizer and was never processed. A row that WAS processed and explicitly
- * excluded carries a `moodExclusionReason`/`moodProvenance`/etc, so it fails
- * this test and is discarded rather than resurrected by the raw fallback.
+ * normalizer and was never processed. A row that WAS processed (any of these set,
+ * including an exclusion reason) fails this test and is discarded rather than
+ * resurrected by the raw fallback.
  */
 function isPreNormalizationMoodLog(r: MoodLogRow): boolean {
   return (
     r.moodNormalized == null &&
     r.moodProvenance == null &&
     r.moodExplicitlySelected == null &&
+    r.moodVocabularyVersion == null &&
     r.moodNormalizerVersion == null &&
+    r.moodClientVersion == null &&
+    r.moodSelectionVersion == null &&
     r.moodExclusionReason == null
   );
 }

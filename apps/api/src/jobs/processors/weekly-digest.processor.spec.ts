@@ -74,9 +74,17 @@ describe("WeeklyDigestProcessor", () => {
       deviceTokens: [{ token: "ExponentPushToken[abc]" }],
     };
     const entries = [
-      { mood: "calma", tags: ["familia", "trabajo"] },
-      { mood: "ansiedad", tags: ["trabajo"] },
-      { mood: "calma", tags: [] },
+      {
+        moodNormalized: "calma",
+        moodEligibleForDynamics: true,
+        tags: ["familia", "trabajo"],
+      },
+      {
+        moodNormalized: "ansiedad",
+        moodEligibleForDynamics: true,
+        tags: ["trabajo"],
+      },
+      { moodNormalized: "calma", moodEligibleForDynamics: true, tags: [] },
     ];
     const prisma = buildPrisma([userRow], {
       diaryEntry: { findMany: vi.fn().mockResolvedValue(entries) },
@@ -107,6 +115,46 @@ describe("WeeklyDigestProcessor", () => {
     const [tokens] = (push.sendToTokens as ReturnType<typeof vi.fn>).mock
       .calls[0]!;
     expect(tokens).toEqual(["ExponentPushToken[abc]"]);
+  });
+
+  it("#3 (PR-2B): an ineligible mood is not counted — a raw 'hard' with eligible=false yields dominantMood=null; tags + entry count still stand", async () => {
+    const userRow = {
+      id: "u-1",
+      email: "u1@test.com",
+      firstName: "Carla",
+      name: "Carla Pérez",
+      notificationSettings: { dailyReminder: true },
+      deviceTokens: [],
+    };
+    const entries = [
+      // Raw legacy/ineligible mood — the digest must NOT count it.
+      {
+        moodNormalized: "hard",
+        moodEligibleForDynamics: false,
+        tags: ["trabajo"],
+      },
+      // A pure reflexión with no mood at all — tags still count.
+      { moodNormalized: null, moodEligibleForDynamics: false, tags: ["foco"] },
+    ];
+    const prisma = buildPrisma([userRow], {
+      diaryEntry: { findMany: vi.fn().mockResolvedValue(entries) },
+      ecoMessage: { count: vi.fn().mockResolvedValue(0) },
+      deviceToken: { deleteMany: vi.fn() },
+    });
+    const resend = buildResend();
+    const proc = new WeeklyDigestProcessor(prisma, resend, buildPush());
+
+    await proc.process(jobOf({}));
+
+    const emailArg = (resend.send as ReturnType<typeof vi.fn>).mock
+      .calls[0]![0] as { text: string };
+    // Entry count survives (2 entries).
+    expect(emailArg.text).toContain("2 entradas");
+    // No ineligible mood leaks into the dominant-mood copy.
+    expect(emailArg.text).not.toContain("hard");
+    // Tags are independent of eligibility.
+    expect(emailArg.text).toContain("trabajo");
+    expect(emailArg.text).toContain("foco");
   });
 
   it("skips push when user has no device tokens (email only)", async () => {
@@ -230,9 +278,13 @@ describe("WeeklyDigestProcessor", () => {
     });
     const prisma = buildPrisma([userRow], {
       diaryEntry: {
-        findMany: vi
-          .fn()
-          .mockResolvedValue([{ mood: "calma", tags: ["familia"] }]),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            moodNormalized: "calma",
+            moodEligibleForDynamics: true,
+            tags: ["familia"],
+          },
+        ]),
       },
       ecoMessage: { count: vi.fn().mockResolvedValue(2) },
       weeklySummary: { findUnique },

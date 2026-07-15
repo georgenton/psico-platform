@@ -33,7 +33,10 @@ function moodLogRow(
     moodEligibleForDynamics: boolean;
     moodProvenance: string | null;
     moodExplicitlySelected: boolean | null;
+    moodVocabularyVersion: string | null;
     moodNormalizerVersion: string | null;
+    moodClientVersion: string | null;
+    moodSelectionVersion: string | null;
     moodExclusionReason: string | null;
     createdAt: Date;
   }> = {},
@@ -44,7 +47,10 @@ function moodLogRow(
     moodEligibleForDynamics: false,
     moodProvenance: null,
     moodExplicitlySelected: null,
+    moodVocabularyVersion: null,
     moodNormalizerVersion: null,
+    moodClientVersion: null,
+    moodSelectionVersion: null,
     moodExclusionReason: null,
     createdAt: older,
     ...over,
@@ -142,4 +148,25 @@ describe("buildMoodSeries — momento eligibility (PR-2B)", () => {
     );
     expect(series).toEqual([]);
   });
+
+  // #1 · ANY single server-owned column set → the row was touched by the
+  // normalizer → the raw fallback is forbidden, even with a canonical raw.
+  it.each([
+    ["moodProvenance", { moodProvenance: "MOOD_LOG" }],
+    ["moodExplicitlySelected", { moodExplicitlySelected: false }],
+    ["moodVocabularyVersion", { moodVocabularyVersion: "diary-v1" }],
+    ["moodNormalizerVersion", { moodNormalizerVersion: "norm-1" }],
+    ["moodClientVersion", { moodClientVersion: "seed" }],
+    ["moodSelectionVersion", { moodSelectionVersion: "mood-log-v1" }],
+    ["moodExclusionReason", { moodExclusionReason: "ambiguous_default" }],
+  ] as const)(
+    "#1: a MoodLog with ONLY %s set (raw 'good', normalized null) is EXCLUDED",
+    (_label, field) => {
+      const series = buildMoodSeries(
+        [],
+        [moodLogRow({ mood: "good", moodNormalized: null, ...field })],
+      );
+      expect(series).toEqual([]);
+    },
+  );
 });

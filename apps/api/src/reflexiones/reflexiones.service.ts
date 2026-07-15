@@ -90,13 +90,22 @@ export class ReflexionesService {
     // current entry. We return IDs only — the client correlates with its
     // already-decrypted cache.
     //
-    // PR-2B · a null mood does NOT relate (absence is not a shared feature), so
-    // we never emit `{ mood: null }` — that would relate every no-pick entry to
-    // each other. We build the OR clauses conditionally so no `{}` (match-all)
-    // ever leaks in. When the entry has neither a mood nor tags, there is
-    // nothing to relate on → return `[]` without querying.
+    // PR-2B · mood is a relation criterion ONLY when the server vouches for it:
+    // the entry must be eligible for dynamics AND carry a normalized mood. A
+    // null, legacy, or ineligible mood does NOT relate (absence — or an
+    // unvouched raw value — is not a shared feature), so we never emit
+    // `{ mood: null }`, and we relate against the NORMALIZED mood of other
+    // eligible entries, not the raw column. We build the OR clauses
+    // conditionally so no `{}` (match-all) ever leaks in. When the entry has
+    // neither an eligible mood nor tags, there is nothing to relate on →
+    // return `[]` without querying. Tags are independent of eligibility.
     const orClauses: Array<Record<string, unknown>> = [];
-    if (entry.mood != null) orClauses.push({ mood: entry.mood });
+    if (entry.moodEligibleForDynamics && entry.moodNormalized != null) {
+      orClauses.push({
+        moodEligibleForDynamics: true,
+        moodNormalized: entry.moodNormalized,
+      });
+    }
     if (entry.tags.length > 0)
       orClauses.push({ tags: { hasSome: entry.tags } });
 

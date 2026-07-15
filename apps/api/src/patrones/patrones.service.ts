@@ -80,7 +80,10 @@ export class PatronesService {
     }
 
     // PRO+. Pull the entries' metadata for the period in a single query.
-    const entries = await this.prisma.diaryEntry.findMany({
+    // PR-2B · project the ELIGIBLE mood (never the raw): a mood only colors the
+    // heatmap / hour chart / dominant / narrative when the user explicitly
+    // attested it (eligible + normalized). Everything else contributes `null`.
+    const rawRows = await this.prisma.diaryEntry.findMany({
       where: {
         userId,
         createdAt: {
@@ -88,9 +91,17 @@ export class PatronesService {
           lte: new Date(`${periodDescriptor.to}T23:59:59.999Z`),
         },
       },
-      select: { mood: true, createdAt: true },
+      select: {
+        moodNormalized: true,
+        moodEligibleForDynamics: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: "asc" },
     });
+    const entries = rawRows.map((r) => ({
+      mood: effectiveMood(r),
+      createdAt: r.createdAt,
+    }));
 
     // Catalog lookup so we can resolve swatches for the heatmap.
     const catalog = await this.prisma.onboardingMood.findMany({
@@ -147,12 +158,23 @@ export class PatronesService {
     const weekEnd = new Date(weekStart);
     weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
 
-    const entries = await this.prisma.diaryEntry.findMany({
+    const rawRows = await this.prisma.diaryEntry.findMany({
       where: { userId, createdAt: { gte: weekStart, lt: weekEnd } },
       // Sprint S38: include `tags` so the LLM can mention recurring topics
       // (the tag tokens are plaintext metadata, never the body cipher).
-      select: { mood: true, createdAt: true, tags: true },
+      // PR-2B · project the ELIGIBLE mood; tags + entry count stand regardless.
+      select: {
+        moodNormalized: true,
+        moodEligibleForDynamics: true,
+        createdAt: true,
+        tags: true,
+      },
     });
+    const entries = rawRows.map((r) => ({
+      mood: effectiveMood(r),
+      createdAt: r.createdAt,
+      tags: r.tags,
+    }));
 
     if (entries.length < PatronesService.MIN_ENTRIES_FOR_FULL_VIEW) {
       // Caller sees 422; tests assert.
@@ -390,6 +412,21 @@ export class PatronesService {
 }
 
 // ─── Helpers (module-level, side-effect-free) ─────────────────────────────
+
+/**
+ * PR-2B · the mood a DiaryEntry contributes to Patrones aggregation: the
+ * canonical `moodNormalized` ONLY when the row is eligible (the user attested
+ * it). A raw/legacy/ambiguous/ineligible row contributes `null` — its tags and
+ * its place in the entry count still count, but its mood does not.
+ */
+function effectiveMood(r: {
+  moodNormalized: string | null;
+  moodEligibleForDynamics: boolean;
+}): string | null {
+  return r.moodEligibleForDynamics && r.moodNormalized != null
+    ? r.moodNormalized
+    : null;
+}
 
 /**
  * Compute the aggregate stats we hand to the LLM. The shape is intentionally

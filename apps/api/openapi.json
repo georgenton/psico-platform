@@ -11129,7 +11129,7 @@
         "properties": {
           "mood": {
             "type": "string",
-            "description": "New mood token from the shared `DIARY_MOODS` catalog. Server uses\nit for the patterns analytics — visible in plaintext by design.\nPlugin emits the enum in OpenAPI from `@IsIn`.",
+            "description": "New mood token from the shared `DIARY_MOODS` catalog. Server uses\nit for the patterns analytics — visible in plaintext by design.\nPlugin emits the enum in OpenAPI from `@IsIn`.\n\nPR-2A · `@ValidateIf(value !== undefined)` instead of `@IsOptional`: a\nMISSING property is allowed (leaves the mood untouched), but an EXPLICIT\n`null` must be rejected — `@IsOptional` would skip all validators for null\nand let a `mood = null` row slip in (which the read path then rejects with\na 500). So: omitted → OK; canonical string → OK; null / empty / legacy /\nunknown → 400. The nullable transition lands atomically in PR-2B.",
             "enum": [
               "great",
               "good",

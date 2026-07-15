@@ -29,12 +29,13 @@ import { randomBytes } from "node:crypto";
 
 const MOODS = ["hard", "low", "ok", "good", "great"];
 
-// PR-2A · seeded MoodLog rows are canonical, explicit check-ins (MOOD_LOG) →
-// eligible. Raw `mood` preserved; these are the additive normalization columns.
+// PR-2A · seeded MoodLog rows are canonical + explicit + eligible, but their
+// provenance is SEED — NOT MOOD_LOG. They must not masquerade as real user taps.
+// Raw `mood` preserved; these are the additive normalization columns.
 function moodNorm(mood) {
   return {
     moodNormalized: mood,
-    moodProvenance: "MOOD_LOG",
+    moodProvenance: "SEED",
     moodExplicitlySelected: true,
     moodVocabularyVersion: "diary-v1",
     moodNormalizerVersion: "norm-1",

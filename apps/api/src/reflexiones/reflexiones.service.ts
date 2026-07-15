@@ -179,14 +179,26 @@ export class ReflexionesService {
     }
     this.assertExcerptPairing(dto.excerptCiphertext, dto.excerptNonce);
 
+    // PR-2A backstop (defense in depth beyond the DTO's @ValidateIf): an
+    // explicit null mood is not allowed until PR-2B makes the whole stack
+    // null-capable. Reject BEFORE writing so we never create the null row the
+    // read path would then 500 on.
+    if (dto.mood === null) {
+      throw new BadRequestException(
+        "DIARY_MOOD_NULL_NOT_ALLOWED_UNTIL_PR2B: mood cannot be set to null in PR-2A",
+      );
+    }
+
     await this.prisma.diaryEntry.update({
       where: { id: entryId },
       data: {
         // PR-2A · when the mood changes, re-derive the server-owned columns.
+        // `dto.mood` here is a canonical token (null rejected above, undefined
+        // skips this block), never null.
         ...(dto.mood !== undefined && {
-          mood: dto.mood ?? null,
+          mood: dto.mood,
           ...deriveMoodNormalization({
-            raw: dto.mood ?? null,
+            raw: dto.mood,
             source: "DIARY",
             explicitlySelected: false,
           }),

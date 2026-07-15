@@ -334,6 +334,56 @@ describe("ReflexionesService.update", () => {
       service.update("user-1", "stolen-id", { mood: "alegria" }),
     ).rejects.toThrow(NotFoundException);
   });
+
+  it("PR-2A: PATCH mood=null → 400 and writes nothing (backstop until PR-2B)", async () => {
+    prisma.diaryEntry.findFirst.mockResolvedValue({ id: "entry-1" });
+
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      service.update("user-1", "entry-1", { mood: null } as any),
+    ).rejects.toThrow(/DIARY_MOOD_NULL_NOT_ALLOWED_UNTIL_PR2B/);
+    expect(prisma.diaryEntry.update).not.toHaveBeenCalled();
+  });
+
+  it("PR-2A: PATCH without mood updates another field and leaves mood untouched", async () => {
+    prisma.diaryEntry.findFirst
+      .mockResolvedValueOnce({ id: "entry-1" }) // ownership
+      .mockResolvedValueOnce(buildEntryRow({ id: "entry-1", mood: "good" })); // getDetail
+    prisma.diaryEntry.findMany.mockResolvedValue([]); // related
+    prisma.diaryEntry.update.mockResolvedValue({});
+
+    await service.update("user-1", "entry-1", { tags: ["trabajo"] });
+
+    const data = prisma.diaryEntry.update.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(data.tags).toEqual(["trabajo"]);
+    expect("mood" in data).toBe(false);
+    expect("moodProvenance" in data).toBe(false);
+  });
+
+  it("PR-2A: PATCH mood=good re-derives DIARY / explicit=false / ineligible", async () => {
+    prisma.diaryEntry.findFirst
+      .mockResolvedValueOnce({ id: "entry-1" }) // ownership
+      .mockResolvedValueOnce(buildEntryRow({ id: "entry-1", mood: "good" })); // getDetail
+    prisma.diaryEntry.findMany.mockResolvedValue([]); // related
+    prisma.diaryEntry.update.mockResolvedValue({});
+
+    await service.update("user-1", "entry-1", { mood: "good" });
+
+    expect(prisma.diaryEntry.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          mood: "good",
+          moodProvenance: "DIARY",
+          moodExplicitlySelected: false,
+          moodEligibleForDynamics: false,
+          moodExclusionReason: "pre_normalizer_review",
+        }),
+      }),
+    );
+  });
 });
 
 // ─── ReflexionesService.share ─────────────────────────────────────────────────────

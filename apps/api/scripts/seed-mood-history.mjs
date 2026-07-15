@@ -32,14 +32,14 @@ import { Pool } from "pg";
 
 const MOODS = ["hard", "low", "ok", "good", "great"];
 
-// PR-2A · seeded MoodLog rows are canonical, explicit check-ins (MOOD_LOG), so
-// they are eligible for the dynamics model. Raw `mood` is preserved; these are
-// the additive normalization columns. Mirrors deriveMoodNormalization for a
-// canonical + explicit MOOD_LOG write (kept inline — this is a plain .mjs).
+// PR-2A · seeded MoodLog rows are canonical + explicit + eligible, but their
+// provenance is SEED — NOT MOOD_LOG: seeded rows must not masquerade as real
+// user taps. Raw `mood` is preserved; these are the additive normalization
+// columns (kept inline — this is a plain .mjs).
 function moodNorm(mood) {
   return {
     moodNormalized: mood, // seed moods are always canonical
-    moodProvenance: "MOOD_LOG",
+    moodProvenance: "SEED",
     moodExplicitlySelected: true,
     moodVocabularyVersion: "diary-v1",
     moodNormalizerVersion: "norm-1",

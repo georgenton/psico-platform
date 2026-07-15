@@ -3268,6 +3268,13 @@ export interface components {
              * @description New mood token from the shared `DIARY_MOODS` catalog. Server uses
              *     it for the patterns analytics — visible in plaintext by design.
              *     Plugin emits the enum in OpenAPI from `@IsIn`.
+             *
+             *     PR-2A · `@ValidateIf(value !== undefined)` instead of `@IsOptional`: a
+             *     MISSING property is allowed (leaves the mood untouched), but an EXPLICIT
+             *     `null` must be rejected — `@IsOptional` would skip all validators for null
+             *     and let a `mood = null` row slip in (which the read path then rejects with
+             *     a 500). So: omitted → OK; canonical string → OK; null / empty / legacy /
+             *     unknown → 400. The nullable transition lands atomically in PR-2B.
              * @enum {string}
              */
             mood?: UpdateDiaryEntryDtoMood;

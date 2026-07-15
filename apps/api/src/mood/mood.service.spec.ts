@@ -137,6 +137,32 @@ describe("MoodService · log (PR-2A normalization)", () => {
     },
   );
 
+  it("persists the NORMALIZED canonical id, not the raw — ' good ' → 'good' (no non-canonical eligible raw)", async () => {
+    const { service, prisma } = makeService({});
+    prisma.moodLog.create.mockResolvedValue({
+      id: "m3",
+      mood: "good",
+      createdAt: new Date(),
+    });
+    prisma.user.update.mockResolvedValue({});
+
+    await service.log("u1", " good ");
+
+    const arg = prisma.moodLog.create.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    // Raw persisted is the canonical id, never the whitespace-padded input.
+    expect(arg.data.mood).toBe("good");
+    expect(arg.data.moodNormalized).toBe("good");
+    expect(arg.data.moodEligibleForDynamics).toBe(true);
+    // User.mood cache is the canonical id too.
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ mood: "good" }),
+      }),
+    );
+  });
+
   it("the client cannot force eligibility — provenance/eligible are server-derived", async () => {
     // The service signature only accepts (userId, mood). There is no channel for
     // the client to pass provenance/eligible; the values come from the endpoint.

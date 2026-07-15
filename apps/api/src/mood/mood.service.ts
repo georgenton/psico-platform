@@ -78,29 +78,43 @@ export class MoodService {
       );
     }
 
-    // Swatch enrichment is best-effort. `mood` is now proven canonical; the DB
-    // lookup is just to surface a swatch for the optimistic UI confirmation. If
-    // the row is missing (DB seeded before Sprint B6b, fresh dev DB never
-    // seeded, etc.) we use the hardcoded fallback so the chip never dead-ends.
+    // Persist the NORMALIZED canonical category, not the raw token. A check-in
+    // is a first-class ordinal observation, so a raw like " good " (extra
+    // whitespace) must not become an eligible row whose raw is non-canonical —
+    // we store the resolved category so raw always equals the canonical id.
+    // (Unreachable when null given the eligibility guard above; the check keeps
+    // the type honest and guarantees we never write a non-canonical eligible
+    // raw.)
+    const canonical = normalization.moodNormalized;
+    if (canonical == null) {
+      throw new BadRequestException(
+        `MOOD_INVALID: '${mood}' did not resolve to a canonical category`,
+      );
+    }
+
+    // Swatch enrichment is best-effort. `canonical` is a proven canonical id;
+    // the DB lookup is just to surface a swatch for the optimistic UI
+    // confirmation. If the row is missing (DB seeded before Sprint B6b, fresh
+    // dev DB never seeded, etc.) we use the hardcoded fallback so the chip never
+    // dead-ends.
     const moodRow = await this.prisma.onboardingMood.findUnique({
-      where: { id: mood },
+      where: { id: canonical },
       select: { id: true, swatch: true },
     });
     const swatch =
-      moodRow?.swatch ?? FALLBACK_SWATCH[mood] ?? "var(--color-warm-400)";
+      moodRow?.swatch ?? FALLBACK_SWATCH[canonical] ?? "var(--color-warm-400)";
 
     // Append to the time series + sync the denormalized "current" cache. The
-    // two writes are independent so we don't need a transaction.
+    // two writes are independent so we don't need a transaction. Raw = canonical
+    // so an eligible MoodLog row can never carry a non-canonical raw.
     const [entry] = await Promise.all([
       this.prisma.moodLog.create({
-        // The raw `mood` is preserved untouched; the normalization columns are
-        // additive alongside it.
-        data: { userId, mood, ...normalization },
+        data: { userId, mood: canonical, ...normalization },
         select: { id: true, mood: true, createdAt: true },
       }),
       this.prisma.user.update({
         where: { id: userId },
-        data: { mood, moodUpdatedAt: new Date() },
+        data: { mood: canonical, moodUpdatedAt: new Date() },
       }),
     ]);
 

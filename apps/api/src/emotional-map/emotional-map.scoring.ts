@@ -78,8 +78,18 @@ export interface ScoringLogger {
 
 /** Everything the scoring needs, already reduced to metadata (no DB, no text). */
 export interface EmotionalMapScoringInput {
-  /** Diary entries in the 30-day signal window (mood + tags + timestamp). */
-  entries: ReadonlyArray<{ mood: string; tags: string[]; createdAt: Date }>;
+  /**
+   * Diary entries in the 30-day signal window (mood + tags + timestamp).
+   * PR-2A — `mood` is nullable: a reflexión without an explicit check-in
+   * carries no mood. Such an entry still counts for day/tag/entry aggregation,
+   * but is never a hard mood and never reaches the LLM as a mood. It is NEVER
+   * coerced to a neutral sentinel.
+   */
+  entries: ReadonlyArray<{
+    mood: string | null;
+    tags: string[];
+    createdAt: Date;
+  }>;
   readingSessions: ReadonlyArray<{
     progressPct: number;
     completedAt: Date | null;
@@ -319,7 +329,9 @@ export async function scoreEmotionalMap(
   const diaryDays = new Set(entries.map((e) => dayKey(e.createdAt))).size;
   const ecoDays = new Set(ecoMessages.map((m) => dayKey(m.createdAt))).size;
   const taggedEntries = entries.filter((e) => e.tags.length > 0).length;
-  const hardEntries = entries.filter((e) => HARD_MOODS.has(e.mood)).length;
+  const hardEntries = entries.filter(
+    (e) => e.mood != null && HARD_MOODS.has(e.mood),
+  ).length;
   const streakDays = currentStreakDays;
   const readingMinutes = Math.round(
     readingSessions.reduce((acc, s) => acc + s.timeSpentSec, 0) / 60,
@@ -396,11 +408,18 @@ export async function scoreEmotionalMap(
   // only turns already-computed facts into copy.
   if (llmHasSignal && llmScoringEnabled && !emotionalMapV2) {
     const payload: EmotionalMapMetadataPayload = {
-      entries: entries.map((e) => ({
-        mood: e.mood,
-        tags: e.tags,
-        createdAtIso: e.createdAt.toISOString(),
-      })),
+      // PR-2A — a null-mood entry is not a mood observation: it is excluded from
+      // the LLM payload entirely (never sent as "" / "ok" / neutral).
+      entries: entries
+        .filter(
+          (e): e is { mood: string; tags: string[]; createdAt: Date } =>
+            e.mood != null,
+        )
+        .map((e) => ({
+          mood: e.mood,
+          tags: e.tags,
+          createdAtIso: e.createdAt.toISOString(),
+        })),
       // Fase C (V2 contract): under EMOTIONAL_MAP_V2 the payload carries NO
       // engagement counters — usage activity never reaches the LLM.
       stats: {

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -121,14 +122,16 @@ export class ReflexionesService {
     const created = await this.prisma.diaryEntry.create({
       data: {
         userId,
-        // PR-2A · raw mood is now optional; preserved untouched. Normalization
-        // is server-owned: source=DIARY, and PR-2A carries NO explicit-selection
-        // signal from the composer, so a reflexion is never eligible yet (a
-        // defaulted "ok" → ambiguous_default, other canonical →
-        // pre_normalizer_review, legacy/unknown → excluded, none → not_selected).
-        mood: dto.mood ?? null,
+        // PR-2A · the raw mood is REQUIRED by the DTO, so it is preserved
+        // untouched here (never null in PR-2A). Normalization is server-owned:
+        // source=DIARY, and PR-2A carries NO explicit-selection signal from the
+        // composer, so a reflexion is never eligible yet (a defaulted "ok" →
+        // ambiguous_default, any other canonical → pre_normalizer_review,
+        // legacy/unknown → excluded raw). The null-capable composer lands in
+        // PR-2B, not here.
+        mood: dto.mood,
         ...deriveMoodNormalization({
-          raw: dto.mood ?? null,
+          raw: dto.mood,
           source: "DIARY",
           explicitlySelected: false,
         }),
@@ -441,12 +444,11 @@ export class ReflexionesService {
     id: string;
     createdAt: Date;
     updatedAt: Date;
-    // PR-2A · the raw mood column is now nullable. No PR-2A client writes a
-    // null-mood entry (composers are unchanged), so in practice this is always
-    // set; the coalescing below is a display-only fallback and does NOT affect
-    // eligibility/normalization (which correctly record `not_selected`). When a
-    // null-capable composer lands, the response type + clients render "sin
-    // ánimo" — out of scope here.
+    // PR-2A · the DB column is nullable (schema-forward), but the PR-2A API
+    // cannot create a null-mood entry (the DTO requires `mood`). So a null here
+    // means a data-integrity violation — a row written outside the PR-2A API
+    // path before the null-capable PR-2B lands. We FAIL EXPLICITLY rather than
+    // fabricate a neutral "ok"; the response contract stays `mood: string`.
     mood: string | null;
     kind: string;
     promptId: string | null;
@@ -457,11 +459,18 @@ export class ReflexionesService {
     audioUrl: string | null;
     audioDurationSec: number | null;
   }): DiaryEntrySummary {
+    if (row.mood == null) {
+      // Never coalesce to a mood the user didn't pick. PR-2B turns the whole
+      // stack null-capable atomically; until then a null row is a bug to surface.
+      throw new InternalServerErrorException(
+        `DIARY_MOOD_INTEGRITY: entry '${row.id}' has a null mood, which the PR-2A API cannot create`,
+      );
+    }
     return {
       id: row.id,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
-      mood: row.mood ?? "ok",
+      mood: row.mood,
       kind: this.toKind(row.kind),
       promptId: row.promptId,
       promptText: row.prompt?.text ?? null,

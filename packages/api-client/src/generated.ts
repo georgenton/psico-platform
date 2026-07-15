@@ -3199,12 +3199,15 @@ export interface components {
              *     normalization columns; the client controls neither provenance nor
              *     eligibility.
              *
-             *     PR-2A · **optional**: a new composer may save a reflexion without a mood
-             *     pick. When omitted the entry is stored with `mood = null` (no eligible
-             *     observation is created). The plugin auto-emits the enum in OpenAPI.
+             *     PR-2A · **required**. The DB column is nullable (schema-forward for a
+             *     future null-capable composer), but the request/response/client transition
+             *     to nullable happens atomically in PR-2B — never here. Keeping this required
+             *     means PR-2A cannot create a `mood = null` row through the API, so no read
+             *     path is ever tempted to fabricate a neutral "ok". The plugin auto-emits the
+             *     enum in OpenAPI.
              * @enum {string}
              */
-            mood?: CreateDiaryEntryDtoMood;
+            mood: CreateDiaryEntryDtoMood;
             /**
              * @description Origin of the entry. `"free"` for user-initiated, `"prompted"` for a
              *     journal-prompt response, `"voz"` for a voice-to-text dictation.

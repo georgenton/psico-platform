@@ -13,6 +13,16 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  // PR-2A · escape hatch for the real-migration test (mood-normalization-
+  // migration.pg-spec.ts): Prisma 7's `migrate deploy` chains the configured
+  // seed, but that test only needs the schema (tables + enums + constraints),
+  // not seed data. Set PRISMA_SKIP_SEED=1 to make the seed a fast no-op. Never
+  // set in prod — a plain deploy still seeds normally.
+  if (process.env.PRISMA_SKIP_SEED === "1") {
+    console.log("↩︎ PRISMA_SKIP_SEED=1 — skipping seed (schema-only run).");
+    return;
+  }
+
   console.log("🌱 Seeding database...\n");
 
   // ─── Book Categories (S5) ────────────────────────────────────────────────

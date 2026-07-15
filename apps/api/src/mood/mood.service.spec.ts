@@ -125,6 +125,18 @@ describe("MoodService · log (PR-2A normalization)", () => {
     expect(prisma.moodLog.create).not.toHaveBeenCalled();
   });
 
+  it.each(["calma", "energia", "zzz", "  "])(
+    "rejects a non-canonical / non-eligible token '%s' — no MoodLog, no User.mood",
+    async (token) => {
+      const { service, prisma } = makeService({});
+      await expect(service.log("u1", token)).rejects.toThrow(
+        /MOOD_INVALID|MOOD_REQUIRED/,
+      );
+      expect(prisma.moodLog.create).not.toHaveBeenCalled();
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    },
+  );
+
   it("the client cannot force eligibility — provenance/eligible are server-derived", async () => {
     // The service signature only accepts (userId, mood). There is no channel for
     // the client to pass provenance/eligible; the values come from the endpoint.

@@ -11057,7 +11057,7 @@
         "properties": {
           "mood": {
             "type": "string",
-            "description": "Mood token from the shared `DIARY_MOODS` catalog (great / good / ok /\nlow / hard). Plaintext by design (patterns analytics). Server derives the\nnormalization columns; the client controls neither provenance nor\neligibility.\n\nPR-2A · **optional**: a new composer may save a reflexion without a mood\npick. When omitted the entry is stored with `mood = null` (no eligible\nobservation is created). The plugin auto-emits the enum in OpenAPI.",
+            "description": "Mood token from the shared `DIARY_MOODS` catalog (great / good / ok /\nlow / hard). Plaintext by design (patterns analytics). Server derives the\nnormalization columns; the client controls neither provenance nor\neligibility.\n\nPR-2A · **required**. The DB column is nullable (schema-forward for a\nfuture null-capable composer), but the request/response/client transition\nto nullable happens atomically in PR-2B — never here. Keeping this required\nmeans PR-2A cannot create a `mood = null` row through the API, so no read\npath is ever tempted to fabricate a neutral \"ok\". The plugin auto-emits the\nenum in OpenAPI.",
             "enum": [
               "great",
               "good",
@@ -11119,6 +11119,7 @@
           }
         },
         "required": [
+          "mood",
           "textCiphertext",
           "textNonce"
         ]

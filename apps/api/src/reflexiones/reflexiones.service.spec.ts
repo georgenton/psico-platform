@@ -223,23 +223,25 @@ describe("ReflexionesService.create", () => {
     );
   });
 
-  it("PR-2A: allows a reflexion with NO mood (mood=null, not_selected, not eligible)", async () => {
+  it("PR-2A: derives source=DIARY and pre_normalizer_review for a non-'ok' canonical", async () => {
     prisma.diaryEntry.create.mockResolvedValue({
       id: "n3",
       createdAt: new Date(),
       excerptCiphertext: null,
     });
     await service.create("user-1", {
+      mood: "good",
       textCiphertext: CIPHER_B64,
       textNonce: NONCE_B64,
     });
     expect(prisma.diaryEntry.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          mood: null,
-          moodNormalized: null,
+          mood: "good",
+          moodNormalized: "good",
+          moodProvenance: "DIARY",
           moodEligibleForDynamics: false,
-          moodExclusionReason: "not_selected",
+          moodExclusionReason: "pre_normalizer_review",
         }),
       }),
     );
@@ -265,6 +267,33 @@ describe("ReflexionesService.create", () => {
           moodExclusionReason: "legacy_vocabulary",
         }),
       }),
+    );
+  });
+});
+
+// ─── ReflexionesService · mood integrity (never fabricate "ok") ─────────────────────
+
+describe("ReflexionesService · mood integrity", () => {
+  let service: ReflexionesService;
+  let prisma: ReturnType<typeof buildPrismaMock>;
+
+  beforeEach(() => {
+    prisma = buildPrismaMock();
+    service = new ReflexionesService(prisma as never);
+  });
+
+  it("FAILS explicitly on a null-mood row — never coerces it to 'ok'", async () => {
+    // The PR-2A API can't create a null-mood entry (the DTO requires `mood`),
+    // but the column is nullable. If a null row is ever read back, the mapper
+    // must throw a data-integrity error rather than fabricate a neutral "ok".
+    prisma.diaryEntry.findMany
+      .mockResolvedValueOnce([buildEntryRow({ mood: null })]) // page rows
+      .mockResolvedValueOnce([]) // computeMoodMap
+      .mockResolvedValueOnce([]); // computeTagCounts
+    prisma.diaryEntry.count.mockResolvedValue(1);
+
+    await expect(service.list("user-1", {})).rejects.toThrow(
+      /DIARY_MOOD_INTEGRITY/,
     );
   });
 });

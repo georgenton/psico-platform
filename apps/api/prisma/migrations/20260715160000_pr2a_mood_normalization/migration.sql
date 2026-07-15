@@ -32,10 +32,13 @@ ALTER TABLE "DiaryEntry"
 ALTER TABLE "DiaryEntry" ALTER COLUMN "mood" DROP NOT NULL;
 
 -- INV-1 (frozen contract): an observation may be eligible ONLY when it resolved
--- to a canonical category AND was explicitly selected AND has no exclusion
--- reason. Prisma cannot express CHECK constraints in the schema, so it lives
--- here as raw SQL; a future `migrate dev` may report it as drift — that is
--- expected and documented (docs/architecture/emotional-map-mood-normalization.md).
+-- to a canonical category, was explicitly selected, has no exclusion reason, and
+-- is FULLY provenanced — its provenance and both the normalizer + vocabulary
+-- versions must be recorded. A row missing any of those cannot be trusted as a
+-- clean, reproducible observation, so it must not be eligible. Prisma cannot
+-- express CHECK constraints in the schema, so it lives here as raw SQL; a future
+-- `migrate dev` may report it as drift — that is expected and documented
+-- (docs/architecture/emotional-map-mood-normalization.md).
 ALTER TABLE "MoodLog"
   ADD CONSTRAINT "MoodLog_eligible_requires_normalized_explicit_chk"
   CHECK (
@@ -44,6 +47,9 @@ ALTER TABLE "MoodLog"
       "moodNormalized" IS NOT NULL
       AND "moodExplicitlySelected" = true
       AND "moodExclusionReason" IS NULL
+      AND "moodProvenance" IS NOT NULL
+      AND "moodNormalizerVersion" IS NOT NULL
+      AND "moodVocabularyVersion" IS NOT NULL
     )
   );
 
@@ -55,9 +61,15 @@ ALTER TABLE "DiaryEntry"
       "moodNormalized" IS NOT NULL
       AND "moodExplicitlySelected" = true
       AND "moodExclusionReason" IS NULL
+      AND "moodProvenance" IS NOT NULL
+      AND "moodNormalizerVersion" IS NOT NULL
+      AND "moodVocabularyVersion" IS NOT NULL
     )
   );
 
--- CreateIndex · eligible-only fast scan for the future OU fetch (OU stays off).
+-- CreateIndex · composite (userId, eligible, createdAt DESC) so the future OU
+-- fetch can scan a user's eligible rows newest-first. NOT a partial index — it
+-- covers every row; the eligibility flag is a leading key, not a WHERE filter.
+-- OU stays off in PR-2A.
 CREATE INDEX "MoodLog_userId_moodEligibleForDynamics_createdAt_idx" ON "MoodLog"("userId", "moodEligibleForDynamics", "createdAt" DESC);
 CREATE INDEX "DiaryEntry_userId_moodEligibleForDynamics_createdAt_idx" ON "DiaryEntry"("userId", "moodEligibleForDynamics", "createdAt" DESC);

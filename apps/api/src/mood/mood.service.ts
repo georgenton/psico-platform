@@ -56,27 +56,38 @@ export class MoodService {
       );
     }
 
-    // Swatch enrichment is best-effort. The DTO has already validated `mood`
-    // against the shared catalog; the DB lookup is just to surface a swatch
-    // for the optimistic UI confirmation. If the row is missing (DB seeded
-    // before Sprint B6b, fresh dev DB never seeded, etc.) we use the
-    // hardcoded fallback so the chip never dead-ends.
+    // PR-2A · a check-in is inherently an EXPLICIT pick (the user taps a face)
+    // in the canonical ordinal vocabulary, so the server marks it MOOD_LOG /
+    // explicit and — being canonical — eligible. Provenance/eligibility are
+    // server-owned; the client sends only the token.
+    const normalization = deriveMoodNormalization({
+      raw: mood,
+      source: "MOOD_LOG",
+      explicitlySelected: true,
+    });
+
+    // Defense in depth (independent of the DTO's @IsIn): a check-in MUST
+    // resolve to a canonical, eligible observation. A legacy/unknown token
+    // normalizes to `moodNormalized = null` → not eligible → rejected here,
+    // BEFORE any write. We create NO MoodLog row and do NOT touch User.mood for
+    // an invalid token — the alternative would be a permanent non-canonical
+    // "current mood" that later scoring can never place on the ordinal scale.
+    if (!normalization.moodEligibleForDynamics) {
+      throw new BadRequestException(
+        `MOOD_INVALID: '${mood}' is not a canonical, eligible check-in token`,
+      );
+    }
+
+    // Swatch enrichment is best-effort. `mood` is now proven canonical; the DB
+    // lookup is just to surface a swatch for the optimistic UI confirmation. If
+    // the row is missing (DB seeded before Sprint B6b, fresh dev DB never
+    // seeded, etc.) we use the hardcoded fallback so the chip never dead-ends.
     const moodRow = await this.prisma.onboardingMood.findUnique({
       where: { id: mood },
       select: { id: true, swatch: true },
     });
     const swatch =
       moodRow?.swatch ?? FALLBACK_SWATCH[mood] ?? "var(--color-warm-400)";
-
-    // PR-2A · a check-in is inherently an EXPLICIT pick (the user taps a face)
-    // in the canonical ordinal vocabulary (the DTO validated it), so the
-    // server marks it MOOD_LOG / explicit and — being canonical — eligible.
-    // Provenance/eligibility are server-owned; the client sends only the token.
-    const normalization = deriveMoodNormalization({
-      raw: mood,
-      source: "MOOD_LOG",
-      explicitlySelected: true,
-    });
 
     // Append to the time series + sync the denormalized "current" cache. The
     // two writes are independent so we don't need a transaction.

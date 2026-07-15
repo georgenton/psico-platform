@@ -42,17 +42,33 @@ mobile en un solo PR) y habilita la atestación versionada de selección explíc
   persistiendo el canónico + `mood-log-v1`.
 - **Seeds** (`seed-demo-users.mjs`, `seed-mood-history.mjs`): `moodNorm()` añade `moodSelectionVersion: "seed-v1"`.
 
-### Consumidores (F6)
+### Consumidores (F6) — todos filtran por elegibilidad
+
+Regla común: un consumidor solo usa un mood que el servidor **avala** —
+`moodEligibleForDynamics = true` **y** `moodNormalized != null`. Proyección canónica
+`effectiveMood = eligible && normalized != null ? normalized : null`.
 
 - **`momento` / serie OU** (`emotional-map.service.ts` `buildMoodSeries`): admite SOLO moods
   con respaldo del servidor. DiaryEntry únicamente `eligible + normalized`; MoodLog `eligible +
-normalized`, con **fallback temporal** al raw canónico solo para MoodLog histórico
-  (pre-PR-2A). **Nunca** un DiaryEntry raw/legacy. Un mood null nunca es observación.
-- **Patrones** (`patrones.service.ts` + `ai.service.ts`): `dominantMood: string | null` (sin
-  fallback `"calma"`); la narrativa (LLM y rule-based) **no inventa** un ánimo cuando no hubo
-  registro — escribe sobre el hábito de escritura.
-- **Related entries** (`reflexiones.service.getDetail`): un mood null no relaciona; la cláusula
-  `OR` se arma condicionalmente (sin `{}` match-all); sin mood ni tags → `[]`.
+normalized`, con **fallback temporal** al raw canónico **solo cuando TODA la metadata
+  server-owned está en null** — los 8 campos (`moodNormalized`, `moodProvenance`,
+  `moodExplicitlySelected`, `moodVocabularyVersion`, `moodNormalizerVersion`, `moodClientVersion`,
+  `moodSelectionVersion`, `moodExclusionReason`). Cualquier campo definido ⇒ la fila fue tocada por
+  el normalizador ⇒ el fallback queda prohibido (nunca resucita un raw stale/excluido). **Nunca**
+  un DiaryEntry raw/legacy. Un mood null nunca es observación.
+- **Patrones** (`patrones.service.ts` `getPatrones` + `regenerateWeeklySummary`): selecciona
+  `moodNormalized` + `moodEligibleForDynamics`, proyecta `effectiveMood`, y lo usa para `moodMap`,
+  `hourMood`, `dominantMood` y ambas narrativas. `dominantMood: string | null` (sin fallback
+  `"calma"`); un mood ineligible **no** entra al heatmap ni a los buckets; la narrativa (LLM y
+  rule-based) **no inventa** un ánimo — escribe sobre el hábito de escritura. entryCount + tags
+  se preservan.
+- **WeeklyDigest** (`jobs/processors/weekly-digest.processor.ts`): misma proyección — un mood
+  ineligible **no** cuenta hacia `dominantMood`; tags + conteo de entradas siguen contando.
+- **Related entries** (`reflexiones.service.getDetail`): el mood es criterio de relación **solo**
+  si `moodEligibleForDynamics && moodNormalized != null`, relacionando contra
+  `{ moodEligibleForDynamics: true, moodNormalized: <canónico> }` (nunca el raw). Un mood null o
+  ineligible no relaciona; la cláusula `OR` se arma condicionalmente (sin `{}` match-all); sin
+  mood elegible ni tags → `[]`.
 - **Invalidación de cache**: ver arriba.
 
 ### Tipos + cliente

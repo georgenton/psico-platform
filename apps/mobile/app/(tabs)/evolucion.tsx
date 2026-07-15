@@ -151,8 +151,24 @@ export default function EvolucionScreen() {
               </Text>
             </View>
 
-            {/* evo-chart */}
-            <EvoChartMobile map={map} series={evolucion.emotionalSeries} />
+            {/* evo-chart. PR-0.2 — the emotional map kill switch also hides the
+                emotional HISTORY. When off we say "en pausa por mantenimiento"
+                (NOT "aún sin historia") and never render the series. */}
+            {evolucion.emotionalMapAvailable ? (
+              <EvoChartMobile
+                map={map}
+                series={evolucion.emotionalSeries ?? []}
+              />
+            ) : (
+              <View style={styles.chartCard}>
+                <Text style={styles.chartTag}>Cobertura de tu mapa</Text>
+                <Text style={styles.maintenanceText}>
+                  Tu historia emocional está en pausa por mantenimiento. Estamos
+                  afinando cómo la calculamos y vuelve en un rato. Tus registros
+                  siguen guardados.
+                </Text>
+              </View>
+            )}
 
             {/* evo-quarter — stat rows. Fase C: Evolución IS the learning
                 dashboard, so the engagement counters that used to sit on the
@@ -535,6 +551,12 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     textTransform: "uppercase",
     color: Colors.lavender[600],
+  },
+  maintenanceText: {
+    marginTop: 12,
+    fontSize: 13,
+    lineHeight: 19,
+    color: Colors.warm[500],
   },
   chartScore: {
     marginTop: 12,

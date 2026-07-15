@@ -67,6 +67,11 @@ export default function MapaScreen() {
 
   const load = useCallback(async () => {
     setError(null);
+    // PR-0.2 — clear any prior maintenance/map state up front so a later error
+    // (fetch reject) does not leave a stale "en pausa por mantenimiento" screen
+    // from the previous successful load.
+    setUnavailable(false);
+    setMap(null);
     const [homeResult, resonancesResult] = await Promise.allSettled([
       homeApi.get(),
       resonancesApi.list(),
@@ -154,8 +159,8 @@ export default function MapaScreen() {
               Tu mapa está en pausa por mantenimiento.
             </Text>
             <Text style={styles.errorText}>
-              Estamos afinando cómo lo calculamos. Vuelve en un rato — tus datos
-              están intactos.
+              Estamos afinando cómo lo calculamos. Vuelve en un rato. Tus
+              registros siguen guardados.
             </Text>
           </View>
         ) : error || !map ? (

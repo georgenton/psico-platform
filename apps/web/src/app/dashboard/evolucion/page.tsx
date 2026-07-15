@@ -66,8 +66,27 @@ export default async function EvolucionPage() {
       </p>
 
       <div className="evo-top">
-        {map ? (
-          <EvoChart map={map} series={evolucion.emotionalSeries} />
+        {!evolucion.emotionalMapAvailable ? (
+          // PR-0.2 — the emotional map kill switch is off. This is NOT "no
+          // history yet": the section is temporarily withheld, so we say so
+          // plainly. Tus registros siguen guardados.
+          <div className="card evo-chart">
+            <span className="card-tag">Cobertura de tu mapa</span>
+            <p
+              style={{
+                margin: "12px 0 0",
+                color: "var(--color-warm-500)",
+                fontSize: 13,
+                lineHeight: 1.5,
+              }}
+            >
+              Tu historia emocional está en pausa por mantenimiento. Estamos
+              afinando cómo la calculamos y vuelve en un rato. Tus registros
+              siguen guardados.
+            </p>
+          </div>
+        ) : map ? (
+          <EvoChart map={map} series={evolucion.emotionalSeries ?? []} />
         ) : (
           <div className="card evo-chart">
             <span className="card-tag">Comprensión emocional</span>

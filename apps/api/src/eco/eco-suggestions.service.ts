@@ -58,7 +58,12 @@ export class EcoSuggestionService {
         },
       }),
       // Cached (Redis) — HomeService already reads this, so it's near-free.
-      this.emotionalMap.getForUser(userId),
+      // PR-0.2 — use the null-returning `getForHome`, NOT `getForUser`: when the
+      // emotional-map kill switch (EMOTIONAL_MAP_PUBLIC) is off, `getForUser`
+      // throws 503. Eco suggestions (and `/api/home`, which calls topForHome)
+      // must degrade gracefully — the map going down should not take Eco with
+      // it. Null map → no mood-based opener; the other rules still fire.
+      this.emotionalMap.getForHome(userId),
       this.prisma.diaryEntry.findFirst({
         where: { userId },
         orderBy: { createdAt: "desc" },
@@ -69,7 +74,7 @@ export class EcoSuggestionService {
       }),
     ]);
 
-    const momento = map.momento ?? null;
+    const momento = map?.momento ?? null;
 
     return {
       reading: reading

@@ -76,8 +76,8 @@ export default async function MapaPage() {
               fontSize: 14,
             }}
           >
-            Estamos afinando cómo lo calculamos. Vuelve en un rato — tus datos
-            están intactos y nada se pierde.
+            Estamos afinando cómo lo calculamos. Vuelve en un rato. Tus
+            registros siguen guardados.
           </p>
         </div>
       </>

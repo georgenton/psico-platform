@@ -19,7 +19,7 @@
 | `OU`                                  | **off**                                                                                                                                                                                                                                                     |
 | Higiene WeeklySummary                 | política A · dry-run `found=1` → `--apply` `deleted=1` → re-check `found=0`. Solo la fila test (`non_test_rows=0`, ningún dato real perdido)                                                                                                                |
 | Smoke API (cuenta demo, con limpieza) | POST con `mood`+`moodSelectionVersion:"explicit-v1"` → **201** (el API viejo daba 400); POST sin mood → **201**; ambas entradas borradas (200)                                                                                                              |
-| Claves SSH temporales                 | `pr2b-readonly-20260716` y `pr2b-deploy-20260716` creadas, usadas, **retiradas**; agente + dir temporal limpios; `railway logout`                                                                                                                           |
+| Claves SSH temporales                 | creadas, usadas, **retiradas**; agente + dir temporal limpios; `railway logout`                                                                                                                                                                             |
 
 **Desviaciones del runbook (todas justificadas):**
 
@@ -31,79 +31,58 @@
 
 ---
 
-## 2. Incidente P0 — credencial demo
+## 2. Incidente de credencial demo — resumen sanitizado
 
-**Qué pasó:** el smoke autenticado del despliegue usó la cuenta `demo-estable@psico.test` con la contraseña por defecto `Demo1234!` **hardcodeada** en `apps/api/scripts/seed-demo-users.mjs`. Eso significa que las cuentas `@psico.test` sembradas en producción son **credenciales vivas con contraseña conocida** — un riesgo real, no solo del smoke.
+> El detalle forense sensible de este incidente —incluidos los conteos exactos de
+> autenticación, timestamps, TTL, dominio de las cuentas, ruta de derivación, punto
+> PITR y mecanismo de recontención— **ya no se mantiene en el árbol actual del
+> repositorio**. Versiones anteriores permanecen accesibles en el historial Git y en
+> artefactos del PR mientras no se ejecute una remoción histórica deliberada.
+>
+> Se generó una **copia temporal fuera de Git**, pendiente de transferencia a un
+> almacenamiento privado, cifrado y durable. La preservación se considera completada
+> únicamente después de verificar el SHA-256 en el destino y eliminar la copia
+> temporal.
 
-### Fase 0 — contención (aplicada tras pairing aprobado)
+**Qué pasó:** durante el smoke del despliegue se detectó que las cuentas demo se
+sembraban con una **contraseña por defecto conocida**, hardcodeada en
+`apps/api/scripts/seed-demo-users.mjs`. Eso las convertía en **credenciales vivas
+con contraseña conocida**.
 
-Consultas agregadas (sin PII) previas al remedio:
+**Resumen:**
 
-```
-demo_total_users            = 7
-demo_active_users           = 7
-demo_active_refresh_tokens  = 56
-demo_auth_ok_last_24h       = 1     ← el smoke autorizado de hoy
-demo_auth_ok_last_30d       = 76
-demo_distinct_ip_count      = 47    ← ⚠️ 47 IPs distintas en 30 días
-```
+- **Credencial demo conocida** — password por defecto hardcodeado; removido del código (PR #555).
+- **Cuentas demo desactivadas** (`isActive=false`).
+- **Refresh tokens revocados.**
+- **Actividad no atribuida** — se observó acceso que no corresponde al smoke autorizado; la evidencia **no distingue** actividad interna, testers o terceros.
+- **Contenido no generado por el seed** — se observaron `DiaryEntry`, `EcoThread`, `EcoMessage` y `VoiceTranscription` en cuentas demo. **Esas filas no fueron creadas por el seed y fueron observadas posteriormente en las cuentas.** Autoría y sensibilidad **no determinadas**.
+- **No hay prueba de acceso efectivo al plaintext.**
+- **`authRevision` pendiente** — cierre estructural del gap de access-token (un token vigente sobrevive a `isActive=false` hasta su expiración natural), en PR aparte.
+- **Investigación abierta.**
 
-**Hallazgo (por encima del smoke autorizado):** 56 refresh tokens vivos + **47 IPs
-distintas** en 30 días contra cuentas con el password por defecto conocido —
-consistente con acceso de **terceros** a las cuentas demo. Se activó el tripwire
-("detente si aparece actividad que no corresponde al smoke"); el usuario, tras el
-reporte, autorizó contener de inmediato. **Mitigante:** las cuentas demo no
-contienen datos sensibles por diseño (solo ánimo ordinal + contadores de lectura,
-nunca Diario/Eco cifrado). El análisis forense de qué hicieron esas sesiones queda
-como seguimiento del usuario.
+**Precisiones de cifrado:**
 
-Remedio (transacción atómica; `AuthEvent` **NO** se borra — audit trail):
+- `DiaryEntry`: el **cuerpo textual y el excerpt** están cifrados E2E; `mood`, `tags`, `kind`, timestamps y metadata de audio permanecen como **metadata plaintext**.
+- Eco: los mensajes USER persistidos están cifrados en reposo, **pero el turno actual se procesa temporalmente en plaintext por el servidor y el proveedor**; las respuestas no-USER pueden persistir `assistantText` en plaintext.
 
-```
-demo_users_disabled              = 7    (User.isActive=false)
-demo_refresh_tokens_deleted      = 76   (todos los RefreshToken de esas cuentas)
-```
+### Remediación (código)
 
-Verificación:
+**Hotfix `seed-demo-users.mjs`** — guard testeable `resolveSeedConfig({ argv, env })`
+que corre antes de conectar: sin contraseña por defecto (requiere `--password` o
+`DEMO_USER_PASSWORD`); aborta en `PSICO_ENV=production` salvo
+`ALLOW_DEMO_USERS_IN_PRODUCTION=on`; no rota passwords existentes salvo
+`--rotate-passwords`; nunca imprime la contraseña; guard `isMain`. Tests
+(`apps/api/src/auth/seed-demo-users.spec.ts`) fallan si vuelve el default, si
+producción corre sin la allow-flag, o si reaparece la rotación implícita.
 
-```
-demo_active_users_after           = 0   ✅
-demo_active_refresh_tokens_after  = 0   ✅
-```
+**Retiro del "loaded gun"** — `pr2b-weekly-summary-hygiene.mjs` (un `deleteMany({})`
+sin guard interno) eliminado junto con su spec.
 
-Login con el password conocido ahora falla (`isActive=false`) y no quedan sesiones
-vivas.
+### Evidencia post-deploy (agregada, sin PII)
 
-### Fase 1 — hotfix de código (`seed-demo-users.mjs`)
-
-Guard testeable `resolveSeedConfig({ argv, env })` que corre **antes de conectar**:
-
-- **Sin contraseña por defecto.** Requiere `--password=…` o `DEMO_USER_PASSWORD`; si falta, aborta.
-- En `PSICO_ENV=production` **aborta** salvo `ALLOW_DEMO_USERS_IN_PRODUCTION=on`.
-- **No rota** la contraseña de cuentas existentes salvo `--rotate-passwords` (una cuenta nueva sí recibe la contraseña en `create`).
-- **Nunca imprime** la contraseña.
-- Guard `isMain` → `main()` solo corre al invocar directo (import sin efectos).
-
-Tests (`apps/api/src/auth/seed-demo-users.spec.ts`, 10): fallan si vuelve el default, si producción corre sin la allow-flag, o si reaparece la rotación implícita (+ ratchets de source).
-
-### Fase 2 — retiro del "loaded gun"
-
-`apps/api/scripts/pr2b-weekly-summary-hygiene.mjs` (blanket `deleteMany({})` sin guard interno) **eliminado** junto con su spec `apps/api/src/patrones/weekly-summary-hygiene.spec.ts`. Ya cumplió su propósito único (borrar la fila test). Sin referencias colgantes.
-
-### Fase 3 — evidencia post-deploy (agregada, sin PII)
-
-Intervalo del despliegue (desde `2026-07-16T02:57Z`, logs Railway API + worker):
-
-```
-reflexiones_post_patch_400  = 0
-reflexiones_post_patch_500  = 0
-worker_errors               = 0
-client_sentry_mood_null     = N/A (SENTRY_DSN no configurado)
-```
-
-El único tráfico de reflexiones en la ventana fue el smoke autorizado
-(2×201 create + 2×200 delete). Cero 4xx/5xx, cero errores del worker. El acceso
-de terceros (47 IPs) se concentró en los 30 días previos, no en la ventana
+En la ventana del despliegue: `reflexiones` POST/PATCH `4xx=0`, `5xx=0`, errores de
+worker `0` (Sentry no configurado). El único tráfico de reflexiones fue el smoke
+autorizado. El uso no atribuido se concentró en los días previos, no en la ventana
 post-deploy.
 
 ---

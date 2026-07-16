@@ -87,6 +87,7 @@ describe("Diario rekey · E2E (real crypto)", () => {
       passwordHash: realHash,
       authProvider: "LOCAL",
       isActive: true,
+      authRevision: 0,
     });
     h.prisma.refreshToken.create.mockResolvedValue({});
 
@@ -148,19 +149,24 @@ describe("Diario rekey · E2E (real crypto)", () => {
     //   diaryEntry.count (validate ownership)
     //   $transaction([user.update, ...diaryEntry.update, refreshToken.updateMany])
     h.prisma.user.findUnique.mockResolvedValue({
+      // `id` is required now that JwtStrategy resolves req.user.userId from the
+      // DB lookup (ADR 0015), not from the token payload.
+      id: USER_ID,
       passwordHash: realHash,
       authProvider: "LOCAL",
+      isActive: true,
+      authRevision: 0,
     });
     h.prisma.diaryEntry.count.mockResolvedValue(1);
     h.prisma.user.update.mockResolvedValue({});
     h.prisma.diaryEntry.update.mockResolvedValue({});
-    h.prisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
+    h.prisma.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
+    // The rekey now runs the transaction in callback form (ADR 0015: bump
+    // authRevision + delete refresh tokens). Pass the prisma mock itself as
+    // the tx client so writes land on the spies asserted below.
     h.prisma.$transaction.mockImplementation(async (arg: unknown) => {
-      if (Array.isArray(arg)) {
-        // The service passes the bare prisma promises here. We've
-        // configured each operation above to resolve, so just await
-        // them in order.
-        return Promise.all(arg as Promise<unknown>[]);
+      if (typeof arg === "function") {
+        return (arg as (tx: unknown) => unknown)(h.prisma);
       }
       throw new Error("Unexpected $transaction shape");
     });
@@ -220,8 +226,15 @@ describe("Diario rekey · E2E (real crypto)", () => {
       ),
     ).toThrow();
 
-    // ── Step 8 · Refresh tokens revoked atomically with the rekey. The
-    // service calls updateMany({ where: { userId, revokedAt: null } }).
-    expect(h.prisma.refreshToken.updateMany).toHaveBeenCalled();
+    // ── Step 8 · Every session revoked atomically with the rekey (ADR 0015):
+    // authRevision bumped + all refresh tokens deleted.
+    expect(h.prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ authRevision: { increment: 1 } }),
+      }),
+    );
+    expect(h.prisma.refreshToken.deleteMany).toHaveBeenCalledWith({
+      where: { userId: USER_ID },
+    });
   }, 20_000);
 });

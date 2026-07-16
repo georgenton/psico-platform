@@ -15,6 +15,7 @@ const mockUser = {
   plan: "FREE",
   passwordHash: "$2b$12$hashedpassword",
   isActive: true,
+  authRevision: 0,
 };
 
 const mockRefreshToken = {
@@ -43,6 +44,7 @@ const mockPrisma = {
     create: vi.fn(),
     update: vi.fn(),
     updateMany: vi.fn(),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
   authEvent: {
     create: vi.fn().mockResolvedValue(undefined),
@@ -132,6 +134,22 @@ describe("AuthService", () => {
       expect(result.refreshToken).toHaveLength(128); // 64 bytes hex
       expect(result.user.email).toBe("test@example.com");
       expect(mockPrisma.user.create).toHaveBeenCalledOnce();
+    });
+
+    it("embeds the `ar` (auth-revision) claim in the signed token (ADR 0015)", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue(mockUser);
+      mockPrisma.refreshToken.create.mockResolvedValue(mockRefreshToken);
+
+      await service.register({
+        email: "test@example.com",
+        password: "Password123!",
+        name: "Test User",
+      });
+
+      expect(mockJwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ sub: "user-1", ar: 0 }),
+      );
     });
 
     it("throws ConflictException when email is already in use", async () => {
@@ -554,9 +572,18 @@ describe("AuthService", () => {
         newPassword: "newSecret123",
       });
 
-      // Three writes in the transaction
-      const txCalls = mockPrisma.$transaction.mock.calls[0][0];
-      expect(Array.isArray(txCalls)).toBe(true);
+      // The reset runs inside a callback transaction (ADR 0015: consume token
+      // + rotate password + revoke every session).
+      const txArg = mockPrisma.$transaction.mock.calls[0][0];
+      expect(typeof txArg).toBe("function");
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ authRevision: { increment: 1 } }),
+        }),
+      );
+      expect(mockPrisma.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { userId: "user-1" },
+      });
 
       // Audit captured
       const event = mockPrisma.authEvent.create.mock.calls[0][0].data;

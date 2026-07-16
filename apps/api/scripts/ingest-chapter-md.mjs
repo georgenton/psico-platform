@@ -248,6 +248,19 @@ function chapterFiles() {
 }
 
 async function main() {
+  // Content Core (CC-5) — this destructive ingest cascade-deletes highlights /
+  // annotations anchored to the replaced blocks. It is FROZEN: fail closed unless
+  // an operator explicitly overrides. Use ingest-v2 (non-destructive,
+  // revision-minting) instead — apps/api/src/content-core/ingest-v2.ts.
+  // `--dry-run` is always allowed (it writes nothing).
+  if (!DRY_RUN && process.env.ALLOW_LEGACY_DESTRUCTIVE_INGEST !== "on") {
+    throw new Error(
+      "LEGACY_INGEST_FROZEN: this destructive ingest cascade-deletes user " +
+        "highlights/annotations (Content Core CC-5). Use ingest-v2. To run anyway " +
+        "(dangerous), set ALLOW_LEGACY_DESTRUCTIVE_INGEST=on. --dry-run is allowed.",
+    );
+  }
+
   const files = chapterFiles();
 
   let prisma = null;

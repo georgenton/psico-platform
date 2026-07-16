@@ -340,3 +340,81 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER "content_core_edition_published_same_edition_trg"
   BEFORE INSERT OR UPDATE ON "Edition"
   FOR EACH ROW EXECUTE FUNCTION "content_core_edition_published_same_edition"();
+
+-- ── BlockVersion must belong to a single unit ────────────────────────────────
+-- A BlockVersion's ContentBlock and its ContentUnitVersion must share the same unit.
+CREATE OR REPLACE FUNCTION "content_core_block_version_same_unit"()
+RETURNS TRIGGER AS $$
+DECLARE
+  block_unit TEXT;
+  ver_unit TEXT;
+BEGIN
+  SELECT "unitId" INTO block_unit FROM "ContentBlock" WHERE "id" = NEW."contentBlockId";
+  SELECT "unitId" INTO ver_unit FROM "ContentUnitVersion" WHERE "id" = NEW."unitVersionId";
+  IF block_unit IS DISTINCT FROM ver_unit THEN
+    RAISE EXCEPTION 'BLOCK_VERSION_UNIT_MISMATCH: block % (unit %) vs version % (unit %)',
+      NEW."contentBlockId", block_unit, NEW."unitVersionId", ver_unit;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "content_core_block_version_same_unit_trg"
+  BEFORE INSERT OR UPDATE ON "BlockVersion"
+  FOR EACH ROW EXECUTE FUNCTION "content_core_block_version_same_unit"();
+
+-- ── Immutable editorial identities ───────────────────────────────────────────
+-- The initial-write triggers above guarantee cross-edition consistency at insert;
+-- these BEFORE UPDATE guards stop a later UPDATE from silently invalidating the
+-- relationships that RevisionUnit / BlockVersion already depend on.
+CREATE OR REPLACE FUNCTION "content_core_revision_edition_immutable"()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW."editionId" IS DISTINCT FROM OLD."editionId" THEN
+    RAISE EXCEPTION 'CONTENT_CORE_IDENTITY_IMMUTABLE: Revision.editionId cannot change';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER "content_core_revision_edition_immutable_trg"
+  BEFORE UPDATE ON "Revision"
+  FOR EACH ROW EXECUTE FUNCTION "content_core_revision_edition_immutable"();
+
+CREATE OR REPLACE FUNCTION "content_core_unit_edition_immutable"()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW."editionId" IS DISTINCT FROM OLD."editionId" THEN
+    RAISE EXCEPTION 'CONTENT_CORE_IDENTITY_IMMUTABLE: ContentUnit.editionId cannot change';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER "content_core_unit_edition_immutable_trg"
+  BEFORE UPDATE ON "ContentUnit"
+  FOR EACH ROW EXECUTE FUNCTION "content_core_unit_edition_immutable"();
+
+CREATE OR REPLACE FUNCTION "content_core_version_unit_immutable"()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW."unitId" IS DISTINCT FROM OLD."unitId" THEN
+    RAISE EXCEPTION 'CONTENT_CORE_IDENTITY_IMMUTABLE: ContentUnitVersion.unitId cannot change';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER "content_core_version_unit_immutable_trg"
+  BEFORE UPDATE ON "ContentUnitVersion"
+  FOR EACH ROW EXECUTE FUNCTION "content_core_version_unit_immutable"();
+
+CREATE OR REPLACE FUNCTION "content_core_block_unit_immutable"()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW."unitId" IS DISTINCT FROM OLD."unitId" THEN
+    RAISE EXCEPTION 'CONTENT_CORE_IDENTITY_IMMUTABLE: ContentBlock.unitId cannot change';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER "content_core_block_unit_immutable_trg"
+  BEFORE UPDATE ON "ContentBlock"
+  FOR EACH ROW EXECUTE FUNCTION "content_core_block_unit_immutable"();

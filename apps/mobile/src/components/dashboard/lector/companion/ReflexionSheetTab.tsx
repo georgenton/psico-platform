@@ -9,8 +9,16 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { diarioApi, emotionalMapApi } from "@psico/api-client";
-import { analyzeReflectionText, DIARY_MOODS } from "@psico/types";
-import type { ChapterConcept, CreateDiaryEntryRequest } from "@psico/types";
+import {
+  analyzeReflectionText,
+  DIARY_MOODS,
+  EXPLICIT_SELECTION_VERSION,
+} from "@psico/types";
+import type {
+  ChapterConcept,
+  CreateDiaryEntryRequest,
+  DiaryMoodId,
+} from "@psico/types";
 import { encryptString } from "@psico/crypto";
 import { useDiaryKey } from "@/crypto/diary-key-context";
 import { UnlockGate } from "@/components/dashboard/diario/UnlockGate";
@@ -25,7 +33,11 @@ import { ExerciseResonanceOffer } from "./ExerciseResonanceOffer";
  * stirred in them (distinct from a nota, which is plaintext and about the text).
  * Same crypto as the Diario composer: encrypt in the app with the diary key,
  * upload only ciphertext; analyze on device and upload only numbers (Etapa 6).
- * Feeds the Mapa Emocional.
+ * Its contribution to the Mapa Emocional is CONDITIONAL — only signals the user
+ * explicitly provides feed the map (an explicitly-picked mood, opted-in
+ * on-device text analysis, a confirmed resonance). A reflexión saved with no
+ * mood and no consent still lives in the diary but does not, by itself, move
+ * the map.
  */
 
 /** Build the reflexión seed from a highlighted passage. */
@@ -64,7 +76,9 @@ export function ReflexionSheetTab({
   const router = useRouter();
 
   const [text, setText] = useState("");
-  const [mood, setMood] = useState("ok");
+  // PR-2B: no mood picked by default (null). Tap a chip to select; tap the
+  // selected chip again to deselect. Never coerce null to "ok".
+  const [mood, setMood] = useState<DiaryMoodId | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,12 +100,16 @@ export function ReflexionSheetTab({
         trimmed.length > 140 ? `${trimmed.slice(0, 140).trimEnd()}…` : trimmed;
       const excerpt = encryptString(excerptText, key);
       const body: CreateDiaryEntryRequest = {
-        mood,
         kind: "free",
         textCiphertext: envelope.ciphertext,
         textNonce: envelope.nonce,
         excerptCiphertext: excerpt.ciphertext,
         excerptNonce: excerpt.nonce,
+        // PR-2B: only send a mood when explicitly picked (tapping a chip). No
+        // pick → omit BOTH fields (the version without a mood is a 400).
+        ...(mood
+          ? { mood, moodSelectionVersion: EXPLICIT_SELECTION_VERSION }
+          : {}),
       };
       const created = await diarioApi.create(body);
       // Etapa 6 — analyze on device, upload ONLY numbers. Fase D (L4):
@@ -105,6 +123,11 @@ export function ReflexionSheetTab({
         }
       }
       setText("");
+      // PR-2B: reset the mood to null AFTER a successful save (before the
+      // "Escribir otra" path can return to the composer). Otherwise the prior
+      // pick lingers as a false explicit selection. Only clears on success —
+      // a thrown create is caught below and keeps the pick for retry.
+      setMood(null);
       setSaved(true);
     } catch {
       setError("No pudimos guardar tu reflexión. Reintenta.");
@@ -141,7 +164,7 @@ export function ReflexionSheetTab({
         <Text style={styles.savedIcon}>🪷</Text>
         <Text style={styles.savedTitle}>Guardado en tu diario</Text>
         <Text style={styles.savedBody}>
-          Tu reflexión quedó cifrada y sumó a tu Mapa Emocional.
+          Tu reflexión quedó cifrada y guardada en tu diario.
         </Text>
         {fromExercise && concept && bookSlug && chapterOrder != null ? (
           <ExerciseResonanceOffer
@@ -181,7 +204,7 @@ export function ReflexionSheetTab({
           return (
             <Pressable
               key={m.id}
-              onPress={() => setMood(m.id)}
+              onPress={() => setMood((cur) => (cur === m.id ? null : m.id))}
               disabled={saving}
               style={[styles.moodChip, active && styles.moodChipActive]}
             >

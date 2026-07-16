@@ -1850,7 +1850,37 @@ export type MoodExclusionReason = (typeof MOOD_EXCLUSION_REASONS)[number];
  *  future re-normalization can find the rows it must redo (`stale_normalizer`). */
 export const MOOD_NORMALIZER_VERSION = "norm-1";
 
-/** The server-computed normalization written alongside the RAW mood. All eight
+/**
+ * PR-2B · versioned client attestation of explicit selection. A VERSIONED
+ * CLIENT ATTESTATION, not a cryptographic proof — the client asserts "the user
+ * actively picked this mood". Server-owned per endpoint:
+ *   - `mood-log-v1`  — check-in (a face tap IS explicit).
+ *   - `explicit-v1`  — Diary reflexion with an explicit pick (supported client).
+ *   - `seed-v1`      — seeds.
+ *   - null           — Diary legacy (no signal) / no pick.
+ * The ONLY value a client may SEND is `explicit-v1` (on a reflexion write); the
+ * rest are stamped by the server. `EXPLICIT_SELECTION_VERSION` is that token.
+ */
+export const EXPLICIT_SELECTION_VERSION = "explicit-v1";
+export const MOOD_SELECTION_VERSIONS = [
+  "explicit-v1",
+  "mood-log-v1",
+  "seed-v1",
+] as const;
+/** The selection-version values a CLIENT is allowed to send (only the explicit
+ *  attestation). Anything else in the request body is a 400. */
+export const CLIENT_SELECTION_VERSIONS = ["explicit-v1"] as const;
+/** The FULL set — server / persistence side (explicit-v1 | mood-log-v1 | seed-v1). */
+export type MoodSelectionVersion = (typeof MOOD_SELECTION_VERSIONS)[number];
+/**
+ * The subset a CLIENT may put on a reflexion request — only the explicit
+ * attestation. Use this (not `MoodSelectionVersion`) on request DTOs so the wire
+ * type can't express a server-owned attestation.
+ */
+export type ClientMoodSelectionVersion =
+  (typeof CLIENT_SELECTION_VERSIONS)[number];
+
+/** The server-computed normalization written alongside the RAW mood. All nine
  *  fields are server-owned; the client controls none of them. */
 export interface MoodNormalization {
   moodNormalized: MoodCanonical | null;
@@ -1859,6 +1889,8 @@ export interface MoodNormalization {
   moodVocabularyVersion: string | null;
   moodNormalizerVersion: string;
   moodClientVersion: string | null;
+  /** PR-2B — versioned attestation of explicit selection (server-owned). */
+  moodSelectionVersion: string | null;
   moodEligibleForDynamics: boolean;
   moodExclusionReason: MoodExclusionReason | null;
 }
@@ -1919,7 +1951,14 @@ export interface DiaryEntrySummary {
   id: string;
   createdAt: Date;
   updatedAt: Date;
-  mood: string;
+  /**
+   * PR-2B · the RAW persisted mood, `string | null`. Null = no pick (render
+   * "Sin ánimo registrado" — NEVER coerce to "ok"/neutral). It is typed `string`
+   * (not `DiaryMoodId`) on purpose: historical rows may carry a legacy
+   * vocabulary token, and the response must represent that honestly rather than
+   * pretend it's a current canonical id. REQUESTS stay `DiaryMoodId | null`.
+   */
+  mood: string | null;
   kind: DiaryEntryKind;
   promptId: string | null;
   promptText: string | null;
@@ -1977,7 +2016,17 @@ export interface DiaryRawCiphersResponse {
 }
 
 export interface CreateDiaryEntryRequest {
-  mood: string;
+  /**
+   * PR-2B · optional and null-capable. Omit (or send null) for a reflexión with
+   * no mood pick. A present value must be a canonical `DiaryMoodId`.
+   */
+  mood?: DiaryMoodId | null;
+  /**
+   * PR-2B · the client's attestation that `mood` was an EXPLICIT pick. The ONLY
+   * value a client may send is `explicit-v1`. Send it whenever the user taps a
+   * mood; omit it for a defaulted mood. Sending it without a `mood` is a 400.
+   */
+  moodSelectionVersion?: ClientMoodSelectionVersion;
   kind?: DiaryEntryKind;
   promptId?: string;
   /** base64url ciphertext of the body. Up to ~1 MB. */
@@ -1993,7 +2042,13 @@ export interface CreateDiaryEntryRequest {
 }
 
 export interface UpdateDiaryEntryRequest {
-  mood?: string;
+  /**
+   * PR-2B · three-way. Omit to leave the mood untouched; send `null` to clear
+   * it; send a canonical `DiaryMoodId` to set it.
+   */
+  mood?: DiaryMoodId | null;
+  /** PR-2B · client attestation (`explicit-v1` only) that `mood` was tapped. */
+  moodSelectionVersion?: ClientMoodSelectionVersion;
   textCiphertext?: string;
   textNonce?: string;
   excerptCiphertext?: string;

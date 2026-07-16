@@ -3199,15 +3199,29 @@ export interface components {
              *     normalization columns; the client controls neither provenance nor
              *     eligibility.
              *
-             *     PR-2A · **required**. The DB column is nullable (schema-forward for a
-             *     future null-capable composer), but the request/response/client transition
-             *     to nullable happens atomically in PR-2B — never here. Keeping this required
-             *     means PR-2A cannot create a `mood = null` row through the API, so no read
-             *     path is ever tempted to fabricate a neutral "ok". The plugin auto-emits the
-             *     enum in OpenAPI.
+             *     PR-2B · **optional and null-capable**. A reflexion may carry no mood at
+             *     all: an absent or explicit-`null` value both mean "no pick" → the server
+             *     stores `mood = null` and marks it `not_selected` / ineligible. A present
+             *     value MUST be canonical (`@ValidateIf` skips only when absent/null; a
+             *     legacy / unknown / empty token → 400). Eligibility additionally requires a
+             *     matching `moodSelectionVersion` attestation (see below) — a canonical mood
+             *     with no attestation is preserved but stays ineligible. The plugin
+             *     auto-emits the enum in OpenAPI.
+             * @enum {string|null}
+             */
+            mood?: CreateDiaryEntryDtoMood;
+            /**
+             * @description PR-2B · the client's versioned attestation that `mood` was an EXPLICIT
+             *     pick. The ONLY value a client may send is `explicit-v1`
+             *     (`CLIENT_SELECTION_VERSIONS`); the server-owned attestations (`mood-log-v1`,
+             *     `seed-v1`) are stamped by their own endpoints and rejected here. This is a
+             *     versioned attestation, NOT a cryptographic proof — the server still derives
+             *     provenance/eligibility. Omit it (or send `null`) for a mood the composer
+             *     defaulted rather than the user tapping. Sending it without a `mood` is a
+             *     400 (`MOOD_SELECTION_WITHOUT_MOOD`).
              * @enum {string}
              */
-            mood: CreateDiaryEntryDtoMood;
+            moodSelectionVersion?: CreateDiaryEntryDtoMoodSelectionVersion;
             /**
              * @description Origin of the entry. `"free"` for user-initiated, `"prompted"` for a
              *     journal-prompt response, `"voz"` for a voice-to-text dictation.
@@ -3269,15 +3283,29 @@ export interface components {
              *     it for the patterns analytics — visible in plaintext by design.
              *     Plugin emits the enum in OpenAPI from `@IsIn`.
              *
-             *     PR-2A · `@ValidateIf(value !== undefined)` instead of `@IsOptional`: a
-             *     MISSING property is allowed (leaves the mood untouched), but an EXPLICIT
-             *     `null` must be rejected — `@IsOptional` would skip all validators for null
-             *     and let a `mood = null` row slip in (which the read path then rejects with
-             *     a 500). So: omitted → OK; canonical string → OK; null / empty / legacy /
-             *     unknown → 400. The nullable transition lands atomically in PR-2B.
-             * @enum {string}
+             *     PR-2B · null-capable, three-way. The service distinguishes the cases via
+             *     `hasOwnProperty`, so the validator must let both `null` and a canonical
+             *     string through while still rejecting garbage:
+             *       - **absent** (property omitted) → leave the mood untouched.
+             *       - **`null`** → clear the mood (`not_selected`, ineligible).
+             *       - **canonical string** → set it (eligible only with `explicit-v1`).
+             *       - empty / legacy / unknown token → 400.
+             *     `@ValidateIf(value !== undefined && value !== null)` skips validation for
+             *     the absent and null cases (both legitimate) and enforces `@IsIn` on any
+             *     present value.
+             * @enum {string|null}
              */
             mood?: UpdateDiaryEntryDtoMood;
+            /**
+             * @description PR-2B · client attestation that the new `mood` was an EXPLICIT pick. Only
+             *     `explicit-v1` (`CLIENT_SELECTION_VERSIONS`) is accepted from a client; the
+             *     server-owned attestations are stamped elsewhere. Sending it without a
+             *     `mood`, or alongside `mood: null`, is a 400 (`MOOD_SELECTION_WITHOUT_MOOD`).
+             *     Re-saving the SAME canonical mood WITHOUT this attestation never degrades an
+             *     already-eligible row (the service preserves the existing normalization).
+             * @enum {string}
+             */
+            moodSelectionVersion?: UpdateDiaryEntryDtoMoodSelectionVersion;
             /**
              * @description New XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.
              *     Encrypted client-side under the diary subkey derived via HKDF from
@@ -11885,6 +11913,9 @@ export enum CreateDiaryEntryDtoMood {
     low = "low",
     hard = "hard"
 }
+export enum CreateDiaryEntryDtoMoodSelectionVersion {
+    explicit_v1 = "explicit-v1"
+}
 export enum CreateDiaryEntryDtoKind {
     free = "free",
     prompted = "prompted",
@@ -11896,6 +11927,9 @@ export enum UpdateDiaryEntryDtoMood {
     ok = "ok",
     low = "low",
     hard = "hard"
+}
+export enum UpdateDiaryEntryDtoMoodSelectionVersion {
+    explicit_v1 = "explicit-v1"
 }
 export enum LogMoodDtoMood {
     great = "great",

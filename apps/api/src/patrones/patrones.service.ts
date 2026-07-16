@@ -80,7 +80,10 @@ export class PatronesService {
     }
 
     // PRO+. Pull the entries' metadata for the period in a single query.
-    const entries = await this.prisma.diaryEntry.findMany({
+    // PR-2B · project the ELIGIBLE mood (never the raw): a mood only colors the
+    // heatmap / hour chart / dominant / narrative when the user explicitly
+    // attested it (eligible + normalized). Everything else contributes `null`.
+    const rawRows = await this.prisma.diaryEntry.findMany({
       where: {
         userId,
         createdAt: {
@@ -88,9 +91,17 @@ export class PatronesService {
           lte: new Date(`${periodDescriptor.to}T23:59:59.999Z`),
         },
       },
-      select: { mood: true, createdAt: true },
+      select: {
+        moodNormalized: true,
+        moodEligibleForDynamics: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: "asc" },
     });
+    const entries = rawRows.map((r) => ({
+      mood: effectiveMood(r),
+      createdAt: r.createdAt,
+    }));
 
     // Catalog lookup so we can resolve swatches for the heatmap.
     const catalog = await this.prisma.onboardingMood.findMany({
@@ -147,12 +158,23 @@ export class PatronesService {
     const weekEnd = new Date(weekStart);
     weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
 
-    const entries = await this.prisma.diaryEntry.findMany({
+    const rawRows = await this.prisma.diaryEntry.findMany({
       where: { userId, createdAt: { gte: weekStart, lt: weekEnd } },
       // Sprint S38: include `tags` so the LLM can mention recurring topics
       // (the tag tokens are plaintext metadata, never the body cipher).
-      select: { mood: true, createdAt: true, tags: true },
+      // PR-2B · project the ELIGIBLE mood; tags + entry count stand regardless.
+      select: {
+        moodNormalized: true,
+        moodEligibleForDynamics: true,
+        createdAt: true,
+        tags: true,
+      },
     });
+    const entries = rawRows.map((r) => ({
+      mood: effectiveMood(r),
+      createdAt: r.createdAt,
+      tags: r.tags,
+    }));
 
     if (entries.length < PatronesService.MIN_ENTRIES_FOR_FULL_VIEW) {
       // Caller sees 422; tests assert.
@@ -289,12 +311,25 @@ export class PatronesService {
   } {
     const moodCounts: Record<string, number> = {};
     for (const e of entries) {
-      // PR-2A — null mood contributes no mood count (the entry still counts
+      // PR-2B — null mood contributes no mood count (the entry still counts
       // toward entries.length below).
       if (e.mood != null) moodCounts[e.mood] = (moodCounts[e.mood] ?? 0) + 1;
     }
     const sorted = Object.entries(moodCounts).sort((a, b) => b[1] - a[1]);
-    const dominant = sorted[0]?.[0] ?? "calma";
+    const dominant = sorted[0]?.[0] ?? null;
+
+    // PR-2B · when no mood was recorded, write about the writing habit — never
+    // name or invent a mood.
+    if (dominant == null) {
+      const headline = `Esta semana llegaste a ${entries.length} entradas.`;
+      const narrative = [
+        `Diste pasos pequeños y constantes esta semana — ${entries.length} entradas son una señal clara de que el espacio del diario te está sirviendo.`,
+        `Esta vez no registraste un estado de ánimo, y está perfectamente bien: el solo hecho de escribir ya es un cuidado.`,
+        `Para la próxima semana, si te nace, prueba nombrar cómo te sientes antes de describir el día. A veces ese pequeño cambio de orden destraba la escritura.`,
+      ].join("\n\n");
+      return { headline, narrative };
+    }
+
     const headline = `Esta semana llegaste a ${entries.length} entradas con ${dominant} como tono dominante.`;
     const narrative = [
       `Diste pasos pequeños y constantes esta semana — ${entries.length} entradas son una señal clara de que el espacio del diario te está sirviendo.`,
@@ -379,6 +414,21 @@ export class PatronesService {
 // ─── Helpers (module-level, side-effect-free) ─────────────────────────────
 
 /**
+ * PR-2B · the mood a DiaryEntry contributes to Patrones aggregation: the
+ * canonical `moodNormalized` ONLY when the row is eligible (the user attested
+ * it). A raw/legacy/ambiguous/ineligible row contributes `null` — its tags and
+ * its place in the entry count still count, but its mood does not.
+ */
+function effectiveMood(r: {
+  moodNormalized: string | null;
+  moodEligibleForDynamics: boolean;
+}): string | null {
+  return r.moodEligibleForDynamics && r.moodNormalized != null
+    ? r.moodNormalized
+    : null;
+}
+
+/**
  * Compute the aggregate stats we hand to the LLM. The shape is intentionally
  * narrow — categorical counts only. The model never receives the entry body
  * (it's encrypted and we don't have the key) nor anything that could leak
@@ -390,7 +440,9 @@ export function computeWeeklyStats(
   weekStart: Date,
 ): {
   entryCount: number;
-  dominantMood: string;
+  // PR-2B · null when the week has NO mood observation. Never fabricate a
+  // "calma" (or any) fallback — the downstream narrative branches on null.
+  dominantMood: string | null;
   moodCounts: Record<string, number>;
   topTags: string[];
   weekStartIso: string;
@@ -398,15 +450,15 @@ export function computeWeeklyStats(
   const moodCounts: Record<string, number> = {};
   const tagCounts: Record<string, number> = {};
   for (const e of entries) {
-    // PR-2A — a null mood contributes no mood count, but the entry's tags and
+    // PR-2B — a null mood contributes no mood count, but the entry's tags and
     // its presence in entryCount still stand (it is a real reflexión).
     if (e.mood != null) moodCounts[e.mood] = (moodCounts[e.mood] ?? 0) + 1;
     for (const t of e.tags) {
       tagCounts[t] = (tagCounts[t] ?? 0) + 1;
     }
   }
-  const dominantMood =
-    Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "calma";
+  const dominantMood: string | null =
+    Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
   const topTags = Object.entries(tagCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)

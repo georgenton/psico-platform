@@ -126,6 +126,8 @@ describe("EntryDetailView · edit mode", () => {
     expect((init as RequestInit).method).toBe("PATCH");
     const body = JSON.parse(((init as RequestInit).body as string) ?? "{}");
     expect(body.mood).toBe("good");
+    // PR-2B: an explicit pick carries the versioned attestation.
+    expect(body.moodSelectionVersion).toBe("explicit-v1");
     expect(body.tags).toEqual(["sentimientos", "trabajo", "claridad"]);
     expect(body.textCiphertext).toContain("cipher:Texto desencriptado");
     expect(body.textNonce).toBe("nonce:fixed");
@@ -142,8 +144,35 @@ describe("EntryDetailView · edit mode", () => {
       ((fetchSpy.mock.calls[0]?.[1] as RequestInit).body as string) ?? "{}",
     );
     expect(body.mood).toBeUndefined();
+    expect(body.moodSelectionVersion).toBeUndefined();
     expect(body.tags).toBeUndefined();
     expect(body.textCiphertext).toBeDefined();
+  });
+
+  it("#2 re-attests the SAME mood: re-picking 'good' on the entry sends mood + explicit-v1 even though the value didn't change", async () => {
+    fetchSpy.mockResolvedValue(new Response(null, { status: 200 }));
+    const user = userEvent.setup();
+    // Entry already has mood 'good' (imagine it's ineligible — no attestation).
+    renderDetail(makeDetail({ mood: "good" }));
+    await user.click(screen.getByRole("button", { name: /Editar/i }));
+    // Deselect then re-select the same 'good' — the final value equals the
+    // original, but the selector was touched, so it must be re-sent + attested.
+    await user.click(screen.getByRole("radio", { name: "Bien" }));
+    await user.click(screen.getByRole("radio", { name: "Bien" }));
+    await user.click(screen.getByRole("button", { name: /Guardar cambios/i }));
+    const body = JSON.parse(
+      ((fetchSpy.mock.calls[0]?.[1] as RequestInit).body as string) ?? "{}",
+    );
+    expect(body.mood).toBe("good");
+    expect(body.moodSelectionVersion).toBe("explicit-v1");
+  });
+
+  it("renders 'Sin ánimo registrado' for a null-mood entry (never a fabricated mood)", () => {
+    // PR-2B: a reflexión saved without an explicit pick has mood = null.
+    renderDetail(makeDetail({ mood: null }));
+    expect(screen.getByText(/Sin ánimo registrado/i)).toBeInTheDocument();
+    // The default fixture mood ("ok" → "Ok") must NOT be fabricated.
+    expect(screen.queryByText("Ok")).not.toBeInTheDocument();
   });
 
   it("dedupes a tag that already exists", async () => {

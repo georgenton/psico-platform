@@ -40,6 +40,10 @@ function moodNorm(mood) {
     moodVocabularyVersion: "diary-v1",
     moodNormalizerVersion: "norm-1",
     moodClientVersion: "seed",
+    // PR-2B · the versioned attestation for seeded moods. `seed-v1` marks these
+    // as explicit + eligible without pretending a client tapped them (that is
+    // `explicit-v1`, reserved for the composer).
+    moodSelectionVersion: "seed-v1",
     moodEligibleForDynamics: true,
     moodExclusionReason: null,
   };

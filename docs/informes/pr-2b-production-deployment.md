@@ -33,10 +33,16 @@
 
 ## 2. Incidente de credencial demo — resumen sanitizado
 
-> El detalle operacional completo (conteos exactos, timestamps, TTL, dominio de las
-> cuentas, ruta criptográfica de derivación, punto PITR y mecanismo de
-> re-contención) **no vive en este repositorio**: se mantiene en un **registro
-> privado** fuera de Git.
+> El detalle operacional (conteos exactos, timestamps, TTL, dominio de las cuentas,
+> ruta criptográfica de derivación, punto PITR y mecanismo de re-contención) **ya no
+> se mantiene en el árbol actual del repositorio**. Versiones anteriores permanecen
+> accesibles en el historial Git y en artefactos del PR mientras no se ejecute una
+> remoción histórica deliberada.
+>
+> Se generó una **copia temporal fuera de Git**, pendiente de transferencia a un
+> almacenamiento privado, cifrado y durable. La preservación se considera completada
+> únicamente después de verificar el SHA-256 en el destino y eliminar la copia
+> temporal.
 
 **Qué pasó:** durante el smoke del despliegue se detectó que las cuentas demo se
 sembraban con una **contraseña por defecto conocida**, hardcodeada en

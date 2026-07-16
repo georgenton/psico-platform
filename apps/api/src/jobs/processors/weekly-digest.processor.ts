@@ -150,7 +150,15 @@ export class WeeklyDigestProcessor extends WorkerHost {
   ): Promise<void> {
     const entries = await this.prisma.diaryEntry.findMany({
       where: { userId: user.id, createdAt: { gte: weekStart, lt: weekEnd } },
-      select: { mood: true, tags: true },
+      // PR-2B — the digest reports only moods the server vouches for. Raw
+      // `mood` may hold an ineligible/legacy value; we count the normalized
+      // mood ONLY when the row is eligible for dynamics. Tags are independent
+      // and always count (see the loop below).
+      select: {
+        moodNormalized: true,
+        moodEligibleForDynamics: true,
+        tags: true,
+      },
     });
     const ecoMessages = await this.prisma.ecoMessage.count({
       where: {
@@ -163,10 +171,15 @@ export class WeeklyDigestProcessor extends WorkerHost {
     const moodCounts: Record<string, number> = {};
     const tagCounts: Record<string, number> = {};
     for (const e of entries) {
-      // PR-2A — a reflexión without an explicit check-in has mood = null: it is
-      // not a mood observation, so it contributes no mood count (its tags still
-      // count). Never coalesce a null mood into a neutral bucket.
-      if (e.mood != null) moodCounts[e.mood] = (moodCounts[e.mood] ?? 0) + 1;
+      // PR-2A/2B — a reflexión without an eligible explicit check-in is not a
+      // mood observation, so it contributes no mood count (its tags still
+      // count). Only an eligible, normalized mood is counted; a null or
+      // ineligible mood is never coalesced into a neutral bucket.
+      const mood =
+        e.moodEligibleForDynamics && e.moodNormalized != null
+          ? e.moodNormalized
+          : null;
+      if (mood != null) moodCounts[mood] = (moodCounts[mood] ?? 0) + 1;
       for (const t of e.tags) tagCounts[t] = (tagCounts[t] ?? 0) + 1;
     }
     const dominantMood =

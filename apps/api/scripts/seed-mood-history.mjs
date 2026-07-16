@@ -44,6 +44,8 @@ function moodNorm(mood) {
     moodVocabularyVersion: "diary-v1",
     moodNormalizerVersion: "norm-1",
     moodClientVersion: "seed",
+    // PR-2B · versioned attestation for seeded moods (see seed-demo-users.mjs).
+    moodSelectionVersion: "seed-v1",
     moodEligibleForDynamics: true,
     moodExclusionReason: null,
   };

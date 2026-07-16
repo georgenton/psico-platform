@@ -2,11 +2,12 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { EmotionalMapService } from "../emotional-map";
 import { deriveMoodNormalization } from "../mood/mood-normalization";
 import type {
   CreateDiaryEntryResponse,
@@ -35,7 +36,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class ReflexionesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emotionalMap: EmotionalMapService,
+  ) {}
 
   // ─── List ──────────────────────────────────────────────────────────────────
 
@@ -85,6 +89,30 @@ export class ReflexionesService {
     // Related entries: same mood OR overlapping tags within ±30 days of the
     // current entry. We return IDs only — the client correlates with its
     // already-decrypted cache.
+    //
+    // PR-2B · mood is a relation criterion ONLY when the server vouches for it:
+    // the entry must be eligible for dynamics AND carry a normalized mood. A
+    // null, legacy, or ineligible mood does NOT relate (absence — or an
+    // unvouched raw value — is not a shared feature), so we never emit
+    // `{ mood: null }`, and we relate against the NORMALIZED mood of other
+    // eligible entries, not the raw column. We build the OR clauses
+    // conditionally so no `{}` (match-all) ever leaks in. When the entry has
+    // neither an eligible mood nor tags, there is nothing to relate on →
+    // return `[]` without querying. Tags are independent of eligibility.
+    const orClauses: Array<Record<string, unknown>> = [];
+    if (entry.moodEligibleForDynamics && entry.moodNormalized != null) {
+      orClauses.push({
+        moodEligibleForDynamics: true,
+        moodNormalized: entry.moodNormalized,
+      });
+    }
+    if (entry.tags.length > 0)
+      orClauses.push({ tags: { hasSome: entry.tags } });
+
+    if (orClauses.length === 0) {
+      return { entry: this.toDetail(entry), relatedEntryIds: [] };
+    }
+
     const since = new Date(entry.createdAt.getTime() - 30 * DAY_MS);
     const until = new Date(entry.createdAt.getTime() + 30 * DAY_MS);
     const related = await this.prisma.diaryEntry.findMany({
@@ -92,10 +120,7 @@ export class ReflexionesService {
         userId,
         id: { not: entryId },
         createdAt: { gte: since, lte: until },
-        OR: [
-          { mood: entry.mood },
-          entry.tags.length > 0 ? { tags: { hasSome: entry.tags } } : {},
-        ],
+        OR: orClauses,
       },
       orderBy: { createdAt: "desc" },
       take: RELATED_LIMIT,
@@ -119,21 +144,30 @@ export class ReflexionesService {
       await this.assertPromptExists(dto.promptId);
     }
 
+    // PR-2B · an attestation without a mood is meaningless — a version attests
+    // that a PICK happened, so there must be a canonical mood to attest.
+    const moodValue = dto.mood ?? null;
+    if (dto.moodSelectionVersion != null && moodValue == null) {
+      throw new BadRequestException(
+        "MOOD_SELECTION_WITHOUT_MOOD: moodSelectionVersion requires a mood",
+      );
+    }
+
     const created = await this.prisma.diaryEntry.create({
       data: {
         userId,
-        // PR-2A · the raw mood is REQUIRED by the DTO, so it is preserved
-        // untouched here (never null in PR-2A). Normalization is server-owned:
-        // source=DIARY, and PR-2A carries NO explicit-selection signal from the
-        // composer, so a reflexion is never eligible yet (a defaulted "ok" →
-        // ambiguous_default, any other canonical → pre_normalizer_review,
-        // legacy/unknown → excluded raw). The null-capable composer lands in
-        // PR-2B, not here.
-        mood: dto.mood,
+        // PR-2B · the mood is null-capable. An absent or explicit-null value is
+        // stored as `mood = null` (not_selected, ineligible). A canonical value
+        // is eligible ONLY when the client attests it with `explicit-v1`
+        // (mood-log-v1/seed-v1 are server-owned and rejected by the DTO).
+        // Provenance stays DIARY for both the standalone composer and the reader
+        // companion (READER_REFLECTION is reserved; the shared POST endpoint
+        // owns provenance, not the client).
+        mood: moodValue,
         ...deriveMoodNormalization({
-          raw: dto.mood,
+          raw: moodValue,
           source: "DIARY",
-          explicitlySelected: false,
+          selectionVersion: dto.moodSelectionVersion ?? null,
         }),
         kind: dto.kind ?? "free",
         promptId: dto.promptId ?? null,
@@ -147,6 +181,11 @@ export class ReflexionesService {
       },
       select: { id: true, createdAt: true, excerptCiphertext: true },
     });
+
+    // PR-2B · a new reflexion always changes the mood/tag metadata the map
+    // aggregates, so bust the cache. Best-effort: a stale map is a freshness
+    // bug, not a leak, and must never fail the write.
+    void this.emotionalMap.invalidateBestEffort(userId);
 
     return {
       ok: true,
@@ -163,7 +202,11 @@ export class ReflexionesService {
   ): Promise<DiaryDetailResponse> {
     const existing = await this.prisma.diaryEntry.findFirst({
       where: { id: entryId, userId },
-      select: { id: true },
+      select: {
+        id: true,
+        mood: true,
+        moodEligibleForDynamics: true,
+      },
     });
     if (!existing) throw new NotFoundException(`Entry '${entryId}' not found`);
 
@@ -179,30 +222,52 @@ export class ReflexionesService {
     }
     this.assertExcerptPairing(dto.excerptCiphertext, dto.excerptNonce);
 
-    // PR-2A backstop (defense in depth beyond the DTO's @ValidateIf): an
-    // explicit null mood is not allowed until PR-2B makes the whole stack
-    // null-capable. Reject BEFORE writing so we never create the null row the
-    // read path would then 500 on.
-    if (dto.mood === null) {
+    // PR-2B · mood is null-capable and three-way. `hasOwnProperty` (not a truthy
+    // check) distinguishes an OMITTED property (preserve the mood) from an
+    // explicit `mood: null` (clear the mood). This is why the DTO uses
+    // `@ValidateIf` rather than `@IsOptional` — an explicit null must reach us,
+    // not be silently dropped.
+    const moodProvided = Object.prototype.hasOwnProperty.call(dto, "mood");
+    const nextMood = moodProvided ? (dto.mood ?? null) : undefined;
+
+    // An attestation only makes sense with a canonical pick: reject it when the
+    // mood is absent or being cleared to null.
+    if (dto.moodSelectionVersion != null && nextMood == null) {
       throw new BadRequestException(
-        "DIARY_MOOD_NULL_NOT_ALLOWED_UNTIL_PR2B: mood cannot be set to null in PR-2A",
+        "MOOD_SELECTION_WITHOUT_MOOD: moodSelectionVersion requires a mood",
       );
+    }
+
+    // Build the mood columns only when a mood was provided. The key subtlety is
+    // the NO-DEGRADE rule: re-saving the SAME canonical mood WITHOUT a fresh
+    // attestation (e.g. an autosave that carries the current mood but doesn't
+    // re-tap it) must NOT downgrade an already-eligible row to
+    // `pre_normalizer_review`. In that one case we leave the normalization
+    // untouched; every other case re-derives from scratch.
+    let moodData: Record<string, unknown> = {};
+    if (moodProvided) {
+      const sameCanonical = nextMood != null && nextMood === existing.mood;
+      const noAttestation = dto.moodSelectionVersion == null;
+      const alreadyEligible = existing.moodEligibleForDynamics === true;
+      if (sameCanonical && noAttestation && alreadyEligible) {
+        // Idempotent re-save of an eligible mood — preserve it.
+        moodData = {};
+      } else {
+        moodData = {
+          mood: nextMood,
+          ...deriveMoodNormalization({
+            raw: nextMood,
+            source: "DIARY",
+            selectionVersion: dto.moodSelectionVersion ?? null,
+          }),
+        };
+      }
     }
 
     await this.prisma.diaryEntry.update({
       where: { id: entryId },
       data: {
-        // PR-2A · when the mood changes, re-derive the server-owned columns.
-        // `dto.mood` here is a canonical token (null rejected above, undefined
-        // skips this block), never null.
-        ...(dto.mood !== undefined && {
-          mood: dto.mood,
-          ...deriveMoodNormalization({
-            raw: dto.mood,
-            source: "DIARY",
-            explicitlySelected: false,
-          }),
-        }),
+        ...moodData,
         ...(dto.textCiphertext && {
           textCiphertext: dto.textCiphertext,
           textNonce: dto.textNonce!,
@@ -214,6 +279,13 @@ export class ReflexionesService {
         ...(dto.tags !== undefined && { tags: dto.tags }),
       },
     });
+
+    // PR-2B · only bust the map cache when the aggregated metadata (mood or
+    // tags) actually changed — a text-only edit (ciphertext/excerpt) is opaque
+    // to the map, so re-computing it would be wasted work. Best-effort.
+    if (moodProvided || dto.tags !== undefined) {
+      void this.emotionalMap.invalidateBestEffort(userId);
+    }
 
     return this.getDetail(userId, entryId);
   }
@@ -231,6 +303,11 @@ export class ReflexionesService {
     // The cascade on SharedDiaryEntry.entryId is SetNull so the audit trail
     // ("user X shared an entry on day Y") survives even when the source is gone.
     await this.prisma.diaryEntry.delete({ where: { id: entryId } });
+
+    // PR-2B · deleting an entry removes its mood/tags from the aggregation, so
+    // always bust the map cache. Best-effort.
+    void this.emotionalMap.invalidateBestEffort(userId);
+
     return { ok: true };
   }
 
@@ -456,11 +533,9 @@ export class ReflexionesService {
     id: string;
     createdAt: Date;
     updatedAt: Date;
-    // PR-2A · the DB column is nullable (schema-forward), but the PR-2A API
-    // cannot create a null-mood entry (the DTO requires `mood`). So a null here
-    // means a data-integrity violation — a row written outside the PR-2A API
-    // path before the null-capable PR-2B lands. We FAIL EXPLICITLY rather than
-    // fabricate a neutral "ok"; the response contract stays `mood: string`.
+    // PR-2B · the mood is null-capable end to end. A null here means the user
+    // picked no mood (`not_selected`) — we return it AS null. We NEVER coalesce
+    // to a neutral "ok"; the client renders "Sin ánimo registrado".
     mood: string | null;
     kind: string;
     promptId: string | null;
@@ -471,17 +546,12 @@ export class ReflexionesService {
     audioUrl: string | null;
     audioDurationSec: number | null;
   }): DiaryEntrySummary {
-    if (row.mood == null) {
-      // Never coalesce to a mood the user didn't pick. PR-2B turns the whole
-      // stack null-capable atomically; until then a null row is a bug to surface.
-      throw new InternalServerErrorException(
-        `DIARY_MOOD_INTEGRITY: entry '${row.id}' has a null mood, which the PR-2A API cannot create`,
-      );
-    }
     return {
       id: row.id,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
+      // PR-2B · the RAW persisted mood (string | null), no coercion — a legacy
+      // token stays legacy, null stays null; the client renders it honestly.
       mood: row.mood,
       kind: this.toKind(row.kind),
       promptId: row.promptId,

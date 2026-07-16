@@ -11057,13 +11057,21 @@
         "properties": {
           "mood": {
             "type": "string",
-            "description": "Mood token from the shared `DIARY_MOODS` catalog (great / good / ok /\nlow / hard). Plaintext by design (patterns analytics). Server derives the\nnormalization columns; the client controls neither provenance nor\neligibility.\n\nPR-2A · **required**. The DB column is nullable (schema-forward for a\nfuture null-capable composer), but the request/response/client transition\nto nullable happens atomically in PR-2B — never here. Keeping this required\nmeans PR-2A cannot create a `mood = null` row through the API, so no read\npath is ever tempted to fabricate a neutral \"ok\". The plugin auto-emits the\nenum in OpenAPI.",
+            "nullable": true,
+            "description": "Mood token from the shared `DIARY_MOODS` catalog (great / good / ok /\nlow / hard). Plaintext by design (patterns analytics). Server derives the\nnormalization columns; the client controls neither provenance nor\neligibility.\n\nPR-2B · **optional and null-capable**. A reflexion may carry no mood at\nall: an absent or explicit-`null` value both mean \"no pick\" → the server\nstores `mood = null` and marks it `not_selected` / ineligible. A present\nvalue MUST be canonical (`@ValidateIf` skips only when absent/null; a\nlegacy / unknown / empty token → 400). Eligibility additionally requires a\nmatching `moodSelectionVersion` attestation (see below) — a canonical mood\nwith no attestation is preserved but stays ineligible. The plugin\nauto-emits the enum in OpenAPI.",
             "enum": [
               "great",
               "good",
               "ok",
               "low",
               "hard"
+            ]
+          },
+          "moodSelectionVersion": {
+            "type": "string",
+            "description": "PR-2B · the client's versioned attestation that `mood` was an EXPLICIT\npick. The ONLY value a client may send is `explicit-v1`\n(`CLIENT_SELECTION_VERSIONS`); the server-owned attestations (`mood-log-v1`,\n`seed-v1`) are stamped by their own endpoints and rejected here. This is a\nversioned attestation, NOT a cryptographic proof — the server still derives\nprovenance/eligibility. Omit it (or send `null`) for a mood the composer\ndefaulted rather than the user tapping. Sending it without a `mood` is a\n400 (`MOOD_SELECTION_WITHOUT_MOOD`).",
+            "enum": [
+              "explicit-v1"
             ]
           },
           "kind": {
@@ -11119,7 +11127,6 @@
           }
         },
         "required": [
-          "mood",
           "textCiphertext",
           "textNonce"
         ]
@@ -11129,13 +11136,21 @@
         "properties": {
           "mood": {
             "type": "string",
-            "description": "New mood token from the shared `DIARY_MOODS` catalog. Server uses\nit for the patterns analytics — visible in plaintext by design.\nPlugin emits the enum in OpenAPI from `@IsIn`.\n\nPR-2A · `@ValidateIf(value !== undefined)` instead of `@IsOptional`: a\nMISSING property is allowed (leaves the mood untouched), but an EXPLICIT\n`null` must be rejected — `@IsOptional` would skip all validators for null\nand let a `mood = null` row slip in (which the read path then rejects with\na 500). So: omitted → OK; canonical string → OK; null / empty / legacy /\nunknown → 400. The nullable transition lands atomically in PR-2B.",
+            "nullable": true,
+            "description": "New mood token from the shared `DIARY_MOODS` catalog. Server uses\nit for the patterns analytics — visible in plaintext by design.\nPlugin emits the enum in OpenAPI from `@IsIn`.\n\nPR-2B · null-capable, three-way. The service distinguishes the cases via\n`hasOwnProperty`, so the validator must let both `null` and a canonical\nstring through while still rejecting garbage:\n  - **absent** (property omitted) → leave the mood untouched.\n  - **`null`** → clear the mood (`not_selected`, ineligible).\n  - **canonical string** → set it (eligible only with `explicit-v1`).\n  - empty / legacy / unknown token → 400.\n`@ValidateIf(value !== undefined && value !== null)` skips validation for\nthe absent and null cases (both legitimate) and enforces `@IsIn` on any\npresent value.",
             "enum": [
               "great",
               "good",
               "ok",
               "low",
               "hard"
+            ]
+          },
+          "moodSelectionVersion": {
+            "type": "string",
+            "description": "PR-2B · client attestation that the new `mood` was an EXPLICIT pick. Only\n`explicit-v1` (`CLIENT_SELECTION_VERSIONS`) is accepted from a client; the\nserver-owned attestations are stamped elsewhere. Sending it without a\n`mood`, or alongside `mood: null`, is a 400 (`MOOD_SELECTION_WITHOUT_MOOD`).\nRe-saving the SAME canonical mood WITHOUT this attestation never degrades an\nalready-eligible row (the service preserves the existing normalization).",
+            "enum": [
+              "explicit-v1"
             ]
           },
           "textCiphertext": {

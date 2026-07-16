@@ -158,20 +158,27 @@ function EntryCard({
           >
             {date} · {time}
           </span>
-          <span
-            className="inline-flex items-center gap-1.5"
-            style={{ color: "var(--color-warm-600)" }}
-          >
+          {entry.mood ? (
             <span
-              aria-hidden
-              className="inline-block h-2.5 w-2.5 rounded-full"
-              style={{
-                background:
-                  "linear-gradient(135deg, var(--color-lavender-300), var(--color-lavender-700))",
-              }}
-            />
-            {entry.mood[0].toUpperCase() + entry.mood.slice(1)}
-          </span>
+              className="inline-flex items-center gap-1.5"
+              style={{ color: "var(--color-warm-600)" }}
+            >
+              <span
+                aria-hidden
+                className="inline-block h-2.5 w-2.5 rounded-full"
+                style={{
+                  background:
+                    "linear-gradient(135deg, var(--color-lavender-300), var(--color-lavender-700))",
+                }}
+              />
+              {entry.mood[0].toUpperCase() + entry.mood.slice(1)}
+            </span>
+          ) : (
+            // PR-2B: an entry with no explicit mood pick — never fabricate one.
+            <span className="italic" style={{ color: "var(--color-warm-500)" }}>
+              Sin ánimo registrado
+            </span>
+          )}
         </header>
 
         {entry.promptText ? (

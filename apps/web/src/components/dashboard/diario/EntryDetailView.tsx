@@ -3,8 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { DIARY_MOODS } from "@psico/types";
-import type { DiaryDetailResponse } from "@psico/types";
+import { DIARY_MOODS, EXPLICIT_SELECTION_VERSION } from "@psico/types";
+import type { DiaryDetailResponse, DiaryMoodId } from "@psico/types";
 import { decryptString, encryptString } from "@psico/crypto";
 import { DiaryKeyProvider, useDiaryKey } from "@/lib/crypto/diary-key-context";
 import { UnlockGate } from "./UnlockGate";
@@ -102,7 +102,22 @@ function DecryptedDetail({
   const [deleting, startDelete] = useTransition();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  const [draftMood, setDraftMood] = useState<string>(detail.entry.mood);
+  // PR-2B: the raw persisted mood is `string | null` and may be a legacy token.
+  // The selector only speaks canonical DiaryMoodIds, so narrow it: a legacy /
+  // unknown raw seeds the selector as "no pick" (null).
+  const initialDraftMood: DiaryMoodId | null =
+    detail.entry.mood != null &&
+    DIARY_MOODS.some((m) => m.id === detail.entry.mood)
+      ? (detail.entry.mood as DiaryMoodId)
+      : null;
+  // PR-2B: nullable — an entry may have no mood, and the user can clear it.
+  const [draftMood, setDraftMood] = useState<DiaryMoodId | null>(
+    initialDraftMood,
+  );
+  // PR-2B: any interaction with the mood selector marks it "touched" so we can
+  // RE-ATTEST the same value — re-picking `good` on a legacy/ineligible row must
+  // send mood + explicit-v1, not be skipped because the value didn't change.
+  const [moodTouched, setMoodTouched] = useState(false);
   const [draftTags, setDraftTags] = useState<string[]>(detail.entry.tags);
   const [tagDraft, setTagDraft] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
@@ -146,7 +161,8 @@ function DecryptedDetail({
   function startEdit() {
     if (!decryption.ok) return;
     setDraft(decryption.text);
-    setDraftMood(detail.entry.mood);
+    setDraftMood(initialDraftMood);
+    setMoodTouched(false);
     setDraftTags(detail.entry.tags);
     setTagDraft("");
     setEditing(true);
@@ -197,7 +213,15 @@ function DecryptedDetail({
           excerptCiphertext: excerpt.ciphertext,
           excerptNonce: excerpt.nonce,
         };
-        if (draftMood !== detail.entry.mood) payload.mood = draftMood;
+        // PR-2B three-way, gated on `moodTouched` (not value inequality) so the
+        // user can RE-ATTEST: re-picking the same `good` on a legacy/ineligible
+        // row still sends mood + explicit-v1. Untouched → omit; touched + null →
+        // clear; touched + canonical → set with the attestation.
+        if (moodTouched) {
+          payload.mood = draftMood;
+          if (draftMood)
+            payload.moodSelectionVersion = EXPLICIT_SELECTION_VERSION;
+        }
         // Send tags array whenever the user changed it (even to empty).
         const tagsChanged =
           draftTags.length !== detail.entry.tags.length ||
@@ -272,20 +296,27 @@ function DecryptedDetail({
             minute: "2-digit",
           })}
         </span>
-        <span
-          className="inline-flex items-center gap-1.5"
-          style={{ color: "var(--color-warm-600)" }}
-        >
+        {detail.entry.mood ? (
           <span
-            aria-hidden
-            className="inline-block h-2.5 w-2.5 rounded-full"
-            style={{
-              background:
-                "linear-gradient(135deg, var(--color-lavender-300), var(--color-lavender-700))",
-            }}
-          />
-          {detail.entry.mood[0].toUpperCase() + detail.entry.mood.slice(1)}
-        </span>
+            className="inline-flex items-center gap-1.5"
+            style={{ color: "var(--color-warm-600)" }}
+          >
+            <span
+              aria-hidden
+              className="inline-block h-2.5 w-2.5 rounded-full"
+              style={{
+                background:
+                  "linear-gradient(135deg, var(--color-lavender-300), var(--color-lavender-700))",
+              }}
+            />
+            {detail.entry.mood[0].toUpperCase() + detail.entry.mood.slice(1)}
+          </span>
+        ) : (
+          // PR-2B: no explicit mood pick — never fabricate one.
+          <span className="italic" style={{ color: "var(--color-warm-500)" }}>
+            Sin ánimo registrado
+          </span>
+        )}
       </header>
 
       {/* Prompt (if any) */}
@@ -359,7 +390,13 @@ function DecryptedDetail({
                     role="radio"
                     aria-checked={active}
                     disabled={saving}
-                    onClick={() => setDraftMood(m.id)}
+                    // PR-2B: tapping the active mood deselects it (clears mood);
+                    // any interaction marks the selector touched so an unchanged
+                    // value still re-attests on save.
+                    onClick={() => {
+                      setMoodTouched(true);
+                      setDraftMood((prev) => (prev === m.id ? null : m.id));
+                    }}
                     className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-semibold"
                     style={{
                       background: active

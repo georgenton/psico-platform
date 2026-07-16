@@ -395,3 +395,51 @@ OU **no** se enciende en el merge de PR-2. Antes de flipear el flag:
 - Migrar `User.mood` a las 8 columnas — es display, no observación.
 - Re-mapear legacy `calma/foco/energia` a ordinal — se **conservan crudos y
   excluidos**; inventar un mapeo sería exactamente el pecado que este PR corrige.
+
+---
+
+## PR-2B — mood nullable + atestación de selección versionada (`explicit-v1`)
+
+PR-2A dejó el `mood` _requerido_ en el API para no fabricar `"ok"`. PR-2B hace el
+`mood` **null-capable de punta a punta, atómicamente**, y enciende la señal de
+selección explícita. `OU` sigue **off**; el scoring público no cambia.
+
+### Contrato de la atestación
+
+- **`moodSelectionVersion` es una atestación versionada del cliente, NO una
+  prueba criptográfica.** El cliente afirma "el usuario eligió este ánimo
+  activamente en un composer que soporta la selección explícita" enviando
+  `moodSelectionVersion="explicit-v1"`. No hay firma ni verificación cripto: es
+  una señal de versión que el server confía para derivar `explicitlySelected`.
+  Un cliente puede mentir; el modelo de amenaza acepta eso — la atestación
+  distingue _cliente-nuevo-con-señal_ de _cliente-legacy-sin-señal_, no defiende
+  contra un cliente adversario (que no gana nada marcándose "explícito").
+- **`READER_REFLECTION` sigue reservado** — el endpoint compartido de
+  reflexiones usa **`provenance = DIARY`** para TODA reflexión (lector incluido).
+  `READER_REFLECTION` no se emite todavía.
+- **`moodClientVersion` es audit-only** — se deriva de header/build metadata
+  cuando existe y sirve para "review by version"; **no decide elegibilidad**. La
+  elegibilidad la decide `moodSelectionVersion` + canonicidad + explicitud.
+
+### Valores de `moodSelectionVersion` (server-owned)
+
+| Escritura                                        | `moodSelectionVersion` |
+| ------------------------------------------------ | ---------------------- |
+| `POST /api/mood` (check-in, un tap ES explícito) | `mood-log-v1`          |
+| Reflexión con pick explícito (cliente nuevo)     | `explicit-v1`          |
+| Reflexión legacy (sin señal) o sin ánimo         | `null`                 |
+| Seeds                                            | `seed-v1`              |
+
+### Elegibilidad (derivada por el server)
+
+- canónico **+ `explicit-v1`** (cliente soportado) ⇒ `explicit=true`, `eligible=true`.
+- legacy/unknown, o canónico **sin** señal ⇒ `eligible=false`.
+- `null` ⇒ `not_selected`, `eligible=false`.
+- El cliente **nunca** envía `eligible`, `provenance`, `normalized` ni
+  `exclusionReason`.
+
+### CHECK
+
+PR-2B **NO** endurece el CHECK para exigir `moodSelectionVersion` — filas
+elegibles creadas por PR-2A todavía la tienen `null`. El endurecimiento
+(y el backfill de esas filas) es **PR-2C**.

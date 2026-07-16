@@ -141,7 +141,12 @@ normalized`, con **fallback temporal** al raw canónico **solo cuando TODA la me
 
 ## D. Compatibilidad mobile (release gate)
 
-**Veredicto: sin builds externos antiguos → se puede shipear web+mobile juntos.**
+**Veredicto técnico del repositorio:** no encontramos configuración ni artefactos de distribución
+externa.
+
+**Gate de producción:** pendiente de confirmación humana en TestFlight, Google Play, APK/IPA
+externos y Expo/EAS OTA.
+
 Auditado canal por canal (no solo "no hay eas.json"):
 
 | Canal                        | Evidencia                                                                      | Resultado                                     |
@@ -153,8 +158,9 @@ Auditado canal por canal (no solo "no hay eas.json"):
 | Expo Updates / canales OTA   | sin key `updates`, sin `runtimeVersion`, sin dep `expo-updates`, sin `channel` | ningún bundle publicado llega a app instalada |
 
 Solo `slug: "psico-platform"` (scaffold default). La app corre en **Expo Go** (dev) contra el
-bundle de Metro de la rama actual. **No hay instalaciones externas** de un build pre-PR-2B por
-NINGÚN canal.
+bundle de Metro de la rama actual. El repositorio **no puede demostrar** por sí solo la ausencia de
+testers externos — un build pudo hacerse fuera del repo (EAS remoto, Xcode/Android Studio local).
+Por eso el gate de producción exige **confirmación humana** (checklist abajo).
 
 **Análisis forward-compat (si existiera un cliente viejo):** el backend es forward-compatible —
 un cliente viejo manda `mood: "<canónico>"` sin `moodSelectionVersion` → `ambiguous_default` /

@@ -1,7 +1,7 @@
 # PR-2B — Mood nullable atómico + atestación de selección versionada
 
 **Rama:** `feature/pr-2b-mood-nullable`
-**Estado:** implementado — **HOLD antes del merge** (no desplegar en esta sesión).
+**Estado:** **mergeado a develop** (#551 · squash `4c09a4f`) — **producción en HOLD** (sin desplegar).
 **Contrato congelado:** [docs/architecture/emotional-map-mood-normalization.md §PR-2B](../architecture/emotional-map-mood-normalization.md).
 
 PR-2A dejó `mood` **requerido** en el API para no fabricar un `"ok"` neutro. PR-2B
@@ -167,8 +167,9 @@ un cliente viejo manda `mood: "<canónico>"` sin `moodSelectionVersion` → `amb
 `pre_normalizer_review` (guardado, ineligible), **sin crash**, idéntico a PR-2A. El único riesgo
 sería un cliente viejo **leyendo** una entrada con `mood: null` (posible 500/crash si hace
 `DIARY_MOODS.find(...).emoji`), pero eso requiere un cliente nuevo que cree la entrada null +
-un cliente viejo que la lea — imposible aquí porque no hay clientes viejos y toda entrada
-pre-PR-2B tiene mood no-null. **Estrategia si algún día hay builds en tienda:** subir la versión
+un cliente viejo que la lea. Si la confirmación humana determina que no existen clientes antiguos
+distribuidos, este riesgo no se materializa. Si existe alguno, el despliegue queda bloqueado hasta
+implementar versionado o actualización mínima. **Estrategia si algún día hay builds en tienda:** subir la versión
 mínima soportada / gating por `runtimeVersion`, y hacer que los lectores toleren `mood: null`
 (que es justo lo que hace PR-2B) antes de permitir crear entradas null.
 
@@ -188,9 +189,9 @@ entradas sin mood.
 
 ---
 
-## E. Runbook de despliegue (para cuando se apruebe el merge)
+## E. Runbook de producción — mergeado a develop, despliegue pendiente
 
-**No desplegar en esta sesión.** ⚠️ **El ORDEN es obligatorio: API antes que web.** Un web
+**No desplegar todavía — producción en HOLD, pendiente del gate humano (§D).** ⚠️ **El ORDEN es obligatorio: API antes que web.** Un web
 nuevo contra una API vieja (PR-2A) NO es compatible — el web nuevo puede **omitir** `mood`
 (que PR-2A rechaza como `mood` requerido → 400) y envía `moodSelectionVersion` (columna/campo
 que PR-2A no conoce → 400 `forbidNonWhitelisted`). Por eso el backend va PRIMERO y el web

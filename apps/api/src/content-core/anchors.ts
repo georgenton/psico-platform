@@ -1,83 +1,154 @@
 import type { PrismaClient } from "@prisma/client";
 
 /**
- * Content Core — CC-4 anchor backfill + dual-read resolver.
+ * Content Core — CC-4 anchor backfill + dual-read (fail-closed).
  *
  * Re-points user anchors (Highlight/Annotation) from the legacy `ChapterBlock`
- * (`blockId`) to the stable `ContentBlock` (`contentBlockId`), and snapshots the
- * highlight's selected text into `quote`. The legacy `blockId` is left intact —
- * reads keep working through the transition via the dual-read resolver. Idempotent
- * (only touches rows whose `contentBlockId` is still null); never deletes anything.
+ * (`blockId`) to the stable `ContentBlock` (`contentBlockId`), and snapshots a
+ * highlight's selected text into `quote`. The legacy `blockId` stays intact —
+ * reads keep working through the dual-read resolver. Idempotent; never deletes.
  *
- * Depends on CC-3 having run first (ContentBlocks carry `legacyBlockId`). See
- * ADR 0016 §D.
+ * Fail-closed:
+ *  - A quote is captured ONLY when the offsets are valid against the block
+ *    content; otherwise `quote` is left null (never a fabricated/partial string).
+ *  - If a stable `contentBlockId` and the legacy `blockId` disagree
+ *    (`ContentBlock.legacyBlockId != blockId`), the resolver THROWS rather than
+ *    silently preferring one — a contradiction is a bug, not a fallback.
+ *
+ * See ADR 0016 §D.
  */
 
 export interface AnchorBackfillStats {
-  highlights: number;
-  annotations: number;
+  highlightsLinked: number;
+  annotationsLinked: number;
+  quotesCaptured: number;
+  alreadyMigrated: number;
+  unresolved: number;
+  invalidOffsets: number;
+}
+
+function offsetsValid(
+  startOffset: number,
+  endOffset: number,
+  contentLength: number,
+): boolean {
+  return (
+    startOffset >= 0 && endOffset > startOffset && endOffset <= contentLength
+  );
 }
 
 export async function backfillAnchors(
   prisma: PrismaClient,
 ): Promise<AnchorBackfillStats> {
-  const stats: AnchorBackfillStats = { highlights: 0, annotations: 0 };
+  const stats: AnchorBackfillStats = {
+    highlightsLinked: 0,
+    annotationsLinked: 0,
+    quotesCaptured: 0,
+    alreadyMigrated: 0,
+    unresolved: 0,
+    invalidOffsets: 0,
+  };
 
-  const highlights = await prisma.highlight.findMany({
-    where: { contentBlockId: null },
-  });
+  // ── Highlights ──
+  const highlights = await prisma.highlight.findMany();
   for (const h of highlights) {
+    // Fully migrated already (linked + quote captured) → nothing to do.
+    if (h.contentBlockId && h.quote != null) {
+      stats.alreadyMigrated += 1;
+      continue;
+    }
+
     const cb = await prisma.contentBlock.findUnique({
       where: { legacyBlockId: h.blockId },
     });
-    if (!cb) continue; // content not backfilled yet — leave for a later pass
+    if (!cb) {
+      stats.unresolved += 1; // content not backfilled — leave the row untouched
+      continue;
+    }
 
-    const legacy = await prisma.chapterBlock.findUnique({
-      where: { id: h.blockId },
-    });
-    const quote = legacy
-      ? legacy.content.slice(h.startOffset, h.endOffset)
-      : null;
-
-    await prisma.highlight.update({
-      where: { id: h.id },
-      data: { contentBlockId: cb.id, quote },
-    });
-    stats.highlights += 1;
+    const data: { contentBlockId?: string; quote?: string } = {};
+    if (!h.contentBlockId) {
+      data.contentBlockId = cb.id;
+      stats.highlightsLinked += 1;
+    }
+    if (h.quote == null) {
+      const legacy = await prisma.chapterBlock.findUnique({
+        where: { id: h.blockId },
+      });
+      if (
+        legacy &&
+        offsetsValid(h.startOffset, h.endOffset, legacy.content.length)
+      ) {
+        data.quote = legacy.content.slice(h.startOffset, h.endOffset);
+        stats.quotesCaptured += 1;
+      } else {
+        stats.invalidOffsets += 1; // leave quote null — never fabricate
+      }
+    }
+    if (Object.keys(data).length > 0) {
+      await prisma.highlight.update({ where: { id: h.id }, data });
+    }
   }
 
-  const annotations = await prisma.annotation.findMany({
-    where: { contentBlockId: null },
-  });
+  // ── Annotations (block-level notes — quote stays null) ──
+  const annotations = await prisma.annotation.findMany();
   for (const a of annotations) {
+    if (a.contentBlockId) {
+      stats.alreadyMigrated += 1;
+      continue;
+    }
     const cb = await prisma.contentBlock.findUnique({
       where: { legacyBlockId: a.blockId },
     });
-    if (!cb) continue;
-
-    // Annotations are block-level notes, not a text selection → quote stays null.
+    if (!cb) {
+      stats.unresolved += 1;
+      continue;
+    }
     await prisma.annotation.update({
       where: { id: a.id },
       data: { contentBlockId: cb.id },
     });
-    stats.annotations += 1;
+    stats.annotationsLinked += 1;
   }
 
   return stats;
 }
 
+export type AnchorResolutionStatus =
+  | "stable"
+  | "legacy-fallback"
+  | "unresolved";
+
+export interface AnchorResolution {
+  status: AnchorResolutionStatus;
+  contentBlockId: string | null;
+}
+
 /**
- * Dual-read: resolve an anchor's stable `ContentBlock` id. Prefers the new
- * `contentBlockId`; falls back to the legacy `blockId` → `ContentBlock.legacyBlockId`
- * lookup. Returns null only if neither path resolves (content not yet backfilled).
+ * Dual-read: resolve an anchor's stable `ContentBlock` id.
+ *  - `contentBlockId` present → verify `ContentBlock.legacyBlockId === blockId`;
+ *    on mismatch THROW `ANCHOR_IDENTITY_MISMATCH` (never silently prefer it).
+ *    → { status: "stable" }.
+ *  - else → look up by legacy `blockId`. Found → { status: "legacy-fallback" };
+ *    not found → { status: "unresolved", contentBlockId: null }.
  */
 export async function resolveAnchorContentBlockId(
   prisma: PrismaClient,
   anchor: { contentBlockId: string | null; blockId: string },
-): Promise<string | null> {
-  if (anchor.contentBlockId) return anchor.contentBlockId;
+): Promise<AnchorResolution> {
+  if (anchor.contentBlockId) {
+    const cb = await prisma.contentBlock.findUnique({
+      where: { id: anchor.contentBlockId },
+    });
+    if (!cb || cb.legacyBlockId !== anchor.blockId) {
+      throw new Error("ANCHOR_IDENTITY_MISMATCH");
+    }
+    return { status: "stable", contentBlockId: anchor.contentBlockId };
+  }
+
   const cb = await prisma.contentBlock.findUnique({
     where: { legacyBlockId: anchor.blockId },
   });
-  return cb?.id ?? null;
+  if (cb) return { status: "legacy-fallback", contentBlockId: cb.id };
+  return { status: "unresolved", contentBlockId: null };
 }

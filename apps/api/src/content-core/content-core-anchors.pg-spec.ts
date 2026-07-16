@@ -15,9 +15,10 @@ import {
  *
  * Seeds a legacy Book/Chapter/ChapterBlock + a Highlight + an Annotation, runs the
  * content backfill (CC-3) then the anchor backfill (CC-4), and asserts the anchors
- * now carry a stable `contentBlockId` + `quote`, that dual-read resolves via both
- * the new FK and the legacy fallback, that a rerun is a no-op, and that no legacy
- * column/row was dropped. Own dedicated database (extensions are per-DB).
+ * carry a stable `contentBlockId` + `quote`, that dual-read resolves stable /
+ * legacy-fallback / throws on identity mismatch, that quotes fail closed on invalid
+ * offsets, that a partial row completes on rerun, and that no legacy column/row was
+ * dropped. Own dedicated database (extensions are per-DB).
  *
  * Runs only when TEST_DATABASE_URL is set (CI `test:locks`); skipped otherwise.
  */
@@ -38,7 +39,9 @@ suite(
   () => {
     let prisma: PrismaClient;
     let pool: Pool;
-    let blockId: string;
+    let userId: string;
+    let block1Id: string;
+    let block2Id: string;
     let highlightId: string;
     let annotationId: string;
     let firstRun: AnchorBackfillStats;
@@ -62,13 +65,14 @@ suite(
       const user = await prisma.user.create({
         data: { email: "anchor@test.local", name: "Anchor" },
       });
+      userId = user.id;
       const book = await prisma.book.create({
         data: { slug: "anchor-book", title: "Anchor" },
       });
       const ch = await prisma.chapter.create({
         data: { bookId: book.id, order: 1, title: "C1" },
       });
-      const block = await prisma.chapterBlock.create({
+      const block1 = await prisma.chapterBlock.create({
         data: {
           chapterId: ch.id,
           order: 0,
@@ -76,20 +80,29 @@ suite(
           content: "El miedo no es el enemigo.",
         },
       });
-      blockId = block.id;
+      block1Id = block1.id;
+      const block2 = await prisma.chapterBlock.create({
+        data: {
+          chapterId: ch.id,
+          order: 1,
+          kind: "PARAGRAPH",
+          content: "Otro.",
+        },
+      });
+      block2Id = block2.id;
 
       // "el enemigo" is at [15, 25].
       const h = await prisma.highlight.create({
         data: {
           userId: user.id,
-          blockId: block.id,
+          blockId: block1.id,
           startOffset: 15,
           endOffset: 25,
         },
       });
       highlightId = h.id;
       const a = await prisma.annotation.create({
-        data: { userId: user.id, blockId: block.id, text: "una nota" },
+        data: { userId: user.id, blockId: block1.id, text: "una nota" },
       });
       annotationId = a.id;
 
@@ -112,13 +125,11 @@ suite(
       });
       expect(h!.contentBlockId).toBeTruthy();
       expect(h!.quote).toBe("el enemigo");
-      // Legacy blockId is untouched.
-      expect(h!.blockId).toBe(blockId);
-
+      expect(h!.blockId).toBe(block1Id); // legacy untouched
       const cb = await prisma.contentBlock.findUnique({
         where: { id: h!.contentBlockId! },
       });
-      expect(cb!.legacyBlockId).toBe(blockId);
+      expect(cb!.legacyBlockId).toBe(block1Id);
     });
 
     it("re-points the Annotation (quote stays null — block-level note)", async () => {
@@ -127,39 +138,115 @@ suite(
       });
       expect(a!.contentBlockId).toBeTruthy();
       expect(a!.quote).toBeNull();
-      expect(a!.blockId).toBe(blockId);
+      expect(a!.blockId).toBe(block1Id);
     });
 
-    it("dual-read prefers contentBlockId when present", async () => {
+    it("full metrics on the first run; the second run only counts already-migrated", async () => {
+      expect(firstRun).toEqual({
+        highlightsLinked: 1,
+        annotationsLinked: 1,
+        quotesCaptured: 1,
+        alreadyMigrated: 0,
+        unresolved: 0,
+        invalidOffsets: 0,
+      });
+      expect(secondRun).toEqual({
+        highlightsLinked: 0,
+        annotationsLinked: 0,
+        quotesCaptured: 0,
+        alreadyMigrated: 2,
+        unresolved: 0,
+        invalidOffsets: 0,
+      });
+    });
+
+    it("dual-read → stable when both ids agree", async () => {
       const h = await prisma.highlight.findUnique({
         where: { id: highlightId },
       });
-      const resolved = await resolveAnchorContentBlockId(prisma, h!);
-      expect(resolved).toBe(h!.contentBlockId);
+      const r = await resolveAnchorContentBlockId(prisma, h!);
+      expect(r).toEqual({
+        status: "stable",
+        contentBlockId: h!.contentBlockId,
+      });
     });
 
-    it("dual-read falls back to the legacy blockId when contentBlockId is null", async () => {
-      const resolved = await resolveAnchorContentBlockId(prisma, {
-        contentBlockId: null,
-        blockId,
-      });
+    it("dual-read → legacy-fallback when contentBlockId is null", async () => {
       const cb = await prisma.contentBlock.findUnique({
-        where: { legacyBlockId: blockId },
+        where: { legacyBlockId: block1Id },
       });
-      expect(resolved).toBe(cb!.id);
+      const r = await resolveAnchorContentBlockId(prisma, {
+        contentBlockId: null,
+        blockId: block1Id,
+      });
+      expect(r).toEqual({ status: "legacy-fallback", contentBlockId: cb!.id });
     });
 
-    it("is idempotent — the second run touches nothing new", async () => {
-      expect(firstRun).toEqual({ highlights: 1, annotations: 1 });
-      expect(secondRun).toEqual({ highlights: 0, annotations: 0 });
+    it("dual-read → ANCHOR_IDENTITY_MISMATCH when contentBlockId contradicts blockId", async () => {
+      // contentBlockId points at block2's ContentBlock, but blockId is block1.
+      const cb2 = await prisma.contentBlock.findUnique({
+        where: { legacyBlockId: block2Id },
+      });
+      await expect(
+        resolveAnchorContentBlockId(prisma, {
+          contentBlockId: cb2!.id,
+          blockId: block1Id,
+        }),
+      ).rejects.toThrow(/ANCHOR_IDENTITY_MISMATCH/);
+    });
+
+    it("quotes fail closed — invalid offsets leave quote null + count invalidOffsets", async () => {
+      const bad = await prisma.highlight.create({
+        data: { userId, blockId: block1Id, startOffset: 0, endOffset: 9999 },
+      });
+      const r = await backfillAnchors(prisma);
+      expect(r.invalidOffsets).toBe(1);
+      const h = await prisma.highlight.findUnique({ where: { id: bad.id } });
+      expect(h!.contentBlockId).toBeTruthy(); // still linked
+      expect(h!.quote).toBeNull(); // never fabricated
+      // clean up so it doesn't skew later runs' counts
+      await prisma.highlight.delete({ where: { id: bad.id } });
+    });
+
+    it("completes the quote of a partially-migrated row on rerun", async () => {
+      const cb = await prisma.contentBlock.findUnique({
+        where: { legacyBlockId: block1Id },
+      });
+      const partial = await prisma.highlight.create({
+        data: {
+          userId,
+          blockId: block1Id,
+          startOffset: 0,
+          endOffset: 8,
+          contentBlockId: cb!.id, // linked but quote not yet captured
+        },
+      });
+      const r = await backfillAnchors(prisma);
+      expect(r.quotesCaptured).toBeGreaterThanOrEqual(1);
+      const h = await prisma.highlight.findUnique({
+        where: { id: partial.id },
+      });
+      expect(h!.quote).toBe("El miedo"); // [0, 8)
+      await prisma.highlight.delete({ where: { id: partial.id } });
+    });
+
+    it("has a contentBlockId index on both Highlight and Annotation", async () => {
+      const r = await pool.query(
+        `SELECT indexname FROM pg_indexes
+        WHERE indexname IN ('Highlight_contentBlockId_idx','Annotation_contentBlockId_idx')`,
+      );
+      expect(r.rows.map((x) => x.indexname).sort()).toEqual([
+        "Annotation_contentBlockId_idx",
+        "Highlight_contentBlockId_idx",
+      ]);
     });
 
     it("drops nothing — legacy rows + blockId FK remain intact", async () => {
-      expect(await prisma.chapterBlock.count()).toBe(1);
+      expect(await prisma.chapterBlock.count()).toBe(2);
       const h = await prisma.highlight.findUnique({
         where: { id: highlightId },
       });
-      expect(h!.blockId).toBe(blockId);
+      expect(h!.blockId).toBe(block1Id);
     });
   },
 );

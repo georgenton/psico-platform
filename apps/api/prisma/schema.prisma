@@ -154,6 +154,7 @@ model User {
   checkinResponses        CheckinResponse[]
   diaryTextFeatures       DiaryTextFeature[]
   resonances              Resonance[]
+  learningEvents          LearningEvent[]
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -1295,16 +1296,16 @@ model NotificationSettings {
 }
 
 model PrivacySettings {
-  id                       String    @id @default(cuid())
-  userId                   String    @unique
-  shareDiaryWithTherapist  Boolean   @default(false)
-  anonymizedAnalytics      Boolean   @default(true)
-  marketingEmail           Boolean   @default(false)
+  id                          String    @id @default(cuid())
+  userId                      String    @unique
+  shareDiaryWithTherapist     Boolean   @default(false)
+  anonymizedAnalytics         Boolean   @default(true)
+  marketingEmail              Boolean   @default(false)
   // Fase D (V2, decision L4) — consent for the ON-DEVICE reflection text
   // analysis (TXT-L1). Default OFF: without explicit opt-in the client must
   // not upload numeric features, the endpoint rejects them, and the scoring
   // ignores any stored rows. Turning it off deletes the derived rows.
-  localTextAnalysis        Boolean   @default(false)
+  localTextAnalysis           Boolean   @default(false)
   /// PR-0.1 — the DURABLE half of the emotional-map cache identity.
   ///
   /// Incremented IN THE SAME TRANSACTION that changes the consent and deletes
@@ -1317,11 +1318,11 @@ model PrivacySettings {
   ///
   /// The Redis generation counter still exists, but only for freshness. The
   /// SAFETY of a revocation lives in Postgres.
-  emotionalMapPrivacyRevision Int    @default(0)
+  emotionalMapPrivacyRevision Int       @default(0)
   // Mirrors of DataExportRequest / User.deleteRequestedAt so the FE has them in one read
-  dataExportRequestedAt    DateTime?
-  accountDeleteRequestedAt DateTime?
-  updatedAt                DateTime  @updatedAt
+  dataExportRequestedAt       DateTime?
+  accountDeleteRequestedAt    DateTime?
+  updatedAt                   DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -1933,27 +1934,27 @@ enum AuthorBookStatus {
 // ChapterBlock so the lector reads from the same models as the public catalog.
 // `publishedBookId` keeps the link for republish / unpublish flows.
 model AuthorBook {
-  id            String           @id @default(cuid())
-  authorUserId  String
-  title         String
-  subtitle      String?
-  summary       String?
-  status        AuthorBookStatus @default(DRAFT)
+  id              String           @id @default(cuid())
+  authorUserId    String
+  title           String
+  subtitle        String?
+  summary         String?
+  status          AuthorBookStatus @default(DRAFT)
   // Cover: same shape as Book.cover (warm/cool/mixed/custom).
-  cover         String           @default("warm")
-  coverArtUrl   String?
+  cover           String           @default("warm")
+  coverArtUrl     String?
   // Optional category/language target — set at publication.
-  categoryId    String?
-  language      String           @default("es")
+  categoryId      String?
+  language        String           @default("es")
   // Link to public Book when published (null when DRAFT/IN_REVIEW/ARCHIVED).
-  publishedBookId String?        @unique
-  publishedAt   DateTime?
-  archivedAt    DateTime?
+  publishedBookId String?          @unique
+  publishedAt     DateTime?
+  archivedAt      DateTime?
   // Last submission to review (set at publish-request). Used by Pulso to
   // count pending reviews and by the publication checklist UI.
-  submittedAt   DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  submittedAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   author          User                       @relation("AuthorBookOwner", fields: [authorUserId], references: [id], onDelete: Cascade)
   chapters        AuthorBookChapter[]
@@ -1991,11 +1992,11 @@ model AuthorBookChapter {
 // Audit trail of submissions to review. One row per submit; `reviewState`
 // tracks the current verdict.
 model AuthorPublicationRequest {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   bookId      String
-  submittedAt DateTime @default(now())
+  submittedAt DateTime  @default(now())
   // PENDING, APPROVED, REJECTED — string instead of enum for cheap evolution.
-  reviewState String   @default("PENDING")
+  reviewState String    @default("PENDING")
   // Admin's editorial feedback (Markdown short). Surfaces in the publication
   // checklist on the editor side.
   feedback    String?
@@ -2134,25 +2135,25 @@ model Journey {
 /// `valuesJson` stores the 6 axes for potential per-dimension breakdowns
 /// later (e.g. "+18% autocompasión este mes" in EvoQuarter).
 model EmotionalMapSnapshot {
-  id          String   @id @default(cuid())
-  userId      String
+  id        String   @id @default(cuid())
+  userId    String
   /// First-day-of-month UTC, e.g. 2026-07-01T00:00:00Z. Acts as the
   /// stable cohort anchor — every snapshot for July maps to the same date.
-  month       DateTime
+  month     DateTime
   /// Same `pct` shape as `EmotionalMapResult.pct` (0..100, rounded).
   /// LEGACY since Fase G — kept for historical rows; the Evolución chart
   /// now reads `coverage`.
-  pct         Int
+  pct       Int
   /// Fase G — data coverage (0..1) backing the map that month. The honest
   /// replacement for pct in the Evolución series: it measures how much
   /// signal exists, not a psychological score. Null on pre-Fase-G rows.
-  coverage    Float?
+  coverage  Float?
   /// 6-axis vector as Float[]. Order matches Radar: Calma · Claridad ·
   /// Conexión · Propósito · Compasión · Consciencia.
-  values      Float[]
+  values    Float[]
   /// Which provider answered the LLM axes ("anthropic", "fallback", …).
-  provider    String
-  createdAt   DateTime @default(now())
+  provider  String
+  createdAt DateTime @default(now())
 
   /// PR-0.1 — identity of the code + config that produced these NUMBERS. A row
   /// computed under a different facts schema, scoring version, facts-config or
@@ -2177,10 +2178,244 @@ model EmotionalMapSnapshot {
   /// shared lock on the User row, re-validated at write time) is what makes the
   /// write safe; this column is what lets us AUDIT it afterwards: given a row,
   /// which consent state produced these numbers. Null on pre-PR-0.1 rows.
-  privacyRevision    Int?
+  privacyRevision Int?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, month])
   @@index([userId, month])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Content Core (CC-2 — additive schema only; no reads changed, no backfill).
+//
+// Successor to Book/Chapter/ChapterBlock. Separates editorial IDENTITY (Work,
+// Edition, ContentUnit, ContentBlock) from versioned CONTENT (ContentUnitVersion,
+// BlockVersion) assembled per revision by a MANIFEST (RevisionUnit). User anchors
+// FK the stable ContentBlock (Restrict), never a version. LearningEvent is
+// append-only and firewalled from the Emotional Map (payload is server-owned).
+//
+// These tables coexist with the legacy content model; nothing reads them yet.
+// Constraints Prisma cannot express (cross-edition CHECK, ConceptLink XOR,
+// partial-unique indexes) live in the migration SQL. See
+// docs/architecture/content-core.md and ADR 0016.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Work {
+  id         String   @id @default(cuid())
+  workKey    String   @unique
+  title      String
+  authorName String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  editions Edition[]
+}
+
+model Edition {
+  id                  String   @id @default(cuid())
+  workId              String
+  editionKey          String   @unique
+  slug                String   @unique
+  label               String
+  language            String   @default("es-419")
+  // The revision currently served to readers. CHECK (migration): it belongs to
+  // this edition.
+  publishedRevisionId String?  @unique
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  work              Work          @relation(fields: [workId], references: [id], onDelete: Cascade)
+  revisions         Revision[]    @relation("EditionRevisions")
+  units             ContentUnit[]
+  publishedRevision Revision?     @relation("PublishedRevision", fields: [publishedRevisionId], references: [id])
+
+  @@index([workId])
+}
+
+enum RevisionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Revision {
+  id          String         @id @default(cuid())
+  editionId   String
+  number      Int
+  status      RevisionStatus @default(DRAFT)
+  note        String?
+  createdAt   DateTime       @default(now())
+  publishedAt DateTime?
+
+  edition      Edition        @relation("EditionRevisions", fields: [editionId], references: [id], onDelete: Cascade)
+  units        RevisionUnit[]
+  publishedFor Edition?       @relation("PublishedRevision")
+
+  @@unique([editionId, number])
+  @@index([editionId, status])
+}
+
+// The manifest: a revision selects exactly one version of each unit + its placement.
+model RevisionUnit {
+  id            String  @id @default(cuid())
+  revisionId    String
+  unitId        String
+  unitVersionId String
+  order         Int
+  partNumber    Int?
+  partTitle     String?
+
+  revision    Revision           @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  unit        ContentUnit        @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  unitVersion ContentUnitVersion @relation(fields: [unitVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([revisionId, unitId])
+  @@unique([revisionId, order])
+  @@index([unitVersionId])
+}
+
+model ContentUnit {
+  id        String   @id @default(cuid())
+  editionId String
+  unitKey   String
+  createdAt DateTime @default(now())
+
+  edition         Edition              @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  versions        ContentUnitVersion[]
+  blocks          ContentBlock[]
+  manifestEntries RevisionUnit[]
+  conceptLinks    ConceptLink[]
+
+  @@unique([editionId, unitKey])
+  @@index([editionId])
+}
+
+model ContentUnitVersion {
+  id              String   @id @default(cuid())
+  unitId          String
+  title           String
+  summary         String?
+  durationMinutes Int?
+  createdAt       DateTime @default(now())
+
+  unit            ContentUnit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  blockVersions   BlockVersion[]
+  manifestEntries RevisionUnit[]
+
+  @@index([unitId])
+}
+
+model ContentBlock {
+  id            String   @id @default(cuid())
+  // Stable editorial identity: uuidv5(CONTENT_CORE_NAMESPACE_UUID, legacyBlockId).
+  blockKey      String   @unique
+  unitId        String
+  // Old ChapterBlock.id this block came from — the dual-read bridge (CC-4).
+  legacyBlockId String?  @unique
+  createdAt     DateTime @default(now())
+
+  // Restrict, never Cascade: a unit cannot be deleted out from under a block that
+  // may carry user anchors.
+  unit         ContentUnit    @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  versions     BlockVersion[]
+  conceptLinks ConceptLink[]
+
+  @@index([unitId])
+}
+
+enum BlockKind {
+  PARAGRAPH
+  HEADING
+  QUOTE
+  EXERCISE
+  AUDIO
+  IMAGE
+  PAUSE
+  VIDEO
+}
+
+model BlockVersion {
+  id             String    @id @default(cuid())
+  contentBlockId String
+  unitVersionId  String
+  order          Int
+  kind           BlockKind
+  content        String
+  contentHash    String
+  meta           Json?
+  createdAt      DateTime  @default(now())
+
+  contentBlock ContentBlock       @relation(fields: [contentBlockId], references: [id], onDelete: Cascade)
+  unitVersion  ContentUnitVersion @relation(fields: [unitVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([unitVersionId, contentBlockId])
+  @@unique([unitVersionId, order])
+  @@index([contentBlockId])
+  @@index([contentHash])
+}
+
+model Concept {
+  id          String   @id @default(cuid())
+  conceptKey  String   @unique
+  label       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  links ConceptLink[]
+}
+
+enum ConceptRole {
+  PRIMARY
+  SUPPORTING
+}
+
+// XOR target — EXACTLY ONE of (unitId, contentBlockId). Enforced by a CHECK + two
+// partial-unique indexes in the migration (Prisma cannot express either).
+model ConceptLink {
+  id             String      @id @default(cuid())
+  conceptId      String
+  unitId         String?
+  contentBlockId String?
+  role           ConceptRole @default(PRIMARY)
+  createdAt      DateTime    @default(now())
+
+  concept      Concept       @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  unit         ContentUnit?  @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  contentBlock ContentBlock? @relation(fields: [contentBlockId], references: [id], onDelete: Restrict)
+
+  @@index([conceptId])
+  @@index([unitId])
+  @@index([contentBlockId])
+}
+
+enum LearningEventKind {
+  UNIT_OPENED
+  UNIT_COMPLETED
+  BLOCK_DWELL
+  GUIDE_SESSION_STARTED
+  GUIDE_SESSION_COMPLETED
+  HIGHLIGHT_CREATED
+  ANNOTATION_CREATED
+  RESONANCE_CONFIRMED
+}
+
+// Append-only learning log — FIREWALLED from the Emotional Map. `payload` is
+// SERVER-OWNED (numbers/enums only): the client submits a typed intent, the server
+// constructs what is stored. No free text.
+model LearningEvent {
+  id        String            @id @default(cuid())
+  userId    String
+  kind      LearningEventKind
+  editionId String?
+  unitId    String?
+  blockKey  String?
+  payload   Json?
+  createdAt DateTime          @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, kind])
 }

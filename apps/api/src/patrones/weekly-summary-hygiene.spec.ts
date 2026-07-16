@@ -1,15 +1,25 @@
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 // The hygiene logic lives in a runnable ops script; we import the extracted,
 // side-effect-free helper (the CLI bootstrap is guarded behind isMain).
 import { runWeeklySummaryHygiene } from "../../scripts/pr2b-weekly-summary-hygiene.mjs";
 
-describe("pr2b-weekly-summary-hygiene", () => {
-  it("dry-run: counts only, writes nothing, prints just weekly_summaries_found", async () => {
+const SCRIPT_PATH = fileURLToPath(
+  new URL("../../scripts/pr2b-weekly-summary-hygiene.mjs", import.meta.url),
+);
+
+describe("pr2b-weekly-summary-hygiene · helper", () => {
+  it("dry-run: counts only, writes nothing, emits exactly one line", async () => {
     const deleteMany = vi.fn();
+    const create = vi.fn();
+    const upsert = vi.fn();
     const prisma = {
       weeklySummary: {
         count: vi.fn().mockResolvedValue(7),
         deleteMany,
+        create,
+        upsert,
       },
     };
     const lines: string[] = [];
@@ -21,13 +31,12 @@ describe("pr2b-weekly-summary-hygiene", () => {
     });
 
     expect(res).toEqual({ found: 7 });
-    // Never mutates in dry-run.
     expect(deleteMany).not.toHaveBeenCalled();
     // Exactly one aggregate line — no ids/emails/headline/narrative.
     expect(lines).toEqual(["weekly_summaries_found=7"]);
   });
 
-  it("apply: deletes the table and reports only the deleted count; idempotent on a second run", async () => {
+  it("apply: deletes and reports only the deleted count; idempotent second run → 0", async () => {
     // Stateful mock: the table starts with 7 rows, then is empty.
     let remaining = 7;
     const prisma = {
@@ -43,13 +52,16 @@ describe("pr2b-weekly-summary-hygiene", () => {
     const lines: string[] = [];
     const log = (m: string) => lines.push(m);
 
-    // First apply — wipes 7.
-    const first = await runWeeklySummaryHygiene({ prisma, apply: true, log });
-    expect(first).toEqual({ deleted: 7 });
-
-    // Second apply — nothing left; idempotent.
-    const second = await runWeeklySummaryHygiene({ prisma, apply: true, log });
-    expect(second).toEqual({ deleted: 0 });
+    expect(await runWeeklySummaryHygiene({ prisma, apply: true, log })).toEqual(
+      {
+        deleted: 7,
+      },
+    );
+    expect(await runWeeklySummaryHygiene({ prisma, apply: true, log })).toEqual(
+      {
+        deleted: 0,
+      },
+    );
 
     expect(lines).toEqual([
       "weekly_summaries_deleted=7",
@@ -57,7 +69,28 @@ describe("pr2b-weekly-summary-hygiene", () => {
     ]);
   });
 
-  it("privacy: the emitted lines never carry identifiers or row content", async () => {
+  it("contract: a LOSS, not a rebuild — never regenerates (no create/upsert)", async () => {
+    // Pins the honest contract: the script deletes and stops. It does NOT
+    // reconstruct historical summaries (regenerate only produces the current
+    // week). If a future edit reached for create/upsert here, this fails.
+    const create = vi.fn();
+    const upsert = vi.fn();
+    const prisma = {
+      weeklySummary: {
+        count: vi.fn().mockResolvedValue(3),
+        deleteMany: vi.fn().mockResolvedValue({ count: 3 }),
+        create,
+        upsert,
+      },
+    };
+
+    await runWeeklySummaryHygiene({ prisma, apply: true, log: () => {} });
+
+    expect(create).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("privacy: emitted lines never carry identifiers or row content", async () => {
     const prisma = {
       weeklySummary: {
         count: vi.fn().mockResolvedValue(3),
@@ -71,19 +104,30 @@ describe("pr2b-weekly-summary-hygiene", () => {
     await runWeeklySummaryHygiene({ prisma, apply: true, log });
 
     const blob = lines.join("\n");
-    for (const forbidden of [
-      "userId",
-      "@", // emails
-      "headline",
-      "narrative",
-      "calma",
-    ]) {
+    for (const forbidden of ["userId", "@", "headline", "narrative", "calma"]) {
       expect(blob).not.toContain(forbidden);
     }
-    // Only the two aggregate count lines were emitted.
     expect(lines).toEqual([
       "weekly_summaries_found=3",
       "weekly_summaries_deleted=3",
     ]);
+  });
+});
+
+describe("pr2b-weekly-summary-hygiene · CLI stdout discipline", () => {
+  it("routes errors to stderr and keeps stdout empty (no banner, no verbose)", () => {
+    // Run the real CLI with DATABASE_URL unset. It must error on stderr and
+    // write NOTHING to stdout — proving there is no banner/verbose line that
+    // could precede (or replace) the single count line on the happy path.
+    const env = { ...process.env };
+    delete env.DATABASE_URL;
+    const res = spawnSync(process.execPath, [SCRIPT_PATH], {
+      env,
+      encoding: "utf8",
+    });
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toBe(""); // strictly counts-only: nothing else on stdout
+    expect(res.stderr).toContain("DATABASE_URL is required.");
   });
 });

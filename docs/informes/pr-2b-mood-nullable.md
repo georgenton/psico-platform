@@ -190,39 +190,52 @@ nuevo contra una API vieja (PR-2A) NO es compatible — el web nuevo puede **omi
 que PR-2A no conoce → 400 `forbidNonWhitelisted`). Por eso el backend va PRIMERO y el web
 DESPUÉS de confirmarlo.
 
-**Secuencia definitiva (el ORDEN es obligatorio):**
+**Secuencia definitiva y determinista (el ORDEN es obligatorio):**
 
 1. **`CACHE_EPOCH=2` en API y worker** (ambos servicios Railway), como **skip-deploy** (setear el
-   env sin disparar un build todavía). Motivo: `momento`, la serie OU, Patrones y el digest ahora
-   filtran por elegibilidad; un mapa cacheado pre-PR-2B podría contener moods que PR-2B excluiría.
-   Bumpear `CACHE_EPOCH` invalida los mapas cacheados sin tocar los facts persistidos.
-   **`FACTS_EPOCH` sin cambio.** `EMOTIONAL_MAP_OU` permanece **off**.
-2. **Pausar la promoción a producción de Vercel** — desactivar el auto-deploy de la rama en
-   **Vercel → Project → Settings → Git** (o el _Ignored Build Step_) para que el web NO se promueva
-   antes que la API. Un web nuevo contra API PR-2A vieja rompe (omite `mood` → 400 requerido; manda
-   `moodSelectionVersion` → 400 `forbidNonWhitelisted`).
-3. **Migración** `20260715230000_pr2b_mood_selection_version` (aditiva, dos `ADD COLUMN`) vía
-   `prisma migrate deploy` (corre en el `preDeployCommand` de Railway). Cero downtime; una API
-   PR-2A previa tolera la columna nueva (la ignora).
-4. **Desplegar API + worker PRIMERO** (Railway). Esperar `SUCCESS` en ambos.
-5. **Identity match + smoke ANTES de tocar el web:** la línea de identidad
-   (`rt=… sha=<releaseSha> responseFp=… factsFp=… cacheEpoch=2 factsEpoch=1`) debe reflejar el
-   nuevo `sha` y `cacheEpoch=2` en API y worker; smoke ADMIN (solo metadata/counts, sin texto):
-   crear reflexión con pick → `eligible=true`; sin pick → `mood=null`; PATCH `mood:null` limpia;
-   `POST /api/mood` con token legacy → 400.
-6. **Ejecutar la higiene de WeeklySummary** contra la DB de producción, desde un shell de
-   confianza:
+   env sin disparar un build todavía). Invalida los mapas cacheados (que filtran por elegibilidad)
+   sin tocar los facts. **`FACTS_EPOCH` sin cambio.** `EMOTIONAL_MAP_OU` **off**.
+2. **Pausar la promoción a producción de Vercel** (Ignored Build Step / auto-deploy off) — un web
+   nuevo contra API PR-2A vieja rompe (omite `mood` → 400 requerido; manda `moodSelectionVersion`
+   → 400 `forbidNonWhitelisted`).
+3. **Pausar el worker / schedulers** (o elegir una ventana fuera del cron del domingo). Motivo: el
+   cron de S46 no debe crear un `WeeklySummary` nuevo entre el deploy y la higiene, que la higiene
+   borraría acto seguido.
+4. **Ejecutar las migraciones como una release phase única** — `prisma migrate deploy`
+   (`20260715230000_pr2b_mood_selection_version`, aditiva, dos `ADD COLUMN`) como paso propio,
+   **antes** de desplegar el código nuevo. Motivo: ningún proceso nuevo debe consultar las columnas
+   antes de que existan.
+5. **Confirmar que la migración quedó aplicada** (`prisma migrate status` / inspección de
+   `_prisma_migrations`).
+6. **Desplegar la API** (Railway). Esperar `SUCCESS`.
+7. **Higiene de WeeklySummary — DRY RUN** desde un shell de confianza:
    ```bash
-   node apps/api/scripts/pr2b-weekly-summary-hygiene.mjs            # DRY RUN → weekly_summaries_found=<n>
+   node apps/api/scripts/pr2b-weekly-summary-hygiene.mjs            # → weekly_summaries_found=<n>
+   ```
+8. **Revisar el conteo** (`weekly_summaries_found=<n>`) y confirmar la intención. ⚠️ Aplicar es una
+   **pérdida**: los summaries existentes se borran y **NO** se reconstruyen retroactivamente
+   (`regenerateWeeklySummary` solo produce la semana actual). Las siguientes corridas generan
+   summaries nuevos desde ese momento; **la historia editorial previa se pierde**.
+9. **Higiene de WeeklySummary — `--apply`**:
+   ```bash
    node apps/api/scripts/pr2b-weekly-summary-hygiene.mjs --apply    # → weekly_summaries_deleted=<n>
    ```
-   Borra los `WeeklySummary` construidos bajo las reglas viejas (raw/ambiguo o fallback `"calma"`);
-   el cron del domingo (S46) los reconstruye con la agregación corregida. Idempotente.
-7. **Promover el web DESPUÉS** (Vercel) — reanudar el auto-deploy o promover manualmente
-   (`vercel deploy --prod` / _Promote_), una vez la API nueva está verificada (paso 5).
-8. **Smoke del web:** crear reflexión sin tocar el ánimo → guarda con `mood=null` y **el chip
-   queda deseleccionado** para la siguiente entrada (reset-on-save); copy "guardada en tu diario".
-9. **Cerrar / revocar la sesión de Railway** usada para los pasos ops.
+10. **Desplegar / reanudar el worker** (Railway) — recién ahora el cron puede volver a correr.
+11. **Identity match:** la línea de identidad (`rt=… sha=<releaseSha> responseFp=… factsFp=…
+cacheEpoch=2 factsEpoch=1`) debe reflejar el nuevo `sha` y `cacheEpoch=2` en API y worker.
+12. **Smoke API** (ADMIN, solo metadata/counts, sin texto): crear reflexión con pick →
+    `eligible=true`; sin pick → `mood=null`; PATCH `mood:null` limpia; `POST /api/mood` con token
+    legacy → 400.
+13. **Promover el web** (Vercel) — reanudar el auto-deploy o promover manualmente
+    (`vercel deploy --prod` / _Promote_), una vez la API nueva está verificada.
+14. **Smoke del web:** crear reflexión sin tocar el ánimo → guarda con `mood=null` y **el chip
+    queda deseleccionado** para la siguiente entrada (reset-on-save); copy "guardada en tu diario".
+15. **Cerrar / revocar la sesión de Railway** usada para los pasos ops.
+
+**Por qué este orden:** (a) ningún worker/API nuevo consulta `moodSelectionVersion` antes de que la
+migración lo cree (pasos 4–6); (b) con el worker pausado (paso 3) un summary nuevo no puede ser
+creado y luego borrado por la higiene (pasos 7–10); (c) el web nuevo nunca habla con una API vieja
+(paso 2 → 13). **`FACTS_EPOCH` sin cambio · OU off · sin backfill histórico.**
 
 **Sin backfill** de `moodSelectionVersion` para filas legacy — quedan `null` (ineligibles),
 consistente con PR-2A. El CHECK **no** se endurece para exigir `moodSelectionVersion` (eso es

@@ -12,10 +12,22 @@
  * text, no ciphertext). It never touches the Diario/Eco encrypted content, so
  * don't open those tabs on demo accounts (there's nothing there).
  *
- * Run it where DATABASE_URL points at the target DB (prod via Railway):
+ * SECURITY (P0) — a demo account with a KNOWN default password is a live
+ * credential. This script therefore:
+ *   - has NO default password. Provide one via --password=… or the
+ *     DEMO_USER_PASSWORD env var; otherwise it aborts before connecting.
+ *   - refuses to run when PSICO_ENV=production unless
+ *     ALLOW_DEMO_USERS_IN_PRODUCTION=on is set explicitly.
+ *   - never rotates an EXISTING account's password unless --rotate-passwords
+ *     is passed (a fresh account still gets the provided password on create).
+ *   - never prints the password.
+ *
+ * Run it where DATABASE_URL points at the target DB:
  *   cd apps/api
- *   railway run node scripts/seed-demo-users.mjs
- *   # optional: --reset (wipe + recreate), --password=Otra123!
+ *   DEMO_USER_PASSWORD='…' railway run node scripts/seed-demo-users.mjs
+ *   # or: railway run node scripts/seed-demo-users.mjs --password='…'
+ *   # options: --reset (wipe + recreate mood/checkins) · --rotate-passwords
+ *   # in production also: ALLOW_DEMO_USERS_IN_PRODUCTION=on
  *
  * If REDIS_URL is set, each account's map cache is busted so the data shows up
  * on the first visit.
@@ -26,6 +38,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
+import { pathToFileURL } from "node:url";
 
 const MOODS = ["hard", "low", "ok", "good", "great"];
 
@@ -57,6 +70,55 @@ function parseArgs(argv) {
     if (m) out[m[1]] = m[2] === undefined ? true : m[2];
   }
   return out;
+}
+
+/**
+ * Resolve + VALIDATE the run configuration from argv + env. Pure and
+ * side-effect free so it is unit-testable, and — crucially — it runs BEFORE any
+ * DB/Redis connection, so a misconfigured run aborts before it can touch a
+ * database.
+ *
+ * P0 security posture (a demo account with a known default password is a live
+ * credential):
+ *   - No default password. It MUST come from --password=… or DEMO_USER_PASSWORD;
+ *     missing → throw.
+ *   - In production (PSICO_ENV=production) it refuses to run unless
+ *     ALLOW_DEMO_USERS_IN_PRODUCTION=on.
+ *   - An EXISTING account's password is rotated only with --rotate-passwords.
+ *   - The password is never logged (returned only for hashing).
+ *
+ * @param {{ argv: string[], env: Record<string, string | undefined> }} io
+ * @returns {{ password: string, rotatePasswords: boolean, reset: boolean }}
+ */
+export function resolveSeedConfig({ argv, env }) {
+  const args = parseArgs(argv);
+
+  if (env.PSICO_ENV === "production" &&
+    env.ALLOW_DEMO_USERS_IN_PRODUCTION !== "on") {
+    throw new Error(
+      "Refusing to seed demo users in production. Set " +
+        "ALLOW_DEMO_USERS_IN_PRODUCTION=on to override (deliberately).",
+    );
+  }
+
+  // Accept --password=… (a bare --password parses to boolean true → ignored)
+  // or DEMO_USER_PASSWORD. There is NO default.
+  const password =
+    (typeof args.password === "string" && args.password) ||
+    env.DEMO_USER_PASSWORD ||
+    "";
+  if (!password) {
+    throw new Error(
+      "A demo password is required and has no default. Pass --password=… or " +
+        "set DEMO_USER_PASSWORD.",
+    );
+  }
+
+  return {
+    password,
+    rotatePasswords: args["rotate-passwords"] === true,
+    reset: args.reset === true,
+  };
 }
 
 /** The demo roster. `expect` is what you should see on /dashboard/mapa. */
@@ -133,9 +195,12 @@ async function bustCache(userId) {
 }
 
 async function main() {
-  const args = parseArgs(process.argv);
-  const password = String(args.password ?? "Demo1234!");
-  const reset = Boolean(args.reset);
+  // Resolve + validate the config BEFORE opening any connection — a missing
+  // password or an unguarded production run aborts before touching the DB.
+  const { password, rotatePasswords, reset } = resolveSeedConfig({
+    argv: process.argv,
+    env: process.env,
+  });
   // Prisma 7 requires an explicit driver adapter (same as the app's
   // PrismaService). @prisma/adapter-pg + pg are runtime deps of the API.
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -171,8 +236,10 @@ async function main() {
         },
         update: {
           name: u.name,
-          passwordHash,
           currentStreakDays: u.streak,
+          // Never silently rotate an existing account's password. A fresh
+          // account still receives `passwordHash` via `create` above.
+          ...(rotatePasswords ? { passwordHash } : {}),
         },
         select: { id: true },
       });
@@ -342,7 +409,10 @@ async function main() {
     }
 
     // ── Report ────────────────────────────────────────────────────────────
-    console.log("\n✓ Cuentas demo listas. Contraseña para todas: " + password + "\n");
+    // NEVER print the password — it is a live credential.
+    console.log(
+      "\n✓ Cuentas demo listas. (La contraseña no se imprime; es la que pasaste.)\n",
+    );
     for (const r of results) {
       console.log(`• ${r.email}`);
       console.log(`    datos:   ${r.days} días de ánimo (${r.moods} registros, patrón "${r.pattern}")${r.reading ? " + 1 lectura completada" : ""} · racha ${r.streak}d`);
@@ -363,7 +433,15 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// Only run when invoked directly (node scripts/seed-demo-users.mjs). On import
+// (the guard tests import `resolveSeedConfig`) nothing runs — no connection, no
+// process.exit.
+const isMain =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isMain) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}

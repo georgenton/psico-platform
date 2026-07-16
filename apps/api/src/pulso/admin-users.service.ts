@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+import { revokeAllUserSessions } from "../auth/session-revocation";
 import type { Role } from "@prisma/client";
 
 const VALID_ROLES = ["USER", "AUTHOR", "PSYCHOLOGIST", "ADMIN"] as const;
@@ -113,12 +114,12 @@ export class AdminUsersService {
     }
 
     const oldRole = target.role as Role;
-    await this.prisma.$transaction([
-      this.prisma.user.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
         where: { id: targetUserId },
         data: { role: nextRole as Role },
-      }),
-      this.prisma.roleChangeLog.create({
+      });
+      await tx.roleChangeLog.create({
         data: {
           targetUserId,
           oldRole,
@@ -126,8 +127,11 @@ export class AdminUsersService {
           changedBy: adminUserId,
           reason: reason ?? null,
         },
-      }),
-    ]);
+      });
+      // A role change is a sensitive privilege shift: cut every existing
+      // session so the new role is re-minted into fresh tokens (ADR 0015).
+      await revokeAllUserSessions(tx, targetUserId);
+    });
 
     this.logger.log(
       `[admin-users] role change target=${targetUserId} ${oldRole} → ${nextRole} by admin=${adminUserId}`,

@@ -123,6 +123,17 @@ export class AuthController {
     );
   }
 
+  @Post("logout-all")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth("bearer")
+  @ApiOperation({
+    summary: "Sign out of every device (bump auth revision + drop all tokens)",
+  })
+  logoutAll(@Req() req: AuthenticatedRequest) {
+    return this.authService.logoutAll(req.user.userId, extractAuthContext(req));
+  }
+
   // ── S2: email flows ──────────────────────────────────────────────────────
 
   /**

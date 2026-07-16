@@ -36,14 +36,17 @@ describe("GET /api/emotional-map — EMOTIONAL_MAP_PUBLIC off (PR-0.2)", () => {
   beforeAll(async () => {
     h = await createE2EApp();
 
-    // A valid access token authenticates the request without any Prisma call —
-    // the JWT strategy validates purely from the token payload.
+    // A valid access token. JwtStrategy (ADR 0015) does a small User lookup to
+    // check isActive + authRevision — that's on `user`, not the map's own
+    // `diaryEntry` reads, so the kill-switch invariant below (map never queries
+    // its data) still holds. The `ar` claim must match the mocked revision.
     const jwt = h.app.get(JwtService, { strict: false });
     bearer = jwt.sign({
       sub: "user-1",
       email: "user@example.com",
       role: "USER",
       plan: "PRO",
+      ar: 0,
     });
 
     // Tripwire the map's own dependencies through the live service instance.
@@ -64,6 +67,15 @@ describe("GET /api/emotional-map — EMOTIONAL_MAP_PUBLIC off (PR-0.2)", () => {
     await h.resetMocks();
     providerScore.mockClear();
     redisGet.mockClear();
+    // JwtStrategy looks the user up on every authed request (ADR 0015).
+    h.prisma.user.findUnique.mockResolvedValue({
+      id: "user-1",
+      email: "user@example.com",
+      role: "USER",
+      plan: "PRO",
+      isActive: true,
+      authRevision: 0,
+    });
     prevPublic = process.env.EMOTIONAL_MAP_PUBLIC;
     process.env.EMOTIONAL_MAP_PUBLIC = "off";
   });

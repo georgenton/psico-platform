@@ -56,9 +56,10 @@ que no corresponde al smoke"); el usuario, tras el reporte, autorizó contener d
 inmediato.
 
 **Contenido encontrado en las cuentas demo (forense metadata-only, sin PII).** El
-seed crea `MoodLog`, `CheckinResponse`, `DiaryTextFeature`, `Resonance` y
-`ReadingSession`. **No** crea `DiaryEntry`, `EcoThread`, `EcoMessage` ni
-`VoiceTranscription`; esas filas proceden de uso posterior —
+seed crea, entre otros datos sintéticos, `MoodLog`, `CheckinResponse`,
+`DiaryTextFeature`, `Resonance` y `ReadingSession`. **No** crea `DiaryEntry`,
+`EcoThread`, `EcoMessage` ni `VoiceTranscription`; esas filas proceden de uso
+posterior —
 
 ```
 DiaryEntry           = 11
@@ -69,13 +70,15 @@ VoiceTranscription   = 1    (solo metadata de uso; sin transcript ni audio)
 
 Creados entre 2026-06-19 y 2026-07-10. **Autoría y sensibilidad NO determinadas.**
 
-Sensibilidad del cifrado (con caveat): `DiaryEntry` está cifrado E2E. Los mensajes
-USER persistidos de Eco están cifrados en reposo, **pero el turno actual fue
-procesado transitoriamente en plaintext por servidor/proveedor**; las respuestas
-no-USER pueden almacenarse en `assistantText` plaintext. La clave del diario se
-deriva del password + `cryptoSalt`, y el password era el default conocido — **quien
-controlara la credencial potencialmente podía acceder al ciphertext y ejecutar el
-flujo cliente de derivación. No se ha demostrado acceso al plaintext.**
+Sensibilidad del cifrado (con caveat): el **cuerpo textual y el excerpt** de
+`DiaryEntry` están cifrados E2E; `mood`, `tags`, `kind`, timestamps y metadata de
+audio permanecen como **metadata plaintext**. Los mensajes USER persistidos de Eco
+están cifrados en reposo, **pero el turno actual fue procesado transitoriamente en
+plaintext por el servidor y el proveedor**; respuestas no-USER pueden persistir
+`assistantText` plaintext. La clave del diario se deriva del password + `cryptoSalt`,
+y el password era el default conocido — **quien controlara la credencial
+potencialmente podía acceder al ciphertext y ejecutar el flujo cliente de derivación.
+No se ha demostrado acceso al plaintext.**
 
 **Preservación de evidencia:** la preservación mediante PITR + manifiesto
 metadata-only está **pendiente de registro**. La re-contención permanece en **HOLD**
@@ -102,8 +105,9 @@ las "sesiones vivas":** `isActive=false` + el borrado de refresh tokens bloquean
 siendo válido hasta su **expiración natural** (`JWT_ACCESS_EXPIRES_IN=15m`). Se
 verificó por timestamps que el último token demo posible venció ~`03:21:30Z`
 (último evento de emisión `03:06:30Z` + 15m), ya en el pasado → `access_tokens_
-potentially_alive=false`. El gap estructural se cierra con `User.authRevision`
-(PR aparte).
+potentially_alive=false`. El `MAX(createdAt)` usado para el vencimiento incluyó
+`REGISTER`, `LOGIN_OK`, `OAUTH_REGISTER`, `OAUTH_LOGIN` y `REFRESH`. El gap
+estructural se cierra con `User.authRevision` (PR aparte).
 
 ### Fase 1 — hotfix de código (`seed-demo-users.mjs`)
 

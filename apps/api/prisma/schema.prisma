@@ -651,43 +651,59 @@ enum HighlightColor {
 }
 
 model Highlight {
-  id          String         @id @default(cuid())
-  userId      String
-  blockId     String
+  id             String         @id @default(cuid())
+  userId         String
+  blockId        String
+  // Content Core (CC-4): stable anchor to a ContentBlock, nullable during the
+  // dual-read window (backfilled from `blockId` → legacyBlockId). `Restrict` so a
+  // ContentBlock that carries a highlight can never be cascade-deleted. `quote` is
+  // the exact selected text snapshot, the durable re-anchor fallback (ADR 0016 §9).
+  contentBlockId String?
+  quote          String?
   // Offsets dentro del `content` del bloque (UTF-16 code units, igual que
   // `Range.startOffset`/`endOffset` del DOM).
-  startOffset Int
-  endOffset   Int
-  color       HighlightColor @default(YELLOW)
+  startOffset    Int
+  endOffset      Int
+  color          HighlightColor @default(YELLOW)
   // Nota opcional adjunta al subrayado. Si el user quiere sin nota → null.
-  note        String?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  note           String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  block ChapterBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  block        ChapterBlock  @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  contentBlock ContentBlock? @relation(fields: [contentBlockId], references: [id], onDelete: Restrict)
 
   @@index([userId, blockId])
   @@index([userId, createdAt(sort: Desc)])
+  @@index([contentBlockId])
 }
 
 model Annotation {
-  id        String   @id @default(cuid())
-  userId    String
-  blockId   String
+  id             String   @id @default(cuid())
+  userId         String
+  blockId        String
+  // Content Core (CC-4): stable anchor to a ContentBlock, nullable during the
+  // dual-read window (backfilled from `blockId`). `Restrict` — never cascade a
+  // ContentBlock that carries an annotation. `quote` stays null (annotations are
+  // block-level notes, not a text selection); the column exists for symmetry.
+  contentBlockId String?
+  quote          String?
   // Texto plain — NO se cifra (no es parte del Diario E2E, ADR 0007 §G).
   // Diseño 05-lector.md trata las anotaciones como notas al libro, no
   // pensamiento personal sensible. Si en el futuro el producto pide
   // anotaciones cifradas, se introduce un campo separado.
-  text      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  text           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  block ChapterBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  block        ChapterBlock  @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  contentBlock ContentBlock? @relation(fields: [contentBlockId], references: [id], onDelete: Restrict)
 
   @@index([userId, blockId])
   @@index([userId, createdAt(sort: Desc)])
+  @@index([contentBlockId])
 }
 
 // Sesión de lectura: una fila por (user, chapter). El heartbeat del cliente
@@ -2320,6 +2336,8 @@ model ContentBlock {
   unit         ContentUnit    @relation(fields: [unitId], references: [id], onDelete: Restrict)
   versions     BlockVersion[]
   conceptLinks ConceptLink[]
+  highlights   Highlight[]
+  annotations  Annotation[]
 
   @@index([unitId])
 }

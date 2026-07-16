@@ -33,11 +33,11 @@
 
 ## 2. Incidente de credencial demo — resumen sanitizado
 
-> El detalle operacional (conteos exactos, timestamps, TTL, dominio de las cuentas,
-> ruta criptográfica de derivación, punto PITR y mecanismo de re-contención) **ya no
-> se mantiene en el árbol actual del repositorio**. Versiones anteriores permanecen
-> accesibles en el historial Git y en artefactos del PR mientras no se ejecute una
-> remoción histórica deliberada.
+> El detalle forense sensible de este incidente —incluidos los conteos exactos de
+> autenticación, timestamps, TTL, dominio de las cuentas, ruta de derivación, punto
+> PITR y mecanismo de recontención— **ya no se mantiene en el árbol actual del
+> repositorio**. Versiones anteriores permanecen accesibles en el historial Git y en
+> artefactos del PR mientras no se ejecute una remoción histórica deliberada.
 >
 > Se generó una **copia temporal fuera de Git**, pendiente de transferencia a un
 > almacenamiento privado, cifrado y durable. La preservación se considera completada

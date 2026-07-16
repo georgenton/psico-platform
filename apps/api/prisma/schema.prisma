@@ -64,6 +64,13 @@ model User {
   role          Role         @default(USER)
   plan          Plan         @default(FREE)
   isActive      Boolean      @default(true)
+  // Session/token generation counter. Every issued access token carries this
+  // value in the `ar` claim; JwtStrategy rejects the token if it no longer
+  // matches (ADR 0015 — auth revision). Bumped on disable, password change /
+  // reset, logout-all, sensitive role change, and incident response — always
+  // together with deleting the account's refresh tokens, so both the live
+  // access tokens and the ability to mint new ones die at once.
+  authRevision  Int          @default(0)
   emailVerified Boolean      @default(false)
   // How this account authenticates. LOCAL is the default for backward compat.
   authProvider  AuthProvider @default(LOCAL)

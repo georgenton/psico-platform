@@ -180,6 +180,7 @@ describe("Auth · E2E", () => {
         plan: "FREE",
         passwordHash: realHash,
         isActive: true,
+        authRevision: 0,
       });
       h.prisma.refreshToken.create.mockResolvedValue({});
 

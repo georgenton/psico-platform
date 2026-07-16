@@ -69,6 +69,7 @@ const mockPrisma = {
   },
   refreshToken: {
     updateMany: vi.fn(),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
   emailChangeRequest: {
     create: vi.fn(),
@@ -422,7 +423,7 @@ describe("UsersService", () => {
         passwordHash: currentHash,
       });
       mockPrisma.user.update.mockResolvedValue({});
-      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 2 });
+      mockPrisma.refreshToken.deleteMany.mockResolvedValue({ count: 2 });
 
       await service.changePassword(userId, {
         currentPassword: "oldPassword!",
@@ -430,9 +431,14 @@ describe("UsersService", () => {
       });
 
       expect(mockPrisma.user.update).toHaveBeenCalled();
-      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith({
-        where: { userId, revokedAt: null },
-        data: { revokedAt: expect.any(Date) },
+      // ADR 0015: every session revoked — authRevision bumped + tokens deleted.
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ authRevision: { increment: 1 } }),
+        }),
+      );
+      expect(mockPrisma.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { userId },
       });
     });
 

@@ -41,10 +41,10 @@ cheapest query in the request path.
 
 ## Consequences
 
-- **One-time global re-login on deploy.** Access tokens minted before this
-  release carry no `ar` claim and are rejected. Refresh still works (refresh
-  re-mints with `ar`), so clients recover on their next refresh; UX is a single
-  re-auth.
+- **Cutover on deploy.** The deploy invalidates all prior access tokens (they
+  carry no `ar` claim and are rejected). Clients holding a valid refresh token
+  renew the session automatically (refresh re-mints with `ar`); only sessions
+  without a valid refresh need to sign in again.
 - **+1 DB read per authenticated request.** Acceptable — it's a PK lookup.
 - Per-device `logout` keeps soft-revoking a single refresh token and does **not**
   bump the revision (signing out one device must not sign out the others).

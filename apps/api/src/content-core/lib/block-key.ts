@@ -48,3 +48,13 @@ export function blockKeyFromLegacyId(legacyBlockId: string): string {
   if (!legacyBlockId) throw new Error("EMPTY_LEGACY_BLOCK_ID");
   return uuidv5(legacyBlockId);
 }
+
+/**
+ * Stable ContentUnit identity from a legacy `Chapter.id`. Anchored to the row id,
+ * NOT to `Chapter.order` — a chapter's order is placement (lives on RevisionUnit)
+ * and may change; its identity must not.
+ */
+export function unitKeyFromLegacyChapterId(legacyChapterId: string): string {
+  if (!legacyChapterId) throw new Error("EMPTY_LEGACY_CHAPTER_ID");
+  return uuidv5(legacyChapterId);
+}

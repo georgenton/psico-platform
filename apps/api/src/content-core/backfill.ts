@@ -1,21 +1,28 @@
 import { BlockKind, type Prisma, type PrismaClient } from "@prisma/client";
 import { CHAPTER_CONCEPTS } from "@psico/types";
-import { blockKeyFromLegacyId } from "./lib/block-key";
+import {
+  blockKeyFromLegacyId,
+  unitKeyFromLegacyChapterId,
+} from "./lib/block-key";
 import { contentHash } from "./lib/content-hash";
 
 /**
- * Content Core — CC-3 backfill (idempotent, zero-DELETE).
+ * Content Core — CC-3 backfill (atomic per Book, idempotent, zero-DELETE).
  *
  * Populates the CC-2 tables FROM the legacy Book/Chapter/ChapterBlock model.
- * Reads stay legacy; nothing here changes a read path. Safe to run repeatedly:
- * every write is an upsert keyed by a natural/deterministic key, so a second run
- * is a no-op. It never deletes anything.
+ * Reads stay legacy; nothing here changes a read path.
  *
- * Mapping (ADR 0016 §C):
- *   Book                → Work + Edition + Revision #1 (PUBLISHED) manifest
- *   Chapter             → ContentUnit + ContentUnitVersion + RevisionUnit
- *   ChapterBlock        → ContentBlock (blockKey = uuidv5(ns, legacy id)) + BlockVersion
- *   CHAPTER_CONCEPTS    → Concept + ConceptLink(unit, PRIMARY)
+ * Each Book is processed inside ONE transaction. Order: Work/Edition →
+ * Revision #1 as DRAFT → units/versions/blocks/manifest/concepts → verify counts
+ * → ONLY THEN publish (Revision PUBLISHED + publishedAt, Edition.publishedRevisionId).
+ * Any error rolls the whole Book back — never a partial or half-published revision.
+ *
+ * ContentUnitVersion / BlockVersion / RevisionUnit are create-or-verify: identical
+ * → no-op, different → throw BACKFILL_DRIFT_DETECTED. A published version is never
+ * silently rewritten.
+ *
+ * ContentUnit identity is uuidv5(Chapter.id) — NOT derived from Chapter.order.
+ * Order lives only on RevisionUnit.
  */
 
 export interface BackfillStats {
@@ -30,8 +37,17 @@ export interface BackfillStats {
   conceptLinks: number;
 }
 
+/** Test-only hook: throw after N units within a Book's transaction (to exercise
+ *  rollback). Never set in production. */
+export interface BackfillOptions {
+  throwAfterUnits?: number;
+}
+
+const DRIFT = "BACKFILL_DRIFT_DETECTED";
+
 export async function backfillContentCore(
   prisma: PrismaClient,
+  opts: BackfillOptions = {},
 ): Promise<BackfillStats> {
   const stats: BackfillStats = {
     works: 0,
@@ -52,178 +68,249 @@ export async function backfillContentCore(
       ? await prisma.bookAuthor.findUnique({ where: { id: book.authorId } })
       : null;
 
-    const workKey = book.slug;
-    const editionKey = `${book.slug}-1e`;
-
-    const work = await prisma.work.upsert({
-      where: { workKey },
-      create: { workKey, title: book.title, authorName: author?.name ?? "" },
-      update: { title: book.title, authorName: author?.name ?? "" },
-    });
-    stats.works += 1;
-
-    const edition = await prisma.edition.upsert({
-      where: { editionKey },
-      create: {
-        workId: work.id,
-        editionKey,
-        slug: book.slug,
-        label: "Primera edición",
-        language: "es-419",
-      },
-      update: { slug: book.slug },
-    });
-    stats.editions += 1;
-
-    const revision = await prisma.revision.upsert({
-      where: { editionId_number: { editionId: edition.id, number: 1 } },
-      create: {
-        editionId: edition.id,
-        number: 1,
-        status: "PUBLISHED",
-        note: "cc3-backfill",
-      },
-      update: { status: "PUBLISHED", note: "cc3-backfill" },
-    });
-    stats.revisions += 1;
-
-    // Publish the revision on the edition (same-edition — passes the trigger).
-    await prisma.edition.update({
-      where: { id: edition.id },
-      data: { publishedRevisionId: revision.id },
-    });
-
     const chapters = await prisma.chapter.findMany({
       where: { bookId: book.id },
       orderBy: { order: "asc" },
     });
 
-    for (const ch of chapters) {
-      const unitKey = `u-${ch.order}`;
+    await prisma.$transaction(
+      async (tx) => {
+        const workKey = book.slug;
+        const editionKey = `${book.slug}-1e`;
 
-      const unit = await prisma.contentUnit.upsert({
-        where: { editionId_unitKey: { editionId: edition.id, unitKey } },
-        create: { editionId: edition.id, unitKey },
-        update: {},
-      });
-      stats.units += 1;
-
-      // Deterministic id → idempotent (ContentUnitVersion has no natural key).
-      const versionId = `cuv-${editionKey}-${unitKey}`;
-      const version = await prisma.contentUnitVersion.upsert({
-        where: { id: versionId },
-        create: {
-          id: versionId,
-          unitId: unit.id,
-          title: ch.title,
-          summary: ch.description ?? null,
-          durationMinutes: ch.durationMinutes ?? null,
-        },
-        update: {
-          title: ch.title,
-          summary: ch.description ?? null,
-          durationMinutes: ch.durationMinutes ?? null,
-        },
-      });
-      stats.versions += 1;
-
-      const blocks = await prisma.chapterBlock.findMany({
-        where: { chapterId: ch.id },
-        orderBy: { order: "asc" },
-      });
-
-      for (const b of blocks) {
-        const blockKey = blockKeyFromLegacyId(b.id);
-        const kind = BlockKind[b.kind as keyof typeof BlockKind];
-        const metaInput =
-          b.meta == null ? {} : { meta: b.meta as Prisma.InputJsonValue };
-
-        const contentBlock = await prisma.contentBlock.upsert({
-          where: { blockKey },
-          create: { blockKey, unitId: unit.id, legacyBlockId: b.id },
-          update: { legacyBlockId: b.id },
+        // 1. Upsert Work / Edition (mutable catalog metadata — safe to update).
+        const work = await tx.work.upsert({
+          where: { workKey },
+          create: {
+            workKey,
+            title: book.title,
+            authorName: author?.name ?? "",
+          },
+          update: { title: book.title, authorName: author?.name ?? "" },
         });
-        stats.blocks += 1;
+        stats.works += 1;
 
-        await prisma.blockVersion.upsert({
-          where: {
-            unitVersionId_contentBlockId: {
-              unitVersionId: version.id,
-              contentBlockId: contentBlock.id,
+        const edition = await tx.edition.upsert({
+          where: { editionKey },
+          create: {
+            workId: work.id,
+            editionKey,
+            slug: book.slug,
+            label: "Primera edición",
+            language: "es-419",
+          },
+          update: { slug: book.slug },
+        });
+        stats.editions += 1;
+
+        // 2. Revision #1 as DRAFT (create if missing; keep an existing one as-is).
+        let revision = await tx.revision.findUnique({
+          where: { editionId_number: { editionId: edition.id, number: 1 } },
+        });
+        if (!revision) {
+          revision = await tx.revision.create({
+            data: {
+              editionId: edition.id,
+              number: 1,
+              status: "DRAFT",
+              note: "cc3-backfill",
             },
-          },
-          create: {
-            contentBlockId: contentBlock.id,
-            unitVersionId: version.id,
-            order: b.order,
-            kind,
-            content: b.content,
-            contentHash: contentHash(b.content),
-            ...metaInput,
-          },
-          update: {
-            order: b.order,
-            kind,
-            content: b.content,
-            contentHash: contentHash(b.content),
-            ...metaInput,
-          },
-        });
-        stats.blockVersions += 1;
-      }
+          });
+        }
+        stats.revisions += 1;
 
-      await prisma.revisionUnit.upsert({
-        where: {
-          revisionId_unitId: { revisionId: revision.id, unitId: unit.id },
-        },
-        create: {
-          revisionId: revision.id,
-          unitId: unit.id,
-          unitVersionId: version.id,
-          order: ch.order,
-          partNumber: ch.partNumber ?? null,
-          partTitle: ch.partTitle ?? null,
-        },
-        update: {
-          unitVersionId: version.id,
-          order: ch.order,
-          partNumber: ch.partNumber ?? null,
-          partTitle: ch.partTitle ?? null,
-        },
-      });
-    }
+        const unitIdByOrder = new Map<number, string>();
+        let unitsThisBook = 0;
 
-    // Concepts from the shared catalog (one PRIMARY link per chapter's unit).
-    const bookConcepts = CHAPTER_CONCEPTS[book.slug];
-    if (bookConcepts) {
-      for (const [orderStr, concept] of Object.entries(bookConcepts)) {
-        const unitKey = `u-${Number(orderStr)}`;
-        const unit = await prisma.contentUnit.findUnique({
-          where: { editionId_unitKey: { editionId: edition.id, unitKey } },
-        });
-        if (!unit) continue; // catalog references a chapter that isn't present
+        for (const ch of chapters) {
+          const unitKey = unitKeyFromLegacyChapterId(ch.id);
 
-        const c = await prisma.concept.upsert({
-          where: { conceptKey: concept.key },
-          create: { conceptKey: concept.key, label: concept.label },
-          update: { label: concept.label },
-        });
-        stats.concepts += 1;
+          // 3. ContentUnit — identity only (editionId + unitKey), no drift possible.
+          let unit = await tx.contentUnit.findUnique({
+            where: { editionId_unitKey: { editionId: edition.id, unitKey } },
+          });
+          if (!unit) {
+            unit = await tx.contentUnit.create({
+              data: { editionId: edition.id, unitKey },
+            });
+          }
+          unitIdByOrder.set(ch.order, unit.id);
+          stats.units += 1;
 
-        const linkId = `cl-${concept.key}`;
-        await prisma.conceptLink.upsert({
-          where: { id: linkId },
-          create: {
-            id: linkId,
-            conceptId: c.id,
+          // 4. ContentUnitVersion — create-or-verify (drift → throw).
+          const versionId = `cuv-${unitKey}`;
+          const verFields = {
             unitId: unit.id,
-            role: "PRIMARY",
-          },
-          update: {},
+            title: ch.title,
+            summary: ch.description ?? null,
+            durationMinutes: ch.durationMinutes ?? null,
+          };
+          const existingVer = await tx.contentUnitVersion.findUnique({
+            where: { id: versionId },
+          });
+          let versionRowId: string;
+          if (!existingVer) {
+            const created = await tx.contentUnitVersion.create({
+              data: { id: versionId, ...verFields },
+            });
+            versionRowId = created.id;
+          } else {
+            if (
+              existingVer.unitId !== verFields.unitId ||
+              existingVer.title !== verFields.title ||
+              existingVer.summary !== verFields.summary ||
+              existingVer.durationMinutes !== verFields.durationMinutes
+            ) {
+              throw new Error(DRIFT);
+            }
+            versionRowId = existingVer.id;
+          }
+          stats.versions += 1;
+
+          // 5/6. Blocks — ContentBlock (identity) + BlockVersion (create-or-verify).
+          const blocks = await tx.chapterBlock.findMany({
+            where: { chapterId: ch.id },
+            orderBy: { order: "asc" },
+          });
+          for (const b of blocks) {
+            const blockKey = blockKeyFromLegacyId(b.id);
+            const kind = BlockKind[b.kind as keyof typeof BlockKind];
+            const hash = contentHash(b.content);
+            const metaInput =
+              b.meta == null ? {} : { meta: b.meta as Prisma.InputJsonValue };
+
+            let cb = await tx.contentBlock.findUnique({ where: { blockKey } });
+            if (!cb) {
+              cb = await tx.contentBlock.create({
+                data: { blockKey, unitId: unit.id, legacyBlockId: b.id },
+              });
+            } else if (cb.unitId !== unit.id || cb.legacyBlockId !== b.id) {
+              throw new Error(DRIFT);
+            }
+            stats.blocks += 1;
+
+            const existingBv = await tx.blockVersion.findUnique({
+              where: {
+                unitVersionId_contentBlockId: {
+                  unitVersionId: versionRowId,
+                  contentBlockId: cb.id,
+                },
+              },
+            });
+            if (!existingBv) {
+              await tx.blockVersion.create({
+                data: {
+                  contentBlockId: cb.id,
+                  unitVersionId: versionRowId,
+                  order: b.order,
+                  kind,
+                  content: b.content,
+                  contentHash: hash,
+                  ...metaInput,
+                },
+              });
+            } else {
+              const metaSame =
+                JSON.stringify(existingBv.meta ?? null) ===
+                JSON.stringify(b.meta ?? null);
+              if (
+                existingBv.order !== b.order ||
+                existingBv.kind !== kind ||
+                existingBv.content !== b.content ||
+                existingBv.contentHash !== hash ||
+                !metaSame
+              ) {
+                throw new Error(DRIFT);
+              }
+            }
+            stats.blockVersions += 1;
+          }
+
+          // 7. RevisionUnit — create-or-verify (order lives here, drift → throw).
+          const ruFields = {
+            unitVersionId: versionRowId,
+            order: ch.order,
+            partNumber: ch.partNumber ?? null,
+            partTitle: ch.partTitle ?? null,
+          };
+          const existingRu = await tx.revisionUnit.findUnique({
+            where: {
+              revisionId_unitId: { revisionId: revision.id, unitId: unit.id },
+            },
+          });
+          if (!existingRu) {
+            await tx.revisionUnit.create({
+              data: { revisionId: revision.id, unitId: unit.id, ...ruFields },
+            });
+          } else if (
+            existingRu.unitVersionId !== ruFields.unitVersionId ||
+            existingRu.order !== ruFields.order ||
+            existingRu.partNumber !== ruFields.partNumber ||
+            existingRu.partTitle !== ruFields.partTitle
+          ) {
+            throw new Error(DRIFT);
+          }
+
+          unitsThisBook += 1;
+          if (
+            opts.throwAfterUnits != null &&
+            unitsThisBook >= opts.throwAfterUnits
+          ) {
+            throw new Error("INJECTED_TEST_FAILURE");
+          }
+        }
+
+        // 8. Concepts from the catalog (mapped by chapter order → unit).
+        const bookConcepts = CHAPTER_CONCEPTS[book.slug];
+        if (bookConcepts) {
+          for (const [orderStr, concept] of Object.entries(bookConcepts)) {
+            const unitId = unitIdByOrder.get(Number(orderStr));
+            if (!unitId) continue; // catalog references a chapter that isn't present
+
+            const c = await tx.concept.upsert({
+              where: { conceptKey: concept.key },
+              create: { conceptKey: concept.key, label: concept.label },
+              update: { label: concept.label },
+            });
+            stats.concepts += 1;
+
+            const linkId = `cl-${concept.key}`;
+            const existingLink = await tx.conceptLink.findUnique({
+              where: { id: linkId },
+            });
+            if (!existingLink) {
+              await tx.conceptLink.create({
+                data: { id: linkId, conceptId: c.id, unitId, role: "PRIMARY" },
+              });
+            }
+            stats.conceptLinks += 1;
+          }
+        }
+
+        // 9. Verify expected counts before publishing.
+        const ruCount = await tx.revisionUnit.count({
+          where: { revisionId: revision.id },
         });
-        stats.conceptLinks += 1;
-      }
-    }
+        if (ruCount !== chapters.length) {
+          throw new Error("BACKFILL_COUNT_MISMATCH");
+        }
+
+        // 10. Publish LAST — transition DRAFT → PUBLISHED once; idempotent thereafter.
+        if (revision.status !== "PUBLISHED") {
+          await tx.revision.update({
+            where: { id: revision.id },
+            data: { status: "PUBLISHED", publishedAt: new Date() },
+          });
+        }
+        if (edition.publishedRevisionId !== revision.id) {
+          await tx.edition.update({
+            where: { id: edition.id },
+            data: { publishedRevisionId: revision.id },
+          });
+        }
+      },
+      { timeout: 30_000 },
+    );
   }
 
   return stats;

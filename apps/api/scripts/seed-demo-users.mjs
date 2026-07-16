@@ -8,10 +8,10 @@
  *   • MoodLog spread across N past days  → drives the affect-dynamics (OU) block
  *   • a ReadingSession                   → lights the Conexión / Propósito axes
  *
- * It writes ONLY ordinal mood + timestamps + reading counters (ADR 0007 — no
- * text, no ciphertext); the seed itself never creates Diario/Eco content. NOTE:
- * a demo account may still hold Diario/Eco content created by whoever LOGGED IN
- * to it — do not assume these accounts are empty of user content.
+ * The seed creates synthetic mood history, check-ins, numeric text features,
+ * resonances, reading activity and supporting account/onboarding metadata. It
+ * does not create DiaryEntry, EcoThread, EcoMessage or VoiceTranscription, but a
+ * demo account may contain such data created through later use.
  *
  * SECURITY (P0) — a demo account with a KNOWN default password is a live
  * credential. This script therefore:

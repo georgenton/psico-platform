@@ -1,0 +1,25 @@
+# Secret scanning configuration (incident follow-up).
+# Used by .github/workflows/secret-scan.yml, which scans only each PR's diff.
+title = "psico-platform gitleaks"
+
+[extend]
+# Inherit gitleaks' built-in ruleset (AWS keys, private keys, generic
+# high-entropy tokens, etc.). We do NOT weaken it.
+useDefault = true
+
+# Specific historical baseline. The demo credential was rotated and removed from
+# the tree in #555; it survives only inside these exact pre-remediation commits.
+# They are baselined by full SHA so a one-off full-history scan doesn't re-flag
+# a settled, already-remediated finding.
+#
+# This is deliberately NARROW: a commit allowlist, not a path or regex allowlist.
+# New secrets in the same files are still caught — the PR-diff job scans the
+# actual changes, and none of these SHAs are in any future PR range.
+[allowlist]
+description = "Rotated demo credential — settled historical commits only (do NOT add paths/regexes here)"
+commits = [
+  "a6e4d9a15701dd15155ae08b5119b7fa7f179ed1", # #460 introduced the demo seed with the default password
+  "19a93df8d6c2ebbfb654c0b9e68ce642fa938dd1", # #461 sync of the same to main
+  "324673bfc94be1536d043549164d46e96ddb0cae", # #555 removal commit (its diff still contains the old literal)
+  "4aa8f64d775baf03f55c08f68992d57bb9cdb01e", # #555 squash on main
+]

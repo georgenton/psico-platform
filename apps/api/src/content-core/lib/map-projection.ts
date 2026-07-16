@@ -3,9 +3,9 @@
  *
  * The firewall invariant is verified by comparing the SEMANTIC projection of the
  * Emotional Map before/after a learning sweep — NOT raw-JSON byte-equality. The
- * projection keeps only what defines "what the map says" (axis values +
- * provenance) and strips incidental fields (timestamps, cache keys, ordering), so
- * an incidental new timestamp does not fail the test while a moved axis does.
+ * projection keeps everything that defines "what the map says" per axis (value,
+ * measured, confidence, hasSignal, status, provenance) and strips incidental
+ * fields (timestamps, cache keys, ordering).
  *
  * CC-1 defines the projection over a plain map-shaped object; CC-7 feeds the real
  * map result through it. This module imports NOTHING from the Emotional Map.
@@ -17,6 +17,9 @@ export interface MapAxisLike {
   key: string;
   value: number | null;
   measured?: boolean;
+  confidence?: number | null;
+  hasSignal?: boolean;
+  status?: string | null;
   evidence?: { modelId?: string | null; n?: number | null } | null;
   // ...other incidental per-axis fields intentionally ignored
 }
@@ -31,6 +34,9 @@ export interface AxisProjection {
   key: string;
   value: number | null;
   measured: boolean;
+  confidence: number | null;
+  hasSignal: boolean;
+  status: string | null;
   modelId: string | null;
   n: number | null;
 }
@@ -43,6 +49,9 @@ export function projectMap(map: MapLike): AxisProjection[] {
       key: d.key,
       value: d.value,
       measured: Boolean(d.measured),
+      confidence: d.confidence ?? null,
+      hasSignal: Boolean(d.hasSignal),
+      status: d.status ?? null,
       modelId: d.evidence?.modelId ?? null,
       n: d.evidence?.n ?? null,
     }))

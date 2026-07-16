@@ -25,9 +25,29 @@ export interface UnitPlacement {
 }
 
 /**
+ * Validate a manifest's invariants (pure). Throws an explicit, machine-readable
+ * error on the first violation:
+ *   - DUPLICATE_MANIFEST_UNIT   two entries share a unitKey
+ *   - DUPLICATE_MANIFEST_ORDER  two entries share an order
+ */
+export function validateManifest(entries: ManifestEntry[]): void {
+  const units = new Set<string>();
+  const orders = new Set<number>();
+  for (const e of entries) {
+    if (units.has(e.unitKey)) throw new Error("DUPLICATE_MANIFEST_UNIT");
+    units.add(e.unitKey);
+    if (orders.has(e.order)) throw new Error("DUPLICATE_MANIFEST_ORDER");
+    orders.add(e.order);
+  }
+}
+
+/**
  * Copy the previous manifest forward, replacing exactly one unit's entry with a
  * new immutable version. Every OTHER unit keeps its exact `unitVersionId` +
- * placement (referenced, not duplicated). A never-before-seen unit is appended.
+ * placement. A never-before-seen unit is appended.
+ *
+ * Throws MANIFEST_PLACEMENT_COLLISION if the new placement's order collides with a
+ * DIFFERENT unit, and validates the resulting manifest before returning.
  */
 export function buildNextManifest(
   prev: ManifestEntry[],
@@ -35,6 +55,11 @@ export function buildNextManifest(
   newUnitVersionId: string,
   placement: UnitPlacement,
 ): ManifestEntry[] {
+  const collides = prev.some(
+    (e) => e.unitKey !== changedUnitKey && e.order === placement.order,
+  );
+  if (collides) throw new Error("MANIFEST_PLACEMENT_COLLISION");
+
   const entry: ManifestEntry = {
     unitKey: changedUnitKey,
     unitVersionId: newUnitVersionId,
@@ -45,6 +70,8 @@ export function buildNextManifest(
   const existed = prev.some((e) => e.unitKey === changedUnitKey);
   const next = prev.map((e) => (e.unitKey === changedUnitKey ? entry : e));
   if (!existed) next.push(entry);
+
+  validateManifest(next);
   return next;
 }
 
@@ -54,6 +81,7 @@ export type PlannedOrigin = "matched-exact" | "matched-fuzzy" | "new";
 
 export interface PlannedBlock {
   order: number;
+  kind: string;
   content: string;
   contentHash: string;
   /** Resolved stable identity: a carried key, or a freshly minted one. */
@@ -82,33 +110,29 @@ export function planUnitIngest(
   const blocks: PlannedBlock[] = next.map((nb, i) => {
     const available = prev.filter((p) => !usedPrevKeys.has(p.blockKey));
     const m = matchBlock(nb, available);
+    const base = {
+      order: nb.order,
+      kind: nb.kind,
+      content: nb.content,
+      contentHash: nb.contentHash,
+    };
     if (m.kind === "exact-key" || m.kind === "exact-hash") {
       usedPrevKeys.add(m.blockKey);
       return {
-        order: nb.order,
-        content: nb.content,
-        contentHash: nb.contentHash,
+        ...base,
         blockKey: m.blockKey,
-        origin: "matched-exact",
+        origin: "matched-exact" as const,
       };
     }
     if (m.kind === "fuzzy-unique") {
       usedPrevKeys.add(m.blockKey);
       return {
-        order: nb.order,
-        content: nb.content,
-        contentHash: nb.contentHash,
+        ...base,
         blockKey: m.blockKey,
-        origin: "matched-fuzzy",
+        origin: "matched-fuzzy" as const,
       };
     }
-    return {
-      order: nb.order,
-      content: nb.content,
-      contentHash: nb.contentHash,
-      blockKey: mintKey(i),
-      origin: "new",
-    };
+    return { ...base, blockKey: mintKey(i), origin: "new" as const };
   });
 
   const tombstonedKeys = prev

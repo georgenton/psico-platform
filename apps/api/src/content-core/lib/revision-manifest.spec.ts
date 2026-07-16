@@ -1,14 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { contentHash } from "./content-hash";
 import type { PrevBlock } from "./matcher";
-import { buildNextManifest, planUnitIngest } from "./revision-manifest";
+import {
+  buildNextManifest,
+  planUnitIngest,
+  validateManifest,
+} from "./revision-manifest";
 import type { ManifestEntry } from "./revision-manifest";
 
 function prevBlock(blockKey: string, content: string): PrevBlock {
-  return { blockKey, content, contentHash: contentHash(content) };
+  return {
+    blockKey,
+    kind: "PARAGRAPH",
+    content,
+    contentHash: contentHash(content),
+  };
 }
 function nb(content: string, order: number) {
-  return { content, contentHash: contentHash(content), order };
+  return {
+    kind: "PARAGRAPH",
+    content,
+    contentHash: contentHash(content),
+    order,
+  };
 }
 
 describe("content-core · RevisionManifest (copy forward, swap one unit)", () => {
@@ -60,6 +74,91 @@ describe("content-core · RevisionManifest (copy forward, swap one unit)", () =>
       unitVersionId: "v4a",
       order: 3,
     });
+  });
+
+  it("throws MANIFEST_PLACEMENT_COLLISION when the new order hits another unit", () => {
+    expect(() =>
+      // u-4 wants order 1, already held by u-2
+      buildNextManifest(manifest, "u-4", "v4a", {
+        order: 1,
+        partNumber: 1,
+        partTitle: "Parte I",
+      }),
+    ).toThrow("MANIFEST_PLACEMENT_COLLISION");
+  });
+
+  it("produces a manifest that passes validateManifest", () => {
+    const next = buildNextManifest(manifest, "u-2", "v2b", {
+      order: 1,
+      partNumber: 1,
+      partTitle: "Parte I",
+    });
+    expect(() => validateManifest(next)).not.toThrow();
+  });
+});
+
+describe("content-core · validateManifest (pure invariants)", () => {
+  it("throws DUPLICATE_MANIFEST_UNIT on a repeated unitKey", () => {
+    expect(() =>
+      validateManifest([
+        {
+          unitKey: "u-1",
+          unitVersionId: "a",
+          order: 0,
+          partNumber: null,
+          partTitle: null,
+        },
+        {
+          unitKey: "u-1",
+          unitVersionId: "b",
+          order: 1,
+          partNumber: null,
+          partTitle: null,
+        },
+      ]),
+    ).toThrow("DUPLICATE_MANIFEST_UNIT");
+  });
+
+  it("throws DUPLICATE_MANIFEST_ORDER on a repeated order", () => {
+    expect(() =>
+      validateManifest([
+        {
+          unitKey: "u-1",
+          unitVersionId: "a",
+          order: 0,
+          partNumber: null,
+          partTitle: null,
+        },
+        {
+          unitKey: "u-2",
+          unitVersionId: "b",
+          order: 0,
+          partNumber: null,
+          partTitle: null,
+        },
+      ]),
+    ).toThrow("DUPLICATE_MANIFEST_ORDER");
+  });
+
+  it("accepts a valid manifest", () => {
+    expect(() =>
+      validateManifest([
+        {
+          unitKey: "u-1",
+          unitVersionId: "a",
+          order: 0,
+          partNumber: null,
+          partTitle: null,
+        },
+        {
+          unitKey: "u-2",
+          unitVersionId: "b",
+          order: 1,
+          partNumber: null,
+          partTitle: null,
+        },
+      ]),
+    ).not.toThrow();
   });
 });
 

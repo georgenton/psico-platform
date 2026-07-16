@@ -55,22 +55,31 @@ interna, testers o terceros.** Se activó el tripwire ("detente si aparece activ
 que no corresponde al smoke"); el usuario, tras el reporte, autorizó contener de
 inmediato.
 
-**Contenido encontrado en las cuentas demo (forense metadata-only, sin PII):** el
-seed NO crea contenido, pero el uso real sí lo hizo —
+**Contenido encontrado en las cuentas demo (forense metadata-only, sin PII).** El
+seed crea `MoodLog`, `CheckinResponse`, `DiaryTextFeature`, `Resonance` y
+`ReadingSession`. **No** crea `DiaryEntry`, `EcoThread`, `EcoMessage` ni
+`VoiceTranscription`; esas filas proceden de uso posterior —
 
 ```
-DiaryEntry           = 11   (cifrado E2E)
+DiaryEntry           = 11
 EcoThread            = 4
 EcoMessage           = 10
 VoiceTranscription   = 1    (solo metadata de uso; sin transcript ni audio)
 ```
 
 Creados entre 2026-06-19 y 2026-07-10. **Autoría y sensibilidad NO determinadas.**
-El diario y los mensajes USER de Eco están cifrados E2E (el servidor no los lee),
-pero la clave se deriva del password + `cryptoSalt`, y el password era el default
-conocido — quien inició sesión con él podía descifrarlos. Se preserva la evidencia
-(ver runbook) antes de cualquier re-contención; ninguna cuenta ni contenido se
-borra.
+
+Sensibilidad del cifrado (con caveat): `DiaryEntry` está cifrado E2E. Los mensajes
+USER persistidos de Eco están cifrados en reposo, **pero el turno actual fue
+procesado transitoriamente en plaintext por servidor/proveedor**; las respuestas
+no-USER pueden almacenarse en `assistantText` plaintext. La clave del diario se
+deriva del password + `cryptoSalt`, y el password era el default conocido — **quien
+controlara la credencial potencialmente podía acceder al ciphertext y ejecutar el
+flujo cliente de derivación. No se ha demostrado acceso al plaintext.**
+
+**Preservación de evidencia:** la preservación mediante PITR + manifiesto
+metadata-only está **pendiente de registro**. La re-contención permanece en **HOLD**
+hasta registrar el punto PITR. Ninguna cuenta ni contenido se borra.
 
 Remedio (transacción atómica; `AuthEvent` **NO** se borra — audit trail):
 

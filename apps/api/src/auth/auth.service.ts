@@ -29,6 +29,7 @@ import type { VerifyEmailDto } from "./dto/verify-email.dto";
 import type { OAuthGoogleDto } from "./dto/oauth-google.dto";
 import type { AuthResponseDto } from "./dto/auth-response.dto";
 import type { JwtPayload } from "./strategies/jwt.strategy";
+import { revokeAllUserSessions } from "./session-revocation";
 import {
   AuthEventType,
   LoginFailReason,
@@ -95,6 +96,7 @@ export class AuthService {
         name: true,
         role: true,
         plan: true,
+        authRevision: true,
         cryptoSalt: true,
       },
     });
@@ -139,6 +141,7 @@ export class AuthService {
         plan: true,
         passwordHash: true,
         isActive: true,
+        authRevision: true,
         cryptoSalt: true,
       },
     });
@@ -239,6 +242,7 @@ export class AuthService {
             role: true,
             plan: true,
             isActive: true,
+            authRevision: true,
             cryptoSalt: true,
           },
         },
@@ -318,6 +322,44 @@ export class AuthService {
       // count=0 means the user presented a token that wasn't theirs/active.
       // Still log — could be a stale tab in another browser.
       metadata: { revokedCount: result.count },
+    });
+  }
+
+  // ── session revocation (ADR 0015) ───────────────────────────────────────────
+
+  /**
+   * Log out EVERY device: bump authRevision (invalidates all live access
+   * tokens) + delete all refresh tokens. Unlike single-device `logout`, this
+   * is the "sign out everywhere" action.
+   */
+  async logoutAll(userId: string, ctx: AuthRequestContext = {}): Promise<void> {
+    await this.prisma.$transaction((tx) => revokeAllUserSessions(tx, userId));
+    await this.recordEvent({ type: AuthEventType.LOGOUT, userId, ctx });
+  }
+
+  /**
+   * Revoke all of a user's sessions without any other state change. The hook
+   * for sensitive events that happen outside auth (e.g. a role change) —
+   * callers that already own a transaction should call
+   * `revokeAllUserSessions(tx, userId)` directly instead.
+   */
+  async revokeAllSessions(userId: string): Promise<void> {
+    await this.prisma.$transaction((tx) => revokeAllUserSessions(tx, userId));
+  }
+
+  /**
+   * Incident-response / admin helper: disable the account AND cut every live
+   * session in one atomic step. `isActive=false` alone would let an unexpired
+   * access token live to its 15m expiry (the gap this whole ADR closes), so we
+   * revoke in the same transaction.
+   */
+  async disableUser(userId: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { isActive: false },
+      });
+      await revokeAllUserSessions(tx, userId);
     });
   }
 
@@ -470,21 +512,20 @@ export class AuthService {
 
     const newHash = await bcrypt.hash(dto.newPassword, 12);
 
-    // Atomic: consume token + rotate password + revoke all refresh tokens.
-    await this.prisma.$transaction([
-      this.prisma.passwordResetToken.update({
+    // Atomic: consume token + rotate password + revoke every session
+    // (bump authRevision → kills live access tokens; delete refresh tokens →
+    // kills the ability to mint new ones). ADR 0015.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.passwordResetToken.update({
         where: { id: stored.id },
         data: { consumedAt: new Date() },
-      }),
-      this.prisma.user.update({
+      });
+      await tx.user.update({
         where: { id: stored.user.id },
         data: { passwordHash: newHash },
-      }),
-      this.prisma.refreshToken.updateMany({
-        where: { userId: stored.user.id, revokedAt: null },
-        data: { revokedAt: new Date() },
-      }),
-    ]);
+      });
+      await revokeAllUserSessions(tx, stored.user.id);
+    });
 
     await this.recordEvent({
       type: AuthEventType.PASSWORD_RESET_COMPLETED,
@@ -581,6 +622,7 @@ export class AuthService {
         role: true,
         plan: true,
         isActive: true,
+        authRevision: true,
         cryptoSalt: true,
       },
     });
@@ -663,6 +705,7 @@ export class AuthService {
         name: true,
         role: true,
         plan: true,
+        authRevision: true,
         cryptoSalt: true,
       },
     });
@@ -760,6 +803,7 @@ export class AuthService {
       name: string;
       role: string;
       plan: string;
+      authRevision: number;
       cryptoSalt?: string | null;
     },
     // TODO senior: accept Prisma transaction client type once shared kernel is extracted
@@ -772,6 +816,9 @@ export class AuthService {
       email: user.email,
       role: user.role,
       plan: user.plan,
+      // ADR 0015: bind the token to the account's current revision. A later
+      // bump (disable / password change / logout-all / …) invalidates it.
+      ar: user.authRevision,
     };
 
     const accessToken = this.jwtService.sign(payload);

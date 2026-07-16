@@ -56,7 +56,7 @@ export type MockedPrisma = ReturnType<typeof makePrismaMock>;
 
 function makePrismaMock() {
   const fn = () => vi.fn();
-  return {
+  const base = {
     user: {
       findUnique: fn(),
       findFirst: fn(),
@@ -71,6 +71,7 @@ function makePrismaMock() {
       create: fn(),
       update: fn(),
       updateMany: fn(),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     authEvent: {
       create: vi.fn().mockResolvedValue(undefined),
@@ -99,15 +100,18 @@ function makePrismaMock() {
       count: fn(),
     },
     // Other models added on demand by future sprints.
-    $transaction: vi.fn(async (arg: unknown) => {
-      if (typeof arg === "function") {
-        return (arg as (tx: unknown) => unknown)({
-          refreshToken: { create: vi.fn() },
-        });
-      }
-      return Promise.all(arg as Promise<unknown>[]);
-    }),
   };
+  // Callback-form $transaction passes the mock itself as the tx client, so
+  // in-transaction writes (e.g. revokeAllUserSessions → user.update +
+  // refreshToken.deleteMany) land on the same spies specs assert on.
+  // Array-form awaits the pre-built promises.
+  const $transaction = vi.fn(async (arg: unknown) => {
+    if (typeof arg === "function") {
+      return (arg as (tx: unknown) => unknown)(base);
+    }
+    return Promise.all(arg as Promise<unknown>[]);
+  });
+  return { ...base, $transaction };
 }
 
 export interface E2EHarness {
@@ -178,10 +182,11 @@ export async function createE2EApp(): Promise<E2EHarness> {
     }
     prisma.$transaction.mockReset();
     prisma.$transaction.mockImplementation(async (arg: unknown) => {
+      // Callback form gets the whole mock as its tx client, so in-transaction
+      // writes (revokeAllUserSessions → user.update + refreshToken.deleteMany)
+      // land on the same spies specs assert on.
       if (typeof arg === "function") {
-        return (arg as (tx: unknown) => unknown)({
-          refreshToken: { create: vi.fn() },
-        });
+        return (arg as (tx: unknown) => unknown)(prisma);
       }
       return Promise.all(arg as Promise<unknown>[]);
     });

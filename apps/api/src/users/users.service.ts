@@ -20,6 +20,7 @@ import type {
 } from "@psico/types";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+import { revokeAllUserSessions } from "../auth/session-revocation";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { StorageService } from "../storage";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -523,18 +524,16 @@ export class UsersService {
 
     const newHash = await bcrypt.hash(dto.newPassword, 12);
 
-    // Atomic: rotate password + revoke all active refresh tokens so any other
-    // device gets logged out on next request.
-    await this.prisma.$transaction([
-      this.prisma.user.update({
+    // Atomic: rotate password + revoke every session (bump authRevision +
+    // delete refresh tokens — ADR 0015) so every other device is logged out
+    // on its next request.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
         where: { id: userId },
         data: { passwordHash: newHash },
-      }),
-      this.prisma.refreshToken.updateMany({
-        where: { userId, revokedAt: null },
-        data: { revokedAt: new Date() },
-      }),
-    ]);
+      });
+      await revokeAllUserSessions(tx, userId);
+    });
   }
 
   // ── POST /api/user/crypto-seed-acknowledged ────────────────────────────────
@@ -633,18 +632,19 @@ export class UsersService {
 
     const newHash = await bcrypt.hash(dto.newPassword, 12);
 
-    // Atomic: rotate password + salt + entries + tokens. Prisma transactions
-    // give us all-or-nothing semantics.
-    await this.prisma.$transaction([
-      this.prisma.user.update({
+    // Atomic: rotate password + salt + entries + revoke every session
+    // (bump authRevision + delete refresh tokens — ADR 0015). Prisma
+    // transactions give us all-or-nothing semantics.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
         where: { id: userId },
         data: {
           passwordHash: newHash,
           cryptoSalt: dto.newCryptoSalt,
         },
-      }),
-      ...dto.reencryptedEntries.map((entry) =>
-        this.prisma.diaryEntry.update({
+      });
+      for (const entry of dto.reencryptedEntries) {
+        await tx.diaryEntry.update({
           where: { id: entry.id },
           data: {
             textCiphertext: entry.textCiphertext,
@@ -654,13 +654,10 @@ export class UsersService {
               excerptNonce: entry.excerptNonce ?? null,
             }),
           },
-        }),
-      ),
-      this.prisma.refreshToken.updateMany({
-        where: { userId, revokedAt: null },
-        data: { revokedAt: new Date() },
-      }),
-    ]);
+        });
+      }
+      await revokeAllUserSessions(tx, userId);
+    });
 
     return {
       ok: true,

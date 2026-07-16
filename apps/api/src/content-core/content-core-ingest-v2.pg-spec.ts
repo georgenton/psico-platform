@@ -119,31 +119,61 @@ suite("Content Core · CC-5 non-destructive ingest (real PostgreSQL)", () => {
     await admin.end();
   });
 
-  it("the legacy destructive ingest is frozen — a real run refuses, --dry-run is allowed", () => {
-    const file = "content/emociones-en-construccion/capitulo-01.md";
-
-    // A real (non-dry) run without the override refuses BEFORE touching the DB.
-    let threw = false;
-    try {
-      execSync(`node scripts/ingest-chapter-md.mjs --file ${file} --order 1`, {
+  const file = "content/emociones-en-construccion/capitulo-01.md";
+  const runIngest = (args: string, extraEnv: Record<string, string> = {}) =>
+    execSync(
+      `node scripts/ingest-chapter-md.mjs --file ${file} --order 1 ${args}`,
+      {
         cwd: API_DIR,
         encoding: "utf8",
-        env: { ...process.env, DATABASE_URL: withDatabase(base as string, DB) },
+        env: {
+          ...process.env,
+          DATABASE_URL: withDatabase(base as string, DB),
+          ...extraEnv,
+        },
+      },
+    );
+  const stderrOf = (e: unknown) => String((e as { stderr?: unknown }).stderr);
+
+  it("is FORBIDDEN in production — even with the override, even --dry-run", () => {
+    let threw = false;
+    try {
+      // production + ALLOW=on → still refuses; the override cannot lift it.
+      runIngest("", {
+        PSICO_ENV: "production",
+        ALLOW_LEGACY_DESTRUCTIVE_INGEST: "on",
       });
     } catch (e) {
       threw = true;
-      expect(String((e as { stderr?: unknown }).stderr)).toMatch(
-        /LEGACY_INGEST_FROZEN/,
-      );
+      expect(stderrOf(e)).toMatch(/LEGACY_INGEST_FORBIDDEN_IN_PRODUCTION/);
     }
     expect(threw).toBe(true);
+  });
 
-    // A dry run writes nothing → still allowed (exits 0).
-    const out = execSync(
-      `node scripts/ingest-chapter-md.mjs --file ${file} --order 1 --dry-run`,
-      { cwd: API_DIR, encoding: "utf8" },
-    );
+  it("a dry run writes nothing (no deleteMany/createMany)", async () => {
+    const before = {
+      chapterBlocks: await prisma.chapterBlock.count(),
+      contentBlocks: await prisma.contentBlock.count(),
+      revisions: await prisma.revision.count(),
+    };
+    const out = runIngest("--dry-run"); // non-production, no override
     expect(out).toBeTypeOf("string");
+    expect({
+      chapterBlocks: await prisma.chapterBlock.count(),
+      contentBlocks: await prisma.contentBlock.count(),
+      revisions: await prisma.revision.count(),
+    }).toEqual(before);
+  });
+
+  it("a real non-production run without the override refuses (frozen)", () => {
+    let threw = false;
+    try {
+      runIngest(""); // no --dry-run, no ALLOW, no PSICO_ENV
+    } catch (e) {
+      threw = true;
+      expect(stderrOf(e)).toMatch(/LEGACY_INGEST_FROZEN/);
+    }
+    expect(threw).toBe(true);
   });
 
   it("reorder keeps every block key (no new, no tombstone) + publishes atomically", async () => {

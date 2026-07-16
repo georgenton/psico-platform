@@ -20,6 +20,12 @@ import type { NewBlockInput, PrevBlock } from "./lib/matcher";
  * the conservative CC-1 matcher (exact hash/key, unique >= 0.95, else new;
  * removed blocks tombstone). The revision is created DRAFT and PUBLISHED atomically
  * at the end. See docs/architecture/content-core.md §E and ADR 0016.
+ *
+ * Concurrency: the transaction locks the `Edition` row FOR UPDATE and re-reads the
+ * published pointer + manifest AFTER the lock, so concurrent ingests on the same
+ * edition serialize and every unit's change survives (none is clobbered). A unit
+ * ingest requires an already-published base revision (`INGEST_REQUIRES_BASE_REVISION`)
+ * — it never creates the first, partial revision (backfill/publish seeds it).
  */
 
 export interface IngestBlockInput {
@@ -51,28 +57,36 @@ export async function ingestUnitV2(
 ): Promise<IngestResult> {
   return prisma.$transaction(
     async (tx) => {
-      const edition = await tx.edition.findUnique({
-        where: { id: params.editionId },
+      // Serialize concurrent ingests on the SAME edition: lock the Edition row
+      // FOR UPDATE, THEN read the published pointer + manifest. A racing ingest
+      // that just committed is observed here (its manifest is copied forward),
+      // never clobbered — under READ COMMITTED the reads after the lock grant
+      // see the winner's committed rows.
+      const locked = await tx.$queryRaw<
+        Array<{ publishedRevisionId: string | null }>
+      >`SELECT "publishedRevisionId" FROM "Edition" WHERE "id" = ${params.editionId} FOR UPDATE`;
+      if (locked.length === 0) throw new Error("INGEST_EDITION_NOT_FOUND");
+
+      // A unit ingest EDITS an existing published edition — it never creates the
+      // first (partial) revision. The base revision is seeded by backfill/publish.
+      const publishedRevisionId = locked[0].publishedRevisionId;
+      if (!publishedRevisionId) {
+        throw new Error("INGEST_REQUIRES_BASE_REVISION");
+      }
+
+      const prevRev = await tx.revision.findUnique({
+        where: { id: publishedRevisionId },
+        include: { units: { include: { unit: true } } },
       });
-      if (!edition) throw new Error("INGEST_EDITION_NOT_FOUND");
+      if (!prevRev) throw new Error("INGEST_BASE_REVISION_NOT_FOUND");
 
-      // Previous published revision + its manifest.
-      const prevRev = edition.publishedRevisionId
-        ? await tx.revision.findUnique({
-            where: { id: edition.publishedRevisionId },
-            include: { units: { include: { unit: true } } },
-          })
-        : null;
-
-      const prevManifest: ManifestEntry[] = (prevRev?.units ?? []).map(
-        (ru) => ({
-          unitKey: ru.unit.unitKey,
-          unitVersionId: ru.unitVersionId,
-          order: ru.order,
-          partNumber: ru.partNumber,
-          partTitle: ru.partTitle,
-        }),
-      );
+      const prevManifest: ManifestEntry[] = prevRev.units.map((ru) => ({
+        unitKey: ru.unit.unitKey,
+        unitVersionId: ru.unitVersionId,
+        order: ru.order,
+        partNumber: ru.partNumber,
+        partTitle: ru.partTitle,
+      }));
 
       // Stable ContentUnit (create if this is the unit's first ingest).
       let unit = await tx.contentUnit.findUnique({
@@ -106,7 +120,7 @@ export async function ingestUnitV2(
         }));
       }
 
-      const nextNumber = (prevRev?.number ?? 0) + 1;
+      const nextNumber = prevRev.number + 1;
       const revision = await tx.revision.create({
         data: {
           editionId: params.editionId,
@@ -134,9 +148,11 @@ export async function ingestUnitV2(
           contentHash: contentHash(b.content),
           order: i,
         }));
+      // Editorial position is part of the key so two IDENTICAL new blocks in the
+      // same unit/revision (same contentHash) get DISTINCT stable keys.
       const mintKey = (i: number) =>
         uuidv5(
-          `${params.editionId}:${params.unitKey}:r${nextNumber}:${nextBlocks[i].contentHash}`,
+          `${params.editionId}:${params.unitKey}:r${nextNumber}:pos${nextBlocks[i].order}:${nextBlocks[i].contentHash}`,
         );
       const plan = planUnitIngest(prev, nextBlocks, mintKey);
 

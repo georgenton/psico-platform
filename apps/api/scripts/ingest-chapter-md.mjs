@@ -249,15 +249,25 @@ function chapterFiles() {
 
 async function main() {
   // Content Core (CC-5) — this destructive ingest cascade-deletes highlights /
-  // annotations anchored to the replaced blocks. It is FROZEN: fail closed unless
-  // an operator explicitly overrides. Use ingest-v2 (non-destructive,
+  // annotations anchored to the replaced blocks. Use ingest-v2 (non-destructive,
   // revision-minting) instead — apps/api/src/content-core/ingest-v2.ts.
-  // `--dry-run` is always allowed (it writes nothing).
+  //
+  // In production it is PERMANENTLY forbidden — no override, not even --dry-run.
+  // ALLOW_LEGACY_DESTRUCTIVE_INGEST cannot lift this block.
+  if (process.env.PSICO_ENV === "production") {
+    throw new Error(
+      "LEGACY_INGEST_FORBIDDEN_IN_PRODUCTION: the destructive legacy ingest is " +
+        "permanently disabled in production (Content Core CC-5). Use ingest-v2.",
+    );
+  }
+  // Outside production: --dry-run is always allowed (it writes nothing); a real
+  // run fails closed unless an operator explicitly overrides.
   if (!DRY_RUN && process.env.ALLOW_LEGACY_DESTRUCTIVE_INGEST !== "on") {
     throw new Error(
       "LEGACY_INGEST_FROZEN: this destructive ingest cascade-deletes user " +
         "highlights/annotations (Content Core CC-5). Use ingest-v2. To run anyway " +
-        "(dangerous), set ALLOW_LEGACY_DESTRUCTIVE_INGEST=on. --dry-run is allowed.",
+        "(dangerous, non-production only), set ALLOW_LEGACY_DESTRUCTIVE_INGEST=on. " +
+        "--dry-run is allowed.",
     );
   }
 

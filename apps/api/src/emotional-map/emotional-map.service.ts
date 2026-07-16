@@ -10,6 +10,7 @@ import type { EmotionalMapResult } from "@psico/types";
 
 import { PrismaService } from "../prisma";
 import { REDIS_CLIENT } from "../redis";
+import { parseCanonicalMood } from "../mood/mood-normalization";
 import { flagEnabled } from "../shared/flags";
 import type { IEmotionalMapProvider } from "./providers/provider.interface";
 import { EMOTIONAL_MAP_PROVIDER } from "./tokens";
@@ -198,14 +199,34 @@ export class EmotionalMapService {
         select: { currentStreakDays: true },
       }),
       // Tier 2 — longer mood history for the OU fit. Only ordinal mood +
-      // timestamp; never text (ADR 0007).
+      // timestamp + the server-owned eligibility columns; never text (ADR 0007).
       this.prisma.diaryEntry.findMany({
         where: { userId, createdAt: { gte: ouSince } },
-        select: { mood: true, createdAt: true },
+        select: {
+          mood: true,
+          moodNormalized: true,
+          moodEligibleForDynamics: true,
+          createdAt: true,
+        },
       }),
       this.prisma.moodLog.findMany({
         where: { userId, createdAt: { gte: ouSince } },
-        select: { mood: true, createdAt: true },
+        select: {
+          mood: true,
+          moodNormalized: true,
+          moodEligibleForDynamics: true,
+          // PR-2B · EVERY server-owned column the normalizer would have written,
+          // so the temporal fallback can tell a genuinely pre-normalization row
+          // (all null) from a row the normalizer touched/excluded (any set).
+          moodProvenance: true,
+          moodExplicitlySelected: true,
+          moodVocabularyVersion: true,
+          moodNormalizerVersion: true,
+          moodClientVersion: true,
+          moodSelectionVersion: true,
+          moodExclusionReason: true,
+          createdAt: true,
+        },
       }),
       // Etapa 2 — micro-checkin answers (ordinal 0–4 scores, no text).
       this.prisma.checkinResponse.findMany({
@@ -265,15 +286,17 @@ export class EmotionalMapService {
         highlightCount,
         annotationCount,
         currentStreakDays: user?.currentStreakDays ?? 0,
-        // A null mood is not a series observation — exclude it from the OU fit
-        // entirely (moodLog.mood stays NOT NULL, so only diary rows can be null).
-        moodSeries: [
-          ...diaryMoodRows.filter(
-            (r): r is (typeof diaryMoodRows)[number] & { mood: string } =>
-              r.mood !== null,
-          ),
-          ...moodLogRows,
-        ],
+        // PR-2B · the mood SERIES (momento + OU fit) admits only observations the
+        // server vouches for, so a fabricated/legacy mood never moves the map:
+        //   - DiaryEntry: ONLY eligible + normalized rows, using the canonical
+        //     `moodNormalized`. A null, legacy, or ambiguous-default reflexion is
+        //     excluded — never the raw diary token.
+        //   - MoodLog: eligible + normalized rows use `moodNormalized`; historical
+        //     pre-PR-2A rows (no normalization columns) fall back to their raw
+        //     mood IFF it is canonical — a check-in's raw was always an explicit
+        //     ordinal pick, so the temporal fallback is safe there (and only
+        //     there).
+        moodSeries: buildMoodSeries(diaryMoodRows, moodLogRows),
         checkins,
         textFeatures,
         resonances,
@@ -429,4 +452,89 @@ export class EmotionalMapService {
     void this.invalidateBestEffort(userId);
     return { ok: true, id: row.id };
   }
+}
+
+/** A DiaryEntry row: only the columns the eligible-only path needs. */
+interface DiaryMoodRow {
+  moodNormalized: string | null;
+  moodEligibleForDynamics: boolean;
+  createdAt: Date;
+}
+
+/** A MoodLog row: full server-owned metadata so the fallback can be strict. */
+interface MoodLogRow {
+  mood: string | null;
+  moodNormalized: string | null;
+  moodEligibleForDynamics: boolean;
+  moodProvenance: string | null;
+  moodExplicitlySelected: boolean | null;
+  moodVocabularyVersion: string | null;
+  moodNormalizerVersion: string | null;
+  moodClientVersion: string | null;
+  moodSelectionVersion: string | null;
+  moodExclusionReason: string | null;
+  createdAt: Date;
+}
+
+/**
+ * A MoodLog row is "pre-normalization" ONLY when EVERY server-owned column the
+ * normalizer would have written is genuinely absent — i.e. the row predates the
+ * normalizer and was never processed. A row that WAS processed (any of these set,
+ * including an exclusion reason) fails this test and is discarded rather than
+ * resurrected by the raw fallback.
+ */
+function isPreNormalizationMoodLog(r: MoodLogRow): boolean {
+  return (
+    r.moodNormalized == null &&
+    r.moodProvenance == null &&
+    r.moodExplicitlySelected == null &&
+    r.moodVocabularyVersion == null &&
+    r.moodNormalizerVersion == null &&
+    r.moodClientVersion == null &&
+    r.moodSelectionVersion == null &&
+    r.moodExclusionReason == null
+  );
+}
+
+/**
+ * PR-2B · assemble the mood observation series the map derives `momento` and the
+ * OU dynamics from, admitting only moods the server vouches for:
+ *   - DiaryEntry rows contribute ONLY when eligible + normalized (use the
+ *     canonical `moodNormalized`). A raw/legacy/ambiguous/null reflexion is
+ *     dropped — a reflexion mood counts only when the user attested it.
+ *   - MoodLog rows contribute their `moodNormalized` when eligible+normalized.
+ *     A temporal fallback to the raw canonical is allowed ONLY for a genuinely
+ *     pre-normalization row (all server-owned metadata null) — never for a row
+ *     the normalizer explicitly excluded (that stays excluded on purpose).
+ */
+export function buildMoodSeries(
+  diaryRows: ReadonlyArray<DiaryMoodRow>,
+  moodLogRows: ReadonlyArray<MoodLogRow>,
+): Array<{ mood: string; createdAt: Date }> {
+  const series: Array<{ mood: string; createdAt: Date }> = [];
+
+  for (const r of diaryRows) {
+    if (r.moodEligibleForDynamics && r.moodNormalized != null) {
+      series.push({ mood: r.moodNormalized, createdAt: r.createdAt });
+    }
+  }
+
+  for (const r of moodLogRows) {
+    if (r.moodEligibleForDynamics && r.moodNormalized != null) {
+      // Vouched, normalized observation.
+      series.push({ mood: r.moodNormalized, createdAt: r.createdAt });
+      continue;
+    }
+    // Temporal fallback: ONLY a truly pre-normalization row (never touched),
+    // and only if its raw is canonical. Everything else — including any row
+    // the normalizer excluded — is dropped.
+    if (isPreNormalizationMoodLog(r)) {
+      const canonical = parseCanonicalMood(r.mood);
+      if (canonical != null) {
+        series.push({ mood: canonical, createdAt: r.createdAt });
+      }
+    }
+  }
+
+  return series;
 }

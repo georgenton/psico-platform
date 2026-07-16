@@ -226,4 +226,65 @@ suite("PR-2A · real migration (prisma migrate deploy)", () => {
       ),
     ).rejects.toThrow();
   });
+
+  // ── PR-2B · moodSelectionVersion (migration 20260715230000) ───────────────
+  // `migrate deploy` above ran the FULL history, so the PR-2B migration is
+  // already applied here — these assert its columns landed AND that the PR-2A
+  // INV-1 CHECK is untouched (an eligible row with the new column set inserts).
+
+  it("PR-2B: added a nullable moodSelectionVersion column to BOTH tables", async () => {
+    const r = await pool.query(
+      `SELECT table_name, is_nullable
+         FROM information_schema.columns
+        WHERE table_schema = $1
+          AND table_name IN ('MoodLog','DiaryEntry')
+          AND column_name = 'moodSelectionVersion'`,
+      [SCHEMA],
+    );
+    const byTable = Object.fromEntries(
+      r.rows.map((x) => [x.table_name, x.is_nullable]),
+    );
+    expect(byTable).toEqual({ MoodLog: "YES", DiaryEntry: "YES" });
+  });
+
+  it("PR-2B: an eligible MoodLog row carrying moodSelectionVersion still passes the INV-1 CHECK", async () => {
+    const r = await pool.query(
+      `INSERT INTO "MoodLog"
+         (id, "userId", mood, "moodNormalized", "moodProvenance",
+          "moodExplicitlySelected", "moodVocabularyVersion", "moodNormalizerVersion",
+          "moodSelectionVersion", "moodEligibleForDynamics", "moodExclusionReason")
+       VALUES ('ml-msv', 'u-pr2a', 'good', 'good'::"MoodCanonical",
+               'MOOD_LOG'::"MoodProvenance", true, 'diary-v1', 'norm-1',
+               'mood-log-v1', true, NULL)
+       RETURNING "moodSelectionVersion"`,
+    );
+    expect(r.rows[0].moodSelectionVersion).toBe("mood-log-v1");
+  });
+
+  it("PR-2B: an eligible DiaryEntry row carrying moodSelectionVersion='explicit-v1' still passes the INV-1 CHECK", async () => {
+    const r = await pool.query(
+      `INSERT INTO "DiaryEntry"
+         (id, "userId", "textCiphertext", "textNonce", "updatedAt", tags, mood,
+          "moodNormalized", "moodProvenance", "moodExplicitlySelected",
+          "moodVocabularyVersion", "moodNormalizerVersion",
+          "moodSelectionVersion", "moodEligibleForDynamics", "moodExclusionReason")
+       VALUES ('de-msv','u-pr2a','ct','nc', now(), '{}', 'good',
+               'good'::"MoodCanonical", 'DIARY'::"MoodProvenance", true,
+               'diary-v1', 'norm-1', 'explicit-v1', true, NULL)
+       RETURNING "moodSelectionVersion"`,
+    );
+    expect(r.rows[0].moodSelectionVersion).toBe("explicit-v1");
+  });
+
+  it("PR-2B: a null-mood DiaryEntry (no pick) inserts — mood + normalized null, ineligible", async () => {
+    const r = await pool.query(
+      `INSERT INTO "DiaryEntry"
+         (id, "userId", "textCiphertext", "textNonce", "updatedAt", tags, mood,
+          "moodNormalized", "moodEligibleForDynamics", "moodExclusionReason")
+       VALUES ('de-null','u-pr2a','ct','nc', now(), '{}', NULL,
+               NULL, false, 'not_selected'::"MoodExclusionReason")
+       RETURNING id`,
+    );
+    expect(r.rows.length).toBe(1);
+  });
 });

@@ -10,7 +10,10 @@ import type {
   LogMoodResponse,
 } from "@psico/types";
 import { CHECKIN_ITEMS } from "@psico/types";
-import { deriveMoodNormalization } from "./mood-normalization";
+import {
+  deriveMoodNormalization,
+  parseCanonicalMood,
+} from "./mood-normalization";
 
 /**
  * MoodService — Sprint B1.
@@ -56,6 +59,16 @@ export class MoodService {
       );
     }
 
+    // PR-2B · the (strict) normalizer throws if we stamp the `mood-log-v1`
+    // attestation onto a non-canonical token. A check-in MUST be canonical, so
+    // reject a legacy/unknown token cleanly as MOOD_INVALID here — before the
+    // attestation — rather than letting the normalizer throw a raw 500.
+    if (parseCanonicalMood(mood) == null) {
+      throw new BadRequestException(
+        `MOOD_INVALID: '${mood}' is not a canonical, eligible check-in token`,
+      );
+    }
+
     // PR-2A · a check-in is inherently an EXPLICIT pick (the user taps a face)
     // in the canonical ordinal vocabulary, so the server marks it MOOD_LOG /
     // explicit and — being canonical — eligible. Provenance/eligibility are
@@ -63,7 +76,9 @@ export class MoodService {
     const normalization = deriveMoodNormalization({
       raw: mood,
       source: "MOOD_LOG",
-      explicitlySelected: true,
+      // PR-2B · a check-in is inherently explicit; the server stamps the
+      // `mood-log-v1` attestation (the client never sends it).
+      selectionVersion: "mood-log-v1",
     });
 
     // Defense in depth (independent of the DTO's @IsIn): a check-in MUST

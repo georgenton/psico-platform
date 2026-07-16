@@ -10,6 +10,13 @@ import { ReflexionesService } from "./reflexiones.service";
 const NONCE_B64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 const CIPHER_B64 = "Y2lwaGVydGV4dC1ibG9i"; // "ciphertext-blob" — opaque to server.
 
+// PR-2B · the service now busts the emotional-map cache on write. The mock's
+// `invalidateBestEffort` resolves to void so `void this.emotionalMap.invalidate…`
+// is a no-op in tests.
+function emotionalMapMock() {
+  return { invalidateBestEffort: vi.fn().mockResolvedValue(undefined) };
+}
+
 function buildPrismaMock() {
   return {
     diaryEntry: {
@@ -36,6 +43,10 @@ function buildEntryRow(overrides: Record<string, unknown> = {}) {
     id: "entry-1",
     userId: "user-1",
     mood: "calma",
+    // PR-2B — the server-vouched projection. Defaults model a legacy row:
+    // a raw mood exists, but nothing is normalized/eligible until proven.
+    moodNormalized: null,
+    moodEligibleForDynamics: false,
     kind: "free",
     promptId: null,
     prompt: null,
@@ -60,7 +71,10 @@ describe("ReflexionesService.list", () => {
 
   beforeEach(() => {
     prisma = buildPrismaMock();
-    service = new ReflexionesService(prisma as never);
+    service = new ReflexionesService(
+      prisma as never,
+      emotionalMapMock() as never,
+    );
   });
 
   it("returns entries summary + moodMap + tags + pagination", async () => {
@@ -142,7 +156,10 @@ describe("ReflexionesService.create", () => {
 
   beforeEach(() => {
     prisma = buildPrismaMock();
-    service = new ReflexionesService(prisma as never);
+    service = new ReflexionesService(
+      prisma as never,
+      emotionalMapMock() as never,
+    );
   });
 
   it("rejects when excerpt cipher is sent without nonce (and vice versa)", async () => {
@@ -269,6 +286,66 @@ describe("ReflexionesService.create", () => {
       }),
     );
   });
+
+  it("PR-2B: create canonical + moodSelectionVersion 'explicit-v1' → eligible", async () => {
+    prisma.diaryEntry.create.mockResolvedValue({
+      id: "n5",
+      createdAt: new Date(),
+      excerptCiphertext: null,
+    });
+    await service.create("user-1", {
+      mood: "good",
+      moodSelectionVersion: "explicit-v1",
+      textCiphertext: CIPHER_B64,
+      textNonce: NONCE_B64,
+    });
+    expect(prisma.diaryEntry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          mood: "good",
+          moodProvenance: "DIARY",
+          moodExplicitlySelected: true,
+          moodSelectionVersion: "explicit-v1",
+          moodEligibleForDynamics: true,
+          moodExclusionReason: null,
+        }),
+      }),
+    );
+  });
+
+  it("PR-2B: create with NO mood → stored as null, not_selected, ineligible", async () => {
+    prisma.diaryEntry.create.mockResolvedValue({
+      id: "n6",
+      createdAt: new Date(),
+      excerptCiphertext: null,
+    });
+    await service.create("user-1", {
+      // no mood at all
+      textCiphertext: CIPHER_B64,
+      textNonce: NONCE_B64,
+    });
+    expect(prisma.diaryEntry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          mood: null,
+          moodNormalized: null,
+          moodEligibleForDynamics: false,
+          moodExclusionReason: "not_selected",
+        }),
+      }),
+    );
+  });
+
+  it("PR-2B: create moodSelectionVersion WITHOUT a mood → 400, writes nothing", async () => {
+    await expect(
+      service.create("user-1", {
+        moodSelectionVersion: "explicit-v1",
+        textCiphertext: CIPHER_B64,
+        textNonce: NONCE_B64,
+      }),
+    ).rejects.toThrow(/MOOD_SELECTION_WITHOUT_MOOD/);
+    expect(prisma.diaryEntry.create).not.toHaveBeenCalled();
+  });
 });
 
 // ─── ReflexionesService · mood integrity (never fabricate "ok") ─────────────────────
@@ -279,22 +356,25 @@ describe("ReflexionesService · mood integrity", () => {
 
   beforeEach(() => {
     prisma = buildPrismaMock();
-    service = new ReflexionesService(prisma as never);
+    service = new ReflexionesService(
+      prisma as never,
+      emotionalMapMock() as never,
+    );
   });
 
-  it("FAILS explicitly on a null-mood row — never coerces it to 'ok'", async () => {
-    // The PR-2A API can't create a null-mood entry (the DTO requires `mood`),
-    // but the column is nullable. If a null row is ever read back, the mapper
-    // must throw a data-integrity error rather than fabricate a neutral "ok".
+  it("PR-2B: a null-mood row is returned AS null — never coerced to 'ok'", async () => {
+    // PR-2B makes the whole stack null-capable: a reflexión with no pick has
+    // mood = null, and the summary returns it as null (the client renders
+    // "Sin ánimo registrado"). No fabrication, no throw.
     prisma.diaryEntry.findMany
       .mockResolvedValueOnce([buildEntryRow({ mood: null })]) // page rows
       .mockResolvedValueOnce([]) // computeMoodMap
       .mockResolvedValueOnce([]); // computeTagCounts
     prisma.diaryEntry.count.mockResolvedValue(1);
 
-    await expect(service.list("user-1", {})).rejects.toThrow(
-      /DIARY_MOOD_INTEGRITY/,
-    );
+    const result = await service.list("user-1", {});
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0].mood).toBeNull();
   });
 });
 
@@ -306,7 +386,10 @@ describe("ReflexionesService.update", () => {
 
   beforeEach(() => {
     prisma = buildPrismaMock();
-    service = new ReflexionesService(prisma as never);
+    service = new ReflexionesService(
+      prisma as never,
+      emotionalMapMock() as never,
+    );
   });
 
   it("rejects updating ciphertext without a fresh nonce", async () => {
@@ -335,13 +418,97 @@ describe("ReflexionesService.update", () => {
     ).rejects.toThrow(NotFoundException);
   });
 
-  it("PR-2A: PATCH mood=null → 400 and writes nothing (backstop until PR-2B)", async () => {
-    prisma.diaryEntry.findFirst.mockResolvedValue({ id: "entry-1" });
+  it("PR-2B: PATCH mood=null CLEARS the mood (not_selected, ineligible)", async () => {
+    prisma.diaryEntry.findFirst
+      .mockResolvedValueOnce({
+        id: "entry-1",
+        mood: "good",
+        moodEligibleForDynamics: true,
+      }) // ownership + existing
+      .mockResolvedValueOnce(buildEntryRow({ id: "entry-1", mood: null })); // getDetail
+    prisma.diaryEntry.findMany.mockResolvedValue([]); // related
+    prisma.diaryEntry.update.mockResolvedValue({});
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await service.update("user-1", "entry-1", { mood: null } as any);
+
+    expect(prisma.diaryEntry.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          mood: null,
+          moodNormalized: null,
+          moodEligibleForDynamics: false,
+          moodExclusionReason: "not_selected",
+        }),
+      }),
+    );
+  });
+
+  it("PR-2B: PATCH mood + moodSelectionVersion 'explicit-v1' → eligible", async () => {
+    prisma.diaryEntry.findFirst
+      .mockResolvedValueOnce({
+        id: "entry-1",
+        mood: "ok",
+        moodEligibleForDynamics: false,
+      })
+      .mockResolvedValueOnce(buildEntryRow({ id: "entry-1", mood: "great" }));
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+    prisma.diaryEntry.update.mockResolvedValue({});
+
+    await service.update("user-1", "entry-1", {
+      mood: "great",
+      moodSelectionVersion: "explicit-v1",
+    });
+
+    expect(prisma.diaryEntry.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          mood: "great",
+          moodProvenance: "DIARY",
+          moodExplicitlySelected: true,
+          moodSelectionVersion: "explicit-v1",
+          moodEligibleForDynamics: true,
+          moodExclusionReason: null,
+        }),
+      }),
+    );
+  });
+
+  it("PR-2B: re-saving the SAME canonical mood WITHOUT an attestation does NOT degrade an eligible row", async () => {
+    prisma.diaryEntry.findFirst
+      .mockResolvedValueOnce({
+        id: "entry-1",
+        mood: "great",
+        moodEligibleForDynamics: true,
+      })
+      .mockResolvedValueOnce(buildEntryRow({ id: "entry-1", mood: "great" }));
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+    prisma.diaryEntry.update.mockResolvedValue({});
+
+    // No moodSelectionVersion — an autosave carrying the current mood.
+    await service.update("user-1", "entry-1", { mood: "great" });
+
+    const data = prisma.diaryEntry.update.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    // The idempotent re-save leaves the mood columns untouched (no downgrade).
+    expect("mood" in data).toBe(false);
+    expect("moodEligibleForDynamics" in data).toBe(false);
+  });
+
+  it("PR-2B: moodSelectionVersion WITHOUT a mood → 400 and writes nothing", async () => {
+    prisma.diaryEntry.findFirst.mockResolvedValue({
+      id: "entry-1",
+      mood: "good",
+      moodEligibleForDynamics: true,
+    });
 
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      service.update("user-1", "entry-1", { mood: null } as any),
-    ).rejects.toThrow(/DIARY_MOOD_NULL_NOT_ALLOWED_UNTIL_PR2B/);
+      service.update("user-1", "entry-1", {
+        moodSelectionVersion: "explicit-v1",
+      }),
+    ).rejects.toThrow(/MOOD_SELECTION_WITHOUT_MOOD/);
     expect(prisma.diaryEntry.update).not.toHaveBeenCalled();
   });
 
@@ -394,7 +561,10 @@ describe("ReflexionesService.share", () => {
 
   beforeEach(() => {
     prisma = buildPrismaMock();
-    service = new ReflexionesService(prisma as never);
+    service = new ReflexionesService(
+      prisma as never,
+      emotionalMapMock() as never,
+    );
   });
 
   it("returns 404 when entry not owned by user", async () => {
@@ -454,7 +624,10 @@ describe("ReflexionesService.getPromptOfTheDay", () => {
 
   beforeEach(() => {
     prisma = buildPrismaMock();
-    service = new ReflexionesService(prisma as never);
+    service = new ReflexionesService(
+      prisma as never,
+      emotionalMapMock() as never,
+    );
   });
 
   it("returns null when no active prompts exist", async () => {
@@ -476,5 +649,171 @@ describe("ReflexionesService.getPromptOfTheDay", () => {
     // Same day → same prompt. The doy-hash makes this deterministic.
     expect(a).toEqual(b);
     expect(a).not.toBeNull();
+  });
+});
+
+// ─── ReflexionesService.getDetail · related entries (PR-2B) ────────────────────────
+
+describe("ReflexionesService.getDetail — related entries (PR-2B)", () => {
+  let service: ReflexionesService;
+  let prisma: ReturnType<typeof buildPrismaMock>;
+
+  beforeEach(() => {
+    prisma = buildPrismaMock();
+    service = new ReflexionesService(
+      prisma as never,
+      emotionalMapMock() as never,
+    );
+  });
+
+  it("#4 (PR-2B): an ineligible raw mood ('ok') with no tags → related=[] and NEVER queries (no OR {})", async () => {
+    // A legacy/ineligible raw mood is NOT a shared feature: it must not relate.
+    prisma.diaryEntry.findFirst.mockResolvedValue(
+      buildEntryRow({
+        id: "e1",
+        mood: "ok",
+        moodNormalized: null,
+        moodEligibleForDynamics: false,
+        tags: [],
+      }),
+    );
+
+    const res = await service.getDetail("user-1", "e1");
+
+    expect(res.relatedEntryIds).toEqual([]);
+    // Nothing to relate on → the related query is never issued, so a match-all
+    // `{}` OR clause can never leak.
+    expect(prisma.diaryEntry.findMany).not.toHaveBeenCalled();
+  });
+
+  it("#4 (PR-2B): an ineligible mood but tags present → OR carries ONLY the tags clause (no mood clause)", async () => {
+    prisma.diaryEntry.findFirst.mockResolvedValue(
+      buildEntryRow({
+        id: "e1",
+        mood: "ok",
+        moodNormalized: null,
+        moodEligibleForDynamics: false,
+        tags: ["trabajo"],
+      }),
+    );
+    prisma.diaryEntry.findMany.mockResolvedValue([{ id: "rel-1" }]);
+
+    await service.getDetail("user-1", "e1");
+
+    const arg = prisma.diaryEntry.findMany.mock.calls[0]![0] as {
+      where: { OR: unknown[] };
+    };
+    expect(arg.where.OR).toEqual([{ tags: { hasSome: ["trabajo"] } }]);
+    expect(arg.where.OR).not.toContainEqual({});
+  });
+
+  it("#4 (PR-2B): an eligible+normalized mood relates ONLY against eligible entries carrying the same normalized mood", async () => {
+    prisma.diaryEntry.findFirst.mockResolvedValue(
+      buildEntryRow({
+        id: "e1",
+        mood: "good",
+        moodNormalized: "good",
+        moodEligibleForDynamics: true,
+        tags: ["familia"],
+      }),
+    );
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+
+    await service.getDetail("user-1", "e1");
+
+    const arg = prisma.diaryEntry.findMany.mock.calls[0]![0] as {
+      where: { OR: unknown[] };
+    };
+    // The mood clause matches the NORMALIZED mood of other eligible entries —
+    // never the raw column, never a bare `{ mood: ... }`.
+    expect(arg.where.OR).toEqual([
+      { moodEligibleForDynamics: true, moodNormalized: "good" },
+      { tags: { hasSome: ["familia"] } },
+    ]);
+    expect(arg.where.OR).not.toContainEqual({});
+  });
+});
+
+// ─── ReflexionesService · map-cache invalidation (PR-2B) ───────────────────────────
+
+describe("ReflexionesService — map cache invalidation (PR-2B)", () => {
+  let service: ReflexionesService;
+  let prisma: ReturnType<typeof buildPrismaMock>;
+  let map: ReturnType<typeof emotionalMapMock>;
+
+  beforeEach(() => {
+    prisma = buildPrismaMock();
+    map = emotionalMapMock();
+    service = new ReflexionesService(prisma as never, map as never);
+  });
+
+  it("E: create invalidates the map cache", async () => {
+    prisma.diaryEntry.create.mockResolvedValue({
+      id: "n",
+      createdAt: new Date(),
+      excerptCiphertext: null,
+    });
+    await service.create("user-1", {
+      mood: "good",
+      moodSelectionVersion: "explicit-v1",
+      textCiphertext: CIPHER_B64,
+      textNonce: NONCE_B64,
+    });
+    expect(map.invalidateBestEffort).toHaveBeenCalledWith("user-1");
+  });
+
+  it("E: delete invalidates the map cache", async () => {
+    prisma.diaryEntry.findFirst.mockResolvedValue({ id: "e1" });
+    prisma.diaryEntry.delete.mockResolvedValue({});
+    await service.remove("user-1", "e1");
+    expect(map.invalidateBestEffort).toHaveBeenCalledWith("user-1");
+  });
+
+  it("E: an update that changes the mood invalidates", async () => {
+    prisma.diaryEntry.findFirst
+      .mockResolvedValueOnce({
+        id: "e1",
+        mood: "ok",
+        moodEligibleForDynamics: false,
+      })
+      .mockResolvedValueOnce(buildEntryRow({ id: "e1", mood: "good" }));
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+    prisma.diaryEntry.update.mockResolvedValue({});
+    await service.update("user-1", "e1", {
+      mood: "good",
+      moodSelectionVersion: "explicit-v1",
+    });
+    expect(map.invalidateBestEffort).toHaveBeenCalledWith("user-1");
+  });
+
+  it("E: an update that changes tags invalidates", async () => {
+    prisma.diaryEntry.findFirst
+      .mockResolvedValueOnce({
+        id: "e1",
+        mood: "good",
+        moodEligibleForDynamics: true,
+      })
+      .mockResolvedValueOnce(buildEntryRow({ id: "e1", mood: "good" }));
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+    prisma.diaryEntry.update.mockResolvedValue({});
+    await service.update("user-1", "e1", { tags: ["nuevo"] });
+    expect(map.invalidateBestEffort).toHaveBeenCalledWith("user-1");
+  });
+
+  it("E: a text-only update does NOT invalidate (opaque to the map)", async () => {
+    prisma.diaryEntry.findFirst
+      .mockResolvedValueOnce({
+        id: "e1",
+        mood: "good",
+        moodEligibleForDynamics: true,
+      })
+      .mockResolvedValueOnce(buildEntryRow({ id: "e1", mood: "good" }));
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+    prisma.diaryEntry.update.mockResolvedValue({});
+    await service.update("user-1", "e1", {
+      textCiphertext: CIPHER_B64,
+      textNonce: NONCE_B64,
+    });
+    expect(map.invalidateBestEffort).not.toHaveBeenCalled();
   });
 });

@@ -7,8 +7,8 @@ import {
   Length,
   ValidateIf,
 } from "class-validator";
-import { DIARY_MOOD_IDS } from "@psico/types";
-import type { DiaryMoodId } from "@psico/types";
+import { CLIENT_SELECTION_VERSIONS, DIARY_MOOD_IDS } from "@psico/types";
+import type { ClientMoodSelectionVersion, DiaryMoodId } from "@psico/types";
 import { IsBase64UrlCipher, IsBase64UrlNonce } from "./ciphertext-validators";
 
 /**
@@ -31,16 +31,32 @@ export class UpdateDiaryEntryDto {
    * it for the patterns analytics — visible in plaintext by design.
    * Plugin emits the enum in OpenAPI from `@IsIn`.
    *
-   * PR-2A · `@ValidateIf(value !== undefined)` instead of `@IsOptional`: a
-   * MISSING property is allowed (leaves the mood untouched), but an EXPLICIT
-   * `null` must be rejected — `@IsOptional` would skip all validators for null
-   * and let a `mood = null` row slip in (which the read path then rejects with
-   * a 500). So: omitted → OK; canonical string → OK; null / empty / legacy /
-   * unknown → 400. The nullable transition lands atomically in PR-2B.
+   * PR-2B · null-capable, three-way. The service distinguishes the cases via
+   * `hasOwnProperty`, so the validator must let both `null` and a canonical
+   * string through while still rejecting garbage:
+   *   - **absent** (property omitted) → leave the mood untouched.
+   *   - **`null`** → clear the mood (`not_selected`, ineligible).
+   *   - **canonical string** → set it (eligible only with `explicit-v1`).
+   *   - empty / legacy / unknown token → 400.
+   * `@ValidateIf(value !== undefined && value !== null)` skips validation for
+   * the absent and null cases (both legitimate) and enforces `@IsIn` on any
+   * present value.
    */
-  @ValidateIf((_object, value) => value !== undefined)
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
   @IsIn(DIARY_MOOD_IDS)
-  mood?: DiaryMoodId;
+  mood?: DiaryMoodId | null;
+
+  /**
+   * PR-2B · client attestation that the new `mood` was an EXPLICIT pick. Only
+   * `explicit-v1` (`CLIENT_SELECTION_VERSIONS`) is accepted from a client; the
+   * server-owned attestations are stamped elsewhere. Sending it without a
+   * `mood`, or alongside `mood: null`, is a 400 (`MOOD_SELECTION_WITHOUT_MOOD`).
+   * Re-saving the SAME canonical mood WITHOUT this attestation never degrades an
+   * already-eligible row (the service preserves the existing normalization).
+   */
+  @IsOptional()
+  @IsIn(CLIENT_SELECTION_VERSIONS)
+  moodSelectionVersion?: ClientMoodSelectionVersion;
 
   /**
    * New XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.

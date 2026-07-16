@@ -39,6 +39,10 @@ function buildAi(
   } as unknown as ConstructorParameters<typeof PatronesService>[1];
 }
 
+// PR-2B — Patrones reads the server-vouched projection: a mood counts only
+// when the row is eligible for dynamics AND carries a normalized value. The
+// helper produces an eligible + normalized row so existing "mood counts" tests
+// keep their meaning. Use `ineligibleEntry()` for the negative cases.
 function entry(
   mood: string,
   isoDate: string,
@@ -47,7 +51,30 @@ function entry(
 ) {
   const d = new Date(`${isoDate}T00:00:00.000Z`);
   d.setUTCHours(hourUtc, 0, 0, 0);
-  return { mood, createdAt: d, tags };
+  return {
+    moodNormalized: mood,
+    moodEligibleForDynamics: true,
+    createdAt: d,
+    tags,
+  };
+}
+
+// A raw mood the server does NOT vouch for (legacy / ineligible). The raw value
+// is irrelevant to Patrones — only `moodNormalized` gated by eligibility feeds
+// the aggregation, so we model it as normalized:null, eligible:false.
+function ineligibleEntry(
+  isoDate: string,
+  hourUtc: number,
+  tags: string[] = [],
+) {
+  const d = new Date(`${isoDate}T00:00:00.000Z`);
+  d.setUTCHours(hourUtc, 0, 0, 0);
+  return {
+    moodNormalized: null as string | null,
+    moodEligibleForDynamics: false,
+    createdAt: d,
+    tags,
+  };
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────
@@ -134,6 +161,33 @@ describe("PatronesService.getPatrones", () => {
     const result = await svc.getPatrones("u-1", "PRO" as Plan, "30d");
 
     expect(result.moodMap[0]?.swatch).toBe("#C7C0B5");
+  });
+
+  it("#2 (PR-2B): ineligible moods are excluded from moodMap AND hourMood", async () => {
+    const prisma = buildPrisma({
+      diaryEntry: {
+        findMany: vi.fn().mockResolvedValue([
+          // Eligible → contributes to both aggregations.
+          entry("calma", "2026-06-01", 9),
+          // Ineligible raw mood on a DIFFERENT day + hour → must not appear
+          // in either the heatmap or the hour buckets.
+          ineligibleEntry("2026-06-02", 22, ["trabajo"]),
+        ]),
+        count: vi.fn(),
+      } as never,
+    });
+    const svc = new PatronesService(prisma, buildAi());
+    const result = await svc.getPatrones("u-1", "PRO" as Plan, "30d");
+
+    // Only the eligible day is on the heatmap.
+    expect(result.moodMap).toHaveLength(1);
+    expect(result.moodMap[0]?.date).toBe("2026-06-01");
+    // Hour 22 (the ineligible entry's hour) carries no mood count.
+    const h22 = result.hourMood.find((b) => b.hour === 22);
+    expect(h22?.moodCounts ?? {}).toEqual({});
+    // Hour 9 (eligible) does.
+    const h9 = result.hourMood.find((b) => b.hour === 9);
+    expect(h9?.moodCounts.calma).toBe(1);
   });
 });
 
@@ -257,6 +311,80 @@ describe("PatronesService.regenerateWeeklySummary", () => {
     expect(JSON.stringify(passed)).not.toContain("body");
   });
 
+  it("#2 (PR-2B): an eligible+normalized 'good' week yields dominantMood=good", async () => {
+    const seven = Array.from({ length: 7 }, (_, i) =>
+      entry("good", `2026-06-0${i + 1}`, 10),
+    );
+    const gen = vi
+      .fn()
+      .mockResolvedValue({ headline: "H", narrative: "N paragraph." });
+    const ai = {
+      generateWeeklyNarrative: gen,
+    } as unknown as ConstructorParameters<typeof PatronesService>[1];
+    const prisma = buildPrisma({
+      diaryEntry: {
+        findMany: vi.fn().mockResolvedValue(seven),
+        count: vi.fn(),
+      } as never,
+      weeklySummary: {
+        findFirst: vi.fn(),
+        upsert: vi.fn().mockResolvedValue({
+          weekStart: new Date("2026-06-01T00:00:00.000Z"),
+          headline: "H",
+          narrative: "N paragraph.",
+          entriesUsed: 7,
+          generatedAt: new Date(),
+        }),
+      } as never,
+    });
+    const svc = new PatronesService(prisma, ai);
+    await svc.regenerateWeeklySummary("u-1", "PRO" as Plan);
+
+    const passed = gen.mock.calls[0]![0] as Record<string, unknown>;
+    expect(passed.dominantMood).toBe("good");
+    expect(passed.moodCounts).toEqual({ good: 7 });
+  });
+
+  it("#2 (PR-2B): a week of ineligible raw moods is treated as moodless — dominantMood=null, no fabricated mood", async () => {
+    // Seven reflexiones each with a raw mood the server does NOT vouch for.
+    const sevenIneligible = Array.from({ length: 7 }, (_, i) =>
+      ineligibleEntry(`2026-06-0${i + 1}`, 9, ["escritura"]),
+    );
+    const gen = vi
+      .fn()
+      .mockResolvedValue({ headline: "H", narrative: "N paragraph." });
+    const ai = {
+      generateWeeklyNarrative: gen,
+    } as unknown as ConstructorParameters<typeof PatronesService>[1];
+    const prisma = buildPrisma({
+      diaryEntry: {
+        findMany: vi.fn().mockResolvedValue(sevenIneligible),
+        count: vi.fn(),
+      } as never,
+      weeklySummary: {
+        findFirst: vi.fn(),
+        upsert: vi.fn().mockResolvedValue({
+          weekStart: new Date("2026-06-01T00:00:00.000Z"),
+          headline: "H",
+          narrative: "N paragraph.",
+          entriesUsed: 7,
+          generatedAt: new Date(),
+        }),
+      } as never,
+    });
+    const svc = new PatronesService(prisma, ai);
+    await svc.regenerateWeeklySummary("u-1", "PRO" as Plan);
+
+    const passed = gen.mock.calls[0]![0] as Record<string, unknown>;
+    // No vouched mood → dominantMood null, empty moodCounts, no "ok" fabricated.
+    expect(passed.dominantMood).toBeNull();
+    expect(passed.moodCounts).toEqual({});
+    expect(JSON.stringify(passed)).not.toContain('"ok"');
+    // The reflexiones are real — tags still count + entryCount holds.
+    expect(passed.entryCount).toBe(7);
+    expect(passed.topTags).toEqual(["escritura"]);
+  });
+
   it("falls back to the rule-based composer when the LLM call throws", async () => {
     const seven = Array.from({ length: 7 }, (_, i) =>
       entry("ansiedad", `2026-06-0${i + 1}`, 10),
@@ -288,6 +416,87 @@ describe("PatronesService.regenerateWeeklySummary", () => {
 
     // The rule-based composer mentions the dominant mood by name.
     expect(result.headline.toLowerCase()).toContain("ansiedad");
+  });
+
+  // ─── PR-2B: a week with NO mood recorded invents no emotion ───────────
+
+  it("A(PR-2B): entries without a mood → the LLM sees dominantMood=null and empty moodCounts (no 'calma')", async () => {
+    const sevenNullMood = Array.from({ length: 7 }, (_, i) => ({
+      moodNormalized: null as string | null,
+      moodEligibleForDynamics: false,
+      createdAt: new Date(`2026-06-0${i + 1}T09:00:00.000Z`),
+      tags: ["escritura"],
+    }));
+    const gen = vi
+      .fn()
+      .mockResolvedValue({ headline: "H", narrative: "N paragraph." });
+    const ai = {
+      generateWeeklyNarrative: gen,
+    } as unknown as ConstructorParameters<typeof PatronesService>[1];
+    const prisma = buildPrisma({
+      diaryEntry: {
+        findMany: vi.fn().mockResolvedValue(sevenNullMood),
+        count: vi.fn(),
+      } as never,
+      weeklySummary: {
+        findFirst: vi.fn(),
+        upsert: vi.fn().mockResolvedValue({
+          weekStart: new Date("2026-06-01T00:00:00.000Z"),
+          headline: "H",
+          narrative: "N paragraph.",
+          entriesUsed: 7,
+          generatedAt: new Date(),
+        }),
+      } as never,
+    });
+    const svc = new PatronesService(prisma, ai);
+    await svc.regenerateWeeklySummary("u-1", "PRO" as Plan);
+
+    const passed = gen.mock.calls[0]![0] as Record<string, unknown>;
+    // dominantMood is null (NOT a fabricated "calma"); moodCounts is empty.
+    expect(passed.dominantMood).toBeNull();
+    expect(passed.moodCounts).toEqual({});
+    // The entries are real reflexions — their tags still count.
+    expect(passed.topTags).toEqual(["escritura"]);
+    expect(JSON.stringify(passed)).not.toContain("calma");
+  });
+
+  it("A(PR-2B): the fallback narrative for a moodless week invents no emotion", async () => {
+    const sevenNullMood = Array.from({ length: 7 }, (_, i) => ({
+      moodNormalized: null as string | null,
+      moodEligibleForDynamics: false,
+      createdAt: new Date(`2026-06-0${i + 1}T09:00:00.000Z`),
+      tags: [] as string[],
+    }));
+    const upsertSpy = vi.fn().mockImplementation(({ create }) =>
+      Promise.resolve({
+        weekStart: new Date("2026-06-01T00:00:00.000Z"),
+        headline: (create as { headline: string }).headline,
+        narrative: (create as { narrative: string }).narrative,
+        entriesUsed: 7,
+        generatedAt: new Date(),
+      }),
+    );
+    const ai = buildAi(() => {
+      throw new Error("ANTHROPIC_DOWN");
+    });
+    const prisma = buildPrisma({
+      diaryEntry: {
+        findMany: vi.fn().mockResolvedValue(sevenNullMood),
+        count: vi.fn(),
+      } as never,
+      weeklySummary: {
+        findFirst: vi.fn(),
+        upsert: upsertSpy,
+      } as never,
+    });
+    const svc = new PatronesService(prisma, ai);
+    const result = await svc.regenerateWeeklySummary("u-1", "PRO" as Plan);
+
+    const blob = `${result.headline}\n${result.narrative}`.toLowerCase();
+    // No fabricated mood — not "calma", and the no-mood branch says so plainly.
+    expect(blob).not.toContain("calma");
+    expect(blob).toContain("no registraste un estado de ánimo");
   });
 });
 

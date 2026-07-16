@@ -161,7 +161,13 @@ describe("encryptString / decryptString (XChaCha20-Poly1305)", () => {
 
   it("decrypt with tampered ciphertext throws CRYPTO_DECRYPT_FAILED", () => {
     const env = encryptString("secret", key);
-    const tampered = { ...env, ciphertext: env.ciphertext.slice(0, -2) + "AA" };
+    // Deterministic mutation: flip one bit of the ciphertext bytes. The old
+    // string-slice mutation (`slice(0,-2)+"AA"`) was a no-op ~1/N of the time
+    // when the ciphertext already ended in "AA", making the test flaky (#557).
+    const bytes = base64UrlToBytes(env.ciphertext);
+    const index = bytes.length - 1;
+    bytes[index] ^= 0x01;
+    const tampered = { ...env, ciphertext: bytesToBase64Url(bytes) };
     expect(() => decryptString(tampered, key)).toThrow("CRYPTO_DECRYPT_FAILED");
   });
 

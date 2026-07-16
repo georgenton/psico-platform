@@ -9,8 +9,9 @@
  *   • a ReadingSession                   → lights the Conexión / Propósito axes
  *
  * It writes ONLY ordinal mood + timestamps + reading counters (ADR 0007 — no
- * text, no ciphertext). It never touches the Diario/Eco encrypted content, so
- * don't open those tabs on demo accounts (there's nothing there).
+ * text, no ciphertext); the seed itself never creates Diario/Eco content. NOTE:
+ * a demo account may still hold Diario/Eco content created by whoever LOGGED IN
+ * to it — do not assume these accounts are empty of user content.
  *
  * SECURITY (P0) — a demo account with a KNOWN default password is a live
  * credential. This script therefore:

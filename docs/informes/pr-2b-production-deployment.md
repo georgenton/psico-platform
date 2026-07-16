@@ -33,7 +33,7 @@
 
 ## 2. Incidente P0 — credencial demo
 
-**Qué pasó:** el smoke autenticado del despliegue usó la cuenta `demo-estable@psico.test` con la contraseña por defecto `Demo1234!` **hardcodeada** en `apps/api/scripts/seed-demo-users.mjs`. Eso significa que las cuentas `@psico.test` sembradas en producción son **credenciales vivas con contraseña conocida** — un riesgo real, no solo del smoke.
+**Qué pasó:** el smoke autenticado del despliegue usó una cuenta demo `@psico.test` con la contraseña por defecto `<redacted-known-default>` **hardcodeada** en `apps/api/scripts/seed-demo-users.mjs`. Eso significa que las cuentas `@psico.test` sembradas en producción son **credenciales vivas con contraseña conocida** — un riesgo real, no solo del smoke.
 
 ### Fase 0 — contención (aplicada tras pairing aprobado)
 
@@ -49,13 +49,28 @@ demo_distinct_ip_count      = 47    ← ⚠️ 47 IPs distintas en 30 días
 ```
 
 **Hallazgo (por encima del smoke autorizado):** 56 refresh tokens vivos + **47 IPs
-distintas** en 30 días contra cuentas con el password por defecto conocido —
-consistente con acceso de **terceros** a las cuentas demo. Se activó el tripwire
-("detente si aparece actividad que no corresponde al smoke"); el usuario, tras el
-reporte, autorizó contener de inmediato. **Mitigante:** las cuentas demo no
-contienen datos sensibles por diseño (solo ánimo ordinal + contadores de lectura,
-nunca Diario/Eco cifrado). El análisis forense de qué hicieron esas sesiones queda
-como seguimiento del usuario.
+distintas** en 30 días contra cuentas con el password por defecto conocido. Es
+**uso no autorizado o no atribuido; la evidencia no distingue todavía actividad
+interna, testers o terceros.** Se activó el tripwire ("detente si aparece actividad
+que no corresponde al smoke"); el usuario, tras el reporte, autorizó contener de
+inmediato.
+
+**Contenido encontrado en las cuentas demo (forense metadata-only, sin PII):** el
+seed NO crea contenido, pero el uso real sí lo hizo —
+
+```
+DiaryEntry           = 11   (cifrado E2E)
+EcoThread            = 4
+EcoMessage           = 10
+VoiceTranscription   = 1    (solo metadata de uso; sin transcript ni audio)
+```
+
+Creados entre 2026-06-19 y 2026-07-10. **Autoría y sensibilidad NO determinadas.**
+El diario y los mensajes USER de Eco están cifrados E2E (el servidor no los lee),
+pero la clave se deriva del password + `cryptoSalt`, y el password era el default
+conocido — quien inició sesión con él podía descifrarlos. Se preserva la evidencia
+(ver runbook) antes de cualquier re-contención; ninguna cuenta ni contenido se
+borra.
 
 Remedio (transacción atómica; `AuthEvent` **NO** se borra — audit trail):
 
@@ -71,8 +86,15 @@ demo_active_users_after           = 0   ✅
 demo_active_refresh_tokens_after  = 0   ✅
 ```
 
-Login con el password conocido ahora falla (`isActive=false`) y no quedan sesiones
-vivas.
+Login con el password conocido ahora falla (`isActive=false`). **Corrección sobre
+las "sesiones vivas":** `isActive=false` + el borrado de refresh tokens bloquean el
+**login y la renovación**, pero **no** invalidan un access token ya emitido —
+`JwtStrategy` no re-chequea `isActive` por request, así que un access token sigue
+siendo válido hasta su **expiración natural** (`JWT_ACCESS_EXPIRES_IN=15m`). Se
+verificó por timestamps que el último token demo posible venció ~`03:21:30Z`
+(último evento de emisión `03:06:30Z` + 15m), ya en el pasado → `access_tokens_
+potentially_alive=false`. El gap estructural se cierra con `User.authRevision`
+(PR aparte).
 
 ### Fase 1 — hotfix de código (`seed-demo-users.mjs`)
 
@@ -102,8 +124,8 @@ client_sentry_mood_null     = N/A (SENTRY_DSN no configurado)
 ```
 
 El único tráfico de reflexiones en la ventana fue el smoke autorizado
-(2×201 create + 2×200 delete). Cero 4xx/5xx, cero errores del worker. El acceso
-de terceros (47 IPs) se concentró en los 30 días previos, no en la ventana
+(2×201 create + 2×200 delete). Cero 4xx/5xx, cero errores del worker. El uso no
+atribuido (47 IPs) se concentró en los 30 días previos, no en la ventana
 post-deploy.
 
 ---

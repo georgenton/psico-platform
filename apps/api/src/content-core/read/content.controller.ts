@@ -1,5 +1,6 @@
 import { Controller, Get, Param, UseGuards } from "@nestjs/common";
 import {
+  ApiInternalServerErrorResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
@@ -30,6 +31,8 @@ export class ContentController {
   @Get("editions/:editionKey/units/:unitKey")
   @ApiOkResponse({ type: ContentUnitReadDto })
   @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
+  // CONTENT_CORE_INTEGRITY_ERROR — core present but malformed (never masked).
+  @ApiInternalServerErrorResponse({ type: ErrorEnvelopeDto })
   readUnit(
     @Param("editionKey") editionKey: string,
     @Param("unitKey") unitKey: string,

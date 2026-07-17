@@ -57,8 +57,14 @@ export async function ingestUnitV2(
   prisma: PrismaClient,
   params: IngestUnitParams,
 ): Promise<IngestResult> {
-  // Ingest input boundary: reject an invalid block kind explicitly rather than
-  // letting `undefined` reach Prisma. Checked before opening the transaction.
+  // Ingest input boundary (all checked before opening the transaction):
+  //  - a unit must have at least one block (a published unit with zero blocks is
+  //    an integrity error the read adapter rejects — never publish one);
+  if (params.blocks.length === 0) {
+    throw new Error("INGEST_EMPTY_UNIT");
+  }
+  //  - reject an invalid block kind explicitly rather than letting `undefined`
+  //    reach Prisma.
   for (const b of params.blocks) {
     if (!VALID_BLOCK_KINDS.has(b.kind)) {
       throw new Error("INGEST_INVALID_BLOCK_KIND");

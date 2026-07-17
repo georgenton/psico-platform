@@ -68,7 +68,9 @@ export async function readContentUnit(
       where: { revisionId: edition.publishedRevisionId, unit: { unitKey } },
       include: {
         unit: true,
-        revision: { select: { number: true } },
+        // status is validated in buildCoreRead — the pointer must reference a
+        // truly PUBLISHED revision, not merely be non-null.
+        revision: { select: { number: true, status: true } },
         unitVersion: {
           include: {
             blockVersions: {
@@ -82,7 +84,18 @@ export async function readContentUnit(
     if (ru) {
       return buildCoreRead(editionKey, unitKey, ru);
     }
-    // Published, but this unit is not in the manifest → not in core → legacy.
+
+    // The unit is NOT in the published manifest. Distinguish two cases:
+    //  A. no ContentUnit for this key yet → not migrated → legacy fallback OK;
+    //  B. a ContentUnit EXISTS in this edition but was retired from the manifest
+    //     → UNIT_NOT_FOUND. Never resurrect retired content from legacy.
+    const existingUnit = await prisma.contentUnit.findUnique({
+      where: { editionId_unitKey: { editionId: edition.id, unitKey } },
+    });
+    if (existingUnit) {
+      throw new NotFoundException("UNIT_NOT_FOUND");
+    }
+    // else: not yet in core → fall through to legacy.
   }
 
   return buildLegacyRead(prisma, editionKey, unitKey);
@@ -94,7 +107,7 @@ interface CoreRevisionUnit {
   partNumber: number | null;
   partTitle: string | null;
   unit: { unitKey: string };
-  revision: { number: number };
+  revision: { number: number; status: string };
   unitVersion: {
     id: string;
     unitId: string;
@@ -120,8 +133,12 @@ function buildCoreRead(
   const blockVersions = version?.blockVersions ?? [];
 
   // Integrity — never hide corruption behind a legacy fallback; refuse loudly.
+  // The pointed revision must be PUBLISHED (a DRAFT/ARCHIVED pointer is corrupt),
+  // the version must belong to the unit, and the blocks must be non-empty, own
+  // by the unit, and uniquely ordered.
   const orders = blockVersions.map((bv) => bv.order);
   const integrityOk =
+    ru.revision.status === "PUBLISHED" &&
     version != null &&
     version.unitId === ru.unitId &&
     blockVersions.length > 0 &&

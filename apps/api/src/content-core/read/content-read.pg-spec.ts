@@ -172,7 +172,38 @@ suite("Content Core · CC-6A read adapter dual-read (real PostgreSQL)", () => {
     ).rejects.toThrow(/UNIT_NOT_FOUND/);
   });
 
-  it("never serves a DRAFT revision", async () => {
+  it("case A: a unit added after backfill (no ContentUnit yet) falls back to legacy", async () => {
+    // read-book is published; a NEW chapter has no ContentUnit → legacy is OK.
+    const book = await prisma.book.findUnique({ where: { slug: "read-book" } });
+    const ch = await prisma.chapter.create({
+      data: { bookId: book!.id, order: 9, title: "Nuevo" },
+    });
+    await prisma.chapterBlock.create({
+      data: {
+        chapterId: ch.id,
+        order: 0,
+        kind: "PARAGRAPH",
+        content: "recién",
+      },
+    });
+    const key = unitKeyFromLegacyChapterId(ch.id);
+    const read = await readContentUnit(prisma, EDITION_KEY, key);
+    expect(read.source).toBe("legacy");
+    expect(read.blocks).toHaveLength(1);
+  });
+
+  it("case B: a ContentUnit retired from the published manifest → UNIT_NOT_FOUND (never legacy)", async () => {
+    const retiredKey = "retired-unit-key-cc6a";
+    // A ContentUnit exists in the edition but is absent from the published manifest.
+    await prisma.contentUnit.create({
+      data: { editionId, unitKey: retiredKey },
+    });
+    await expect(
+      readContentUnit(prisma, EDITION_KEY, retiredKey),
+    ).rejects.toThrow(/UNIT_NOT_FOUND/);
+  });
+
+  it("never serves an unpointed DRAFT revision", async () => {
     const draftRev = await prisma.revision.create({
       data: { editionId, number: 2, status: "DRAFT" },
     });
@@ -211,6 +242,46 @@ suite("Content Core · CC-6A read adapter dual-read (real PostgreSQL)", () => {
     await prisma.blockVersion.deleteMany({
       where: { unitVersionId: publishedVersionId },
     });
+    await expect(readContentUnit(prisma, EDITION_KEY, unitKey)).rejects.toThrow(
+      /CONTENT_CORE_INTEGRITY_ERROR/,
+    );
+  });
+
+  // LAST — repoints Edition.publishedRevisionId at a DRAFT (irrecoverable).
+  it("publishedRevisionId pointing at a DRAFT revision throws CONTENT_CORE_INTEGRITY_ERROR", async () => {
+    // Build an OTHERWISE-valid DRAFT that contains the unit (real blocks, correct
+    // linkage) so the ONLY failing invariant is status !== PUBLISHED.
+    const draftRev = await prisma.revision.create({
+      data: { editionId, number: 99, status: "DRAFT" },
+    });
+    const draftVersion = await prisma.contentUnitVersion.create({
+      data: { unitId, title: "DRAFT title", summary: null },
+    });
+    const cb = await prisma.contentBlock.findFirst({ where: { unitId } });
+    await prisma.blockVersion.create({
+      data: {
+        contentBlockId: cb!.id,
+        unitVersionId: draftVersion.id,
+        order: 0,
+        kind: "PARAGRAPH",
+        content: "DRAFT-ONLY — must never be served",
+        contentHash: "draft-hash-2",
+      },
+    });
+    await prisma.revisionUnit.create({
+      data: {
+        revisionId: draftRev.id,
+        unitId,
+        unitVersionId: draftVersion.id,
+        order: 1,
+      },
+    });
+    // Move the published pointer onto the DRAFT — the corruption under test.
+    await prisma.edition.update({
+      where: { id: editionId },
+      data: { publishedRevisionId: draftRev.id },
+    });
+
     await expect(readContentUnit(prisma, EDITION_KEY, unitKey)).rejects.toThrow(
       /CONTENT_CORE_INTEGRITY_ERROR/,
     );

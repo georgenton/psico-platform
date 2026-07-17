@@ -10,6 +10,7 @@ import type {
 } from "@psico/types";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
 import type {
   CreateAnnotationDto,
   UpdateAnnotationDto,
@@ -27,9 +28,18 @@ export class AnnotationsService {
     userId: string,
     dto: CreateAnnotationDto,
   ): Promise<CreateAnnotationResponse> {
-    await this.lector.assertBlockExists(dto.blockId);
+    const anchor = await this.lector.resolveAnchorTarget({
+      blockKey: dto.blockKey,
+      blockId: dto.blockId,
+    });
+    await this.lector.assertBlockExists(anchor.blockId);
     const created = await this.prisma.annotation.create({
-      data: { userId, blockId: dto.blockId, text: dto.text },
+      data: {
+        userId,
+        blockId: anchor.blockId,
+        contentBlockId: anchor.contentBlockId,
+        text: dto.text,
+      },
     });
     return { ok: true, annotation: this.serialise(created) };
   }
@@ -67,6 +77,7 @@ export class AnnotationsService {
   ): AnnotationSummary {
     return {
       id: a.id,
+      blockKey: blockKeyFromLegacyId(a.blockId),
       blockId: a.blockId,
       text: a.text,
       createdAt: a.createdAt,

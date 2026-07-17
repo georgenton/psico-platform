@@ -11920,9 +11920,15 @@
       "CreateHighlightDto": {
         "type": "object",
         "properties": {
+          "blockKey": {
+            "type": "string",
+            "description": "Public stable block identity (Content Core, CC-6B). Preferred anchor for\nnew clients. Resolved server-side to the legacy binding; if `blockId` is\nalso sent they must correspond (else ANCHOR_IDENTITY_MISMATCH).",
+            "minLength": 1,
+            "maxLength": 64
+          },
           "blockId": {
             "type": "string",
-            "description": "Stable ID of the `ChapterBlock` the highlight anchors to. Server\nverifies the block exists and belongs to a book the user has\naccess to (FREE plan can highlight in free chapters; PRO is\nunrestricted).",
+            "description": "Legacy ChapterBlock id — still accepted for backward compatibility. At\nleast one of `blockKey`/`blockId` is required (else ANCHOR_MISSING_TARGET).",
             "minLength": 1,
             "maxLength": 64
           },
@@ -11950,7 +11956,6 @@
           }
         },
         "required": [
-          "blockId",
           "startOffset",
           "endOffset"
         ]
@@ -11958,9 +11963,15 @@
       "CreateAnnotationDto": {
         "type": "object",
         "properties": {
+          "blockKey": {
+            "type": "string",
+            "description": "Public stable block identity (Content Core, CC-6B). Preferred anchor for\nnew clients; resolved server-side. If `blockId` is also sent they must\ncorrespond (else ANCHOR_IDENTITY_MISMATCH).",
+            "minLength": 1,
+            "maxLength": 64
+          },
           "blockId": {
             "type": "string",
-            "description": "Stable ID of the `ChapterBlock` the annotation anchors to. Same\nresilience as highlights: the annotation stays attached even if the\nblock content is later edited by the author.",
+            "description": "Legacy ChapterBlock id — still accepted for backward compatibility. At\nleast one of `blockKey`/`blockId` is required (else ANCHOR_MISSING_TARGET).",
             "minLength": 1,
             "maxLength": 64
           },
@@ -11972,7 +11983,6 @@
           }
         },
         "required": [
-          "blockId",
           "text"
         ]
       },
@@ -11997,6 +12007,11 @@
             "type": "string",
             "description": "Stable block identity (uuidv5)."
           },
+          "legacyBlockId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Legacy ChapterBlock id (anchor-compat bridge); null for a pure Content Core block."
+          },
           "kind": {
             "type": "string",
             "description": "Block kind (PARAGRAPH, HEADING, …)."
@@ -12016,6 +12031,7 @@
         },
         "required": [
           "blockKey",
+          "legacyBlockId",
           "kind",
           "order",
           "content",

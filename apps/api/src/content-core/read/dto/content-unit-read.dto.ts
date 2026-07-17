@@ -5,6 +5,14 @@ export class ContentReadBlockDto {
   @ApiProperty({ description: "Stable block identity (uuidv5)." })
   blockKey!: string;
 
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description:
+      "Legacy ChapterBlock id (anchor-compat bridge); null for a pure Content Core block.",
+  })
+  legacyBlockId!: string | null;
+
   @ApiProperty({ description: "Block kind (PARAGRAPH, HEADING, …)." })
   kind!: string;
 

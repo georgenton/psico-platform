@@ -2119,6 +2119,97 @@ export interface ChapterBlockSummary {
   content: string;
   /** Structured metadata; shape depends on `kind`. See lector/README.md. */
   meta: Record<string, unknown> | null;
+  /**
+   * Stable public block identity (Content Core, CC-6B). Present on blocks
+   * projected from the Content Core reader; used as the public write identity
+   * when creating highlights/annotations. Absent on legacy lector blocks.
+   */
+  blockKey?: string;
+}
+
+// ── Content Core read shapes (CC-6A / CC-6A.1 / CC-6B) ────────────────────────
+// Mirror the API read DTOs so web + mobile consume the canonical source of a
+// chapter's text (Content Core, with a fail-closed legacy fallback) instead of
+// the lector envelope. The reader keeps its visual block id as
+// `legacyBlockId ?? blockKey` so marks/audio-sync/heartbeat keep matching.
+
+/** One content block of a unit, from Content Core or the legacy fallback. */
+export interface ContentReadBlock {
+  /** Stable public block identity (uuidv5). */
+  blockKey: string;
+  /** Legacy ChapterBlock id (anchor-compat bridge); null for a pure-core block. */
+  legacyBlockId: string | null;
+  /** Block kind (PARAGRAPH, HEADING, …). Widen at the edge, narrow on project. */
+  kind: string;
+  /** 0-based position within the unit. */
+  order: number;
+  content: string;
+  /** Structured metadata by kind (audioUrl, videoUrl, …). */
+  meta: Record<string, unknown> | null;
+}
+
+/** A single content unit resolved by the read adapter (CC-6A). */
+export interface ContentUnitRead {
+  editionKey: string;
+  /** Published revision number, or null when served from legacy. */
+  revisionNumber: number | null;
+  unitKey: string;
+  title: string;
+  summary: string | null;
+  order: number;
+  partNumber: number | null;
+  partTitle: string | null;
+  /** Which store served this unit. */
+  source: "content-core" | "legacy";
+  blocks: ContentReadBlock[];
+}
+
+/** One published unit in a book manifest (CC-6A.1). */
+export interface ManifestUnit {
+  unitKey: string;
+  /** 1-based reading order within the book. */
+  order: number;
+  title: string;
+  summary: string | null;
+  partNumber: number | null;
+  partTitle: string | null;
+}
+
+/** The ordered manifest of a book's published units (CC-6A.1). */
+export interface BookManifest {
+  bookSlug: string;
+  /** Which store served this manifest. */
+  source: "content-core" | "legacy";
+  /** Server-owned edition key — clients never fabricate it. */
+  editionKey: string;
+  revisionNumber: number | null;
+  units: ManifestUnit[];
+}
+
+/**
+ * Project a Content Core unit's blocks into the reader's ChapterBlockSummary
+ * shape (CC-6B). Single source of truth so web and mobile build a byte-identical
+ * reader model from the same unit.
+ *
+ * The visual/anchor id stays `legacyBlockId ?? blockKey` so existing marks,
+ * audio-transcript sync and the heartbeat's lastBlockId keep matching with zero
+ * downstream churn; `blockKey` is carried through as the public write identity
+ * used when creating highlights/annotations.
+ */
+export function projectReaderBlocks(unit: {
+  blocks: ContentReadBlock[];
+}): ChapterBlockSummary[] {
+  return unit.blocks
+    .slice()
+    .sort((a, b) => a.order - b.order)
+    .map((b) => ({
+      id: b.legacyBlockId ?? b.blockKey,
+      order: b.order,
+      kind: b.kind as ChapterBlockKind,
+      content: b.content,
+      meta: b.meta,
+      blockKey: b.blockKey,
+    }));
 }
 
 /**
@@ -2188,7 +2279,10 @@ export function videoBlockInfo(block: {
 
 export interface HighlightSummary {
   id: string;
-  blockId: string;
+  /** Stable public block identity (uuidv5). Match reader blocks by this. */
+  blockKey: string;
+  /** Legacy ChapterBlock id — compatibility bridge; nullable for pure-core blocks. */
+  blockId: string | null;
   startOffset: number;
   endOffset: number;
   color: HighlightColor;
@@ -2198,7 +2292,10 @@ export interface HighlightSummary {
 
 export interface AnnotationSummary {
   id: string;
-  blockId: string;
+  /** Stable public block identity (uuidv5). Match reader blocks by this. */
+  blockKey: string;
+  /** Legacy ChapterBlock id — compatibility bridge; nullable for pure-core blocks. */
+  blockId: string | null;
   text: string;
   createdAt: Date;
   updatedAt: Date;
@@ -2328,7 +2425,10 @@ export interface LectorCompleteResponse {
 // ─── Highlights ──────────────────────────────────────────────────────────────
 
 export interface CreateHighlightRequest {
-  blockId: string;
+  /** Public stable block identity (CC-6B). Preferred anchor for new clients. */
+  blockKey?: string;
+  /** Legacy ChapterBlock id. Still accepted for backward compatibility. */
+  blockId?: string;
   startOffset: number;
   endOffset: number;
   color?: HighlightColor;
@@ -2343,7 +2443,10 @@ export interface CreateHighlightResponse {
 // ─── Annotations ─────────────────────────────────────────────────────────────
 
 export interface CreateAnnotationRequest {
-  blockId: string;
+  /** Public stable block identity (CC-6B). Preferred anchor for new clients. */
+  blockKey?: string;
+  /** Legacy ChapterBlock id. Still accepted for backward compatibility. */
+  blockId?: string;
   text: string;
 }
 

@@ -24,8 +24,35 @@ describe("HighlightsService", () => {
         delete: vi.fn().mockResolvedValue({}),
       },
     };
-    lector = { validateHighlightOffsets: vi.fn().mockResolvedValue(undefined) };
+    lector = {
+      validateHighlightOffsets: vi.fn().mockResolvedValue(undefined),
+      resolveAnchorTarget: vi
+        .fn()
+        .mockResolvedValue({ blockId: "b-1", contentBlockId: null }),
+    };
     svc = new HighlightsService(prisma, lector);
+  });
+
+  it("resolves the anchor from blockKey and serialises a blockKey", async () => {
+    lector.resolveAnchorTarget.mockResolvedValue({
+      blockId: "b-1",
+      contentBlockId: "cb-1",
+    });
+    const result = await svc.create("user-1", {
+      blockKey: "key-abc",
+      startOffset: 0,
+      endOffset: 5,
+    });
+    expect(lector.resolveAnchorTarget).toHaveBeenCalledWith({
+      blockKey: "key-abc",
+      blockId: undefined,
+    });
+    expect(prisma.highlight.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ blockId: "b-1", contentBlockId: "cb-1" }),
+    });
+    // blockKey is derived deterministically from the legacy blockId.
+    expect(typeof result.highlight.blockKey).toBe("string");
+    expect(result.highlight.blockKey.length).toBeGreaterThan(0);
   });
 
   it("creates with YELLOW default when no color provided", async () => {

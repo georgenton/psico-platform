@@ -6,6 +6,7 @@ import Link from "next/link";
 import type {
   AnnotationSummary,
   BreatheExercise,
+  ContentUnitRead,
   HighlightColor,
   HighlightSummary,
   LectorChapterResponse,
@@ -16,6 +17,7 @@ import {
   breatheEcoSeed,
   reflexionEcoSeed,
   chapterConcept,
+  projectReaderBlocks,
 } from "@psico/types";
 import {
   ReaderCompanionDock,
@@ -38,6 +40,13 @@ interface Props {
   apiBase: string;
   token: string;
   initial: LectorChapterResponse;
+  /**
+   * CC-6B — the chapter's blocks resolved from Content Core (page.tsx). The
+   * lector envelope (`initial`) still owns book/session/prefs/marks/audio; only
+   * the block TEXT comes from here. `null` means a genuine content fault we must
+   * not mask → the reader shows "contenido temporalmente no disponible".
+   */
+  unit: ContentUnitRead | null;
   bookSlug: string;
 }
 
@@ -66,11 +75,26 @@ interface Props {
  * would mean passing a dozen props or threading a Context that lives a few
  * levels deep. Single component is easier to read.
  */
-export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
+export function LectorShell({
+  apiBase,
+  token,
+  initial,
+  unit,
+  bookSlug,
+}: Props) {
   const router = useRouter();
 
   // Reader content (immutable for this render — re-fetch happens via navigation).
-  const { book, chapter, blocks, lessons, preferences } = initial;
+  // Blocks come from Content Core (CC-6B); the rest stays on the lector envelope.
+  const { book, chapter, lessons, preferences } = initial;
+  const blocks = useMemo(() => (unit ? projectReaderBlocks(unit) : []), [unit]);
+  // block.id (= legacyBlockId ?? blockKey) → blockKey, so a text selection or a
+  // note target can be POSTed by the stable public identity (CC-6B write path).
+  const blockKeyById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of blocks) if (b.blockKey) m.set(b.id, b.blockKey);
+    return m;
+  }, [blocks]);
 
   // Mutable state.
   const [highlights, setHighlights] = useState<HighlightSummary[]>(
@@ -272,8 +296,10 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
   async function createHighlight(color: HighlightColor) {
     if (!selection) return;
     const optimisticId = `optimistic-${Date.now()}`;
+    const blockKey = blockKeyById.get(selection.blockId);
     const optimistic: HighlightSummary = {
       id: optimisticId,
+      blockKey: blockKey ?? "",
       blockId: selection.blockId,
       startOffset: selection.startOffset,
       endOffset: selection.endOffset,
@@ -282,8 +308,9 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
       createdAt: new Date(),
     };
     setHighlights((prev) => [...prev, optimistic]);
+    // Prefer the stable public identity; fall back to the legacy anchor.
     const payload = {
-      blockId: selection.blockId,
+      ...(blockKey ? { blockKey } : { blockId: selection.blockId }),
       startOffset: selection.startOffset,
       endOffset: selection.endOffset,
       color,
@@ -326,8 +353,10 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
 
   async function createAnnotation(blockId: string, text: string) {
     const optimisticId = `optimistic-${Date.now()}`;
+    const blockKey = blockKeyById.get(blockId);
     const optimistic: AnnotationSummary = {
       id: optimisticId,
+      blockKey: blockKey ?? "",
       blockId,
       text,
       createdAt: new Date(),
@@ -341,7 +370,8 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ blockId, text }),
+        // Prefer the stable public identity; fall back to the legacy anchor.
+        body: JSON.stringify(blockKey ? { blockKey, text } : { blockId, text }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = (await res.json()) as { annotation: AnnotationSummary };
@@ -442,10 +472,14 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
 
   // ── Annotations count per block ───────────────────────────────────────
 
+  // Marks bucket by the stable blockKey (falling back to the legacy blockId for
+  // a mark that predates CC-6B). Blocks are looked up by `b.blockKey ?? b.id`,
+  // which is identical for legacy books and correct for pure-core blocks too.
   const annotationsByBlock = useMemo(() => {
     const map = new Map<string, number>();
     for (const a of annotations) {
-      map.set(a.blockId, (map.get(a.blockId) ?? 0) + 1);
+      const key = a.blockKey || a.blockId;
+      if (key) map.set(key, (map.get(key) ?? 0) + 1);
     }
     return map;
   }, [annotations]);
@@ -453,9 +487,11 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
   const highlightsByBlock = useMemo(() => {
     const map = new Map<string, HighlightSummary[]>();
     for (const h of highlights) {
-      const list = map.get(h.blockId) ?? [];
+      const key = h.blockKey || h.blockId;
+      if (!key) continue;
+      const list = map.get(key) ?? [];
       list.push(h);
-      map.set(h.blockId, list);
+      map.set(key, list);
     }
     return map;
   }, [highlights]);
@@ -468,6 +504,32 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
     fontSize: `${prefs.fontSize}px`,
     lineHeight: prefs.lineHeight,
   };
+
+  // CC-6B fail-closed: a genuine content fault (integrity error, retired unit)
+  // is never masked with the legacy blocks — we show an unavailable state and
+  // a way back to the book detail. All hooks above run unconditionally.
+  if (!unit) {
+    return (
+      <div className="min-h-screen" style={containerStyle}>
+        <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
+          <div className="text-4xl">📖</div>
+          <h1 className="text-lg font-semibold">
+            Contenido temporalmente no disponible
+          </h1>
+          <p className="text-sm opacity-70">
+            No pudimos cargar el texto de este capítulo en este momento. Vuelve
+            a intentarlo en un rato — tus notas y marcas siguen guardadas.
+          </p>
+          <Link
+            href={`/dashboard/biblioteca/${encodeURIComponent(bookSlug)}`}
+            className="rounded-full px-4 py-2 text-sm font-medium underline"
+          >
+            ← Volver al libro
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen" style={containerStyle}>
@@ -688,8 +750,8 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
           <BlockRenderer
             key={b.id}
             block={b}
-            highlights={highlightsByBlock.get(b.id) ?? []}
-            annotationCount={annotationsByBlock.get(b.id) ?? 0}
+            highlights={highlightsByBlock.get(b.blockKey ?? b.id) ?? []}
+            annotationCount={annotationsByBlock.get(b.blockKey ?? b.id) ?? 0}
             onAnnotateClick={(id) => {
               setFocusBlockId(id);
               setPendingBlockId(null);

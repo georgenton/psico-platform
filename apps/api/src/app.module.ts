@@ -24,6 +24,7 @@ import { JobsModule } from "./jobs";
 import { VoiceModule } from "./voice";
 import { EcoModule } from "./eco";
 import { LectorModule } from "./lector";
+import { ContentCoreModule } from "./content-core/content-core.module";
 import { PatronesModule } from "./patrones";
 import { EmotionalMapModule } from "./emotional-map";
 import { ResonancesModule } from "./resonances";
@@ -64,6 +65,7 @@ import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
     VoiceModule,
     EcoModule,
     LectorModule, // Sprint S6 — /api/lector/*, /api/highlights/*, /api/annotations/*
+    ContentCoreModule, // CC-6A — /api/content/* (read adapter, dual-read; lector untouched)
     PatronesModule, // Sprint S10 — /api/patrones/* (Pro)
     EmotionalMapModule, // Sprint D — /api/emotional-map (radar driver)
     ResonancesModule, // Fase E (V2) — /api/resonances (ARC cycle)

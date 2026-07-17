@@ -30,14 +30,24 @@ describe("AnnotationsService", () => {
         delete: vi.fn().mockResolvedValue({}),
       },
     };
-    lector = { assertBlockExists: vi.fn().mockResolvedValue(undefined) };
+    lector = {
+      assertBlockExists: vi.fn().mockResolvedValue(undefined),
+      resolveAnchorTarget: vi
+        .fn()
+        .mockResolvedValue({ blockId: "b-1", contentBlockId: null }),
+    };
     svc = new AnnotationsService(prisma, lector);
   });
 
-  it("creates after verifying the block exists", async () => {
+  it("creates after resolving + verifying the block, serialising a blockKey", async () => {
     const result = await svc.create("user-1", { blockId: "b-1", text: "hola" });
+    expect(lector.resolveAnchorTarget).toHaveBeenCalledWith({
+      blockKey: undefined,
+      blockId: "b-1",
+    });
     expect(lector.assertBlockExists).toHaveBeenCalledWith("b-1");
     expect(result.annotation.text).toBe("anotación");
+    expect(typeof result.annotation.blockKey).toBe("string");
   });
 
   it("update rejects non-owner with FORBIDDEN", async () => {

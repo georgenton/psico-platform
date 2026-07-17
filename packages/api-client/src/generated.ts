@@ -3810,12 +3810,16 @@ export interface components {
         };
         CreateHighlightDto: {
             /**
-             * @description Stable ID of the `ChapterBlock` the highlight anchors to. Server
-             *     verifies the block exists and belongs to a book the user has
-             *     access to (FREE plan can highlight in free chapters; PRO is
-             *     unrestricted).
+             * @description Public stable block identity (Content Core, CC-6B). Preferred anchor for
+             *     new clients. Resolved server-side to the legacy binding; if `blockId` is
+             *     also sent they must correspond (else ANCHOR_IDENTITY_MISMATCH).
              */
-            blockId: string;
+            blockKey?: string;
+            /**
+             * @description Legacy ChapterBlock id — still accepted for backward compatibility. At
+             *     least one of `blockKey`/`blockId` is required (else ANCHOR_MISSING_TARGET).
+             */
+            blockId?: string;
             /**
              * @description UTF-16 code-unit offset into the block's `content` where the
              *     highlight starts. Inclusive. The service rejects with 400 if
@@ -3845,11 +3849,16 @@ export interface components {
         };
         CreateAnnotationDto: {
             /**
-             * @description Stable ID of the `ChapterBlock` the annotation anchors to. Same
-             *     resilience as highlights: the annotation stays attached even if the
-             *     block content is later edited by the author.
+             * @description Public stable block identity (Content Core, CC-6B). Preferred anchor for
+             *     new clients; resolved server-side. If `blockId` is also sent they must
+             *     correspond (else ANCHOR_IDENTITY_MISMATCH).
              */
-            blockId: string;
+            blockKey?: string;
+            /**
+             * @description Legacy ChapterBlock id — still accepted for backward compatibility. At
+             *     least one of `blockKey`/`blockId` is required (else ANCHOR_MISSING_TARGET).
+             */
+            blockId?: string;
             /**
              * @description Annotation body. 1–4096 chars (~1000 words). Plaintext — annotations
              *     are NOT E2E encrypted because books are public content and the
@@ -3865,6 +3874,8 @@ export interface components {
         ContentReadBlockDto: {
             /** @description Stable block identity (uuidv5). */
             blockKey: string;
+            /** @description Legacy ChapterBlock id (anchor-compat bridge); null for a pure Content Core block. */
+            legacyBlockId: string | null;
             /** @description Block kind (PARAGRAPH, HEADING, …). */
             kind: string;
             /** @description 0-based position within the unit. */

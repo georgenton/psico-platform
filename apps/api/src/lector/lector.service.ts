@@ -18,6 +18,8 @@ import type { Env } from "../config";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import { StorageService } from "../storage";
+import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
+import { resolveAnchorTarget } from "./anchor-resolver";
 import type { LectorSessionHeartbeatDto } from "./dto/heartbeat.dto";
 
 /**
@@ -149,6 +151,7 @@ export class LectorService {
       })),
       highlights: highlights.map((h) => ({
         id: h.id,
+        blockKey: blockKeyFromLegacyId(h.blockId),
         blockId: h.blockId,
         startOffset: h.startOffset,
         endOffset: h.endOffset,
@@ -158,6 +161,7 @@ export class LectorService {
       })),
       annotations: annotations.map((a) => ({
         id: a.id,
+        blockKey: blockKeyFromLegacyId(a.blockId),
         blockId: a.blockId,
         text: a.text,
         createdAt: a.createdAt,
@@ -397,5 +401,23 @@ export class LectorService {
     if (endOffset > len) {
       throw new BadRequestException("OFFSET_OUT_OF_RANGE");
     }
+  }
+
+  /**
+   * CC-6B anchor bridge. Resolve a mark's target from `{ blockKey?, blockId? }`
+   * to the storage anchor `{ blockId, contentBlockId }`, fail-closed:
+   *  - `blockKey` present → the ContentBlock's legacy binding is the anchor; if a
+   *    `blockId` is ALSO given it must correspond, else ANCHOR_IDENTITY_MISMATCH;
+   *  - `blockKey` for a pure Content Core block (no legacy binding) → not yet
+   *    anchorable (ANCHOR_UNSUPPORTED_CORE_BLOCK);
+   *  - only `blockId` → legacy path (dual-writes contentBlockId when it exists);
+   *  - neither → ANCHOR_MISSING_TARGET.
+   * `contentBlockId` is stored for the dual-read bridge but is NEVER a public id.
+   */
+  resolveAnchorTarget(input: {
+    blockKey?: string;
+    blockId?: string;
+  }): Promise<{ blockId: string; contentBlockId: string | null }> {
+    return resolveAnchorTarget(this.prisma, input);
   }
 }

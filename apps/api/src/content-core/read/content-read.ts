@@ -32,6 +32,11 @@ export type ContentSource = "content-core" | "legacy";
 
 export interface ReadBlock {
   blockKey: string;
+  /**
+   * Legacy ChapterBlock id this block maps to — the anchor-compat bridge.
+   * Null for a pure Content Core block that has no legacy binding.
+   */
+  legacyBlockId: string | null;
   kind: string;
   order: number;
   content: string;
@@ -119,7 +124,11 @@ interface CoreRevisionUnit {
       kind: string;
       content: string;
       meta: unknown;
-      contentBlock: { blockKey: string; unitId: string };
+      contentBlock: {
+        blockKey: string;
+        unitId: string;
+        legacyBlockId: string | null;
+      };
     }>;
   } | null;
 }
@@ -163,6 +172,7 @@ function buildCoreRead(
     source: "content-core",
     blocks: blockVersions.map((bv) => ({
       blockKey: bv.contentBlock.blockKey,
+      legacyBlockId: bv.contentBlock.legacyBlockId,
       kind: bv.kind,
       order: bv.order,
       content: bv.content,
@@ -209,6 +219,7 @@ async function buildLegacyRead(
     source: "legacy",
     blocks: blocks.map((b) => ({
       blockKey: blockKeyFromLegacyId(b.id),
+      legacyBlockId: b.id,
       kind: b.kind,
       order: b.order,
       content: b.content,

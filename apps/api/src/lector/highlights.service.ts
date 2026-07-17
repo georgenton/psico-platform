@@ -6,6 +6,7 @@ import {
 import type { CreateHighlightResponse, HighlightSummary } from "@psico/types";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
 import type { CreateHighlightDto } from "./dto/create-highlight.dto";
 import { LectorService } from "./lector.service";
 
@@ -20,10 +21,14 @@ export class HighlightsService {
     userId: string,
     dto: CreateHighlightDto,
   ): Promise<CreateHighlightResponse> {
-    // Service-level validation: the block exists AND the offsets are sane.
-    // Doing this here (not in the DTO) because both checks need DB access.
+    // Resolve the public/legacy anchor (CC-6B), then validate the offsets
+    // against the resolved legacy block. Both checks need DB access.
+    const anchor = await this.lector.resolveAnchorTarget({
+      blockKey: dto.blockKey,
+      blockId: dto.blockId,
+    });
     await this.lector.validateHighlightOffsets(
-      dto.blockId,
+      anchor.blockId,
       dto.startOffset,
       dto.endOffset,
     );
@@ -31,7 +36,8 @@ export class HighlightsService {
     const created = await this.prisma.highlight.create({
       data: {
         userId,
-        blockId: dto.blockId,
+        blockId: anchor.blockId,
+        contentBlockId: anchor.contentBlockId,
         startOffset: dto.startOffset,
         endOffset: dto.endOffset,
         color: dto.color ?? "YELLOW",
@@ -62,6 +68,8 @@ export class HighlightsService {
   ): HighlightSummary {
     return {
       id: h.id,
+      // Public identity is derived deterministically from the legacy anchor.
+      blockKey: blockKeyFromLegacyId(h.blockId),
       blockId: h.blockId,
       startOffset: h.startOffset,
       endOffset: h.endOffset,

@@ -2119,6 +2119,12 @@ export interface ChapterBlockSummary {
   content: string;
   /** Structured metadata; shape depends on `kind`. See lector/README.md. */
   meta: Record<string, unknown> | null;
+  /**
+   * Stable public block identity (Content Core, CC-6B). Present on blocks
+   * projected from the Content Core reader; used as the public write identity
+   * when creating highlights/annotations. Absent on legacy lector blocks.
+   */
+  blockKey?: string;
 }
 
 /**
@@ -2188,7 +2194,10 @@ export function videoBlockInfo(block: {
 
 export interface HighlightSummary {
   id: string;
-  blockId: string;
+  /** Stable public block identity (uuidv5). Match reader blocks by this. */
+  blockKey: string;
+  /** Legacy ChapterBlock id — compatibility bridge; nullable for pure-core blocks. */
+  blockId: string | null;
   startOffset: number;
   endOffset: number;
   color: HighlightColor;
@@ -2198,7 +2207,10 @@ export interface HighlightSummary {
 
 export interface AnnotationSummary {
   id: string;
-  blockId: string;
+  /** Stable public block identity (uuidv5). Match reader blocks by this. */
+  blockKey: string;
+  /** Legacy ChapterBlock id — compatibility bridge; nullable for pure-core blocks. */
+  blockId: string | null;
   text: string;
   createdAt: Date;
   updatedAt: Date;
@@ -2328,7 +2340,10 @@ export interface LectorCompleteResponse {
 // ─── Highlights ──────────────────────────────────────────────────────────────
 
 export interface CreateHighlightRequest {
-  blockId: string;
+  /** Public stable block identity (CC-6B). Preferred anchor for new clients. */
+  blockKey?: string;
+  /** Legacy ChapterBlock id. Still accepted for backward compatibility. */
+  blockId?: string;
   startOffset: number;
   endOffset: number;
   color?: HighlightColor;
@@ -2343,7 +2358,10 @@ export interface CreateHighlightResponse {
 // ─── Annotations ─────────────────────────────────────────────────────────────
 
 export interface CreateAnnotationRequest {
-  blockId: string;
+  /** Public stable block identity (CC-6B). Preferred anchor for new clients. */
+  blockKey?: string;
+  /** Legacy ChapterBlock id. Still accepted for backward compatibility. */
+  blockId?: string;
   text: string;
 }
 

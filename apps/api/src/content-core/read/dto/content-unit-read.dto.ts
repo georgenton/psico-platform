@@ -13,6 +13,14 @@ export class ContentReadBlockDto {
   })
   legacyBlockId!: string | null;
 
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description:
+      "Source text version served (CC-6C). Core: BlockVersion.id; legacy: null. Echoed back when creating a highlight.",
+  })
+  blockVersionId!: string | null;
+
   @ApiProperty({ description: "Block kind (PARAGRAPH, HEADING, …)." })
   kind!: string;
 

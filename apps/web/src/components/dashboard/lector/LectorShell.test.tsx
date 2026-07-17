@@ -1,6 +1,10 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import type { ContentUnitRead, LectorChapterResponse } from "@psico/types";
+import type {
+  ContentUnitMarks,
+  ContentUnitRead,
+  LectorChapterResponse,
+} from "@psico/types";
 import { LectorShell } from "./LectorShell";
 
 /**
@@ -111,6 +115,7 @@ function buildUnit(
       {
         blockKey: "bk-1",
         legacyBlockId: "b-1",
+        blockVersionId: source === "legacy" ? null : "bv-1",
         kind: "PARAGRAPH",
         order: 1,
         content: "Empieza así.",
@@ -119,6 +124,7 @@ function buildUnit(
       {
         blockKey: "bk-2",
         legacyBlockId: "b-2",
+        blockVersionId: source === "legacy" ? null : "bv-2",
         kind: "PARAGRAPH",
         order: 2,
         content: "Y continúa con otro.",
@@ -131,6 +137,7 @@ function buildUnit(
 const renderShell = (
   overrides: Partial<LectorChapterResponse> = {},
   unit: ContentUnitRead | null = buildUnit(),
+  marks: ContentUnitMarks | null = null,
 ) =>
   render(
     <LectorShell
@@ -139,6 +146,7 @@ const renderShell = (
       bookSlug="emociones-en-construccion"
       initial={buildInitial(overrides)}
       unit={unit}
+      marks={marks}
     />,
   );
 
@@ -192,8 +200,8 @@ describe("LectorShell — content unavailable (fail-closed, CC-6B)", () => {
   });
 });
 
-describe("LectorShell — write path uses blockKey (CC-6B)", () => {
-  it("POSTs a highlight anchored by the stable blockKey, not the legacy id", async () => {
+describe("LectorShell — write path uses blockKey + source version (CC-6B/CC-6C)", () => {
+  it("POSTs a highlight anchored by the stable blockKey + the read blockVersionId, not the legacy id", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -245,6 +253,8 @@ describe("LectorShell — write path uses blockKey (CC-6B)", () => {
       );
       expect(body.blockKey).toBe("bk-1");
       expect(body.blockId).toBeUndefined();
+      // CC-6C: the exact version the reader saw travels with the write.
+      expect(body.blockVersionId).toBe("bv-1");
     });
   });
 });
@@ -262,6 +272,47 @@ describe("LectorShell — progress bar", () => {
     // Progress bar inner div has `width: 75%` style.
     const inner = container.querySelector('[style*="width: 75%"]');
     expect(inner).not.toBeNull();
+  });
+});
+
+describe("LectorShell — marks from the CC-6C surface", () => {
+  it("seeds annotations from the marks prop (not the lector envelope) when present", () => {
+    renderShell(
+      {
+        annotations: [
+          {
+            id: "env-1",
+            blockKey: "bk-1",
+            blockId: "b-1",
+            text: "Nota del envelope",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        ],
+      } as unknown as Partial<LectorChapterResponse>,
+      buildUnit(),
+      {
+        editionKey: "emociones-en-construccion-1e",
+        unitKey: "unit-1",
+        highlights: [],
+        annotations: [
+          {
+            id: "mk-1",
+            blockKey: "bk-1",
+            blockId: "b-1",
+            text: "Nota de la superficie CC-6C",
+            createdAt: new Date() as unknown as string,
+            updatedAt: new Date() as unknown as string,
+          },
+        ],
+      } as unknown as ContentUnitMarks,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /abrir panel del lector/i }),
+    );
+    // The marks surface wins; the envelope's note is not used.
+    expect(screen.getByText("Nota de la superficie CC-6C")).toBeInTheDocument();
+    expect(screen.queryByText("Nota del envelope")).not.toBeInTheDocument();
   });
 });
 

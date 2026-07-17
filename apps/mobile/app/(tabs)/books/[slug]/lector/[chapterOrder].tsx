@@ -210,6 +210,20 @@ export default function LectorScreen() {
           u.blocks[0]?.legacyBlockId ??
           u.blocks[0]?.blockKey ??
           "";
+        // CC-6C: read marks from the stable per-unit surface (keyed by blockKey).
+        // Falls back to the envelope marks already set above on any failure.
+        try {
+          const m = await contentCoreApi.getUnitMarks(
+            manifest.editionKey,
+            mu.unitKey,
+          );
+          if (!cancelled && m) {
+            setHighlights(m.highlights);
+            setAnnotations(m.annotations);
+          }
+        } catch {
+          // keep the envelope marks
+        }
       } catch {
         if (!cancelled) setContentError(true);
       } finally {
@@ -285,7 +299,9 @@ export default function LectorScreen() {
     const startOffset = 0;
     const endOffset = block.content.length;
     // CC-6B: anchor by the stable blockKey; fall back to the legacy id.
+    // CC-6C: send the source version so the mark binds to the version read.
     const blockKey = block.blockKey;
+    const blockVersionId = block.blockVersionId;
 
     // Optimistic insert with a temp ID so the UI tints immediately. We
     // swap to the server ID once create() resolves; on failure we drop
@@ -305,6 +321,7 @@ export default function LectorScreen() {
     try {
       const res = await highlightsApi.create({
         ...(blockKey ? { blockKey } : { blockId }),
+        ...(blockVersionId ? { blockVersionId } : {}),
         startOffset,
         endOffset,
         color,

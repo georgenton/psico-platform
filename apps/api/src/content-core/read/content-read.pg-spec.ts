@@ -139,8 +139,18 @@ suite("Content Core · CC-6A read adapter dual-read (real PostgreSQL)", () => {
   it("block arrays are identical between legacy and content-core (parity)", () => {
     expect(legacyRead.source).toBe("legacy");
     expect(coreRead.source).toBe("content-core");
-    // Only `source` + `revisionNumber` differ; the blocks are byte-identical.
-    expect(coreRead.blocks).toEqual(legacyRead.blocks);
+    // The rendered block payload is byte-identical EXCEPT `blockVersionId`, which
+    // legitimately diverges (CC-6C): the Content Core read carries the source
+    // version id the reader can pin a mark to; the legacy read has no versions.
+    const strip = (b: (typeof coreRead.blocks)[number]) => {
+      const { blockVersionId: _v, ...rest } = b;
+      return rest;
+    };
+    expect(coreRead.blocks.map(strip)).toEqual(legacyRead.blocks.map(strip));
+    expect(coreRead.blocks.every((b) => b.blockVersionId !== null)).toBe(true);
+    expect(legacyRead.blocks.every((b) => b.blockVersionId === null)).toBe(
+      true,
+    );
     expect(coreRead.title).toBe(legacyRead.title);
     expect(coreRead.order).toBe(legacyRead.order);
   });

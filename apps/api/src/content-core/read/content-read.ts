@@ -37,6 +37,12 @@ export interface ReadBlock {
    * Null for a pure Content Core block that has no legacy binding.
    */
   legacyBlockId: string | null;
+  /**
+   * The exact text version served (CC-6C). Core: BlockVersion.id; legacy: null.
+   * Clients echo it back when creating a highlight so the mark binds to the
+   * version the user read.
+   */
+  blockVersionId: string | null;
   kind: string;
   order: number;
   content: string;
@@ -119,6 +125,7 @@ interface CoreRevisionUnit {
     title: string;
     summary: string | null;
     blockVersions: Array<{
+      id: string;
       unitVersionId: string;
       order: number;
       kind: string;
@@ -173,6 +180,7 @@ function buildCoreRead(
     blocks: blockVersions.map((bv) => ({
       blockKey: bv.contentBlock.blockKey,
       legacyBlockId: bv.contentBlock.legacyBlockId,
+      blockVersionId: bv.id,
       kind: bv.kind,
       order: bv.order,
       content: bv.content,
@@ -220,6 +228,7 @@ async function buildLegacyRead(
     blocks: blocks.map((b) => ({
       blockKey: blockKeyFromLegacyId(b.id),
       legacyBlockId: b.id,
+      blockVersionId: null,
       kind: b.kind,
       order: b.order,
       content: b.content,

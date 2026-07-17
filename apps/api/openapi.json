@@ -6585,6 +6585,64 @@
         ]
       }
     },
+    "/api/content/editions/{editionKey}/units/{unitKey}/marks": {
+      "get": {
+        "operationId": "ContentController_readUnitMarks",
+        "parameters": [
+          {
+            "name": "editionKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "unitKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentUnitMarksDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Content Core"
+        ]
+      }
+    },
     "/api/content/books/{bookSlug}/manifest": {
       "get": {
         "operationId": "ContentController_readManifest",
@@ -11932,6 +11990,12 @@
             "minLength": 1,
             "maxLength": 64
           },
+          "blockVersionId": {
+            "type": "string",
+            "description": "Source text version the user read (CC-6C). REQUIRED for a Content Core\nwrite (`blockKey`) so the offsets validate against, and the quote is\ncaptured from, exactly that BlockVersion — not whatever is published at\nPOST time. Omitted for a legacy `blockId`-only write.",
+            "minLength": 1,
+            "maxLength": 64
+          },
           "startOffset": {
             "type": "number",
             "description": "UTF-16 code-unit offset into the block's `content` where the\nhighlight starts. Inclusive. The service rejects with 400 if\n`startOffset >= endOffset` or if `endOffset` exceeds the actual\nblock length (the block is loaded server-side for verification).",
@@ -12012,6 +12076,11 @@
             "nullable": true,
             "description": "Legacy ChapterBlock id (anchor-compat bridge); null for a pure Content Core block."
           },
+          "blockVersionId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Source text version served (CC-6C). Core: BlockVersion.id; legacy: null. Echoed back when creating a highlight."
+          },
           "kind": {
             "type": "string",
             "description": "Block kind (PARAGRAPH, HEADING, …)."
@@ -12032,6 +12101,7 @@
         "required": [
           "blockKey",
           "legacyBlockId",
+          "blockVersionId",
           "kind",
           "order",
           "content",
@@ -12096,6 +12166,119 @@
           "partTitle",
           "source",
           "blocks"
+        ]
+      },
+      "MarkHighlightDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "blockKey": {
+            "type": "string",
+            "description": "Stable public block identity (uuidv5)."
+          },
+          "blockId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Legacy ChapterBlock id — null for a pure Content Core block."
+          },
+          "startOffset": {
+            "type": "number"
+          },
+          "endOffset": {
+            "type": "number"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "YELLOW",
+              "BLUE",
+              "PINK"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "blockKey",
+          "blockId",
+          "startOffset",
+          "endOffset",
+          "color",
+          "note",
+          "createdAt"
+        ]
+      },
+      "MarkAnnotationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "blockKey": {
+            "type": "string",
+            "description": "Stable public block identity (uuidv5)."
+          },
+          "blockId": {
+            "type": "string",
+            "nullable": true
+          },
+          "text": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "blockKey",
+          "blockId",
+          "text",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ContentUnitMarksDto": {
+        "type": "object",
+        "properties": {
+          "editionKey": {
+            "type": "string"
+          },
+          "unitKey": {
+            "type": "string"
+          },
+          "highlights": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkHighlightDto"
+            }
+          },
+          "annotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkAnnotationDto"
+            }
+          }
+        },
+        "required": [
+          "editionKey",
+          "unitKey",
+          "highlights",
+          "annotations"
         ]
       },
       "ManifestUnitDto": {

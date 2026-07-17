@@ -1,6 +1,13 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AnnotationsService } from "./annotations.service";
+import * as markAnchor from "../content-core/marks/mark-anchor";
+
+// CC-6C: anchor resolution lives in the mark-anchor resolver (pg-spec tested).
+vi.mock("../content-core/marks/mark-anchor", () => ({
+  resolveAnnotationWriteAnchor: vi.fn(),
+  resolveStoredMarkBlockKey: vi.fn(),
+}));
 
 describe("AnnotationsService", () => {
   let prisma: any;
@@ -8,12 +15,19 @@ describe("AnnotationsService", () => {
   let svc: AnnotationsService;
 
   beforeEach(() => {
+    vi.mocked(markAnchor.resolveAnnotationWriteAnchor).mockResolvedValue({
+      source: "content-core",
+      blockKey: "key-abc",
+      contentBlockId: "cb-1",
+      blockId: "b-1",
+    });
     prisma = {
       annotation: {
         create: vi.fn().mockResolvedValue({
           id: "a-1",
           userId: "user-1",
           blockId: "b-1",
+          contentBlockId: "cb-1",
           text: "anotación",
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -22,6 +36,7 @@ describe("AnnotationsService", () => {
           id: "a-1",
           userId: "user-1",
           blockId: "b-1",
+          contentBlockId: "cb-1",
           text: "nueva",
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -30,24 +45,71 @@ describe("AnnotationsService", () => {
         delete: vi.fn().mockResolvedValue({}),
       },
     };
-    lector = {
-      assertBlockExists: vi.fn().mockResolvedValue(undefined),
-      resolveAnchorTarget: vi
-        .fn()
-        .mockResolvedValue({ blockId: "b-1", contentBlockId: null }),
-    };
+    lector = {};
     svc = new AnnotationsService(prisma, lector);
   });
 
-  it("creates after resolving + verifying the block, serialising a blockKey", async () => {
+  it("creates after resolving the durable anchor, serialising by blockKey", async () => {
     const result = await svc.create("user-1", { blockId: "b-1", text: "hola" });
-    expect(lector.resolveAnchorTarget).toHaveBeenCalledWith({
-      blockKey: undefined,
-      blockId: "b-1",
+    expect(markAnchor.resolveAnnotationWriteAnchor).toHaveBeenCalledWith(
+      prisma,
+      {
+        blockKey: undefined,
+        blockId: "b-1",
+      },
+    );
+    expect(prisma.annotation.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ blockId: "b-1", contentBlockId: "cb-1" }),
     });
-    expect(lector.assertBlockExists).toHaveBeenCalledWith("b-1");
     expect(result.annotation.text).toBe("anotación");
-    expect(typeof result.annotation.blockKey).toBe("string");
+    expect(result.annotation.blockKey).toBe("key-abc");
+  });
+
+  it("stores a pure Content Core annotation (blockId null)", async () => {
+    vi.mocked(markAnchor.resolveAnnotationWriteAnchor).mockResolvedValueOnce({
+      source: "content-core",
+      blockKey: "pure-core-key",
+      contentBlockId: "cb-9",
+      blockId: null,
+    });
+    prisma.annotation.create.mockResolvedValueOnce({
+      id: "a-9",
+      userId: "user-1",
+      blockId: null,
+      contentBlockId: "cb-9",
+      text: "nota",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const result = await svc.create("user-1", {
+      blockKey: "pure-core-key",
+      text: "nota",
+    });
+    expect(result.annotation.blockId).toBeNull();
+    expect(result.annotation.blockKey).toBe("pure-core-key");
+  });
+
+  it("update re-resolves the stable blockKey so a pure-core row stays bucketed", async () => {
+    prisma.annotation.findUnique.mockResolvedValue({ userId: "user-1" });
+    prisma.annotation.update.mockResolvedValueOnce({
+      id: "a-9",
+      userId: "user-1",
+      blockId: null,
+      contentBlockId: "cb-9",
+      text: "editada",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    vi.mocked(markAnchor.resolveStoredMarkBlockKey).mockResolvedValueOnce(
+      "pure-core-key",
+    );
+    const result = await svc.update("user-1", "a-9", { text: "editada" });
+    expect(markAnchor.resolveStoredMarkBlockKey).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ contentBlockId: "cb-9", blockId: null }),
+    );
+    expect(result.annotation.blockKey).toBe("pure-core-key");
+    expect(result.annotation.blockKey).not.toBe("");
   });
 
   it("update rejects non-owner with FORBIDDEN", async () => {

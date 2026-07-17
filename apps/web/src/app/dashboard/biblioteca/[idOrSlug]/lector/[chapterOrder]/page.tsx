@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type {
   BookManifest,
+  ContentUnitMarks,
   ContentUnitRead,
   LectorChapterResponse,
 } from "@psico/types";
@@ -113,12 +114,29 @@ export default async function LectorPage({ params }: { params: Params }) {
     chapter.chapter.order,
   );
 
+  // CC-6C: new clients read marks from the stable per-unit surface (keyed by
+  // blockKey). The lector envelope keeps serving marks for old clients; if the
+  // marks surface can't be resolved we fall back to the envelope's marks.
+  let marks: ContentUnitMarks | null = null;
+  if (unit) {
+    try {
+      marks = await serverFetch<ContentUnitMarks>(
+        `/content/editions/${encodeURIComponent(unit.editionKey)}/units/${encodeURIComponent(unit.unitKey)}/marks`,
+      );
+    } catch (err) {
+      if (isNextThrow(err)) throw err;
+      if (!(err instanceof ApiError)) throw err;
+      marks = null; // fall back to the lector envelope marks
+    }
+  }
+
   return (
     <LectorShell
       apiBase={API_BASE}
       token={accessToken}
       initial={chapter}
       unit={unit}
+      marks={marks}
       bookSlug={params.idOrSlug}
     />
   );

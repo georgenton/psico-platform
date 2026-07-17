@@ -8,12 +8,17 @@ import {
 } from "@nestjs/swagger";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ErrorEnvelopeDto } from "../../shared/dto/error-envelope.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CurrentUser } from "../../shared/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "../../auth/strategies/jwt.strategy";
 import { JwtAuthGuard } from "../../auth";
 import type { ReadUnit } from "./content-read";
 import type { BookManifest } from "./content-manifest";
+import type { ContentUnitMarks } from "./content-marks";
 import { ContentReadService } from "./content-read.service";
 import { ContentUnitReadDto } from "./dto/content-unit-read.dto";
 import { BookManifestDto } from "./dto/book-manifest.dto";
+import { ContentUnitMarksDto } from "./dto/content-unit-marks.dto";
 
 /**
  * Content Core — CC-6A parallel read endpoint.
@@ -40,6 +45,20 @@ export class ContentController {
     @Param("unitKey") unitKey: string,
   ): Promise<ReadUnit> {
     return this.content.readUnit(editionKey, unitKey);
+  }
+
+  // CC-6C — the current user's marks for a unit, keyed by the stable blockKey.
+  // New clients read the chapter TEXT from `readUnit` and the marks from here;
+  // the lector envelope keeps serving marks for old (legacy blockId) clients.
+  @Get("editions/:editionKey/units/:unitKey/marks")
+  @ApiOkResponse({ type: ContentUnitMarksDto })
+  @ApiNotFoundResponse({ type: ErrorEnvelopeDto }) // EDITION_NOT_FOUND / UNIT_NOT_FOUND
+  readUnitMarks(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("editionKey") editionKey: string,
+    @Param("unitKey") unitKey: string,
+  ): Promise<ContentUnitMarks> {
+    return this.content.readUnitMarks(user.userId, editionKey, unitKey);
   }
 
   // CC-6A.1 — discovery: bookSlug → editionKey + ordered units. Lets clients map

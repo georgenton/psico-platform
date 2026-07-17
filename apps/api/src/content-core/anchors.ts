@@ -57,6 +57,11 @@ export async function backfillAnchors(
       stats.alreadyMigrated += 1;
       continue;
     }
+    // CC-6C: a pure Content Core highlight has no legacy blockId to backfill FROM.
+    if (!h.blockId) {
+      stats.alreadyMigrated += 1;
+      continue;
+    }
 
     const cb = await prisma.contentBlock.findUnique({
       where: { legacyBlockId: h.blockId },
@@ -97,6 +102,11 @@ export async function backfillAnchors(
       stats.alreadyMigrated += 1;
       continue;
     }
+    // CC-6C: a pure Content Core annotation has no legacy blockId to backfill FROM.
+    if (!a.blockId) {
+      stats.alreadyMigrated += 1;
+      continue;
+    }
     const cb = await prisma.contentBlock.findUnique({
       where: { legacyBlockId: a.blockId },
     });
@@ -134,17 +144,23 @@ export interface AnchorResolution {
  */
 export async function resolveAnchorContentBlockId(
   prisma: PrismaClient,
-  anchor: { contentBlockId: string | null; blockId: string },
+  anchor: { contentBlockId: string | null; blockId: string | null },
 ): Promise<AnchorResolution> {
   if (anchor.contentBlockId) {
     const cb = await prisma.contentBlock.findUnique({
       where: { id: anchor.contentBlockId },
     });
+    // A pure Content Core block has legacyBlockId === null and the anchor's
+    // blockId is null too — that's consistent, not a mismatch (CC-6C).
     if (!cb || cb.legacyBlockId !== anchor.blockId) {
       throw new Error("ANCHOR_IDENTITY_MISMATCH");
     }
     return { status: "stable", contentBlockId: anchor.contentBlockId };
   }
+
+  // No stable anchor and no legacy anchor → nothing to resolve (shouldn't occur;
+  // the CHECK guarantees at least one is present).
+  if (!anchor.blockId) return { status: "unresolved", contentBlockId: null };
 
   const cb = await prisma.contentBlock.findUnique({
     where: { legacyBlockId: anchor.blockId },

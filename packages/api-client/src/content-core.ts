@@ -1,4 +1,8 @@
-import type { BookManifest, ContentUnitRead } from "@psico/types";
+import type {
+  BookManifest,
+  ContentUnitMarks,
+  ContentUnitRead,
+} from "@psico/types";
 import { apiClient } from "./client";
 
 /**
@@ -23,5 +27,11 @@ export const contentCoreApi = {
   getUnit: (editionKey: string, unitKey: string) =>
     apiClient.get<ContentUnitRead>(
       `/content/editions/${encodeURIComponent(editionKey)}/units/${encodeURIComponent(unitKey)}`,
+    ),
+
+  // CC-6C — the current user's marks for a unit, keyed by blockKey.
+  getUnitMarks: (editionKey: string, unitKey: string) =>
+    apiClient.get<ContentUnitMarks>(
+      `/content/editions/${encodeURIComponent(editionKey)}/units/${encodeURIComponent(unitKey)}/marks`,
     ),
 };

@@ -42,6 +42,17 @@ export class CreateHighlightDto {
   blockId?: string;
 
   /**
+   * Source text version the user read (CC-6C). REQUIRED for a Content Core
+   * write (`blockKey`) so the offsets validate against, and the quote is
+   * captured from, exactly that BlockVersion — not whatever is published at
+   * POST time. Omitted for a legacy `blockId`-only write.
+   */
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  blockVersionId?: string;
+
+  /**
    * UTF-16 code-unit offset into the block's `content` where the
    * highlight starts. Inclusive. The service rejects with 400 if
    * `startOffset >= endOffset` or if `endOffset` exceeds the actual

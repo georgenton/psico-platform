@@ -2527,16 +2527,21 @@ export function highlightWritePayload(input: {
     color: input.color,
   };
   if (input.source === "content-core") {
+    // CC-6E — refuse to build an incomplete payload rather than POST a body the
+    // server will reject: a content-core write MUST carry the blockKey.
+    if (!input.blockKey) {
+      throw new Error("MARK_WRITE_MISSING_BLOCK_KEY");
+    }
     return {
-      ...(input.blockKey ? { blockKey: input.blockKey } : {}),
+      blockKey: input.blockKey,
       ...(input.blockVersionId ? { blockVersionId: input.blockVersionId } : {}),
       ...geometry,
     };
   }
-  return {
-    ...(input.legacyBlockId ? { blockId: input.legacyBlockId } : {}),
-    ...geometry,
-  };
+  if (!input.legacyBlockId) {
+    throw new Error("MARK_WRITE_MISSING_BLOCK_ID");
+  }
+  return { blockId: input.legacyBlockId, ...geometry };
 }
 
 /**
@@ -2550,15 +2555,15 @@ export function annotationWritePayload(input: {
   text: string;
 }): CreateAnnotationRequest {
   if (input.source === "content-core") {
-    return {
-      ...(input.blockKey ? { blockKey: input.blockKey } : {}),
-      text: input.text,
-    };
+    if (!input.blockKey) {
+      throw new Error("MARK_WRITE_MISSING_BLOCK_KEY");
+    }
+    return { blockKey: input.blockKey, text: input.text };
   }
-  return {
-    ...(input.legacyBlockId ? { blockId: input.legacyBlockId } : {}),
-    text: input.text,
-  };
+  if (!input.legacyBlockId) {
+    throw new Error("MARK_WRITE_MISSING_BLOCK_ID");
+  }
+  return { blockId: input.legacyBlockId, text: input.text };
 }
 
 /**

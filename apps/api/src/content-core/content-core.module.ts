@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { PrismaModule } from "../prisma";
+import { ContentAccessModule } from "./access/content-access.module";
 import { ContentController } from "./read/content.controller";
 import { ContentReadService } from "./read/content-read.service";
 
@@ -12,7 +13,7 @@ import { ContentReadService } from "./read/content-read.service";
  * ingest-v2) stay in scripts/tests — this module never writes.
  */
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, ContentAccessModule],
   controllers: [ContentController],
   providers: [ContentReadService],
   exports: [ContentReadService],

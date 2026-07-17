@@ -13,6 +13,7 @@ vi.mock("../content-core/marks/mark-anchor", () => ({
 describe("HighlightsService", () => {
   let prisma: any;
   let lector: any;
+  let access: any;
   let svc: HighlightsService;
 
   beforeEach(() => {
@@ -44,11 +45,13 @@ describe("HighlightsService", () => {
       },
     };
     lector = {};
-    svc = new HighlightsService(prisma, lector);
+    // CC-6E — the content-access gate is injected; by default it allows.
+    access = { assertCanWriteMark: vi.fn().mockResolvedValue(undefined) };
+    svc = new HighlightsService(prisma, lector, access);
   });
 
   it("resolves the durable anchor and stores contentBlockId + blockVersionId + quote", async () => {
-    const result = await svc.create("user-1", {
+    const result = await svc.create("user-1", "PRO", {
       blockKey: "key-abc",
       startOffset: 0,
       endOffset: 5,
@@ -75,7 +78,7 @@ describe("HighlightsService", () => {
   });
 
   it("forwards the source blockVersionId the client read to the resolver", async () => {
-    await svc.create("user-1", {
+    await svc.create("user-1", "PRO", {
       blockKey: "key-abc",
       blockVersionId: "bv-read",
       startOffset: 0,
@@ -115,7 +118,7 @@ describe("HighlightsService", () => {
       note: null,
       createdAt: new Date(),
     });
-    const result = await svc.create("user-1", {
+    const result = await svc.create("user-1", "PRO", {
       blockKey: "pure-core-key",
       startOffset: 0,
       endOffset: 4,
@@ -125,7 +128,7 @@ describe("HighlightsService", () => {
   });
 
   it("creates with YELLOW default when no color provided", async () => {
-    await svc.create("user-1", {
+    await svc.create("user-1", "PRO", {
       blockId: "b-1",
       startOffset: 0,
       endOffset: 5,
@@ -133,6 +136,30 @@ describe("HighlightsService", () => {
     expect(prisma.highlight.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ color: "YELLOW" }),
     });
+  });
+
+  it("CC-6E: denies the write (and never resolves the anchor) without entitlement", async () => {
+    access.assertCanWriteMark.mockRejectedValueOnce(
+      new ForbiddenException("PRO_REQUIRED"),
+    );
+    vi.mocked(markAnchor.resolveHighlightWriteAnchor).mockClear();
+    await expect(
+      svc.create("user-1", "FREE", {
+        blockKey: "key-abc",
+        blockVersionId: "bv-read",
+        startOffset: 0,
+        endOffset: 5,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(access.assertCanWriteMark).toHaveBeenCalledWith({
+      userId: "user-1",
+      userPlan: "FREE",
+      blockKey: "key-abc",
+      blockId: undefined,
+    });
+    // Fail-fast: neither the anchor resolution nor the write ran.
+    expect(markAnchor.resolveHighlightWriteAnchor).not.toHaveBeenCalled();
+    expect(prisma.highlight.create).not.toHaveBeenCalled();
   });
 
   it("rejects delete for non-owner with FORBIDDEN", async () => {

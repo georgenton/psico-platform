@@ -11,6 +11,9 @@ import { describe, expect, it } from "vitest";
 const FILES = [
   join(__dirname, "mark-anchor.ts"),
   join(__dirname, "..", "read", "content-marks.ts"),
+  // CC-6E — the content-access policy is entitlement, not the Emotional Map.
+  join(__dirname, "..", "access", "content-access.ts"),
+  join(__dirname, "..", "access", "content-access.service.ts"),
 ];
 
 describe("CC-6C — marks never touch the Emotional Map", () => {

@@ -12,6 +12,7 @@ vi.mock("../content-core/marks/mark-anchor", () => ({
 describe("AnnotationsService", () => {
   let prisma: any;
   let lector: any;
+  let access: any;
   let svc: AnnotationsService;
 
   beforeEach(() => {
@@ -46,11 +47,16 @@ describe("AnnotationsService", () => {
       },
     };
     lector = {};
-    svc = new AnnotationsService(prisma, lector);
+    // CC-6E — the content-access gate is injected; by default it allows.
+    access = { assertCanWriteMark: vi.fn().mockResolvedValue(undefined) };
+    svc = new AnnotationsService(prisma, lector, access);
   });
 
   it("creates after resolving the durable anchor, serialising by blockKey", async () => {
-    const result = await svc.create("user-1", { blockId: "b-1", text: "hola" });
+    const result = await svc.create("user-1", "PRO", {
+      blockId: "b-1",
+      text: "hola",
+    });
     expect(markAnchor.resolveAnnotationWriteAnchor).toHaveBeenCalledWith(
       prisma,
       {
@@ -81,7 +87,7 @@ describe("AnnotationsService", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    const result = await svc.create("user-1", {
+    const result = await svc.create("user-1", "PRO", {
       blockKey: "pure-core-key",
       text: "nota",
     });
@@ -110,6 +116,24 @@ describe("AnnotationsService", () => {
     );
     expect(result.annotation.blockKey).toBe("pure-core-key");
     expect(result.annotation.blockKey).not.toBe("");
+  });
+
+  it("CC-6E: denies the create (and never resolves the anchor) without entitlement", async () => {
+    access.assertCanWriteMark.mockRejectedValueOnce(
+      new ForbiddenException("PRO_REQUIRED"),
+    );
+    vi.mocked(markAnchor.resolveAnnotationWriteAnchor).mockClear();
+    await expect(
+      svc.create("user-1", "FREE", { blockKey: "key-abc", text: "hola" }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(access.assertCanWriteMark).toHaveBeenCalledWith({
+      userId: "user-1",
+      userPlan: "FREE",
+      blockKey: "key-abc",
+      blockId: undefined,
+    });
+    expect(markAnchor.resolveAnnotationWriteAnchor).not.toHaveBeenCalled();
+    expect(prisma.annotation.create).not.toHaveBeenCalled();
   });
 
   it("update rejects non-owner with FORBIDDEN", async () => {

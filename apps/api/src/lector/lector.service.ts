@@ -19,6 +19,8 @@ import type { Env } from "../config";
 import { PrismaService } from "../prisma";
 import { StorageService } from "../storage";
 import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ContentAccessService } from "../content-core/access/content-access.service";
 import { resolveAnchorTarget } from "./anchor-resolver";
 import type { LectorSessionHeartbeatDto } from "./dto/heartbeat.dto";
 
@@ -43,6 +45,7 @@ export class LectorService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<Env, true>,
     private readonly storage: StorageService,
+    private readonly access: ContentAccessService,
   ) {}
 
   // ─── GET /api/lector/:bookId/:chapterN ──────────────────────────────────
@@ -70,11 +73,15 @@ export class LectorService {
     });
     if (!chapter) throw new NotFoundException("CHAPTER_NOT_FOUND");
 
-    // Pro gate — the first chapter of every book is always free preview;
-    // later chapters of PRO/ANNUAL books require an active subscription.
-    if (book.plan === "PRO" && chapterOrder > 1 && userPlan === "FREE") {
-      throw new ForbiddenException("PRO_REQUIRED");
-    }
+    // CC-6E — the ONE content-access policy (shared with the Content Core read +
+    // marks surfaces). First chapter is a free preview; later chapters of a PRO
+    // book require an active subscription.
+    await this.access.assertCanReadContent({
+      userId,
+      userPlan,
+      bookId: book.id,
+      chapterOrder,
+    });
 
     const blockIds = chapter.blocks.map((b) => b.id);
 

@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  InternalServerErrorException,
+  NotFoundException,
+} from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { blockKeyFromLegacyId } from "../lib/block-key";
 
@@ -176,58 +180,92 @@ function captureQuote(
 }
 
 /**
- * Resolve + validate a highlight write. On the Content Core path the offsets
- * validate against the current `BlockVersion.content` and the quote is captured
- * from it. Pure-core blocks are allowed. Pure-legacy blocks validate against the
- * ChapterBlock text.
+ * Resolve + validate a highlight write (CC-6C).
+ *
+ * A Content Core write (`blockKey`) binds the mark to the EXACT text version the
+ * user read: the client sends `blockVersionId`, and the offsets validate against
+ * — and the quote is captured from — THAT BlockVersion. We deliberately do NOT
+ * re-resolve the currently-published version at POST time (a concurrent publish
+ * must not silently re-anchor the mark to different text). The version must
+ * belong to the same ContentBlock AND the same unit.
+ *
+ * A legacy `blockId`-only write stays compatible without a version — its offsets
+ * validate against the ChapterBlock text.
  */
 export async function resolveHighlightWriteAnchor(
   db: MarkDb,
   input: {
     blockKey?: string;
     blockId?: string;
+    blockVersionId?: string;
     startOffset: number;
     endOffset: number;
   },
 ): Promise<HighlightWriteAnchor> {
-  const cb = await resolveContentBlock(db, input);
-  if (cb) {
-    const { blockVersionId, content } = await resolvePublishedBlockVersion(
-      db,
-      cb.id,
-      cb.unitId,
-    );
-    const quote = captureQuote(content, input.startOffset, input.endOffset);
+  if (input.blockKey) {
+    const cb = await db.contentBlock.findUnique({
+      where: { blockKey: input.blockKey },
+      select: { id: true, legacyBlockId: true, blockKey: true, unitId: true },
+    });
+    if (!cb) throw new NotFoundException("BLOCK_NOT_FOUND");
+    if (input.blockId && cb.legacyBlockId !== input.blockId) {
+      throw new BadRequestException("ANCHOR_IDENTITY_MISMATCH");
+    }
+    if (!input.blockVersionId) {
+      throw new BadRequestException("SOURCE_BLOCK_VERSION_REQUIRED");
+    }
+    const bv = await db.blockVersion.findUnique({
+      where: { id: input.blockVersionId },
+      select: {
+        id: true,
+        content: true,
+        contentBlockId: true,
+        unitVersion: { select: { unitId: true } },
+      },
+    });
+    // The version must exist AND belong to this exact block + unit.
+    if (
+      !bv ||
+      bv.contentBlockId !== cb.id ||
+      bv.unitVersion.unitId !== cb.unitId
+    ) {
+      throw new BadRequestException("SOURCE_BLOCK_VERSION_MISMATCH");
+    }
+    const quote = captureQuote(bv.content, input.startOffset, input.endOffset);
     return {
       source: "content-core",
       blockKey: cb.blockKey,
       contentBlockId: cb.id,
       blockId: cb.legacyBlockId,
-      blockVersionId,
+      blockVersionId: bv.id,
       quote,
     };
   }
 
-  // Pure-legacy path: only a legacy blockId, no ContentBlock. Validate against
-  // ChapterBlock.content (never Content Core) so old clients keep working.
-  const legacy = await db.chapterBlock.findUnique({
-    where: { id: input.blockId as string },
-    select: { content: true },
-  });
-  if (!legacy) throw new NotFoundException("BLOCK_NOT_FOUND");
-  const quote = captureQuote(
-    legacy.content,
-    input.startOffset,
-    input.endOffset,
-  );
-  return {
-    source: "legacy",
-    blockKey: blockKeyFromLegacyId(input.blockId as string),
-    contentBlockId: null,
-    blockId: input.blockId as string,
-    blockVersionId: null,
-    quote,
-  };
+  // Legacy `blockId`-only write — validate against the ChapterBlock text, no
+  // version recorded, so old clients keep working.
+  if (input.blockId) {
+    const legacy = await db.chapterBlock.findUnique({
+      where: { id: input.blockId },
+      select: { content: true },
+    });
+    if (!legacy) throw new NotFoundException("BLOCK_NOT_FOUND");
+    const quote = captureQuote(
+      legacy.content,
+      input.startOffset,
+      input.endOffset,
+    );
+    return {
+      source: "legacy",
+      blockKey: blockKeyFromLegacyId(input.blockId),
+      contentBlockId: null,
+      blockId: input.blockId,
+      blockVersionId: null,
+      quote,
+    };
+  }
+
+  throw new BadRequestException("ANCHOR_MISSING_TARGET");
 }
 
 /**
@@ -262,4 +300,30 @@ export async function resolveAnnotationWriteAnchor(
     contentBlockId: null,
     blockId: input.blockId as string,
   };
+}
+
+/**
+ * Resolve the public blockKey of an already-stored mark (CC-6C). NEVER returns
+ * an empty string: a core-anchored row resolves via its ContentBlock, a
+ * legacy-only row via the deterministic uuidv5, and an anchorless row (which the
+ * CHECK forbids at rest) throws MARK_IDENTITY_INTEGRITY_ERROR. Used on updates,
+ * where the write anchor isn't re-resolved but the response must still carry the
+ * stable identity so the client keeps the mark bucketed.
+ */
+export async function resolveStoredMarkBlockKey(
+  db: Pick<PrismaClient, "contentBlock">,
+  mark: { contentBlockId: string | null; blockId: string | null },
+): Promise<string> {
+  if (mark.contentBlockId) {
+    const cb = await db.contentBlock.findUnique({
+      where: { id: mark.contentBlockId },
+      select: { blockKey: true },
+    });
+    if (!cb) {
+      throw new InternalServerErrorException("MARK_IDENTITY_INTEGRITY_ERROR");
+    }
+    return cb.blockKey;
+  }
+  if (mark.blockId) return blockKeyFromLegacyId(mark.blockId);
+  throw new InternalServerErrorException("MARK_IDENTITY_INTEGRITY_ERROR");
 }

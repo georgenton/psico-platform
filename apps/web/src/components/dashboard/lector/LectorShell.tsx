@@ -103,6 +103,13 @@ export function LectorShell({
     for (const b of blocks) if (b.blockKey) m.set(b.id, b.blockKey);
     return m;
   }, [blocks]);
+  // block.id → source text version (CC-6C). Sent when creating a highlight so
+  // the mark binds to the exact version the user read.
+  const blockVersionById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of blocks) if (b.blockVersionId) m.set(b.id, b.blockVersionId);
+    return m;
+  }, [blocks]);
 
   // Mutable state. Marks come from the CC-6C surface when available, else the
   // lector envelope (backward compatible).
@@ -317,9 +324,12 @@ export function LectorShell({
       createdAt: new Date(),
     };
     setHighlights((prev) => [...prev, optimistic]);
-    // Prefer the stable public identity; fall back to the legacy anchor.
+    // Prefer the stable public identity; fall back to the legacy anchor. On the
+    // Content Core path the source version is required (CC-6C).
+    const blockVersionId = blockVersionById.get(selection.blockId);
     const payload = {
       ...(blockKey ? { blockKey } : { blockId: selection.blockId }),
+      ...(blockVersionId ? { blockVersionId } : {}),
       startOffset: selection.startOffset,
       endOffset: selection.endOffset,
       color,

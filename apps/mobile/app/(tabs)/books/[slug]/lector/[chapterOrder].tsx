@@ -299,7 +299,9 @@ export default function LectorScreen() {
     const startOffset = 0;
     const endOffset = block.content.length;
     // CC-6B: anchor by the stable blockKey; fall back to the legacy id.
+    // CC-6C: send the source version so the mark binds to the version read.
     const blockKey = block.blockKey;
+    const blockVersionId = block.blockVersionId;
 
     // Optimistic insert with a temp ID so the UI tints immediately. We
     // swap to the server ID once create() resolves; on failure we drop
@@ -319,6 +321,7 @@ export default function LectorScreen() {
     try {
       const res = await highlightsApi.create({
         ...(blockKey ? { blockKey } : { blockId }),
+        ...(blockVersionId ? { blockVersionId } : {}),
         startOffset,
         endOffset,
         color,

@@ -3837,6 +3837,13 @@ export interface components {
              */
             blockId?: string;
             /**
+             * @description Source text version the user read (CC-6C). REQUIRED for a Content Core
+             *     write (`blockKey`) so the offsets validate against, and the quote is
+             *     captured from, exactly that BlockVersion — not whatever is published at
+             *     POST time. Omitted for a legacy `blockId`-only write.
+             */
+            blockVersionId?: string;
+            /**
              * @description UTF-16 code-unit offset into the block's `content` where the
              *     highlight starts. Inclusive. The service rejects with 400 if
              *     `startOffset >= endOffset` or if `endOffset` exceeds the actual
@@ -3892,6 +3899,8 @@ export interface components {
             blockKey: string;
             /** @description Legacy ChapterBlock id (anchor-compat bridge); null for a pure Content Core block. */
             legacyBlockId: string | null;
+            /** @description Source text version served (CC-6C). Core: BlockVersion.id; legacy: null. Echoed back when creating a highlight. */
+            blockVersionId: string | null;
             /** @description Block kind (PARAGRAPH, HEADING, …). */
             kind: string;
             /** @description 0-based position within the unit. */

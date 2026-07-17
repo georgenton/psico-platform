@@ -27,6 +27,7 @@ export const SHARED_UNIT: ContentUnitRead = {
     {
       blockKey: "bk-2",
       legacyBlockId: "legacy-2",
+      blockVersionId: "bv-2",
       kind: "PARAGRAPH",
       order: 2,
       content: "Segundo.",
@@ -35,6 +36,7 @@ export const SHARED_UNIT: ContentUnitRead = {
     {
       blockKey: "bk-1",
       legacyBlockId: "legacy-1",
+      blockVersionId: "bv-1",
       kind: "HEADING",
       order: 1,
       content: "Primero.",
@@ -44,6 +46,7 @@ export const SHARED_UNIT: ContentUnitRead = {
       // Pure Content Core block — no legacy binding; id falls back to blockKey.
       blockKey: "bk-3",
       legacyBlockId: null,
+      blockVersionId: "bv-3",
       kind: "PARAGRAPH",
       order: 3,
       content: "Tercero.",
@@ -61,6 +64,7 @@ export const EXPECTED_MODEL = [
     content: "Primero.",
     meta: { level: 2 },
     blockKey: "bk-1",
+    blockVersionId: "bv-1",
   },
   {
     id: "legacy-2",
@@ -69,6 +73,7 @@ export const EXPECTED_MODEL = [
     content: "Segundo.",
     meta: null,
     blockKey: "bk-2",
+    blockVersionId: "bv-2",
   },
   {
     id: "bk-3",
@@ -77,6 +82,7 @@ export const EXPECTED_MODEL = [
     content: "Tercero.",
     meta: null,
     blockKey: "bk-3",
+    blockVersionId: "bv-3",
   },
 ];
 

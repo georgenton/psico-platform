@@ -6,6 +6,7 @@ import * as markAnchor from "../content-core/marks/mark-anchor";
 // CC-6C: anchor resolution lives in the mark-anchor resolver (pg-spec tested).
 vi.mock("../content-core/marks/mark-anchor", () => ({
   resolveAnnotationWriteAnchor: vi.fn(),
+  resolveStoredMarkBlockKey: vi.fn(),
 }));
 
 describe("AnnotationsService", () => {
@@ -86,6 +87,29 @@ describe("AnnotationsService", () => {
     });
     expect(result.annotation.blockId).toBeNull();
     expect(result.annotation.blockKey).toBe("pure-core-key");
+  });
+
+  it("update re-resolves the stable blockKey so a pure-core row stays bucketed", async () => {
+    prisma.annotation.findUnique.mockResolvedValue({ userId: "user-1" });
+    prisma.annotation.update.mockResolvedValueOnce({
+      id: "a-9",
+      userId: "user-1",
+      blockId: null,
+      contentBlockId: "cb-9",
+      text: "editada",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    vi.mocked(markAnchor.resolveStoredMarkBlockKey).mockResolvedValueOnce(
+      "pure-core-key",
+    );
+    const result = await svc.update("user-1", "a-9", { text: "editada" });
+    expect(markAnchor.resolveStoredMarkBlockKey).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ contentBlockId: "cb-9", blockId: null }),
+    );
+    expect(result.annotation.blockKey).toBe("pure-core-key");
+    expect(result.annotation.blockKey).not.toBe("");
   });
 
   it("update rejects non-owner with FORBIDDEN", async () => {

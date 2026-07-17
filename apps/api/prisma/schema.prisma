@@ -679,7 +679,7 @@ model Highlight {
   updatedAt      DateTime       @updatedAt
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  block        ChapterBlock? @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  block        ChapterBlock? @relation(fields: [blockId], references: [id], onDelete: SetNull)
   contentBlock ContentBlock? @relation(fields: [contentBlockId], references: [id], onDelete: Restrict)
   blockVersion BlockVersion? @relation(fields: [blockVersionId], references: [id], onDelete: Restrict)
 
@@ -710,7 +710,7 @@ model Annotation {
   updatedAt      DateTime @updatedAt
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  block        ChapterBlock? @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  block        ChapterBlock? @relation(fields: [blockId], references: [id], onDelete: SetNull)
   contentBlock ContentBlock? @relation(fields: [contentBlockId], references: [id], onDelete: Restrict)
 
   @@index([userId, blockId])

@@ -28,6 +28,7 @@ export class HighlightsService {
     const anchor = await resolveHighlightWriteAnchor(this.prisma, {
       blockKey: dto.blockKey,
       blockId: dto.blockId,
+      blockVersionId: dto.blockVersionId,
       startOffset: dto.startOffset,
       endOffset: dto.endOffset,
     });

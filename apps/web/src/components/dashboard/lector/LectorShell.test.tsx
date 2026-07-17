@@ -115,6 +115,7 @@ function buildUnit(
       {
         blockKey: "bk-1",
         legacyBlockId: "b-1",
+        blockVersionId: source === "legacy" ? null : "bv-1",
         kind: "PARAGRAPH",
         order: 1,
         content: "Empieza así.",
@@ -123,6 +124,7 @@ function buildUnit(
       {
         blockKey: "bk-2",
         legacyBlockId: "b-2",
+        blockVersionId: source === "legacy" ? null : "bv-2",
         kind: "PARAGRAPH",
         order: 2,
         content: "Y continúa con otro.",
@@ -198,8 +200,8 @@ describe("LectorShell — content unavailable (fail-closed, CC-6B)", () => {
   });
 });
 
-describe("LectorShell — write path uses blockKey (CC-6B)", () => {
-  it("POSTs a highlight anchored by the stable blockKey, not the legacy id", async () => {
+describe("LectorShell — write path uses blockKey + source version (CC-6B/CC-6C)", () => {
+  it("POSTs a highlight anchored by the stable blockKey + the read blockVersionId, not the legacy id", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -251,6 +253,8 @@ describe("LectorShell — write path uses blockKey (CC-6B)", () => {
       );
       expect(body.blockKey).toBe("bk-1");
       expect(body.blockId).toBeUndefined();
+      // CC-6C: the exact version the reader saw travels with the write.
+      expect(body.blockVersionId).toBe("bv-1");
     });
   });
 });

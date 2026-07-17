@@ -2125,6 +2125,12 @@ export interface ChapterBlockSummary {
    * when creating highlights/annotations. Absent on legacy lector blocks.
    */
   blockKey?: string;
+  /**
+   * Source text version of this block (Content Core, CC-6C). The client echoes
+   * it back when creating a highlight so the mark records the version the user
+   * read. Null/absent for legacy blocks.
+   */
+  blockVersionId?: string | null;
 }
 
 // ── Content Core read shapes (CC-6A / CC-6A.1 / CC-6B) ────────────────────────
@@ -2139,6 +2145,12 @@ export interface ContentReadBlock {
   blockKey: string;
   /** Legacy ChapterBlock id (anchor-compat bridge); null for a pure-core block. */
   legacyBlockId: string | null;
+  /**
+   * The exact text version served (CC-6C). Core: the BlockVersion.id; legacy:
+   * null. Clients echo this back when creating a highlight so the mark is
+   * bound to the version the user actually read.
+   */
+  blockVersionId: string | null;
   /** Block kind (PARAGRAPH, HEADING, …). Widen at the edge, narrow on project. */
   kind: string;
   /** 0-based position within the unit. */
@@ -2221,6 +2233,7 @@ export function projectReaderBlocks(unit: {
       content: b.content,
       meta: b.meta,
       blockKey: b.blockKey,
+      blockVersionId: b.blockVersionId,
     }));
 }
 
@@ -2441,6 +2454,11 @@ export interface CreateHighlightRequest {
   blockKey?: string;
   /** Legacy ChapterBlock id. Still accepted for backward compatibility. */
   blockId?: string;
+  /**
+   * Source text version the user read (CC-6C). Required for a Content Core
+   * write (blockKey); omit for a legacy blockId-only write.
+   */
+  blockVersionId?: string;
   startOffset: number;
   endOffset: number;
   color?: HighlightColor;

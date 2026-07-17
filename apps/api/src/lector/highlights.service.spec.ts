@@ -58,6 +58,7 @@ describe("HighlightsService", () => {
       {
         blockKey: "key-abc",
         blockId: undefined,
+        blockVersionId: undefined,
         startOffset: 0,
         endOffset: 5,
       },
@@ -71,6 +72,25 @@ describe("HighlightsService", () => {
       }),
     });
     expect(result.highlight.blockKey).toBe("key-abc");
+  });
+
+  it("forwards the source blockVersionId the client read to the resolver", async () => {
+    await svc.create("user-1", {
+      blockKey: "key-abc",
+      blockVersionId: "bv-read",
+      startOffset: 0,
+      endOffset: 5,
+    });
+    expect(markAnchor.resolveHighlightWriteAnchor).toHaveBeenCalledWith(
+      prisma,
+      {
+        blockKey: "key-abc",
+        blockId: undefined,
+        blockVersionId: "bv-read",
+        startOffset: 0,
+        endOffset: 5,
+      },
+    );
   });
 
   it("serialises a pure Content Core highlight (blockId null) by its blockKey", async () => {

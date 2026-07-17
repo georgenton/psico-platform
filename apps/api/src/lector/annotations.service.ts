@@ -11,7 +11,10 @@ import type {
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
-import { resolveAnnotationWriteAnchor } from "../content-core/marks/mark-anchor";
+import {
+  resolveAnnotationWriteAnchor,
+  resolveStoredMarkBlockKey,
+} from "../content-core/marks/mark-anchor";
 import type {
   CreateAnnotationDto,
   UpdateAnnotationDto,
@@ -61,7 +64,10 @@ export class AnnotationsService {
       where: { id: annotationId },
       data: { text: dto.text },
     });
-    return { ok: true, annotation: this.serialise(updated) };
+    // CC-6C: re-resolve the stable identity so a pure-core annotation never
+    // serialises blockKey="" and stays bucketed on the client after an edit.
+    const blockKey = await resolveStoredMarkBlockKey(this.prisma, updated);
+    return { ok: true, annotation: this.serialise(updated, blockKey) };
   }
 
   async delete(userId: string, annotationId: string): Promise<void> {

@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
+  ApiForbiddenResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -32,6 +33,7 @@ import {
 @ApiTags("Annotations")
 @ApiBadRequestResponse({ type: ErrorEnvelopeDto })
 @ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+@ApiForbiddenResponse({ type: ErrorEnvelopeDto }) // PRO_REQUIRED (CC-6E)
 @Controller("annotations")
 @UseGuards(JwtAuthGuard)
 export class AnnotationsController {
@@ -42,7 +44,7 @@ export class AnnotationsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateAnnotationDto,
   ): Promise<CreateAnnotationResponse> {
-    return this.annotations.create(user.userId, dto);
+    return this.annotations.create(user.userId, user.plan, dto);
   }
 
   @Patch(":id")

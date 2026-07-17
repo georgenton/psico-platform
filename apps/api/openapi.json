@@ -6315,6 +6315,16 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -6350,6 +6360,16 @@
             }
           },
           "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "",
             "content": {
               "application/json": {
@@ -6401,6 +6421,16 @@
             }
           },
           "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "",
             "content": {
               "application/json": {
@@ -6469,6 +6499,16 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -6510,10 +6550,236 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
           }
         },
         "tags": [
           "Annotations"
+        ]
+      }
+    },
+    "/api/content/editions/{editionKey}/units/{unitKey}": {
+      "get": {
+        "operationId": "ContentController_readUnit",
+        "parameters": [
+          {
+            "name": "editionKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "unitKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentUnitReadDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Content Core"
+        ]
+      }
+    },
+    "/api/content/editions/{editionKey}/units/{unitKey}/marks": {
+      "get": {
+        "operationId": "ContentController_readUnitMarks",
+        "parameters": [
+          {
+            "name": "editionKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "unitKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentUnitMarksDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Content Core"
+        ]
+      }
+    },
+    "/api/content/books/{bookSlug}/manifest": {
+      "get": {
+        "operationId": "ContentController_readManifest",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookManifestDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Content Core"
         ]
       }
     },
@@ -11792,9 +12058,21 @@
       "CreateHighlightDto": {
         "type": "object",
         "properties": {
+          "blockKey": {
+            "type": "string",
+            "description": "Public stable block identity (Content Core, CC-6B). Preferred anchor for\nnew clients. Resolved server-side to the legacy binding; if `blockId` is\nalso sent they must correspond (else ANCHOR_IDENTITY_MISMATCH).",
+            "minLength": 1,
+            "maxLength": 64
+          },
           "blockId": {
             "type": "string",
-            "description": "Stable ID of the `ChapterBlock` the highlight anchors to. Server\nverifies the block exists and belongs to a book the user has\naccess to (FREE plan can highlight in free chapters; PRO is\nunrestricted).",
+            "description": "Legacy ChapterBlock id — still accepted for backward compatibility. At\nleast one of `blockKey`/`blockId` is required (else ANCHOR_MISSING_TARGET).",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "blockVersionId": {
+            "type": "string",
+            "description": "Source text version the user read (CC-6C). REQUIRED for a Content Core\nwrite (`blockKey`) so the offsets validate against, and the quote is\ncaptured from, exactly that BlockVersion — not whatever is published at\nPOST time. Omitted for a legacy `blockId`-only write.",
             "minLength": 1,
             "maxLength": 64
           },
@@ -11822,7 +12100,6 @@
           }
         },
         "required": [
-          "blockId",
           "startOffset",
           "endOffset"
         ]
@@ -11830,9 +12107,15 @@
       "CreateAnnotationDto": {
         "type": "object",
         "properties": {
+          "blockKey": {
+            "type": "string",
+            "description": "Public stable block identity (Content Core, CC-6B). Preferred anchor for\nnew clients; resolved server-side. If `blockId` is also sent they must\ncorrespond (else ANCHOR_IDENTITY_MISMATCH).",
+            "minLength": 1,
+            "maxLength": 64
+          },
           "blockId": {
             "type": "string",
-            "description": "Stable ID of the `ChapterBlock` the annotation anchors to. Same\nresilience as highlights: the annotation stays attached even if the\nblock content is later edited by the author.",
+            "description": "Legacy ChapterBlock id — still accepted for backward compatibility. At\nleast one of `blockKey`/`blockId` is required (else ANCHOR_MISSING_TARGET).",
             "minLength": 1,
             "maxLength": 64
           },
@@ -11844,7 +12127,6 @@
           }
         },
         "required": [
-          "blockId",
           "text"
         ]
       },
@@ -11860,6 +12142,297 @@
         },
         "required": [
           "text"
+        ]
+      },
+      "ContentReadBlockDto": {
+        "type": "object",
+        "properties": {
+          "blockKey": {
+            "type": "string",
+            "description": "Stable block identity (uuidv5)."
+          },
+          "legacyBlockId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Legacy ChapterBlock id (anchor-compat bridge); null for a pure Content Core block."
+          },
+          "blockVersionId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Source text version served (CC-6C). Core: BlockVersion.id; legacy: null. Echoed back when creating a highlight."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Block kind (PARAGRAPH, HEADING, …)."
+          },
+          "order": {
+            "type": "number",
+            "description": "0-based position within the unit."
+          },
+          "content": {
+            "type": "string"
+          },
+          "meta": {
+            "type": "object",
+            "nullable": true,
+            "description": "Structured metadata by kind (audioUrl, videoUrl, …)."
+          }
+        },
+        "required": [
+          "blockKey",
+          "legacyBlockId",
+          "blockVersionId",
+          "kind",
+          "order",
+          "content",
+          "meta"
+        ]
+      },
+      "ContentUnitReadDto": {
+        "type": "object",
+        "properties": {
+          "editionKey": {
+            "type": "string"
+          },
+          "revisionNumber": {
+            "type": "number",
+            "nullable": true,
+            "description": "Published revision number, or null when served from legacy."
+          },
+          "unitKey": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "number"
+          },
+          "partNumber": {
+            "type": "number",
+            "nullable": true
+          },
+          "partTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "content-core",
+              "legacy"
+            ],
+            "description": "Which store served this unit."
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentReadBlockDto"
+            }
+          }
+        },
+        "required": [
+          "editionKey",
+          "revisionNumber",
+          "unitKey",
+          "title",
+          "summary",
+          "order",
+          "partNumber",
+          "partTitle",
+          "source",
+          "blocks"
+        ]
+      },
+      "MarkHighlightDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "blockKey": {
+            "type": "string",
+            "description": "Stable public block identity (uuidv5)."
+          },
+          "blockId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Legacy ChapterBlock id — null for a pure Content Core block."
+          },
+          "startOffset": {
+            "type": "number"
+          },
+          "endOffset": {
+            "type": "number"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "YELLOW",
+              "BLUE",
+              "PINK"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "blockKey",
+          "blockId",
+          "startOffset",
+          "endOffset",
+          "color",
+          "note",
+          "createdAt"
+        ]
+      },
+      "MarkAnnotationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "blockKey": {
+            "type": "string",
+            "description": "Stable public block identity (uuidv5)."
+          },
+          "blockId": {
+            "type": "string",
+            "nullable": true
+          },
+          "text": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "blockKey",
+          "blockId",
+          "text",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ContentUnitMarksDto": {
+        "type": "object",
+        "properties": {
+          "editionKey": {
+            "type": "string"
+          },
+          "unitKey": {
+            "type": "string"
+          },
+          "highlights": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkHighlightDto"
+            }
+          },
+          "annotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkAnnotationDto"
+            }
+          }
+        },
+        "required": [
+          "editionKey",
+          "unitKey",
+          "highlights",
+          "annotations"
+        ]
+      },
+      "ManifestUnitDto": {
+        "type": "object",
+        "properties": {
+          "unitKey": {
+            "type": "string",
+            "description": "Stable unit identity (uuidv5)."
+          },
+          "order": {
+            "type": "number",
+            "description": "1-based reading order within the book."
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "partNumber": {
+            "type": "number",
+            "nullable": true
+          },
+          "partTitle": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "unitKey",
+          "order",
+          "title",
+          "summary",
+          "partNumber",
+          "partTitle"
+        ]
+      },
+      "BookManifestDto": {
+        "type": "object",
+        "properties": {
+          "bookSlug": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "content-core",
+              "legacy"
+            ],
+            "description": "Which store served this manifest."
+          },
+          "editionKey": {
+            "type": "string",
+            "description": "Server-owned edition key — clients never fabricate it."
+          },
+          "revisionNumber": {
+            "type": "number",
+            "nullable": true,
+            "description": "Published revision number, or null when served from legacy."
+          },
+          "units": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ManifestUnitDto"
+            }
+          }
+        },
+        "required": [
+          "bookSlug",
+          "source",
+          "editionKey",
+          "revisionNumber",
+          "units"
         ]
       },
       "ShareWithTherapistDto": {

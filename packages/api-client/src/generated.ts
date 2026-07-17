@@ -1860,6 +1860,54 @@ export interface paths {
         patch: operations["AnnotationsController_update"];
         trace?: never;
     };
+    "/api/content/editions/{editionKey}/units/{unitKey}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ContentController_readUnit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/content/editions/{editionKey}/units/{unitKey}/marks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ContentController_readUnitMarks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/content/books/{bookSlug}/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ContentController_readManifest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/patrones": {
         parameters: {
             query?: never;
@@ -3778,12 +3826,23 @@ export interface components {
         };
         CreateHighlightDto: {
             /**
-             * @description Stable ID of the `ChapterBlock` the highlight anchors to. Server
-             *     verifies the block exists and belongs to a book the user has
-             *     access to (FREE plan can highlight in free chapters; PRO is
-             *     unrestricted).
+             * @description Public stable block identity (Content Core, CC-6B). Preferred anchor for
+             *     new clients. Resolved server-side to the legacy binding; if `blockId` is
+             *     also sent they must correspond (else ANCHOR_IDENTITY_MISMATCH).
              */
-            blockId: string;
+            blockKey?: string;
+            /**
+             * @description Legacy ChapterBlock id — still accepted for backward compatibility. At
+             *     least one of `blockKey`/`blockId` is required (else ANCHOR_MISSING_TARGET).
+             */
+            blockId?: string;
+            /**
+             * @description Source text version the user read (CC-6C). REQUIRED for a Content Core
+             *     write (`blockKey`) so the offsets validate against, and the quote is
+             *     captured from, exactly that BlockVersion — not whatever is published at
+             *     POST time. Omitted for a legacy `blockId`-only write.
+             */
+            blockVersionId?: string;
             /**
              * @description UTF-16 code-unit offset into the block's `content` where the
              *     highlight starts. Inclusive. The service rejects with 400 if
@@ -3813,11 +3872,16 @@ export interface components {
         };
         CreateAnnotationDto: {
             /**
-             * @description Stable ID of the `ChapterBlock` the annotation anchors to. Same
-             *     resilience as highlights: the annotation stays attached even if the
-             *     block content is later edited by the author.
+             * @description Public stable block identity (Content Core, CC-6B). Preferred anchor for
+             *     new clients; resolved server-side. If `blockId` is also sent they must
+             *     correspond (else ANCHOR_IDENTITY_MISMATCH).
              */
-            blockId: string;
+            blockKey?: string;
+            /**
+             * @description Legacy ChapterBlock id — still accepted for backward compatibility. At
+             *     least one of `blockKey`/`blockId` is required (else ANCHOR_MISSING_TARGET).
+             */
+            blockId?: string;
             /**
              * @description Annotation body. 1–4096 chars (~1000 words). Plaintext — annotations
              *     are NOT E2E encrypted because books are public content and the
@@ -3829,6 +3893,92 @@ export interface components {
         UpdateAnnotationDto: {
             /** @description New annotation body. Same constraints as creation (1–4096 chars). */
             text: string;
+        };
+        ContentReadBlockDto: {
+            /** @description Stable block identity (uuidv5). */
+            blockKey: string;
+            /** @description Legacy ChapterBlock id (anchor-compat bridge); null for a pure Content Core block. */
+            legacyBlockId: string | null;
+            /** @description Source text version served (CC-6C). Core: BlockVersion.id; legacy: null. Echoed back when creating a highlight. */
+            blockVersionId: string | null;
+            /** @description Block kind (PARAGRAPH, HEADING, …). */
+            kind: string;
+            /** @description 0-based position within the unit. */
+            order: number;
+            content: string;
+            /** @description Structured metadata by kind (audioUrl, videoUrl, …). */
+            meta: Record<string, never> | null;
+        };
+        ContentUnitReadDto: {
+            editionKey: string;
+            /** @description Published revision number, or null when served from legacy. */
+            revisionNumber: number | null;
+            unitKey: string;
+            title: string;
+            summary: string | null;
+            order: number;
+            partNumber: number | null;
+            partTitle: string | null;
+            /**
+             * @description Which store served this unit.
+             * @enum {string}
+             */
+            source: ContentUnitReadDtoSource;
+            blocks: components["schemas"]["ContentReadBlockDto"][];
+        };
+        MarkHighlightDto: {
+            id: string;
+            /** @description Stable public block identity (uuidv5). */
+            blockKey: string;
+            /** @description Legacy ChapterBlock id — null for a pure Content Core block. */
+            blockId: string | null;
+            startOffset: number;
+            endOffset: number;
+            /** @enum {string} */
+            color: MarkHighlightDtoColor;
+            note: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        MarkAnnotationDto: {
+            id: string;
+            /** @description Stable public block identity (uuidv5). */
+            blockKey: string;
+            blockId: string | null;
+            text: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ContentUnitMarksDto: {
+            editionKey: string;
+            unitKey: string;
+            highlights: components["schemas"]["MarkHighlightDto"][];
+            annotations: components["schemas"]["MarkAnnotationDto"][];
+        };
+        ManifestUnitDto: {
+            /** @description Stable unit identity (uuidv5). */
+            unitKey: string;
+            /** @description 1-based reading order within the book. */
+            order: number;
+            title: string;
+            summary: string | null;
+            partNumber: number | null;
+            partTitle: string | null;
+        };
+        BookManifestDto: {
+            bookSlug: string;
+            /**
+             * @description Which store served this manifest.
+             * @enum {string}
+             */
+            source: BookManifestDtoSource;
+            /** @description Server-owned edition key — clients never fabricate it. */
+            editionKey: string;
+            /** @description Published revision number, or null when served from legacy. */
+            revisionNumber: number | null;
+            units: components["schemas"]["ManifestUnitDto"][];
         };
         ShareWithTherapistDto: {
             therapistId: string;
@@ -8855,6 +9005,14 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
         };
     };
     HighlightsController_delete: {
@@ -8883,6 +9041,14 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8929,6 +9095,14 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
         };
     };
     AnnotationsController_delete: {
@@ -8957,6 +9131,14 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8998,6 +9180,167 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    ContentController_readUnit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                editionKey: string;
+                unitKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentUnitReadDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    ContentController_readUnitMarks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                editionKey: string;
+                unitKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentUnitMarksDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    ContentController_readManifest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookManifestDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12059,6 +12402,19 @@ export enum OnboardingStep3DtoVoicePreference {
     marina = "marina",
     tomas = "tomas",
     none = "none"
+}
+export enum ContentUnitReadDtoSource {
+    content_core = "content-core",
+    legacy = "legacy"
+}
+export enum MarkHighlightDtoColor {
+    YELLOW = "YELLOW",
+    BLUE = "BLUE",
+    PINK = "PINK"
+}
+export enum BookManifestDtoSource {
+    content_core = "content-core",
+    legacy = "legacy"
 }
 export enum ConfirmResonanceDtoSource {
     highlight = "highlight",

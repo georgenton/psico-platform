@@ -116,6 +116,17 @@ const storage = {
   ),
 } as unknown as ConstructorParameters<typeof LectorService>[2];
 
+// CC-6E — the content-access policy is injected. LectorService just delegates
+// the gate; the FREE/PRO CONDITION itself is exercised in content-access.spec.
+// `deny` simulates the policy rejecting (a FREE user on a PRO chapter).
+function makeAccess(deny = false) {
+  return {
+    assertCanReadContent: deny
+      ? vi.fn().mockRejectedValue(new ForbiddenException("PRO_REQUIRED"))
+      : vi.fn().mockResolvedValue(undefined),
+  } as unknown as ConstructorParameters<typeof LectorService>[3];
+}
+
 // ─── Tests ──────────────────────────────────────────────────────────────
 
 describe("LectorService.getChapter", () => {
@@ -123,7 +134,7 @@ describe("LectorService.getChapter", () => {
 
   it("returns the aggregated chapter for a FREE user reading a FREE book", async () => {
     const prisma = makePrisma();
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     const result = await svc.getChapter("user-1", "FREE" as Plan, "any", 1);
 
     expect(result.book.slug).toBe("emociones-en-construccion");
@@ -133,14 +144,14 @@ describe("LectorService.getChapter", () => {
     expect(result.preferences.theme).toBe("system");
   });
 
-  it("rejects FREE user reading chapter 2+ of a PRO book", async () => {
+  it("delegates the gate: propagates the policy's denial for FREE + PRO chapter 2", async () => {
     const prisma = makePrisma({
       book: { findFirst: vi.fn().mockResolvedValue(proBook) } as never,
       chapter: {
         findUnique: vi.fn().mockResolvedValue({ ...baseChapter, order: 2 }),
       } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess(true));
     await expect(
       svc.getChapter("user-1", "FREE" as Plan, "pro", 2),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -150,7 +161,7 @@ describe("LectorService.getChapter", () => {
     const prisma = makePrisma({
       book: { findFirst: vi.fn().mockResolvedValue(proBook) } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     const result = await svc.getChapter("user-1", "FREE" as Plan, "pro", 1);
     expect(result.chapter.order).toBe(1);
   });
@@ -159,7 +170,7 @@ describe("LectorService.getChapter", () => {
     const prisma = makePrisma({
       book: { findFirst: vi.fn().mockResolvedValue(null) } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     await expect(
       svc.getChapter("user-1", "FREE" as Plan, "missing", 1),
     ).rejects.toBeInstanceOf(NotFoundException);
@@ -182,7 +193,7 @@ describe("LectorService.heartbeat", () => {
         upsert: upsertSpy,
       } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     await svc.heartbeat("user-1", {
       bookId: "any",
       chapterOrder: 1,
@@ -210,7 +221,7 @@ describe("LectorService.heartbeat", () => {
         upsert: upsertSpy,
       } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     await svc.heartbeat("user-1", {
       bookId: "any",
       chapterOrder: 1,
@@ -228,7 +239,7 @@ describe("LectorService.heartbeat", () => {
     const prisma = makePrisma({
       chapter: { findUnique: vi.fn().mockResolvedValue(null) } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     const result = await svc.heartbeat("user-1", {
       bookId: "any",
       chapterOrder: 99,
@@ -251,7 +262,7 @@ describe("LectorService.completeChapter", () => {
           .mockResolvedValue({ id: "book-1", totalChapters: 3 }),
       } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     const result = await svc.completeChapter("user-1", "any", 2);
     expect(result.nextChapter).toBe(3);
   });
@@ -264,7 +275,7 @@ describe("LectorService.completeChapter", () => {
           .mockResolvedValue({ id: "book-1", totalChapters: 3 }),
       } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     const result = await svc.completeChapter("user-1", "any", 3);
     expect(result.nextChapter).toBeNull();
   });
@@ -286,7 +297,7 @@ describe("LectorService.getAudio (Pro gate)", () => {
         findUnique: vi.fn().mockResolvedValue({ ...baseChapter, audios: [] }),
       } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     await expect(svc.getAudio("PRO" as Plan, "any", 1)).rejects.toBeInstanceOf(
       NotFoundException,
     );
@@ -308,7 +319,7 @@ describe("LectorService.getAudio (Pro gate)", () => {
         }),
       } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     const result = await svc.getAudio("PRO" as Plan, "any", 1);
     expect(result.durationSec).toBe(600);
     expect(result.transcript).toHaveLength(1);
@@ -346,7 +357,7 @@ describe("LectorService.getAudio (Pro gate)", () => {
         }),
       } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     const result = await svc.getAudio("PRO" as Plan, "any", 1);
     expect(result.metadata.artworkUrl).toBe("https://cdn.example/cover.png");
   });
@@ -367,7 +378,7 @@ describe("LectorService.getAudio (Pro gate)", () => {
         }),
       } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     const result = await svc.getAudio("PRO" as Plan, "any", 1);
     expect(storage.getSignedUrl).toHaveBeenCalledWith(
       "audio/emociones-en-construccion/cap-1.mp3",
@@ -388,7 +399,7 @@ describe("LectorService.validateHighlightOffsets", () => {
         findUnique: vi.fn().mockResolvedValue({ content: "abcdefghij" }),
       } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     await expect(
       svc.validateHighlightOffsets("b-1", 5, 5),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -400,7 +411,7 @@ describe("LectorService.validateHighlightOffsets", () => {
         findUnique: vi.fn().mockResolvedValue({ content: "abc" }),
       } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     await expect(
       svc.validateHighlightOffsets("b-1", 0, 99),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -412,7 +423,7 @@ describe("LectorService.validateHighlightOffsets", () => {
         findUnique: vi.fn().mockResolvedValue({ content: "abcdefghij" }),
       } as never,
     });
-    const svc = new LectorService(prisma, config, storage);
+    const svc = new LectorService(prisma, config, storage, makeAccess());
     await expect(
       svc.validateHighlightOffsets("b-1", 0, 5),
     ).resolves.toBeUndefined();

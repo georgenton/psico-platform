@@ -6,6 +6,8 @@ import Link from "next/link";
 import type {
   AnnotationSummary,
   BreatheExercise,
+  ContentUnitMarks,
+  ContentUnitRead,
   HighlightColor,
   HighlightSummary,
   LectorChapterResponse,
@@ -16,6 +18,10 @@ import {
   breatheEcoSeed,
   reflexionEcoSeed,
   chapterConcept,
+  projectReaderBlocks,
+  highlightWritePayload,
+  annotationWritePayload,
+  type ReaderMarkSource,
 } from "@psico/types";
 import {
   ReaderCompanionDock,
@@ -38,6 +44,27 @@ interface Props {
   apiBase: string;
   token: string;
   initial: LectorChapterResponse;
+  /**
+   * CC-6B — the chapter's blocks resolved from Content Core (page.tsx). The
+   * lector envelope (`initial`) still owns book/session/prefs/marks/audio; only
+   * the block TEXT comes from here. `null` means a genuine content fault we must
+   * not mask → the reader shows "contenido temporalmente no disponible".
+   */
+  unit: ContentUnitRead | null;
+  /**
+   * CC-6C/CC-6D — the user's marks for a `content-core` unit, from the stable
+   * per-unit surface (keyed by blockKey). For a `legacy` unit this is null and
+   * the reader uses the lector envelope's marks (`initial.highlights/…`). It is
+   * NOT a silent fallback for a content-core read failure — see `marksUnavailable`.
+   */
+  marks: ContentUnitMarks | null;
+  /**
+   * CC-6D — a content-core marks read failed (404/500/network). The reader shows
+   * a visible "marks unavailable" banner and, fail-closed, does NOT fall back to
+   * the envelope's marks. (An auth failure propagates upstream and never reaches
+   * here.)
+   */
+  marksUnavailable?: boolean;
   bookSlug: string;
 }
 
@@ -66,22 +93,78 @@ interface Props {
  * would mean passing a dozen props or threading a Context that lives a few
  * levels deep. Single component is easier to read.
  */
-export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
+export function LectorShell({
+  apiBase,
+  token,
+  initial,
+  unit,
+  marks,
+  marksUnavailable = false,
+  bookSlug,
+}: Props) {
   const router = useRouter();
+  // CC-6D — the reader unit's provenance decides EVERY mark decision (write
+  // anchor + where marks are read from). A legacy-served block also carries a
+  // blockKey, so the mere presence of a blockKey must never drive this.
+  const markSource: ReaderMarkSource = unit?.source ?? "legacy";
 
   // Reader content (immutable for this render — re-fetch happens via navigation).
-  const { book, chapter, blocks, lessons, preferences } = initial;
+  // Blocks come from Content Core (CC-6B); the rest stays on the lector envelope.
+  const { book, chapter, lessons, preferences } = initial;
+  const blocks = useMemo(() => (unit ? projectReaderBlocks(unit) : []), [unit]);
+  // block.id (= legacyBlockId ?? blockKey) → blockKey, so a text selection or a
+  // note target can be POSTed by the stable public identity (CC-6B write path).
+  const blockKeyById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of blocks) if (b.blockKey) m.set(b.id, b.blockKey);
+    return m;
+  }, [blocks]);
+  // block.id → source text version (CC-6C). Sent when creating a highlight so
+  // the mark binds to the exact version the user read.
+  const blockVersionById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of blocks) if (b.blockVersionId) m.set(b.id, b.blockVersionId);
+    return m;
+  }, [blocks]);
 
-  // Mutable state.
+  // Mutable state (CC-6D, source-aware):
+  //  - content-core: marks come ONLY from the CC-6C surface. If that read failed
+  //    (`marksUnavailable`) we start empty + show a banner — never the envelope.
+  //  - legacy: marks come from the lector envelope (`initial.*`).
   const [highlights, setHighlights] = useState<HighlightSummary[]>(
-    initial.highlights,
+    markSource === "content-core"
+      ? marksUnavailable
+        ? []
+        : (marks?.highlights ?? [])
+      : initial.highlights,
   );
   const [annotations, setAnnotations] = useState<AnnotationSummary[]>(
-    initial.annotations,
+    markSource === "content-core"
+      ? marksUnavailable
+        ? []
+        : (marks?.annotations ?? [])
+      : initial.annotations,
   );
   const [progressPct, setProgressPct] = useState<number>(
     initial.session.progressPct,
   );
+
+  // CC-6E/P1 — when a content-core marks read failed, temporarily block creating
+  // a new mark (we can't safely place it against marks we couldn't load). This
+  // notice shows the reason on an attempt; it auto-clears.
+  const [markWriteNotice, setMarkWriteNotice] = useState(false);
+  useEffect(() => {
+    if (!markWriteNotice) return;
+    const t = setTimeout(() => setMarkWriteNotice(false), 4000);
+    return () => clearTimeout(t);
+  }, [markWriteNotice]);
+  function markWritesBlocked(): boolean {
+    if (markSource === "content-core" && marksUnavailable) {
+      setMarkWriteNotice(true);
+      return true;
+    }
+    return false;
+  }
 
   // Companion dock state (Eco · Notas · Reflexión). The dock is the reader's
   // right-hand panel — it keeps the chapter mounted behind it, so the user
@@ -271,9 +354,16 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
 
   async function createHighlight(color: HighlightColor) {
     if (!selection) return;
+    if (markWritesBlocked()) {
+      setSelection(null);
+      window.getSelection()?.removeAllRanges();
+      return;
+    }
     const optimisticId = `optimistic-${Date.now()}`;
+    const blockKey = blockKeyById.get(selection.blockId);
     const optimistic: HighlightSummary = {
       id: optimisticId,
+      blockKey: blockKey ?? "",
       blockId: selection.blockId,
       startOffset: selection.startOffset,
       endOffset: selection.endOffset,
@@ -282,12 +372,18 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
       createdAt: new Date(),
     };
     setHighlights((prev) => [...prev, optimistic]);
-    const payload = {
-      blockId: selection.blockId,
+    // CC-6D — anchor by the unit's SOURCE, not the presence of a blockKey: a
+    // content-core write sends blockKey + the read version; a legacy write sends
+    // the legacy blockId.
+    const payload = highlightWritePayload({
+      source: markSource,
+      blockKey: blockKey ?? null,
+      blockVersionId: blockVersionById.get(selection.blockId) ?? null,
+      legacyBlockId: selection.blockId,
       startOffset: selection.startOffset,
       endOffset: selection.endOffset,
       color,
-    };
+    });
     setSelection(null);
     window.getSelection()?.removeAllRanges();
 
@@ -325,9 +421,12 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
   // ── Annotation mutations ──────────────────────────────────────────────
 
   async function createAnnotation(blockId: string, text: string) {
+    if (markWritesBlocked()) return;
     const optimisticId = `optimistic-${Date.now()}`;
+    const blockKey = blockKeyById.get(blockId);
     const optimistic: AnnotationSummary = {
       id: optimisticId,
+      blockKey: blockKey ?? "",
       blockId,
       text,
       createdAt: new Date(),
@@ -341,7 +440,15 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ blockId, text }),
+        // CC-6D — anchor by the unit's SOURCE (see createHighlight).
+        body: JSON.stringify(
+          annotationWritePayload({
+            source: markSource,
+            blockKey: blockKey ?? null,
+            legacyBlockId: blockId,
+            text,
+          }),
+        ),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = (await res.json()) as { annotation: AnnotationSummary };
@@ -442,10 +549,14 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
 
   // ── Annotations count per block ───────────────────────────────────────
 
+  // Marks bucket by the stable blockKey (falling back to the legacy blockId for
+  // a mark that predates CC-6B). Blocks are looked up by `b.blockKey ?? b.id`,
+  // which is identical for legacy books and correct for pure-core blocks too.
   const annotationsByBlock = useMemo(() => {
     const map = new Map<string, number>();
     for (const a of annotations) {
-      map.set(a.blockId, (map.get(a.blockId) ?? 0) + 1);
+      const key = a.blockKey || a.blockId;
+      if (key) map.set(key, (map.get(key) ?? 0) + 1);
     }
     return map;
   }, [annotations]);
@@ -453,9 +564,11 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
   const highlightsByBlock = useMemo(() => {
     const map = new Map<string, HighlightSummary[]>();
     for (const h of highlights) {
-      const list = map.get(h.blockId) ?? [];
+      const key = h.blockKey || h.blockId;
+      if (!key) continue;
+      const list = map.get(key) ?? [];
       list.push(h);
-      map.set(h.blockId, list);
+      map.set(key, list);
     }
     return map;
   }, [highlights]);
@@ -468,6 +581,32 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
     fontSize: `${prefs.fontSize}px`,
     lineHeight: prefs.lineHeight,
   };
+
+  // CC-6B fail-closed: a genuine content fault (integrity error, retired unit)
+  // is never masked with the legacy blocks — we show an unavailable state and
+  // a way back to the book detail. All hooks above run unconditionally.
+  if (!unit) {
+    return (
+      <div className="min-h-screen" style={containerStyle}>
+        <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
+          <div className="text-4xl">📖</div>
+          <h1 className="text-lg font-semibold">
+            Contenido temporalmente no disponible
+          </h1>
+          <p className="text-sm opacity-70">
+            No pudimos cargar el texto de este capítulo en este momento. Vuelve
+            a intentarlo en un rato — tus notas y marcas siguen guardadas.
+          </p>
+          <Link
+            href={`/dashboard/biblioteca/${encodeURIComponent(bookSlug)}`}
+            className="rounded-full px-4 py-2 text-sm font-medium underline"
+          >
+            ← Volver al libro
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen" style={containerStyle}>
@@ -684,12 +823,36 @@ export function LectorShell({ apiBase, token, initial, bookSlug }: Props) {
 
       {/* Reading area */}
       <main className="mx-auto max-w-3xl px-4 pb-8" style={proseStyle}>
+        {/* CC-6D — a content-core marks read failed. Visible + fail-closed: the
+            chapter is still readable, but we never show the envelope's marks in
+            its place. */}
+        {markSource === "content-core" && marksUnavailable && (
+          <div
+            role="status"
+            className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          >
+            No pudimos cargar tus marcas en este momento. Tus resaltados y notas
+            están a salvo; vuelve a abrir el capítulo para reintentar.
+          </div>
+        )}
+        {/* CC-6E §5.1 — a content-core marks read failed, so we temporarily
+            block creating a new mark (a create without the current set risks a
+            duplicate/misplaced anchor). Auto-clears after a few seconds. */}
+        {markWriteNotice && (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          >
+            Tus marcas no están disponibles ahora. Reintenta antes de crear una
+            nueva.
+          </div>
+        )}
         {blocks.map((b) => (
           <BlockRenderer
             key={b.id}
             block={b}
-            highlights={highlightsByBlock.get(b.id) ?? []}
-            annotationCount={annotationsByBlock.get(b.id) ?? 0}
+            highlights={highlightsByBlock.get(b.blockKey ?? b.id) ?? []}
+            annotationCount={annotationsByBlock.get(b.blockKey ?? b.id) ?? 0}
             onAnnotateClick={(id) => {
               setFocusBlockId(id);
               setPendingBlockId(null);

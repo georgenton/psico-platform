@@ -1,4 +1,4 @@
-import { IsString, Length } from "class-validator";
+import { IsOptional, IsString, Length } from "class-validator";
 
 /**
  * Body for `POST /api/annotations` — attach a margin-style note to a
@@ -10,13 +10,23 @@ import { IsString, Length } from "class-validator";
  */
 export class CreateAnnotationDto {
   /**
-   * Stable ID of the `ChapterBlock` the annotation anchors to. Same
-   * resilience as highlights: the annotation stays attached even if the
-   * block content is later edited by the author.
+   * Public stable block identity (Content Core, CC-6B). Preferred anchor for
+   * new clients; resolved server-side. If `blockId` is also sent they must
+   * correspond (else ANCHOR_IDENTITY_MISMATCH).
    */
+  @IsOptional()
   @IsString()
   @Length(1, 64)
-  blockId!: string;
+  blockKey?: string;
+
+  /**
+   * Legacy ChapterBlock id — still accepted for backward compatibility. At
+   * least one of `blockKey`/`blockId` is required (else ANCHOR_MISSING_TARGET).
+   */
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  blockId?: string;
 
   /**
    * Annotation body. 1–4096 chars (~1000 words). Plaintext — annotations

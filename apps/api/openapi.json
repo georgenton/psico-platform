@@ -6585,6 +6585,66 @@
         ]
       }
     },
+    "/api/content/books/{bookSlug}/manifest": {
+      "get": {
+        "operationId": "ContentController_readManifest",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookManifestDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Content Core"
+        ]
+      }
+    },
     "/api/patrones": {
       "get": {
         "operationId": "PatronesController_getPatrones",
@@ -12020,6 +12080,80 @@
           "partTitle",
           "source",
           "blocks"
+        ]
+      },
+      "ManifestUnitDto": {
+        "type": "object",
+        "properties": {
+          "unitKey": {
+            "type": "string",
+            "description": "Stable unit identity (uuidv5)."
+          },
+          "order": {
+            "type": "number",
+            "description": "1-based reading order within the book."
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "partNumber": {
+            "type": "number",
+            "nullable": true
+          },
+          "partTitle": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "unitKey",
+          "order",
+          "title",
+          "summary",
+          "partNumber",
+          "partTitle"
+        ]
+      },
+      "BookManifestDto": {
+        "type": "object",
+        "properties": {
+          "bookSlug": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "content-core",
+              "legacy"
+            ],
+            "description": "Which store served this manifest."
+          },
+          "editionKey": {
+            "type": "string",
+            "description": "Server-owned edition key — clients never fabricate it."
+          },
+          "revisionNumber": {
+            "type": "number",
+            "nullable": true,
+            "description": "Published revision number, or null when served from legacy."
+          },
+          "units": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ManifestUnitDto"
+            }
+          }
+        },
+        "required": [
+          "bookSlug",
+          "source",
+          "editionKey",
+          "revisionNumber",
+          "units"
         ]
       },
       "ShareWithTherapistDto": {

@@ -10,8 +10,10 @@ import {
 import { ErrorEnvelopeDto } from "../../shared/dto/error-envelope.dto";
 import { JwtAuthGuard } from "../../auth";
 import type { ReadUnit } from "./content-read";
+import type { BookManifest } from "./content-manifest";
 import { ContentReadService } from "./content-read.service";
 import { ContentUnitReadDto } from "./dto/content-unit-read.dto";
+import { BookManifestDto } from "./dto/book-manifest.dto";
 
 /**
  * Content Core — CC-6A parallel read endpoint.
@@ -38,5 +40,15 @@ export class ContentController {
     @Param("unitKey") unitKey: string,
   ): Promise<ReadUnit> {
     return this.content.readUnit(editionKey, unitKey);
+  }
+
+  // CC-6A.1 — discovery: bookSlug → editionKey + ordered units. Lets clients map
+  // their (bookSlug, chapterOrder) navigation onto Content Core keys.
+  @Get("books/:bookSlug/manifest")
+  @ApiOkResponse({ type: BookManifestDto })
+  @ApiNotFoundResponse({ type: ErrorEnvelopeDto }) // BOOK_NOT_FOUND
+  @ApiInternalServerErrorResponse({ type: ErrorEnvelopeDto }) // CONTENT_CORE_INTEGRITY_ERROR
+  readManifest(@Param("bookSlug") bookSlug: string): Promise<BookManifest> {
+    return this.content.readManifest(bookSlug);
   }
 }

@@ -8,6 +8,8 @@ import type { CreateHighlightResponse, HighlightSummary } from "@psico/types";
 import { PrismaService } from "../prisma";
 import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
 import { resolveHighlightWriteAnchor } from "../content-core/marks/mark-anchor";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ContentAccessService } from "../content-core/access/content-access.service";
 import type { CreateHighlightDto } from "./dto/create-highlight.dto";
 import { LectorService } from "./lector.service";
 
@@ -16,12 +18,23 @@ export class HighlightsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly lector: LectorService,
+    private readonly access: ContentAccessService,
   ) {}
 
   async create(
     userId: string,
+    userPlan: string,
     dto: CreateHighlightDto,
   ): Promise<CreateHighlightResponse> {
+    // CC-6E — creating a mark requires access to the unit it anchors to. Knowing
+    // a blockKey grants nothing: the same FREE/PRO policy as the read endpoints
+    // applies here, resolved from the write target.
+    await this.access.assertCanWriteMark({
+      userId,
+      userPlan,
+      blockKey: dto.blockKey,
+      blockId: dto.blockId,
+    });
     // CC-6C: resolve the durable anchor + validate the offsets against the
     // CURRENT published BlockVersion (never the legacy ChapterBlock) and capture
     // the exact quote snapshot. Pure Content Core blocks are allowed.

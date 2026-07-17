@@ -15,6 +15,8 @@ import {
   resolveAnnotationWriteAnchor,
   resolveStoredMarkBlockKey,
 } from "../content-core/marks/mark-anchor";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ContentAccessService } from "../content-core/access/content-access.service";
 import type {
   CreateAnnotationDto,
   UpdateAnnotationDto,
@@ -26,12 +28,22 @@ export class AnnotationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly lector: LectorService,
+    private readonly access: ContentAccessService,
   ) {}
 
   async create(
     userId: string,
+    userPlan: string,
     dto: CreateAnnotationDto,
   ): Promise<CreateAnnotationResponse> {
+    // CC-6E — creating a mark requires access to the unit it anchors to (same
+    // FREE/PRO policy as the read endpoints; a blockKey grants nothing).
+    await this.access.assertCanWriteMark({
+      userId,
+      userPlan,
+      blockKey: dto.blockKey,
+      blockId: dto.blockId,
+    });
     // CC-6C: resolve the durable anchor. On the Content Core path the block must
     // still be live in the published edition; pure Content Core blocks are OK.
     const anchor = await resolveAnnotationWriteAnchor(this.prisma, {

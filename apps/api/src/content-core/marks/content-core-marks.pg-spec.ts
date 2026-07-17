@@ -416,9 +416,15 @@ suite("Content Core · CC-6C stable mark storage (real PostgreSQL)", () => {
   });
 
   it("pure-core annotation create → update keeps the same blockKey (stays bucketed)", async () => {
+    // CC-6E: the content-access gate is injected; a permissive stub keeps this
+    // test focused on blockKey preservation (entitlement is tested separately).
+    const access = {
+      assertCanWriteMark: async () => undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const svc = new AnnotationsService(prisma as any, {} as any);
-    const created = await svc.create(USER, {
+    const svc = new AnnotationsService(prisma as any, {} as any, access);
+    const created = await svc.create(USER, "PRO", {
       blockKey: pureKey,
       text: "primera nota",
     });

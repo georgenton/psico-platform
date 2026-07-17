@@ -53,6 +53,34 @@ describe("highlightWritePayload (CC-6D, mobile mirror)", () => {
     });
     expect("blockId" in p).toBe(false);
   });
+
+  it("CC-6E: content-core without a blockKey THROWS (never an incomplete body)", () => {
+    expect(() =>
+      highlightWritePayload({
+        source: "content-core",
+        blockKey: null,
+        blockVersionId: "bv-1",
+        legacyBlockId: "legacy-1",
+        startOffset: 0,
+        endOffset: 5,
+        color: "BLUE",
+      }),
+    ).toThrow("MARK_WRITE_MISSING_BLOCK_KEY");
+  });
+
+  it("CC-6E: legacy without a blockId THROWS", () => {
+    expect(() =>
+      highlightWritePayload({
+        source: "legacy",
+        blockKey: "bk-1",
+        blockVersionId: "bv-1",
+        legacyBlockId: null,
+        startOffset: 0,
+        endOffset: 5,
+        color: "YELLOW",
+      }),
+    ).toThrow("MARK_WRITE_MISSING_BLOCK_ID");
+  });
 });
 
 describe("annotationWritePayload (CC-6D, mobile mirror)", () => {
@@ -76,6 +104,28 @@ describe("annotationWritePayload (CC-6D, mobile mirror)", () => {
     });
     expect(p).toEqual({ blockKey: "bk-1", text: "hola" });
     expect("blockId" in p).toBe(false);
+  });
+
+  it("CC-6E: content-core without a blockKey THROWS", () => {
+    expect(() =>
+      annotationWritePayload({
+        source: "content-core",
+        blockKey: null,
+        legacyBlockId: "legacy-1",
+        text: "hola",
+      }),
+    ).toThrow("MARK_WRITE_MISSING_BLOCK_KEY");
+  });
+
+  it("CC-6E: legacy without a blockId THROWS", () => {
+    expect(() =>
+      annotationWritePayload({
+        source: "legacy",
+        blockKey: "bk-1",
+        legacyBlockId: null,
+        text: "hola",
+      }),
+    ).toThrow("MARK_WRITE_MISSING_BLOCK_ID");
   });
 });
 

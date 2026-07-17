@@ -149,6 +149,23 @@ export function LectorShell({
     initial.session.progressPct,
   );
 
+  // CC-6E/P1 — when a content-core marks read failed, temporarily block creating
+  // a new mark (we can't safely place it against marks we couldn't load). This
+  // notice shows the reason on an attempt; it auto-clears.
+  const [markWriteNotice, setMarkWriteNotice] = useState(false);
+  useEffect(() => {
+    if (!markWriteNotice) return;
+    const t = setTimeout(() => setMarkWriteNotice(false), 4000);
+    return () => clearTimeout(t);
+  }, [markWriteNotice]);
+  function markWritesBlocked(): boolean {
+    if (markSource === "content-core" && marksUnavailable) {
+      setMarkWriteNotice(true);
+      return true;
+    }
+    return false;
+  }
+
   // Companion dock state (Eco · Notas · Reflexión). The dock is the reader's
   // right-hand panel — it keeps the chapter mounted behind it, so the user
   // never loses their place when they open Eco, a note, or a reflexión.
@@ -337,6 +354,11 @@ export function LectorShell({
 
   async function createHighlight(color: HighlightColor) {
     if (!selection) return;
+    if (markWritesBlocked()) {
+      setSelection(null);
+      window.getSelection()?.removeAllRanges();
+      return;
+    }
     const optimisticId = `optimistic-${Date.now()}`;
     const blockKey = blockKeyById.get(selection.blockId);
     const optimistic: HighlightSummary = {
@@ -399,6 +421,7 @@ export function LectorShell({
   // ── Annotation mutations ──────────────────────────────────────────────
 
   async function createAnnotation(blockId: string, text: string) {
+    if (markWritesBlocked()) return;
     const optimisticId = `optimistic-${Date.now()}`;
     const blockKey = blockKeyById.get(blockId);
     const optimistic: AnnotationSummary = {
@@ -810,6 +833,18 @@ export function LectorShell({
           >
             No pudimos cargar tus marcas en este momento. Tus resaltados y notas
             están a salvo; vuelve a abrir el capítulo para reintentar.
+          </div>
+        )}
+        {/* CC-6E §5.1 — a content-core marks read failed, so we temporarily
+            block creating a new mark (a create without the current set risks a
+            duplicate/misplaced anchor). Auto-clears after a few seconds. */}
+        {markWriteNotice && (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          >
+            Tus marcas no están disponibles ahora. Reintenta antes de crear una
+            nueva.
           </div>
         )}
         {blocks.map((b) => (

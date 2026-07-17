@@ -296,7 +296,23 @@ export default function LectorScreen() {
 
   // ── Annotation CRUD ───────────────────────────────────────────────────
 
+  // CC-6E §5.1 — when a content-core marks read failed we temporarily block
+  // creating a new mark: without the current set we can't safely place a new
+  // anchor (risking a duplicate/misplaced mark). Returns true (and warns) when
+  // a create should be refused.
+  function markWritesBlocked(): boolean {
+    if (markSource === "content-core" && marksError) {
+      Alert.alert(
+        "Marcas no disponibles",
+        "Tus marcas no están disponibles ahora. Reintenta antes de crear una nueva.",
+      );
+      return true;
+    }
+    return false;
+  }
+
   async function createAnnotation(blockId: string, text: string) {
+    if (markWritesBlocked()) return;
     // CC-6D: anchor by the unit's SOURCE, not the presence of a blockKey.
     const blockKey = blockKeyById.get(blockId);
     try {
@@ -327,6 +343,7 @@ export default function LectorScreen() {
   // ── Highlight CRUD ────────────────────────────────────────────────────
 
   async function createHighlight(blockId: string, color: HighlightColor) {
+    if (markWritesBlocked()) return;
     const block = blocks.find((b) => b.id === blockId);
     if (!block) return;
     // Block-level v1: span the whole block content. The backend validates

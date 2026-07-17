@@ -6,6 +6,7 @@ import Link from "next/link";
 import type {
   AnnotationSummary,
   BreatheExercise,
+  ContentUnitMarks,
   ContentUnitRead,
   HighlightColor,
   HighlightSummary,
@@ -47,6 +48,12 @@ interface Props {
    * not mask → the reader shows "contenido temporalmente no disponible".
    */
   unit: ContentUnitRead | null;
+  /**
+   * CC-6C — the user's marks for this unit from the stable per-unit surface
+   * (keyed by blockKey). When present the reader seeds its marks from here; when
+   * null it falls back to the lector envelope's marks (`initial.highlights/…`).
+   */
+  marks: ContentUnitMarks | null;
   bookSlug: string;
 }
 
@@ -80,6 +87,7 @@ export function LectorShell({
   token,
   initial,
   unit,
+  marks,
   bookSlug,
 }: Props) {
   const router = useRouter();
@@ -96,12 +104,13 @@ export function LectorShell({
     return m;
   }, [blocks]);
 
-  // Mutable state.
+  // Mutable state. Marks come from the CC-6C surface when available, else the
+  // lector envelope (backward compatible).
   const [highlights, setHighlights] = useState<HighlightSummary[]>(
-    initial.highlights,
+    marks?.highlights ?? initial.highlights,
   );
   const [annotations, setAnnotations] = useState<AnnotationSummary[]>(
-    initial.annotations,
+    marks?.annotations ?? initial.annotations,
   );
   const [progressPct, setProgressPct] = useState<number>(
     initial.session.progressPct,

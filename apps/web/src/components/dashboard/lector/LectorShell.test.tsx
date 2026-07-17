@@ -1,6 +1,10 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import type { ContentUnitRead, LectorChapterResponse } from "@psico/types";
+import type {
+  ContentUnitMarks,
+  ContentUnitRead,
+  LectorChapterResponse,
+} from "@psico/types";
 import { LectorShell } from "./LectorShell";
 
 /**
@@ -131,6 +135,7 @@ function buildUnit(
 const renderShell = (
   overrides: Partial<LectorChapterResponse> = {},
   unit: ContentUnitRead | null = buildUnit(),
+  marks: ContentUnitMarks | null = null,
 ) =>
   render(
     <LectorShell
@@ -139,6 +144,7 @@ const renderShell = (
       bookSlug="emociones-en-construccion"
       initial={buildInitial(overrides)}
       unit={unit}
+      marks={marks}
     />,
   );
 
@@ -262,6 +268,47 @@ describe("LectorShell — progress bar", () => {
     // Progress bar inner div has `width: 75%` style.
     const inner = container.querySelector('[style*="width: 75%"]');
     expect(inner).not.toBeNull();
+  });
+});
+
+describe("LectorShell — marks from the CC-6C surface", () => {
+  it("seeds annotations from the marks prop (not the lector envelope) when present", () => {
+    renderShell(
+      {
+        annotations: [
+          {
+            id: "env-1",
+            blockKey: "bk-1",
+            blockId: "b-1",
+            text: "Nota del envelope",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        ],
+      } as unknown as Partial<LectorChapterResponse>,
+      buildUnit(),
+      {
+        editionKey: "emociones-en-construccion-1e",
+        unitKey: "unit-1",
+        highlights: [],
+        annotations: [
+          {
+            id: "mk-1",
+            blockKey: "bk-1",
+            blockId: "b-1",
+            text: "Nota de la superficie CC-6C",
+            createdAt: new Date() as unknown as string,
+            updatedAt: new Date() as unknown as string,
+          },
+        ],
+      } as unknown as ContentUnitMarks,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /abrir panel del lector/i }),
+    );
+    // The marks surface wins; the envelope's note is not used.
+    expect(screen.getByText("Nota de la superficie CC-6C")).toBeInTheDocument();
+    expect(screen.queryByText("Nota del envelope")).not.toBeInTheDocument();
   });
 });
 

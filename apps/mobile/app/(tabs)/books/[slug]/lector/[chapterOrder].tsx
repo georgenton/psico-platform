@@ -210,6 +210,20 @@ export default function LectorScreen() {
           u.blocks[0]?.legacyBlockId ??
           u.blocks[0]?.blockKey ??
           "";
+        // CC-6C: read marks from the stable per-unit surface (keyed by blockKey).
+        // Falls back to the envelope marks already set above on any failure.
+        try {
+          const m = await contentCoreApi.getUnitMarks(
+            manifest.editionKey,
+            mu.unitKey,
+          );
+          if (!cancelled && m) {
+            setHighlights(m.highlights);
+            setAnnotations(m.annotations);
+          }
+        } catch {
+          // keep the envelope marks
+        }
       } catch {
         if (!cancelled) setContentError(true);
       } finally {

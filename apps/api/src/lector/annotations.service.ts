@@ -11,6 +11,7 @@ import type {
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
+import { resolveAnnotationWriteAnchor } from "../content-core/marks/mark-anchor";
 import type {
   CreateAnnotationDto,
   UpdateAnnotationDto,
@@ -28,11 +29,12 @@ export class AnnotationsService {
     userId: string,
     dto: CreateAnnotationDto,
   ): Promise<CreateAnnotationResponse> {
-    const anchor = await this.lector.resolveAnchorTarget({
+    // CC-6C: resolve the durable anchor. On the Content Core path the block must
+    // still be live in the published edition; pure Content Core blocks are OK.
+    const anchor = await resolveAnnotationWriteAnchor(this.prisma, {
       blockKey: dto.blockKey,
       blockId: dto.blockId,
     });
-    await this.lector.assertBlockExists(anchor.blockId);
     const created = await this.prisma.annotation.create({
       data: {
         userId,
@@ -41,7 +43,7 @@ export class AnnotationsService {
         text: dto.text,
       },
     });
-    return { ok: true, annotation: this.serialise(created) };
+    return { ok: true, annotation: this.serialise(created, anchor.blockKey) };
   }
 
   async update(
@@ -74,10 +76,13 @@ export class AnnotationsService {
 
   private serialise(
     a: Awaited<ReturnType<PrismaService["annotation"]["create"]>>,
+    // Public identity: the resolver's blockKey (create), or derived from the
+    // legacy anchor. A pure-core row has no blockId.
+    blockKey = a.blockId ? blockKeyFromLegacyId(a.blockId) : "",
   ): AnnotationSummary {
     return {
       id: a.id,
-      blockKey: blockKeyFromLegacyId(a.blockId),
+      blockKey,
       blockId: a.blockId,
       text: a.text,
       createdAt: a.createdAt,

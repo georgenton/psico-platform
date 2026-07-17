@@ -2187,6 +2187,18 @@ export interface BookManifest {
 }
 
 /**
+ * The current user's marks for one unit (CC-6C), keyed by the stable blockKey.
+ * New clients read the chapter TEXT from `/api/content` and the marks from this
+ * surface; the lector envelope keeps serving marks for old (legacy) clients.
+ */
+export interface ContentUnitMarks {
+  editionKey: string;
+  unitKey: string;
+  highlights: HighlightSummary[];
+  annotations: AnnotationSummary[];
+}
+
+/**
  * Project a Content Core unit's blocks into the reader's ChapterBlockSummary
  * shape (CC-6B). Single source of truth so web and mobile build a byte-identical
  * reader model from the same unit.

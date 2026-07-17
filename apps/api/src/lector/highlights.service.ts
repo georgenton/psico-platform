@@ -7,6 +7,7 @@ import type { CreateHighlightResponse, HighlightSummary } from "@psico/types";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
+import { resolveHighlightWriteAnchor } from "../content-core/marks/mark-anchor";
 import type { CreateHighlightDto } from "./dto/create-highlight.dto";
 import { LectorService } from "./lector.service";
 
@@ -21,23 +22,23 @@ export class HighlightsService {
     userId: string,
     dto: CreateHighlightDto,
   ): Promise<CreateHighlightResponse> {
-    // Resolve the public/legacy anchor (CC-6B), then validate the offsets
-    // against the resolved legacy block. Both checks need DB access.
-    const anchor = await this.lector.resolveAnchorTarget({
+    // CC-6C: resolve the durable anchor + validate the offsets against the
+    // CURRENT published BlockVersion (never the legacy ChapterBlock) and capture
+    // the exact quote snapshot. Pure Content Core blocks are allowed.
+    const anchor = await resolveHighlightWriteAnchor(this.prisma, {
       blockKey: dto.blockKey,
       blockId: dto.blockId,
+      startOffset: dto.startOffset,
+      endOffset: dto.endOffset,
     });
-    await this.lector.validateHighlightOffsets(
-      anchor.blockId,
-      dto.startOffset,
-      dto.endOffset,
-    );
 
     const created = await this.prisma.highlight.create({
       data: {
         userId,
         blockId: anchor.blockId,
         contentBlockId: anchor.contentBlockId,
+        blockVersionId: anchor.blockVersionId,
+        quote: anchor.quote,
         startOffset: dto.startOffset,
         endOffset: dto.endOffset,
         color: dto.color ?? "YELLOW",
@@ -47,7 +48,7 @@ export class HighlightsService {
 
     return {
       ok: true,
-      highlight: this.serialise(created),
+      highlight: this.serialise(created, anchor.blockKey),
     };
   }
 
@@ -65,11 +66,13 @@ export class HighlightsService {
 
   private serialise(
     h: Awaited<ReturnType<PrismaService["highlight"]["create"]>>,
+    // Public identity: the resolver's blockKey (create), or derived from the
+    // legacy anchor for legacy-anchored rows. A pure-core row has no blockId.
+    blockKey = h.blockId ? blockKeyFromLegacyId(h.blockId) : "",
   ): HighlightSummary {
     return {
       id: h.id,
-      // Public identity is derived deterministically from the legacy anchor.
-      blockKey: blockKeyFromLegacyId(h.blockId),
+      blockKey,
       blockId: h.blockId,
       startOffset: h.startOffset,
       endOffset: h.endOffset,

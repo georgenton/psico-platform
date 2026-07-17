@@ -149,9 +149,12 @@ export class LectorService {
           ? ("completed" as const)
           : ("available" as const),
       })),
+      // These marks are queried by legacy blockId ∈ this chapter's blocks, so
+      // blockId is always present here (CC-6C made the column nullable for
+      // pure-core marks, which the /content marks surface serves instead).
       highlights: highlights.map((h) => ({
         id: h.id,
-        blockKey: blockKeyFromLegacyId(h.blockId),
+        blockKey: h.blockId ? blockKeyFromLegacyId(h.blockId) : "",
         blockId: h.blockId,
         startOffset: h.startOffset,
         endOffset: h.endOffset,
@@ -161,7 +164,7 @@ export class LectorService {
       })),
       annotations: annotations.map((a) => ({
         id: a.id,
-        blockKey: blockKeyFromLegacyId(a.blockId),
+        blockKey: a.blockId ? blockKeyFromLegacyId(a.blockId) : "",
         blockId: a.blockId,
         text: a.text,
         createdAt: a.createdAt,

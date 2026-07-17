@@ -653,12 +653,20 @@ enum HighlightColor {
 model Highlight {
   id             String         @id @default(cuid())
   userId         String
-  blockId        String
-  // Content Core (CC-4): stable anchor to a ContentBlock, nullable during the
-  // dual-read window (backfilled from `blockId` → legacyBlockId). `Restrict` so a
-  // ContentBlock that carries a highlight can never be cascade-deleted. `quote` is
-  // the exact selected text snapshot, the durable re-anchor fallback (ADR 0016 §9).
+  // Content Core (CC-6C): `contentBlockId` is the canonical anchor for new
+  // writes; `blockId` (legacy ChapterBlock) is now NULLABLE — a pure Content
+  // Core block has no legacy binding. A CHECK (migration) enforces at least one
+  // anchor: blockId IS NOT NULL OR contentBlockId IS NOT NULL. Both are kept for
+  // legacy/backfilled rows. `Restrict` so a ContentBlock that carries a highlight
+  // can never be cascade-deleted.
+  blockId        String?
   contentBlockId String?
+  // Source text version this highlight was captured against (CC-6C). Lets the
+  // mark's provenance survive a later block edit (a new BlockVersion). `Restrict`
+  // so the referenced BlockVersion can never be deleted out from under it.
+  blockVersionId String?
+  // Exact selected-text snapshot — mandatory for new highlights (CC-6C), the
+  // durable re-anchor fallback (ADR 0016 §9).
   quote          String?
   // Offsets dentro del `content` del bloque (UTF-16 code units, igual que
   // `Range.startOffset`/`endOffset` del DOM).
@@ -671,22 +679,26 @@ model Highlight {
   updatedAt      DateTime       @updatedAt
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  block        ChapterBlock  @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  block        ChapterBlock? @relation(fields: [blockId], references: [id], onDelete: Cascade)
   contentBlock ContentBlock? @relation(fields: [contentBlockId], references: [id], onDelete: Restrict)
+  blockVersion BlockVersion? @relation(fields: [blockVersionId], references: [id], onDelete: Restrict)
 
   @@index([userId, blockId])
   @@index([userId, createdAt(sort: Desc)])
   @@index([contentBlockId])
+  @@index([blockVersionId])
 }
 
 model Annotation {
   id             String   @id @default(cuid())
   userId         String
-  blockId        String
-  // Content Core (CC-4): stable anchor to a ContentBlock, nullable during the
-  // dual-read window (backfilled from `blockId`). `Restrict` — never cascade a
-  // ContentBlock that carries an annotation. `quote` stays null (annotations are
-  // block-level notes, not a text selection); the column exists for symmetry.
+  // Content Core (CC-6C): `contentBlockId` is the canonical anchor for new
+  // writes; `blockId` (legacy ChapterBlock) is now NULLABLE — a pure Content
+  // Core block has no legacy binding. A CHECK (migration) enforces at least one
+  // anchor. Both are kept for legacy/backfilled rows. `Restrict` — never cascade
+  // a ContentBlock that carries an annotation. `quote` stays null (annotations
+  // are block-level notes, not a text selection); the column exists for symmetry.
+  blockId        String?
   contentBlockId String?
   quote          String?
   // Texto plain — NO se cifra (no es parte del Diario E2E, ADR 0007 §G).
@@ -698,7 +710,7 @@ model Annotation {
   updatedAt      DateTime @updatedAt
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  block        ChapterBlock  @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  block        ChapterBlock? @relation(fields: [blockId], references: [id], onDelete: Cascade)
   contentBlock ContentBlock? @relation(fields: [contentBlockId], references: [id], onDelete: Restrict)
 
   @@index([userId, blockId])
@@ -2366,6 +2378,9 @@ model BlockVersion {
 
   contentBlock ContentBlock       @relation(fields: [contentBlockId], references: [id], onDelete: Cascade)
   unitVersion  ContentUnitVersion @relation(fields: [unitVersionId], references: [id], onDelete: Cascade)
+  // CC-6C: highlights captured against this text version. `Restrict` (on the
+  // Highlight side) so a referenced version can never be deleted.
+  highlights   Highlight[]
 
   @@unique([unitVersionId, contentBlockId])
   @@unique([unitVersionId, order])

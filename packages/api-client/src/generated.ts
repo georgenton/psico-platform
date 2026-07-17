@@ -1876,6 +1876,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/content/editions/{editionKey}/units/{unitKey}/marks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ContentController_readUnitMarks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/content/books/{bookSlug}/manifest": {
         parameters: {
             query?: never;
@@ -3900,6 +3916,37 @@ export interface components {
              */
             source: ContentUnitReadDtoSource;
             blocks: components["schemas"]["ContentReadBlockDto"][];
+        };
+        MarkHighlightDto: {
+            id: string;
+            /** @description Stable public block identity (uuidv5). */
+            blockKey: string;
+            /** @description Legacy ChapterBlock id — null for a pure Content Core block. */
+            blockId: string | null;
+            startOffset: number;
+            endOffset: number;
+            /** @enum {string} */
+            color: MarkHighlightDtoColor;
+            note: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        MarkAnnotationDto: {
+            id: string;
+            /** @description Stable public block identity (uuidv5). */
+            blockKey: string;
+            blockId: string | null;
+            text: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ContentUnitMarksDto: {
+            editionKey: string;
+            unitKey: string;
+            highlights: components["schemas"]["MarkHighlightDto"][];
+            annotations: components["schemas"]["MarkAnnotationDto"][];
         };
         ManifestUnitDto: {
             /** @description Stable unit identity (uuidv5). */
@@ -9147,6 +9194,44 @@ export interface operations {
             };
         };
     };
+    ContentController_readUnitMarks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                editionKey: string;
+                unitKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentUnitMarksDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     ContentController_readManifest: {
         parameters: {
             query?: never;
@@ -12248,6 +12333,11 @@ export enum OnboardingStep3DtoVoicePreference {
 export enum ContentUnitReadDtoSource {
     content_core = "content-core",
     legacy = "legacy"
+}
+export enum MarkHighlightDtoColor {
+    YELLOW = "YELLOW",
+    BLUE = "BLUE",
+    PINK = "PINK"
 }
 export enum BookManifestDtoSource {
     content_core = "content-core",

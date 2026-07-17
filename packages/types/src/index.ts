@@ -2494,6 +2494,95 @@ export interface UpdateAnnotationResponse {
   annotation: AnnotationSummary;
 }
 
+// ─── CC-6D — source-aware mark writes + reads ────────────────────────────────
+//
+// A reader unit is served either from Content Core (`content-core`) or from the
+// legacy envelope (`legacy`). BOTH kinds of block carry a `blockKey`, but a
+// legacy-served block has NO published BlockVersion behind it, so anchoring a
+// write by blockKey would be rejected by the server (SOURCE_BLOCK_VERSION_*).
+// The client must therefore decide by `unit.source`, NOT by the mere presence of
+// a blockKey. These pure helpers live here so web + mobile apply the exact same
+// rule by construction (same pattern as `projectReaderBlocks`).
+
+export type ReaderMarkSource = ContentUnitRead["source"];
+
+/**
+ * Source-aware highlight write payload (CC-6D).
+ * - `content-core`: anchor by `blockKey` + the source `blockVersionId` the reader
+ *   saw (CC-6C). Never sends the legacy `blockId`.
+ * - `legacy`: anchor by the legacy `blockId`. Never sends `blockKey`/`blockVersionId`.
+ */
+export function highlightWritePayload(input: {
+  source: ReaderMarkSource;
+  blockKey: string | null;
+  blockVersionId: string | null;
+  legacyBlockId: string | null;
+  startOffset: number;
+  endOffset: number;
+  color: HighlightColor;
+}): CreateHighlightRequest {
+  const geometry = {
+    startOffset: input.startOffset,
+    endOffset: input.endOffset,
+    color: input.color,
+  };
+  if (input.source === "content-core") {
+    return {
+      ...(input.blockKey ? { blockKey: input.blockKey } : {}),
+      ...(input.blockVersionId ? { blockVersionId: input.blockVersionId } : {}),
+      ...geometry,
+    };
+  }
+  return {
+    ...(input.legacyBlockId ? { blockId: input.legacyBlockId } : {}),
+    ...geometry,
+  };
+}
+
+/**
+ * Source-aware annotation write payload (CC-6D). Block-level (no offsets/version):
+ * `content-core` anchors by `blockKey`; `legacy` anchors by the legacy `blockId`.
+ */
+export function annotationWritePayload(input: {
+  source: ReaderMarkSource;
+  blockKey: string | null;
+  legacyBlockId: string | null;
+  text: string;
+}): CreateAnnotationRequest {
+  if (input.source === "content-core") {
+    return {
+      ...(input.blockKey ? { blockKey: input.blockKey } : {}),
+      text: input.text,
+    };
+  }
+  return {
+    ...(input.legacyBlockId ? { blockId: input.legacyBlockId } : {}),
+    text: input.text,
+  };
+}
+
+/**
+ * Whether the reader must read marks from the CC-6C per-unit surface. A
+ * `content-core` unit MUST (its marks aren't in the legacy envelope); a `legacy`
+ * unit uses the envelope's marks and must NOT hit the surface.
+ */
+export function shouldFetchUnitMarks(source: ReaderMarkSource): boolean {
+  return source === "content-core";
+}
+
+/**
+ * How a Content Core marks-read failure is surfaced (CC-6D). An auth/authz
+ * failure (401/403) must PROPAGATE — never silently fall back to the envelope;
+ * any other failure (404/500/network) shows a visible "marks unavailable" state.
+ * A content-core marks read never silently falls back to the envelope.
+ */
+export type MarksReadFailure = "auth" | "unavailable";
+export function classifyMarksReadFailure(
+  status: number | undefined,
+): MarksReadFailure {
+  return status === 401 || status === 403 ? "auth" : "unavailable";
+}
+
 // ─── Reader preferences (response shape) ─────────────────────────────────────
 // `UpdateReaderPreferencesRequest` was already declared above (UsersModule
 // surface from Sesión 9). Sprint S6 reuses it — same fields, same validation.

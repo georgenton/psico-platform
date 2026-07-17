@@ -6,6 +6,7 @@ import type {
   ContentUnitRead,
   LectorChapterResponse,
 } from "@psico/types";
+import { classifyMarksReadFailure, shouldFetchUnitMarks } from "@psico/types";
 
 import { ApiError } from "@/lib/api";
 import { getAccessToken, isNextThrow, serverFetch } from "@/lib/api.server";
@@ -114,19 +115,25 @@ export default async function LectorPage({ params }: { params: Params }) {
     chapter.chapter.order,
   );
 
-  // CC-6C: new clients read marks from the stable per-unit surface (keyed by
-  // blockKey). The lector envelope keeps serving marks for old clients; if the
-  // marks surface can't be resolved we fall back to the envelope's marks.
+  // CC-6D: read marks SOURCE-AWARE. A content-core unit MUST read from the CC-6C
+  // surface (its marks aren't in the envelope); a legacy unit uses the envelope's
+  // marks and never hits the surface. On a content-core failure we classify —
+  // auth (401/403) propagates (never a silent envelope fallback), anything else
+  // (404/500/network) is a visible "unavailable" state. Fail-closed either way.
   let marks: ContentUnitMarks | null = null;
-  if (unit) {
+  let marksUnavailable = false;
+  if (unit && shouldFetchUnitMarks(unit.source)) {
     try {
       marks = await serverFetch<ContentUnitMarks>(
         `/content/editions/${encodeURIComponent(unit.editionKey)}/units/${encodeURIComponent(unit.unitKey)}/marks`,
       );
     } catch (err) {
       if (isNextThrow(err)) throw err;
-      if (!(err instanceof ApiError)) throw err;
-      marks = null; // fall back to the lector envelope marks
+      const status = err instanceof ApiError ? err.status : undefined;
+      // Propagate auth/authz — the dashboard error boundary / middleware handles it.
+      if (classifyMarksReadFailure(status) === "auth") throw err;
+      marks = null;
+      marksUnavailable = true;
     }
   }
 
@@ -137,6 +144,7 @@ export default async function LectorPage({ params }: { params: Params }) {
       initial={chapter}
       unit={unit}
       marks={marks}
+      marksUnavailable={marksUnavailable}
       bookSlug={params.idOrSlug}
     />
   );

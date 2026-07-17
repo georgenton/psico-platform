@@ -51,10 +51,26 @@ export interface IngestResult {
   blocksTombstoned: number;
 }
 
+const VALID_BLOCK_KINDS = new Set<string>(Object.values(BlockKind));
+
 export async function ingestUnitV2(
   prisma: PrismaClient,
   params: IngestUnitParams,
 ): Promise<IngestResult> {
+  // Ingest input boundary (all checked before opening the transaction):
+  //  - a unit must have at least one block (a published unit with zero blocks is
+  //    an integrity error the read adapter rejects — never publish one);
+  if (params.blocks.length === 0) {
+    throw new Error("INGEST_EMPTY_UNIT");
+  }
+  //  - reject an invalid block kind explicitly rather than letting `undefined`
+  //    reach Prisma.
+  for (const b of params.blocks) {
+    if (!VALID_BLOCK_KINDS.has(b.kind)) {
+      throw new Error("INGEST_INVALID_BLOCK_KIND");
+    }
+  }
+
   return prisma.$transaction(
     async (tx) => {
       // Serialize concurrent ingests on the SAME edition: lock the Edition row

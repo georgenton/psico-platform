@@ -1860,6 +1860,22 @@ export interface paths {
         patch: operations["AnnotationsController_update"];
         trace?: never;
     };
+    "/api/content/editions/{editionKey}/units/{unitKey}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ContentController_readUnit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/patrones": {
         parameters: {
             query?: never;
@@ -3829,6 +3845,34 @@ export interface components {
         UpdateAnnotationDto: {
             /** @description New annotation body. Same constraints as creation (1–4096 chars). */
             text: string;
+        };
+        ContentReadBlockDto: {
+            /** @description Stable block identity (uuidv5). */
+            blockKey: string;
+            /** @description Block kind (PARAGRAPH, HEADING, …). */
+            kind: string;
+            /** @description 0-based position within the unit. */
+            order: number;
+            content: string;
+            /** @description Structured metadata by kind (audioUrl, videoUrl, …). */
+            meta: Record<string, never> | null;
+        };
+        ContentUnitReadDto: {
+            editionKey: string;
+            /** @description Published revision number, or null when served from legacy. */
+            revisionNumber: number | null;
+            unitKey: string;
+            title: string;
+            summary: string | null;
+            order: number;
+            partNumber: number | null;
+            partTitle: string | null;
+            /**
+             * @description Which store served this unit.
+             * @enum {string}
+             */
+            source: ContentUnitReadDtoSource;
+            blocks: components["schemas"]["ContentReadBlockDto"][];
         };
         ShareWithTherapistDto: {
             therapistId: string;
@@ -9007,6 +9051,52 @@ export interface operations {
             };
         };
     };
+    ContentController_readUnit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                editionKey: string;
+                unitKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentUnitReadDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     PatronesController_getPatrones: {
         parameters: {
             query?: {
@@ -12059,6 +12149,10 @@ export enum OnboardingStep3DtoVoicePreference {
     marina = "marina",
     tomas = "tomas",
     none = "none"
+}
+export enum ContentUnitReadDtoSource {
+    content_core = "content-core",
+    legacy = "legacy"
 }
 export enum ConfirmResonanceDtoSource {
     highlight = "highlight",

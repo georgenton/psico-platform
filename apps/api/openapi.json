@@ -6517,6 +6517,74 @@
         ]
       }
     },
+    "/api/content/editions/{editionKey}/units/{unitKey}": {
+      "get": {
+        "operationId": "ContentController_readUnit",
+        "parameters": [
+          {
+            "name": "editionKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "unitKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentUnitReadDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Content Core"
+        ]
+      }
+    },
     "/api/patrones": {
       "get": {
         "operationId": "PatronesController_getPatrones",
@@ -11860,6 +11928,98 @@
         },
         "required": [
           "text"
+        ]
+      },
+      "ContentReadBlockDto": {
+        "type": "object",
+        "properties": {
+          "blockKey": {
+            "type": "string",
+            "description": "Stable block identity (uuidv5)."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Block kind (PARAGRAPH, HEADING, …)."
+          },
+          "order": {
+            "type": "number",
+            "description": "0-based position within the unit."
+          },
+          "content": {
+            "type": "string"
+          },
+          "meta": {
+            "type": "object",
+            "nullable": true,
+            "description": "Structured metadata by kind (audioUrl, videoUrl, …)."
+          }
+        },
+        "required": [
+          "blockKey",
+          "kind",
+          "order",
+          "content",
+          "meta"
+        ]
+      },
+      "ContentUnitReadDto": {
+        "type": "object",
+        "properties": {
+          "editionKey": {
+            "type": "string"
+          },
+          "revisionNumber": {
+            "type": "number",
+            "nullable": true,
+            "description": "Published revision number, or null when served from legacy."
+          },
+          "unitKey": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "number"
+          },
+          "partNumber": {
+            "type": "number",
+            "nullable": true
+          },
+          "partTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "content-core",
+              "legacy"
+            ],
+            "description": "Which store served this unit."
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentReadBlockDto"
+            }
+          }
+        },
+        "required": [
+          "editionKey",
+          "revisionNumber",
+          "unitKey",
+          "title",
+          "summary",
+          "order",
+          "partNumber",
+          "partTitle",
+          "source",
+          "blocks"
         ]
       },
       "ShareWithTherapistDto": {

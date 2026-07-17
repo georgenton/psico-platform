@@ -35,6 +35,11 @@ import {
   videoBlockInfo,
   chapterConcept,
   projectReaderBlocks,
+  highlightWritePayload,
+  annotationWritePayload,
+  shouldFetchUnitMarks,
+  classifyMarksReadFailure,
+  type ReaderMarkSource,
 } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 import { LectorAudioBar } from "@/components/dashboard/lector/LectorAudioBar";
@@ -88,6 +93,13 @@ export default function LectorScreen() {
   // the lector's own blocks — it renders "contenido temporalmente no disponible".
   const [unit, setUnit] = useState<ContentUnitRead | null>(null);
   const [contentError, setContentError] = useState(false);
+  // CC-6D — a content-core marks read failed (404/500/network). Fail-closed: we
+  // show a banner and never fall back to the envelope's marks.
+  const [marksError, setMarksError] = useState(false);
+  // CC-6D — the reader unit's provenance decides every mark decision (write
+  // anchor + where marks come from). A legacy block also carries a blockKey, so
+  // its mere presence must never drive this.
+  const markSource: ReaderMarkSource = unit?.source ?? "legacy";
   // Blocks + the id → blockKey map (CC-6B). The visual id stays
   // legacyBlockId ?? blockKey so marks/audio-sync/heartbeat keep matching;
   // blockKey is the public write identity for new highlights/annotations.
@@ -166,6 +178,7 @@ export default function LectorScreen() {
     setLoading(true);
     setError(null);
     setContentError(false);
+    setMarksError(false);
     setUnit(null);
     (async () => {
       let data: LectorChapterResponse;
@@ -210,19 +223,37 @@ export default function LectorScreen() {
           u.blocks[0]?.legacyBlockId ??
           u.blocks[0]?.blockKey ??
           "";
-        // CC-6C: read marks from the stable per-unit surface (keyed by blockKey).
-        // Falls back to the envelope marks already set above on any failure.
-        try {
-          const m = await contentCoreApi.getUnitMarks(
-            manifest.editionKey,
-            mu.unitKey,
-          );
-          if (!cancelled && m) {
-            setHighlights(m.highlights);
-            setAnnotations(m.annotations);
+        // CC-6D: read marks SOURCE-AWARE. Only a content-core unit reads from the
+        // CC-6C surface; a legacy unit keeps the envelope marks set above. A
+        // content-core failure NEVER silently falls back to the envelope: an auth
+        // failure is surfaced; anything else shows the "unavailable" banner.
+        if (shouldFetchUnitMarks(u.source)) {
+          try {
+            const m = await contentCoreApi.getUnitMarks(
+              manifest.editionKey,
+              mu.unitKey,
+            );
+            if (!cancelled && m) {
+              setHighlights(m.highlights);
+              setAnnotations(m.annotations);
+            }
+          } catch (e: unknown) {
+            if (cancelled) return;
+            const status =
+              (e as { statusCode?: number; status?: number })?.statusCode ??
+              (e as { status?: number })?.status;
+            if (classifyMarksReadFailure(status) === "auth") {
+              // Propagate auth/authz — never silently show the envelope marks.
+              setError(
+                "Tu sesión expiró. Vuelve a iniciar sesión para ver tus marcas.",
+              );
+              return;
+            }
+            // 404/500/network — visible "unavailable", fail-closed (no envelope).
+            setHighlights([]);
+            setAnnotations([]);
+            setMarksError(true);
           }
-        } catch {
-          // keep the envelope marks
         }
       } catch {
         if (!cancelled) setContentError(true);
@@ -266,11 +297,16 @@ export default function LectorScreen() {
   // ── Annotation CRUD ───────────────────────────────────────────────────
 
   async function createAnnotation(blockId: string, text: string) {
-    // CC-6B: anchor by the stable blockKey; fall back to the legacy id.
+    // CC-6D: anchor by the unit's SOURCE, not the presence of a blockKey.
     const blockKey = blockKeyById.get(blockId);
     try {
       const res = await annotationsApi.create(
-        blockKey ? { blockKey, text } : { blockId, text },
+        annotationWritePayload({
+          source: markSource,
+          blockKey: blockKey ?? null,
+          legacyBlockId: blockId,
+          text,
+        }),
       );
       setAnnotations((prev) => [...prev, res.annotation]);
     } catch {
@@ -298,10 +334,9 @@ export default function LectorScreen() {
     // the bounds.
     const startOffset = 0;
     const endOffset = block.content.length;
-    // CC-6B: anchor by the stable blockKey; fall back to the legacy id.
-    // CC-6C: send the source version so the mark binds to the version read.
+    // CC-6D: anchor by the unit's SOURCE (blockKey + read version for content
+    // core; legacy blockId for a legacy unit) — see the shared helper.
     const blockKey = block.blockKey;
-    const blockVersionId = block.blockVersionId;
 
     // Optimistic insert with a temp ID so the UI tints immediately. We
     // swap to the server ID once create() resolves; on failure we drop
@@ -319,13 +354,17 @@ export default function LectorScreen() {
     };
     setHighlights((prev) => [...prev, optimistic]);
     try {
-      const res = await highlightsApi.create({
-        ...(blockKey ? { blockKey } : { blockId }),
-        ...(blockVersionId ? { blockVersionId } : {}),
-        startOffset,
-        endOffset,
-        color,
-      });
+      const res = await highlightsApi.create(
+        highlightWritePayload({
+          source: markSource,
+          blockKey: blockKey ?? null,
+          blockVersionId: block.blockVersionId ?? null,
+          legacyBlockId: blockId,
+          startOffset,
+          endOffset,
+          color,
+        }),
+      );
       setHighlights((prev) =>
         prev.map((h) => (h.id === tempId ? res.highlight : h)),
       );
@@ -476,6 +515,17 @@ export default function LectorScreen() {
           chapterTitle={chapter.chapter.title}
           onOpenEco={(prompt) => openCompanion("eco", { ecoSeed: prompt })}
         />
+
+        {/* CC-6D — a content-core marks read failed. Visible + fail-closed: the
+            chapter stays readable, but we never show the envelope's marks. */}
+        {marksError ? (
+          <View style={styles.marksBanner}>
+            <Text style={styles.marksBannerText}>
+              No pudimos cargar tus marcas en este momento. Tus resaltados y
+              notas están a salvo; vuelve a abrir el capítulo para reintentar.
+            </Text>
+          </View>
+        ) : null}
 
         {chapter.chapter.audioAvailable ? (
           <View style={styles.audioWrap}>
@@ -821,6 +871,18 @@ const styles = StyleSheet.create({
   audioWrap: {
     marginBottom: Spacing.lg,
     alignItems: "flex-start",
+  },
+  marksBanner: {
+    marginBottom: Spacing.lg,
+    padding: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: "#fcd34d", // amber-300
+    backgroundColor: "#fffbeb", // amber-50
+  },
+  marksBannerText: {
+    fontSize: 14,
+    color: "#78350f", // amber-900
   },
   block: { marginBottom: Spacing.md },
   blockHeading: { marginTop: Spacing.lg },

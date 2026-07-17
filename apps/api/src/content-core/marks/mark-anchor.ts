@@ -98,8 +98,13 @@ async function resolveContentBlock(
 
 /**
  * Resolve the current published `BlockVersion` for a ContentBlock, fail-closed.
- * Never masks an integrity fault, a retired unit, or a block edited out of the
- * current version.
+ * Never masks a fault. Error semantics (CC-6D):
+ *   - a broken publish pointer (no published revision, or it points at a
+ *     non-PUBLISHED revision) is a server-side integrity fault →
+ *     CONTENT_CORE_INTEGRITY_ERROR as InternalServerErrorException (500),
+ *     matching the read path (content-manifest / content-read);
+ *   - a retired unit or a block edited out of the published version is legitimate
+ *     content state → NotFoundException (404), per the content contract.
  */
 async function resolvePublishedBlockVersion(
   db: MarkDb,
@@ -117,7 +122,7 @@ async function resolvePublishedBlockVersion(
     select: { publishedRevisionId: true },
   });
   if (!edition?.publishedRevisionId) {
-    throw new NotFoundException("CONTENT_CORE_INTEGRITY_ERROR");
+    throw new InternalServerErrorException("CONTENT_CORE_INTEGRITY_ERROR");
   }
 
   const revision = await db.revision.findUnique({
@@ -125,7 +130,7 @@ async function resolvePublishedBlockVersion(
     select: { status: true },
   });
   if (!revision || revision.status !== "PUBLISHED") {
-    throw new NotFoundException("CONTENT_CORE_INTEGRITY_ERROR");
+    throw new InternalServerErrorException("CONTENT_CORE_INTEGRITY_ERROR");
   }
 
   const revisionUnit = await db.revisionUnit.findUnique({

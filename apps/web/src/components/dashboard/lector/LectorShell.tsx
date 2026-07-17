@@ -19,6 +19,9 @@ import {
   reflexionEcoSeed,
   chapterConcept,
   projectReaderBlocks,
+  highlightWritePayload,
+  annotationWritePayload,
+  type ReaderMarkSource,
 } from "@psico/types";
 import {
   ReaderCompanionDock,
@@ -49,11 +52,19 @@ interface Props {
    */
   unit: ContentUnitRead | null;
   /**
-   * CC-6C — the user's marks for this unit from the stable per-unit surface
-   * (keyed by blockKey). When present the reader seeds its marks from here; when
-   * null it falls back to the lector envelope's marks (`initial.highlights/…`).
+   * CC-6C/CC-6D — the user's marks for a `content-core` unit, from the stable
+   * per-unit surface (keyed by blockKey). For a `legacy` unit this is null and
+   * the reader uses the lector envelope's marks (`initial.highlights/…`). It is
+   * NOT a silent fallback for a content-core read failure — see `marksUnavailable`.
    */
   marks: ContentUnitMarks | null;
+  /**
+   * CC-6D — a content-core marks read failed (404/500/network). The reader shows
+   * a visible "marks unavailable" banner and, fail-closed, does NOT fall back to
+   * the envelope's marks. (An auth failure propagates upstream and never reaches
+   * here.)
+   */
+  marksUnavailable?: boolean;
   bookSlug: string;
 }
 
@@ -88,9 +99,14 @@ export function LectorShell({
   initial,
   unit,
   marks,
+  marksUnavailable = false,
   bookSlug,
 }: Props) {
   const router = useRouter();
+  // CC-6D — the reader unit's provenance decides EVERY mark decision (write
+  // anchor + where marks are read from). A legacy-served block also carries a
+  // blockKey, so the mere presence of a blockKey must never drive this.
+  const markSource: ReaderMarkSource = unit?.source ?? "legacy";
 
   // Reader content (immutable for this render — re-fetch happens via navigation).
   // Blocks come from Content Core (CC-6B); the rest stays on the lector envelope.
@@ -111,13 +127,23 @@ export function LectorShell({
     return m;
   }, [blocks]);
 
-  // Mutable state. Marks come from the CC-6C surface when available, else the
-  // lector envelope (backward compatible).
+  // Mutable state (CC-6D, source-aware):
+  //  - content-core: marks come ONLY from the CC-6C surface. If that read failed
+  //    (`marksUnavailable`) we start empty + show a banner — never the envelope.
+  //  - legacy: marks come from the lector envelope (`initial.*`).
   const [highlights, setHighlights] = useState<HighlightSummary[]>(
-    marks?.highlights ?? initial.highlights,
+    markSource === "content-core"
+      ? marksUnavailable
+        ? []
+        : (marks?.highlights ?? [])
+      : initial.highlights,
   );
   const [annotations, setAnnotations] = useState<AnnotationSummary[]>(
-    marks?.annotations ?? initial.annotations,
+    markSource === "content-core"
+      ? marksUnavailable
+        ? []
+        : (marks?.annotations ?? [])
+      : initial.annotations,
   );
   const [progressPct, setProgressPct] = useState<number>(
     initial.session.progressPct,
@@ -324,16 +350,18 @@ export function LectorShell({
       createdAt: new Date(),
     };
     setHighlights((prev) => [...prev, optimistic]);
-    // Prefer the stable public identity; fall back to the legacy anchor. On the
-    // Content Core path the source version is required (CC-6C).
-    const blockVersionId = blockVersionById.get(selection.blockId);
-    const payload = {
-      ...(blockKey ? { blockKey } : { blockId: selection.blockId }),
-      ...(blockVersionId ? { blockVersionId } : {}),
+    // CC-6D — anchor by the unit's SOURCE, not the presence of a blockKey: a
+    // content-core write sends blockKey + the read version; a legacy write sends
+    // the legacy blockId.
+    const payload = highlightWritePayload({
+      source: markSource,
+      blockKey: blockKey ?? null,
+      blockVersionId: blockVersionById.get(selection.blockId) ?? null,
+      legacyBlockId: selection.blockId,
       startOffset: selection.startOffset,
       endOffset: selection.endOffset,
       color,
-    };
+    });
     setSelection(null);
     window.getSelection()?.removeAllRanges();
 
@@ -389,8 +417,15 @@ export function LectorShell({
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        // Prefer the stable public identity; fall back to the legacy anchor.
-        body: JSON.stringify(blockKey ? { blockKey, text } : { blockId, text }),
+        // CC-6D — anchor by the unit's SOURCE (see createHighlight).
+        body: JSON.stringify(
+          annotationWritePayload({
+            source: markSource,
+            blockKey: blockKey ?? null,
+            legacyBlockId: blockId,
+            text,
+          }),
+        ),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = (await res.json()) as { annotation: AnnotationSummary };
@@ -765,6 +800,18 @@ export function LectorShell({
 
       {/* Reading area */}
       <main className="mx-auto max-w-3xl px-4 pb-8" style={proseStyle}>
+        {/* CC-6D — a content-core marks read failed. Visible + fail-closed: the
+            chapter is still readable, but we never show the envelope's marks in
+            its place. */}
+        {markSource === "content-core" && marksUnavailable && (
+          <div
+            role="status"
+            className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          >
+            No pudimos cargar tus marcas en este momento. Tus resaltados y notas
+            están a salvo; vuelve a abrir el capítulo para reintentar.
+          </div>
+        )}
         {blocks.map((b) => (
           <BlockRenderer
             key={b.id}

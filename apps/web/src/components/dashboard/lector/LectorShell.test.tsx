@@ -138,6 +138,7 @@ const renderShell = (
   overrides: Partial<LectorChapterResponse> = {},
   unit: ContentUnitRead | null = buildUnit(),
   marks: ContentUnitMarks | null = null,
+  marksUnavailable = false,
 ) =>
   render(
     <LectorShell
@@ -147,6 +148,7 @@ const renderShell = (
       initial={buildInitial(overrides)}
       unit={unit}
       marks={marks}
+      marksUnavailable={marksUnavailable}
     />,
   );
 
@@ -318,18 +320,23 @@ describe("LectorShell — marks from the CC-6C surface", () => {
 
 describe("LectorShell — companion dock (intact under CC-6B)", () => {
   it("is closed initially and opens on the Notas tab when the user taps the panel button", () => {
-    renderShell({
-      annotations: [
-        {
-          id: "a-1",
-          blockKey: "bk-1",
-          blockId: "b-1",
-          text: "Mi primera nota",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ],
-    } as unknown as Partial<LectorChapterResponse>);
+    renderShell(
+      {
+        annotations: [
+          {
+            id: "a-1",
+            blockKey: "bk-1",
+            blockId: "b-1",
+            text: "Mi primera nota",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        ],
+      } as unknown as Partial<LectorChapterResponse>,
+      // CC-6D — a legacy unit sources its marks from the envelope, so this
+      // envelope note is what the dock shows.
+      buildUnit("legacy"),
+    );
 
     // Closed initially — the dock returns null, so nothing inside it renders.
     expect(screen.queryByText("Mi primera nota")).not.toBeInTheDocument();
@@ -375,5 +382,106 @@ describe("LectorShell — complete CTA copy", () => {
       },
     } as unknown as Partial<LectorChapterResponse>);
     expect(screen.getByText(/casi al final/i)).toBeInTheDocument();
+  });
+});
+
+describe("LectorShell — legacy-served unit writes by blockId (CC-6D)", () => {
+  it("POSTs a highlight anchored by the legacy blockId, never blockKey/blockVersionId", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          highlight: {
+            id: "h-real",
+            blockKey: "bk-1",
+            blockId: "b-1",
+            startOffset: 0,
+            endOffset: 7,
+            color: "YELLOW",
+            note: null,
+            createdAt: new Date().toISOString(),
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const { container } = renderShell({}, buildUnit("legacy"));
+
+    const blockEl = container.querySelector(
+      '[data-block-id="b-1"]',
+    ) as HTMLElement;
+    const textSpan = blockEl.querySelector(".reader-text") as HTMLElement;
+    const textNode = textSpan.firstChild as Text;
+    const range = document.createRange();
+    range.setStart(textNode, 0);
+    range.setEnd(textNode, 7);
+    const sel = window.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.dispatchEvent(new Event("selectionchange"));
+
+    const swatch = await screen.findByRole("button", {
+      name: /subrayar en amarillo/i,
+    });
+    fireEvent.click(swatch);
+
+    await waitFor(() => {
+      const call = fetchSpy.mock.calls.find((c) =>
+        String(c[0]).endsWith("/highlights"),
+      );
+      expect(call).toBeTruthy();
+      const body = JSON.parse((call![1] as RequestInit).body as string);
+      // Legacy anchor only — no Content Core identity travels with the write.
+      expect(body.blockId).toBe("b-1");
+      expect(body.blockKey).toBeUndefined();
+      expect(body.blockVersionId).toBeUndefined();
+    });
+  });
+});
+
+describe("LectorShell — marks read is source-aware + fail-closed (CC-6D)", () => {
+  const envelopeNote = {
+    id: "a-env",
+    blockKey: "bk-1",
+    blockId: "b-1",
+    text: "Nota del envelope",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  it("a legacy unit sources its marks from the envelope (no banner)", () => {
+    renderShell(
+      {
+        annotations: [envelopeNote],
+      } as unknown as Partial<LectorChapterResponse>,
+      buildUnit("legacy"),
+    );
+    expect(
+      screen.queryByText(/no pudimos cargar tus marcas/i),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /abrir panel del lector/i }),
+    );
+    expect(screen.getByText("Nota del envelope")).toBeInTheDocument();
+  });
+
+  it("a content-core unit whose marks read failed shows a banner and NEVER the envelope's marks", () => {
+    renderShell(
+      {
+        annotations: [envelopeNote],
+      } as unknown as Partial<LectorChapterResponse>,
+      buildUnit("content-core"),
+      null, // no marks — the read failed
+      true, // marksUnavailable
+    );
+    // Visible, non-destructive unavailable state.
+    expect(
+      screen.getByText(/no pudimos cargar tus marcas/i),
+    ).toBeInTheDocument();
+    // Fail-closed: the envelope note is NOT shown, even after opening the panel.
+    fireEvent.click(
+      screen.getByRole("button", { name: /abrir panel del lector/i }),
+    );
+    expect(screen.queryByText("Nota del envelope")).not.toBeInTheDocument();
   });
 });

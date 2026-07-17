@@ -1876,6 +1876,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/content/books/{bookSlug}/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ContentController_readManifest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/patrones": {
         parameters: {
             query?: never;
@@ -3873,6 +3889,29 @@ export interface components {
              */
             source: ContentUnitReadDtoSource;
             blocks: components["schemas"]["ContentReadBlockDto"][];
+        };
+        ManifestUnitDto: {
+            /** @description Stable unit identity (uuidv5). */
+            unitKey: string;
+            /** @description 1-based reading order within the book. */
+            order: number;
+            title: string;
+            summary: string | null;
+            partNumber: number | null;
+            partTitle: string | null;
+        };
+        BookManifestDto: {
+            bookSlug: string;
+            /**
+             * @description Which store served this manifest.
+             * @enum {string}
+             */
+            source: BookManifestDtoSource;
+            /** @description Server-owned edition key — clients never fabricate it. */
+            editionKey: string;
+            /** @description Published revision number, or null when served from legacy. */
+            revisionNumber: number | null;
+            units: components["schemas"]["ManifestUnitDto"][];
         };
         ShareWithTherapistDto: {
             therapistId: string;
@@ -9097,6 +9136,51 @@ export interface operations {
             };
         };
     };
+    ContentController_readManifest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookManifestDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     PatronesController_getPatrones: {
         parameters: {
             query?: {
@@ -12151,6 +12235,10 @@ export enum OnboardingStep3DtoVoicePreference {
     none = "none"
 }
 export enum ContentUnitReadDtoSource {
+    content_core = "content-core",
+    legacy = "legacy"
+}
+export enum BookManifestDtoSource {
     content_core = "content-core",
     legacy = "legacy"
 }

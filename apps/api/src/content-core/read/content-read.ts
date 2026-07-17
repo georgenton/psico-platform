@@ -52,7 +52,7 @@ export interface ReadUnit {
   blocks: ReadBlock[];
 }
 
-const EDITION_KEY_SUFFIX = "-1e";
+export const EDITION_KEY_SUFFIX = "-1e";
 
 export async function readContentUnit(
   prisma: PrismaClient,

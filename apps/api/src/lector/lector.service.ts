@@ -18,6 +18,10 @@ import type { Env } from "../config";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import { StorageService } from "../storage";
+import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ContentAccessService } from "../content-core/access/content-access.service";
+import { resolveAnchorTarget } from "./anchor-resolver";
 import type { LectorSessionHeartbeatDto } from "./dto/heartbeat.dto";
 
 /**
@@ -41,6 +45,7 @@ export class LectorService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<Env, true>,
     private readonly storage: StorageService,
+    private readonly access: ContentAccessService,
   ) {}
 
   // ─── GET /api/lector/:bookId/:chapterN ──────────────────────────────────
@@ -68,11 +73,15 @@ export class LectorService {
     });
     if (!chapter) throw new NotFoundException("CHAPTER_NOT_FOUND");
 
-    // Pro gate — the first chapter of every book is always free preview;
-    // later chapters of PRO/ANNUAL books require an active subscription.
-    if (book.plan === "PRO" && chapterOrder > 1 && userPlan === "FREE") {
-      throw new ForbiddenException("PRO_REQUIRED");
-    }
+    // CC-6E — the ONE content-access policy (shared with the Content Core read +
+    // marks surfaces). First chapter is a free preview; later chapters of a PRO
+    // book require an active subscription.
+    await this.access.assertCanReadContent({
+      userId,
+      userPlan,
+      bookId: book.id,
+      chapterOrder,
+    });
 
     const blockIds = chapter.blocks.map((b) => b.id);
 
@@ -147,8 +156,12 @@ export class LectorService {
           ? ("completed" as const)
           : ("available" as const),
       })),
+      // These marks are queried by legacy blockId ∈ this chapter's blocks, so
+      // blockId is always present here (CC-6C made the column nullable for
+      // pure-core marks, which the /content marks surface serves instead).
       highlights: highlights.map((h) => ({
         id: h.id,
+        blockKey: h.blockId ? blockKeyFromLegacyId(h.blockId) : "",
         blockId: h.blockId,
         startOffset: h.startOffset,
         endOffset: h.endOffset,
@@ -158,6 +171,7 @@ export class LectorService {
       })),
       annotations: annotations.map((a) => ({
         id: a.id,
+        blockKey: a.blockId ? blockKeyFromLegacyId(a.blockId) : "",
         blockId: a.blockId,
         text: a.text,
         createdAt: a.createdAt,
@@ -397,5 +411,23 @@ export class LectorService {
     if (endOffset > len) {
       throw new BadRequestException("OFFSET_OUT_OF_RANGE");
     }
+  }
+
+  /**
+   * CC-6B anchor bridge. Resolve a mark's target from `{ blockKey?, blockId? }`
+   * to the storage anchor `{ blockId, contentBlockId }`, fail-closed:
+   *  - `blockKey` present → the ContentBlock's legacy binding is the anchor; if a
+   *    `blockId` is ALSO given it must correspond, else ANCHOR_IDENTITY_MISMATCH;
+   *  - `blockKey` for a pure Content Core block (no legacy binding) → not yet
+   *    anchorable (ANCHOR_UNSUPPORTED_CORE_BLOCK);
+   *  - only `blockId` → legacy path (dual-writes contentBlockId when it exists);
+   *  - neither → ANCHOR_MISSING_TARGET.
+   * `contentBlockId` is stored for the dual-read bridge but is NEVER a public id.
+   */
+  resolveAnchorTarget(input: {
+    blockKey?: string;
+    blockId?: string;
+  }): Promise<{ blockId: string; contentBlockId: string | null }> {
+    return resolveAnchorTarget(this.prisma, input);
   }
 }

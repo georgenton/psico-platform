@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { PrismaModule } from "../prisma";
+import { ContentAccessModule } from "../content-core/access/content-access.module";
 import { AnnotationsController } from "./annotations.controller";
 import { AnnotationsService } from "./annotations.service";
 import { HighlightsController } from "./highlights.controller";
@@ -20,7 +21,7 @@ import { LectorService } from "./lector.service";
  * checks (so we don't duplicate the lookup logic).
  */
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, ContentAccessModule],
   controllers: [LectorController, HighlightsController, AnnotationsController],
   providers: [LectorService, HighlightsService, AnnotationsService],
   exports: [LectorService],

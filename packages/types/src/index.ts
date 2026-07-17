@@ -2119,6 +2119,122 @@ export interface ChapterBlockSummary {
   content: string;
   /** Structured metadata; shape depends on `kind`. See lector/README.md. */
   meta: Record<string, unknown> | null;
+  /**
+   * Stable public block identity (Content Core, CC-6B). Present on blocks
+   * projected from the Content Core reader; used as the public write identity
+   * when creating highlights/annotations. Absent on legacy lector blocks.
+   */
+  blockKey?: string;
+  /**
+   * Source text version of this block (Content Core, CC-6C). The client echoes
+   * it back when creating a highlight so the mark records the version the user
+   * read. Null/absent for legacy blocks.
+   */
+  blockVersionId?: string | null;
+}
+
+// ── Content Core read shapes (CC-6A / CC-6A.1 / CC-6B) ────────────────────────
+// Mirror the API read DTOs so web + mobile consume the canonical source of a
+// chapter's text (Content Core, with a fail-closed legacy fallback) instead of
+// the lector envelope. The reader keeps its visual block id as
+// `legacyBlockId ?? blockKey` so marks/audio-sync/heartbeat keep matching.
+
+/** One content block of a unit, from Content Core or the legacy fallback. */
+export interface ContentReadBlock {
+  /** Stable public block identity (uuidv5). */
+  blockKey: string;
+  /** Legacy ChapterBlock id (anchor-compat bridge); null for a pure-core block. */
+  legacyBlockId: string | null;
+  /**
+   * The exact text version served (CC-6C). Core: the BlockVersion.id; legacy:
+   * null. Clients echo this back when creating a highlight so the mark is
+   * bound to the version the user actually read.
+   */
+  blockVersionId: string | null;
+  /** Block kind (PARAGRAPH, HEADING, …). Widen at the edge, narrow on project. */
+  kind: string;
+  /** 0-based position within the unit. */
+  order: number;
+  content: string;
+  /** Structured metadata by kind (audioUrl, videoUrl, …). */
+  meta: Record<string, unknown> | null;
+}
+
+/** A single content unit resolved by the read adapter (CC-6A). */
+export interface ContentUnitRead {
+  editionKey: string;
+  /** Published revision number, or null when served from legacy. */
+  revisionNumber: number | null;
+  unitKey: string;
+  title: string;
+  summary: string | null;
+  order: number;
+  partNumber: number | null;
+  partTitle: string | null;
+  /** Which store served this unit. */
+  source: "content-core" | "legacy";
+  blocks: ContentReadBlock[];
+}
+
+/** One published unit in a book manifest (CC-6A.1). */
+export interface ManifestUnit {
+  unitKey: string;
+  /** 1-based reading order within the book. */
+  order: number;
+  title: string;
+  summary: string | null;
+  partNumber: number | null;
+  partTitle: string | null;
+}
+
+/** The ordered manifest of a book's published units (CC-6A.1). */
+export interface BookManifest {
+  bookSlug: string;
+  /** Which store served this manifest. */
+  source: "content-core" | "legacy";
+  /** Server-owned edition key — clients never fabricate it. */
+  editionKey: string;
+  revisionNumber: number | null;
+  units: ManifestUnit[];
+}
+
+/**
+ * The current user's marks for one unit (CC-6C), keyed by the stable blockKey.
+ * New clients read the chapter TEXT from `/api/content` and the marks from this
+ * surface; the lector envelope keeps serving marks for old (legacy) clients.
+ */
+export interface ContentUnitMarks {
+  editionKey: string;
+  unitKey: string;
+  highlights: HighlightSummary[];
+  annotations: AnnotationSummary[];
+}
+
+/**
+ * Project a Content Core unit's blocks into the reader's ChapterBlockSummary
+ * shape (CC-6B). Single source of truth so web and mobile build a byte-identical
+ * reader model from the same unit.
+ *
+ * The visual/anchor id stays `legacyBlockId ?? blockKey` so existing marks,
+ * audio-transcript sync and the heartbeat's lastBlockId keep matching with zero
+ * downstream churn; `blockKey` is carried through as the public write identity
+ * used when creating highlights/annotations.
+ */
+export function projectReaderBlocks(unit: {
+  blocks: ContentReadBlock[];
+}): ChapterBlockSummary[] {
+  return unit.blocks
+    .slice()
+    .sort((a, b) => a.order - b.order)
+    .map((b) => ({
+      id: b.legacyBlockId ?? b.blockKey,
+      order: b.order,
+      kind: b.kind as ChapterBlockKind,
+      content: b.content,
+      meta: b.meta,
+      blockKey: b.blockKey,
+      blockVersionId: b.blockVersionId,
+    }));
 }
 
 /**
@@ -2188,7 +2304,10 @@ export function videoBlockInfo(block: {
 
 export interface HighlightSummary {
   id: string;
-  blockId: string;
+  /** Stable public block identity (uuidv5). Match reader blocks by this. */
+  blockKey: string;
+  /** Legacy ChapterBlock id — compatibility bridge; nullable for pure-core blocks. */
+  blockId: string | null;
   startOffset: number;
   endOffset: number;
   color: HighlightColor;
@@ -2198,7 +2317,10 @@ export interface HighlightSummary {
 
 export interface AnnotationSummary {
   id: string;
-  blockId: string;
+  /** Stable public block identity (uuidv5). Match reader blocks by this. */
+  blockKey: string;
+  /** Legacy ChapterBlock id — compatibility bridge; nullable for pure-core blocks. */
+  blockId: string | null;
   text: string;
   createdAt: Date;
   updatedAt: Date;
@@ -2328,7 +2450,15 @@ export interface LectorCompleteResponse {
 // ─── Highlights ──────────────────────────────────────────────────────────────
 
 export interface CreateHighlightRequest {
-  blockId: string;
+  /** Public stable block identity (CC-6B). Preferred anchor for new clients. */
+  blockKey?: string;
+  /** Legacy ChapterBlock id. Still accepted for backward compatibility. */
+  blockId?: string;
+  /**
+   * Source text version the user read (CC-6C). Required for a Content Core
+   * write (blockKey); omit for a legacy blockId-only write.
+   */
+  blockVersionId?: string;
   startOffset: number;
   endOffset: number;
   color?: HighlightColor;
@@ -2343,7 +2473,10 @@ export interface CreateHighlightResponse {
 // ─── Annotations ─────────────────────────────────────────────────────────────
 
 export interface CreateAnnotationRequest {
-  blockId: string;
+  /** Public stable block identity (CC-6B). Preferred anchor for new clients. */
+  blockKey?: string;
+  /** Legacy ChapterBlock id. Still accepted for backward compatibility. */
+  blockId?: string;
   text: string;
 }
 
@@ -2359,6 +2492,100 @@ export interface UpdateAnnotationRequest {
 export interface UpdateAnnotationResponse {
   ok: true;
   annotation: AnnotationSummary;
+}
+
+// ─── CC-6D — source-aware mark writes + reads ────────────────────────────────
+//
+// A reader unit is served either from Content Core (`content-core`) or from the
+// legacy envelope (`legacy`). BOTH kinds of block carry a `blockKey`, but a
+// legacy-served block has NO published BlockVersion behind it, so anchoring a
+// write by blockKey would be rejected by the server (SOURCE_BLOCK_VERSION_*).
+// The client must therefore decide by `unit.source`, NOT by the mere presence of
+// a blockKey. These pure helpers live here so web + mobile apply the exact same
+// rule by construction (same pattern as `projectReaderBlocks`).
+
+export type ReaderMarkSource = ContentUnitRead["source"];
+
+/**
+ * Source-aware highlight write payload (CC-6D).
+ * - `content-core`: anchor by `blockKey` + the source `blockVersionId` the reader
+ *   saw (CC-6C). Never sends the legacy `blockId`.
+ * - `legacy`: anchor by the legacy `blockId`. Never sends `blockKey`/`blockVersionId`.
+ */
+export function highlightWritePayload(input: {
+  source: ReaderMarkSource;
+  blockKey: string | null;
+  blockVersionId: string | null;
+  legacyBlockId: string | null;
+  startOffset: number;
+  endOffset: number;
+  color: HighlightColor;
+}): CreateHighlightRequest {
+  const geometry = {
+    startOffset: input.startOffset,
+    endOffset: input.endOffset,
+    color: input.color,
+  };
+  if (input.source === "content-core") {
+    // CC-6E — refuse to build an incomplete payload rather than POST a body the
+    // server will reject: a content-core write MUST carry the blockKey.
+    if (!input.blockKey) {
+      throw new Error("MARK_WRITE_MISSING_BLOCK_KEY");
+    }
+    return {
+      blockKey: input.blockKey,
+      ...(input.blockVersionId ? { blockVersionId: input.blockVersionId } : {}),
+      ...geometry,
+    };
+  }
+  if (!input.legacyBlockId) {
+    throw new Error("MARK_WRITE_MISSING_BLOCK_ID");
+  }
+  return { blockId: input.legacyBlockId, ...geometry };
+}
+
+/**
+ * Source-aware annotation write payload (CC-6D). Block-level (no offsets/version):
+ * `content-core` anchors by `blockKey`; `legacy` anchors by the legacy `blockId`.
+ */
+export function annotationWritePayload(input: {
+  source: ReaderMarkSource;
+  blockKey: string | null;
+  legacyBlockId: string | null;
+  text: string;
+}): CreateAnnotationRequest {
+  if (input.source === "content-core") {
+    if (!input.blockKey) {
+      throw new Error("MARK_WRITE_MISSING_BLOCK_KEY");
+    }
+    return { blockKey: input.blockKey, text: input.text };
+  }
+  if (!input.legacyBlockId) {
+    throw new Error("MARK_WRITE_MISSING_BLOCK_ID");
+  }
+  return { blockId: input.legacyBlockId, text: input.text };
+}
+
+/**
+ * Whether the reader must read marks from the CC-6C per-unit surface. A
+ * `content-core` unit MUST (its marks aren't in the legacy envelope); a `legacy`
+ * unit uses the envelope's marks and must NOT hit the surface.
+ */
+export function shouldFetchUnitMarks(source: ReaderMarkSource): boolean {
+  return source === "content-core";
+}
+
+/**
+ * How a Content Core marks-read failure is surfaced (CC-6D). An auth/authz
+ * failure (401/403) must PROPAGATE — never silently fall back to the envelope;
+ * any other failure (404/500/network) shows a visible "marks unavailable" state.
+ * A content-core marks read never silently falls back to the envelope.
+ */
+export type MarksReadFailure = "auth" | "unavailable";
+export function classifyMarksReadFailure(
+  status: number | undefined,
+): MarksReadFailure {
+  return status === 401 || status === 403 ? "auth" : "unavailable";
 }
 
 // ─── Reader preferences (response shape) ─────────────────────────────────────

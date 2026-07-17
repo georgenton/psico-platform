@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,11 +16,13 @@ import {
   annotationsApi,
   highlightsApi,
   resonancesApi,
+  contentCoreApi,
 } from "@psico/api-client";
 import type {
   AnnotationSummary,
   BreatheExercise,
   ChapterBlockSummary,
+  ContentUnitRead,
   HighlightColor,
   HighlightSummary,
   LectorChapterResponse,
@@ -32,6 +34,12 @@ import {
   reflexionEcoSeed,
   videoBlockInfo,
   chapterConcept,
+  projectReaderBlocks,
+  highlightWritePayload,
+  annotationWritePayload,
+  shouldFetchUnitMarks,
+  classifyMarksReadFailure,
+  type ReaderMarkSource,
 } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 import { LectorAudioBar } from "@/components/dashboard/lector/LectorAudioBar";
@@ -80,6 +88,27 @@ export default function LectorScreen() {
   const [chapter, setChapter] = useState<LectorChapterResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // CC-6B: the chapter's block TEXT comes from Content Core. `contentError` is a
+  // genuine content fault (integrity error / retired unit) we must NOT mask with
+  // the lector's own blocks — it renders "contenido temporalmente no disponible".
+  const [unit, setUnit] = useState<ContentUnitRead | null>(null);
+  const [contentError, setContentError] = useState(false);
+  // CC-6D — a content-core marks read failed (404/500/network). Fail-closed: we
+  // show a banner and never fall back to the envelope's marks.
+  const [marksError, setMarksError] = useState(false);
+  // CC-6D — the reader unit's provenance decides every mark decision (write
+  // anchor + where marks come from). A legacy block also carries a blockKey, so
+  // its mere presence must never drive this.
+  const markSource: ReaderMarkSource = unit?.source ?? "legacy";
+  // Blocks + the id → blockKey map (CC-6B). The visual id stays
+  // legacyBlockId ?? blockKey so marks/audio-sync/heartbeat keep matching;
+  // blockKey is the public write identity for new highlights/annotations.
+  const blocks = useMemo(() => (unit ? projectReaderBlocks(unit) : []), [unit]);
+  const blockKeyById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of blocks) if (b.blockKey) m.set(b.id, b.blockKey);
+    return m;
+  }, [blocks]);
 
   // Annotation state.
   const [annotations, setAnnotations] = useState<AnnotationSummary[]>([]);
@@ -148,18 +177,15 @@ export default function LectorScreen() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    lectorApi
-      .getChapter(slug ?? "", order)
-      .then((data) => {
-        if (cancelled) return;
-        setChapter(data);
-        setAnnotations(data.annotations);
-        setHighlights(data.highlights);
-        lastBlockIdRef.current =
-          data.session.lastBlockId ?? data.blocks[0]?.id ?? "";
-        progressRef.current = data.session.progressPct;
-      })
-      .catch((e: unknown) => {
+    setContentError(false);
+    setMarksError(false);
+    setUnit(null);
+    (async () => {
+      let data: LectorChapterResponse;
+      try {
+        // Envelope first — book/session/prefs/marks/audio.
+        data = await lectorApi.getChapter(slug ?? "", order);
+      } catch (e: unknown) {
         if (cancelled) return;
         const status =
           (e as { statusCode?: number; status?: number })?.statusCode ??
@@ -171,10 +197,70 @@ export default function LectorScreen() {
         } else {
           setError("No pudimos cargar el capítulo. Reintenta.");
         }
-      })
-      .finally(() => {
+        setLoading(false);
+        return;
+      }
+      if (cancelled) return;
+      setChapter(data);
+      setAnnotations(data.annotations);
+      setHighlights(data.highlights);
+      progressRef.current = data.session.progressPct;
+
+      // CC-6B: resolve the block TEXT from Content Core (fail-closed — a
+      // retired unit or integrity error shows unavailable, never legacy blocks).
+      try {
+        const manifest = await contentCoreApi.getManifest(data.book.slug);
+        const mu = manifest.units.find((u) => u.order === data.chapter.order);
+        if (!mu) {
+          if (!cancelled) setContentError(true);
+          return;
+        }
+        const u = await contentCoreApi.getUnit(manifest.editionKey, mu.unitKey);
+        if (cancelled) return;
+        setUnit(u);
+        lastBlockIdRef.current =
+          data.session.lastBlockId ??
+          u.blocks[0]?.legacyBlockId ??
+          u.blocks[0]?.blockKey ??
+          "";
+        // CC-6D: read marks SOURCE-AWARE. Only a content-core unit reads from the
+        // CC-6C surface; a legacy unit keeps the envelope marks set above. A
+        // content-core failure NEVER silently falls back to the envelope: an auth
+        // failure is surfaced; anything else shows the "unavailable" banner.
+        if (shouldFetchUnitMarks(u.source)) {
+          try {
+            const m = await contentCoreApi.getUnitMarks(
+              manifest.editionKey,
+              mu.unitKey,
+            );
+            if (!cancelled && m) {
+              setHighlights(m.highlights);
+              setAnnotations(m.annotations);
+            }
+          } catch (e: unknown) {
+            if (cancelled) return;
+            const status =
+              (e as { statusCode?: number; status?: number })?.statusCode ??
+              (e as { status?: number })?.status;
+            if (classifyMarksReadFailure(status) === "auth") {
+              // Propagate auth/authz — never silently show the envelope marks.
+              setError(
+                "Tu sesión expiró. Vuelve a iniciar sesión para ver tus marcas.",
+              );
+              return;
+            }
+            // 404/500/network — visible "unavailable", fail-closed (no envelope).
+            setHighlights([]);
+            setAnnotations([]);
+            setMarksError(true);
+          }
+        }
+      } catch {
+        if (!cancelled) setContentError(true);
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -210,9 +296,34 @@ export default function LectorScreen() {
 
   // ── Annotation CRUD ───────────────────────────────────────────────────
 
+  // CC-6E §5.1 — when a content-core marks read failed we temporarily block
+  // creating a new mark: without the current set we can't safely place a new
+  // anchor (risking a duplicate/misplaced mark). Returns true (and warns) when
+  // a create should be refused.
+  function markWritesBlocked(): boolean {
+    if (markSource === "content-core" && marksError) {
+      Alert.alert(
+        "Marcas no disponibles",
+        "Tus marcas no están disponibles ahora. Reintenta antes de crear una nueva.",
+      );
+      return true;
+    }
+    return false;
+  }
+
   async function createAnnotation(blockId: string, text: string) {
+    if (markWritesBlocked()) return;
+    // CC-6D: anchor by the unit's SOURCE, not the presence of a blockKey.
+    const blockKey = blockKeyById.get(blockId);
     try {
-      const res = await annotationsApi.create({ blockId, text });
+      const res = await annotationsApi.create(
+        annotationWritePayload({
+          source: markSource,
+          blockKey: blockKey ?? null,
+          legacyBlockId: blockId,
+          text,
+        }),
+      );
       setAnnotations((prev) => [...prev, res.annotation]);
     } catch {
       Alert.alert("Error", "No pudimos guardar la nota.");
@@ -232,13 +343,17 @@ export default function LectorScreen() {
   // ── Highlight CRUD ────────────────────────────────────────────────────
 
   async function createHighlight(blockId: string, color: HighlightColor) {
-    const block = chapter?.blocks.find((b) => b.id === blockId);
+    if (markWritesBlocked()) return;
+    const block = blocks.find((b) => b.id === blockId);
     if (!block) return;
     // Block-level v1: span the whole block content. The backend validates
     // 0 ≤ startOffset < endOffset ≤ content.length so we land exactly at
     // the bounds.
     const startOffset = 0;
     const endOffset = block.content.length;
+    // CC-6D: anchor by the unit's SOURCE (blockKey + read version for content
+    // core; legacy blockId for a legacy unit) — see the shared helper.
+    const blockKey = block.blockKey;
 
     // Optimistic insert with a temp ID so the UI tints immediately. We
     // swap to the server ID once create() resolves; on failure we drop
@@ -246,6 +361,7 @@ export default function LectorScreen() {
     const tempId = `temp-${Date.now()}`;
     const optimistic: HighlightSummary = {
       id: tempId,
+      blockKey: blockKey ?? "",
       blockId,
       startOffset,
       endOffset,
@@ -255,12 +371,17 @@ export default function LectorScreen() {
     };
     setHighlights((prev) => [...prev, optimistic]);
     try {
-      const res = await highlightsApi.create({
-        blockId,
-        startOffset,
-        endOffset,
-        color,
-      });
+      const res = await highlightsApi.create(
+        highlightWritePayload({
+          source: markSource,
+          blockKey: blockKey ?? null,
+          blockVersionId: block.blockVersionId ?? null,
+          legacyBlockId: blockId,
+          startOffset,
+          endOffset,
+          color,
+        }),
+      );
       setHighlights((prev) =>
         prev.map((h) => (h.id === tempId ? res.highlight : h)),
       );
@@ -308,9 +429,9 @@ export default function LectorScreen() {
     scrollOffsetRef.current = y;
     if (!chapter) return;
     // Find the block whose offset is closest to (and not past) the scroll y.
-    let best = chapter.blocks[0]?.id ?? "";
+    let best = blocks[0]?.id ?? "";
     let bestY = -Infinity;
-    for (const b of chapter.blocks) {
+    for (const b of blocks) {
       const off = blockOffsetsRef.current[b.id] ?? 0;
       if (off <= y + 100 && off > bestY) {
         best = b.id;
@@ -318,9 +439,9 @@ export default function LectorScreen() {
       }
     }
     lastBlockIdRef.current = best;
-    const idx = chapter.blocks.findIndex((b) => b.id === best);
+    const idx = blocks.findIndex((b) => b.id === best);
     if (idx >= 0) {
-      const ratio = (idx + 1) / chapter.blocks.length;
+      const ratio = (idx + 1) / blocks.length;
       if (ratio > progressRef.current) progressRef.current = ratio;
     }
   }
@@ -349,18 +470,42 @@ export default function LectorScreen() {
 
   if (!chapter) return null;
 
+  // CC-6B fail-closed: a genuine content fault (integrity error / retired unit)
+  // is never masked with the lector's own blocks — show unavailable + a way out.
+  if (contentError) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorEmoji}>📖</Text>
+        <Text style={styles.errorText}>
+          Contenido temporalmente no disponible. Vuelve a intentarlo en un rato
+          — tus notas y marcas siguen guardadas.
+        </Text>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Volver al libro</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  // Marks bucket by the stable blockKey (legacy fallback); blocks are looked up
+  // by `b.blockKey ?? b.id`, identical for legacy books and correct for
+  // pure-core blocks too (CC-6B).
   const annotationsByBlock = new Map<string, AnnotationSummary[]>();
   for (const a of annotations) {
-    const list = annotationsByBlock.get(a.blockId) ?? [];
+    const key = a.blockKey || a.blockId;
+    if (!key) continue;
+    const list = annotationsByBlock.get(key) ?? [];
     list.push(a);
-    annotationsByBlock.set(a.blockId, list);
+    annotationsByBlock.set(key, list);
   }
 
   const highlightsByBlock = new Map<string, HighlightSummary[]>();
   for (const h of highlights) {
-    const list = highlightsByBlock.get(h.blockId) ?? [];
+    const key = h.blockKey || h.blockId;
+    if (!key) continue;
+    const list = highlightsByBlock.get(key) ?? [];
     list.push(h);
-    highlightsByBlock.set(h.blockId, list);
+    highlightsByBlock.set(key, list);
   }
 
   return (
@@ -388,6 +533,17 @@ export default function LectorScreen() {
           onOpenEco={(prompt) => openCompanion("eco", { ecoSeed: prompt })}
         />
 
+        {/* CC-6D — a content-core marks read failed. Visible + fail-closed: the
+            chapter stays readable, but we never show the envelope's marks. */}
+        {marksError ? (
+          <View style={styles.marksBanner}>
+            <Text style={styles.marksBannerText}>
+              No pudimos cargar tus marcas en este momento. Tus resaltados y
+              notas están a salvo; vuelve a abrir el capítulo para reintentar.
+            </Text>
+          </View>
+        ) : null}
+
         {chapter.chapter.audioAvailable ? (
           <View style={styles.audioWrap}>
             <LectorAudioBar
@@ -410,12 +566,12 @@ export default function LectorScreen() {
           </View>
         ) : null}
 
-        {chapter.blocks.map((b) => (
+        {blocks.map((b) => (
           <BlockView
             key={b.id}
             block={b}
-            annotations={annotationsByBlock.get(b.id) ?? []}
-            highlights={highlightsByBlock.get(b.id) ?? []}
+            annotations={annotationsByBlock.get(b.blockKey ?? b.id) ?? []}
+            highlights={highlightsByBlock.get(b.blockKey ?? b.id) ?? []}
             onLongPress={() => setActionBlockId(b.id)}
             onDeleteAnnotation={deleteAnnotation}
             onLayout={(y) => {
@@ -446,7 +602,13 @@ export default function LectorScreen() {
       {/* Block actions sheet — long-press menu (Sprint mobile-highlights) */}
       {actionBlockId && (
         <BlockActionsSheet
-          hasHighlight={(highlightsByBlock.get(actionBlockId) ?? []).length > 0}
+          hasHighlight={
+            (
+              highlightsByBlock.get(
+                blockKeyById.get(actionBlockId) ?? actionBlockId,
+              ) ?? []
+            ).length > 0
+          }
           onPickColor={async (color) => {
             setActionBlockId(null);
             await createHighlight(actionBlockId, color);
@@ -457,12 +619,12 @@ export default function LectorScreen() {
             openCompanion("notas", { blockId: id });
           }}
           onReflect={() => {
-            const block = chapter.blocks.find((b) => b.id === actionBlockId);
+            const block = blocks.find((b) => b.id === actionBlockId);
             setActionBlockId(null);
             if (block) openCompanion("reflexion", { passage: block.content });
           }}
           onAskEco={() => {
-            const block = chapter.blocks.find((b) => b.id === actionBlockId);
+            const block = blocks.find((b) => b.id === actionBlockId);
             setActionBlockId(null);
             if (block) openCompanion("eco", { passage: block.content });
           }}
@@ -497,7 +659,10 @@ export default function LectorScreen() {
             }
           }}
           onRemoveHighlights={async () => {
-            const list = highlightsByBlock.get(actionBlockId) ?? [];
+            const list =
+              highlightsByBlock.get(
+                blockKeyById.get(actionBlockId) ?? actionBlockId,
+              ) ?? [];
             setActionBlockId(null);
             await Promise.all(list.map((h) => deleteHighlight(h.id)));
           }}
@@ -690,6 +855,9 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     backgroundColor: Colors.warm[50],
   },
+  errorEmoji: {
+    fontSize: 40,
+  },
   errorText: {
     marginTop: Spacing.md,
     fontSize: 14,
@@ -720,6 +888,18 @@ const styles = StyleSheet.create({
   audioWrap: {
     marginBottom: Spacing.lg,
     alignItems: "flex-start",
+  },
+  marksBanner: {
+    marginBottom: Spacing.lg,
+    padding: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: "#fcd34d", // amber-300
+    backgroundColor: "#fffbeb", // amber-50
+  },
+  marksBannerText: {
+    fontSize: 14,
+    color: "#78350f", // amber-900
   },
   block: { marginBottom: Spacing.md },
   blockHeading: { marginTop: Spacing.lg },

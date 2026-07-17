@@ -10,6 +10,7 @@ import {
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
+  ApiForbiddenResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -25,6 +26,7 @@ import { HighlightsService } from "./highlights.service";
 @ApiTags("Highlights")
 @ApiBadRequestResponse({ type: ErrorEnvelopeDto })
 @ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+@ApiForbiddenResponse({ type: ErrorEnvelopeDto }) // PRO_REQUIRED (CC-6E)
 @Controller("highlights")
 @UseGuards(JwtAuthGuard)
 export class HighlightsController {
@@ -35,7 +37,7 @@ export class HighlightsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateHighlightDto,
   ): Promise<CreateHighlightResponse> {
-    return this.highlights.create(user.userId, dto);
+    return this.highlights.create(user.userId, user.plan, dto);
   }
 
   @Delete(":id")

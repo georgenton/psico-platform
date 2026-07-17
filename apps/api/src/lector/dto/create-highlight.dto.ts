@@ -23,14 +23,34 @@ export type HighlightColorEnum = (typeof HIGHLIGHT_COLORS)[number];
  */
 export class CreateHighlightDto {
   /**
-   * Stable ID of the `ChapterBlock` the highlight anchors to. Server
-   * verifies the block exists and belongs to a book the user has
-   * access to (FREE plan can highlight in free chapters; PRO is
-   * unrestricted).
+   * Public stable block identity (Content Core, CC-6B). Preferred anchor for
+   * new clients. Resolved server-side to the legacy binding; if `blockId` is
+   * also sent they must correspond (else ANCHOR_IDENTITY_MISMATCH).
    */
+  @IsOptional()
   @IsString()
   @Length(1, 64)
-  blockId!: string;
+  blockKey?: string;
+
+  /**
+   * Legacy ChapterBlock id — still accepted for backward compatibility. At
+   * least one of `blockKey`/`blockId` is required (else ANCHOR_MISSING_TARGET).
+   */
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  blockId?: string;
+
+  /**
+   * Source text version the user read (CC-6C). REQUIRED for a Content Core
+   * write (`blockKey`) so the offsets validate against, and the quote is
+   * captured from, exactly that BlockVersion — not whatever is published at
+   * POST time. Omitted for a legacy `blockId`-only write.
+   */
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  blockVersionId?: string;
 
   /**
    * UTF-16 code-unit offset into the block's `content` where the

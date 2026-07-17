@@ -10,6 +10,13 @@ import type {
 } from "@psico/types";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
+import {
+  resolveAnnotationWriteAnchor,
+  resolveStoredMarkBlockKey,
+} from "../content-core/marks/mark-anchor";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ContentAccessService } from "../content-core/access/content-access.service";
 import type {
   CreateAnnotationDto,
   UpdateAnnotationDto,
@@ -21,17 +28,37 @@ export class AnnotationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly lector: LectorService,
+    private readonly access: ContentAccessService,
   ) {}
 
   async create(
     userId: string,
+    userPlan: string,
     dto: CreateAnnotationDto,
   ): Promise<CreateAnnotationResponse> {
-    await this.lector.assertBlockExists(dto.blockId);
-    const created = await this.prisma.annotation.create({
-      data: { userId, blockId: dto.blockId, text: dto.text },
+    // CC-6E — creating a mark requires access to the unit it anchors to (same
+    // FREE/PRO policy as the read endpoints; a blockKey grants nothing).
+    await this.access.assertCanWriteMark({
+      userId,
+      userPlan,
+      blockKey: dto.blockKey,
+      blockId: dto.blockId,
     });
-    return { ok: true, annotation: this.serialise(created) };
+    // CC-6C: resolve the durable anchor. On the Content Core path the block must
+    // still be live in the published edition; pure Content Core blocks are OK.
+    const anchor = await resolveAnnotationWriteAnchor(this.prisma, {
+      blockKey: dto.blockKey,
+      blockId: dto.blockId,
+    });
+    const created = await this.prisma.annotation.create({
+      data: {
+        userId,
+        blockId: anchor.blockId,
+        contentBlockId: anchor.contentBlockId,
+        text: dto.text,
+      },
+    });
+    return { ok: true, annotation: this.serialise(created, anchor.blockKey) };
   }
 
   async update(
@@ -49,7 +76,10 @@ export class AnnotationsService {
       where: { id: annotationId },
       data: { text: dto.text },
     });
-    return { ok: true, annotation: this.serialise(updated) };
+    // CC-6C: re-resolve the stable identity so a pure-core annotation never
+    // serialises blockKey="" and stays bucketed on the client after an edit.
+    const blockKey = await resolveStoredMarkBlockKey(this.prisma, updated);
+    return { ok: true, annotation: this.serialise(updated, blockKey) };
   }
 
   async delete(userId: string, annotationId: string): Promise<void> {
@@ -64,9 +94,13 @@ export class AnnotationsService {
 
   private serialise(
     a: Awaited<ReturnType<PrismaService["annotation"]["create"]>>,
+    // Public identity: the resolver's blockKey (create), or derived from the
+    // legacy anchor. A pure-core row has no blockId.
+    blockKey = a.blockId ? blockKeyFromLegacyId(a.blockId) : "",
   ): AnnotationSummary {
     return {
       id: a.id,
+      blockKey,
       blockId: a.blockId,
       text: a.text,
       createdAt: a.createdAt,

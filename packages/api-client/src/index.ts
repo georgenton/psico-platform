@@ -4,6 +4,7 @@ export { ApiError } from "./error";
 export { authApi } from "./auth";
 export { booksApi } from "./books";
 export { contentApi } from "./content";
+export { contentCoreApi } from "./content-core";
 export { diarioApi } from "./diario";
 export { homeApi } from "./home";
 // Sprint B1 — POST /api/mood time series for the Topbar MoodChip.

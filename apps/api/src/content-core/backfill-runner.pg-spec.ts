@@ -79,6 +79,7 @@ suite("Content Core · CC-6F targeted backfill runner (real PostgreSQL)", () => 
   const TARGET = "familias-ensambladas"; // the book we backfill
   const OTHER = "emociones-en-construccion"; // must remain untouched
   let targetBlockId = "";
+  let targetCh2Id = "";
   let userId = "";
 
   beforeAll(async () => {
@@ -116,7 +117,10 @@ suite("Content Core · CC-6F targeted backfill runner (real PostgreSQL)", () => 
             content: `Contenido ${slug} ${order}`,
           },
         });
-        if (slug === TARGET && order === 2) targetBlockId = block.id;
+        if (slug === TARGET && order === 2) {
+          targetBlockId = block.id;
+          targetCh2Id = ch.id;
+        }
       }
     }
 
@@ -232,33 +236,160 @@ suite("Content Core · CC-6F targeted backfill runner (real PostgreSQL)", () => 
     expect(report.planned_block_versions_created).toBe(0);
   });
 
-  it("5. drift → BACKFILL_DRIFT_DETECTED and zero writes", async () => {
-    // Mutate the legacy source so it no longer matches the published version.
-    const original = await prisma.chapterBlock.findUniqueOrThrow({
-      where: { id: targetBlockId },
-    });
-    await prisma.chapterBlock.update({
-      where: { id: targetBlockId },
-      data: { content: "CONTENIDO EDITADO POST-PUBLICACIÓN (drift)" },
-    });
-    try {
-      // Dry-run surfaces it as a metric…
-      const report = await dryRunTargetedBackfill(prisma, TARGET);
-      expect(report.drift_conflicts).toBe(1);
-      expect(report.backfill_safe).toBe(false);
+  // 5. Per-field drift matrix — dry-run and apply share ONE inspection
+  //    (backfill-inspect.ts), so EVERY create-or-verify field must (a) surface
+  //    as drift_conflicts>0 in the dry-run, (b) make the apply throw
+  //    BACKFILL_DRIFT_DETECTED, and (c) leave zero writes behind.
+  const DRIFT_MUTATIONS: Array<{
+    name: string;
+    mutate: () => Promise<() => Promise<void>>;
+  }> = [
+    {
+      name: "content",
+      mutate: async () => {
+        const orig = await prisma.chapterBlock.findUniqueOrThrow({
+          where: { id: targetBlockId },
+        });
+        await prisma.chapterBlock.update({
+          where: { id: targetBlockId },
+          data: { content: "CONTENIDO EDITADO POST-PUBLICACIÓN (drift)" },
+        });
+        return async () => {
+          await prisma.chapterBlock.update({
+            where: { id: targetBlockId },
+            data: { content: orig.content },
+          });
+        };
+      },
+    },
+    {
+      name: "title",
+      mutate: async () => {
+        const orig = await prisma.chapter.findUniqueOrThrow({
+          where: { id: targetCh2Id },
+        });
+        await prisma.chapter.update({
+          where: { id: targetCh2Id },
+          data: { title: "Título editado (drift)" },
+        });
+        return async () => {
+          await prisma.chapter.update({
+            where: { id: targetCh2Id },
+            data: { title: orig.title },
+          });
+        };
+      },
+    },
+    {
+      name: "summary",
+      mutate: async () => {
+        const orig = await prisma.chapter.findUniqueOrThrow({
+          where: { id: targetCh2Id },
+        });
+        await prisma.chapter.update({
+          where: { id: targetCh2Id },
+          data: { description: "Resumen editado (drift)" },
+        });
+        return async () => {
+          await prisma.chapter.update({
+            where: { id: targetCh2Id },
+            data: { description: orig.description },
+          });
+        };
+      },
+    },
+    {
+      name: "kind",
+      mutate: async () => {
+        const orig = await prisma.chapterBlock.findUniqueOrThrow({
+          where: { id: targetBlockId },
+        });
+        await prisma.chapterBlock.update({
+          where: { id: targetBlockId },
+          data: { kind: "HEADING" },
+        });
+        return async () => {
+          await prisma.chapterBlock.update({
+            where: { id: targetBlockId },
+            data: { kind: orig.kind },
+          });
+        };
+      },
+    },
+    {
+      name: "order",
+      mutate: async () => {
+        const orig = await prisma.chapterBlock.findUniqueOrThrow({
+          where: { id: targetBlockId },
+        });
+        await prisma.chapterBlock.update({
+          where: { id: targetBlockId },
+          data: { order: 9 },
+        });
+        return async () => {
+          await prisma.chapterBlock.update({
+            where: { id: targetBlockId },
+            data: { order: orig.order },
+          });
+        };
+      },
+    },
+    {
+      name: "meta",
+      mutate: async () => {
+        await prisma.chapterBlock.update({
+          where: { id: targetBlockId },
+          data: { meta: { drifted: true } },
+        });
+        return async () => {
+          // Prisma JSON null semantics: DbNull restores "no meta".
+          await prisma.$executeRaw`UPDATE "ChapterBlock" SET meta = NULL WHERE id = ${targetBlockId}`;
+        };
+      },
+    },
+    {
+      name: "placement (partNumber)",
+      mutate: async () => {
+        const orig = await prisma.chapter.findUniqueOrThrow({
+          where: { id: targetCh2Id },
+        });
+        await prisma.chapter.update({
+          where: { id: targetCh2Id },
+          data: { partNumber: 7 },
+        });
+        return async () => {
+          await prisma.chapter.update({
+            where: { id: targetCh2Id },
+            data: { partNumber: orig.partNumber },
+          });
+        };
+      },
+    },
+  ];
 
-      // …and an apply refuses loudly, writing nothing.
-      const before = await coreCounts(prisma);
-      await expect(
-        applyTargetedBackfill(prisma, TARGET, { env: {} }),
-      ).rejects.toThrow("BACKFILL_DRIFT_DETECTED");
-      const after = await coreCounts(prisma);
-      expect(after).toEqual(before);
-    } finally {
-      await prisma.chapterBlock.update({
-        where: { id: targetBlockId },
-        data: { content: original.content },
-      });
-    }
-  });
+  it.each(DRIFT_MUTATIONS)(
+    "5. drift in $name → dry-run flags it, apply throws BACKFILL_DRIFT_DETECTED, zero writes",
+    async ({ mutate }) => {
+      const restore = await mutate();
+      try {
+        const report = await dryRunTargetedBackfill(prisma, TARGET);
+        expect(report.drift_conflicts).toBeGreaterThan(0);
+        expect(report.backfill_safe).toBe(false);
+
+        const before = await coreCounts(prisma);
+        await expect(
+          applyTargetedBackfill(prisma, TARGET, { env: {} }),
+        ).rejects.toThrow("BACKFILL_DRIFT_DETECTED");
+        const after = await coreCounts(prisma);
+        expect(after).toEqual(before);
+      } finally {
+        await restore();
+      }
+
+      // Restored source → clean verdict again (the matrix leaves no residue).
+      const clean = await dryRunTargetedBackfill(prisma, TARGET);
+      expect(clean.drift_conflicts).toBe(0);
+      expect(clean.backfill_safe).toBe(true);
+    },
+  );
 });

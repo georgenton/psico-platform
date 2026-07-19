@@ -1,6 +1,15 @@
 import { BlockKind, type Prisma, type PrismaClient } from "@prisma/client";
 import { CHAPTER_CONCEPTS } from "@psico/types";
 import {
+  blockVersionDrifts,
+  contentBlockDrifts,
+  expectedBlockVersionFields,
+  expectedRevisionUnitFields,
+  expectedUnitVersionFields,
+  revisionUnitDrifts,
+  unitVersionDrifts,
+} from "./backfill-inspect";
+import {
   blockKeyFromLegacyId,
   unitKeyFromLegacyChapterId,
 } from "./lib/block-key";
@@ -139,12 +148,7 @@ export async function backfillContentCore(
 
           // 4. ContentUnitVersion — create-or-verify (drift → throw).
           const versionId = `cuv-${unitKey}`;
-          const verFields = {
-            unitId: unit.id,
-            title: ch.title,
-            summary: ch.description ?? null,
-            durationMinutes: ch.durationMinutes ?? null,
-          };
+          const verFields = expectedUnitVersionFields(ch, unit.id);
           const existingVer = await tx.contentUnitVersion.findUnique({
             where: { id: versionId },
           });
@@ -155,12 +159,7 @@ export async function backfillContentCore(
             });
             versionRowId = created.id;
           } else {
-            if (
-              existingVer.unitId !== verFields.unitId ||
-              existingVer.title !== verFields.title ||
-              existingVer.summary !== verFields.summary ||
-              existingVer.durationMinutes !== verFields.durationMinutes
-            ) {
+            if (unitVersionDrifts(existingVer, verFields)) {
               throw new Error(DRIFT);
             }
             versionRowId = existingVer.id;
@@ -174,8 +173,7 @@ export async function backfillContentCore(
           });
           for (const b of blocks) {
             const blockKey = blockKeyFromLegacyId(b.id);
-            const kind = BlockKind[b.kind as keyof typeof BlockKind];
-            const hash = contentHash(b.content);
+            const bvExpected = expectedBlockVersionFields(b);
             const metaInput =
               b.meta == null ? {} : { meta: b.meta as Prisma.InputJsonValue };
 
@@ -184,7 +182,9 @@ export async function backfillContentCore(
               cb = await tx.contentBlock.create({
                 data: { blockKey, unitId: unit.id, legacyBlockId: b.id },
               });
-            } else if (cb.unitId !== unit.id || cb.legacyBlockId !== b.id) {
+            } else if (
+              contentBlockDrifts(cb, { unitId: unit.id, legacyBlockId: b.id })
+            ) {
               throw new Error(DRIFT);
             }
             stats.blocks += 1;
@@ -202,37 +202,21 @@ export async function backfillContentCore(
                 data: {
                   contentBlockId: cb.id,
                   unitVersionId: versionRowId,
-                  order: b.order,
-                  kind,
-                  content: b.content,
-                  contentHash: hash,
+                  order: bvExpected.order,
+                  kind: bvExpected.kind,
+                  content: bvExpected.content,
+                  contentHash: bvExpected.contentHash,
                   ...metaInput,
                 },
               });
-            } else {
-              const metaSame =
-                JSON.stringify(existingBv.meta ?? null) ===
-                JSON.stringify(b.meta ?? null);
-              if (
-                existingBv.order !== b.order ||
-                existingBv.kind !== kind ||
-                existingBv.content !== b.content ||
-                existingBv.contentHash !== hash ||
-                !metaSame
-              ) {
-                throw new Error(DRIFT);
-              }
+            } else if (blockVersionDrifts(existingBv, bvExpected)) {
+              throw new Error(DRIFT);
             }
             stats.blockVersions += 1;
           }
 
           // 7. RevisionUnit — create-or-verify (order lives here, drift → throw).
-          const ruFields = {
-            unitVersionId: versionRowId,
-            order: ch.order,
-            partNumber: ch.partNumber ?? null,
-            partTitle: ch.partTitle ?? null,
-          };
+          const ruFields = expectedRevisionUnitFields(ch, versionRowId);
           const existingRu = await tx.revisionUnit.findUnique({
             where: {
               revisionId_unitId: { revisionId: revision.id, unitId: unit.id },
@@ -242,12 +226,7 @@ export async function backfillContentCore(
             await tx.revisionUnit.create({
               data: { revisionId: revision.id, unitId: unit.id, ...ruFields },
             });
-          } else if (
-            existingRu.unitVersionId !== ruFields.unitVersionId ||
-            existingRu.order !== ruFields.order ||
-            existingRu.partNumber !== ruFields.partNumber ||
-            existingRu.partTitle !== ruFields.partTitle
-          ) {
+          } else if (revisionUnitDrifts(existingRu, ruFields)) {
             throw new Error(DRIFT);
           }
 

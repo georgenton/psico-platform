@@ -17,6 +17,7 @@ const FILES = [
   // CC-6F — the targeted backfill runner is ops surface, not the Emotional Map.
   join(__dirname, "..", "backfill-runner.ts"),
   join(__dirname, "..", "backfill-cli.ts"),
+  join(__dirname, "..", "backfill-inspect.ts"),
 ];
 
 describe("CC-6C — marks never touch the Emotional Map", () => {

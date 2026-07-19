@@ -1,17 +1,41 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   BACKFILL_FORBIDDEN,
+  BACKFILL_INTERNAL_ERROR,
+  MISSING_BOOK_SLUG,
   assertBackfillAllowed,
   parseRunnerArgs,
+  sanitizeErrorCode,
   serializeDryRunReport,
   type DryRunReport,
 } from "./backfill-runner";
 
 /**
  * CC-6F — operational-surface unit tests (no DB). The DB-backed guarantees
- * (dry-run zero writes, only-requested-slug, idempotence, drift rollback,
+ * (dry-run zero writes, only-requested-slug, idempotence, per-field drift,
  * marks untouched, mid-failure rollback) live in backfill-runner.pg-spec.ts.
  */
+
+// The gate resolves the environment through the canonical PSICO_ENV/Railway
+// resolver, which reads process.env — snapshot & restore around each test.
+const ENV_KEYS = [
+  "PSICO_ENV",
+  "NODE_ENV",
+  "RAILWAY_ENVIRONMENT",
+  "RAILWAY_PROJECT_ID",
+  "RAILWAY_SERVICE_ID",
+] as const;
+let saved: Record<string, string | undefined>;
+beforeEach(() => {
+  saved = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
+  for (const k of ENV_KEYS) delete process.env[k];
+});
+afterEach(() => {
+  for (const k of ENV_KEYS) {
+    if (saved[k] === undefined) delete process.env[k];
+    else process.env[k] = saved[k];
+  }
+});
 
 describe("parseRunnerArgs (CC-6F)", () => {
   it("--apply absent → dry-run (apply=false is the DEFAULT)", () => {
@@ -33,38 +57,118 @@ describe("parseRunnerArgs (CC-6F)", () => {
     ).toBe(true);
   });
 
-  it("a missing --book-slug refuses to run (never the whole catalog)", () => {
-    expect(() => parseRunnerArgs(["--apply"])).toThrow("MISSING_BOOK_SLUG");
+  it("a missing, empty or whitespace-only --book-slug refuses to run", () => {
+    expect(() => parseRunnerArgs(["--apply"])).toThrow(MISSING_BOOK_SLUG);
+    expect(() => parseRunnerArgs(["--book-slug="])).toThrow(MISSING_BOOK_SLUG);
+    expect(() => parseRunnerArgs(["--book-slug=   "])).toThrow(
+      MISSING_BOOK_SLUG,
+    );
+  });
+
+  it("rejects unknown arguments", () => {
+    expect(() => parseRunnerArgs(["--book-slug=x", "--force"])).toThrow(
+      "UNKNOWN_ARGUMENT",
+    );
+    expect(() => parseRunnerArgs(["--book-slug=x", "extra"])).toThrow(
+      "UNKNOWN_ARGUMENT",
+    );
+  });
+
+  it("rejects more than one --book-slug", () => {
+    expect(() => parseRunnerArgs(["--book-slug=a", "--book-slug=b"])).toThrow(
+      "DUPLICATE_BOOK_SLUG",
+    );
+  });
+
+  it("rejects --apply together with --dry-run", () => {
+    expect(() =>
+      parseRunnerArgs(["--book-slug=x", "--apply", "--dry-run"]),
+    ).toThrow("CONFLICTING_MODE_FLAGS");
   });
 });
 
-describe("assertBackfillAllowed (CC-6F)", () => {
-  it("production WITHOUT ALLOW_CONTENT_CORE_BACKFILL=on → BACKFILL_FORBIDDEN", () => {
-    expect(() => assertBackfillAllowed({ NODE_ENV: "production" })).toThrow(
-      BACKFILL_FORBIDDEN,
-    );
+describe("assertBackfillAllowed (CC-6F) — fail-closed environment gate", () => {
+  it("production (PSICO_ENV) WITHOUT the flag → BACKFILL_FORBIDDEN; with on → allowed", () => {
+    process.env.PSICO_ENV = "production";
+    expect(() => assertBackfillAllowed({})).toThrow(BACKFILL_FORBIDDEN);
     expect(() =>
-      assertBackfillAllowed({
-        NODE_ENV: "production",
-        ALLOW_CONTENT_CORE_BACKFILL: "off",
-      }),
+      assertBackfillAllowed({ ALLOW_CONTENT_CORE_BACKFILL: "off" }),
     ).toThrow(BACKFILL_FORBIDDEN);
-  });
-
-  it("production WITH the flag on → allowed", () => {
     expect(() =>
-      assertBackfillAllowed({
-        NODE_ENV: "production",
-        ALLOW_CONTENT_CORE_BACKFILL: "on",
-      }),
+      assertBackfillAllowed({ ALLOW_CONTENT_CORE_BACKFILL: "on" }),
     ).not.toThrow();
   });
 
-  it("non-production → allowed without the flag", () => {
+  it("staging requires the flag exactly like production", () => {
+    process.env.PSICO_ENV = "staging";
+    expect(() => assertBackfillAllowed({})).toThrow(BACKFILL_FORBIDDEN);
     expect(() =>
-      assertBackfillAllowed({ NODE_ENV: "development" }),
+      assertBackfillAllowed({ ALLOW_CONTENT_CORE_BACKFILL: "on" }),
     ).not.toThrow();
+  });
+
+  it("a Railway box WITHOUT PSICO_ENV fails closed (resolver throws)", () => {
+    process.env.RAILWAY_PROJECT_ID = "some-project";
+    expect(() =>
+      assertBackfillAllowed({ ALLOW_CONTENT_CORE_BACKFILL: "on" }),
+    ).toThrow(/PSICO_ENV/);
+  });
+
+  it("a Railway box claiming development fails closed (NODE_ENV never decides)", () => {
+    process.env.RAILWAY_PROJECT_ID = "some-project";
+    process.env.PSICO_ENV = "development";
+    process.env.NODE_ENV = "development";
+    expect(() =>
+      assertBackfillAllowed({ ALLOW_CONTENT_CORE_BACKFILL: "on" }),
+    ).toThrow();
+  });
+
+  it("an invalid PSICO_ENV fails closed", () => {
+    process.env.PSICO_ENV = "weird-env";
+    expect(() =>
+      assertBackfillAllowed({ ALLOW_CONTENT_CORE_BACKFILL: "on" }),
+    ).toThrow(/PSICO_ENV/);
+  });
+
+  it("local development → allowed without the flag", () => {
+    process.env.PSICO_ENV = "development";
     expect(() => assertBackfillAllowed({})).not.toThrow();
+    delete process.env.PSICO_ENV;
+    process.env.NODE_ENV = "test";
+    expect(() => assertBackfillAllowed({})).not.toThrow();
+  });
+});
+
+describe("sanitizeErrorCode (CC-6F) — nothing but the whitelist escapes", () => {
+  it("passes the whitelisted machine codes through", () => {
+    for (const code of [
+      "BOOK_NOT_FOUND",
+      "BACKFILL_FORBIDDEN",
+      "BACKFILL_DRIFT_DETECTED",
+      "MISSING_BOOK_SLUG",
+    ]) {
+      expect(sanitizeErrorCode(new Error(code))).toBe(code);
+    }
+  });
+
+  it("a Prisma-style error with sensitive text becomes BACKFILL_INTERNAL_ERROR", () => {
+    const prismaish = new Error(
+      "Invalid `prisma.user.findUnique()` invocation: connection to " +
+        "postgresql://psico:supersecret@db.internal:5432/psico failed — " +
+        'row {email: "someone@private.example"} not reachable',
+    );
+    const out = sanitizeErrorCode(prismaish);
+    expect(out).toBe(BACKFILL_INTERNAL_ERROR);
+    expect(out).not.toContain("supersecret");
+    expect(out).not.toContain("someone@private.example");
+    expect(out).not.toContain("postgresql://");
+  });
+
+  it("non-Error values also collapse to BACKFILL_INTERNAL_ERROR", () => {
+    expect(sanitizeErrorCode("raw string with secrets")).toBe(
+      BACKFILL_INTERNAL_ERROR,
+    );
+    expect(sanitizeErrorCode(undefined)).toBe(BACKFILL_INTERNAL_ERROR);
   });
 });
 

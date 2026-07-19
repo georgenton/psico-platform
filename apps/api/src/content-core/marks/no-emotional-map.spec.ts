@@ -14,6 +14,9 @@ const FILES = [
   // CC-6E — the content-access policy is entitlement, not the Emotional Map.
   join(__dirname, "..", "access", "content-access.ts"),
   join(__dirname, "..", "access", "content-access.service.ts"),
+  // CC-6F — the targeted backfill runner is ops surface, not the Emotional Map.
+  join(__dirname, "..", "backfill-runner.ts"),
+  join(__dirname, "..", "backfill-cli.ts"),
 ];
 
 describe("CC-6C — marks never touch the Emotional Map", () => {

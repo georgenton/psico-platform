@@ -116,6 +116,6 @@ ContentAccessService`. Sin contextos opcionales que eviten el gate; clave
 - El Mapa conserva su contrato V2; la única conversión resonancia→eje que
   existe es la preexistente ARC, ahora marcada como decisión pendiente e
   independiente que el test de inversión obliga a resolver explícitamente.
-- El costo de la pureza: cada tipo de evento nuevo exige comando + transición
-  - parser + tests. Es deliberado — añadir un evento debe doler un poco para
-    que nadie cuele telemetría arbitraria ni claims disfrazados de hechos.
+- El costo de la pureza: cada tipo de evento nuevo exige comando, transición,
+  parser y tests. Es deliberado — añadir un evento debe doler un poco para que
+  nadie cuele telemetría arbitraria ni claims disfrazados de hechos.

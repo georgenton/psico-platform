@@ -1,7 +1,8 @@
-# ADR 0017 — LearningEvent V1: registro educativo append-only con firewall emocional absoluto
+# ADR 0017 — LearningEvent V1: comandos de dominio append-only con firewall emocional absoluto
 
-**Estado:** Propuesto (diseño CC-7, 2026-07-19). Sin implementación aún —
-contrato completo en [docs/architecture/learning-events.md](../architecture/learning-events.md).
+**Estado:** Propuesto (diseño CC-7, 2026-07-19; corregido tras review de PR
+#584). Sin implementación aún — contrato completo en
+[docs/architecture/learning-events.md](../architecture/learning-events.md).
 
 ## Contexto
 
@@ -14,72 +15,107 @@ final.
 
 El programa V2 del Mapa Emocional estableció (Fase C, "aprendizaje ≠ mapa")
 que el engagement educativo no puntúa ejes emocionales. Ese principio debe
-sobrevivir a la llegada de un log educativo rico — el riesgo obvio es que un
-sistema futuro "aproveche" los eventos como señal psicológica.
+sobrevivir a la llegada de un log educativo rico.
+
+La primera versión de este diseño modelaba un `POST /api/learning/events`
+genérico donde el cliente declaraba hechos (`unit_completed`, `result:
+"correct"`, `stepsCompleted`). La review lo rechazó con razón: **un log no es
+server-owned si el evento se limita a copiar una afirmación del cliente.**
 
 ## Decisión
 
-1. **Append-only, server-owned.** El cliente solicita (`type` + claves de
-   catálogo); el servidor valida contra una **unión discriminada cerrada**,
-   resuelve IDs, fecha con su reloj y construye el registro. Sin UPDATE ni
-   DELETE por API. Sin `Record<string, unknown>`, sin campo `meta`, sin JSON
-   libre en el wire (la columna `payload Json` es encoding de un payload ya
-   validado, no contrato).
-2. **V1 = 7 tipos:** `unit_opened`, `unit_completed`, `concept_explored`,
-   `guide_session_started`, `guide_session_completed`,
-   `active_recall_attempted`, `practice_completed`. Los `guide_session_*` solo
-   los emite el servidor en transiciones de `GuideSession` (no request-ables).
-   Los kinds sobrantes del enum actual (`BLOCK_DWELL`, `HIGHLIGHT_CREATED`,
-   `ANNOTATION_CREATED`, `RESONANCE_CONFIRMED`) quedan fuera de V1.
-3. **Sin texto personal por construcción:** ningún campo del contrato puede
-   portar texto libre — todos los strings son claves validadas contra catálogo
-   (Content Core, CHAPTER_CONCEPTS, CHAPTER_EXERCISES, ítems de recall) y el
-   resultado de recall es categórico (`correct|incorrect|skipped`), jamás la
-   respuesta del usuario.
-4. **Firewall emocional absoluto (invariante):** LearningEvent, ReadingSession,
-   GuideSession, progreso, quizzes, highlights, annotations y toda actividad
-   educativa **no leen ni modifican** ejes, confianza, evidencia, procedencia
-   ni estado del Mapa Emocional. Leer no implica estado emocional; completar
-   una actividad no implica regulación; recordar no implica bienestar;
-   engagement no es una emoción; rendimiento no es una señal clínica.
-   `Resonance` sigue siendo el único puente, cualitativo y por confirmación
-   explícita (ARC) — ningún evento se transforma automáticamente en resonancia
-   ni en valor de eje.
-5. **Enforcement en tres capas:** frontera de módulos + ratchet estático
-   `no-learning-in-map` (espejo del `no-emotional-map` existente); tipos (el
-   input del scoring no gana campos learning); y el **test de inversión
-   semántica** — proyección canónica del mapa antes/después de crear todos los
-   tipos V1 + sesiones + marcas, con igualdad estricta exigida y un control
-   negativo (un checkin SÍ debe mover la proyección) para que el test no pase
-   vacío.
-6. **Privacidad:** retención 24 meses rolling; borrado en cierre de cuenta
-   (cascade ya presente); incluidos en el data export; analítica solo agregada
-   con k-anonimato n≥10; prohibido su uso para publicidad o perfiles
-   emocionales; entitlement de eventos = el mismo `ContentAccessService` del
-   lector.
-7. **Entrega en 8 PRs pequeños** (contratos puros → persistencia → endpoints →
-   GuideSession → web → mobile → analítica → firewall full-stack), cada uno
-   aditivo, reversible y deployable de forma independiente.
+1. **Comandos de dominio, no eventos en el wire.** El cliente invoca comandos
+   (`POST /api/learning/units/:unitKey/open|complete`,
+   `…/concepts/:conceptKey/explore`, `…/recall-attempts`,
+   `…/practices/:exerciseKey/complete`, `POST /api/guide/sessions`,
+   `PATCH …/complete`). Cada comando valida, ejecuta una **transición de
+   estado server-side** y solo entonces emite el evento vía el escritor único.
+   No existe un POST genérico capaz de solicitar todos los tipos. La matriz de
+   ownership declara por tipo qué garantiza el servidor y qué permanece
+   self-reported (una respiración completada no es verificable server-side y
+   no se presenta como tal).
+2. **Hechos calculados por el servidor, no afirmados:** `unit_completed`
+   exige transición de progreso propia (sin apertura previa ⇒ 409
+   `LEARNING_EVENT_INVALID_TRANSITION`); el `result` del recall en ítems
+   objetivos lo **califica el servidor** contra el catálogo
+   (`selectedOptionKey`, jamás texto); los autoevaluados quedan marcados
+   `evaluationSource="self_assessed"`, excluidos de precisión y sin gobernar
+   el espaciado; `stepsCompleted` lo cuenta el servidor desde el estado de la
+   GuideSession. Los `guide_session_*` solo nacen de transiciones de sesión —
+   no son expresables como request.
+3. **`idempotencyKey` obligatorio** en todo comando de cliente (400 si falta;
+   replay exacto ⇒ 200; misma key con payload distinto ⇒ 409
+   `LEARNING_EVENT_IDEMPOTENCY_CONFLICT`), además de la dedup semántica por
+   tipo.
+4. **Entitlement por resolución completa:** toda clave de catálogo se resuelve
+   server-side `catalog key → concept/exercise/item → unit → edition → book →
+ContentAccessService`. Sin contextos opcionales que eviten el gate; clave
+   sin relación editorial inequívoca ⇒ 422
+   `LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT` y nada persiste.
+   `GET /api/learning/progress` no expone metadata de contenido al que el
+   usuario ya no tiene acceso.
+5. **Escritor único + ratchet:** `LearningEventRepository.appendValidated` es
+   el único punto autorizado a escribir la tabla — recibe solo la unión
+   discriminada validada (su firma no admite `Json`), reconstruye el payload y
+   añade actor/reloj/schemaVersion/IDs. El ratchet
+   `no-direct-learning-event-write` falla el build si
+   `prisma.learningEvent.create|update|delete|upsert` (y variantes `*Many`)
+   aparece fuera del repositorio. **Append-only no depende de que no exista un
+   endpoint HTTP.**
+6. **Firewall emocional absoluto (invariante):** la actividad educativa no lee
+   ni modifica `value`/`confidence`/`status`/`evidence`/señal/procedencia de
+   ningún eje. Leer ≠ estado emocional; completar ≠ regulación; recordar ≠
+   bienestar; engagement ≠ emoción; rendimiento ≠ señal clínica.
+7. **Resonance (corregido):** para CC-7, Resonance es cualitativa, requiere
+   confirmación explícita, **no modifica automáticamente** ningún eje,
+   **jamás** la crea un LearningEvent, y `concept_explored` no es una
+   Resonance. La conversión preexistente ARC-C1/ARC-P1 (resonancias →
+   Conexión/Propósito, viva hoy bajo V2) **no forma parte de este firewall**:
+   queda registrada como decisión independiente
+   `resonance_axis_conversion=PENDING_DECISION` (FORBIDDEN para todo lo nuevo
+   de CC-7), a resolver antes de que el test de inversión pueda aterrizar.
+8. **Firewall dinámico adelantado:** PR 2 (persistencia) incluye los dos
+   ratchets estáticos **y** el test de inversión semántica DB-level —
+   proyección canónica del mapa idéntica tras crear los 7 tipos + progreso +
+   sesiones + marcas + **una Resonance cualitativa**, con control negativo (un
+   checkin sí mueve la proyección). **Los endpoints (PR 3) no aterrizan sin un
+   firewall dinámico ejecutable.** PR 8 lo amplía a full-stack.
+9. **Privacidad como propuesta, no como hecho:**
+   `retention_proposal=24_months` y `analytics_k_proposal=10`, ambos
+   `PENDING_PRIVACY_PRODUCT_APPROVAL`; los valores finales viven en
+   configuración validada, no dispersos en código. k-anonimato se documenta
+   como **barrera mínima, no garantía de anonimato**; el threat model cubre
+   inferencia por combinación de celdas, ataques de composición entre
+   periodos, cohortes pequeñas, reidentificación por claves raras y acceso
+   interno indebido.
+10. **Entrega en 8 PRs** (contratos puros → persistencia+firewall → comandos →
+    GuideSession → web → mobile → analítica → firewall full-stack), cada uno
+    aditivo, reversible y deployable de forma independiente.
 
 ## Alternativas rechazadas
 
-- **`meta`/JSON libre client-authored** — un agujero directo al firewall y un
-  canal de exfiltración de texto (ya rechazado en ADR 0016; aquí se vuelve
-  contrato con validación whitelist).
-- **Eventos como fuente de señal del Mapa** ("leyó mucho ⇒ está mejor") —
-  contradice el programa V2 completo; prohibido por invariante y ratchet.
-- **Cliente emite `guide_session_*`** — log de sesiones falsificable; solo
-  transiciones server-side.
+- **`POST /api/learning/events` genérico** — permitía al cliente declarar
+  hechos no verificables con sello del servidor. Rechazado en review;
+  reemplazado por comandos de dominio con transición.
+- **`meta`/JSON libre client-authored** — agujero directo al firewall y canal
+  de exfiltración de texto (ya rechazado en ADR 0016).
+- **Eventos como fuente de señal del Mapa** — contradice el programa V2;
+  prohibido por invariante y ratchets.
+- **Cliente emite `guide_session_*` o declara `stepsCompleted`** — log
+  falsificable; solo transiciones server-side con conteo propio.
+- **Confiar el append-only a la ausencia de endpoints** — el bypass interno
+  (`prisma.learningEvent.*` disperso) queda cerrado por ratchet de build.
 - **Duplicar highlights/annotations/resonances como eventos en V1** — sus
-  tablas ya son fuente de verdad; duplicar sin consumidor es ruido.
+  tablas ya son fuente de verdad.
 
 ## Consecuencias
 
-- Guide V1 obtiene continuidad, progreso y recall espaciado leyendo read
-  models educativos, sin acceso a Diario/Eco/Mapa y sin poder convertir
-  engagement en score personal.
-- El Mapa conserva su contrato V2 intacto: solo autoinforme, dinámica ordinal,
-  texto on-device consentido y resonancias confirmadas.
-- El costo de la pureza: cada tipo de evento nuevo exige tocar el contrato
-  (unión + parser + tests). Es deliberado — añadir un evento debe doler un
-  poco para que nadie cuele telemetría arbitraria.
+- Guide V1 obtiene continuidad, progreso y recall espaciado (solo
+  server-graded) leyendo read models educativos, sin acceso a Diario/Eco/Mapa
+  y sin convertir engagement en score personal.
+- El Mapa conserva su contrato V2; la única conversión resonancia→eje que
+  existe es la preexistente ARC, ahora marcada como decisión pendiente e
+  independiente que el test de inversión obliga a resolver explícitamente.
+- El costo de la pureza: cada tipo de evento nuevo exige comando + transición
+  - parser + tests. Es deliberado — añadir un evento debe doler un poco para
+    que nadie cuele telemetría arbitraria ni claims disfrazados de hechos.

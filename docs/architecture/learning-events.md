@@ -58,68 +58,83 @@ Verificado además:
 **El modelo actual NO es el contrato final.** Divergencias a resolver en la
 implementación (siempre aditivas, ver §9 PR 2):
 
-| Tema                                                                | Estado actual                 | Contrato V1                                                                                                                                                                         |
-| ------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `concept_explored`, `active_recall_attempted`, `practice_completed` | no existen en el enum         | se AÑADEN (enum aditivo)                                                                                                                                                            |
-| `BLOCK_DWELL`                                                       | en el enum                    | **fuera de V1** (telemetría de dwell diferida; si llega, con buckets, jamás timestamps por bloque)                                                                                  |
-| `HIGHLIGHT_CREATED`, `ANNOTATION_CREATED`, `RESONANCE_CONFIRMED`    | en el enum                    | **fuera de V1** — las marcas y resonancias ya tienen sus tablas como fuente de verdad; duplicarlas como eventos se decidirá (o no) con datos. Ningún endpoint V1 los acepta         |
-| `payload Json?`                                                     | JSON libre a nivel de storage | el **API jamás acepta JSON libre**: el servidor construye el payload desde una unión discriminada cerrada (§2/§5) y lo serializa a esa columna. La columna es encoding, no contrato |
+| Tema                                                                | Estado actual                 | Contrato V1                                                                                                                                                                 |
+| ------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `concept_explored`, `active_recall_attempted`, `practice_completed` | no existen en el enum         | se AÑADEN (enum aditivo)                                                                                                                                                    |
+| `BLOCK_DWELL`                                                       | en el enum                    | **fuera de V1** (telemetría de dwell diferida; si llega, con buckets, jamás timestamps por bloque)                                                                          |
+| `HIGHLIGHT_CREATED`, `ANNOTATION_CREATED`, `RESONANCE_CONFIRMED`    | en el enum                    | **fuera de V1** — las marcas y resonancias ya tienen sus tablas como fuente de verdad; duplicarlas como eventos se decidirá (o no) con datos. Ningún endpoint V1 los acepta |
+| `payload Json?`                                                     | JSON libre a nivel de storage | el **API jamás acepta JSON libre** y el **único escritor** es `LearningEventRepository.appendValidated` (§E-bis). La columna es encoding, no contrato                       |
 
 ---
 
-## B. Contrato V1 de LearningEvent
+## B. Contrato V1 — comandos de dominio, no un log de afirmaciones
+
+### El principio de ownership, tomado en serio
+
+Un log no es "server-owned" porque el servidor lo escriba: es server-owned
+cuando **el servidor es quien establece el hecho**. Un evento que se limita a
+copiar la afirmación del cliente ("terminé", "acerté") es un log de claims con
+sello del servidor — no lo presentamos como otra cosa. Por eso V1 se modela
+como **comandos de dominio**: el cliente pide una acción sobre una entidad; el
+servidor valida, ejecuta una **transición de estado propia** y, solo si la
+transición procede, **emite** el evento. La matriz declara honestamente qué
+garantiza el servidor en cada tipo.
 
 ### Principios
 
 1. **Append-only.** No existe UPDATE ni DELETE por API. Correcciones = evento
    nuevo. La única eliminación es el borrado de cuenta (cascade).
-2. **Server-owned.** El cliente **solicita** una acción (`type` + payload
-   candidato con claves de catálogo); el **servidor** valida, resuelve IDs,
-   pone el reloj y construye el registro persistido. Ningún campo del cliente
-   pasa a storage sin whitelist.
+2. **Comandos, no eventos, en el wire.** El cliente jamás postea "un evento":
+   invoca un comando de dominio (§G). El evento es un efecto interno de la
+   transición.
 3. **Unión discriminada cerrada.** Cada tipo tiene un payload específico con
-   campos enumerados. No existe `Record<string, unknown>`, no existe campo
-   `meta`, no existe passthrough.
-4. **Solo claves de catálogo y enums.** Un payload solo puede referenciar
-   entidades que el servidor puede verificar: `editionKey`/`unitKey` (Content
-   Core), `conceptKey` (CHAPTER_CONCEPTS/Concept), `exerciseKey`
-   (CHAPTER_EXERCISES), `itemKey` (catálogo de recall), `guideSessionId`
-   (fila propia). Todo lo demás → rechazo.
+   campos enumerados, reconstruido por el servidor. No existe
+   `Record<string, unknown>`, no existe `meta`, no existe passthrough.
+4. **Solo claves de catálogo y enums.** Un comando solo referencia entidades
+   que el servidor puede verificar y **resolver hasta contenido publicado**
+   (§C-bis): `editionKey`/`unitKey`, `conceptKey`, `exerciseKey`, `itemKey`,
+   `guideSessionId` propio, `selectedOptionKey` de catálogo. Todo lo demás →
+   rechazo.
+5. **`idempotencyKey` OBLIGATORIO** en todo comando originado en cliente
+   (400 `LEARNING_EVENT_IDEMPOTENCY_KEY_REQUIRED` si falta). Replay exacto →
+   200 con el resultado original; misma key con payload distinto → 409
+   `LEARNING_EVENT_IDEMPOTENCY_CONFLICT`. La dedup semántica por tipo aplica
+   además, siempre.
 
 ### Prohibido aceptar (validación server-side, siempre 400)
 
-- metadata arbitraria / JSON libre / campos no declarados (whitelist estricta,
-  `forbidNonWhitelisted`);
+- metadata arbitraria / JSON libre / campos no declarados (whitelist estricta);
 - texto del diario, mensajes de Eco, transcripciones de voz, prompts libres o
-  **cualquier string escrito por el usuario** (V1 no tiene ni un solo campo
-  de texto libre — todos los strings son claves validadas contra catálogo);
+  **cualquier string escrito por el usuario** (V1 no tiene ni un solo campo de
+  texto libre — todos los strings son claves validadas contra catálogo);
 - inferencias emocionales, scores emocionales, etiquetas clínicas;
 - cualquier dato del Mapa Emocional (ejes, confianza, momento, EWS, checkins).
 
-### Los 7 tipos V1 — matriz de eventos/payloads
+### Matriz de ownership V1 (corregida)
 
-| `type`                    | Payload permitido (todo validado)                                                 | Emisor                                                       | Dedup semántica                                   |
-| ------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------- |
-| `unit_opened`             | `editionKey`, `unitKey`                                                           | cliente vía `POST /api/learning/events`                      | máx. 1/`(user, unit)` por día UTC — replays → 200 |
-| `unit_completed`          | `editionKey`, `unitKey`                                                           | cliente                                                      | 1/`(user, unit, revisionNumber)` — replays → 200  |
-| `concept_explored`        | `conceptKey`, `sourceUnitKey?`                                                    | cliente                                                      | 1/`(user, concept)` por día UTC                   |
-| `guide_session_started`   | `guideSessionId`                                                                  | **solo servidor** (transición de `POST /api/guide/sessions`) | 1/`(guideSessionId)`                              |
-| `guide_session_completed` | `guideSessionId`, `stepsCompleted`                                                | **solo servidor** (transición de `PATCH …/complete`)         | 1/`(guideSessionId)`                              |
-| `active_recall_attempted` | `unitKey`, `itemKey`, `result` (`correct \| incorrect \| skipped`), `conceptKey?` | cliente                                                      | sin dedup (cada intento cuenta); rate-limited     |
-| `practice_completed`      | `exerciseKey`, `unitKey?`                                                         | cliente                                                      | 1/`(user, exercise, unit)` por día UTC            |
+| `type`                    | Comando que lo emite                                           | Qué GARANTIZA el servidor                                                                                                                                                                                                | Qué sigue siendo self-reported                                                                                                                     | Dedup semántica                               |
+| ------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `unit_opened`             | `POST /api/learning/units/:unitKey/open`                       | edición/unidad publicadas + entitlement + fecha                                                                                                                                                                          | que el usuario realmente leyó                                                                                                                      | 1/`(user, unit)` por día UTC                  |
+| `unit_completed`          | `POST /api/learning/units/:unitKey/complete`                   | **transición de progreso server-side**: exige estado previo propio (unidad abierta — `unit_opened`/`ReadingSession` del propio servidor); sin transición válida → 409 `LEARNING_EVENT_INVALID_TRANSITION`, nada persiste | la comprensión                                                                                                                                     | 1/`(user, unit, revisionNumber)`              |
+| `concept_explored`        | `POST /api/learning/concepts/:conceptKey/explore`              | resolución completa concept → unit → edition → book + entitlement                                                                                                                                                        | el interés real                                                                                                                                    | 1/`(user, concept)` por día UTC               |
+| `active_recall_attempted` | `POST /api/learning/recall-attempts`                           | para ítems **objetivos**: el servidor CALCULA `result` comparando `selectedOptionKey` contra el catálogo — el cliente no puede afirmar `correct`. Para ítems autoevaluados: `evaluationSource="self_assessed"`           | solo en self_assessed, la autoevaluación (marcada como tal)                                                                                        | sin dedup (cada intento cuenta); rate-limited |
+| `practice_completed`      | `POST /api/learning/practices/:exerciseKey/complete`           | transición de práctica de catálogo: exercise resuelto a su unidad/libro + entitlement + regla de estado (1/día)                                                                                                          | que la práctica experiencial ocurrió (una respiración no es verificable server-side — se registra como transición aceptada, no como verdad física) | 1/`(user, exercise, unit)` por día UTC        |
+| `guide_session_started`   | transición interna de `POST /api/guide/sessions`               | todo: la sesión ES estado del servidor                                                                                                                                                                                   | —                                                                                                                                                  | 1/`(guideSessionId)`                          |
+| `guide_session_completed` | transición interna de `PATCH /api/guide/sessions/:id/complete` | todo: `stepsCompleted` lo cuenta el **servidor** desde el estado de la sesión (los pasos avanzan por comandos previos), no lo declara el cliente                                                                         | —                                                                                                                                                  | 1/`(guideSessionId)`                          |
 
-Notas de diseño:
+Notas:
 
-- `active_recall_attempted.result` es **categórico**. La respuesta del usuario
-  jamás viaja ni se persiste — solo el resultado. Si el ítem de recall es de
-  texto libre, la corrección ocurre en el cliente o contra el catálogo y solo
-  sube el enum.
-- `practice_completed` con `exerciseKey` de tipo "reflect" registra **el
-  hecho** de haber completado la práctica. La reflexión en sí es un
-  `DiaryEntry` cifrado E2E y este sistema nunca la ve (ADR 0007 intacto).
-- Los tipos `guide_session_*` se **rechazan** en `POST /api/learning/events`
-  con `LEARNING_EVENT_SERVER_OWNED_TYPE`: solo las transiciones de GuideSession
-  los emiten. Así el log de sesiones no es falsificable por el cliente.
+- `guide_session_*` **no existen como requests**: solo cambios de estado de
+  `GuideSession` los emiten. Un intento de forjarlos por API → 400
+  `LEARNING_EVENT_SERVER_OWNED_TYPE` (defensa en profundidad: ninguna ruta los
+  acepta siquiera sintácticamente).
+- Recall: la respuesta del usuario jamás viaja como texto — en ítems objetivos
+  viaja `selectedOptionKey` (clave de catálogo) y el servidor califica; en
+  autoevaluados viaja el enum `self_result` y queda marcado `self_assessed`.
+- Los intentos `self_assessed` **no se incluyen en la precisión**, **no
+  gobiernan automáticamente el espaciado** de repasos y permanecen como hechos
+  educativos cualitativos (el Guide puede mencionarlos como hechos, nunca como
+  medida).
 
 ---
 
@@ -128,82 +143,96 @@ Notas de diseño:
 > **INVARIANTE CC-7.** `LearningEvent`, `ReadingSession`, `GuideSession`, el
 > progreso educativo, quizzes/active recall, `Highlight`, `Annotation` y
 > cualquier otra actividad educativa **NO leen ni modifican** los ejes del
-> Mapa Emocional, su confianza, su evidencia, su procedencia ni su estado.
+> Mapa Emocional: ni `value`, ni `confidence`, ni `status`, ni `evidence`, ni
+> presencia de señal, ni procedencia.
 
 Semántica que el producto asume como axioma (y el copy-contract ya protege):
 
-- **Leer no implica estado emocional.** Abrir o terminar una unidad es un
-  hecho educativo, no una señal afectiva.
-- **Completar una actividad no implica regulación emocional.** Un ejercicio de
-  respiración terminado es un hecho de práctica, no un delta de "Calma".
-- **Recordar un concepto no implica bienestar.** El recall mide memoria, no
-  salud mental.
-- **Engagement no es una emoción.** Frecuencia/rachas/minutos jamás puntúan un
-  eje (esto ya lo cerró la Fase C del programa V2).
-- **Rendimiento no es una señal clínica.** Un `incorrect` no alimenta ningún
-  modelo psicológico ni etiqueta al usuario.
+- **Leer no implica estado emocional.**
+- **Completar una actividad no implica regulación emocional.**
+- **Recordar un concepto no implica bienestar.**
+- **Engagement no es una emoción** (cerrado por la Fase C del programa V2).
+- **Rendimiento no es una señal clínica.**
 
-**Resonance sigue siendo el único puente, y es cualitativo.** Una resonancia
-existe solo por confirmación explícita del usuario (ciclo ARC) y alimenta
-Conexión/Propósito bajo sus modelos registrados (ARC-C1/ARC-P1). Un
-LearningEvent **jamás se transforma automáticamente** en una Resonance ni en
-un valor de eje; `concept_explored` NO es una resonancia — es un hecho de
-navegación educativa sin peso en el mapa.
+### Resonance (corregido)
+
+Para CC-7, `Resonance` se define así y solo así:
+
+- es **cualitativa**;
+- existe únicamente por **confirmación explícita** del usuario (ciclo ARC);
+- **no modifica automáticamente** `value`/`confidence`/`status`/`evidence`/
+  presencia de señal de ningún eje;
+- **LearningEvent jamás crea una Resonance** (ningún evento educativo se
+  transforma en resonancia);
+- `concept_explored` **no es** una Resonance — es navegación educativa sin
+  peso en el mapa.
+
+**Excepción preexistente, pendiente e independiente:** hoy en producción los
+modelos ARC-C1 (Conexión) y ARC-P1 (Propósito) del programa V2 sí derivan
+valores de eje desde resonancias confirmadas. Esa conversión **no forma parte
+del firewall CC-7** y queda registrada como **decisión de producto pendiente**
+(`resonance_axis_conversion=PENDING_DECISION` para el sistema preexistente;
+**FORBIDDEN** para todo lo nuevo de CC-7). Resolverla —retirarla, gatearla o
+ratificarla como excepción explícita y acotada— es prerrequisito del test §D
+(ver nota de conflicto ahí). Nada en CC-7 amplía, consume ni depende de esa
+conversión.
 
 ### Mecanismos de enforcement (tres capas)
 
-1. **Frontera de módulos + ratchet estático.** `EmotionalMapModule` (scoring,
-   facts, providers) no importa módulos learning y sus queries no tocan
-   `LearningEvent`/`GuideSession`. Se añade el espejo del ratchet existente:
-   un spec `no-learning-in-map` que grepea los archivos del mapa por
-   `LearningEvent|GuideSession|learningEvent\.` y falla el build si aparecen
-   (mismo patrón que `no-emotional-map.spec.ts` protege en la dirección
-   opuesta).
-2. **Tipos.** El input del scoring (`scoreEmotionalMap(input)`) no gana ningún
-   campo learning. El registry de modelos no admite un modelo cuyo insumo sea
-   actividad educativa (los únicos insumos siguen siendo: ánimo ordinal,
-   checkins, texto on-device consentido, resonancias confirmadas).
-3. **Test de inversión semántica** (§D) — la prueba dinámica de que N eventos
-   educativos producen **cero** delta en la proyección emocional.
+1. **Frontera de módulos + ratchets estáticos.** `EmotionalMapModule` no
+   importa módulos learning y sus queries no tocan `LearningEvent`/
+   `GuideSession`: ratchet `no-learning-in-map` (grep sobre los archivos del
+   mapa, espejo del `no-emotional-map.spec.ts` existente). Y el ratchet
+   `no-direct-learning-event-write` (§E-bis) cierra el bypass interno.
+2. **Tipos.** El input de `scoreEmotionalMap()` no gana campos learning; el
+   registry de modelos no admite modelos cuyo insumo sea actividad educativa.
+3. **Test de inversión semántica** (§D) — la prueba dinámica.
 
 ---
 
 ## D. Test de inversión semántica (diseño)
 
-Archivo propuesto: `apps/api/src/learning/learning-map-firewall.pg-spec.ts`
-(suite PG real, familia `test:locks`; llega con el PR 8 y una versión reducida
-repository-level con el PR 2).
+Primera versión **DB-level en PR 2** (`learning/learning-map-firewall.pg-spec.ts`,
+familia `test:locks`); ampliación full-stack en PR 8. **Los endpoints (PR 3)
+no pueden aterrizar antes de que exista este firewall dinámico ejecutable.**
 
 ```
 1. Seed: usuario con historia emocional real (moods ordinales + checkins) para
-   que el mapa tenga ejes con señal (no un mapa vacío que pasaría trivialmente).
+   que el mapa tenga ejes con señal (un mapa vacío pasaría trivialmente).
 2. A := mapProjection(user)   // cache bypass, cómputo fresco
-3. Crear, para ese usuario:
-   - los 7 tipos V1 de LearningEvent (vía el constructor server-owned real);
-   - ReadingSession (heartbeat + complete);
+3. Crear, para ese usuario, por las vías reales (repositorio/comandos):
+   - los 7 tipos V1 de LearningEvent;
+   - ReadingSession (heartbeat + complete) y progreso;
    - GuideSession start→complete;
-   - active recall correct+incorrect, practice_completed;
-   - Highlight + Annotation (Core, blockKey+blockVersionId).
+   - recall objetivo (correct+incorrect calculados por el servidor) y
+     self_assessed; practice_completed;
+   - Highlight + Annotation (Core, blockKey+blockVersionId);
+   - una Resonance CUALITATIVA confirmada.
 4. B := mapProjection(user)   // mismo bypass
 5. expect(B).toStrictEqual(A) — igualdad semántica exacta.
 6. CONTROL NEGATIVO: crear un checkin → C := mapProjection(user) →
-   expect(C).not.toStrictEqual(A). Sin este control, el test pasaría vacío
-   (p. ej. si la proyección quedara cacheada).
+   expect(C).not.toStrictEqual(A) (sin esto el test podría pasar vacío).
 ```
 
-`mapProjection` es una **proyección canónica** del resultado del mapa que:
+`mapProjection` es una **proyección canónica** del resultado del mapa que
+**ignora** timestamps, ids de snapshot, TTLs y metadata incidental (narrative
+LLM excluido por no-determinista) y **compara**: lista de ejes y su orden;
+`value`; `confidence`; presencia de señal (`measured`, `sources`); `status`;
+`evidence` completa (`modelId`, `n`) y procedencia; `momento`; parámetros de
+dinámica afectiva; `coverage`.
 
-- **ignora** timestamps (`generatedAt`), ids de snapshot, TTLs de cache y
-  metadata incidental (el narrative LLM se excluye por no-determinista);
-- **compara**: lista de ejes y su orden; `value` por eje; `confidence` por
-  eje; presencia de señal (`measured`, `sources`); `status`
-  (activo/"Reuniendo datos"); `evidence` completa (`modelId`, `n`) y
-  procedencia; `momento`; parámetros de dinámica afectiva (μ, tendencia,
-  márgenes, gates); `coverage`.
+**Nota de conflicto (explícita y honesta):** el paso 3 incluye una Resonance y
+el paso 5 exige identidad. Bajo el comportamiento preexistente ARC-C1/ARC-P1,
+crear una resonancia HOY sí mueve Conexión/Propósito — es decir, este test,
+tal como está especificado, **no puede aterrizar en verde sin resolver antes
+la decisión pendiente de §C**. Eso es deliberado: el test fuerza la decisión
+en lugar de esconderla. Las salidas posibles se deciden con Jorge en PR 2:
+retirar/gatear la conversión ARC, o ratificarla como excepción explícita y
+enmendar esta especificación dejando constancia.
 
-**Criterio de fallo:** cualquier delta en cualquiera de esos campos tras el
-paso 3 = evento educativo alterando una proyección emocional = build rojo.
-El spec queda pineado como ratchet permanente (nunca se relaja).
+**Criterio de fallo:** cualquier delta en cualquier campo comparado tras el
+paso 3 = actividad educativa (o resonancia cualitativa) alterando una
+proyección emocional = build rojo. Ratchet permanente: nunca se relaja.
 
 ---
 
@@ -224,63 +253,73 @@ export type LearningEventTypeV1 =
   | "practice_completed";
 
 export type RecallResult = "correct" | "incorrect" | "skipped";
+/** Quién estableció el resultado del recall. */
+export type RecallEvaluationSource = "server" | "self_assessed";
 
-// ─── Payloads cerrados por tipo (lo ÚNICO que el cliente puede proponer) ────
+// ─── Comandos (lo ÚNICO que el cliente puede enviar) ────────────────────────
+// Todos exigen idempotencyKey (UUID). El cliente NUNCA envía un "evento".
+export interface OpenUnitCommand {
+  idempotencyKey: string; // OBLIGATORIO en todo comando de cliente
+}
+export interface CompleteUnitCommand {
+  idempotencyKey: string;
+}
+export interface ExploreConceptCommand {
+  idempotencyKey: string;
+}
+export interface SubmitRecallAttemptCommand {
+  idempotencyKey: string;
+  itemKey: string; // catálogo de ítems de recall
+  /** Ítem objetivo: clave de opción del catálogo — el SERVIDOR califica. */
+  selectedOptionKey?: string;
+  /** Ítem autoevaluado: el enum del usuario — queda self_assessed. */
+  selfResult?: RecallResult;
+  // Exactamente uno de los dos, según el tipo del ítem en catálogo.
+}
+export interface CompletePracticeCommand {
+  idempotencyKey: string;
+}
+export interface CompleteGuideSessionCommand {
+  idempotencyKey: string; // stepsCompleted NO viaja: lo cuenta el servidor
+}
+
+// ─── Payloads persistidos (reconstruidos por el SERVIDOR, jamás del wire) ───
 export interface UnitOpenedPayload {
-  editionKey: string; // debe existir; entitlement vía ContentAccessService
-  unitKey: string; // debe pertenecer a la edición publicada
+  editionKey: string;
+  unitKey: string;
 }
 export interface UnitCompletedPayload {
   editionKey: string;
   unitKey: string;
+  revisionNumber: number;
 }
 export interface ConceptExploredPayload {
-  conceptKey: string; // debe existir en CHAPTER_CONCEPTS / Concept
-  sourceUnitKey?: string;
+  conceptKey: string;
+  unitKey: string; // resuelto por el servidor desde el catálogo, no opcional
 }
 export interface GuideSessionStartedPayload {
-  guideSessionId: string; // fila propia; SOLO emitido por el servidor
+  guideSessionId: string;
 }
 export interface GuideSessionCompletedPayload {
   guideSessionId: string;
-  stepsCompleted: number; // int 0–50 (bound server-side)
+  stepsCompleted: number; // contado por el servidor desde el estado de la sesión
 }
 export interface ActiveRecallAttemptedPayload {
-  unitKey: string;
-  itemKey: string; // catálogo de ítems de recall (server-side)
-  result: RecallResult; // NUNCA la respuesta del usuario — solo el resultado
-  conceptKey?: string;
+  unitKey: string; // resuelto desde itemKey por el servidor
+  itemKey: string;
+  result: RecallResult; // calculado server-side en ítems objetivos
+  evaluationSource: RecallEvaluationSource;
+  conceptKey: string | null; // del catálogo del ítem, no del cliente
 }
 export interface PracticeCompletedPayload {
-  exerciseKey: string; // debe existir en CHAPTER_EXERCISES
-  unitKey?: string;
+  exerciseKey: string;
+  unitKey: string; // resuelto desde exerciseKey por el servidor
 }
 
-// ─── Request: el cliente SOLICITA; el servidor CONSTRUYE ────────────────────
-export type LearningEventRequest =
-  | { type: "unit_opened"; payload: UnitOpenedPayload }
-  | { type: "unit_completed"; payload: UnitCompletedPayload }
-  | { type: "concept_explored"; payload: ConceptExploredPayload }
-  | { type: "active_recall_attempted"; payload: ActiveRecallAttemptedPayload }
-  | { type: "practice_completed"; payload: PracticeCompletedPayload };
-// guide_session_* NO son request-ables: el servidor los emite en las
-// transiciones de GuideSession (LEARNING_EVENT_SERVER_OWNED_TYPE si llegan).
-
-export interface CreateLearningEventRequest {
-  event: LearningEventRequest;
-  /**
-   * Dedup opcional del cliente (UUID). Único por (userId, idempotencyKey).
-   * Replay exacto → 200 con el evento original. Independiente de la dedup
-   * SEMÁNTICA por tipo (matriz §B), que aplica siempre.
-   */
-  idempotencyKey?: string;
-}
-
-// ─── Registro persistido (server-owned; lo que devuelve el API) ─────────────
+// ─── Registro persistido (lo que devuelve el API) ───────────────────────────
 export interface LearningEventRecord {
   id: string;
   type: LearningEventTypeV1;
-  /** Payload YA validado y reconstruido por el servidor (unión de arriba). */
   payload:
     | UnitOpenedPayload
     | UnitCompletedPayload
@@ -292,7 +331,7 @@ export interface LearningEventRecord {
   schemaVersion: 1;
   /** Reloj del SERVIDOR. El cliente no puede fechar eventos. */
   occurredAt: string; // ISO-8601
-  /** Referencias resueltas por el servidor a partir de las claves. */
+  /** Referencias resueltas por el servidor. */
   editionId: string | null;
   unitId: string | null;
   conceptId: string | null;
@@ -304,124 +343,207 @@ export interface LearningEventRecord {
 
 // ─── Códigos de error (envelope estándar del API) ───────────────────────────
 export type LearningEventErrorCode =
-  | "LEARNING_EVENT_UNKNOWN_TYPE" // 400 — type fuera de la unión V1
   | "LEARNING_EVENT_INVALID_PAYLOAD" // 400 — campo faltante/extra/mal tipado
-  | "LEARNING_EVENT_SERVER_OWNED_TYPE" // 400 — guide_session_* por POST
+  | "LEARNING_EVENT_IDEMPOTENCY_KEY_REQUIRED" // 400 — comando sin idempotencyKey
+  | "LEARNING_EVENT_IDEMPOTENCY_CONFLICT" // 409 — misma key, payload distinto
+  | "LEARNING_EVENT_SERVER_OWNED_TYPE" // 400 — intento de forjar guide_session_*
+  | "LEARNING_EVENT_INVALID_TRANSITION" // 409 — completed sin estado previo válido
   | "LEARNING_EVENT_UNKNOWN_UNIT" // 404 — editionKey/unitKey no publicados
   | "LEARNING_EVENT_UNKNOWN_CONCEPT" // 404 — conceptKey fuera de catálogo
-  | "LEARNING_EVENT_UNKNOWN_ITEM" // 404 — itemKey/exerciseKey fuera de catálogo
+  | "LEARNING_EVENT_UNKNOWN_ITEM" // 404 — itemKey/exerciseKey/optionKey fuera de catálogo
+  | "LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT" // 422 — clave sin relación editorial inequívoca; nada persiste
   | "LEARNING_EVENT_FORBIDDEN" // 403 — entitlement (mismo gate FREE/PRO del lector)
-  | "GUIDE_SESSION_NOT_FOUND" // 404 — sesión inexistente o ajena (sin filtrar cuál)
+  | "GUIDE_SESSION_NOT_FOUND" // 404 — sesión inexistente o ajena (sin distinguir)
   | "GUIDE_SESSION_ALREADY_COMPLETED"; // 409 — transición repetida (PATCH idempotente → 200)
 ```
 
-Validación server-side (pura, sin IO, testeable): un `parseLearningEvent()`
-que (1) discrimina por `type`, (2) whitelist-ea exactamente los campos del
-payload de ese tipo (campo extra ⇒ `LEARNING_EVENT_INVALID_PAYLOAD`),
-(3) tipa/bound-ea cada valor, y después una capa con IO que resuelve claves →
-IDs y aplica entitlement. Nada llega a Prisma sin pasar por ambas.
+### C-bis. Entitlement completo — resolución hasta contenido publicado
+
+Toda clave de catálogo se resuelve **server-side hasta su contenido publicado**
+antes de validar acceso:
+
+```
+catalog key (conceptKey | exerciseKey | itemKey)
+  → concept / exercise / item        (catálogo)
+  → unit                             (relación editorial del catálogo)
+  → edition → book                   (Content Core)
+  → ContentAccessService             (mismo gate FREE/PRO del lector)
+```
+
+- **No existen contextos opcionales que eviten el gate**: el cliente no puede
+  omitir ni suplantar la unidad — la relación editorial la aporta el catálogo.
+  (Por eso `ConceptExploredPayload.unitKey` es requerido y server-resolved.)
+- Si una clave **no tiene relación editorial inequívoca** (concepto huérfano,
+  ejercicio sin unidad), el comando responde 422
+  `LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT` y **no se persiste nada**.
+- `GET /api/learning/progress` no resuelve ni expone metadata (títulos,
+  resúmenes) de contenido al que el usuario ya no tiene acceso (p. ej.
+  downgrade PRO→FREE): devuelve conteos y claves neutras; los títulos solo de
+  contenido actualmente accesible.
+
+### E-bis. Escritor único + ratchet `no-direct-learning-event-write`
+
+El **único** punto del codebase autorizado a escribir en la tabla es:
+
+```
+LearningEventRepository.appendValidated(validatedEvent)
+```
+
+El repositorio: recibe **solamente** la unión discriminada ya validada (jamás
+`Json`/payload arbitrario — su firma no tiene ningún parámetro de tipo `Json`);
+reconstruye el payload campo a campo; añade actor (del JWT), reloj del
+servidor, `schemaVersion` e IDs resueltos; y ejecuta el único
+`prisma.learningEvent.create` permitido.
+
+**Ratchet obligatorio (PR 2):** spec `no-direct-learning-event-write` que
+grepea todo `apps/api/src` y falla si aparece, fuera del archivo del
+repositorio aprobado, cualquiera de:
+
+```
+prisma.learningEvent.create
+prisma.learningEvent.update
+prisma.learningEvent.delete
+prisma.learningEvent.upsert
+```
+
+(más las variantes `createMany`/`updateMany`/`deleteMany`, incluidas en el
+grep). El modelo append-only **no puede depender** de que no exista un
+endpoint HTTP: el bypass interno queda cerrado por build.
 
 ---
 
 ## F. Retención y privacidad (threat model)
 
-| Dimensión                 | Política V1                                                                                                                                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Retención**             | Eventos crudos: **24 meses rolling** (sweep mensual del worker). Antes de borrar, opcionalmente se consolidan en agregados mensuales por usuario (counts por tipo) que siguen la misma vida de la cuenta.    |
-| **Cierre de cuenta**      | Borrado total inmediato vía el cascade existente (`onDelete: Cascade` ya está en el modelo) — cubierto por el flujo de account-deletion (S3).                                                                |
-| **Exportación**           | Incluidos en el data export del usuario (JSON) con `exportSchemaVersion` bump — el usuario ve exactamente lo que guardamos (claves + enums + fechas).                                                        |
-| **Minimización**          | Sin texto personal por construcción: el contrato no tiene NINGÚN campo capaz de portar texto libre (todos los strings son claves de catálogo validadas). Sin IP, sin user-agent, sin device id.              |
-| **Índices**               | Los 2 existentes + `@@unique([userId, idempotencyKey])` (dedup) + `@@index([guideSessionId])` cuando GuideSession aterrice. Suficiente para las lecturas de progreso (`userId, createdAt` / `userId, kind`). |
-| **Publicidad**            | Prohibido: los eventos no alimentan ads, remarketing ni terceros.                                                                                                                                            |
-| **Perfil emocional**      | Prohibido: no existe camino técnico (firewall §C) ni de producto — jamás se computa un "estado emocional inferido" desde actividad educativa.                                                                |
-| **Auditoría de creación** | Append-only + `occurredAt` server-owned + sin endpoints de mutación ⇒ el log es su propia auditoría. Sentry captura fallos de validación (código de error, jamás payloads).                                  |
-| **Analítica agregada**    | Solo counts agregados (Pulso), sin drill-down por usuario, con umbral de k-anonimato **n ≥ 10** por celda; nada de series individuales expuestas a admin.                                                    |
+| Dimensión                 | Política V1                                                                                                                                                                                                                                                           |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Retención**             | `retention_proposal=24_months` (rolling, sweep mensual del worker) — `retention_status=PENDING_PRIVACY_PRODUCT_APPROVAL`. El valor final vive en **configuración validada** (env schema), no como número disperso en código.                                          |
+| **Cierre de cuenta**      | Borrado total inmediato vía el cascade existente (`onDelete: Cascade`) — cubierto por el flujo de account-deletion (S3).                                                                                                                                              |
+| **Exportación**           | Incluidos en el data export del usuario (JSON) con `exportSchemaVersion` bump — el usuario ve exactamente lo que guardamos (claves + enums + fechas).                                                                                                                 |
+| **Minimización**          | Sin texto personal por construcción: ningún campo del contrato puede portar texto libre. Sin IP, sin user-agent, sin device id.                                                                                                                                       |
+| **Índices**               | Los 2 existentes + `@@unique([userId, idempotencyKey])` + `@@index([guideSessionId])` cuando GuideSession aterrice.                                                                                                                                                   |
+| **Publicidad**            | Prohibido: los eventos no alimentan ads, remarketing ni terceros.                                                                                                                                                                                                     |
+| **Perfil emocional**      | Prohibido: no existe camino técnico (firewall §C) ni de producto.                                                                                                                                                                                                     |
+| **Auditoría de creación** | Append-only + `occurredAt` server-owned + escritor único (§E-bis) + sin endpoints de mutación ⇒ el log es su propia auditoría. Sentry captura fallos de validación (código de error, jamás payloads).                                                                 |
+| **Analítica agregada**    | Solo counts agregados (Pulso), sin drill-down por usuario. `analytics_k_proposal=10` — `analytics_threshold_status=PENDING_PRIVACY_PRODUCT_APPROVAL`; el umbral final en configuración validada. **k-anonimato es una barrera mínima, no una garantía de anonimato.** |
 
-**Amenazas consideradas:** (1) payload como canal de exfiltración de texto →
-cerrado por whitelist sin campos de texto; (2) cliente fechando/inflando
-historia → reloj server-owned + dedup semántica + rate limit; (3) log educativo
-usado como proxy psicológico → firewall §C + prohibición de producto + ratchet;
-(4) admin lurking → solo agregados k≥10; (5) replay/duplicación →
-idempotencyKey + dedup por tipo; (6) evento contra contenido sin entitlement →
-mismo `ContentAccessService` del lector (FREE en unidad PRO ⇒ 403 también para
-eventos).
+**Amenazas consideradas:**
+
+1. Payload como canal de exfiltración de texto → cerrado por whitelist sin
+   campos de texto.
+2. Cliente fechando/inflando/falsificando historia → comandos con transición
+   server-side, reloj server-owned, dedup semántica, idempotencyKey
+   obligatorio, rate limit.
+3. Log educativo usado como proxy psicológico → firewall §C + ratchets +
+   prohibición de producto.
+4. **Inferencia por combinación de celdas agregadas** → los agregados de Pulso
+   se publican por celdas independientes predefinidas; prohibido cruzar
+   dimensiones ad-hoc que estrechen cohortes.
+5. **Ataques de composición/diferencias entre periodos** (restar el agregado
+   de ayer al de hoy para aislar a un usuario) → los agregados usan ventanas
+   fijas no solapadas y el umbral k se aplica también a los deltas entre
+   periodos publicados.
+6. **Cohortes pequeñas** → celda bajo el umbral ⇒ se suprime, no se redondea.
+7. **Reidentificación por `unitKey`/`conceptKey` raros** (contenido con un
+   solo lector) → las celdas de contenido con cohortes < k se agrupan en
+   "otros" antes de publicarse.
+8. **Acceso interno indebido** → los eventos crudos no tienen superficie
+   admin; Pulso solo ve agregados; cualquier acceso operativo a filas crudas
+   pasa por el mismo procedimiento de ops auditado (SSH efímero) que el resto
+   de la DB.
+9. Replay/duplicación → idempotencyKey único + dedup por tipo.
+10. Comando contra contenido sin entitlement → resolución completa §C-bis +
+    `ContentAccessService` (FREE en unidad PRO ⇒ 403 también para comandos).
 
 ---
 
-## G. API propuesta (NO implementada)
+## G. API propuesta — comandos de dominio (NO implementada)
 
-| Ruta                                     | Auth | Entitlement                                                                                       | Request                           | Respuesta                                                                              | Idempotencia                                                                              | Errores           | Rate limit    | Eventos server-side            |
-| ---------------------------------------- | ---- | ------------------------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------- | ------------- | ------------------------------ |
-| `POST /api/learning/events`              | JWT  | tipos unit-bound: `ContentAccessService.assertCanReadUnit` (ch1 preview FREE igual que el lector) | `CreateLearningEventRequest` (§E) | 201 `{event}` · 200 en replay                                                          | `idempotencyKey` + dedup semántica §B                                                     | 400/403/404 (§E)  | 60/min/user   | el solicitado, tras validación |
-| `GET /api/learning/progress`             | JWT  | ninguno extra (solo datos propios)                                                                | `?bookSlug=` opcional             | unidades abiertas/completadas por libro, prácticas, precisión de recall **en buckets** | n/a (lectura)                                                                             | 400 slug inválido | 60/min global | ninguno                        |
-| `POST /api/guide/sessions`               | JWT  | plan del libro si la sesión ancla unidad PRO                                                      | `{editionKey?, unitKey?}`         | 201 `{session}`                                                                        | 1 sesión activa/usuario (la previa se autocierra como abandonada, sin evento `completed`) | 403/404           | 10/min/user   | `guide_session_started`        |
-| `PATCH /api/guide/sessions/:id/complete` | JWT  | ownership (404 si ajena, sin distinguir)                                                          | `{stepsCompleted}`                | 200 `{session}`                                                                        | PATCH repetido → 200 sin evento nuevo                                                     | 404/409           | 10/min/user   | `guide_session_completed`      |
+No existe un POST genérico capaz de solicitar todos los tipos. Cada ruta
+ejecuta validación + transición de dominio y después llama internamente a
+`LearningEventRepository.appendValidated`:
+
+| Ruta                                                 | Auth | Entitlement                                                                     | Request                                      | Transición server-side                                                                             | Respuesta                  | Errores principales | Rate limit  | Evento emitido            |
+| ---------------------------------------------------- | ---- | ------------------------------------------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------- | ------------------- | ----------- | ------------------------- |
+| `POST /api/learning/units/:unitKey/open`             | JWT  | `ContentAccessService.assertCanReadUnit` (ch1 preview FREE igual que el lector) | `OpenUnitCommand`                            | valida unidad publicada; dedup 1/día                                                               | 201 `{event}` · 200 replay | 400/403/404/409     | 60/min/user | `unit_opened`             |
+| `POST /api/learning/units/:unitKey/complete`         | JWT  | ídem                                                                            | `CompleteUnitCommand`                        | exige estado previo propio (apertura registrada); sin él → 409 `LEARNING_EVENT_INVALID_TRANSITION` | 201 · 200 replay           | 400/403/404/409     | 60/min/user | `unit_completed`          |
+| `POST /api/learning/concepts/:conceptKey/explore`    | JWT  | resolución §C-bis hasta el libro                                                | `ExploreConceptCommand`                      | resuelve concept→unit→edition; dedup 1/día                                                         | 201 · 200 replay           | 400/403/404/422     | 60/min/user | `concept_explored`        |
+| `POST /api/learning/recall-attempts`                 | JWT  | resolución §C-bis desde `itemKey`                                               | `SubmitRecallAttemptCommand`                 | ítems objetivos: el servidor CALIFICA contra catálogo; autoevaluados: marca `self_assessed`        | 201 `{event}`              | 400/403/404/422     | 30/min/user | `active_recall_attempted` |
+| `POST /api/learning/practices/:exerciseKey/complete` | JWT  | resolución §C-bis desde `exerciseKey`                                           | `CompletePracticeCommand`                    | transición de práctica (1/día por unidad)                                                          | 201 · 200 replay           | 400/403/404/409/422 | 30/min/user | `practice_completed`      |
+| `POST /api/guide/sessions`                           | JWT  | plan del libro si ancla unidad PRO                                              | `{editionKey?, unitKey?}` + `idempotencyKey` | crea la sesión (1 activa/usuario; la previa se autocierra sin evento `completed`)                  | 201 `{session}`            | 400/403/404         | 10/min/user | `guide_session_started`   |
+| `PATCH /api/guide/sessions/:id/complete`             | JWT  | ownership (404 si ajena, sin distinguir)                                        | `CompleteGuideSessionCommand`                | cierra la sesión; `stepsCompleted` contado por el servidor; repetido → 200 sin evento nuevo        | 200 `{session}`            | 404/409             | 10/min/user | `guide_session_completed` |
+| `GET /api/learning/progress`                         | JWT  | solo datos propios; sin metadata de contenido inaccesible (§C-bis)              | `?bookSlug=` opcional                        | — (lectura)                                                                                        | agregado por libro         | 400                 | 60/min      | ninguno                   |
 
 Común a todo: envelope de error estándar (`HttpExceptionFilter`), throttler
 global vigente, Swagger con `ErrorEnvelopeDto`, y **ninguna** ruta de UPDATE o
-DELETE de eventos.
+DELETE de eventos. Los eventos `guide_session_*` no son expresables como
+request en ninguna ruta.
 
 ---
 
 ## H. Relación con Guide V1
 
-Guide V1 (el modo guía conversacional/estructurado) es **consumidor** de los
-read models de LearningEvent:
+Guide V1 es **consumidor** de los read models de LearningEvent:
 
 - **Continuidad de sesión:** `GuideSession` activa + último
   `guide_session_completed` → retomar donde quedó.
 - **Recordar qué unidad se abrió:** último `unit_opened`/`unit_completed` por
   libro → "seguimos en el capítulo N".
-- **Práctica completada:** `practice_completed` por `exerciseKey` → no volver a
-  proponer lo ya hecho hoy; sugerir la práctica pendiente de la unidad.
-- **Active recall:** historial categórico (`correct/incorrect/skipped` por
-  `itemKey`) → espaciar repasos (los ítems fallados reaparecen antes).
-- **Progreso educativo:** el mismo agregado de `GET /api/learning/progress`
-  alimenta el hilo del Guide ("llevas 2 de 3 capítulos de la Parte I").
+- **Práctica completada:** `practice_completed` por `exerciseKey` → no volver
+  a proponer lo ya hecho hoy.
+- **Active recall:** historial categórico server-graded → espaciar repasos
+  (los ítems fallados reaparecen antes). Los `self_assessed` no gobiernan el
+  espaciado ni la precisión — son hechos cualitativos.
+- **Progreso educativo:** el agregado de `GET /api/learning/progress`.
 
-**El Guide NO puede** (prohibiciones de producto + técnica):
-
-- diagnosticar ni usar lenguaje clínico;
-- inferir emociones desde eventos educativos (su prompt **no recibe** datos
-  del Mapa, del Diario ni de Eco — solo los read models educativos de arriba);
-- alterar el Mapa (frontera de módulos §C: el Guide escribe LearningEvent/
-  GuideSession y nada más);
-- usar LearningEvent como señal psicológica (p. ej. "abandonaste la sesión →
-  estás desanimado" está prohibido);
-- convertir engagement en un score personal — el progreso se presenta como
-  hechos ("2 de 3"), nunca como juicio ni como métrica de la persona.
+**El Guide NO puede:** diagnosticar ni usar lenguaje clínico; inferir
+emociones desde eventos educativos (su prompt no recibe Mapa/Diario/Eco);
+alterar el Mapa (frontera §C); usar LearningEvent como señal psicológica
+("abandonaste la sesión → estás desanimado" está prohibido); convertir
+engagement en un score personal — el progreso se presenta como hechos
+("2 de 3"), nunca como juicio.
 
 ---
 
 ## I. Plan de implementación (PRs pequeños, cada uno reversible y deployable)
 
-| PR                                     | Contenido                                                                                                                                                                      | Reversibilidad                                 |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
-| **1. Contratos + validación pura**     | `packages/types/learning-events.ts` + `parseLearningEvent()` puro + tests unit (incluye rechazo de campos extra, texto libre, tipos server-owned)                              | sin schema, sin endpoints — revert trivial     |
-| **2. Persistencia append-only**        | Enum aditivo (+3 kinds V1), `@@unique([userId, idempotencyKey])`, repositorio con constructor tipado único; firewall test reducido (repo-level) + ratchet `no-learning-in-map` | migración aditiva; tabla ya existe             |
-| **3. Endpoints server-owned**          | `POST /api/learning/events` + `GET /api/learning/progress` + entitlement + rate limit + OpenAPI                                                                                | detrás del deploy normal; sin consumidores aún |
-| **4. GuideSession**                    | modelo + migración aditiva + `POST /api/guide/sessions` + `PATCH …/complete` + eventos emitidos por transición                                                                 | aditivo e independiente                        |
-| **5. Integración web**                 | lector emite `unit_opened`/`unit_completed`; prácticas/recall emiten los suyos; best-effort (fallo de evento jamás rompe UX)                                                   | solo cliente                                   |
-| **6. Integración mobile**              | paridad con web                                                                                                                                                                | solo cliente                                   |
-| **7. Analítica agregada**              | counts k≥10 en Pulso + sweep de retención 24m en worker                                                                                                                        | aditivo                                        |
-| **8. Firewall e integración completa** | `learning-map-firewall.pg-spec.ts` (§D, inversión semántica full-stack con control negativo) pineado como ratchet                                                              | test-only                                      |
+| PR                                      | Contenido                                                                                                                                                                                                                                                                                                                              | Reversibilidad                      |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| **1. Contratos + validación pura**      | `packages/types/learning-events.ts` (comandos + payloads + errores) + parsers puros + tests unit (rechazo de campos extra, texto libre, tipos server-owned, idempotencyKey ausente)                                                                                                                                                    | sin schema, sin endpoints           |
+| **2. Persistencia + firewall dinámico** | Enum aditivo (+3 kinds V1), `@@unique([userId, idempotencyKey])`, `LearningEventRepository.appendValidated` (escritor único); **ratchet `no-learning-in-map` + ratchet `no-direct-learning-event-write` + inversión semántica DB-level con control negativo** (bloqueado por la decisión ARC pendiente de §C/§D, que se resuelve aquí) | migración aditiva; tabla ya existe  |
+| **3. Comandos de dominio (endpoints)**  | Las 5 rutas learning + `GET progress` + entitlement §C-bis + rate limit + OpenAPI. **No aterriza sin el firewall dinámico de PR 2 en verde**                                                                                                                                                                                           | deploy normal; sin consumidores aún |
+| **4. GuideSession**                     | modelo + migración aditiva + `POST /api/guide/sessions` + `PATCH …/complete` + eventos emitidos por transición + conteo server-side de pasos                                                                                                                                                                                           | aditivo e independiente             |
+| **5. Integración web**                  | lector invoca `open`/`complete`; prácticas/recall invocan sus comandos; best-effort (fallo de comando jamás rompe UX)                                                                                                                                                                                                                  | solo cliente                        |
+| **6. Integración mobile**               | paridad con web                                                                                                                                                                                                                                                                                                                        | solo cliente                        |
+| **7. Analítica agregada**               | counts con umbral k (config validada) en Pulso + sweep de retención (config validada) en worker — ambos tras aprobación de privacidad (§F)                                                                                                                                                                                             | aditivo                             |
+| **8. Firewall full-stack**              | ampliación de la inversión semántica a través de los endpoints reales (HTTP → comando → evento → mapProjection idéntica)                                                                                                                                                                                                               | test-only                           |
 
 Orden estricto 1→8; cada PR con CI verde y sync `develop→main` normal. Ninguno
 toca Mapa/epochs/OU/scoring/flags ni el libro publicado.
 
 ## J. Plan de pruebas (resumen)
 
-- **Unit (PR 1):** parser — cada tipo acepta su payload exacto; campo extra ⇒
-  400; string con texto libre en campo de clave ⇒ 404 de catálogo; tipos
-  server-owned por POST ⇒ 400; bounds (`stepsCompleted` 0–50).
-- **PG (PR 2/3):** dedup semántica por tipo; `(userId, idempotencyKey)` único;
-  replay ⇒ 200 con el original; entitlement FREE/PRO espejo del lector
-  (FREE + unidad PRO ⇒ 403 también en eventos); append-only (no existe camino
-  de UPDATE/DELETE).
+- **Unit (PR 1):** parsers — cada comando acepta su shape exacto; campo extra
+  ⇒ 400; **idempotencyKey ausente ⇒ 400**; `selectedOptionKey` y `selfResult`
+  simultáneos o ambos ausentes ⇒ 400; bounds.
+- **PG (PR 2):**
+  - **cliente intenta falsificar `correct`** en ítem objetivo (manda
+    `selfResult`) ⇒ rechazado; en ítem autoevaluado ⇒ persiste marcado
+    `self_assessed` y excluido de precisión;
+  - **`complete` sin transición válida** (sin apertura previa) ⇒ 409
+    `LEARNING_EVENT_INVALID_TRANSITION`, nada persiste;
+  - **clave sin entitlement** ⇒ 403 (FREE + unidad PRO, espejo del lector);
+  - **clave sin relación editorial resoluble** ⇒ 422
+    `LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT`, nada persiste;
+  - **replay misma key + payload distinto** ⇒ 409
+    `LEARNING_EVENT_IDEMPOTENCY_CONFLICT`; replay exacto ⇒ 200 con el original;
+  - append-only: no existe camino de UPDATE/DELETE.
+- **Ratchets (PR 2):** `no-learning-in-map`;
+  **`no-direct-learning-event-write`** — una escritura Prisma directa fuera
+  del repositorio ⇒ build rojo (el spec se auto-verifica plantando un fixture
+  con la string prohibida);
+  **inversión semántica DB-level** — incluye que una **Resonance cualitativa
+  no altera `mapProjection`** (ver conflicto ARC §D) + control negativo.
 - **PG (PR 4):** transiciones GuideSession (start→complete idempotente,
-  ownership 404, `ALREADY_COMPLETED`).
-- **Ratchets permanentes:** `no-learning-in-map` (grep en archivos del mapa) +
-  inversión semántica (§D) + control negativo.
+  ownership 404, `ALREADY_COMPLETED`, `stepsCompleted` contado por servidor).
 - **Privacidad:** spec que serializa un `LearningEventRecord` de cada tipo y
-  verifica que ningún campo puede contener los términos prohibidos (espejo del
-  patrón `serializeDryRunReport` de CC-6F).
+  verifica la ausencia estructural de campos capaces de portar texto libre.

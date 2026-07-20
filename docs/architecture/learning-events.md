@@ -181,7 +181,7 @@ Para CC-7, `Resonance` se define así y solo así:
 (Conexión) y ARC-P1 (Propósito) quedan **ratificados** como la única
 excepción: una Resonance confirmada explícitamente por el usuario es
 autoinforme mediado por contenido — no engagement — y puede contribuir SOLO a
-esos dos ejes, bajo los invariantes INV-1…INV-5 del ADR 0018 (solo taps
+esos dos ejes, bajo los invariantes INV-1…INV-6 del ADR 0018 (solo taps
 explícitos, input exacto `{conceptKey, important}` sin frecuencia/dwell/
 progreso/recall, caps de saturación, procedencia visible y revocable, y
 ratchet contra cualquier ampliación). Sigue siendo cierto que **LearningEvent
@@ -216,10 +216,10 @@ no pueden aterrizar antes de que exista este firewall dinámico ejecutable.**
    - GuideSession start→complete;
    - recall objetivo (correct+incorrect calculados por el servidor) y
      self_assessed; practice_completed;
-   - Highlight + Annotation (Core, blockKey+blockVersionId);
-   - una Resonance CUALITATIVA confirmada.
-4. B := mapProjection(user)   // mismo bypass
-5. expect(B).toStrictEqual(A) — igualdad semántica exacta.
+   - Highlight + Annotation (Core, blockKey+blockVersionId).
+4. B := canonicalMapProjection(user)   // mismo bypass
+5. Parte 1: expect(B).toEqual(A) — igualdad semántica (proyección canónica).
+6. Parte 2 (aparte): matriz de transiciones T0–T7 de Resonance (ADR 0018).
 6. CONTROL NEGATIVO: crear un checkin → C := mapProjection(user) →
    expect(C).not.toStrictEqual(A) (sin esto el test podría pasar vacío).
 ```
@@ -234,19 +234,29 @@ dinámica afectiva; `coverage`.
 **Enmienda explícita (ADR 0018 — resuelve el conflicto):** la especificación
 original exigía identidad también tras crear una Resonance, lo que contradecía
 ARC-C1/ARC-P1. Con la política ratificada (`EXPLICIT_AXIS_EXCEPTION`), el test
-queda en DOS partes. **Parte 1** — actividad educativa (LearningEvents +
-progreso + sesiones + quiz + marks) ⇒ `mapProjection` **idéntica siempre, sin
-excepción alguna**. **Parte 2** — confirmar una Resonance ⇒ **delta
-confinado**: solo `conexion`/`proposito` pueden diferir, sus `evidence` citan
-exclusivamente ARC-C1/ARC-P1, todos los demás ejes y campos permanecen
-byte-idénticos, y tras revocarla la proyección vuelve al estado previo. La
-Parte 2 es el ratchet de los invariantes INV-1/INV-5 del ADR 0018: un delta en
-cualquier otro eje rompe el build. Enmienda explícita y aprobada — no una
-excepción silenciosa.
+usa `canonicalMapProjection` (excluye únicamente `generatedAt`, ids de
+snapshot, TTLs de cache, metadata operacional incidental y narrative no
+determinista — nunca compara el payload bruto byte a byte) y queda en DOS
+criterios INDEPENDIENTES:
 
-**Criterio de fallo:** cualquier delta en cualquier campo comparado tras el
-paso 3 = actividad educativa (o resonancia cualitativa) alterando una
-proyección emocional = build rojo. Ratchet permanente: nunca se relaja.
+- **Parte 1 — firewall educativo:** tras LearningEvents + progreso +
+  ReadingSession + GuideSession + quiz/recall + Highlight + Annotation, la
+  proyección canónica debe ser **semánticamente idéntica**; cualquier delta en
+  cualquier eje o campo comparado = fallo. Sin excepción alguna.
+- **Parte 2 — excepción ARC:** una secuencia de operaciones de Resonance solo
+  puede producir los deltas exactos de la **matriz de transiciones T0–T7 del
+  ADR 0018** (confirmación → solo conexion, evidencia solo ARC-C1, n=1;
+  duplicado → idempotente; important → solo proposito, solo ARC-P1;
+  desmarcar/eliminar → reversibilidad al baseline; saturaciones
+  `RESONANCE_GOOD_N=4`/`RESONANCE_CONF_N=2`/`IMPORTANT_GOOD_N=3`/
+  `IMPORTANT_CONF_N=1` exactas). Cualquier otro delta = fallo.
+
+La Parte 2 es el ratchet de los invariantes INV-1/INV-6 del ADR 0018. Enmienda
+explícita y aprobada — no una excepción silenciosa.
+
+**Criterio de fallo:** Parte 1 — cualquier delta tras la actividad educativa
+= build rojo, sin excepción. Parte 2 — cualquier delta fuera de la matriz
+T0–T7 del ADR 0018 = build rojo. Ratchet permanente: nunca se relaja.
 
 ---
 

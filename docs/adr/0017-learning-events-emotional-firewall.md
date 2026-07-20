@@ -76,15 +76,16 @@ ContentAccessService`. Sin contextos opcionales que eviten el gate; clave
    Resonance. La conversión preexistente ARC-C1/ARC-P1 (resonancias →
    Conexión/Propósito) quedó **resuelta en ADR 0018**
    (`EXPLICIT_AXIS_EXCEPTION`): excepción ratificada, acotada por los
-   invariantes INV-1…INV-5 y verificada por el test de dos partes con delta
-   confinado. Sigue FORBIDDEN para todo lo nuevo de CC-7.
+   invariantes INV-1…INV-6 y verificada por el test de dos partes (matriz
+   T0–T7). Sigue FORBIDDEN para todo lo nuevo de CC-7.
 8. **Firewall dinámico adelantado:** PR 2 (persistencia) incluye los dos
    ratchets estáticos **y** el test de inversión semántica DB-level en dos
    partes — Parte 1: proyección canónica del mapa **idéntica** tras crear los
    7 tipos + progreso + sesiones + marcas (sin excepción alguna); Parte 2:
-   confirmar una Resonance ⇒ delta confinado a conexion/proposito con
-   evidencia ARC + reversibilidad — más el control negativo (un checkin sí
-   mueve la proyección). **Los endpoints (PR 3) no aterrizan sin un firewall
+   operaciones de Resonance ⇒ solo los deltas exactos de la matriz de
+   transiciones T0–T7 del ADR 0018 (conexion/proposito con evidencia ARC,
+   idempotencia de duplicados, reversibilidad al baseline) — más el control
+   negativo (un checkin sí mueve la proyección). **Los endpoints (PR 3) no aterrizan sin un firewall
    dinámico ejecutable.** Gate: la decisión ARC se resolvió en ADR 0018
    (aprobación en su PR); el test de inversión adopta la forma de dos partes
    (educativa ⇒ idéntico siempre; resonancia ⇒ delta confinado a

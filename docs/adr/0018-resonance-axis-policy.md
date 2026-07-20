@@ -95,7 +95,7 @@ narrativa («Mis resonancias», que ya existe).
   semánticamente más cercano a un check-in que a telemetría.
 - Producto: Conexión y Propósito pierden su ÚNICA fuente bajo V2 → quedan en
   «Reuniendo datos» permanente. El programa V2 (Fases E–H) construyó ARC
-  precisamente porque esos ejes no tenían fuente legítima; vaciarlos recrea la
+  precisamente porque esos ejes no tenían fuente configurada; vaciarlos recrea la
   presión de rellenarlos con algo peor (engagement) más adelante.
 - Compatibilidad: cambio de producto visible (radar pierde 2 puntas activas),
   requiere neutralizar modelos, editar scoring/registry/UI/copy, actualizar
@@ -117,11 +117,19 @@ registrados, con límites obligatorios que se convierten en invariantes:
 7. confidence de evidencia limitada (satura en 2 y 1 — nunca finge certeza
    estadística);
 8. revocable (DELETE/PATCH recomputan);
-9. auditable (fila con source + fecha + procedencia en UI);
+9. trazable e inspeccionable mientras la fila existe (source + fecha +
+   procedencia en UI); DELETE elimina la fila y NO se conserva historial
+   durable de resonancias revocadas;
 10. **ratchet que impide ampliar la excepción** a otros ejes u otras fuentes.
 
-- Riesgo de inferencia: bajo — no hay inferencia; el valor ES el autoinforme
-  contado. Privacidad: solo metadata de catálogo, cero texto.
+- Riesgo de inferencia: acotado y declarado — ARC-C1/ARC-P1 producen una
+  **estimación EXPERIMENTAL derivada algorítmicamente** del conteo de
+  autoinformes explícitos, revocables y mediados por contenido. El usuario
+  declara que un concepto le resonó o le parece importante; **NO declara
+  directamente su nivel de Conexión ni de Propósito** — la transformación
+  count/cap es una interpretación del modelo, no una medición directa, ni
+  diagnóstico, ni verdad psicológica, ni señal clínica. Privacidad: solo
+  metadata de catálogo, cero texto.
 - Compatibilidad: total — es el comportamiento desplegado; sin migración, sin
   recomputación, sin cambios de UI/copy/tests.
 - El costo: mantener una excepción documentada. Se mitiga con el ratchet (10).
@@ -156,42 +164,79 @@ a **invariantes permanentes**:
 - **INV-4:** las saturaciones (caps) y la procedencia visible no se retiran.
 - **INV-5:** cualquier ampliación (nuevo eje, nueva fuente, nuevo input)
   exige un ADR nuevo + cambio del ratchet — nunca un edit silencioso.
+- **INV-6 (gobierno de modelos):** cualquier cambio a los ejes afectados, al
+  shape del input, a `RESONANCE_GOOD_N`/`RESONANCE_CONF_N`/
+  `IMPORTANT_GOOD_N`/`IMPORTANT_CONF_N`, a la fórmula, al
+  evidence/provenance o al comportamiento de revocación exige: (1) nueva
+  versión de ARC-C1/ARC-P1; (2) actualización del model-registry; (3) ADR
+  nuevo o enmienda explícita; (4) evaluación documentada de `CACHE_EPOCH`;
+  (5) evaluación de recomputación de snapshots; (6) actualización de los
+  regression tests; (7) aprobación antes del merge. **Sin cambios
+  silenciosos, aunque sigan afectando solo a los mismos dos ejes.**
 
-Justificación condensada: significado psicológico correcto (autoinforme, no
-telemetría), honestidad hacia el usuario (procedencia «Confirmado por ti» +
-evidencia modelo+n + revocable), riesgo de inferencia mínimo (conteo de actos
-explícitos), privacidad intacta (metadata de catálogo), explicabilidad máxima
-(el usuario puede reconstruir el número contando sus propios taps), deuda
+Justificación condensada: la señal de entrada es autoinforme explícito, no
+telemetría, y la salida se presenta como lo que es — una **estimación derivada
+EXPERIMENTAL** (`model_status=EXPERIMENTAL`, `model_id=ARC-C1|ARC-P1`,
+`model_version=1.0`, visibles en evidence). Honestidad hacia el usuario
+(procedencia «Confirmado por ti» + modelo+n + revocable), riesgo de inferencia
+acotado y declarado (interpretación count/cap de actos explícitos, nunca
+medición directa), privacidad intacta (metadata de catálogo), explicabilidad
+máxima (el usuario puede reconstruir el conteo con sus propios taps), deuda
 técnica nula (ratifica lo desplegado), y expansión futura bloqueada por
-ratchet en vez de por costumbre.
+ratchet en vez de por costumbre. ARC-C1/ARC-P1 son la **única fuente
+actualmente configurada para esos ejes bajo V2** — una descripción de
+configuración, no un juicio de legitimidad: otra fuente futura exigiría su
+propio ADR.
 
 ## Impacto sobre el test de inversión de CC-7 (resuelve la contradicción)
 
-La especificación original (learning-events.md §D) incluía «crear una
-Resonance cualitativa y exigir `mapProjection` idéntica», lo que contradecía
-ARC-C1/ARC-P1. La enmienda es **explícita** (como exigía la propia spec) y el
-test queda en dos partes:
+La especificación original exigía identidad también tras crear una Resonance,
+lo que contradecía ARC-C1/ARC-P1. La enmienda es **explícita** y define DOS
+criterios independientes sobre `canonicalMapProjection` — la proyección
+canónica que excluye únicamente `generatedAt`, ids de snapshot, TTLs de cache,
+metadata operacional incidental y el narrative no determinista (nunca se
+compara el payload bruto «byte a byte»):
 
-```
-PARTE 1 — actividad educativa (SIEMPRE idéntico):
-  A := mapProjection(user)
-  → LearningEvents (7 tipos) + progreso + sesiones + quiz + highlights
-    + annotations
-  B := mapProjection(user)
-  expect(B).toStrictEqual(A)          // sin excepción alguna
+**Parte 1 — firewall educativo (cero delta, sin excepción alguna).** Tras
+LearningEvents (7 tipos) + progreso + ReadingSession + GuideSession +
+quiz/recall + Highlight + Annotation, `canonicalMapProjection` debe ser
+**semánticamente idéntica**. Cualquier delta en cualquier eje o campo
+comparado = fallo.
 
-PARTE 2 — resonancia confirmada (DELTA CONFINADO):
-  C := mapProjection(user) tras confirmar una Resonance
-  → SOLO los ejes conexion/proposito pueden diferir de B
-  → sus evidence citan exclusivamente ARC-C1/ARC-P1
-  → TODOS los demás ejes y campos (momento, dinámica, coverage, lenguaje)
-    permanecen byte-idénticos a B
-  → tras revocar (DELETE), D := mapProjection(user) vuelve a igualar B
-```
+**Parte 2 — excepción ARC (matriz de transiciones exacta).** Con un usuario
+aislado y SIN resonancias iniciales, una secuencia de operaciones de Resonance
+solo puede producir los deltas exactos de esta matriz; cualquier otro delta =
+fallo:
 
-La Parte 2 es más fuerte que una exención: convierte la excepción en un
-contrato verificable (delta confinado + reversibilidad) y ES el ratchet de
-INV-1/INV-5 — si un eje distinto cambia, el build rompe.
+| T   | Operación                                    | Deltas permitidos                  | Invariantes                                                                                                     |
+| --- | -------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| T0  | baseline `B := canonicalMapProjection(user)` | —                                  | —                                                                                                               |
+| T1  | confirmar concepto A (`important=false`)     | `conexion` puede cambiar           | `proposito` NO cambia; los otros 4 ejes NO cambian; evidence de conexion cita exclusivamente `ARC-C1` con `n=1` |
+| T2  | confirmar OTRA VEZ el mismo concepto A       | ninguno                            | idempotencia: conexion igual a T1; `n` permanece 1                                                              |
+| T3  | marcar A `important=true`                    | `proposito` puede cambiar          | conexion igual a T2; evidence de proposito cita exclusivamente `ARC-P1` con `n=1`                               |
+| T4  | desmarcar `important`                        | `proposito` vuelve al valor pre-T3 | conexion no cambia; ARC-P1 deja de aportar señal cuando corresponde                                             |
+| T5  | confirmar conceptos B, C, D y E              | `conexion` según saturación        | verifica `RESONANCE_GOOD_N=4` y `RESONANCE_CONF_N=2` exactos; duplicados NO incrementan `n`                     |
+| T6  | marcar importantes suficientes               | `proposito` según saturación       | verifica `IMPORTANT_GOOD_N=3` e `IMPORTANT_CONF_N=1` exactos                                                    |
+| T7  | eliminar TODAS las resonancias creadas       | vuelta al baseline                 | tras invalidar cache y recomputar, `canonicalMapProjection(user)` es semánticamente igual a `B`                 |
+
+En **cada** transición: calma, claridad, compasión y consciencia permanecen
+iguales; ningún LearningEvent se crea ni se consulta; ningún dato de
+frecuencia, dwell, progreso o recall entra al scoring; y ningún `evidence`
+distinto de `ARC-C1`/`ARC-P1` aparece en los deltas permitidos. Esta matriz ES
+el ratchet de INV-1/INV-5: define exhaustivamente lo permitido y todo lo demás
+rompe el build.
+
+## Privacidad y trazabilidad
+
+Una Resonance es **autoinforme explícito** y se trata como **dato personal
+sensible de producto**: sin texto libre (solo claves de catálogo + booleano +
+fechas), no usada para publicidad, incluida en el data export del usuario,
+revocable en cualquier momento y eliminada con la cuenta (cascade). Es
+**trazable e inspeccionable mientras la fila existe** — no «auditable» en el
+sentido de registro permanente: `DELETE` elimina la fila y **no se conserva
+historial durable de resonancias revocadas**; los logs técnicos no incluyen
+contenido personal; y esta política **no autoriza** crear un audit log
+permanente de resonancias.
 
 ## Plan posterior (NO ejecutado en este PR)
 

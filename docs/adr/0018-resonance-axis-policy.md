@@ -93,7 +93,8 @@ narrativa («Mis resonancias», que ya existe).
   cosas distintas: la resonancia NO es engagement — es un acto de autoinforme
   («esto sobre mi mundo interior me resonó»/«esto es importante para mí»),
   semánticamente más cercano a un check-in que a telemetría.
-- Producto: Conexión y Propósito pierden su ÚNICA fuente bajo V2 → quedan en
+- Producto: Conexión y Propósito pierden su única fuente actualmente
+  configurada bajo V2 → quedan en
   «Reuniendo datos» permanente. El programa V2 (Fases E–H) construyó ARC
   precisamente porque esos ejes no tenían fuente configurada; vaciarlos recrea la
   presión de rellenarlos con algo peor (engagement) más adelante.
@@ -112,7 +113,10 @@ registrados, con límites obligatorios que se convierten en invariantes:
 3. nunca desde LearningEvent;
 4. ningún uso de frecuencia/dwell/progreso/recall (solo conteo de conjuntos
    DISTINTOS);
-5. modelo+versión visibles en evidence/provenance;
+5. evidence expone `modelId` y `n`; `model_version=1.0` y
+   `model_status=EXPERIMENTAL` están fijados y verificables en model-registry
+   (la versión NO se presenta como campo del evidence actual; exponerla en
+   API/UI requeriría una implementación posterior explícita);
 6. contribution cap (saturación en `RESONANCE_GOOD_N` / `IMPORTANT_GOOD_N`);
 7. confidence de evidencia limitada (satura en 2 y 1 — nunca finge certeza
    estadística);
@@ -176,8 +180,9 @@ a **invariantes permanentes**:
 
 Justificación condensada: la señal de entrada es autoinforme explícito, no
 telemetría, y la salida se presenta como lo que es — una **estimación derivada
-EXPERIMENTAL** (`model_status=EXPERIMENTAL`, `model_id=ARC-C1|ARC-P1`,
-`model_version=1.0`, visibles en evidence). Honestidad hacia el usuario
+EXPERIMENTAL**: evidence expone `modelId` y `n`; `model_version=1.0` y
+`model_status=EXPERIMENTAL` viven fijados y verificables en model-registry
+(no como campo del evidence actual). Honestidad hacia el usuario
 (procedencia «Confirmado por ti» + modelo+n + revocable), riesgo de inferencia
 acotado y declarado (interpretación count/cap de actos explícitos, nunca
 medición directa), privacidad intacta (metadata de catálogo), explicabilidad

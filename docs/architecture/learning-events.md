@@ -207,29 +207,33 @@ familia `test:locks`); ampliación full-stack en PR 8. **Los endpoints (PR 3)
 no pueden aterrizar antes de que exista este firewall dinámico ejecutable.**
 
 ```
-1. Seed: usuario con historia emocional real (moods ordinales + checkins) para
-   que el mapa tenga ejes con señal (un mapa vacío pasaría trivialmente).
-2. A := mapProjection(user)   // cache bypass, cómputo fresco
-3. Crear, para ese usuario, por las vías reales (repositorio/comandos):
+1. seed: usuario con historia emocional real (moods ordinales + checkins)
+   para que el mapa tenga ejes con señal (un mapa vacío pasaría trivialmente)
+2. A := canonicalMapProjection(user)   // cache bypass, cómputo fresco
+3. crear actividad educativa por las vías reales (repositorio/comandos):
    - los 7 tipos V1 de LearningEvent;
    - ReadingSession (heartbeat + complete) y progreso;
    - GuideSession start→complete;
    - recall objetivo (correct+incorrect calculados por el servidor) y
      self_assessed; practice_completed;
-   - Highlight + Annotation (Core, blockKey+blockVersionId).
-4. B := canonicalMapProjection(user)   // mismo bypass
-5. Parte 1: expect(B).toEqual(A) — igualdad semántica (proyección canónica).
-6. Parte 2 (aparte): matriz de transiciones T0–T7 de Resonance (ADR 0018).
-6. CONTROL NEGATIVO: crear un checkin → C := mapProjection(user) →
-   expect(C).not.toStrictEqual(A) (sin esto el test podría pasar vacío).
+   - Highlight + Annotation (Core, blockKey+blockVersionId)
+4. B := canonicalMapProjection(user)
+5. expect(B).toEqual(A)                // Parte 1: cero delta, sin excepción
+6. ejecutar POR SEPARADO la matriz ARC T0–T7 (ADR 0018) — Parte 2
+7. control negativo: crear un checkin
+8. C := canonicalMapProjection(user)
+9. expect(C).not.toEqual(A)
 ```
 
-`mapProjection` es una **proyección canónica** del resultado del mapa que
-**ignora** timestamps, ids de snapshot, TTLs y metadata incidental (narrative
-LLM excluido por no-determinista) y **compara**: lista de ejes y su orden;
-`value`; `confidence`; presencia de señal (`measured`, `sources`); `status`;
-`evidence` completa (`modelId`, `n`) y procedencia; `momento`; parámetros de
-dinámica afectiva; `coverage`.
+El control negativo (pasos 7–9) pertenece a la **Parte 1** y demuestra que la
+proyección no está congelada ni cacheada — sin él, la igualdad del paso 5
+podría pasar vacía. Nunca se usa `toStrictEqual` sobre el payload bruto:
+todas las comparaciones son sobre `canonicalMapProjection`, que **excluye
+únicamente** `generatedAt`, ids de snapshot, TTLs de cache, metadata
+operacional incidental y el narrative no determinista, y **compara**: lista de
+ejes y su orden; `value`; `confidence`; presencia de señal (`measured`,
+`sources`); `status`; `evidence` completa (`modelId`, `n`) y procedencia;
+`momento`; parámetros de dinámica afectiva; `coverage`.
 
 **Enmienda explícita (ADR 0018 — resuelve el conflicto):** la especificación
 original exigía identidad también tras crear una Resonance, lo que contradecía
@@ -541,7 +545,7 @@ futuro una evidencia server-verifiable más fuerte.
 | **5. Integración web**                  | lector invoca `open`/`complete`; prácticas/recall invocan sus comandos; best-effort (fallo de comando jamás rompe UX)                                                                                                                                                                                                                                                              | solo cliente                        |
 | **6. Integración mobile**               | paridad con web                                                                                                                                                                                                                                                                                                                                                                    | solo cliente                        |
 | **7. Analítica agregada**               | counts con umbral k (config validada) en Pulso + sweep de retención (config validada) en worker — ambos tras aprobación de privacidad (§F)                                                                                                                                                                                                                                         | aditivo                             |
-| **8. Firewall full-stack**              | ampliación de la inversión semántica a través de los endpoints reales (HTTP → comando → evento → mapProjection idéntica)                                                                                                                                                                                                                                                           | test-only                           |
+| **8. Firewall full-stack**              | ampliación de la inversión semántica a través de los endpoints reales (HTTP → comando → evento → canonicalMapProjection idéntica en Parte 1 + matriz ARC T0–T7 en Parte 2)                                                                                                                                                                                                         | test-only                           |
 
 Orden estricto 1→8; cada PR con CI verde y sync `develop→main` normal. Ninguno
 toca Mapa/epochs/OU/scoring/flags ni el libro publicado.
@@ -567,8 +571,9 @@ toca Mapa/epochs/OU/scoring/flags ni el libro publicado.
   **`no-direct-learning-event-write`** — una escritura Prisma directa fuera
   del repositorio ⇒ build rojo (el spec se auto-verifica plantando un fixture
   con la string prohibida);
-  **inversión semántica DB-level** — incluye que una **Resonance cualitativa
-  no altera `mapProjection`** (ver conflicto ARC §D) + control negativo.
+  **inversión semántica DB-level** en dos partes (ADR 0018): Parte 1 —
+  actividad educativa ⇒ `canonicalMapProjection` idéntica; Parte 2 — matriz de
+  transiciones ARC T0–T7 con deltas exactos; + control negativo.
 - **PG (PR 4):** transiciones GuideSession (start→complete idempotente,
   ownership 404, `ALREADY_COMPLETED`, `stepsCompleted` contado por servidor).
 - **Retención y mutabilidad (PR 2/7):**

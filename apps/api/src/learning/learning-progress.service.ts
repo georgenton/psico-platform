@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import type {
   LearningProgressResponse,
   LearningUnitProgressItem,
@@ -7,10 +11,9 @@ import type {
 import { PrismaService } from "../prisma";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ContentAccessService } from "../content-core/access/content-access.service";
-import { assertContentAccess } from "../content-core/access/content-access";
-import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
 import type { AuthenticatedUser } from "../auth";
 import { readStoredPayload } from "./learning-event-semantics";
+import { LearningEventStorageError } from "./learning-event.repository";
 import { learningException } from "./learning-errors";
 
 /**
@@ -20,11 +23,11 @@ import { learningException } from "./learning-errors";
  * over the published revision's ordered units — never written to the legacy
  * `UserProgress` table, never read from non-V1 rows.
  *
- * Access: the SAME ContentAccessService gate as every content surface. The
- * book-level gate mirrors the manifest; each unit is additionally filtered by
- * the per-chapter entitlement (`assertContentAccess`, the single FREE/PRO
- * condition) — units the caller cannot read are absent from the list AND the
- * counts, never leaked.
+ * Access: the SAME `ContentAccessService` surface that authorizes every
+ * command. Each candidate unit runs through `assertCanReadUnit` — an
+ * EXPECTED denial (Forbidden/NotFound) excludes the unit from the list AND
+ * the counts; an UNEXPECTED dependency failure surfaces as the generic
+ * sanitized 500, never as an editorial verdict.
  */
 @Injectable()
 export class LearningProgressService {
@@ -33,20 +36,50 @@ export class LearningProgressService {
     private readonly access: ContentAccessService,
   ) {}
 
+  /**
+   * `true` when the actor may read the unit; `false` on an EXPECTED denial.
+   * Infrastructure failures (DB, adapter, programming errors) are NOT access
+   * verdicts — they rethrow as the value-free storage error (generic 500).
+   */
+  private async canReadUnit(
+    user: AuthenticatedUser,
+    editionKey: string,
+    unitKey: string,
+  ): Promise<boolean> {
+    try {
+      await this.access.assertCanReadUnit({
+        userId: user.userId,
+        userPlan: user.plan,
+        editionKey,
+        unitKey,
+      });
+      return true;
+    } catch (err) {
+      if (
+        err instanceof ForbiddenException ||
+        err instanceof NotFoundException
+      ) {
+        return false;
+      }
+      throw new LearningEventStorageError();
+    }
+  }
+
   async getProgress(
     user: AuthenticatedUser,
     bookSlug: string,
   ): Promise<LearningProgressResponse> {
     const book = await this.prisma.book.findUnique({
       where: { slug: bookSlug },
-      select: { id: true, slug: true, plan: true },
+      select: { id: true, slug: true },
     });
     if (!book) {
       throw learningException("LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT");
     }
 
     // Book-level gate — the same policy the manifest applies. Denials are
-    // value-free; no shape of the book leaks past a 403.
+    // value-free; no shape of the book leaks past a 403. Infrastructure
+    // failures are a sanitized 500, never an editorial verdict.
     try {
       await this.access.assertCanSeeBook({
         userId: user.userId,
@@ -57,7 +90,10 @@ export class LearningProgressService {
       if (err instanceof ForbiddenException) {
         throw learningException("LEARNING_EVENT_FORBIDDEN");
       }
-      throw learningException("LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT");
+      if (err instanceof NotFoundException) {
+        throw learningException("LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT");
+      }
+      throw new LearningEventStorageError();
     }
 
     const edition = await this.prisma.edition.findUnique({
@@ -82,30 +118,13 @@ export class LearningProgressService {
       select: { unit: { select: { id: true, unitKey: true } } },
     });
 
-    // Per-unit entitlement: the unitKey↔chapter bridge yields the chapter
-    // order the SINGLE FREE/PRO condition needs. Units without a mapping are
-    // fail-closed (never shown), matching the access service's own posture.
-    const chapters = await this.prisma.chapter.findMany({
-      where: { bookId: book.id },
-      select: { id: true, order: true },
-    });
-    const orderByUnitKey = new Map(
-      chapters.map((c) => [unitKeyFromLegacyChapterId(c.id), c.order]),
+    // Per-unit entitlement through the ONE access surface commands use.
+    const visibility = await Promise.all(
+      manifest.map((entry) =>
+        this.canReadUnit(user, edition.editionKey, entry.unit.unitKey),
+      ),
     );
-    const accessible = manifest.filter((entry) => {
-      const chapterOrder = orderByUnitKey.get(entry.unit.unitKey);
-      if (chapterOrder === undefined) return false;
-      try {
-        assertContentAccess({
-          userPlan: user.plan,
-          bookPlan: book.plan,
-          chapterOrder,
-        });
-        return true;
-      } catch {
-        return false;
-      }
-    });
+    const accessible = manifest.filter((_, i) => visibility[i]);
 
     // V1 events ONLY (schemaVersion=1) for THIS user over the visible units.
     const unitIds = accessible.map((entry) => entry.unit.id);

@@ -202,7 +202,7 @@ export class LearningCatalogResolver {
   /**
    * `itemKey (Exercise.id, type=QUIZ) → strict content contract → chapter →
    * unit → published revision → edition → book`, plus the declared concept
-   * binding (which must itself resolve in the Concept catalog).
+   * binding — which must belong to the SAME editorial context as the item.
    */
   async resolveRecallItem(itemKey: string): Promise<ResolvedRecallItemContext> {
     const exercise = await this.prisma.exercise.findUnique({
@@ -219,24 +219,46 @@ export class LearningCatalogResolver {
       throw learningException("LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT");
     }
 
+    // The ITEM's full editorial context resolves FIRST — everything the
+    // concept binding claims is then verified against it.
+    const ctx = await this.resolveUnitByWhere(
+      { unitKey: unitKeyFromLegacyChapterId(exercise.chapterId) },
+      "LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT",
+    );
+
     let conceptId: string | null = null;
     let conceptKey: string | null = null;
     if (catalog.conceptKey !== null) {
+      // Same discipline as resolveConcept (unit-scoped links, exactly ONE
+      // distinct owning unit) — but every failure here is 422, never
+      // UNKNOWN_CONCEPT: this key comes from the item's INTERNAL catalog,
+      // not from the client.
       const concept = await this.prisma.concept.findUnique({
         where: { conceptKey: catalog.conceptKey },
-        select: { id: true, conceptKey: true },
+        select: {
+          id: true,
+          conceptKey: true,
+          links: { where: { unitId: { not: null } }, select: { unitId: true } },
+        },
       });
       if (!concept) {
+        throw learningException("LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT");
+      }
+      const unitIds = [
+        ...new Set(concept.links.map((l) => l.unitId as string)),
+      ];
+      // Unambiguous ownership AND the SAME unit as the item. A ContentUnit
+      // belongs to exactly one Edition (FK) and the edition to one Book, and
+      // the item's unit was already proven to sit in the published revision —
+      // so matching `unitId` establishes unit, edition, book and revision
+      // identity; re-comparing the derived ids would be redundant.
+      if (unitIds.length !== 1 || unitIds[0] !== ctx.unitId) {
         throw learningException("LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT");
       }
       conceptId = concept.id;
       conceptKey = concept.conceptKey;
     }
 
-    const ctx = await this.resolveUnitByWhere(
-      { unitKey: unitKeyFromLegacyChapterId(exercise.chapterId) },
-      "LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT",
-    );
     return {
       ...ctx,
       itemKey: exercise.id,

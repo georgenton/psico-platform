@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { HttpException } from "@nestjs/common";
 import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { backfillContentCore } from "../content-core/backfill";
 import { ContentAccessService } from "../content-core/access/content-access.service";
 import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
@@ -11,7 +11,10 @@ import type { PrismaService } from "../prisma";
 import type { AuthenticatedUser } from "../auth";
 import { LearningCatalogResolver } from "./learning-catalog.resolver";
 import { LearningCommandService } from "./learning-command.service";
-import { LearningEventRepository } from "./learning-event.repository";
+import {
+  LearningEventRepository,
+  LearningEventStorageError,
+} from "./learning-event.repository";
 import { LearningProgressService } from "./learning-progress.service";
 
 /**
@@ -74,6 +77,9 @@ suite("CC-7.3 · learning domain commands (real PostgreSQL)", () => {
   let pool: Pool;
   let commands: LearningCommandService;
   let progress: LearningProgressService;
+  let access: ContentAccessService;
+  let resolver: LearningCatalogResolver;
+  let repository: LearningEventRepository;
 
   // FREE book (2 chapters) — everything allowed to FREE.
   let freeUnit1Key: string;
@@ -87,6 +93,10 @@ suite("CC-7.3 · learning domain commands (real PostgreSQL)", () => {
   let selfAssessedItemId: string;
   let malformedQuizId: string;
   let proCh2QuizId: string;
+  let crossUnitConceptQuizId: string;
+  let crossBookConceptQuizId: string;
+  let ambiguousConceptQuizId: string;
+  let missingConceptQuizId: string;
 
   async function eventCount(userId: string): Promise<number> {
     return prisma.learningEvent.count({ where: { userId } });
@@ -107,11 +117,9 @@ suite("CC-7.3 · learning domain commands (real PostgreSQL)", () => {
     pool = new Pool({ connectionString: url });
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
-    const access = new ContentAccessService(prisma as unknown as PrismaService);
-    const resolver = new LearningCatalogResolver(
-      prisma as unknown as PrismaService,
-    );
-    const repository = new LearningEventRepository(prisma);
+    access = new ContentAccessService(prisma as unknown as PrismaService);
+    resolver = new LearningCatalogResolver(prisma as unknown as PrismaService);
+    repository = new LearningEventRepository(prisma);
     commands = new LearningCommandService(
       prisma as unknown as PrismaService,
       resolver,
@@ -273,6 +281,46 @@ suite("CC-7.3 · learning domain commands (real PostgreSQL)", () => {
       })
     ).id;
 
+    // ── §1 — recall items whose concept binding breaks editorial identity ─
+    // A concept owned ONLY by unit2 of the FREE book:
+    const conceptU2 = await prisma.concept.create({
+      data: { conceptKey: "cc73-concepto-u2", label: "Concepto U2" },
+    });
+    await prisma.conceptLink.create({
+      data: { conceptId: conceptU2.id, unitId: freeUnit2.id, role: "PRIMARY" },
+    });
+    const mkQuiz = async (
+      chapterId: string,
+      order: number,
+      conceptKey: string,
+    ) =>
+      (
+        await prisma.exercise.create({
+          data: {
+            chapterId,
+            order,
+            title: `Quiz ${conceptKey}`,
+            type: "QUIZ",
+            content: {
+              recallMode: "objective",
+              options: [{ key: "a" }, { key: "b" }],
+              correctOptionKey: "a",
+              conceptKey,
+            },
+          },
+        })
+      ).id;
+    // Item in ch1 claiming a concept owned by ANOTHER unit of the SAME book:
+    crossUnitConceptQuizId = await mkQuiz(freeCh1.id, 10, "cc73-concepto-u2");
+    // Item in ch1 claiming the AMBIGUOUS concept (two owning units):
+    ambiguousConceptQuizId = await mkQuiz(
+      freeCh1.id,
+      11,
+      "cc73-concepto-ambiguo",
+    );
+    // Item in ch1 claiming a concept that does not exist at all:
+    missingConceptQuizId = await mkQuiz(freeCh1.id, 12, "cc73-no-existe");
+
     // A unit OUTSIDE the published revision's manifest (exists, not servable).
     await prisma.contentUnit.create({
       data: { editionId: freeEdition.id, unitKey: "cc73-unpublished-unit" },
@@ -281,8 +329,10 @@ suite("CC-7.3 · learning domain commands (real PostgreSQL)", () => {
     const dupBook = await prisma.book.create({
       data: { slug: "cc73-libro-dup", title: "Dup", plan: "FREE" },
     });
-    await mkChapter(dupBook.id, 1);
+    const dupCh1 = await mkChapter(dupBook.id, 1);
     await backfillContentCore(prisma);
+    // §1 — item in ANOTHER book claiming the FREE book's concept:
+    crossBookConceptQuizId = await mkQuiz(dupCh1.id, 1, "cc73-concepto");
     const dupEdition = await prisma.edition.findUniqueOrThrow({
       where: { slug: "cc73-libro-dup" },
       select: { id: true },
@@ -836,5 +886,141 @@ suite("CC-7.3 · learning domain commands (real PostgreSQL)", () => {
       422,
       "LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT",
     );
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // §1 — the recall concept must belong to the ITEM's editorial context
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it("recall concept in the SAME unit → success (ownership verified)", async () => {
+    const res = await commands.submitRecallAttempt(FREE_USER, {
+      itemKey: objectiveItemId,
+      idempotencyKey: key(60),
+      kind: "objective",
+      selectedOptionKey: "opt-b",
+    });
+    expect(res.event.payload).toMatchObject({ conceptKey: "cc73-concepto" });
+    expect(res.event.conceptId).not.toBeNull();
+  });
+
+  it("recall concept owned by ANOTHER unit / book / ambiguous / missing → 422, zero writes, zero context leaked", async () => {
+    const cases: Array<[string, string]> = [
+      ["other unit, same book", crossUnitConceptQuizId],
+      ["other book", crossBookConceptQuizId],
+      ["ambiguous ownership", ambiguousConceptQuizId],
+      ["missing concept", missingConceptQuizId],
+    ];
+    const before = await eventCount(FREE_USER.userId);
+    for (const [label, itemKey] of cases) {
+      const err = await commands
+        .submitRecallAttempt(FREE_USER, {
+          itemKey,
+          idempotencyKey: key(61),
+          kind: "objective",
+          selectedOptionKey: "a",
+        })
+        .catch((e: unknown) => e);
+      expect(err, label).toBeInstanceOf(HttpException);
+      const http = err as HttpException;
+      expect(http.getStatus(), label).toBe(422);
+      const body = http.getResponse() as Record<string, unknown>;
+      expect(body.code, label).toBe(
+        "LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT",
+      );
+      // The internal-catalog key is NOT the client's — 422, never a 404
+      // UNKNOWN_CONCEPT, and no internal context in the denial:
+      const serialized = JSON.stringify(body);
+      for (const leak of [
+        "cc73-concepto",
+        "cc73-no-existe",
+        "cc73-libro",
+        "conceptId",
+        "unitKey",
+        freeUnit1Key,
+      ]) {
+        expect(serialized, `${label} leaks ${leak}`).not.toContain(leak);
+      }
+    }
+    expect(await eventCount(FREE_USER.userId)).toBe(before);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // §2 — one access surface for progress + sanitized infrastructure failures
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it("progress calls assertCanReadUnit for EACH unit of the published manifest", async () => {
+    const spy = vi.spyOn(access, "assertCanReadUnit");
+    try {
+      const res = await progress.getProgress(PRO_USER, "cc73-libro-pro");
+      // The PRO book's published revision has 3 units — one gate call each,
+      // through the SAME surface the commands use.
+      expect(spy).toHaveBeenCalledTimes(3);
+      for (const call of spy.mock.calls) {
+        expect(call[0]).toMatchObject({
+          userId: PRO_USER.userId,
+          userPlan: "PRO",
+          editionKey: "cc73-libro-pro-1e",
+        });
+      }
+      expect(res.totalCount).toBe(3);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("an UNEXPECTED access failure surfaces as the sanitized 500 — never 403/404/422, zero events, zero sentinels", async () => {
+    const SENTINELS = [
+      "postgresql://private",
+      "PRIVATE_ACCESS_REASON",
+      "book-secret-slug",
+    ];
+    const explode = () => {
+      throw new Error(SENTINELS.join(" :: "));
+    };
+    const brokenAccess = {
+      assertCanReadUnit: explode,
+      assertCanSeeBook: explode,
+      assertCanReadContent: explode,
+      assertCanWriteMark: explode,
+    } as unknown as ContentAccessService;
+
+    // Progress path:
+    const brokenProgress = new LearningProgressService(
+      prisma as unknown as PrismaService,
+      brokenAccess,
+    );
+    const progressErr = await brokenProgress
+      .getProgress(FREE_USER, "cc73-libro-free")
+      .catch((e: unknown) => e);
+    expect(progressErr).toBeInstanceOf(LearningEventStorageError);
+    expect(progressErr).not.toBeInstanceOf(HttpException);
+
+    // Command path — resolver real, gate roto:
+    const brokenCommands = new LearningCommandService(
+      prisma as unknown as PrismaService,
+      resolver,
+      brokenAccess,
+      repository,
+    );
+    const before = await eventCount(FREE_USER.userId);
+    const commandErr = await brokenCommands
+      .openUnit(FREE_USER, { unitKey: freeUnit1Key, idempotencyKey: key(62) })
+      .catch((e: unknown) => e);
+    expect(commandErr).toBeInstanceOf(LearningEventStorageError);
+    expect(commandErr).not.toBeInstanceOf(HttpException);
+    expect(await eventCount(FREE_USER.userId)).toBe(before);
+
+    // Neither error carries the dependency's message on ANY surface:
+    for (const err of [progressErr, commandErr]) {
+      for (const surface of [
+        (err as Error).message,
+        JSON.stringify(err),
+        String(err),
+      ]) {
+        for (const sentinel of SENTINELS) {
+          expect(surface).not.toContain(sentinel);
+        }
+      }
+    }
   });
 });

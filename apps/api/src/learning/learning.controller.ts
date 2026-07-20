@@ -46,12 +46,12 @@ import {
   type ParseResult,
 } from "./learning-command-parser";
 import { learningException, mapParserError } from "./learning-errors";
+import { LearningProgressResponseDto } from "./dto/learning.dtos";
 import {
-  LearningCommandResponseDto,
-  LearningIdempotentBodyDto,
-  LearningProgressResponseDto,
-  SubmitRecallAttemptBodyDto,
-} from "./dto/learning.dtos";
+  IDEMPOTENT_COMMAND_BODY,
+  LEARNING_COMMAND_RESPONSE,
+  RECALL_ATTEMPT_BODY,
+} from "./dto/learning.openapi";
 
 /**
  * CC-7.3 — the five learning DOMAIN COMMANDS + derived progress (ADR 0017).
@@ -102,9 +102,9 @@ export class LearningController {
     summary:
       "Registra una apertura real de la unidad (repetible con keys distintas).",
   })
-  @ApiBody({ type: LearningIdempotentBodyDto })
-  @ApiCreatedResponse({ type: LearningCommandResponseDto })
-  @ApiOkResponse({ type: LearningCommandResponseDto })
+  @ApiBody({ schema: IDEMPOTENT_COMMAND_BODY })
+  @ApiCreatedResponse({ schema: LEARNING_COMMAND_RESPONSE })
+  @ApiOkResponse({ schema: LEARNING_COMMAND_RESPONSE })
   async openUnit(
     @CurrentUser() user: AuthenticatedUser,
     @Param("unitKey") unitKey: string,
@@ -121,9 +121,9 @@ export class LearningController {
     summary:
       "Transición server-side: requiere apertura previa; una sola completion por unidad.",
   })
-  @ApiBody({ type: LearningIdempotentBodyDto })
-  @ApiCreatedResponse({ type: LearningCommandResponseDto })
-  @ApiOkResponse({ type: LearningCommandResponseDto })
+  @ApiBody({ schema: IDEMPOTENT_COMMAND_BODY })
+  @ApiCreatedResponse({ schema: LEARNING_COMMAND_RESPONSE })
+  @ApiOkResponse({ schema: LEARNING_COMMAND_RESPONSE })
   async completeUnit(
     @CurrentUser() user: AuthenticatedUser,
     @Param("unitKey") unitKey: string,
@@ -145,9 +145,9 @@ export class LearningController {
     summary:
       "Registra la exploración de un concepto del catálogo. Jamás crea una Resonance.",
   })
-  @ApiBody({ type: LearningIdempotentBodyDto })
-  @ApiCreatedResponse({ type: LearningCommandResponseDto })
-  @ApiOkResponse({ type: LearningCommandResponseDto })
+  @ApiBody({ schema: IDEMPOTENT_COMMAND_BODY })
+  @ApiCreatedResponse({ schema: LEARNING_COMMAND_RESPONSE })
+  @ApiOkResponse({ schema: LEARNING_COMMAND_RESPONSE })
   async exploreConcept(
     @CurrentUser() user: AuthenticatedUser,
     @Param("conceptKey") conceptKey: string,
@@ -169,9 +169,9 @@ export class LearningController {
     summary:
       "Intento de recall. Los ítems objetivos los califica el SERVIDOR contra el catálogo.",
   })
-  @ApiBody({ type: SubmitRecallAttemptBodyDto })
-  @ApiCreatedResponse({ type: LearningCommandResponseDto })
-  @ApiOkResponse({ type: LearningCommandResponseDto })
+  @ApiBody({ schema: RECALL_ATTEMPT_BODY })
+  @ApiCreatedResponse({ schema: LEARNING_COMMAND_RESPONSE })
+  @ApiOkResponse({ schema: LEARNING_COMMAND_RESPONSE })
   async submitRecallAttempt(
     @CurrentUser() user: AuthenticatedUser,
     @Req() req: Request,
@@ -190,9 +190,9 @@ export class LearningController {
     summary:
       "Registra que la práctica fue marcada como completada (sin métricas, sin emoción).",
   })
-  @ApiBody({ type: LearningIdempotentBodyDto })
-  @ApiCreatedResponse({ type: LearningCommandResponseDto })
-  @ApiOkResponse({ type: LearningCommandResponseDto })
+  @ApiBody({ schema: IDEMPOTENT_COMMAND_BODY })
+  @ApiCreatedResponse({ schema: LEARNING_COMMAND_RESPONSE })
+  @ApiOkResponse({ schema: LEARNING_COMMAND_RESPONSE })
   async completePractice(
     @CurrentUser() user: AuthenticatedUser,
     @Param("exerciseKey") exerciseKey: string,

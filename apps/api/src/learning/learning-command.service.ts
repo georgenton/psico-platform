@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import type {
   CompletePracticeCommand,
   CompleteUnitCommand,
@@ -18,7 +22,10 @@ import {
   type ResolvedUnitContext,
 } from "./learning-catalog.resolver";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { LearningEventRepository } from "./learning-event.repository";
+import {
+  LearningEventRepository,
+  LearningEventStorageError,
+} from "./learning-event.repository";
 import { learningException, mapRepositoryErrors } from "./learning-errors";
 import type { ValidatedLearningEvent } from "./validated-learning-event";
 
@@ -64,10 +71,16 @@ export class LearningCommandService {
       if (err instanceof ForbiddenException) {
         throw learningException("LEARNING_EVENT_FORBIDDEN");
       }
-      // The resolver already proved the unit exists in the published
-      // revision; a NotFound here means the legacy bridge disagrees — an
-      // unresolvable editorial context, not a 404 on the client's key.
-      throw learningException("LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT");
+      if (err instanceof NotFoundException) {
+        // The resolver already proved the unit exists in the published
+        // revision; a NotFound here means the legacy bridge disagrees — an
+        // unresolvable editorial context, not a 404 on the client's key.
+        throw learningException("LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT");
+      }
+      // Anything else is an INFRASTRUCTURE failure (DB, adapter, bug) — it
+      // must surface as the generic sanitized 500, never as an editorial
+      // verdict, and never carrying the dependency's message.
+      throw new LearningEventStorageError();
     }
   }
 

@@ -34,9 +34,13 @@ server-owned si el evento se limita a copiar una afirmación del cliente.**
    ownership declara por tipo qué garantiza el servidor y qué permanece
    self-reported (una respiración completada no es verificable server-side y
    no se presenta como tal).
-2. **Hechos calculados por el servidor, no afirmados:** `unit_completed`
-   exige transición de progreso propia (sin apertura previa ⇒ 409
-   `LEARNING_EVENT_INVALID_TRANSITION`); el `result` del recall en ítems
+2. **Hechos calculados por el servidor, claims clasificados:** en
+   `unit_completed` el servidor garantiza unidad/revisión válidas,
+   entitlement, estado previo registrado, transición de progreso aceptada
+   (sin ella ⇒ 409 `LEARNING_EVENT_INVALID_TRANSITION`) y reloj/identidad
+   server-owned — pero el consumo real, la atención y la comprensión
+   permanecen self-reported (`unit_opened` no es prueba de consumo; el copy
+   dice "marcaste N como completados", no "completaste N"); el `result` del recall en ítems
    objetivos lo **califica el servidor** contra el catálogo
    (`selectedOptionKey`, jamás texto); los autoevaluados quedan marcados
    `evaluationSource="self_assessed"`, excluidos de precisión y sin gobernar
@@ -79,16 +83,25 @@ ContentAccessService`. Sin contextos opcionales que eviten el gate; clave
    proyección canónica del mapa idéntica tras crear los 7 tipos + progreso +
    sesiones + marcas + **una Resonance cualitativa**, con control negativo (un
    checkin sí mueve la proyección). **Los endpoints (PR 3) no aterrizan sin un
-   firewall dinámico ejecutable.** PR 8 lo amplía a full-stack.
-9. **Privacidad como propuesta, no como hecho:**
-   `retention_proposal=24_months` y `analytics_k_proposal=10`, ambos
-   `PENDING_PRIVACY_PRODUCT_APPROVAL`; los valores finales viven en
-   configuración validada, no dispersos en código. k-anonimato se documenta
-   como **barrera mínima, no garantía de anonimato**; el threat model cubre
-   inferencia por combinación de celdas, ataques de composición entre
-   periodos, cohortes pequeñas, reidentificación por claves raras y acceso
-   interno indebido.
-10. **Entrega en 8 PRs** (contratos puros → persistencia+firewall → comandos →
+   firewall dinámico ejecutable.** Gate: CC-7.1 puede comenzar; **CC-7.2 no se
+   mergea hasta resolver la decisión ARC**
+   (`ARC_DECISION_REQUIRED_BEFORE_CC7_2=true`); prohibida una excepción
+   silenciosa en el test — cualquier enmienda, explícita y documentada. PR 8
+   lo amplía a full-stack.
+9. **Append-only ≠ retención infinita.** Sin UPDATE/DELETE por API de
+   producto; eventos inmutables durante su vida útil; eliminaciones
+   autorizadas: cierre de cuenta, política de retención aprobada ejecutada
+   por el worker (con métricas/audit log de conteos, jamás payloads) y
+   procedimiento excepcional de privacidad/compliance auditado.
+10. **Privacidad como propuesta, no como hecho:**
+    `retention_proposal=24_months` y `analytics_k_proposal=10`, ambos
+    `PENDING_PRIVACY_PRODUCT_APPROVAL`; los valores finales viven en
+    configuración validada, no dispersos en código. k-anonimato se documenta
+    como **barrera mínima, no garantía de anonimato**; el threat model cubre
+    inferencia por combinación de celdas, ataques de composición entre
+    periodos, cohortes pequeñas, reidentificación por claves raras y acceso
+    interno indebido.
+11. **Entrega en 8 PRs** (contratos puros → persistencia+firewall → comandos →
     GuideSession → web → mobile → analítica → firewall full-stack), cada uno
     aditivo, reversible y deployable de forma independiente.
 

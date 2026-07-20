@@ -82,8 +82,13 @@ garantiza el servidor en cada tipo.
 
 ### Principios
 
-1. **Append-only.** No existe UPDATE ni DELETE por API. Correcciones = evento
-   nuevo. La única eliminación es el borrado de cuenta (cascade).
+1. **Append-only ≠ retención infinita.** No existe UPDATE ni DELETE mediante
+   el API de producto; los eventos son **inmutables durante su vida útil** y
+   las correcciones son eventos nuevos. Las únicas eliminaciones autorizadas
+   son: (1) cierre de cuenta (cascade); (2) la política de retención una vez
+   **aprobada** y ejecutada por el worker (§F — el sweep NO se implementa como
+   definitivo hasta esa aprobación); (3) un procedimiento excepcional de
+   privacidad/compliance auditado.
 2. **Comandos, no eventos, en el wire.** El cliente jamás postea "un evento":
    invoca un comando de dominio (§G). El evento es un efecto interno de la
    transición.
@@ -112,17 +117,22 @@ garantiza el servidor en cada tipo.
 
 ### Matriz de ownership V1 (corregida)
 
-| `type`                    | Comando que lo emite                                           | Qué GARANTIZA el servidor                                                                                                                                                                                                | Qué sigue siendo self-reported                                                                                                                     | Dedup semántica                               |
-| ------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `unit_opened`             | `POST /api/learning/units/:unitKey/open`                       | edición/unidad publicadas + entitlement + fecha                                                                                                                                                                          | que el usuario realmente leyó                                                                                                                      | 1/`(user, unit)` por día UTC                  |
-| `unit_completed`          | `POST /api/learning/units/:unitKey/complete`                   | **transición de progreso server-side**: exige estado previo propio (unidad abierta — `unit_opened`/`ReadingSession` del propio servidor); sin transición válida → 409 `LEARNING_EVENT_INVALID_TRANSITION`, nada persiste | la comprensión                                                                                                                                     | 1/`(user, unit, revisionNumber)`              |
-| `concept_explored`        | `POST /api/learning/concepts/:conceptKey/explore`              | resolución completa concept → unit → edition → book + entitlement                                                                                                                                                        | el interés real                                                                                                                                    | 1/`(user, concept)` por día UTC               |
-| `active_recall_attempted` | `POST /api/learning/recall-attempts`                           | para ítems **objetivos**: el servidor CALCULA `result` comparando `selectedOptionKey` contra el catálogo — el cliente no puede afirmar `correct`. Para ítems autoevaluados: `evaluationSource="self_assessed"`           | solo en self_assessed, la autoevaluación (marcada como tal)                                                                                        | sin dedup (cada intento cuenta); rate-limited |
-| `practice_completed`      | `POST /api/learning/practices/:exerciseKey/complete`           | transición de práctica de catálogo: exercise resuelto a su unidad/libro + entitlement + regla de estado (1/día)                                                                                                          | que la práctica experiencial ocurrió (una respiración no es verificable server-side — se registra como transición aceptada, no como verdad física) | 1/`(user, exercise, unit)` por día UTC        |
-| `guide_session_started`   | transición interna de `POST /api/guide/sessions`               | todo: la sesión ES estado del servidor                                                                                                                                                                                   | —                                                                                                                                                  | 1/`(guideSessionId)`                          |
-| `guide_session_completed` | transición interna de `PATCH /api/guide/sessions/:id/complete` | todo: `stepsCompleted` lo cuenta el **servidor** desde el estado de la sesión (los pasos avanzan por comandos previos), no lo declara el cliente                                                                         | —                                                                                                                                                  | 1/`(guideSessionId)`                          |
+| `type`                    | Comando que lo emite                                           | Qué GARANTIZA el servidor                                                                                                                                                                                         | Qué sigue siendo self-reported                                                                                                                     | Dedup semántica                               |
+| ------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `unit_opened`             | `POST /api/learning/units/:unitKey/open`                       | edición/unidad publicadas + entitlement + fecha                                                                                                                                                                   | que el usuario realmente leyó                                                                                                                      | 1/`(user, unit)` por día UTC                  |
+| `unit_completed`          | `POST /api/learning/units/:unitKey/complete`                   | unidad y revisión válidas + entitlement + **estado previo registrado** + **transición de progreso aceptada** (sin ella → 409 `LEARNING_EVENT_INVALID_TRANSITION`, nada persiste) + reloj e identidad server-owned | que el usuario realmente terminó de leer/consumir la unidad; su atención; su comprensión                                                           | 1/`(user, unit, revisionNumber)`              |
+| `concept_explored`        | `POST /api/learning/concepts/:conceptKey/explore`              | resolución completa concept → unit → edition → book + entitlement                                                                                                                                                 | el interés real                                                                                                                                    | 1/`(user, concept)` por día UTC               |
+| `active_recall_attempted` | `POST /api/learning/recall-attempts`                           | para ítems **objetivos**: el servidor CALCULA `result` comparando `selectedOptionKey` contra el catálogo — el cliente no puede afirmar `correct`. Para ítems autoevaluados: `evaluationSource="self_assessed"`    | solo en self_assessed, la autoevaluación (marcada como tal)                                                                                        | sin dedup (cada intento cuenta); rate-limited |
+| `practice_completed`      | `POST /api/learning/practices/:exerciseKey/complete`           | transición de práctica de catálogo: exercise resuelto a su unidad/libro + entitlement + regla de estado (1/día)                                                                                                   | que la práctica experiencial ocurrió (una respiración no es verificable server-side — se registra como transición aceptada, no como verdad física) | 1/`(user, exercise, unit)` por día UTC        |
+| `guide_session_started`   | transición interna de `POST /api/guide/sessions`               | todo: la sesión ES estado del servidor                                                                                                                                                                            | —                                                                                                                                                  | 1/`(guideSessionId)`                          |
+| `guide_session_completed` | transición interna de `PATCH /api/guide/sessions/:id/complete` | todo: `stepsCompleted` lo cuenta el **servidor** desde el estado de la sesión (los pasos avanzan por comandos previos), no lo declara el cliente                                                                  | —                                                                                                                                                  | 1/`(guideSessionId)`                          |
 
 Notas:
+
+- **`unit_opened` no es prueba de consumo real.** La transición de
+  `unit_completed` verifica que existe estado previo registrado, no que la
+  unidad fue efectivamente leída: consumo, atención y comprensión permanecen
+  self-reported hasta que exista una evidencia server-verifiable más fuerte.
 
 - `guide_session_*` **no existen como requests**: solo cambios de estado de
   `GuideSession` los emiten. Un intento de forjarlos por API → 400
@@ -226,9 +236,14 @@ el paso 5 exige identidad. Bajo el comportamiento preexistente ARC-C1/ARC-P1,
 crear una resonancia HOY sí mueve Conexión/Propósito — es decir, este test,
 tal como está especificado, **no puede aterrizar en verde sin resolver antes
 la decisión pendiente de §C**. Eso es deliberado: el test fuerza la decisión
-en lugar de esconderla. Las salidas posibles se deciden con Jorge en PR 2:
-retirar/gatear la conversión ARC, o ratificarla como excepción explícita y
-enmendar esta especificación dejando constancia.
+en lugar de esconderla. Gate explícito:
+**CC-7.1 (contratos y validación pura) puede comenzar ya; CC-7.2
+(persistencia + firewall dinámico) NO puede mergearse hasta resolver la
+decisión ARC** (`ARC_DECISION_REQUIRED_BEFORE_CC7_2=true`). Queda **prohibido
+implementar una excepción silenciosa** en el test de inversión: cualquier
+enmienda debe ser explícita, documentada aquí y aprobada — las salidas
+posibles son retirar/gatear la conversión ARC o ratificarla como excepción
+acotada y visible.
 
 **Criterio de fallo:** cualquier delta en cualquier campo comparado tras el
 paso 3 = actividad educativa (o resonancia cualitativa) alterando una
@@ -487,7 +502,7 @@ Guide V1 es **consumidor** de los read models de LearningEvent:
 - **Continuidad de sesión:** `GuideSession` activa + último
   `guide_session_completed` → retomar donde quedó.
 - **Recordar qué unidad se abrió:** último `unit_opened`/`unit_completed` por
-  libro → "seguimos en el capítulo N".
+  libro → "la última unidad que marcaste fue el capítulo N".
 - **Práctica completada:** `practice_completed` por `exerciseKey` → no volver
   a proponer lo ya hecho hoy.
 - **Active recall:** historial categórico server-graded → espaciar repasos
@@ -499,8 +514,10 @@ Guide V1 es **consumidor** de los read models de LearningEvent:
 emociones desde eventos educativos (su prompt no recibe Mapa/Diario/Eco);
 alterar el Mapa (frontera §C); usar LearningEvent como señal psicológica
 ("abandonaste la sesión → estás desanimado" está prohibido); convertir
-engagement en un score personal — el progreso se presenta como hechos
-("2 de 3"), nunca como juicio.
+engagement en un score personal — y el progreso se presenta como **claims
+clasificados**, no como consumo verificado: "marcaste 2 de 3 capítulos como
+completados", nunca "completaste 2 de 3 capítulos", salvo que exista en el
+futuro una evidencia server-verifiable más fuerte.
 
 ---
 
@@ -545,5 +562,15 @@ toca Mapa/epochs/OU/scoring/flags ni el libro publicado.
   no altera `mapProjection`** (ver conflicto ARC §D) + control negativo.
 - **PG (PR 4):** transiciones GuideSession (start→complete idempotente,
   ownership 404, `ALREADY_COMPLETED`, `stepsCompleted` contado por servidor).
+- **Retención y mutabilidad (PR 2/7):**
+  - el API de producto no expone NINGUNA mutación de eventos (no hay ruta
+    UPDATE/DELETE y el ratchet cierra el bypass interno);
+  - el retention worker borra **solo** eventos vencidos según la ventana
+    (fixture con eventos dentro/fuera del plazo);
+  - la ventana viene de **configuración validada** (env schema), no de un
+    número en código — test de arranque con config inválida ⇒ boot rojo;
+  - el cierre de cuenta elimina eventos **y** agregados derivados del usuario;
+  - toda eliminación de retención emite métricas/audit log con **conteos,
+    jamás payloads**.
 - **Privacidad:** spec que serializa un `LearningEventRecord` de cada tipo y
   verifica la ausencia estructural de campos capaces de portar texto libre.

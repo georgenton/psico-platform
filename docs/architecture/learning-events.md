@@ -177,15 +177,15 @@ Para CC-7, `Resonance` se define así y solo así:
 - `concept_explored` **no es** una Resonance — es navegación educativa sin
   peso en el mapa.
 
-**Excepción preexistente, pendiente e independiente:** hoy en producción los
-modelos ARC-C1 (Conexión) y ARC-P1 (Propósito) del programa V2 sí derivan
-valores de eje desde resonancias confirmadas. Esa conversión **no forma parte
-del firewall CC-7** y queda registrada como **decisión de producto pendiente**
-(`resonance_axis_conversion=PENDING_DECISION` para el sistema preexistente;
-**FORBIDDEN** para todo lo nuevo de CC-7). Resolverla —retirarla, gatearla o
-ratificarla como excepción explícita y acotada— es prerrequisito del test §D
-(ver nota de conflicto ahí). Nada en CC-7 amplía, consume ni depende de esa
-conversión.
+**Excepción explícita y acotada (RESUELTA — ADR 0018):** los modelos ARC-C1
+(Conexión) y ARC-P1 (Propósito) quedan **ratificados** como la única
+excepción: una Resonance confirmada explícitamente por el usuario es
+autoinforme mediado por contenido — no engagement — y puede contribuir SOLO a
+esos dos ejes, bajo los invariantes INV-1…INV-6 del ADR 0018 (solo taps
+explícitos, input exacto `{conceptKey, important}` sin frecuencia/dwell/
+progreso/recall, caps de saturación, procedencia visible y revocable, y
+ratchet contra cualquier ampliación). Sigue siendo cierto que **LearningEvent
+jamás crea una Resonance** y que nada de CC-7 amplía esa conversión.
 
 ### Mecanismos de enforcement (tres capas)
 
@@ -207,47 +207,60 @@ familia `test:locks`); ampliación full-stack en PR 8. **Los endpoints (PR 3)
 no pueden aterrizar antes de que exista este firewall dinámico ejecutable.**
 
 ```
-1. Seed: usuario con historia emocional real (moods ordinales + checkins) para
-   que el mapa tenga ejes con señal (un mapa vacío pasaría trivialmente).
-2. A := mapProjection(user)   // cache bypass, cómputo fresco
-3. Crear, para ese usuario, por las vías reales (repositorio/comandos):
+1. seed: usuario con historia emocional real (moods ordinales + checkins)
+   para que el mapa tenga ejes con señal (un mapa vacío pasaría trivialmente)
+2. A := canonicalMapProjection(user)   // cache bypass, cómputo fresco
+3. crear actividad educativa por las vías reales (repositorio/comandos):
    - los 7 tipos V1 de LearningEvent;
    - ReadingSession (heartbeat + complete) y progreso;
    - GuideSession start→complete;
    - recall objetivo (correct+incorrect calculados por el servidor) y
      self_assessed; practice_completed;
-   - Highlight + Annotation (Core, blockKey+blockVersionId);
-   - una Resonance CUALITATIVA confirmada.
-4. B := mapProjection(user)   // mismo bypass
-5. expect(B).toStrictEqual(A) — igualdad semántica exacta.
-6. CONTROL NEGATIVO: crear un checkin → C := mapProjection(user) →
-   expect(C).not.toStrictEqual(A) (sin esto el test podría pasar vacío).
+   - Highlight + Annotation (Core, blockKey+blockVersionId)
+4. B := canonicalMapProjection(user)
+5. expect(B).toEqual(A)                // Parte 1: cero delta, sin excepción
+6. ejecutar POR SEPARADO la matriz ARC T0–T7 (ADR 0018) — Parte 2
+7. control negativo: crear un checkin
+8. C := canonicalMapProjection(user)
+9. expect(C).not.toEqual(A)
 ```
 
-`mapProjection` es una **proyección canónica** del resultado del mapa que
-**ignora** timestamps, ids de snapshot, TTLs y metadata incidental (narrative
-LLM excluido por no-determinista) y **compara**: lista de ejes y su orden;
-`value`; `confidence`; presencia de señal (`measured`, `sources`); `status`;
-`evidence` completa (`modelId`, `n`) y procedencia; `momento`; parámetros de
-dinámica afectiva; `coverage`.
+El control negativo (pasos 7–9) pertenece a la **Parte 1** y demuestra que la
+proyección no está congelada ni cacheada — sin él, la igualdad del paso 5
+podría pasar vacía. Nunca se usa `toStrictEqual` sobre el payload bruto:
+todas las comparaciones son sobre `canonicalMapProjection`, que **excluye
+únicamente** `generatedAt`, ids de snapshot, TTLs de cache, metadata
+operacional incidental y el narrative no determinista, y **compara**: lista de
+ejes y su orden; `value`; `confidence`; presencia de señal (`measured`,
+`sources`); `status`; `evidence` completa (`modelId`, `n`) y procedencia;
+`momento`; parámetros de dinámica afectiva; `coverage`.
 
-**Nota de conflicto (explícita y honesta):** el paso 3 incluye una Resonance y
-el paso 5 exige identidad. Bajo el comportamiento preexistente ARC-C1/ARC-P1,
-crear una resonancia HOY sí mueve Conexión/Propósito — es decir, este test,
-tal como está especificado, **no puede aterrizar en verde sin resolver antes
-la decisión pendiente de §C**. Eso es deliberado: el test fuerza la decisión
-en lugar de esconderla. Gate explícito:
-**CC-7.1 (contratos y validación pura) puede comenzar ya; CC-7.2
-(persistencia + firewall dinámico) NO puede mergearse hasta resolver la
-decisión ARC** (`ARC_DECISION_REQUIRED_BEFORE_CC7_2=true`). Queda **prohibido
-implementar una excepción silenciosa** en el test de inversión: cualquier
-enmienda debe ser explícita, documentada aquí y aprobada — las salidas
-posibles son retirar/gatear la conversión ARC o ratificarla como excepción
-acotada y visible.
+**Enmienda explícita (ADR 0018 — resuelve el conflicto):** la especificación
+original exigía identidad también tras crear una Resonance, lo que contradecía
+ARC-C1/ARC-P1. Con la política ratificada (`EXPLICIT_AXIS_EXCEPTION`), el test
+usa `canonicalMapProjection` (excluye únicamente `generatedAt`, ids de
+snapshot, TTLs de cache, metadata operacional incidental y narrative no
+determinista — nunca compara el payload bruto byte a byte) y queda en DOS
+criterios INDEPENDIENTES:
 
-**Criterio de fallo:** cualquier delta en cualquier campo comparado tras el
-paso 3 = actividad educativa (o resonancia cualitativa) alterando una
-proyección emocional = build rojo. Ratchet permanente: nunca se relaja.
+- **Parte 1 — firewall educativo:** tras LearningEvents + progreso +
+  ReadingSession + GuideSession + quiz/recall + Highlight + Annotation, la
+  proyección canónica debe ser **semánticamente idéntica**; cualquier delta en
+  cualquier eje o campo comparado = fallo. Sin excepción alguna.
+- **Parte 2 — excepción ARC:** una secuencia de operaciones de Resonance solo
+  puede producir los deltas exactos de la **matriz de transiciones T0–T7 del
+  ADR 0018** (confirmación → solo conexion, evidencia solo ARC-C1, n=1;
+  duplicado → idempotente; important → solo proposito, solo ARC-P1;
+  desmarcar/eliminar → reversibilidad al baseline; saturaciones
+  `RESONANCE_GOOD_N=4`/`RESONANCE_CONF_N=2`/`IMPORTANT_GOOD_N=3`/
+  `IMPORTANT_CONF_N=1` exactas). Cualquier otro delta = fallo.
+
+La Parte 2 es el ratchet de los invariantes INV-1/INV-6 del ADR 0018. Enmienda
+explícita y aprobada — no una excepción silenciosa.
+
+**Criterio de fallo:** Parte 1 — cualquier delta tras la actividad educativa
+= build rojo, sin excepción. Parte 2 — cualquier delta fuera de la matriz
+T0–T7 del ADR 0018 = build rojo. Ratchet permanente: nunca se relaja.
 
 ---
 
@@ -523,16 +536,16 @@ futuro una evidencia server-verifiable más fuerte.
 
 ## I. Plan de implementación (PRs pequeños, cada uno reversible y deployable)
 
-| PR                                      | Contenido                                                                                                                                                                                                                                                                                                                              | Reversibilidad                      |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| **1. Contratos + validación pura**      | `packages/types/learning-events.ts` (comandos + payloads + errores) + parsers puros + tests unit (rechazo de campos extra, texto libre, tipos server-owned, idempotencyKey ausente)                                                                                                                                                    | sin schema, sin endpoints           |
-| **2. Persistencia + firewall dinámico** | Enum aditivo (+3 kinds V1), `@@unique([userId, idempotencyKey])`, `LearningEventRepository.appendValidated` (escritor único); **ratchet `no-learning-in-map` + ratchet `no-direct-learning-event-write` + inversión semántica DB-level con control negativo** (bloqueado por la decisión ARC pendiente de §C/§D, que se resuelve aquí) | migración aditiva; tabla ya existe  |
-| **3. Comandos de dominio (endpoints)**  | Las 5 rutas learning + `GET progress` + entitlement §C-bis + rate limit + OpenAPI. **No aterriza sin el firewall dinámico de PR 2 en verde**                                                                                                                                                                                           | deploy normal; sin consumidores aún |
-| **4. GuideSession**                     | modelo + migración aditiva + `POST /api/guide/sessions` + `PATCH …/complete` + eventos emitidos por transición + conteo server-side de pasos                                                                                                                                                                                           | aditivo e independiente             |
-| **5. Integración web**                  | lector invoca `open`/`complete`; prácticas/recall invocan sus comandos; best-effort (fallo de comando jamás rompe UX)                                                                                                                                                                                                                  | solo cliente                        |
-| **6. Integración mobile**               | paridad con web                                                                                                                                                                                                                                                                                                                        | solo cliente                        |
-| **7. Analítica agregada**               | counts con umbral k (config validada) en Pulso + sweep de retención (config validada) en worker — ambos tras aprobación de privacidad (§F)                                                                                                                                                                                             | aditivo                             |
-| **8. Firewall full-stack**              | ampliación de la inversión semántica a través de los endpoints reales (HTTP → comando → evento → mapProjection idéntica)                                                                                                                                                                                                               | test-only                           |
+| PR                                      | Contenido                                                                                                                                                                                                                                                                                                                                                                          | Reversibilidad                      |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| **1. Contratos + validación pura**      | `packages/types/learning-events.ts` (comandos + payloads + errores) + parsers puros + tests unit (rechazo de campos extra, texto libre, tipos server-owned, idempotencyKey ausente)                                                                                                                                                                                                | sin schema, sin endpoints           |
+| **2. Persistencia + firewall dinámico** | Enum aditivo (+3 kinds V1), `@@unique([userId, idempotencyKey])`, `LearningEventRepository.appendValidated` (escritor único); **ratchet `no-learning-in-map` + ratchet `no-direct-learning-event-write` + inversión semántica DB-level con control negativo** (la decisión ARC quedó resuelta en ADR 0018: test de dos partes con delta confinado + ratchet `arc-exception-scope`) | migración aditiva; tabla ya existe  |
+| **3. Comandos de dominio (endpoints)**  | Las 5 rutas learning + `GET progress` + entitlement §C-bis + rate limit + OpenAPI. **No aterriza sin el firewall dinámico de PR 2 en verde**                                                                                                                                                                                                                                       | deploy normal; sin consumidores aún |
+| **4. GuideSession**                     | modelo + migración aditiva + `POST /api/guide/sessions` + `PATCH …/complete` + eventos emitidos por transición + conteo server-side de pasos                                                                                                                                                                                                                                       | aditivo e independiente             |
+| **5. Integración web**                  | lector invoca `open`/`complete`; prácticas/recall invocan sus comandos; best-effort (fallo de comando jamás rompe UX)                                                                                                                                                                                                                                                              | solo cliente                        |
+| **6. Integración mobile**               | paridad con web                                                                                                                                                                                                                                                                                                                                                                    | solo cliente                        |
+| **7. Analítica agregada**               | counts con umbral k (config validada) en Pulso + sweep de retención (config validada) en worker — ambos tras aprobación de privacidad (§F)                                                                                                                                                                                                                                         | aditivo                             |
+| **8. Firewall full-stack**              | ampliación de la inversión semántica a través de los endpoints reales (HTTP → comando → evento → canonicalMapProjection idéntica en Parte 1 + matriz ARC T0–T7 en Parte 2)                                                                                                                                                                                                         | test-only                           |
 
 Orden estricto 1→8; cada PR con CI verde y sync `develop→main` normal. Ninguno
 toca Mapa/epochs/OU/scoring/flags ni el libro publicado.
@@ -558,8 +571,9 @@ toca Mapa/epochs/OU/scoring/flags ni el libro publicado.
   **`no-direct-learning-event-write`** — una escritura Prisma directa fuera
   del repositorio ⇒ build rojo (el spec se auto-verifica plantando un fixture
   con la string prohibida);
-  **inversión semántica DB-level** — incluye que una **Resonance cualitativa
-  no altera `mapProjection`** (ver conflicto ARC §D) + control negativo.
+  **inversión semántica DB-level** en dos partes (ADR 0018): Parte 1 —
+  actividad educativa ⇒ `canonicalMapProjection` idéntica; Parte 2 — matriz de
+  transiciones ARC T0–T7 con deltas exactos; + control negativo.
 - **PG (PR 4):** transiciones GuideSession (start→complete idempotente,
   ownership 404, `ALREADY_COMPLETED`, `stepsCompleted` contado por servidor).
 - **Retención y mutabilidad (PR 2/7):**

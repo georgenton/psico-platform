@@ -1,5 +1,4 @@
-import { Prisma } from "@prisma/client";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { LearningEventRecord } from "@psico/types";
 import type { ValidatedLearningEvent } from "./validated-learning-event";
 import {
@@ -12,17 +11,20 @@ import {
 
 /**
  * CC-7.2 — the SINGLE authorized writer of the LearningEvent table (ADR 0017
- * §5). The `no-direct-learning-event-write` ratchet pins that the ONLY
- * `learningEvent.create` in `apps/api/src` runtime code is the one in this
- * file, and that no update/delete/upsert exists anywhere: append-only does
- * not depend on the absence of HTTP endpoints.
+ * §5). The `no-direct-learning-event-write` ratchet pins that the ONLY write
+ * primitive in `apps/api/src` runtime code is the one `createMany` in this
+ * file (and zero raw SQL INSERTs anywhere): append-only does not depend on
+ * the absence of HTTP endpoints.
  *
  * This is a plain, Nest-free repository (constructor-injected Prisma-shaped
  * client) so CC-7.3's domain commands can register it in a module later; for
  * now nothing imports it at runtime — the table stays inert in production.
  *
- * Privacy: no method logs, and no thrown error embeds, a payload or any input
- * value. Errors carry stable codes only.
+ * Privacy: no method logs anything, and no error that leaves this class
+ * embeds a payload, userId, idempotencyKey, reference, SQL, connection
+ * string, or upstream driver message. The public surface throws EXACTLY
+ * three value-free error types (below) — raw Prisma/adapter/pg errors are
+ * never propagated and never attached as `cause`.
  */
 
 /**
@@ -44,8 +46,7 @@ export interface AppendLearningEventResult {
 
 /**
  * Same `(userId, idempotencyKey)` as an existing row, but the semantic
- * content (type, payload, references or blockKey) differs. Deliberately
- * carries NO values — codes only.
+ * content (type, payload, references or blockKey) differs. Codes only.
  */
 export class LearningEventIdempotencyConflictError extends Error {
   readonly code = "LEARNING_EVENT_IDEMPOTENCY_CONFLICT" as const;
@@ -56,10 +57,24 @@ export class LearningEventIdempotencyConflictError extends Error {
 }
 
 /**
- * Sanitized storage failure. Prisma validation errors can serialize the data
- * object into their message, so anything that is not a known-request error is
- * replaced by this value-free wrapper (the `cause` is intentionally dropped —
- * an embedded payload in a log line would break the privacy contract).
+ * The caller handed the repository something that must never reach the
+ * database: a non-UUID idempotency key, or a type outside the V1 union.
+ * Thrown BEFORE any DB round-trip. Codes only.
+ */
+export class LearningEventInvalidInputError extends Error {
+  readonly code = "LEARNING_EVENT_INVALID_PAYLOAD" as const;
+  constructor() {
+    super("LEARNING_EVENT_INVALID_PAYLOAD");
+    this.name = "LearningEventInvalidInputError";
+  }
+}
+
+/**
+ * Sanitized storage failure — the value-free replacement for EVERY upstream
+ * error (Prisma known/validation errors, adapter errors, pg errors, vanished
+ * rows, malformed stored payloads). The `cause` is deliberately never set:
+ * driver messages can embed data values or connection strings, and a
+ * serialized cause would leak them into logs.
  */
 export class LearningEventStorageError extends Error {
   readonly code = "LEARNING_EVENT_STORAGE_FAILURE" as const;
@@ -69,19 +84,37 @@ export class LearningEventStorageError extends Error {
   }
 }
 
-function isUniqueViolation(
-  err: unknown,
-): err is Prisma.PrismaClientKnownRequestError {
-  if (!(err instanceof Prisma.PrismaClientKnownRequestError)) return false;
-  if (err.code !== "P2002") return false;
-  // When Prisma reports the violated columns, require the idempotency
-  // constraint; when it does not, the only non-PK unique on this table is
-  // (userId, idempotencyKey), so accept.
-  const target = (err.meta as { target?: unknown } | undefined)?.target;
-  if (Array.isArray(target)) {
-    return target.includes("idempotencyKey");
+// ─── Idempotency-key canonicalization (fail-closed, ADR 0017 §3) ────────────
+
+/**
+ * Internal branded type: proof that a key passed `canonicalizeIdempotencyKey`.
+ * The insert and the unique lookup only accept this type, so an un-validated
+ * string cannot reach the database through any code path in this file.
+ */
+type CanonicalIdempotencyKey = string & {
+  readonly __canonicalIdempotencyKey: unique symbol;
+};
+
+/**
+ * Same shape the CC-7.1 parsers enforce (learning-command-parser.ts): RFC
+ * UUID, version 1–8, canonical variant. Case-insensitive on input; the
+ * CANONICAL form is lowercase.
+ */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * The repository does not trust its caller with the idempotency key: a valid
+ * UUID in any casing is canonicalized to lowercase (CC-7.1 contract);
+ * anything else — whitespace, arbitrary strings, non-strings — is rejected
+ * BEFORE any DB access. Never silently normalizes a non-UUID, and never
+ * mutates the caller's object.
+ */
+function canonicalizeIdempotencyKey(raw: unknown): CanonicalIdempotencyKey {
+  if (typeof raw !== "string" || !UUID_RE.test(raw)) {
+    throw new LearningEventInvalidInputError();
   }
-  return true;
+  return raw.toLowerCase() as CanonicalIdempotencyKey;
 }
 
 interface StoredRow {
@@ -97,21 +130,41 @@ interface StoredRow {
   createdAt: Date;
 }
 
+/** Re-throw our own typed errors; replace everything else, value-free. */
+function sanitize(err: unknown): never {
+  if (
+    err instanceof LearningEventIdempotencyConflictError ||
+    err instanceof LearningEventInvalidInputError ||
+    err instanceof LearningEventStorageError
+  ) {
+    throw err;
+  }
+  throw new LearningEventStorageError();
+}
+
 export class LearningEventRepository {
   constructor(private readonly prisma: LearningEventDb) {}
 
   /**
-   * Append one validated V1 event, race-safe:
+   * Append one validated V1 event — transaction-safe and race-safe:
    *
-   *   1. attempt the INSERT (never find-then-create — that is a TOCTOU hole);
-   *   2. on a unique violation of `(userId, idempotencyKey)`, read the
-   *      existing row and compare it semantically (type, exact payload,
-   *      every reference, blockKey, schemaVersion — never `id`/`createdAt`);
-   *   3. exact match ⇒ idempotent replay of the original row;
-   *      any drift ⇒ `LearningEventIdempotencyConflictError`.
+   *   1. canonicalize the idempotency key (fail-closed, no DB touch on a
+   *      bad key) and reject non-V1 types;
+   *   2. NON-ABORTING insert: `createMany({ skipDuplicates: true })` compiles
+   *      to `INSERT … ON CONFLICT DO NOTHING`, so a replay inside a caller's
+   *      `$transaction` never raises a unique violation and never poisons
+   *      the transaction (no P2002 → no 25P02 abort — the tx stays usable);
+   *   3. `count` tells whether THIS call created the row;
+   *   4. read the row by `(userId, canonicalKey)` and compare semantically
+   *      (type, exact payload, every reference, blockKey, schemaVersion —
+   *      never `id`/`createdAt`);
+   *   5. exact match ⇒ idempotent replay of the original row;
+   *      any drift ⇒ `LearningEventIdempotencyConflictError` (thrown by OUR
+   *      code, not the database — inside a tx the caller's rollback is a
+   *      clean, deliberate one).
    *
-   * `db` accepts a `$transaction` client so a domain transition and its event
-   * commit or roll back together.
+   * `db` accepts a `$transaction` client so a domain transition and its
+   * event commit or roll back together.
    */
   async appendValidated(
     input: ValidatedLearningEvent,
@@ -119,11 +172,11 @@ export class LearningEventRepository {
   ): Promise<AppendLearningEventResult> {
     const client = db ?? this.prisma;
 
-    // Runtime guard mirroring the compile-time union: a value smuggled in via
-    // casts (or a future non-V1 type) never reaches the INSERT.
+    // Fail-closed BEFORE any DB access — invalid inputs never round-trip.
+    const idempotencyKey = canonicalizeIdempotencyKey(input.idempotencyKey);
     const kind = TYPE_TO_KIND[input.type];
     if (kind === undefined) {
-      throw new LearningEventStorageError();
+      throw new LearningEventInvalidInputError();
     }
 
     // Field-by-field reconstruction — no property of the caller's object
@@ -133,50 +186,48 @@ export class LearningEventRepository {
     const payload = rebuildPayload(input) as unknown as Prisma.InputJsonValue;
 
     try {
-      const row = await client.learningEvent.create({
-        data: {
-          userId: input.userId,
-          idempotencyKey: input.idempotencyKey,
-          kind,
-          payload,
-          // Server-owned: the repository stamps the schema version and the
-          // database assigns `createdAt` — neither is an input.
-          schemaVersion: 1,
-          editionId: input.editionId ?? null,
-          unitId: input.unitId ?? null,
-          conceptId: input.conceptId ?? null,
-          guideSessionId: input.guideSessionId ?? null,
-          blockKey: input.blockKey ?? null,
+      // Single write primitive of the whole API (see ratchet). `id` keeps its
+      // server-side cuid default and `createdAt` its DB default — neither is
+      // an input.
+      const { count } = await client.learningEvent.createMany({
+        data: [
+          {
+            userId: input.userId,
+            idempotencyKey,
+            kind,
+            payload,
+            schemaVersion: 1,
+            editionId: input.editionId ?? null,
+            unitId: input.unitId ?? null,
+            conceptId: input.conceptId ?? null,
+            guideSessionId: input.guideSessionId ?? null,
+            blockKey: input.blockKey ?? null,
+          },
+        ],
+        skipDuplicates: true,
+      });
+
+      const stored = await client.learningEvent.findUnique({
+        where: {
+          userId_idempotencyKey: { userId: input.userId, idempotencyKey },
         },
       });
-      return { created: true, replayed: false, record: toRecord(row) };
-    } catch (err) {
-      if (!isUniqueViolation(err)) {
-        // Known request errors (FK violation, connection loss…) have
-        // template messages without data values — rethrow for ops signal.
-        // Anything else (notably validation errors, which can embed the data
-        // object) is replaced wholesale.
-        if (err instanceof Prisma.PrismaClientKnownRequestError) throw err;
+      if (!stored) {
+        // We neither created nor found the row (deleted between the two
+        // statements, or the skip came from a different constraint) —
+        // nothing safe to replay.
         throw new LearningEventStorageError();
       }
 
-      const existing = await client.learningEvent.findUnique({
-        where: {
-          userId_idempotencyKey: {
-            userId: input.userId,
-            idempotencyKey: input.idempotencyKey,
-          },
-        },
-      });
-      if (!existing) {
-        // The row that made us collide vanished between the INSERT and this
-        // read — nothing safe to replay.
-        throw new LearningEventStorageError();
+      if (count === 1) {
+        return { created: true, replayed: false, record: toRecord(stored) };
       }
-      if (!isSemanticallyEquivalent(existing, input)) {
+      if (!isSemanticallyEquivalent(stored, input)) {
         throw new LearningEventIdempotencyConflictError();
       }
-      return { created: false, replayed: true, record: toRecord(existing) };
+      return { created: false, replayed: true, record: toRecord(stored) };
+    } catch (err) {
+      sanitize(err);
     }
   }
 }

@@ -9,6 +9,7 @@ import {
   type StoredLearningEventSemantics,
 } from "./learning-event-semantics";
 import {
+  LearningEventInvalidInputError,
   LearningEventRepository,
   LearningEventStorageError,
   type LearningEventDb,
@@ -317,7 +318,7 @@ describe("isSemanticallyEquivalent — drift per semantic component", () => {
   });
 });
 
-describe("LearningEventRepository — runtime guards (no DB)", () => {
+describe("LearningEventRepository — fail-closed guards (no DB touched)", () => {
   const neverDb: LearningEventDb = {
     learningEvent: new Proxy(
       {},
@@ -329,15 +330,53 @@ describe("LearningEventRepository — runtime guards (no DB)", () => {
     ) as LearningEventDb["learningEvent"],
   };
 
-  it("a non-V1 type smuggled past the compiler never reaches the INSERT", async () => {
+  it("a non-V1 type smuggled past the compiler never reaches the DB", async () => {
     const repo = new LearningEventRepository(neverDb);
-    const smuggled = {
-      ...INPUTS.unit_opened,
-      type: "highlight_created",
-    } as unknown as ValidatedLearningEvent;
-    await expect(repo.appendValidated(smuggled)).rejects.toBeInstanceOf(
-      LearningEventStorageError,
-    );
+    for (const type of ["highlight_created", "block_dwell"]) {
+      const smuggled = {
+        ...INPUTS.unit_opened,
+        type,
+      } as unknown as ValidatedLearningEvent;
+      await expect(repo.appendValidated(smuggled), type).rejects.toBeInstanceOf(
+        LearningEventInvalidInputError,
+      );
+    }
+  });
+
+  it("an invalid idempotency key fails BEFORE any DB round-trip", async () => {
+    const repo = new LearningEventRepository(neverDb);
+    const invalidKeys = [
+      "not-a-uuid",
+      "", //                                                    empty
+      ` ${UUID}`, //                                            leading whitespace
+      `${UUID} `, //                                            trailing whitespace
+      UUID.replace("-", " "), //                                inner whitespace
+      "zzzzzzzz-zzzz-4zzz-8zzz-zzzzzzzzzzzz", //                non-hex
+      "aaaaaaaa-aaaa-9aaa-8aaa-aaaaaaaaaaaa", //                bad version digit
+      12345 as unknown as string, //                            non-string
+    ];
+    for (const bad of invalidKeys) {
+      const input = { ...INPUTS.unit_opened, idempotencyKey: bad };
+      await expect(
+        repo.appendValidated(input),
+        String(bad),
+      ).rejects.toBeInstanceOf(LearningEventInvalidInputError);
+    }
+  });
+
+  it("canonicalization never mutates the caller's input object", async () => {
+    const failingDb: LearningEventDb = {
+      learningEvent: {
+        createMany: () => {
+          throw new Error("stop here — we only care about the input object");
+        },
+      } as unknown as LearningEventDb["learningEvent"],
+    };
+    const repo = new LearningEventRepository(failingDb);
+    const upper = UUID.toUpperCase();
+    const input = { ...INPUTS.unit_opened, idempotencyKey: upper };
+    await repo.appendValidated(input).catch(() => undefined);
+    expect(input.idempotencyKey).toBe(upper);
   });
 
   it("error classes carry stable codes and no input values", async () => {
@@ -347,11 +386,78 @@ describe("LearningEventRepository — runtime guards (no DB)", () => {
       type: "block_dwell",
     } as unknown as ValidatedLearningEvent;
     const err = await repo.appendValidated(smuggled).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(LearningEventStorageError);
+    expect(err).toBeInstanceOf(LearningEventInvalidInputError);
     const message = (err as Error).message;
-    expect(message).toBe("LEARNING_EVENT_STORAGE_FAILURE");
+    expect(message).toBe("LEARNING_EVENT_INVALID_PAYLOAD");
     expect(message).not.toContain(UUID);
     expect(message).not.toContain("u-1");
+  });
+});
+
+describe("LearningEventRepository — total error sanitization (§5)", () => {
+  const SENTINELS = [
+    "postgresql://secret",
+    "user@example.com",
+    "PRIVATE_PAYLOAD_SENTINEL",
+  ];
+
+  /** A db whose write/read blows up with a value-laden upstream error. */
+  function explodingDb(err: unknown): LearningEventDb {
+    return {
+      learningEvent: {
+        createMany: () => Promise.reject(err),
+        findUnique: () => Promise.reject(err),
+      } as unknown as LearningEventDb["learningEvent"],
+    };
+  }
+
+  function expectNoLeak(err: unknown): void {
+    expect(err).toBeInstanceOf(LearningEventStorageError);
+    const surfaces = [(err as Error).message, JSON.stringify(err), String(err)];
+    for (const surface of surfaces) {
+      for (const sentinel of SENTINELS) {
+        expect(surface, surface).not.toContain(sentinel);
+      }
+      // No serializable cause dragging the upstream error along:
+      expect(surface).not.toContain("cause");
+    }
+    expect((err as Error & { cause?: unknown }).cause).toBeUndefined();
+  }
+
+  it("replaces a driver error carrying a connection string and data values", async () => {
+    const upstream = new Error(
+      `connect failed: ${SENTINELS[0]} while inserting ${SENTINELS[2]} for ${SENTINELS[1]}`,
+    );
+    const repo = new LearningEventRepository(explodingDb(upstream));
+    const err = await repo
+      .appendValidated(INPUTS.unit_opened)
+      .catch((e: unknown) => e);
+    expectNoLeak(err);
+  });
+
+  it("replaces a Prisma-validation-shaped error that embeds the data object", async () => {
+    // PrismaClientValidationError serializes the args — simulate that shape.
+    const upstream = Object.assign(
+      new Error(
+        `Invalid createMany invocation: { data: { payload: "${SENTINELS[2]}", url: "${SENTINELS[0]}" } }`,
+      ),
+      { name: "PrismaClientValidationError", clientVersion: "7.8.0" },
+    );
+    const repo = new LearningEventRepository(explodingDb(upstream));
+    const err = await repo
+      .appendValidated(INPUTS.unit_opened)
+      .catch((e: unknown) => e);
+    expectNoLeak(err);
+  });
+
+  it("replaces a non-Error throwable (string with secrets)", async () => {
+    const repo = new LearningEventRepository(
+      explodingDb(`${SENTINELS[0]} :: ${SENTINELS[1]}`),
+    );
+    const err = await repo
+      .appendValidated(INPUTS.unit_opened)
+      .catch((e: unknown) => e);
+    expectNoLeak(err);
   });
 });
 

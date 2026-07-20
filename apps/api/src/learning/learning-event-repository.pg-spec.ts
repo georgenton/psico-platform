@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { LearningEventTypeV1 } from "@psico/types";
 import {
   LearningEventIdempotencyConflictError,
+  LearningEventInvalidInputError,
   LearningEventRepository,
   LearningEventStorageError,
 } from "./learning-event.repository";
@@ -426,12 +427,114 @@ suite("CC-7.2 · LearningEventRepository (real PostgreSQL)", () => {
     expect(count).toBe(0);
   });
 
-  // ── (19b) transaction commit — event + companion write land together ─────
-  it("persists inside a successful transaction alongside the caller's write", async () => {
+  // ── §3.A — creation inside a real transaction, tx stays usable ───────────
+  it("creates inside a $transaction and the tx remains usable afterwards", async () => {
     const input = inputs(U2, 1300).unit_opened;
     await prisma.$transaction(async (tx) => {
-      await repo.appendValidated(input, tx);
+      const result = await repo.appendValidated(input, tx);
+      expect(result.created).toBe(true);
+      // A subsequent query on the SAME tx must work (the tx is not poisoned):
+      const user = await tx.user.findUnique({ where: { id: U2 } });
+      expect(user?.id).toBe(U2);
     });
+    const count = await prisma.learningEvent.count({
+      where: { userId: U2, idempotencyKey: input.idempotencyKey },
+    });
+    expect(count).toBe(1);
+  });
+
+  // ── §3.B — exact REPLAY inside a real transaction (the P2002→25P02 trap) ─
+  it("replays inside a $transaction without aborting it (no P2028/25P02)", async () => {
+    const input = inputs(U2, 1350).concept_explored;
+    // The row exists BEFORE the transaction:
+    const first = await repo.appendValidated(input);
+    expect(first.created).toBe(true);
+
+    // Inside a tx, the duplicate insert must NOT raise a unique violation:
+    // with the old create→catch(P2002) strategy this aborted the whole tx
+    // (every later statement failed with 25P02). The non-aborting insert
+    // keeps the tx alive.
+    await prisma.$transaction(async (tx) => {
+      const replay = await repo.appendValidated(input, tx);
+      expect(replay.replayed).toBe(true);
+      expect(replay.record.id).toBe(first.record.id);
+      // The tx is still usable after the replay:
+      const user = await tx.user.findUnique({ where: { id: U2 } });
+      expect(user?.id).toBe(U2);
+    });
+    const count = await prisma.learningEvent.count({
+      where: { userId: U2, idempotencyKey: input.idempotencyKey },
+    });
+    expect(count).toBe(1);
+  });
+
+  // ── §3.C — conflict inside a tx reverts the WHOLE transaction ────────────
+  it("a conflict inside a $transaction reverts the sentinel and keeps the original", async () => {
+    const input = inputs(U2, 1400).practice_completed;
+    await repo.appendValidated(input);
+    const originalName = (await prisma.user.findUnique({ where: { id: U2 } }))
+      ?.name;
+
+    const drifted: ValidatedLearningEvent<"practice_completed"> = {
+      ...input,
+      payload: { ...input.payload, exerciseKey: "otra" },
+    };
+    await expect(
+      prisma.$transaction(async (tx) => {
+        // Sentinel mutation on ANOTHER table, before the conflicting append:
+        await tx.user.update({
+          where: { id: U2 },
+          data: { name: "CC72-TX-SENTINEL" },
+        });
+        await repo.appendValidated(drifted, tx);
+      }),
+    ).rejects.toBeInstanceOf(LearningEventIdempotencyConflictError);
+
+    // Full revert: sentinel absent…
+    const after = await prisma.user.findUnique({ where: { id: U2 } });
+    expect(after?.name).toBe(originalName);
+    expect(after?.name).not.toBe("CC72-TX-SENTINEL");
+    // …original event intact, zero second row:
+    const rows = await prisma.learningEvent.findMany({
+      where: { userId: U2, idempotencyKey: input.idempotencyKey },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].payload).toEqual(input.payload);
+  });
+
+  // ── §3.D — transactional concurrency ─────────────────────────────────────
+  it("two concurrent $transactions with the SAME event: one creates, one replays, one row", async () => {
+    const input = inputs(U2, 1450).unit_completed;
+    const [a, b] = await Promise.all([
+      prisma.$transaction((tx) => repo.appendValidated(input, tx)),
+      prisma.$transaction((tx) => repo.appendValidated(input, tx)),
+    ]);
+    expect([a, b].map((r) => r.created).sort()).toEqual([false, true]);
+    expect([a, b].map((r) => r.replayed).sort()).toEqual([false, true]);
+    expect(a.record.id).toBe(b.record.id);
+    const count = await prisma.learningEvent.count({
+      where: { userId: U2, idempotencyKey: input.idempotencyKey },
+    });
+    expect(count).toBe(1);
+  });
+
+  it("two concurrent $transactions with CONFLICTING payloads: one creates, one typed conflict, one row", async () => {
+    const input = inputs(U2, 1500).guide_session_completed;
+    const drifted: ValidatedLearningEvent<"guide_session_completed"> = {
+      ...input,
+      payload: { ...input.payload, stepsCompleted: 9 },
+    };
+    const results = await Promise.allSettled([
+      prisma.$transaction((tx) => repo.appendValidated(input, tx)),
+      prisma.$transaction((tx) => repo.appendValidated(drifted, tx)),
+    ]);
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected = results.filter((r) => r.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(
+      LearningEventIdempotencyConflictError,
+    );
     const count = await prisma.learningEvent.count({
       where: { userId: U2, idempotencyKey: input.idempotencyKey },
     });
@@ -441,14 +544,122 @@ suite("CC-7.2 · LearningEventRepository (real PostgreSQL)", () => {
   // ── (20) non-V1 kinds cannot enter the typed repository ──────────────────
   it("a smuggled non-V1 type never inserts a row", async () => {
     const smuggled = {
-      ...inputs(U2, 1400).unit_opened,
+      ...inputs(U2, 1550).unit_opened,
       type: "resonance_confirmed",
     } as unknown as ValidatedLearningEvent;
     await expect(repo.appendValidated(smuggled)).rejects.toBeInstanceOf(
-      LearningEventStorageError,
+      LearningEventInvalidInputError,
     );
     const count = await prisma.learningEvent.count({
       where: { userId: U2, idempotencyKey: smuggled.idempotencyKey },
+    });
+    expect(count).toBe(0);
+  });
+
+  // ── §4 — fail-closed idempotency-key canonicalization ────────────────────
+  it("an uppercase key creates a LOWERCASE row (canonical storage)", async () => {
+    const canonical = key(1600);
+    const input: ValidatedLearningEvent<"unit_opened"> = {
+      userId: U2,
+      idempotencyKey: canonical.toUpperCase(),
+      type: "unit_opened",
+      payload: { editionKey: "libro-1e", unitKey: "unit-c" },
+    };
+    const res = await repo.appendValidated(input);
+    expect(res.created).toBe(true);
+    const row = await prisma.learningEvent.findUnique({
+      where: {
+        userId_idempotencyKey: { userId: U2, idempotencyKey: canonical },
+      },
+    });
+    expect(row?.idempotencyKey).toBe(canonical);
+    // The caller's object is never mutated:
+    expect(input.idempotencyKey).toBe(canonical.toUpperCase());
+  });
+
+  it("lowercase replay after an uppercase create returns the SAME row", async () => {
+    const canonical = key(1650);
+    const base: ValidatedLearningEvent<"unit_opened"> = {
+      userId: U2,
+      idempotencyKey: canonical.toUpperCase(),
+      type: "unit_opened",
+      payload: { editionKey: "libro-1e", unitKey: "unit-d" },
+    };
+    const first = await repo.appendValidated(base);
+    const replay = await repo.appendValidated({
+      ...base,
+      idempotencyKey: canonical,
+    });
+    expect(replay.replayed).toBe(true);
+    expect(replay.record.id).toBe(first.record.id);
+    const count = await prisma.learningEvent.count({
+      where: { userId: U2, idempotencyKey: canonical },
+    });
+    expect(count).toBe(1);
+  });
+
+  it("uppercase replay after a lowercase create returns the SAME row (no case bypass)", async () => {
+    const canonical = key(1700);
+    const base: ValidatedLearningEvent<"unit_opened"> = {
+      userId: U2,
+      idempotencyKey: canonical,
+      type: "unit_opened",
+      payload: { editionKey: "libro-1e", unitKey: "unit-e" },
+    };
+    const first = await repo.appendValidated(base);
+    const replay = await repo.appendValidated({
+      ...base,
+      idempotencyKey: canonical.toUpperCase(),
+    });
+    expect(replay.replayed).toBe(true);
+    expect(replay.record.id).toBe(first.record.id);
+    const count = await prisma.learningEvent.count({
+      where: { userId: U2, idempotencyKey: canonical },
+    });
+    expect(count).toBe(1);
+  });
+
+  it("invalid keys fail closed with ZERO rows created", async () => {
+    const before = await prisma.learningEvent.count({ where: { userId: U2 } });
+    for (const bad of ["not-a-uuid", `${key(1750)} `, `un valor arbitrario`]) {
+      const input: ValidatedLearningEvent<"unit_opened"> = {
+        userId: U2,
+        idempotencyKey: bad,
+        type: "unit_opened",
+        payload: { editionKey: "libro-1e", unitKey: "unit-f" },
+      };
+      await expect(repo.appendValidated(input), bad).rejects.toBeInstanceOf(
+        LearningEventInvalidInputError,
+      );
+    }
+    const after = await prisma.learningEvent.count({ where: { userId: U2 } });
+    expect(after).toBe(before);
+  });
+
+  // ── §5 — a real failed constraint surfaces ONLY the sanitized error ──────
+  it("a real FK violation surfaces only LearningEventStorageError, value-free", async () => {
+    const input: ValidatedLearningEvent<"unit_opened"> = {
+      userId: "u-cc72-does-not-exist",
+      idempotencyKey: key(1800),
+      type: "unit_opened",
+      payload: { editionKey: "libro-1e", unitKey: "unit-g" },
+    };
+    const err = await repo.appendValidated(input).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(LearningEventStorageError);
+    for (const surface of [
+      (err as Error).message,
+      JSON.stringify(err),
+      String(err),
+    ]) {
+      expect(surface).not.toContain("u-cc72-does-not-exist");
+      expect(surface).not.toContain("libro-1e");
+      expect(surface).not.toContain(input.idempotencyKey);
+      expect(surface).not.toContain("Prisma");
+      expect(surface).not.toContain("postgres");
+    }
+    expect((err as Error & { cause?: unknown }).cause).toBeUndefined();
+    const count = await prisma.learningEvent.count({
+      where: { userId: input.userId },
     });
     expect(count).toBe(0);
   });

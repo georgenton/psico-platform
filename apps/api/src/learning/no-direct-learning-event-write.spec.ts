@@ -8,9 +8,16 @@ import { describe, expect, it } from "vitest";
  * Append-only does NOT depend on the absence of HTTP endpoints: an internal
  * `prisma.learningEvent.update(...)` anywhere in the API would silently break
  * the contract. This spec scans every RUNTIME source file under `apps/api/src`
- * and fails on any write operation against the LearningEvent delegate outside
- * the single authorized writer (`learning-event.repository.ts`), which itself
- * may contain exactly ONE `create` and nothing else.
+ * and fails on:
+ *
+ *   - any Prisma write operation against the LearningEvent delegate outside
+ *     the single authorized writer (`learning-event.repository.ts`), which
+ *     itself may contain exactly ONE `createMany` (the sanctioned
+ *     non-aborting `skipDuplicates` insert) and zero `create`/update/delete/
+ *     upsert of any flavor;
+ *   - any raw SQL `INSERT INTO "LearningEvent"` ANYWHERE, including the
+ *     repository (its sanctioned primitive is the Prisma `createMany`, not
+ *     raw SQL).
  *
  * Reads (`findUnique`, `findMany`, `count`, …) are not writes and stay free.
  *
@@ -25,6 +32,9 @@ const ALLOWED_FILE = "learning-event.repository.ts";
 /** Write operations on the delegate. Longer alternatives first for clarity. */
 const WRITE_RE =
   /\.\s*learningEvent\s*\.\s*(createMany|create|updateMany|update|deleteMany|delete|upsert)\s*\(/g;
+
+/** Raw SQL insert into the table, however quoted/spaced. */
+const SQL_INSERT_RE = /INSERT\s+INTO\s+"?LearningEvent"?/gi;
 
 function isRuntimeFile(path: string): boolean {
   if (!path.endsWith(".ts")) return false;
@@ -56,6 +66,10 @@ function findWrites(source: string): string[] {
   return ops;
 }
 
+function findSqlInserts(source: string): number {
+  return (source.match(SQL_INSERT_RE) ?? []).length;
+}
+
 describe("ratchet · no-direct-learning-event-write", () => {
   const files = walk(SRC_ROOT);
 
@@ -76,11 +90,26 @@ describe("ratchet · no-direct-learning-event-write", () => {
     expect(violations).toEqual([]);
   });
 
-  it("the repository contains exactly ONE write, and it is `create`", () => {
+  it("no raw SQL INSERT INTO LearningEvent exists ANYWHERE (repository included)", () => {
+    const violations: string[] = [];
+    for (const file of files) {
+      const hits = findSqlInserts(readFileSync(file, "utf8"));
+      if (hits > 0) {
+        violations.push(`${relative(SRC_ROOT, file)} → ${hits} SQL INSERT(s)`);
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("the repository contains exactly ONE write: the sanctioned `createMany`", () => {
     const repoFile = files.find((f) => f.endsWith(ALLOWED_FILE));
     expect(repoFile).toBeDefined();
-    const ops = findWrites(readFileSync(repoFile as string, "utf8"));
-    expect(ops).toEqual(["create"]);
+    const src = readFileSync(repoFile as string, "utf8");
+    // Exactly one createMany (the non-aborting `skipDuplicates` insert),
+    // zero `create` and zero update/delete/upsert of any flavor:
+    expect(findWrites(src)).toEqual(["createMany"]);
+    expect(src).toContain("skipDuplicates: true");
+    expect(findSqlInserts(src)).toBe(0);
   });
 
   // ── Self-test: prove the scanner actually detects what it claims to ──────
@@ -102,6 +131,21 @@ describe("ratchet · no-direct-learning-event-write", () => {
     for (const [src, expected] of fixtures) {
       expect(findWrites(src), src).toEqual(expected);
     }
+  });
+
+  it("detects raw SQL inserts however they are written (self-test)", () => {
+    const offenders = [
+      'await prisma.$executeRaw`INSERT INTO "LearningEvent" (id) VALUES (${id})`',
+      "pool.query('INSERT INTO \"LearningEvent\"(id) VALUES ($1)', [id])",
+      "await tx.$executeRawUnsafe('insert into LearningEvent values (...)')",
+      // Whitespace/newline formatting must not evade the scan:
+      'INSERT  INTO\n  "LearningEvent" (id) VALUES ($1)',
+    ];
+    for (const src of offenders) {
+      expect(findSqlInserts(src), src).toBeGreaterThan(0);
+    }
+    // Other tables' inserts are not this ratchet's business:
+    expect(findSqlInserts('INSERT INTO "Highlight"(id) VALUES ($1)')).toBe(0);
   });
 
   it("does not flag reads or other delegates (self-test)", () => {

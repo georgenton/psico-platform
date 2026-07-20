@@ -65,9 +65,10 @@ const INPUTS: { [K in LearningEventTypeV1]: ValidatedLearningEvent<K> } = {
     payload: {
       unitKey: "unit-1",
       itemKey: "item-1",
-      result: "correct",
-      evaluationSource: "server",
       conceptKey: "familia-ensamblada",
+      evaluationSource: "server",
+      selectedOptionKey: "option-b",
+      result: "correct",
     },
     unitId: "cu-1",
     conceptId: "co-1",
@@ -190,39 +191,79 @@ describe("readStoredPayload — exact parse", () => {
     ).toBeNull();
   });
 
-  it("rejects out-of-enum recall members; accepts conceptKey null", () => {
+  it("recall union: enforces each variant's constraints (CC-7.3)", () => {
+    // Out-of-enum result on the server variant:
     expect(
       readStoredPayload("active_recall_attempted", {
         unitKey: "u",
         itemKey: "i",
-        result: "almost",
+        conceptKey: null,
         evaluationSource: "server",
-        conceptKey: null,
+        selectedOptionKey: "opt-a",
+        result: "almost",
       }),
     ).toBeNull();
+    // "skipped" is NOT a server-graded outcome:
     expect(
       readStoredPayload("active_recall_attempted", {
         unitKey: "u",
         itemKey: "i",
-        result: "correct",
-        evaluationSource: "teacher",
         conceptKey: null,
-      }),
-    ).toBeNull();
-    expect(
-      readStoredPayload("active_recall_attempted", {
-        unitKey: "u",
-        itemKey: "i",
+        evaluationSource: "server",
+        selectedOptionKey: "opt-a",
         result: "skipped",
-        evaluationSource: "self_assessed",
+      }),
+    ).toBeNull();
+    // Unknown evaluation source:
+    expect(
+      readStoredPayload("active_recall_attempted", {
+        unitKey: "u",
+        itemKey: "i",
         conceptKey: null,
+        evaluationSource: "teacher",
+        selectedOptionKey: "opt-a",
+        result: "correct",
+      }),
+    ).toBeNull();
+    // A server grade MUST carry the chosen option:
+    expect(
+      readStoredPayload("active_recall_attempted", {
+        unitKey: "u",
+        itemKey: "i",
+        conceptKey: null,
+        evaluationSource: "server",
+        selectedOptionKey: null,
+        result: "correct",
+      }),
+    ).toBeNull();
+    // A self-assessment can never fake an option:
+    expect(
+      readStoredPayload("active_recall_attempted", {
+        unitKey: "u",
+        itemKey: "i",
+        conceptKey: null,
+        evaluationSource: "self_assessed",
+        selectedOptionKey: "opt-a",
+        result: "skipped",
+      }),
+    ).toBeNull();
+    // Valid self-assessed (skipped allowed, option null, conceptKey null):
+    expect(
+      readStoredPayload("active_recall_attempted", {
+        unitKey: "u",
+        itemKey: "i",
+        conceptKey: null,
+        evaluationSource: "self_assessed",
+        selectedOptionKey: null,
+        result: "skipped",
       }),
     ).toEqual({
       unitKey: "u",
       itemKey: "i",
-      result: "skipped",
-      evaluationSource: "self_assessed",
       conceptKey: null,
+      evaluationSource: "self_assessed",
+      selectedOptionKey: null,
+      result: "skipped",
     });
   });
 });
@@ -260,6 +301,7 @@ describe("isSemanticallyEquivalent — drift per semantic component", () => {
       ["guide_session_started", { guideSessionId: "gs-2" }],
       ["guide_session_completed", { stepsCompleted: 5 }],
       ["active_recall_attempted", { result: "incorrect" }],
+      ["active_recall_attempted", { selectedOptionKey: "option-c" }],
       ["active_recall_attempted", { evaluationSource: "self_assessed" }],
       ["active_recall_attempted", { itemKey: "item-2" }],
       ["active_recall_attempted", { conceptKey: null }],

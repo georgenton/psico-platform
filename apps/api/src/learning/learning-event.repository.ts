@@ -142,8 +142,52 @@ function sanitize(err: unknown): never {
   throw new LearningEventStorageError();
 }
 
+/** Read-only idempotency verdict (CC-7.3 §4) — no write ever happens here. */
+export type LearningEventInspection =
+  | { state: "absent" }
+  | { state: "replay"; record: LearningEventRecord };
+
 export class LearningEventRepository {
   constructor(private readonly prisma: LearningEventDb) {}
+
+  /**
+   * CC-7.3 §4 — READ-ONLY idempotency inspection, so a domain command can
+   * decide BEFORE executing an irreversible transition:
+   *
+   *   - `absent` → no row for `(userId, canonicalKey)`: run the transition;
+   *   - `replay` → an exact prior write holds the row: return it, skip the
+   *     transition entirely;
+   *   - semantic drift → `LearningEventIdempotencyConflictError` (409).
+   *
+   * Reuses the SAME canonicalization, type↔kind vocabulary and semantic
+   * comparator as `appendValidated` — one definition of equivalence. Accepts
+   * a `$transaction` client so the inspection shares the caller's snapshot
+   * (and its advisory lock).
+   */
+  async inspectValidated(
+    input: ValidatedLearningEvent,
+    db?: LearningEventDb,
+  ): Promise<LearningEventInspection> {
+    const client = db ?? this.prisma;
+    const idempotencyKey = canonicalizeIdempotencyKey(input.idempotencyKey);
+    if (TYPE_TO_KIND[input.type] === undefined) {
+      throw new LearningEventInvalidInputError();
+    }
+    try {
+      const existing = await client.learningEvent.findUnique({
+        where: {
+          userId_idempotencyKey: { userId: input.userId, idempotencyKey },
+        },
+      });
+      if (!existing) return { state: "absent" };
+      if (!isSemanticallyEquivalent(existing, input)) {
+        throw new LearningEventIdempotencyConflictError();
+      }
+      return { state: "replay", record: toRecord(existing) };
+    } catch (err) {
+      sanitize(err);
+    }
+  }
 
   /**
    * Append one validated V1 event — transaction-safe and race-safe:

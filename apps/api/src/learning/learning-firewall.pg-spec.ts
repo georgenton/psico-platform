@@ -313,9 +313,10 @@ suite("CC-7.2 · dynamic emotional firewall (real PostgreSQL)", () => {
         payload: {
           unitKey: "unit-1",
           itemKey: "item-1",
-          result: "correct",
-          evaluationSource: "server",
           conceptKey: "familia-ensamblada",
+          evaluationSource: "server",
+          selectedOptionKey: "option-b",
+          result: "correct",
         },
       },
       {

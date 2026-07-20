@@ -173,16 +173,37 @@ export interface GuideSessionCompletedPayload {
   stepsCompleted: number;
 }
 
-export interface ActiveRecallAttemptedPayload {
-  /** Resolved by the server from the item catalog. */
-  unitKey: string;
-  itemKey: string;
-  /** Server-graded for objective items; the user's enum for self-assessed. */
-  result: RecallResult;
-  evaluationSource: RecallEvaluationSource;
-  /** From the item catalog, or null when the item has no concept binding. */
-  conceptKey: string | null;
-}
+/**
+ * CC-7.3 — discriminated by `evaluationSource` so the persisted event keeps
+ * the FULL semantics of the attempt:
+ *   - server-graded (objective): the CHOSEN option is preserved. Two attempts
+ *     with different options are different events even when they derive the
+ *     same result — reusing an idempotencyKey across them is a conflict.
+ *   - self-assessed: never fakes an option (`selectedOptionKey: null`).
+ * The client can never send `result`/`evaluationSource`, and the catalog's
+ * correct option is never exposed here.
+ */
+export type ActiveRecallAttemptedPayload =
+  | {
+      /** Resolved by the server from the item catalog. */
+      unitKey: string;
+      itemKey: string;
+      /** From the item catalog, or null when the item has no concept binding. */
+      conceptKey: string | null;
+      evaluationSource: "server";
+      selectedOptionKey: string;
+      /** Graded by the server against the catalog's canonical answer. */
+      result: "correct" | "incorrect";
+    }
+  | {
+      unitKey: string;
+      itemKey: string;
+      conceptKey: string | null;
+      evaluationSource: "self_assessed";
+      selectedOptionKey: null;
+      /** The user's own categorical assessment (never a server claim). */
+      result: RecallResult;
+    };
 
 export interface PracticeCompletedPayload {
   exerciseKey: string;
@@ -256,3 +277,44 @@ export type LearningEventErrorCode =
 export type LearningCommandValidationCode =
   | "LEARNING_EVENT_INVALID_PAYLOAD"
   | "LEARNING_EVENT_IDEMPOTENCY_KEY_REQUIRED";
+
+// ─── CC-7.3 · HTTP responses (commands + derived progress) ──────────────────
+
+/**
+ * Every domain command returns the same closed shape. `created` ⇒ HTTP 201;
+ * an exact idempotent replay ⇒ HTTP 200 with the ORIGINAL event.
+ */
+export interface LearningCommandResponse {
+  created: boolean;
+  replayed: boolean;
+  event: LearningEventRecord;
+}
+
+/** Completion dominates opened; multiple opens collapse to one `opened`. */
+export type LearningUnitProgressState = "not_started" | "opened" | "completed";
+
+export interface LearningUnitProgressItem {
+  unitKey: string;
+  state: LearningUnitProgressState;
+  /** Server clock of the FIRST unit_opened, ISO-8601. Null when never opened. */
+  openedAt: string | null;
+  /** Server clock of the unit_completed transition. Null when not completed. */
+  completedAt: string | null;
+  /** The published revision the completion ran against. Null when not completed. */
+  completedRevisionNumber: number | null;
+}
+
+/**
+ * Derived EXCLUSIVELY from V1 LearningEvents (schemaVersion=1) over the
+ * published revision's ordered units. Units the caller cannot access are
+ * excluded entirely — absent from the list AND the counts, never leaked.
+ */
+export interface LearningProgressResponse {
+  bookSlug: string;
+  editionKey: string;
+  revisionNumber: number;
+  units: LearningUnitProgressItem[];
+  openedCount: number;
+  completedCount: number;
+  totalCount: number;
+}

@@ -1908,6 +1908,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/learning/units/{unitKey}/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Registra una apertura real de la unidad (repetible con keys distintas). */
+        post: operations["LearningController_openUnit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learning/units/{unitKey}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Transición server-side: requiere apertura previa; una sola completion por unidad. */
+        post: operations["LearningController_completeUnit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learning/concepts/{conceptKey}/explore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Registra la exploración de un concepto del catálogo. Jamás crea una Resonance. */
+        post: operations["LearningController_exploreConcept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learning/recall-attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Intento de recall. Los ítems objetivos los califica el SERVIDOR contra el catálogo. */
+        post: operations["LearningController_submitRecallAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learning/practices/{exerciseKey}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Registra que la práctica fue marcada como completada (sin métricas, sin emoción). */
+        post: operations["LearningController_completePractice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learning/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Progreso derivado exclusivamente de LearningEvents V1 sobre la revisión publicada. */
+        get: operations["LearningController_getProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/patrones": {
         parameters: {
             query?: never;
@@ -3979,6 +4081,23 @@ export interface components {
             /** @description Published revision number, or null when served from legacy. */
             revisionNumber: number | null;
             units: components["schemas"]["ManifestUnitDto"][];
+        };
+        LearningUnitProgressItemDto: {
+            unitKey: string;
+            /** @enum {string} */
+            state: LearningUnitProgressItemDtoState;
+            openedAt: string | null;
+            completedAt: string | null;
+            completedRevisionNumber: number | null;
+        };
+        LearningProgressResponseDto: {
+            bookSlug: string;
+            editionKey: string;
+            revisionNumber: number;
+            units: components["schemas"]["LearningUnitProgressItemDto"][];
+            openedCount: number;
+            completedCount: number;
+            totalCount: number;
         };
         ShareWithTherapistDto: {
             therapistId: string;
@@ -9350,6 +9469,2045 @@ export interface operations {
             };
         };
     };
+    LearningController_openUnit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unitKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description Mandatory client idempotency key (UUID, any casing).
+                     */
+                    idempotencyKey: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: boolean;
+                        replayed: boolean;
+                        event: {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf0SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf0Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf1SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf1Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                                revisionNumber: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf2SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf2Type;
+                            payload: {
+                                conceptKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf3SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf3Type;
+                            payload: {
+                                guideSessionId: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf4SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf4Type;
+                            payload: {
+                                guideSessionId: string;
+                                stepsCompleted: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf5SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf5Type;
+                            /** @description Unión discriminada por evaluationSource: la variante server conserva la opción elegida; la self-assessed nunca finge una opción. */
+                            payload: {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource;
+                                selectedOptionKey: string;
+                                /** @enum {string} */
+                                result: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0Result;
+                            } | {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource;
+                                /**
+                                 * @description Siempre null — una autoevaluación no elige opción.
+                                 * @enum {string|null}
+                                 */
+                                selectedOptionKey: null;
+                                /** @enum {string} */
+                                result: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1Result;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf6SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf6Type;
+                            payload: {
+                                exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        };
+                    };
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: boolean;
+                        replayed: boolean;
+                        event: {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf0SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf0Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf1SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf1Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                                revisionNumber: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf2SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf2Type;
+                            payload: {
+                                conceptKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf3SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf3Type;
+                            payload: {
+                                guideSessionId: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf4SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf4Type;
+                            payload: {
+                                guideSessionId: string;
+                                stepsCompleted: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf5SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf5Type;
+                            /** @description Unión discriminada por evaluationSource: la variante server conserva la opción elegida; la self-assessed nunca finge una opción. */
+                            payload: {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource;
+                                selectedOptionKey: string;
+                                /** @enum {string} */
+                                result: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0Result;
+                            } | {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource;
+                                /**
+                                 * @description Siempre null — una autoevaluación no elige opción.
+                                 * @enum {string|null}
+                                 */
+                                selectedOptionKey: null;
+                                /** @enum {string} */
+                                result: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1Result;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf6SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf6Type;
+                            payload: {
+                                exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    LearningController_completeUnit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unitKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description Mandatory client idempotency key (UUID, any casing).
+                     */
+                    idempotencyKey: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: boolean;
+                        replayed: boolean;
+                        event: {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf0SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf0Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf1SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf1Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                                revisionNumber: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf2SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf2Type;
+                            payload: {
+                                conceptKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf3SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf3Type;
+                            payload: {
+                                guideSessionId: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf4SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf4Type;
+                            payload: {
+                                guideSessionId: string;
+                                stepsCompleted: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf5SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf5Type;
+                            /** @description Unión discriminada por evaluationSource: la variante server conserva la opción elegida; la self-assessed nunca finge una opción. */
+                            payload: {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource;
+                                selectedOptionKey: string;
+                                /** @enum {string} */
+                                result: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0Result;
+                            } | {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource;
+                                /**
+                                 * @description Siempre null — una autoevaluación no elige opción.
+                                 * @enum {string|null}
+                                 */
+                                selectedOptionKey: null;
+                                /** @enum {string} */
+                                result: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1Result;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf6SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf6Type;
+                            payload: {
+                                exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        };
+                    };
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: boolean;
+                        replayed: boolean;
+                        event: {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf0SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf0Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf1SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf1Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                                revisionNumber: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf2SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf2Type;
+                            payload: {
+                                conceptKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf3SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf3Type;
+                            payload: {
+                                guideSessionId: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf4SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf4Type;
+                            payload: {
+                                guideSessionId: string;
+                                stepsCompleted: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf5SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf5Type;
+                            /** @description Unión discriminada por evaluationSource: la variante server conserva la opción elegida; la self-assessed nunca finge una opción. */
+                            payload: {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource;
+                                selectedOptionKey: string;
+                                /** @enum {string} */
+                                result: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0Result;
+                            } | {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource;
+                                /**
+                                 * @description Siempre null — una autoevaluación no elige opción.
+                                 * @enum {string|null}
+                                 */
+                                selectedOptionKey: null;
+                                /** @enum {string} */
+                                result: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1Result;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf6SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf6Type;
+                            payload: {
+                                exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    LearningController_exploreConcept: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conceptKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description Mandatory client idempotency key (UUID, any casing).
+                     */
+                    idempotencyKey: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: boolean;
+                        replayed: boolean;
+                        event: {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf0SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf0Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf1SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf1Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                                revisionNumber: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf2SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf2Type;
+                            payload: {
+                                conceptKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf3SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf3Type;
+                            payload: {
+                                guideSessionId: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf4SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf4Type;
+                            payload: {
+                                guideSessionId: string;
+                                stepsCompleted: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf5SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf5Type;
+                            /** @description Unión discriminada por evaluationSource: la variante server conserva la opción elegida; la self-assessed nunca finge una opción. */
+                            payload: {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource;
+                                selectedOptionKey: string;
+                                /** @enum {string} */
+                                result: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0Result;
+                            } | {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource;
+                                /**
+                                 * @description Siempre null — una autoevaluación no elige opción.
+                                 * @enum {string|null}
+                                 */
+                                selectedOptionKey: null;
+                                /** @enum {string} */
+                                result: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1Result;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf6SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf6Type;
+                            payload: {
+                                exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        };
+                    };
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: boolean;
+                        replayed: boolean;
+                        event: {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf0SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf0Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf1SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf1Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                                revisionNumber: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf2SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf2Type;
+                            payload: {
+                                conceptKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf3SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf3Type;
+                            payload: {
+                                guideSessionId: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf4SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf4Type;
+                            payload: {
+                                guideSessionId: string;
+                                stepsCompleted: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf5SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf5Type;
+                            /** @description Unión discriminada por evaluationSource: la variante server conserva la opción elegida; la self-assessed nunca finge una opción. */
+                            payload: {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource;
+                                selectedOptionKey: string;
+                                /** @enum {string} */
+                                result: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0Result;
+                            } | {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource;
+                                /**
+                                 * @description Siempre null — una autoevaluación no elige opción.
+                                 * @enum {string|null}
+                                 */
+                                selectedOptionKey: null;
+                                /** @enum {string} */
+                                result: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1Result;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf6SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf6Type;
+                            payload: {
+                                exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    LearningController_submitRecallAttempt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description Mandatory client idempotency key (UUID, any casing).
+                     */
+                    idempotencyKey: string;
+                    itemKey: string;
+                    /** @description La opción elegida del catálogo del ítem — el servidor la califica. */
+                    selectedOptionKey: string;
+                } | {
+                    /**
+                     * Format: uuid
+                     * @description Mandatory client idempotency key (UUID, any casing).
+                     */
+                    idempotencyKey: string;
+                    itemKey: string;
+                    /**
+                     * @description La autoevaluación categórica del usuario (solo si el catálogo declara el modo self-assessed).
+                     * @enum {string}
+                     */
+                    selfResult: PathsApiLearningRecallAttemptsPostRequestBodyContentApplicationJsonOneOf1SelfResult;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: boolean;
+                        replayed: boolean;
+                        event: {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf0SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf0Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf1SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf1Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                                revisionNumber: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf2SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf2Type;
+                            payload: {
+                                conceptKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf3SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf3Type;
+                            payload: {
+                                guideSessionId: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf4SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf4Type;
+                            payload: {
+                                guideSessionId: string;
+                                stepsCompleted: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf5SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf5Type;
+                            /** @description Unión discriminada por evaluationSource: la variante server conserva la opción elegida; la self-assessed nunca finge una opción. */
+                            payload: {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource;
+                                selectedOptionKey: string;
+                                /** @enum {string} */
+                                result: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0Result;
+                            } | {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource;
+                                /**
+                                 * @description Siempre null — una autoevaluación no elige opción.
+                                 * @enum {string|null}
+                                 */
+                                selectedOptionKey: null;
+                                /** @enum {string} */
+                                result: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1Result;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf6SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf6Type;
+                            payload: {
+                                exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        };
+                    };
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: boolean;
+                        replayed: boolean;
+                        event: {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf0SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf0Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf1SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf1Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                                revisionNumber: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf2SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf2Type;
+                            payload: {
+                                conceptKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf3SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf3Type;
+                            payload: {
+                                guideSessionId: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf4SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf4Type;
+                            payload: {
+                                guideSessionId: string;
+                                stepsCompleted: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf5SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf5Type;
+                            /** @description Unión discriminada por evaluationSource: la variante server conserva la opción elegida; la self-assessed nunca finge una opción. */
+                            payload: {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource;
+                                selectedOptionKey: string;
+                                /** @enum {string} */
+                                result: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0Result;
+                            } | {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource;
+                                /**
+                                 * @description Siempre null — una autoevaluación no elige opción.
+                                 * @enum {string|null}
+                                 */
+                                selectedOptionKey: null;
+                                /** @enum {string} */
+                                result: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1Result;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf6SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf6Type;
+                            payload: {
+                                exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    LearningController_completePractice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exerciseKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description Mandatory client idempotency key (UUID, any casing).
+                     */
+                    idempotencyKey: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: boolean;
+                        replayed: boolean;
+                        event: {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf0SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf0Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf1SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf1Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                                revisionNumber: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf2SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf2Type;
+                            payload: {
+                                conceptKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf3SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf3Type;
+                            payload: {
+                                guideSessionId: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf4SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf4Type;
+                            payload: {
+                                guideSessionId: string;
+                                stepsCompleted: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf5SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf5Type;
+                            /** @description Unión discriminada por evaluationSource: la variante server conserva la opción elegida; la self-assessed nunca finge una opción. */
+                            payload: {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource;
+                                selectedOptionKey: string;
+                                /** @enum {string} */
+                                result: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0Result;
+                            } | {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource;
+                                /**
+                                 * @description Siempre null — una autoevaluación no elige opción.
+                                 * @enum {string|null}
+                                 */
+                                selectedOptionKey: null;
+                                /** @enum {string} */
+                                result: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1Result;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf6SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf6Type;
+                            payload: {
+                                exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        };
+                    };
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: boolean;
+                        replayed: boolean;
+                        event: {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf0SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf0Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf1SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf1Type;
+                            payload: {
+                                editionKey: string;
+                                unitKey: string;
+                                revisionNumber: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf2SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf2Type;
+                            payload: {
+                                conceptKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf3SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf3Type;
+                            payload: {
+                                guideSessionId: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf4SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf4Type;
+                            payload: {
+                                guideSessionId: string;
+                                stepsCompleted: number;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf5SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf5Type;
+                            /** @description Unión discriminada por evaluationSource: la variante server conserva la opción elegida; la self-assessed nunca finge una opción. */
+                            payload: {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource;
+                                selectedOptionKey: string;
+                                /** @enum {string} */
+                                result: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0Result;
+                            } | {
+                                unitKey: string;
+                                itemKey: string;
+                                conceptKey: string | null;
+                                /** @enum {string} */
+                                evaluationSource: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource;
+                                /**
+                                 * @description Siempre null — una autoevaluación no elige opción.
+                                 * @enum {string|null}
+                                 */
+                                selectedOptionKey: null;
+                                /** @enum {string} */
+                                result: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1Result;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf6SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf6Type;
+                            payload: {
+                                exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    LearningController_getProgress: {
+        parameters: {
+            query: {
+                bookSlug: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningProgressResponseDto"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     PatronesController_getPatrones: {
         parameters: {
             query?: {
@@ -12253,6 +14411,581 @@ export enum PathsApiReflexionesEntriesGetParametersQueryMood {
     low = "low",
     hard = "hard"
 }
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf0SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf0Type {
+    unit_opened = "unit_opened"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf1SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf1Type {
+    unit_completed = "unit_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf2SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf2Type {
+    concept_explored = "concept_explored"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf3SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf3Type {
+    guide_session_started = "guide_session_started"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf4SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf4Type {
+    guide_session_completed = "guide_session_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf5SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf5Type {
+    active_recall_attempted = "active_recall_attempted"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource {
+    server = "server"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0Result {
+    correct = "correct",
+    incorrect = "incorrect"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource {
+    self_assessed = "self_assessed"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1Result {
+    correct = "correct",
+    incorrect = "incorrect",
+    skipped = "skipped"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf6SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf6Type {
+    practice_completed = "practice_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf0SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf0Type {
+    unit_opened = "unit_opened"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf1SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf1Type {
+    unit_completed = "unit_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf2SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf2Type {
+    concept_explored = "concept_explored"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf3SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf3Type {
+    guide_session_started = "guide_session_started"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf4SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf4Type {
+    guide_session_completed = "guide_session_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf5SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf5Type {
+    active_recall_attempted = "active_recall_attempted"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource {
+    server = "server"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0Result {
+    correct = "correct",
+    incorrect = "incorrect"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource {
+    self_assessed = "self_assessed"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1Result {
+    correct = "correct",
+    incorrect = "incorrect",
+    skipped = "skipped"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf6SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf6Type {
+    practice_completed = "practice_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf0SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf0Type {
+    unit_opened = "unit_opened"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf1SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf1Type {
+    unit_completed = "unit_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf2SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf2Type {
+    concept_explored = "concept_explored"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf3SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf3Type {
+    guide_session_started = "guide_session_started"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf4SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf4Type {
+    guide_session_completed = "guide_session_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf5SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf5Type {
+    active_recall_attempted = "active_recall_attempted"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource {
+    server = "server"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0Result {
+    correct = "correct",
+    incorrect = "incorrect"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource {
+    self_assessed = "self_assessed"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1Result {
+    correct = "correct",
+    incorrect = "incorrect",
+    skipped = "skipped"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf6SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf6Type {
+    practice_completed = "practice_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf0SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf0Type {
+    unit_opened = "unit_opened"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf1SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf1Type {
+    unit_completed = "unit_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf2SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf2Type {
+    concept_explored = "concept_explored"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf3SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf3Type {
+    guide_session_started = "guide_session_started"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf4SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf4Type {
+    guide_session_completed = "guide_session_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf5SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf5Type {
+    active_recall_attempted = "active_recall_attempted"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource {
+    server = "server"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0Result {
+    correct = "correct",
+    incorrect = "incorrect"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource {
+    self_assessed = "self_assessed"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1Result {
+    correct = "correct",
+    incorrect = "incorrect",
+    skipped = "skipped"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf6SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf6Type {
+    practice_completed = "practice_completed"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf0SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf0Type {
+    unit_opened = "unit_opened"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf1SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf1Type {
+    unit_completed = "unit_completed"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf2SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf2Type {
+    concept_explored = "concept_explored"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf3SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf3Type {
+    guide_session_started = "guide_session_started"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf4SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf4Type {
+    guide_session_completed = "guide_session_completed"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf5SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf5Type {
+    active_recall_attempted = "active_recall_attempted"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource {
+    server = "server"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0Result {
+    correct = "correct",
+    incorrect = "incorrect"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource {
+    self_assessed = "self_assessed"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1Result {
+    correct = "correct",
+    incorrect = "incorrect",
+    skipped = "skipped"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf6SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf6Type {
+    practice_completed = "practice_completed"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf0SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf0Type {
+    unit_opened = "unit_opened"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf1SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf1Type {
+    unit_completed = "unit_completed"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf2SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf2Type {
+    concept_explored = "concept_explored"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf3SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf3Type {
+    guide_session_started = "guide_session_started"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf4SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf4Type {
+    guide_session_completed = "guide_session_completed"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf5SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf5Type {
+    active_recall_attempted = "active_recall_attempted"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource {
+    server = "server"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0Result {
+    correct = "correct",
+    incorrect = "incorrect"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource {
+    self_assessed = "self_assessed"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1Result {
+    correct = "correct",
+    incorrect = "incorrect",
+    skipped = "skipped"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf6SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf6Type {
+    practice_completed = "practice_completed"
+}
+export enum PathsApiLearningRecallAttemptsPostRequestBodyContentApplicationJsonOneOf1SelfResult {
+    correct = "correct",
+    incorrect = "incorrect",
+    skipped = "skipped"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf0SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf0Type {
+    unit_opened = "unit_opened"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf1SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf1Type {
+    unit_completed = "unit_completed"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf2SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf2Type {
+    concept_explored = "concept_explored"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf3SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf3Type {
+    guide_session_started = "guide_session_started"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf4SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf4Type {
+    guide_session_completed = "guide_session_completed"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf5SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf5Type {
+    active_recall_attempted = "active_recall_attempted"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource {
+    server = "server"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0Result {
+    correct = "correct",
+    incorrect = "incorrect"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource {
+    self_assessed = "self_assessed"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1Result {
+    correct = "correct",
+    incorrect = "incorrect",
+    skipped = "skipped"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf6SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf6Type {
+    practice_completed = "practice_completed"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf0SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf0Type {
+    unit_opened = "unit_opened"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf1SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf1Type {
+    unit_completed = "unit_completed"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf2SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf2Type {
+    concept_explored = "concept_explored"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf3SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf3Type {
+    guide_session_started = "guide_session_started"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf4SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf4Type {
+    guide_session_completed = "guide_session_completed"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf5SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf5Type {
+    active_recall_attempted = "active_recall_attempted"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource {
+    server = "server"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0Result {
+    correct = "correct",
+    incorrect = "incorrect"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource {
+    self_assessed = "self_assessed"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1Result {
+    correct = "correct",
+    incorrect = "incorrect",
+    skipped = "skipped"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf6SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf6Type {
+    practice_completed = "practice_completed"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf0SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf0Type {
+    unit_opened = "unit_opened"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf1SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf1Type {
+    unit_completed = "unit_completed"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf2SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf2Type {
+    concept_explored = "concept_explored"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf3SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf3Type {
+    guide_session_started = "guide_session_started"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf4SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf4Type {
+    guide_session_completed = "guide_session_completed"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf5SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf5Type {
+    active_recall_attempted = "active_recall_attempted"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource {
+    server = "server"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf0Result {
+    correct = "correct",
+    incorrect = "incorrect"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource {
+    self_assessed = "self_assessed"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf5PayloadOneOf1Result {
+    correct = "correct",
+    incorrect = "incorrect",
+    skipped = "skipped"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf6SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf6Type {
+    practice_completed = "practice_completed"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf0SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf0Type {
+    unit_opened = "unit_opened"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf1SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf1Type {
+    unit_completed = "unit_completed"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf2SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf2Type {
+    concept_explored = "concept_explored"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf3SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf3Type {
+    guide_session_started = "guide_session_started"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf4SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf4Type {
+    guide_session_completed = "guide_session_completed"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf5SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf5Type {
+    active_recall_attempted = "active_recall_attempted"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0EvaluationSource {
+    server = "server"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf0Result {
+    correct = "correct",
+    incorrect = "incorrect"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1EvaluationSource {
+    self_assessed = "self_assessed"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf5PayloadOneOf1Result {
+    correct = "correct",
+    incorrect = "incorrect",
+    skipped = "skipped"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf6SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf6Type {
+    practice_completed = "practice_completed"
+}
 export enum PathsApiPatronesGetParametersQueryPeriod {
     Value30d = "30d",
     Value90d = "90d",
@@ -12415,6 +15148,11 @@ export enum MarkHighlightDtoColor {
 export enum BookManifestDtoSource {
     content_core = "content-core",
     legacy = "legacy"
+}
+export enum LearningUnitProgressItemDtoState {
+    not_started = "not_started",
+    opened = "opened",
+    completed = "completed"
 }
 export enum ConfirmResonanceDtoSource {
     highlight = "highlight",

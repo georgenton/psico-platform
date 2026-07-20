@@ -45,7 +45,7 @@ server-owned si el evento se limita a copiar una afirmación del cliente.**
    (`selectedOptionKey`, jamás texto); los autoevaluados quedan marcados
    `evaluationSource="self_assessed"`, excluidos de precisión y sin gobernar
    el espaciado; `stepsCompleted` lo cuenta el servidor desde el estado de la
-   GuideSession. Los `guide_session_*` solo nacen de transiciones de sesión —
+   GuideSession (fuente server-side de pasos y máquina de estados: ADR 0019). Los `guide_session_*` solo nacen de transiciones de sesión —
    no son expresables como request.
 3. **`idempotencyKey` obligatorio** en todo comando de cliente (400 si falta;
    replay exacto ⇒ 200; misma key con payload distinto ⇒ 409
@@ -106,7 +106,8 @@ ContentAccessService`. Sin contextos opcionales que eviten el gate; clave
     interno indebido.
 11. **Entrega en 8 PRs** (contratos puros → persistencia+firewall → comandos →
     GuideSession → web → mobile → analítica → firewall full-stack), cada uno
-    aditivo, reversible y deployable de forma independiente.
+    aditivo, reversible y deployable de forma independiente. (El PR 4 se
+    subdivide en CC-7.4A–D por ADR 0019 §10.)
 
 ## Alternativas rechazadas
 

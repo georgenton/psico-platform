@@ -15,6 +15,8 @@ export { journeysApi } from "./journeys";
 export { emotionalMapApi } from "./emotional-map";
 // Fase E (V2) — ARC cycle: confirmed resonances feed the map explicitly.
 export { resonancesApi } from "./resonances";
+// CC-7.3 — learning domain commands + derived progress (ADR 0017).
+export { learningApi } from "./learning";
 // Sprint D — GET /api/activity (Inicio timeline feed).
 export { activityApi } from "./activity";
 // Sprint E1 — GET /api/evolucion (stats + achievements for "Mi Evolución").

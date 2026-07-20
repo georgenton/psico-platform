@@ -1908,6 +1908,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/learning/units/{unitKey}/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Registra una apertura real de la unidad (repetible con keys distintas). */
+        post: operations["LearningController_openUnit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learning/units/{unitKey}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Transición server-side: requiere apertura previa; una sola completion por unidad. */
+        post: operations["LearningController_completeUnit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learning/concepts/{conceptKey}/explore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Registra la exploración de un concepto del catálogo. Jamás crea una Resonance. */
+        post: operations["LearningController_exploreConcept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learning/recall-attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Intento de recall. Los ítems objetivos los califica el SERVIDOR contra el catálogo. */
+        post: operations["LearningController_submitRecallAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learning/practices/{exerciseKey}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Registra que la práctica fue marcada como completada (sin métricas, sin emoción). */
+        post: operations["LearningController_completePractice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learning/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Progreso derivado exclusivamente de LearningEvents V1 sobre la revisión publicada. */
+        get: operations["LearningController_getProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/patrones": {
         parameters: {
             query?: never;
@@ -3979,6 +4081,70 @@ export interface components {
             /** @description Published revision number, or null when served from legacy. */
             revisionNumber: number | null;
             units: components["schemas"]["ManifestUnitDto"][];
+        };
+        LearningIdempotentBodyDto: {
+            /**
+             * @description Mandatory client idempotency key (UUID, any casing).
+             * @example aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+             */
+            idempotencyKey: string;
+        };
+        LearningEventRecordDto: {
+            id: string;
+            /** @enum {number} */
+            schemaVersion: LearningEventRecordDtoSchemaVersion;
+            /** @description Server clock, ISO-8601. */
+            occurredAt: string;
+            /** @enum {string} */
+            type: LearningEventRecordDtoType;
+            /** @description Server-constructed payload, exactly typed per `type`. */
+            payload: {
+                [key: string]: unknown;
+            };
+            editionId: string | null;
+            unitId: string | null;
+            conceptId: string | null;
+            guideSessionId: string | null;
+        };
+        LearningCommandResponseDto: {
+            /** @description True when this call created the event (201). */
+            created: boolean;
+            /** @description True on an exact idempotent replay (200). */
+            replayed: boolean;
+            event: components["schemas"]["LearningEventRecordDto"];
+        };
+        SubmitRecallAttemptBodyDto: {
+            /**
+             * @description Mandatory client idempotency key (UUID, any casing).
+             * @example aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+             */
+            idempotencyKey: string;
+            /** @description Catalog key of the recall item. */
+            itemKey: string;
+            /** @description Objective items ONLY: the chosen option's catalog key. The SERVER grades it — `result`/`evaluationSource` are never accepted from the client. Mutually exclusive with `selfResult`. */
+            selectedOptionKey?: string;
+            /**
+             * @description Self-assessed items ONLY (the catalog must declare that mode): the user's own categorical assessment. Mutually exclusive with `selectedOptionKey`.
+             * @enum {string}
+             */
+            selfResult?: SubmitRecallAttemptBodyDtoSelfResult;
+        };
+        LearningUnitProgressItemDto: {
+            unitKey: string;
+            /** @enum {string} */
+            state: LearningUnitProgressItemDtoState;
+            openedAt: string | null;
+            completedAt: string | null;
+            completedRevisionNumber: number | null;
+        };
+        LearningProgressResponseDto: {
+            bookSlug: string;
+            editionKey: string;
+            revisionNumber: number;
+            units: components["schemas"]["LearningUnitProgressItemDto"][];
+            openedCount: number;
+            completedCount: number;
+            totalCount: number;
         };
         ShareWithTherapistDto: {
             therapistId: string;
@@ -9350,6 +9516,430 @@ export interface operations {
             };
         };
     };
+    LearningController_openUnit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unitKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LearningIdempotentBodyDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningCommandResponseDto"];
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningCommandResponseDto"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    LearningController_completeUnit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unitKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LearningIdempotentBodyDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningCommandResponseDto"];
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningCommandResponseDto"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    LearningController_exploreConcept: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conceptKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LearningIdempotentBodyDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningCommandResponseDto"];
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningCommandResponseDto"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    LearningController_submitRecallAttempt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitRecallAttemptBodyDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningCommandResponseDto"];
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningCommandResponseDto"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    LearningController_completePractice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exerciseKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LearningIdempotentBodyDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningCommandResponseDto"];
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningCommandResponseDto"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    LearningController_getProgress: {
+        parameters: {
+            query: {
+                bookSlug: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningProgressResponseDto"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     PatronesController_getPatrones: {
         parameters: {
             query?: {
@@ -12415,6 +13005,28 @@ export enum MarkHighlightDtoColor {
 export enum BookManifestDtoSource {
     content_core = "content-core",
     legacy = "legacy"
+}
+export enum LearningEventRecordDtoSchemaVersion {
+    Value1 = 1
+}
+export enum LearningEventRecordDtoType {
+    unit_opened = "unit_opened",
+    unit_completed = "unit_completed",
+    concept_explored = "concept_explored",
+    guide_session_started = "guide_session_started",
+    guide_session_completed = "guide_session_completed",
+    active_recall_attempted = "active_recall_attempted",
+    practice_completed = "practice_completed"
+}
+export enum SubmitRecallAttemptBodyDtoSelfResult {
+    correct = "correct",
+    incorrect = "incorrect",
+    skipped = "skipped"
+}
+export enum LearningUnitProgressItemDtoState {
+    not_started = "not_started",
+    opened = "opened",
+    completed = "completed"
 }
 export enum ConfirmResonanceDtoSource {
     highlight = "highlight",

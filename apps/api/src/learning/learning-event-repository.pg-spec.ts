@@ -92,9 +92,10 @@ function inputs(
       payload: {
         unitKey: "unit-a",
         itemKey: "item-1",
-        result: "correct",
-        evaluationSource: "server",
         conceptKey: "familia-ensamblada",
+        evaluationSource: "server",
+        selectedOptionKey: "option-b",
+        result: "correct",
       },
       unitId: "cu-1",
       conceptId: "co-1",

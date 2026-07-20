@@ -4,7 +4,6 @@ import type {
   LearningEventPayload,
   LearningEventPayloadByType,
   LearningEventTypeV1,
-  RecallEvaluationSource,
 } from "@psico/types";
 import type { ValidatedLearningEvent } from "./validated-learning-event";
 
@@ -76,13 +75,25 @@ export function rebuildPayload(
         stepsCompleted: event.payload.stepsCompleted,
       };
     case "active_recall_attempted":
-      return {
-        unitKey: event.payload.unitKey,
-        itemKey: event.payload.itemKey,
-        result: event.payload.result,
-        evaluationSource: event.payload.evaluationSource,
-        conceptKey: event.payload.conceptKey,
-      };
+      // CC-7.3 — the payload is a union discriminated by evaluationSource:
+      // objective preserves the chosen option; self-assessed never fakes one.
+      return event.payload.evaluationSource === "server"
+        ? {
+            unitKey: event.payload.unitKey,
+            itemKey: event.payload.itemKey,
+            conceptKey: event.payload.conceptKey,
+            evaluationSource: "server",
+            selectedOptionKey: event.payload.selectedOptionKey,
+            result: event.payload.result,
+          }
+        : {
+            unitKey: event.payload.unitKey,
+            itemKey: event.payload.itemKey,
+            conceptKey: event.payload.conceptKey,
+            evaluationSource: "self_assessed",
+            selectedOptionKey: null,
+            result: event.payload.result,
+          };
     case "practice_completed":
       return {
         exerciseKey: event.payload.exerciseKey,
@@ -105,11 +116,6 @@ function hasExactKeys(o: Record<string, unknown>, keys: string[]): boolean {
   const own = Object.keys(o);
   return own.length === keys.length && keys.every((k) => own.includes(k));
 }
-
-const EVALUATION_SOURCES: readonly RecallEvaluationSource[] = [
-  "server",
-  "self_assessed",
-];
 
 /**
  * Exact parse of a stored payload for a given V1 type. Returns the typed
@@ -167,29 +173,52 @@ function parseByType(
         isInt(o.stepsCompleted)
         ? { guideSessionId: o.guideSessionId, stepsCompleted: o.stepsCompleted }
         : null;
-    case "active_recall_attempted":
-      return hasExactKeys(o, [
-        "unitKey",
-        "itemKey",
-        "result",
-        "evaluationSource",
-        "conceptKey",
-      ]) &&
-        isStr(o.unitKey) &&
-        isStr(o.itemKey) &&
-        (RECALL_RESULTS as readonly unknown[]).includes(o.result) &&
-        (EVALUATION_SOURCES as readonly unknown[]).includes(
-          o.evaluationSource,
-        ) &&
-        (o.conceptKey === null || isStr(o.conceptKey))
-        ? {
-            unitKey: o.unitKey,
-            itemKey: o.itemKey,
-            result: o.result as (typeof RECALL_RESULTS)[number],
-            evaluationSource: o.evaluationSource as RecallEvaluationSource,
-            conceptKey: o.conceptKey as string | null,
-          }
-        : null;
+    case "active_recall_attempted": {
+      // CC-7.3 union — exact keys for BOTH variants; the variant-specific
+      // constraints are enforced by the evaluationSource branch below.
+      if (
+        !hasExactKeys(o, [
+          "unitKey",
+          "itemKey",
+          "conceptKey",
+          "evaluationSource",
+          "selectedOptionKey",
+          "result",
+        ]) ||
+        !isStr(o.unitKey) ||
+        !isStr(o.itemKey) ||
+        !(o.conceptKey === null || isStr(o.conceptKey))
+      ) {
+        return null;
+      }
+      if (o.evaluationSource === "server") {
+        return isStr(o.selectedOptionKey) &&
+          (o.result === "correct" || o.result === "incorrect")
+          ? {
+              unitKey: o.unitKey,
+              itemKey: o.itemKey,
+              conceptKey: o.conceptKey as string | null,
+              evaluationSource: "server",
+              selectedOptionKey: o.selectedOptionKey,
+              result: o.result,
+            }
+          : null;
+      }
+      if (o.evaluationSource === "self_assessed") {
+        return o.selectedOptionKey === null &&
+          (RECALL_RESULTS as readonly unknown[]).includes(o.result)
+          ? {
+              unitKey: o.unitKey,
+              itemKey: o.itemKey,
+              conceptKey: o.conceptKey as string | null,
+              evaluationSource: "self_assessed",
+              selectedOptionKey: null,
+              result: o.result as (typeof RECALL_RESULTS)[number],
+            }
+          : null;
+      }
+      return null;
+    }
     case "practice_completed":
       return hasExactKeys(o, ["exerciseKey", "unitKey"]) &&
         isStr(o.exerciseKey) &&
@@ -282,12 +311,16 @@ function payloadEquals(
     }
     case "active_recall_attempted": {
       const s = stored as LearningEventPayloadByType["active_recall_attempted"];
+      // All six fields compared — notably selectedOptionKey: two objective
+      // attempts with different options are DIFFERENT events even when the
+      // derived result matches (same idempotencyKey ⇒ conflict).
       return (
         s.unitKey === input.payload.unitKey &&
         s.itemKey === input.payload.itemKey &&
-        s.result === input.payload.result &&
+        s.conceptKey === input.payload.conceptKey &&
         s.evaluationSource === input.payload.evaluationSource &&
-        s.conceptKey === input.payload.conceptKey
+        s.selectedOptionKey === input.payload.selectedOptionKey &&
+        s.result === input.payload.result
       );
     }
     case "practice_completed": {

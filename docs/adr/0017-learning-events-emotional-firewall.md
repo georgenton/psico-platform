@@ -74,20 +74,22 @@ ContentAccessService`. Sin contextos opcionales que eviten el gate; clave
    confirmación explícita, **no modifica automáticamente** ningún eje,
    **jamás** la crea un LearningEvent, y `concept_explored` no es una
    Resonance. La conversión preexistente ARC-C1/ARC-P1 (resonancias →
-   Conexión/Propósito, viva hoy bajo V2) **no forma parte de este firewall**:
-   queda registrada como decisión independiente
-   `resonance_axis_conversion=PENDING_DECISION` (FORBIDDEN para todo lo nuevo
-   de CC-7), a resolver antes de que el test de inversión pueda aterrizar.
+   Conexión/Propósito) quedó **resuelta en ADR 0018**
+   (`EXPLICIT_AXIS_EXCEPTION`): excepción ratificada, acotada por los
+   invariantes INV-1…INV-5 y verificada por el test de dos partes con delta
+   confinado. Sigue FORBIDDEN para todo lo nuevo de CC-7.
 8. **Firewall dinámico adelantado:** PR 2 (persistencia) incluye los dos
-   ratchets estáticos **y** el test de inversión semántica DB-level —
-   proyección canónica del mapa idéntica tras crear los 7 tipos + progreso +
-   sesiones + marcas + **una Resonance cualitativa**, con control negativo (un
-   checkin sí mueve la proyección). **Los endpoints (PR 3) no aterrizan sin un
-   firewall dinámico ejecutable.** Gate: CC-7.1 puede comenzar; **CC-7.2 no se
-   mergea hasta resolver la decisión ARC**
-   (`ARC_DECISION_REQUIRED_BEFORE_CC7_2=true`); prohibida una excepción
-   silenciosa en el test — cualquier enmienda, explícita y documentada. PR 8
-   lo amplía a full-stack.
+   ratchets estáticos **y** el test de inversión semántica DB-level en dos
+   partes — Parte 1: proyección canónica del mapa **idéntica** tras crear los
+   7 tipos + progreso + sesiones + marcas (sin excepción alguna); Parte 2:
+   confirmar una Resonance ⇒ delta confinado a conexion/proposito con
+   evidencia ARC + reversibilidad — más el control negativo (un checkin sí
+   mueve la proyección). **Los endpoints (PR 3) no aterrizan sin un firewall
+   dinámico ejecutable.** Gate: la decisión ARC se resolvió en ADR 0018
+   (aprobación en su PR); el test de inversión adopta la forma de dos partes
+   (educativa ⇒ idéntico siempre; resonancia ⇒ delta confinado a
+   conexion/proposito + reversibilidad) — enmienda explícita y documentada,
+   no una excepción silenciosa. PR 8 lo amplía a full-stack.
 9. **Append-only ≠ retención infinita.** Sin UPDATE/DELETE por API de
    producto; eventos inmutables durante su vida útil; eliminaciones
    autorizadas: cierre de cuenta, política de retención aprobada ejecutada

@@ -177,15 +177,15 @@ Para CC-7, `Resonance` se define así y solo así:
 - `concept_explored` **no es** una Resonance — es navegación educativa sin
   peso en el mapa.
 
-**Excepción preexistente, pendiente e independiente:** hoy en producción los
-modelos ARC-C1 (Conexión) y ARC-P1 (Propósito) del programa V2 sí derivan
-valores de eje desde resonancias confirmadas. Esa conversión **no forma parte
-del firewall CC-7** y queda registrada como **decisión de producto pendiente**
-(`resonance_axis_conversion=PENDING_DECISION` para el sistema preexistente;
-**FORBIDDEN** para todo lo nuevo de CC-7). Resolverla —retirarla, gatearla o
-ratificarla como excepción explícita y acotada— es prerrequisito del test §D
-(ver nota de conflicto ahí). Nada en CC-7 amplía, consume ni depende de esa
-conversión.
+**Excepción explícita y acotada (RESUELTA — ADR 0018):** los modelos ARC-C1
+(Conexión) y ARC-P1 (Propósito) quedan **ratificados** como la única
+excepción: una Resonance confirmada explícitamente por el usuario es
+autoinforme mediado por contenido — no engagement — y puede contribuir SOLO a
+esos dos ejes, bajo los invariantes INV-1…INV-5 del ADR 0018 (solo taps
+explícitos, input exacto `{conceptKey, important}` sin frecuencia/dwell/
+progreso/recall, caps de saturación, procedencia visible y revocable, y
+ratchet contra cualquier ampliación). Sigue siendo cierto que **LearningEvent
+jamás crea una Resonance** y que nada de CC-7 amplía esa conversión.
 
 ### Mecanismos de enforcement (tres capas)
 
@@ -231,19 +231,18 @@ LLM excluido por no-determinista) y **compara**: lista de ejes y su orden;
 `evidence` completa (`modelId`, `n`) y procedencia; `momento`; parámetros de
 dinámica afectiva; `coverage`.
 
-**Nota de conflicto (explícita y honesta):** el paso 3 incluye una Resonance y
-el paso 5 exige identidad. Bajo el comportamiento preexistente ARC-C1/ARC-P1,
-crear una resonancia HOY sí mueve Conexión/Propósito — es decir, este test,
-tal como está especificado, **no puede aterrizar en verde sin resolver antes
-la decisión pendiente de §C**. Eso es deliberado: el test fuerza la decisión
-en lugar de esconderla. Gate explícito:
-**CC-7.1 (contratos y validación pura) puede comenzar ya; CC-7.2
-(persistencia + firewall dinámico) NO puede mergearse hasta resolver la
-decisión ARC** (`ARC_DECISION_REQUIRED_BEFORE_CC7_2=true`). Queda **prohibido
-implementar una excepción silenciosa** en el test de inversión: cualquier
-enmienda debe ser explícita, documentada aquí y aprobada — las salidas
-posibles son retirar/gatear la conversión ARC o ratificarla como excepción
-acotada y visible.
+**Enmienda explícita (ADR 0018 — resuelve el conflicto):** la especificación
+original exigía identidad también tras crear una Resonance, lo que contradecía
+ARC-C1/ARC-P1. Con la política ratificada (`EXPLICIT_AXIS_EXCEPTION`), el test
+queda en DOS partes. **Parte 1** — actividad educativa (LearningEvents +
+progreso + sesiones + quiz + marks) ⇒ `mapProjection` **idéntica siempre, sin
+excepción alguna**. **Parte 2** — confirmar una Resonance ⇒ **delta
+confinado**: solo `conexion`/`proposito` pueden diferir, sus `evidence` citan
+exclusivamente ARC-C1/ARC-P1, todos los demás ejes y campos permanecen
+byte-idénticos, y tras revocarla la proyección vuelve al estado previo. La
+Parte 2 es el ratchet de los invariantes INV-1/INV-5 del ADR 0018: un delta en
+cualquier otro eje rompe el build. Enmienda explícita y aprobada — no una
+excepción silenciosa.
 
 **Criterio de fallo:** cualquier delta en cualquier campo comparado tras el
 paso 3 = actividad educativa (o resonancia cualitativa) alterando una
@@ -523,16 +522,16 @@ futuro una evidencia server-verifiable más fuerte.
 
 ## I. Plan de implementación (PRs pequeños, cada uno reversible y deployable)
 
-| PR                                      | Contenido                                                                                                                                                                                                                                                                                                                              | Reversibilidad                      |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| **1. Contratos + validación pura**      | `packages/types/learning-events.ts` (comandos + payloads + errores) + parsers puros + tests unit (rechazo de campos extra, texto libre, tipos server-owned, idempotencyKey ausente)                                                                                                                                                    | sin schema, sin endpoints           |
-| **2. Persistencia + firewall dinámico** | Enum aditivo (+3 kinds V1), `@@unique([userId, idempotencyKey])`, `LearningEventRepository.appendValidated` (escritor único); **ratchet `no-learning-in-map` + ratchet `no-direct-learning-event-write` + inversión semántica DB-level con control negativo** (bloqueado por la decisión ARC pendiente de §C/§D, que se resuelve aquí) | migración aditiva; tabla ya existe  |
-| **3. Comandos de dominio (endpoints)**  | Las 5 rutas learning + `GET progress` + entitlement §C-bis + rate limit + OpenAPI. **No aterriza sin el firewall dinámico de PR 2 en verde**                                                                                                                                                                                           | deploy normal; sin consumidores aún |
-| **4. GuideSession**                     | modelo + migración aditiva + `POST /api/guide/sessions` + `PATCH …/complete` + eventos emitidos por transición + conteo server-side de pasos                                                                                                                                                                                           | aditivo e independiente             |
-| **5. Integración web**                  | lector invoca `open`/`complete`; prácticas/recall invocan sus comandos; best-effort (fallo de comando jamás rompe UX)                                                                                                                                                                                                                  | solo cliente                        |
-| **6. Integración mobile**               | paridad con web                                                                                                                                                                                                                                                                                                                        | solo cliente                        |
-| **7. Analítica agregada**               | counts con umbral k (config validada) en Pulso + sweep de retención (config validada) en worker — ambos tras aprobación de privacidad (§F)                                                                                                                                                                                             | aditivo                             |
-| **8. Firewall full-stack**              | ampliación de la inversión semántica a través de los endpoints reales (HTTP → comando → evento → mapProjection idéntica)                                                                                                                                                                                                               | test-only                           |
+| PR                                      | Contenido                                                                                                                                                                                                                                                                                                                                                                          | Reversibilidad                      |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| **1. Contratos + validación pura**      | `packages/types/learning-events.ts` (comandos + payloads + errores) + parsers puros + tests unit (rechazo de campos extra, texto libre, tipos server-owned, idempotencyKey ausente)                                                                                                                                                                                                | sin schema, sin endpoints           |
+| **2. Persistencia + firewall dinámico** | Enum aditivo (+3 kinds V1), `@@unique([userId, idempotencyKey])`, `LearningEventRepository.appendValidated` (escritor único); **ratchet `no-learning-in-map` + ratchet `no-direct-learning-event-write` + inversión semántica DB-level con control negativo** (la decisión ARC quedó resuelta en ADR 0018: test de dos partes con delta confinado + ratchet `arc-exception-scope`) | migración aditiva; tabla ya existe  |
+| **3. Comandos de dominio (endpoints)**  | Las 5 rutas learning + `GET progress` + entitlement §C-bis + rate limit + OpenAPI. **No aterriza sin el firewall dinámico de PR 2 en verde**                                                                                                                                                                                                                                       | deploy normal; sin consumidores aún |
+| **4. GuideSession**                     | modelo + migración aditiva + `POST /api/guide/sessions` + `PATCH …/complete` + eventos emitidos por transición + conteo server-side de pasos                                                                                                                                                                                                                                       | aditivo e independiente             |
+| **5. Integración web**                  | lector invoca `open`/`complete`; prácticas/recall invocan sus comandos; best-effort (fallo de comando jamás rompe UX)                                                                                                                                                                                                                                                              | solo cliente                        |
+| **6. Integración mobile**               | paridad con web                                                                                                                                                                                                                                                                                                                                                                    | solo cliente                        |
+| **7. Analítica agregada**               | counts con umbral k (config validada) en Pulso + sweep de retención (config validada) en worker — ambos tras aprobación de privacidad (§F)                                                                                                                                                                                                                                         | aditivo                             |
+| **8. Firewall full-stack**              | ampliación de la inversión semántica a través de los endpoints reales (HTTP → comando → evento → mapProjection idéntica)                                                                                                                                                                                                                                                           | test-only                           |
 
 Orden estricto 1→8; cada PR con CI verde y sync `develop→main` normal. Ninguno
 toca Mapa/epochs/OU/scoring/flags ni el libro publicado.

@@ -2432,6 +2432,16 @@ enum LearningEventKind {
   HIGHLIGHT_CREATED
   ANNOTATION_CREATED
   RESONANCE_CONFIRMED
+  // CC-7.2 · V1 vocabulary additions (ADR 0017). The pre-existing kinds above
+  // stay for schema compatibility, but the V1 typed repository only accepts
+  // the seven V1 types (UNIT_OPENED, UNIT_COMPLETED, CONCEPT_EXPLORED,
+  // GUIDE_SESSION_STARTED, GUIDE_SESSION_COMPLETED, ACTIVE_RECALL_ATTEMPTED,
+  // PRACTICE_COMPLETED) — BLOCK_DWELL/HIGHLIGHT_CREATED/ANNOTATION_CREATED/
+  // RESONANCE_CONFIRMED are not V1 inputs (marks/resonances have their own
+  // source-of-truth tables).
+  CONCEPT_EXPLORED
+  ACTIVE_RECALL_ATTEMPTED
+  PRACTICE_COMPLETED
 }
 
 // Append-only learning log — FIREWALLED from the Emotional Map. `payload` is
@@ -2445,10 +2455,24 @@ model LearningEvent {
   unitId    String?
   blockKey  String?
   payload   Json?
+  // Server clock. Mapped publicly as `occurredAt` — clients cannot date events.
   createdAt DateTime          @default(now())
+
+  // CC-7.2 · V1 storage idempotency (ADR 0017 §3/§5). Nullable so pre-V1 rows
+  // survive untouched; every row the V1 repository writes carries a canonical
+  // (lowercase UUID) key + schemaVersion = 1. PostgreSQL treats NULLs as
+  // distinct in the unique index, so legacy rows never collide.
+  idempotencyKey String?
+  schemaVersion  Int?
+  // Resolved references a future domain layer stamps (concept catalog / guide
+  // session). Plain strings like editionId/unitId — no FK cascades by design:
+  // the event log must survive catalog reshuffles as an immutable record.
+  conceptId      String?
+  guideSessionId String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, idempotencyKey])
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, kind])
 }

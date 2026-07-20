@@ -3624,3 +3624,6 @@ export * from "./chapter-exercises";
 
 // ─── Fase E (V2) — ARC cycle: chapter concepts + resonance wire types ─────
 export * from "./chapter-concepts";
+
+// ─── CC-7.1 — learning domain commands + server-constructed event records ─
+export * from "./learning-events";

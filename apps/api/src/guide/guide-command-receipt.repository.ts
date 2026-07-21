@@ -205,12 +205,70 @@ function assertValidSemantics(semantics: ValidatedGuideCommandSemantics): void {
 
 // ─── Column projection + structural comparison ──────────────────────────────
 
-/** The stored sessionId: START links the session the server CREATED; every
- * other command's sessionId IS its semantics. */
+/**
+ * Fail-closed validation of the WRITE ENVELOPE (closure §2): a plain, CLOSED
+ * object whose outer keys are EXACTLY those the command type allows.
+ *
+ *   START     → exactly { semantics, resultSessionId }; resultSessionId is a
+ *               valid server-side id; nothing else outside.
+ *   non-START → exactly { semantics }; `resultSessionId` is FORBIDDEN even
+ *               as `undefined` (a present key, whatever its value, is
+ *               rejected); nothing else outside.
+ *
+ * The semantics themselves are still validated by the existing authority
+ * (`assertValidSemantics`). Anything wrong throws BEFORE any Prisma access.
+ */
+function assertValidWrite(
+  raw: unknown,
+): asserts raw is GuideCommandReceiptWrite {
+  if (
+    typeof raw !== "object" ||
+    raw === null ||
+    Array.isArray(raw) ||
+    (Object.getPrototypeOf(raw) !== Object.prototype &&
+      Object.getPrototypeOf(raw) !== null)
+  ) {
+    invalid();
+  }
+  const obj = raw as Record<string, unknown>;
+  const semantics = obj.semantics as ValidatedGuideCommandSemantics;
+  if (
+    typeof semantics !== "object" ||
+    semantics === null ||
+    Array.isArray(semantics)
+  ) {
+    invalid();
+  }
+  const isStart = semantics.commandType === "START";
+  // Exact outer keys — `resultSessionId` allowed ONLY for START, and a
+  // non-START envelope carrying the key at all (even `undefined`) is invalid.
+  const allowedOuter = isStart
+    ? ["semantics", "resultSessionId"]
+    : ["semantics"];
+  for (const key of Reflect.ownKeys(obj)) {
+    if (typeof key !== "string" || !allowedOuter.includes(key)) invalid();
+  }
+  if (isStart) {
+    requireId(obj.resultSessionId);
+  }
+  assertValidSemantics(semantics);
+}
+
+/**
+ * The stored sessionId, resolved AFTER envelope validation by the semantics'
+ * commandType (never by property presence — closure §3): START links the
+ * session the server CREATED; every other command's sessionId IS its
+ * semantics.
+ */
 function sessionIdOf(write: GuideCommandReceiptWrite): string {
-  return "resultSessionId" in write
-    ? write.resultSessionId
-    : write.semantics.sessionId;
+  if (write.semantics.commandType === "START") {
+    // `assertValidWrite` proved a START envelope carries a valid
+    // `resultSessionId`; the outer union is not discriminated by the nested
+    // `semantics.commandType`, so the cast restates that runtime invariant
+    // (never `"resultSessionId" in write`, which discriminates by presence).
+    return (write as { resultSessionId: string }).resultSessionId;
+  }
+  return write.semantics.sessionId;
 }
 
 /** Field-by-field projection — nothing off the per-type whitelist reaches
@@ -364,19 +422,26 @@ export class GuideCommandReceiptRepository {
    *      duplicate inside the caller's `$transaction` never raises P2002 and
    *      never poisons the transaction;
    *   3. `count` tells whether THIS call inserted;
-   *   4. read by `(userId, canonicalKey)` and compare EXACTLY: match ⇒
-   *      replay of the ORIGINAL receipt (a START replay returns the ORIGINAL
-   *      session's linkage); drift ⇒ conflict thrown by OUR code.
+   *   4. ALWAYS re-read by `(userId, canonicalKey)` and re-validate the
+   *      stored row semantically — including when `count === 1`:
+   *        - created  ⇒ semantics AND the stored linkage must match what we
+   *          asked to write (a corrupted round-trip fails closed);
+   *        - replay   ⇒ semantics match, return the ORIGINAL receipt (a
+   *          START replay keeps the ORIGINAL session's linkage, never the
+   *          new `resultSessionId`);
+   *        - drift    ⇒ idempotency conflict thrown by OUR code.
    */
   async appendValidated(
     write: GuideCommandReceiptWrite,
     db?: GuideCommandReceiptDb,
   ): Promise<AppendGuideCommandReceiptResult> {
     const client = db ?? this.prisma;
+    // Validate the ENTIRE envelope first (outer keys + linkage + semantics),
+    // fail-closed, before any DB access.
+    assertValidWrite(write);
     const semantics = write.semantics;
-    assertValidSemantics(semantics);
     const idempotencyKey = this.canonicalKey(semantics.idempotencyKey);
-    const sessionId = requireId(sessionIdOf(write));
+    const sessionId = sessionIdOf(write);
     const cols = toColumns(semantics);
 
     try {
@@ -404,12 +469,24 @@ export class GuideCommandReceiptRepository {
       });
       if (!stored) throw new GuideCommandStorageError();
 
-      if (count === 1) {
-        return { created: true, replayed: false, receipt: stored };
-      }
+      // The stored row's semantics are ALWAYS re-validated — a `count === 1`
+      // whose read-back drifted from what we wrote is a corrupted round-trip,
+      // not a create.
       if (!isSameSemantics(stored, semantics)) {
         throw new GuideCommandIdempotencyConflictError();
       }
+
+      if (count === 1) {
+        // For a genuine create, the stored linkage MUST equal the linkage we
+        // computed for this write (`isSameSemantics` never compares START's
+        // sessionId — this does, closing the create path).
+        if (stored.sessionId !== sessionId) {
+          throw new GuideCommandStorageError();
+        }
+        return { created: true, replayed: false, receipt: stored };
+      }
+      // Replay: the row pre-existed; return it with its ORIGINAL linkage
+      // (a START replay's fresh resultSessionId is deliberately ignored).
       return { created: false, replayed: true, receipt: stored };
     } catch (err) {
       sanitize(err);

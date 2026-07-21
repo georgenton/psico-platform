@@ -5,15 +5,32 @@ import {
 } from "./guide-command-receipt.repository";
 import type {
   GuideCommandReceiptWrite,
+  ValidatedGuideCancelSemantics,
   ValidatedGuideCommandSemantics,
 } from "./guide-command-semantics";
 
 /**
- * CC-7.4B — PRE-DB validation unit suite (PR #590 closure §3): malicious
- * casts around the closed unions are rejected BEFORE any storage round-trip.
- * The delegate THROWS on any touch, so a passing test proves the database
- * was never reached.
+ * CC-7.4B — PRE-DB validation unit suite (PR #590 closure §2/§3): malicious
+ * casts around the closed unions AND the write envelope are rejected BEFORE
+ * any storage round-trip. The delegate THROWS on any touch, so a passing
+ * test proves the database was never reached.
  */
+
+// ── Type-level: the write envelope is closed both ways ─────────────────────
+{
+  const cancelSemantics: ValidatedGuideCancelSemantics = {
+    commandType: "CANCEL",
+    userId: "u",
+    idempotencyKey: "cccccccc-cccc-4ccc-8ccc-000000000301",
+    sessionId: "s",
+  };
+  // @ts-expect-error non-START commands cannot carry resultSessionId
+  const invalidCancelWrite: GuideCommandReceiptWrite = {
+    semantics: cancelSemantics,
+    resultSessionId: "another-session",
+  };
+  void invalidCancelWrite;
+}
 
 const explodingDb = {
   guideCommandReceipt: {
@@ -161,6 +178,76 @@ describe("GuideCommandReceiptRepository · fail-closed PRE-DB validation", () =>
       sessionId: "sess-1",
     } as unknown as ValidatedGuideCommandSemantics;
     await expect(repo.appendValidated(write(badKey))).rejects.toThrow(
+      GuideCommandInvalidInputError,
+    );
+  });
+});
+
+describe("GuideCommandReceiptRepository · fail-closed WRITE ENVELOPE (closure §2)", () => {
+  const cancelSemantics: ValidatedGuideCommandSemantics = {
+    commandType: "CANCEL",
+    userId: "u-1",
+    idempotencyKey: KEY,
+    sessionId: "sess-a",
+  };
+  const startSemantics: ValidatedGuideCommandSemantics = {
+    commandType: "START",
+    userId: "u-1",
+    idempotencyKey: KEY,
+    guideKey: "guia-prueba",
+    guideVersion: 1,
+    editionId: null,
+    unitId: null,
+  };
+
+  it("rejects a NON-START write carrying resultSessionId — never touches the DB", async () => {
+    const bad = {
+      semantics: cancelSemantics,
+      resultSessionId: "sess-b",
+    } as unknown as GuideCommandReceiptWrite;
+    await expect(repo.appendValidated(bad)).rejects.toThrow(
+      GuideCommandInvalidInputError,
+    );
+  });
+
+  it("rejects a START write WITHOUT resultSessionId", async () => {
+    const bad = {
+      semantics: startSemantics,
+    } as unknown as GuideCommandReceiptWrite;
+    await expect(repo.appendValidated(bad)).rejects.toThrow(
+      GuideCommandInvalidInputError,
+    );
+  });
+
+  it("rejects an EXTRA outer field on a START write", async () => {
+    const bad = {
+      semantics: startSemantics,
+      resultSessionId: "sess-real",
+      extra: "contrabando",
+    } as unknown as GuideCommandReceiptWrite;
+    await expect(repo.appendValidated(bad)).rejects.toThrow(
+      GuideCommandInvalidInputError,
+    );
+  });
+
+  it("rejects an EXTRA outer field on a non-START write", async () => {
+    const bad = {
+      semantics: cancelSemantics,
+      extra: "contrabando",
+    } as unknown as GuideCommandReceiptWrite;
+    await expect(repo.appendValidated(bad)).rejects.toThrow(
+      GuideCommandInvalidInputError,
+    );
+  });
+
+  it("closes the same-user cross-session mislink: CANCEL(session-a) + resultSessionId(session-b) → invalid pre-DB, zero receipt", async () => {
+    // Both sessions belong to the same user, so the composite ownership FK
+    // would NOT catch this — the envelope validation must, and BEFORE any DB.
+    const mislink = {
+      semantics: cancelSemantics, // sessionId: "sess-a"
+      resultSessionId: "sess-b",
+    } as unknown as GuideCommandReceiptWrite;
+    await expect(repo.appendValidated(mislink)).rejects.toThrow(
       GuideCommandInvalidInputError,
     );
   });

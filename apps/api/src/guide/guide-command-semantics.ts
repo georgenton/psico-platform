@@ -101,6 +101,11 @@ export type GuideCommandType = ValidatedGuideCommandSemantics["commandType"];
  * What gets PERSISTED: the semantics, plus — for START only — the id of the
  * session the server just created (result linkage, server-owned, never part
  * of START's input semantics or fingerprint).
+ *
+ * The union is CLOSED both ways: a START write REQUIRES `resultSessionId`,
+ * and a non-START write FORBIDS it — `resultSessionId?: never` makes even an
+ * `undefined` result-linkage on a non-START command a type error, so the
+ * envelope cannot silently carry a linkage where none may exist.
  */
 export type GuideCommandReceiptWrite =
   | { semantics: ValidatedGuideStartSemantics; resultSessionId: string }
@@ -109,6 +114,7 @@ export type GuideCommandReceiptWrite =
         ValidatedGuideCommandSemantics,
         ValidatedGuideStartSemantics
       >;
+      resultSessionId?: never;
     };
 
 /** The exact target key of a STEP_COMPLETE variant. */

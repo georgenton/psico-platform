@@ -11,12 +11,13 @@
 
 ## 1. Libro, capítulo y concepto
 
-| Campo               | Valor                                                       |
-| ------------------- | ----------------------------------------------------------- |
-| `BOOK_SLUG`         | `emociones-en-construccion`                                 |
-| Capítulo            | 1 — _El cuerpo sabe antes que la mente_                     |
-| `CONCEPT_KEY`       | `eec-cuerpo-antes-que-mente`                                |
-| Fuente del capítulo | `apps/api/content/emociones-en-construccion/capitulo-01.md` |
+| Campo                  | Valor                                                       |
+| ---------------------- | ----------------------------------------------------------- |
+| `BOOK_SLUG`            | `emociones-en-construccion`                                 |
+| Capítulo               | 1 — _¿Realmente sabemos qué es una emoción?_                |
+| Tema/concepto evaluado | El cuerpo sabe antes que la mente                           |
+| `CONCEPT_KEY`          | `eec-cuerpo-antes-que-mente`                                |
+| Fuente del capítulo    | `apps/api/content/emociones-en-construccion/capitulo-01.md` |
 
 El concepto es real y publicado: `backfill.ts` crea el `Concept` (upsert por
 `conceptKey`) y su `ConceptLink` (rol `PRIMARY`, una sola unidad) desde
@@ -134,8 +135,8 @@ editorial humana revisada y autorizada por el responsable del contenido. La
 
 ## 7. Privacidad
 
-- El ítem y su `correctOptionKey` son **contenido de catálogo** (libro público
-  licenciado), no datos del usuario.
+- El ítem y su `correctOptionKey` son **contenido editorial del catálogo del
+  producto**; no es dato del usuario.
 - `correctOptionKey` es **interno**: la calificación ocurre en el servidor y la
   clave correcta **nunca se serializa** al cliente (contrato CC-7.3).
 - No toca cifrado E2E, Diario, Eco, Mapa Emocional, scoring, model-registry,

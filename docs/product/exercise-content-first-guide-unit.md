@@ -156,3 +156,45 @@ editorial humana revisada y autorizada por el responsable del contenido. La
 
   Estado actual: `GUIDE_DEFINITION_STATUS=BLOCKED_PENDING_EXERCISE_INGESTION`,
   `CC7_4C_STATUS=BLOCKED_GUIDE_DEFINITION_REQUIRED`.
+
+## 9. Implementación de la ingesta (CC-7.4B.2)
+
+```
+INGESTION_IMPLEMENTATION_STATUS=IN_REVIEW
+```
+
+- **Catálogo ejecutable + backfill implementados.** El catálogo cerrado
+  server-side (`apps/api/src/content-core/exercise-ingestion-catalog.ts`)
+  declara las dos definiciones aprobadas; el paso de ingesta
+  (`apps/api/src/content-core/exercise-ingestion.ts`) las materializa como filas
+  `Exercise` DENTRO de la transacción por-libro del backfill de Content Core
+  (`backfill.ts`), la MISMA vía por la que pasa el contenido productivo.
+- **Fail-closed (sin skip parcial para una definición productiva aprobada).**
+  Un libro AUSENTE del catálogo es el único no-op permitido. Para un libro
+  PRESENTE, si falta el capítulo, la unidad, o el bloque fuente —
+  **cero → fail-closed porque una definición productiva aprobada perdió su
+  fuente editorial** (`EXERCISE_INGEST_SOURCE_MISSING`), más de uno →
+  `EXERCISE_INGEST_SOURCE_AMBIGUOUS` (nunca first-match), el texto en un kind
+  distinto de `HEADING` no cuenta como fuente. Cualquiera de estos aborta la
+  transacción del libro.
+- **Determinista + idempotente + drift cerrado.** IDs estables (sin CUID nuevos
+  por ejecución); re-ejecutar no crea filas; un drift (mismo id, semántica
+  distinta) aborta la transacción del libro sin sobrescribir. Errores value-free
+  (código estable, sin slug/título/pregunta/respuesta/clave). Coherencia del
+  pair (libro/capítulo/tipo/opciones) validada antes de tocar la DB.
+- **Filas probadas en PostgreSQL aislado.** `exercise-ingestion.pg-spec.ts`
+  ejerce primera ejecución (1 práctica + 1 recall), segunda ejecución (cero
+  filas nuevas, contenido estable), drift atómico (throw + sin sobrescribir +
+  sin fila extra) y fail-closed cuando el bloque editorial está ausente
+  (SOURCE_MISSING + rollback completo, cero Exercise y cero estado parcial);
+  más la resolución vía `LearningCatalogResolver` real (práctica resuelve, QUIZ
+  rechazado como práctica, recall objetivo con `correctOptionKey` interno,
+  concepto en la misma unidad).
+- **Sin deploy. La base de producción no fue modificada.** Ninguna ejecución de
+  ingesta corrió contra producción; las filas existen solo en bases de prueba
+  efímeras. `SCHEMA_CHANGED=false`, `MIGRATION_ADDED=false`.
+- **La `GuideDefinition` continúa pendiente.** El registry de Guide sigue vacío;
+  publicar la primera `GuideDefinition` (CC-7.4C) es una ejecución posterior.
+  Mientras el PR de la ingesta siga abierto:
+  `GUIDE_DEFINITION_STATUS=BLOCKED_PENDING_EXERCISE_INGESTION` — no se declara
+  `READY_TO_RETRY` antes del merge.

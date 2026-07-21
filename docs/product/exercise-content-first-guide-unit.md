@@ -160,7 +160,9 @@ editorial humana revisada y autorizada por el responsable del contenido. La
 ## 9. Implementación de la ingesta (CC-7.4B.2)
 
 ```
-INGESTION_IMPLEMENTATION_STATUS=IN_REVIEW
+INGESTION_IMPLEMENTATION_STATUS=MERGED_TO_DEVELOP
+EXERCISE_INGESTION_MERGE_SHA=c1e0ed92fd9955439db5499485dae4eaf7d1baf6
+GUIDE_DEFINITION_STATUS=IN_REVIEW
 ```
 
 - **Catálogo ejecutable + backfill implementados.** El catálogo cerrado
@@ -193,8 +195,9 @@ INGESTION_IMPLEMENTATION_STATUS=IN_REVIEW
 - **Sin deploy. La base de producción no fue modificada.** Ninguna ejecución de
   ingesta corrió contra producción; las filas existen solo en bases de prueba
   efímeras. `SCHEMA_CHANGED=false`, `MIGRATION_ADDED=false`.
-- **La `GuideDefinition` continúa pendiente.** El registry de Guide sigue vacío;
-  publicar la primera `GuideDefinition` (CC-7.4C) es una ejecución posterior.
-  Mientras el PR de la ingesta siga abierto:
-  `GUIDE_DEFINITION_STATUS=BLOCKED_PENDING_EXERCISE_INGESTION` — no se declara
-  `READY_TO_RETRY` antes del merge.
+- **La `GuideDefinition` está en revisión.** La ingesta se mergeó a develop
+  (`c1e0ed9`) y la primera `GuideDefinition` productiva
+  (`eec-c1-cuerpo-antes-que-mente@1`) se publica en su propio PR —
+  `GUIDE_DEFINITION_STATUS=IN_REVIEW`. Ver
+  [guide-v1-first-definition.md](guide-v1-first-definition.md). El lifecycle de
+  sesión (CC-7.4C) sigue pendiente.

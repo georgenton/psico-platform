@@ -14,10 +14,12 @@ import {
  * CC-7.4B — validator + registry unit suite AND the permanent catalog
  * contract ratchet (instruction §10): 4 V1 variants, SERVER_ACTION absent,
  * required always true, exact kind/policy, closed targets, exact version
- * lookup, no latest-fallback for sessions, no duplicate definitions, and an
- * EMPTY production registry (no approved content exists — none is invented).
+ * lookup, no latest-fallback for sessions, no duplicate definitions, and a
+ * production registry holding EXACTLY the approved definitions (CC-7.4B.3:
+ * one — `eec-c1-cuerpo-antes-que-mente@1`; content is never invented).
  *
- * TEST-ONLY definitions live here, outside productive runtime.
+ * TEST-ONLY definitions live here, outside productive runtime — the fixtures
+ * below (`guia-prueba`, `quiz-1`, `respiracion-1`) never reach the registry.
  */
 
 const conceptStep = (order: number, stepKey = `step-${order}`) => ({
@@ -245,9 +247,55 @@ describe("guide catalog · registry", () => {
 });
 
 describe("ratchet · guide catalog contract", () => {
-  it("GUIDE_PRODUCTION_REGISTRY_ENTRIES=0 — no approved content, none invented", () => {
-    expect(PRODUCTION_GUIDE_DEFINITIONS).toEqual([]);
-    expect(productionGuideRegistry.size).toBe(0);
+  it("GUIDE_PRODUCTION_REGISTRY_ENTRIES=1 — exactly the approved definition", () => {
+    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(1);
+    expect(productionGuideRegistry.size).toBe(1);
+    // The EXACT approved content (CC-7.4B.3) — any drift is a new version.
+    expect(PRODUCTION_GUIDE_DEFINITIONS[0]).toEqual({
+      guideKey: "eec-c1-cuerpo-antes-que-mente",
+      guideVersion: 1,
+      steps: [
+        {
+          stepKey: "explorar-cuerpo-antes-que-mente",
+          order: 1,
+          required: true,
+          kind: "CONCEPT_EXPLORATION",
+          completionPolicy: "explicit_confirmation",
+          conceptKey: "eec-cuerpo-antes-que-mente",
+        },
+        {
+          stepKey: "practicar-escucharte-por-dentro",
+          order: 2,
+          required: true,
+          kind: "CATALOG_PRACTICE",
+          completionPolicy: "catalog_practice_confirmation",
+          exerciseKey: "eec-c1-practice-escucharte-por-dentro",
+        },
+        {
+          stepKey: "recordar-cuerpo-antes-que-mente",
+          order: 3,
+          required: true,
+          kind: "ACTIVE_RECALL",
+          completionPolicy: "objective_recall",
+          itemKey: "eec-c1-recall-cuerpo-antes-que-mente",
+        },
+      ],
+    });
+    // Exact lookup only — no fallback for a version that was never published.
+    expect(
+      productionGuideRegistry.latestStartableVersion(
+        "eec-c1-cuerpo-antes-que-mente",
+      ),
+    ).toBe(1);
+    expect(() =>
+      productionGuideRegistry.getExact("eec-c1-cuerpo-antes-que-mente", 2),
+    ).toThrow(GuideCatalogError);
+    // Deeply frozen — the published definition cannot be mutated at runtime.
+    expect(Object.isFrozen(PRODUCTION_GUIDE_DEFINITIONS[0])).toBe(true);
+    expect(Object.isFrozen(PRODUCTION_GUIDE_DEFINITIONS[0].steps)).toBe(true);
+    expect(Object.isFrozen(PRODUCTION_GUIDE_DEFINITIONS[0].steps[0])).toBe(
+      true,
+    );
   });
 
   it("the shared type surface has exactly 4 variants and no SERVER_ACTION / optional steps", () => {

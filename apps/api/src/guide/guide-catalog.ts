@@ -18,9 +18,9 @@ import type {
  * exact kind→policy→target coupling, contiguous 1..n order — and it returns
  * DEEPLY FROZEN structures without ever mutating its input.
  *
- * The PRODUCTION registry is EMPTY: the audit found no expressly approved
- * Guide V1 product definition (guideKey + version + exact steps + targets),
- * and inventing content is prohibited. Test-only definitions live in specs.
+ * The PRODUCTION registry holds ONLY expressly approved definitions (guideKey
+ * + version + exact steps + real, resolvable targets); inventing content is
+ * prohibited. Test-only definitions live in specs and never reach it.
  */
 
 export class GuideCatalogError extends Error {
@@ -276,13 +276,68 @@ export class GuideCatalogRegistry {
 }
 
 /**
- * The PRODUCTION registry — EMPTY by audit (2026-07-20): no expressly
- * approved Guide V1 definition exists (guideKey + version + exact step
- * sequence + targets). Content is NOT invented here; publishing the first
- * real guide is a deliberate, reviewed change to this array
- * (CC7_4C_STATUS=BLOCKED_GUIDE_DEFINITION_REQUIRED until then).
+ * CC-7.4B.3 — the FIRST production Guide V1 definition, approved by the
+ * content owner on 2026-07-21 (Jorge, self-review). See
+ * docs/product/guide-v1-first-definition.md.
+ *
+ * Its three targets are real, published catalog keys whose editorial content
+ * was approved in PR #591 and ingested through the Content Core backfill in
+ * PR #592 (merge c1e0ed9):
+ *
+ *   1. CONCEPT_EXPLORATION → `eec-cuerpo-antes-que-mente` (self-report);
+ *   2. CATALOG_PRACTICE    → `eec-c1-practice-escucharte-por-dentro`
+ *      (self-report — a completed reflection is not server-verifiable);
+ *   3. ACTIVE_RECALL       → `eec-c1-recall-cuerpo-antes-que-mente`
+ *      (server-graded against the QUIZ's internal `correctOptionKey`).
+ *
+ * `guideKey@guideVersion` is IMMUTABLE: changing any step or target means
+ * publishing a NEW version, never editing this one.
+ *
+ * Deliberately absent: editorial context (bookSlug/editionKey/unitKey), DB
+ * ids, UI copy, duration, emotion, score, and the correct answer — the server
+ * DERIVES the editorial context from the three targets
+ * (GUIDE_CONTEXT_POLICY=SERVER_DERIVED_FROM_TARGETS), and the canonical answer
+ * lives ONLY in the server-side QUIZ catalog (CC-7.3).
  */
-export const PRODUCTION_GUIDE_DEFINITIONS: readonly GuideDefinition[] = [];
+export const EEC_C1_BODY_BEFORE_MIND_GUIDE = validateGuideDefinition({
+  guideKey: "eec-c1-cuerpo-antes-que-mente",
+  guideVersion: 1,
+  steps: [
+    {
+      stepKey: "explorar-cuerpo-antes-que-mente",
+      order: 1,
+      required: true,
+      kind: "CONCEPT_EXPLORATION",
+      completionPolicy: "explicit_confirmation",
+      conceptKey: "eec-cuerpo-antes-que-mente",
+    },
+    {
+      stepKey: "practicar-escucharte-por-dentro",
+      order: 2,
+      required: true,
+      kind: "CATALOG_PRACTICE",
+      completionPolicy: "catalog_practice_confirmation",
+      exerciseKey: "eec-c1-practice-escucharte-por-dentro",
+    },
+    {
+      stepKey: "recordar-cuerpo-antes-que-mente",
+      order: 3,
+      required: true,
+      kind: "ACTIVE_RECALL",
+      completionPolicy: "objective_recall",
+      itemKey: "eec-c1-recall-cuerpo-antes-que-mente",
+    },
+  ],
+});
+
+/**
+ * The PRODUCTION registry — exactly the approved definitions. Adding one is a
+ * deliberate, reviewed change (editorial approval + real, resolvable targets);
+ * content is never invented here.
+ */
+export const PRODUCTION_GUIDE_DEFINITIONS: readonly GuideDefinition[] = [
+  EEC_C1_BODY_BEFORE_MIND_GUIDE,
+];
 
 export const productionGuideRegistry = new GuideCatalogRegistry(
   PRODUCTION_GUIDE_DEFINITIONS,

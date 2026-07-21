@@ -150,14 +150,16 @@ es razonable y el lifecycle falla cerrado.
 `guide-lifecycle.pg-spec.ts` prueba los seis escenarios obligatorios sobre
 conexiones concurrentes reales:
 
-| #   | Escenario                                    | Resultado exigido                                                                                                 |
-| --- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| M1  | Dos START, claves distintas                  | 2 sesiones · 1 ACTIVE · 1 CANCELLED con `cancelledAt`                                                             |
-| M2  | Dos accepts del mismo paso, claves distintas | uno acepta · el otro falla · 1 fila de ledger · 1 recibo                                                          |
-| M3  | Pasos fuera de orden                         | solo la transición que permite el cursor persiste; todo rechazo deja cero recibo/ledger/evento                    |
-| M4  | Último paso vs SESSION_COMPLETE              | un complete prematuro falla **sin persistir recibo**, así que reintentar con la misma clave puede aceptar después |
-| M5  | CANCEL vs paso                               | ningún ledger aceptado después de CANCELLED; el contador siempre es el que el ledger justifica                    |
-| M6  | COMPLETE vs COMPLETE                         | claves distintas → uno completa; misma clave → replay; un solo evento de completado                               |
+| #   | Escenario                                        | Resultado exigido                                                                                                                                                                                                    |
+| --- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1  | Dos START, claves distintas                      | 2 sesiones · 1 ACTIVE · 1 CANCELLED con `cancelledAt`                                                                                                                                                                |
+| M2  | Dos accepts del mismo paso, claves distintas     | uno acepta · el otro falla · 1 fila de ledger · 1 recibo                                                                                                                                                             |
+| M3  | Pasos fuera de orden                             | solo la transición que permite el cursor persiste; todo rechazo deja cero recibo/ledger/evento                                                                                                                       |
+| M4a | SESSION_COMPLETE prematuro (secuencial)          | falla **sin persistir recibo**, así que reintentar con la misma clave acepta después                                                                                                                                 |
+| M4b | Último paso **compitiendo** con SESSION_COMPLETE | el session lock serializa: si el recall gana, el complete acepta después; si gana el complete, se rechaza sin recibo ni evento y el reintento con la misma clave acepta. Nunca estados parciales ni ledger duplicado |
+| M5  | CANCEL vs paso                                   | ningún ledger aceptado después de CANCELLED; el contador siempre es el que el ledger justifica                                                                                                                       |
+| M6a | COMPLETE vs COMPLETE, **claves distintas**       | uno completa · el otro falla dejando cero recibo y cero evento · un solo `guide_session_completed`                                                                                                                   |
+| M6b | COMPLETE vs COMPLETE, **misma clave**            | sobre una sesión que nunca se completó: uno crea y el otro hace replay (1 y 1) · un recibo · un evento · ninguna segunda transición                                                                                  |
 
 Además se prueba **START (autocancel) contra un paso sobre la sesión previa**:
 la historia queda serializada, sin ledger aceptado después de la cancelación y
@@ -174,8 +176,10 @@ distintas) se conservan como cobertura extra.
 Recibo, fila del ledger, proyección de la sesión y evento educativo **commitean
 o revierten juntos**. Se prueban los tres puntos de fallo:
 
-1. **conflicto de LearningEvent** después del ledger (una fila ya ocupa la
-   clave del comando con otro contenido);
+1. **conflicto de LearningEvent** después de que la fila del ledger ya está
+   preparada (una fila ya ocupa la clave del comando con otro contenido); la
+   escritura de la proyección viene después, así que en ese caso ni siquiera
+   llega a ejecutarse;
 2. **conflicto de ledger**;
 3. **fallo al actualizar `GuideSession`** (la proyección afecta cero filas).
 

@@ -788,8 +788,9 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
     });
 
     // Poison the practice command: an event already holds ITS OWN key with
-    // different content, so the append conflicts AFTER the ledger row and the
-    // session update were staged in the transaction.
+    // different content, so the append conflicts AFTER the ledger row was
+    // staged in the transaction (the projection write comes later, so it never
+    // runs here) — and the whole command still rolls back.
     const practiceKey = nextKey();
     const before = await counts();
     await prisma.learningEvent.create({
@@ -812,7 +813,8 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
     );
 
     // Everything the command staged is gone: no ledger row, no receipt, and
-    // the projection still points at the practice step.
+    // the projection is untouched — the cursor still points at the practice
+    // step it never got to accept.
     const after = await counts();
     expect(after.steps).toBe(before.steps);
     expect(after.receipts).toBe(before.receipts);
@@ -1089,7 +1091,7 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
     );
   });
 
-  it("M4 · last step vs SESSION_COMPLETE → a premature complete persists nothing", async () => {
+  it("M4a · premature SESSION_COMPLETE leaves no receipt and can be retried", async () => {
     const sessionId = await startAndAdvance(userA);
     const completeKey = nextKey();
 
@@ -1123,6 +1125,101 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
     expect(done.status).toBe("COMPLETED");
   });
 
+  it("M4b · last step racing SESSION_COMPLETE is serialized by the session lock", async () => {
+    const sessionId = await startAndAdvance(userA);
+    const recallKey = nextKey();
+    const completeKey = nextKey();
+
+    const results = await Promise.allSettled([
+      service.completeRecallStep(userA, {
+        idempotencyKey: recallKey,
+        sessionId,
+        stepKey: STEP_RECALL,
+        selectedOptionKey: CORRECT_OPTION,
+      }),
+      service.completeSession(userA, {
+        idempotencyKey: completeKey,
+        sessionId,
+      }),
+    ]);
+
+    const [recall, complete] = results;
+    // The recall is always accepted: it is the current step whichever order
+    // the two transactions acquired the lock in.
+    expect(recall.status).toBe("fulfilled");
+
+    // The ledger is complete exactly once, whoever went first.
+    expect(await prisma.guideSessionStep.count({ where: { sessionId } })).toBe(
+      3,
+    );
+    expect(
+      await prisma.learningEvent.count({
+        where: { kind: "ACTIVE_RECALL_ATTEMPTED" },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.guideCommandReceipt.count({
+        where: { idempotencyKey: recallKey },
+      }),
+    ).toBe(1);
+
+    const stored = await prisma.guideSession.findUniqueOrThrow({
+      where: { id: sessionId },
+    });
+
+    if (complete.status === "fulfilled") {
+      // Order A — the recall took the lock first, so the completion that
+      // followed saw a full ledger and closed the session.
+      expect(stored.status).toBe("COMPLETED");
+      expect(stored.stepsCompleted).toBe(3);
+      expect(stored.currentStepKey).toBeNull();
+      expect(
+        await prisma.guideCommandReceipt.count({
+          where: { idempotencyKey: completeKey },
+        }),
+      ).toBe(1);
+      expect(
+        await prisma.learningEvent.count({
+          where: { kind: "GUIDE_SESSION_COMPLETED" },
+        }),
+      ).toBe(1);
+    } else {
+      // Order B — the completion took the lock first, found an incomplete
+      // ledger and rolled back whole: no receipt, no event.
+      await expectCode(
+        Promise.reject(complete.reason),
+        "GUIDE_SESSION_INVALID_TRANSITION",
+      );
+      expect(stored.status).toBe("ACTIVE");
+      expect(stored.stepsCompleted).toBe(3);
+      expect(stored.currentStepKey).toBeNull();
+      expect(
+        await prisma.guideCommandReceipt.count({
+          where: { idempotencyKey: completeKey },
+        }),
+      ).toBe(0);
+      expect(
+        await prisma.learningEvent.count({
+          where: { kind: "GUIDE_SESSION_COMPLETED" },
+        }),
+      ).toBe(0);
+
+      // Because the rejection persisted nothing, retrying with the SAME key
+      // is a fresh command and legitimately accepts.
+      const retry = await service.completeSession(userA, {
+        idempotencyKey: completeKey,
+        sessionId,
+      });
+      expect(retry.created).toBe(true);
+      expect(retry.status).toBe("COMPLETED");
+      expect(
+        await prisma.learningEvent.count({
+          where: { kind: "GUIDE_SESSION_COMPLETED" },
+        }),
+      ).toBe(1);
+    }
+  });
+
   it("M5 · CANCEL vs step → the history stays honest either way", async () => {
     const started = await service.start(userA, {
       idempotencyKey: nextKey(),
@@ -1154,7 +1251,7 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
     expect(stored.stepsCompleted).toBe(ledger);
   });
 
-  it("M6 · COMPLETE vs COMPLETE → one completion, one event", async () => {
+  it("M6a · COMPLETE vs COMPLETE with different keys → one completion", async () => {
     const sessionId = await startAndAdvance(userA);
     await service.completeRecallStep(userA, {
       idempotencyKey: nextKey(),
@@ -1162,31 +1259,78 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
       stepKey: STEP_RECALL,
       selectedOptionKey: CORRECT_OPTION,
     });
+    const winner = nextKey();
+    const loser = nextKey();
 
-    // Different keys → exactly one wins.
-    const diff = await Promise.allSettled([
-      service.completeSession(userA, { idempotencyKey: nextKey(), sessionId }),
-      service.completeSession(userA, { idempotencyKey: nextKey(), sessionId }),
+    const results = await Promise.allSettled([
+      service.completeSession(userA, { idempotencyKey: winner, sessionId }),
+      service.completeSession(userA, { idempotencyKey: loser, sessionId }),
     ]);
-    expect(diff.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+    expect(
+      (
+        await prisma.guideSession.findUniqueOrThrow({
+          where: { id: sessionId },
+        })
+      ).status,
+    ).toBe("COMPLETED");
+    // Exactly one receipt and one event; the loser left nothing at all.
+    expect(
+      await prisma.guideCommandReceipt.count({
+        where: { commandType: "SESSION_COMPLETE" },
+      }),
+    ).toBe(1);
     expect(
       await prisma.learningEvent.count({
         where: { kind: "GUIDE_SESSION_COMPLETED" },
       }),
     ).toBe(1);
+    const loserWon = results[1].status === "fulfilled";
+    const loserKey = loserWon ? winner : loser;
+    expect(
+      await prisma.guideCommandReceipt.count({
+        where: { idempotencyKey: loserKey },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.learningEvent.count({
+        where: { idempotencyKey: loserKey },
+      }),
+    ).toBe(0);
+  });
 
-    // Same key → one creates, the other replays (it already completed above,
-    // so both calls here are replays of that winner's key).
-    const winnerKey = (
-      await prisma.guideCommandReceipt.findFirstOrThrow({
-        where: { commandType: "SESSION_COMPLETE" },
-      })
-    ).idempotencyKey;
-    const same = await Promise.all([
-      service.completeSession(userA, { idempotencyKey: winnerKey, sessionId }),
-      service.completeSession(userA, { idempotencyKey: winnerKey, sessionId }),
+  it("M6b · COMPLETE vs COMPLETE with the SAME key → one creates, one replays", async () => {
+    // A FRESH session that has never been completed: the key under test is
+    // used for the first time by this race, so it really exercises
+    // create-vs-replay and not replay-vs-replay.
+    const sessionId = await startAndAdvance(userA);
+    await service.completeRecallStep(userA, {
+      idempotencyKey: nextKey(),
+      sessionId,
+      stepKey: STEP_RECALL,
+      selectedOptionKey: CORRECT_OPTION,
+    });
+    const sameKey = nextKey();
+
+    const [a, b] = await Promise.all([
+      service.completeSession(userA, { idempotencyKey: sameKey, sessionId }),
+      service.completeSession(userA, { idempotencyKey: sameKey, sessionId }),
     ]);
-    expect(same.every((r) => r.replayed)).toBe(true);
+
+    expect([a, b].filter((r) => r.created)).toHaveLength(1);
+    expect([a, b].filter((r) => r.replayed)).toHaveLength(1);
+    expect(a.sessionId).toBe(sessionId);
+    expect(b.sessionId).toBe(sessionId);
+    expect(a.status).toBe("COMPLETED");
+    expect(b.status).toBe("COMPLETED");
+    // One receipt, one event — the replay applied no second transition.
+    expect(
+      await prisma.guideCommandReceipt.count({
+        where: { idempotencyKey: sameKey },
+      }),
+    ).toBe(1);
     expect(
       await prisma.learningEvent.count({
         where: { kind: "GUIDE_SESSION_COMPLETED" },

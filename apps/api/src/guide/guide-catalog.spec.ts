@@ -14,10 +14,12 @@ import {
  * CC-7.4B — validator + registry unit suite AND the permanent catalog
  * contract ratchet (instruction §10): 4 V1 variants, SERVER_ACTION absent,
  * required always true, exact kind/policy, closed targets, exact version
- * lookup, no latest-fallback for sessions, no duplicate definitions, and an
- * EMPTY production registry (no approved content exists — none is invented).
+ * lookup, no latest-fallback for sessions, no duplicate definitions, and a
+ * production registry holding EXACTLY the approved definitions (CC-7.4B.3:
+ * one — `eec-c1-cuerpo-antes-que-mente@1`; content is never invented).
  *
- * TEST-ONLY definitions live here, outside productive runtime.
+ * TEST-ONLY definitions live here, outside productive runtime — the fixtures
+ * below (`guia-prueba`, `quiz-1`, `respiracion-1`) never reach the registry.
  */
 
 const conceptStep = (order: number, stepKey = `step-${order}`) => ({

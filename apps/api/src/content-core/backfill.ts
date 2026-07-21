@@ -14,6 +14,7 @@ import {
   unitKeyFromLegacyChapterId,
 } from "./lib/block-key";
 import { contentHash } from "./lib/content-hash";
+import { ingestUnitExercises } from "./exercise-ingestion";
 
 /**
  * Content Core — CC-3 backfill (atomic per Book, idempotent, zero-DELETE).
@@ -129,10 +130,12 @@ export async function backfillContentCore(
         stats.revisions += 1;
 
         const unitIdByOrder = new Map<number, string>();
+        const chapterIdByOrder = new Map<number, string>();
         let unitsThisBook = 0;
 
         for (const ch of chapters) {
           const unitKey = unitKeyFromLegacyChapterId(ch.id);
+          chapterIdByOrder.set(ch.order, ch.id);
 
           // 3. ContentUnit — identity only (editionId + unitKey), no drift possible.
           let unit = await tx.contentUnit.findUnique({
@@ -265,6 +268,17 @@ export async function backfillContentCore(
             stats.conceptLinks += 1;
           }
         }
+
+        // 8.5 CC-7.4B.2 — editorially-approved Exercise rows (practice + recall)
+        // for the first Guide V1 unit. Inside this Book's transaction so any
+        // drift rolls the whole Book back; inert for books absent from the
+        // catalog and for chapters lacking the exact editorial source block.
+        await ingestUnitExercises(
+          tx,
+          book.slug,
+          chapterIdByOrder,
+          unitIdByOrder,
+        );
 
         // 9. Verify expected counts before publishing.
         const ruCount = await tx.revisionUnit.count({

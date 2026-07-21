@@ -156,3 +156,35 @@ editorial humana revisada y autorizada por el responsable del contenido. La
 
   Estado actual: `GUIDE_DEFINITION_STATUS=BLOCKED_PENDING_EXERCISE_INGESTION`,
   `CC7_4C_STATUS=BLOCKED_GUIDE_DEFINITION_REQUIRED`.
+
+## 9. Implementación de la ingesta (CC-7.4B.2)
+
+```
+INGESTION_IMPLEMENTATION_STATUS=IMPLEMENTED_PENDING_MERGE
+```
+
+- **Catálogo ejecutable + backfill implementados.** El catálogo cerrado
+  server-side (`apps/api/src/content-core/exercise-ingestion-catalog.ts`)
+  declara las dos definiciones aprobadas; el paso de ingesta
+  (`apps/api/src/content-core/exercise-ingestion.ts`) las materializa como filas
+  `Exercise` DENTRO de la transacción por-libro del backfill de Content Core
+  (`backfill.ts`), la MISMA vía por la que pasa el contenido productivo.
+- **Determinista, idempotente, fail-closed.** IDs estables (sin CUID nuevos por
+  ejecución); re-ejecutar no crea filas; un drift (mismo id, semántica distinta)
+  aborta la transacción del libro sin sobrescribir; el bloque de práctica se
+  resuelve a EXACTAMENTE un ChapterBlock (cero → se omite el par sin fabricar,
+  más de uno → fail-closed).
+- **Filas probadas en PostgreSQL aislado.** `exercise-ingestion.pg-spec.ts`
+  ejerce primera ejecución (1 práctica + 1 recall), segunda ejecución (cero
+  filas nuevas, contenido estable), drift atómico (throw + sin sobrescribir +
+  sin fila extra) y skip cuando el bloque editorial está ausente; más la
+  resolución vía `LearningCatalogResolver` real (práctica resuelve, QUIZ
+  rechazado como práctica, recall objetivo con `correctOptionKey` interno,
+  concepto en la misma unidad).
+- **Sin deploy. La base de producción no fue modificada.** Ninguna ejecución de
+  ingesta corrió contra producción; las filas existen solo en bases de prueba
+  efímeras. `SCHEMA_CHANGED=false`, `MIGRATION_ADDED=false`.
+- **La `GuideDefinition` continúa pendiente.** El registry de Guide sigue vacío;
+  publicar la primera `GuideDefinition` (CC-7.4C) es una ejecución posterior.
+  `GUIDE_DEFINITION_STATUS` pasa a `READY_TO_RETRY` una vez que la ingesta
+  productiva corra contra la base destino.

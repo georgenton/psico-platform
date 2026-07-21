@@ -360,6 +360,32 @@ suite("CC-7.2 · dynamic emotional firewall (real PostgreSQL)", () => {
       data: { userId: U1, blockId, text: "nota del lector" },
     });
 
+    // 2-bis) CC-7.4B — Guide persistence (session + accepted-step ledger +
+    //    command receipt). No lifecycle exists yet and no Guide events are
+    //    emitted; the ROWS themselves must already be emotionally inert.
+    //    Raw SQL keeps the single-writer ratchets meaningful (specs are the
+    //    sanctioned exception) and exercises the real constraints.
+    await pool.query(
+      `INSERT INTO "GuideSession"
+        ("id","userId","guideKey","guideVersion","totalSteps","currentStepKey")
+       VALUES ('gs-fw-1',$1,'guia-fw',1,2,'paso-2')`,
+      [U1],
+    );
+    await pool.query(
+      `INSERT INTO "GuideSessionStep"
+        ("id","sessionId","stepKey","order","kind","completionPolicy","conceptKey")
+       VALUES ('gst-fw-1','gs-fw-1','paso-1',1,'CONCEPT_EXPLORATION',
+               'EXPLICIT_CONFIRMATION','familia-ensamblada')`,
+    );
+    await pool.query(
+      `INSERT INTO "GuideCommandReceipt"
+        ("id","userId","idempotencyKey","commandType","sessionId",
+         "guideKey","guideVersion","semanticFingerprint")
+       VALUES ('gcr-fw-1',$1,'aaaaaaaa-aaaa-4aaa-8aaa-000000000901','START',
+               'gs-fw-1','guia-fw',1,'v1|fw')`,
+      [U1],
+    );
+
     // 3) Real invalidation + real recompute — a cached equality would prove
     //    nothing (the negative control below guards against exactly that).
     const after = await freshProjection(U1);

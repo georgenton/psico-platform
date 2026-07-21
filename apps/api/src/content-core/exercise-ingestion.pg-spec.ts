@@ -11,15 +11,25 @@ import {
   blockKeyFromLegacyId,
   unitKeyFromLegacyChapterId,
 } from "./lib/block-key";
-import { EXERCISE_INGESTION_CATALOG } from "./exercise-ingestion-catalog";
+import {
+  EXERCISE_INGESTION_CATALOG,
+  type UnitExerciseDefinitions,
+} from "./exercise-ingestion-catalog";
+import {
+  assertPairValid,
+  ExerciseIngestError,
+  ingestUnitExercises,
+  type ExerciseIngestDb,
+} from "./exercise-ingestion";
 
 /**
  * CC-7.4B.2 — the editorial Exercise ingestion (practice + objective recall)
  * against REAL PostgreSQL, through the SAME `backfillContentCore` pipeline
  * production content runs. Covers: first-run creation, idempotent re-run,
- * fail-closed drift with atomic rollback, skip-when-target-absent (never
- * first-match / never fabricate), and resolution via the real
- * LearningCatalogResolver.
+ * atomic drift, FAIL-CLOSED behaviour (a catalog-listed book that loses its
+ * editorial source aborts the Book transaction — never a silent skip), the
+ * fine-grained resolution failures (missing/ambiguous/wrong-kind), the pure
+ * catalog-coherence guard, and resolution via the real LearningCatalogResolver.
  *
  * Runs under `test:locks` (TEST_DATABASE_URL set); skipped otherwise.
  */
@@ -104,7 +114,8 @@ suite(
       );
 
       ({ chapterId, practiceBlockId } = await seedFirstUnit(prisma));
-      // A control book NOT in the catalog: it must receive zero exercise rows.
+      // A control book NOT in the catalog: it must receive zero exercise rows
+      // even though it carries the same heading text.
       const other = await prisma.book.create({
         data: { slug: "sin-catalogo", title: "Otro", plan: "FREE" },
       });
@@ -116,7 +127,7 @@ suite(
           chapterId: otherCh.id,
           order: 0,
           kind: "HEADING",
-          content: PRACTICE.sourceHeading, // same heading, but book not in catalog
+          content: PRACTICE.sourceHeading,
         },
       });
 
@@ -134,13 +145,10 @@ suite(
         orderBy: { order: "asc" },
       });
       expect(rows).toHaveLength(2);
+      expect(rows.find((r) => r.type === "REFLECTION")).toBeDefined();
+      expect(rows.find((r) => r.type === "QUIZ")).toBeDefined();
 
-      const practice = rows.find((r) => r.type === "REFLECTION");
-      const recall = rows.find((r) => r.type === "QUIZ");
-      expect(practice).toBeDefined();
-      expect(recall).toBeDefined();
-
-      // No exercises for the catalog-absent control book.
+      // No exercises for the catalog-absent control book (no-op is allowed).
       const otherBook = await prisma.book.findUniqueOrThrow({
         where: { slug: "sin-catalogo" },
         select: { id: true },
@@ -152,7 +160,6 @@ suite(
       expect(
         await prisma.exercise.count({ where: { chapterId: otherChapter.id } }),
       ).toBe(0);
-      // Two rows total across the whole DB.
       expect(await prisma.exercise.count()).toBe(2);
     });
 
@@ -172,8 +179,6 @@ suite(
       ]);
       expect(content.practiceKind).toBe("guided_reflection");
 
-      // The sourceBlockKey is the canonical blockKey of the ONE editorial block,
-      // and that ContentBlock lives in chapter 1's unit.
       const expectedKey = blockKeyFromLegacyId(practiceBlockId);
       expect(content.sourceBlockKey).toBe(expectedKey);
 
@@ -230,7 +235,6 @@ suite(
 
       expect(after).toHaveLength(before.length);
       expect(after.map((r) => r.id)).toEqual(before.map((r) => r.id));
-      // Content, order and correctOptionKey/sourceBlockKey survive byte-identical.
       expect(after).toEqual(before);
     });
 
@@ -240,7 +244,6 @@ suite(
       expect(ctx.bookSlug).toBe(BOOK_SLUG);
       expect(ctx.revisionNumber).toBe(1);
 
-      // A QUIZ is a recall item, not a completable practice → unresolved (422).
       const err = await resolver.resolveExercise(RECALL.exerciseKey).then(
         () => {
           throw new Error("expected rejection");
@@ -263,7 +266,6 @@ suite(
       ]);
       expect(item.correctOptionKey).toBe("opcion-cuerpo-primero");
 
-      // The bound concept lives in the SAME unit as the item.
       const practiceCtx = await resolver.resolveExercise(PRACTICE.exerciseKey);
       expect(item.unitId).toBe(practiceCtx.unitId);
     });
@@ -309,7 +311,6 @@ suite("CC-7.4B.2 · exercise ingestion — drift fails closed, atomically", () =
       "EXERCISE_INGEST_DRIFT_DETECTED",
     );
 
-    // The conflicting recall row is untouched (not overwritten).
     const recall = await prisma.exercise.findUniqueOrThrow({
       where: { id: RECALL.exerciseKey },
     });
@@ -322,21 +323,20 @@ suite("CC-7.4B.2 · exercise ingestion — drift fails closed, atomically", () =
     expect(
       await prisma.exercise.findUnique({ where: { id: PRACTICE.exerciseKey } }),
     ).toBeNull();
-    // No third row; exactly the one pre-existing conflicting row remains.
     expect(await prisma.exercise.count()).toBe(1);
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 suite(
-  "CC-7.4B.2 · exercise ingestion — skips when the editorial block is absent",
+  "CC-7.4B.2 · exercise ingestion — fails closed when the source block is absent",
   () => {
     let prisma: PrismaClient;
     let pool: Pool;
 
     beforeAll(async () => {
-      ({ prisma, pool } = await freshDb("cc74b2_skip_db"));
-      // The catalog book, chapter 1, but WITHOUT the practice heading block.
+      ({ prisma, pool } = await freshDb("cc74b2_failclosed_db"));
+      // The catalog book, chapter 1 present, but WITHOUT the practice heading.
       const book = await prisma.book.create({
         data: { slug: BOOK_SLUG, title: "Emociones", plan: "FREE" },
       });
@@ -351,7 +351,6 @@ suite(
           content: "Solo prosa.",
         },
       });
-      await backfillContentCore(prisma);
     }, 120_000);
 
     afterAll(async () => {
@@ -359,8 +358,238 @@ suite(
       await pool.end();
     });
 
-    it("creates zero exercise rows and does not throw (never fabricates)", async () => {
+    it("aborts the Book transaction — zero exercises, zero Content Core rows", async () => {
+      await expect(backfillContentCore(prisma)).rejects.toThrow(
+        "EXERCISE_INGEST_SOURCE_MISSING",
+      );
+      // Fail closed: never fabricates, and the whole Book rolls back.
+      expect(await prisma.exercise.count()).toBe(0);
+      expect(await prisma.contentUnit.count()).toBe(0);
+      // Legacy rows (created outside the backfill tx) are untouched.
+      expect(await prisma.chapterBlock.count()).toBe(1);
+    });
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+suite(
+  "CC-7.4B.2 · exercise ingestion — fine-grained resolution failures",
+  () => {
+    let prisma: PrismaClient;
+    let pool: Pool;
+    let db: ExerciseIngestDb;
+
+    beforeAll(async () => {
+      ({ prisma, pool } = await freshDb("cc74b2_resolve_db"));
+      db = prisma as unknown as ExerciseIngestDb;
+    }, 120_000);
+
+    afterAll(async () => {
+      await prisma.$disconnect();
+      await pool.end();
+    });
+
+    async function fixtureChapter(): Promise<string> {
+      const book = await prisma.book.create({
+        data: { slug: `fx-${Math.abs(hash())}`, title: "Fx", plan: "FREE" },
+      });
+      const ch = await prisma.chapter.create({
+        data: { bookId: book.id, order: 1, title: "C" },
+      });
+      return ch.id;
+    }
+    // Deterministic per-call id suffix (no Math.random / Date in tests).
+    let counter = 0;
+    function hash(): number {
+      counter += 1;
+      return counter;
+    }
+
+    const expectCode = async (
+      p: Promise<unknown>,
+      code: string,
+    ): Promise<void> => {
+      const err = await p.then(
+        () => {
+          throw new Error(`expected ${code}`);
+        },
+        (e: unknown) => e,
+      );
+      expect(err).toBeInstanceOf(ExerciseIngestError);
+      expect((err as ExerciseIngestError).code).toBe(code);
+    };
+
+    it("missing chapter/unit → SOURCE_MISSING (before any DB write)", async () => {
+      await expectCode(
+        ingestUnitExercises(db, BOOK_SLUG, new Map(), new Map()),
+        "EXERCISE_INGEST_SOURCE_MISSING",
+      );
+      expect(await prisma.exercise.count()).toBe(0);
+    });
+
+    it("no heading block → SOURCE_MISSING", async () => {
+      const chapterId = await fixtureChapter();
+      await prisma.chapterBlock.create({
+        data: { chapterId, order: 0, kind: "PARAGRAPH", content: "prosa" },
+      });
+      await expectCode(
+        ingestUnitExercises(
+          db,
+          BOOK_SLUG,
+          new Map([[1, chapterId]]),
+          new Map([[1, "unit-x"]]),
+        ),
+        "EXERCISE_INGEST_SOURCE_MISSING",
+      );
+      expect(await prisma.exercise.count()).toBe(0);
+    });
+
+    it("the heading text in the WRONG kind is not accepted → SOURCE_MISSING", async () => {
+      const chapterId = await fixtureChapter();
+      // Same text, but a PARAGRAPH — must not act as the source.
+      await prisma.chapterBlock.create({
+        data: {
+          chapterId,
+          order: 0,
+          kind: "PARAGRAPH",
+          content: PRACTICE.sourceHeading,
+        },
+      });
+      await expectCode(
+        ingestUnitExercises(
+          db,
+          BOOK_SLUG,
+          new Map([[1, chapterId]]),
+          new Map([[1, "unit-x"]]),
+        ),
+        "EXERCISE_INGEST_SOURCE_MISSING",
+      );
+      expect(await prisma.exercise.count()).toBe(0);
+    });
+
+    it("two exact HEADING blocks → SOURCE_AMBIGUOUS (never first-match)", async () => {
+      const chapterId = await fixtureChapter();
+      await prisma.chapterBlock.create({
+        data: {
+          chapterId,
+          order: 0,
+          kind: "HEADING",
+          content: PRACTICE.sourceHeading,
+        },
+      });
+      await prisma.chapterBlock.create({
+        data: {
+          chapterId,
+          order: 1,
+          kind: "HEADING",
+          content: PRACTICE.sourceHeading,
+        },
+      });
+      await expectCode(
+        ingestUnitExercises(
+          db,
+          BOOK_SLUG,
+          new Map([[1, chapterId]]),
+          new Map([[1, "unit-x"]]),
+        ),
+        "EXERCISE_INGEST_SOURCE_AMBIGUOUS",
+      );
+      expect(await prisma.exercise.count()).toBe(0);
+    });
+
+    it("a non-catalog book is a no-op (zero rows, no error)", async () => {
+      await expect(
+        ingestUnitExercises(
+          db,
+          "libro-fuera-de-catalogo",
+          new Map(),
+          new Map(),
+        ),
+      ).resolves.toBeUndefined();
       expect(await prisma.exercise.count()).toBe(0);
     });
   },
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe("CC-7.4B.2 · exercise ingestion — pure catalog coherence", () => {
+  it("accepts the real approved pair", () => {
+    expect(() => assertPairValid(BOOK_SLUG, PAIR)).not.toThrow();
+  });
+
+  const mutate = (
+    f: (p: {
+      practice: Record<string, unknown>;
+      recall: Record<string, unknown> & { content: Record<string, unknown> };
+    }) => void,
+  ): UnitExerciseDefinitions => {
+    const clone = JSON.parse(JSON.stringify(PAIR)) as {
+      practice: Record<string, unknown>;
+      recall: Record<string, unknown> & { content: Record<string, unknown> };
+    };
+    f(clone);
+    return clone as unknown as UnitExerciseDefinitions;
+  };
+
+  it("rejects a book-slug mismatch", () => {
+    const bad = mutate((c) => {
+      c.recall.bookSlug = "otro-libro";
+    });
+    expect(() => assertPairValid(BOOK_SLUG, bad)).toThrow(
+      "EXERCISE_INGEST_CATALOG_INVALID",
+    );
+  });
+
+  it("rejects a chapter-order mismatch between practice and recall", () => {
+    const bad = mutate((c) => {
+      c.recall.chapterOrder = 7;
+    });
+    expect(() => assertPairValid(BOOK_SLUG, bad)).toThrow(
+      "EXERCISE_INGEST_CATALOG_INVALID",
+    );
+  });
+
+  it("rejects a foreign correctOptionKey", () => {
+    const bad = mutate((c) => {
+      c.recall.content.correctOptionKey = "no-existe";
+    });
+    expect(() => assertPairValid(BOOK_SLUG, bad)).toThrow(
+      "EXERCISE_INGEST_CATALOG_INVALID",
+    );
+  });
+
+  it("rejects a duplicate option key", () => {
+    const bad = mutate((c) => {
+      const opts = c.recall.content.options as Array<{ key: string }>;
+      opts[1].key = opts[0].key;
+    });
+    expect(() => assertPairValid(BOOK_SLUG, bad)).toThrow(
+      "EXERCISE_INGEST_CATALOG_INVALID",
+    );
+  });
+
+  it("rejects fewer than two options", () => {
+    const bad = mutate((c) => {
+      c.recall.content.options = [{ key: "solo", label: "solo" }];
+      c.recall.content.correctOptionKey = "solo";
+    });
+    expect(() => assertPairValid(BOOK_SLUG, bad)).toThrow(
+      "EXERCISE_INGEST_CATALOG_INVALID",
+    );
+  });
+
+  it("rejects practice/recall type swap and equal orders", () => {
+    const swapped = mutate((c) => {
+      c.practice.type = "QUIZ";
+    });
+    expect(() => assertPairValid(BOOK_SLUG, swapped)).toThrow(
+      "EXERCISE_INGEST_CATALOG_INVALID",
+    );
+    const equalOrder = mutate((c) => {
+      c.recall.order = (c.practice.order as number) ?? 1;
+    });
+    expect(() => assertPairValid(BOOK_SLUG, equalOrder)).toThrow(
+      "EXERCISE_INGEST_CATALOG_INVALID",
+    );
+  });
+});

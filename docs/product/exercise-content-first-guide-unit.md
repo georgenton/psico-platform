@@ -185,8 +185,9 @@ INGESTION_IMPLEMENTATION_STATUS=IN_REVIEW
 - **Filas probadas en PostgreSQL aislado.** `exercise-ingestion.pg-spec.ts`
   ejerce primera ejecución (1 práctica + 1 recall), segunda ejecución (cero
   filas nuevas, contenido estable), drift atómico (throw + sin sobrescribir +
-  sin fila extra) y skip cuando el bloque editorial está ausente; más la
-  resolución vía `LearningCatalogResolver` real (práctica resuelve, QUIZ
+  sin fila extra) y fail-closed cuando el bloque editorial está ausente
+  (SOURCE_MISSING + rollback completo, cero Exercise y cero estado parcial);
+  más la resolución vía `LearningCatalogResolver` real (práctica resuelve, QUIZ
   rechazado como práctica, recall objetivo con `correctOptionKey` interno,
   concepto en la misma unidad).
 - **Sin deploy. La base de producción no fue modificada.** Ninguna ejecución de

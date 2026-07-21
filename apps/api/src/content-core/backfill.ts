@@ -271,8 +271,9 @@ export async function backfillContentCore(
 
         // 8.5 CC-7.4B.2 — editorially-approved Exercise rows (practice + recall)
         // for the first Guide V1 unit. Inside this Book's transaction so any
-        // drift rolls the whole Book back; inert for books absent from the
-        // catalog and for chapters lacking the exact editorial source block.
+        // failure rolls the whole Book back; inert only for books absent from
+        // the catalog. For catalog-listed books, missing chapter/unit/source
+        // fails closed and rolls the Book transaction back.
         await ingestUnitExercises(
           tx,
           book.slug,

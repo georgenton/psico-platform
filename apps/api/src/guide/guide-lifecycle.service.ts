@@ -1,5 +1,8 @@
-import { createHash } from "node:crypto";
-import { ForbiddenException, Injectable } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import type {
   GuideDefinition,
   GuideSessionProjection,
@@ -13,7 +16,11 @@ import { PrismaService } from "../prisma";
 import { ContentAccessService } from "../content-core/access/content-access.service";
 import type { AuthenticatedUser } from "../auth";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
+import {
+  LearningCatalogResolver,
+  type ResolvedExerciseContext,
+  type ResolvedRecallItemContext,
+} from "../learning/learning-catalog.resolver";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { LearningEventRepository } from "../learning/learning-event.repository";
 import {
@@ -24,9 +31,9 @@ import type { ValidatedLearningEvent } from "../learning/validated-learning-even
 import { productionGuideRegistry } from "./guide-catalog";
 import type {
   ValidatedGuideCancelSemantics,
+  ValidatedGuideCommandSemantics,
   ValidatedGuideSessionCompleteSemantics,
   ValidatedGuideStartSemantics,
-  ValidatedGuideStepCompleteSemantics,
   ValidatedGuideStepRecallSemantics,
 } from "./guide-command-semantics";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -50,7 +57,12 @@ import {
   GuideTargetContextService,
   type ResolvedGuideContext,
 } from "./guide-target-context.service";
-import { guideFail, mapGuideErrors, translateGuideError } from "./guide-errors";
+import {
+  classifyCatalogError,
+  guideFail,
+  mapGuideErrors,
+  translateGuideError,
+} from "./guide-errors";
 
 /**
  * CC-7.4C — the complete INTERNAL Guide V1 lifecycle (ADR 0019).
@@ -65,14 +77,20 @@ import { guideFail, mapGuideErrors, translateGuideError } from "./guide-errors";
  *   - the CLIENT never sends kind, completionPolicy, targets, order, result or
  *     editorial context — every one of those is derived from the PINNED
  *     `guideKey@guideVersion` and the server-side catalog;
+ *   - EVERYTHING a command decides on — catalog lookup, editorial context,
+ *     entitlement, receipt, ledger, projection, event — happens inside ONE
+ *     transaction, under the relevant advisory lock, on ONE snapshot;
  *   - progress is GUIDE_COUNTER_SOURCE=GUIDE_SESSION_STEP: the projection comes
  *     from the accepted-step ledger through the pure state machine, and
  *     LearningEvents are never read to compute it;
  *   - receipts are inspected BEFORE any effect, so a replay applies nothing and
  *     is never rejected by the state the session has since reached;
+ *   - the LearningEvent a command emits carries EXACTLY the command's own
+ *     idempotency key — the same canonical UUID stored in its receipt;
  *   - lock order is always START_LOCK (`guide:start:<userId>`) then
- *     SESSION_MUTATION_LOCK (`guide:session:<userId>:<sessionId>`), never the
- *     reverse — no command takes both, so the order cannot invert;
+ *     SESSION_MUTATION_LOCK (`guide:session:<userId>:<sessionId>`) — START
+ *     nests the second one when it autocancels, and nothing ever takes them
+ *     the other way round;
  *   - errors are value-free (`guide-errors.ts`): a foreign session and a
  *     nonexistent one are indistinguishable.
  *
@@ -138,30 +156,11 @@ type GuideRecallStepDefinition = Extract<
   { kind: "ACTIVE_RECALL" }
 >;
 
-/**
- * Deterministic, canonical event key derived from the guide command's key.
- *
- * The LearningEvent writer requires an RFC UUID, so the guide's key cannot be
- * decorated with a prefix; and reusing it verbatim would put guide events in
- * the SAME `(userId, idempotencyKey)` namespace as standalone learning
- * commands, where an unrelated client key could collide. Hashing gives a key
- * that is (a) stable for a given command — so the append is itself a replay on
- * retry — and (b) practically disjoint from client-chosen keys. Version nibble
- * 8 (RFC 9562 custom/deterministic), canonical variant.
- */
-function deriveGuideEventKey(scope: string, commandKey: string): string {
-  const h = createHash("sha256")
-    .update(`guide-event:v1:${scope}:${commandKey}`)
-    .digest("hex");
-  const variant = ((parseInt(h[16] as string, 16) & 0x3) | 0x8).toString(16);
-  return [
-    h.slice(0, 8),
-    h.slice(8, 12),
-    `8${h.slice(13, 16)}`,
-    `${variant}${h.slice(17, 20)}`,
-    h.slice(20, 32),
-  ].join("-");
-}
+/** Semantics of a command that mutates an EXISTING session. */
+type MutationSemantics = Exclude<
+  ValidatedGuideCommandSemantics,
+  ValidatedGuideStartSemantics
+>;
 
 @Injectable()
 export class GuideLifecycleService {
@@ -195,7 +194,11 @@ export class GuideLifecycleService {
     return rows.map((row) => parseAcceptedGuideStepRow(row));
   }
 
-  /** The pinned definition of a stored session (its version, not the newest). */
+  /**
+   * The pinned definition of a stored session (its version, not the newest).
+   * A definition that is no longer in the registry means the session cannot be
+   * reasoned about at all — the lifecycle fails closed rather than guessing.
+   */
   private definitionOf(session: GuideSessionRow): GuideDefinition {
     try {
       return productionGuideRegistry.getExact(
@@ -251,9 +254,12 @@ export class GuideLifecycleService {
 
   /**
    * The entitlement gate — the SAME `ContentAccessService` every content
-   * surface uses, run inside the caller's transaction. Any denial is the
-   * value-free GUIDE_FORBIDDEN; a resolution failure is an unresolved editorial
-   * context, never a leak of the underlying reason.
+   * surface uses, run inside the caller's transaction.
+   *
+   * The three outcomes are distinct facts: a denial is FORBIDDEN; a NotFound
+   * AFTER a valid resolution means the legacy bridge disagrees with the
+   * catalog (an editorial context problem, not a verdict on the user); and
+   * anything else is infrastructure.
    */
   private async gate(
     user: AuthenticatedUser,
@@ -272,7 +278,10 @@ export class GuideLifecycleService {
       );
     } catch (err) {
       if (err instanceof ForbiddenException) guideFail("GUIDE_FORBIDDEN");
-      guideFail("GUIDE_CONTEXT_UNRESOLVED");
+      if (err instanceof NotFoundException) {
+        guideFail("GUIDE_CONTEXT_UNRESOLVED");
+      }
+      guideFail("GUIDE_STORAGE_FAILURE");
     }
   }
 
@@ -294,47 +303,67 @@ export class GuideLifecycleService {
     }
   }
 
+  /**
+   * Revalidation shared by EVERY step command, whatever its kind: resolve the
+   * pinned definition's full context on THIS transaction, require it to still
+   * be the session's anchor, and re-apply entitlement. A confirmation step
+   * carries no target of its own, but the guide it belongs to does — losing
+   * access mid-session must stop it too.
+   */
+  private async revalidate(
+    user: AuthenticatedUser,
+    session: GuideSessionRow,
+    definition: GuideDefinition,
+    tx: Tx,
+  ): Promise<ResolvedGuideContext> {
+    const ctx = await this.context.resolve(definition, tx);
+    this.assertSameAnchor(session, ctx);
+    await this.gate(user, ctx, tx);
+    return ctx;
+  }
+
   // ─── START ───────────────────────────────────────────────────────────────
 
   /**
    * Start a session of an EXACT `guideKey@guideVersion`.
    *
-   * Flow, all inside one transaction holding `guide:start:<userId>`:
-   *   1. receipt inspection — a replay returns the ORIGINAL session, applying
+   * Everything runs in ONE transaction holding `guide:start:<userId>`:
+   *   1. load the pinned definition and resolve ALL its targets on `tx`, which
+   *      is what pins `editionId`/`unitId` into the START semantics;
+   *   2. receipt inspection — a replay returns the ORIGINAL session, applying
    *      nothing (in particular it never autocancels a second time);
-   *   2. entitlement, in this transaction;
-   *   3. autocancel of the user's other ACTIVE session — a server-side
-   *      housekeeping transition that creates NO receipt and emits NO event;
-   *   4. create the session, append the receipt, emit `guide_session_started`.
-   *
-   * The editorial context is derived beforehand (read-only) from the pinned
-   * targets, which must all converge — that derivation is what the START
-   * semantics pin as `editionId`/`unitId`.
+   *   3. entitlement, on the same snapshot;
+   *   4. autocancel of the user's other ACTIVE session, under its OWN session
+   *      lock (nested, never reversed). It creates NO receipt and emits NO
+   *      event;
+   *   5. create the session, append the receipt, emit `guide_session_started`
+   *      with the command's own idempotency key.
    */
   async start(
     user: AuthenticatedUser,
     command: GuideStartCommandInput,
   ): Promise<GuideCommandResult> {
-    const definition = await mapGuideErrors(async () =>
-      productionGuideRegistry.getExact(command.guideKey, command.guideVersion),
-    );
-    const ctx = await mapGuideErrors(() => this.context.resolve(definition));
-
-    const semantics: ValidatedGuideStartSemantics = {
-      commandType: "START",
-      userId: user.userId,
-      idempotencyKey: command.idempotencyKey,
-      guideKey: definition.guideKey,
-      guideVersion: definition.guideVersion,
-      editionId: ctx.editionId,
-      unitId: ctx.unitId,
-    };
-
     return mapGuideErrors(() =>
       this.prisma.$transaction(async (tx) => {
         await this.lock(tx, `guide:start:${user.userId}`);
 
-        // (1) Receipt BEFORE any effect — including before the autocancel.
+        // (1) Catalog + context, both on THIS transaction's snapshot.
+        const definition = productionGuideRegistry.getExact(
+          command.guideKey,
+          command.guideVersion,
+        );
+        const ctx = await this.context.resolve(definition, tx);
+        const semantics: ValidatedGuideStartSemantics = {
+          commandType: "START",
+          userId: user.userId,
+          idempotencyKey: command.idempotencyKey,
+          guideKey: definition.guideKey,
+          guideVersion: definition.guideVersion,
+          editionId: ctx.editionId,
+          unitId: ctx.unitId,
+        };
+
+        // (2) Receipt BEFORE any effect — including before the autocancel.
         const seen = await this.receipts.inspectValidated(semantics, tx);
         if (seen.state === "replay") {
           // START's receipt stores the session it created in `sessionId`.
@@ -353,27 +382,14 @@ export class GuideLifecycleService {
           });
         }
 
-        // (2) Entitlement, under this transaction's snapshot and lock.
+        // (3) Entitlement, under this transaction's snapshot and lock.
         await this.gate(user, ctx, tx);
 
-        // (3) Autocancel — at most one ACTIVE session per user. It keeps the
-        // accepted count its ledger justifies; counting unique accepted
-        // stepKeys is exactly the CANCELLED projection, and needs no catalog
-        // lookup (so a retired definition can never block a new start).
+        // (4) At most one ACTIVE session per user.
         const active = await this.sessions.findActive(user.userId, tx);
-        if (active) {
-          const rows = await this.steps.listAccepted(active.id, tx);
-          const accepted = new Set(rows.map((r) => r.stepKey)).size;
-          const changed = await this.sessions.cancelActive(
-            active.id,
-            user.userId,
-            accepted,
-            tx,
-          );
-          if (changed !== 1) guideFail("GUIDE_SESSION_INVALID_TRANSITION");
-        }
+        if (active) await this.autocancel(user, active.id, tx);
 
-        // (4) Create → receipt → event, atomically with everything above.
+        // (5) Create → receipt → event, atomically with everything above.
         const first = definition.steps[0] as GuideStepDefinition;
         const session = await this.sessions.createActive(
           {
@@ -393,7 +409,7 @@ export class GuideLifecycleService {
         );
         const event: ValidatedLearningEvent<"guide_session_started"> = {
           userId: user.userId,
-          idempotencyKey: deriveGuideEventKey("start", command.idempotencyKey),
+          idempotencyKey: command.idempotencyKey,
           type: "guide_session_started",
           payload: { guideSessionId: session.id },
           editionId: ctx.editionId,
@@ -410,23 +426,60 @@ export class GuideLifecycleService {
     );
   }
 
+  /**
+   * Close the user's previous ACTIVE session so the new one can start.
+   *
+   * Server housekeeping, not a command: no receipt, no event. It takes the
+   * session's OWN mutation lock while still holding the start lock — the one
+   * and only place both are held, always in that order — so a step racing on
+   * that session cannot interleave with the cancellation.
+   *
+   * The retained count is DERIVED by the state machine from the ledger, never
+   * counted off raw rows: a row only counts once its full semantics matched
+   * the pinned catalog.
+   */
+  private async autocancel(
+    user: AuthenticatedUser,
+    sessionId: string,
+    tx: Tx,
+  ): Promise<void> {
+    await this.lock(tx, `guide:session:${user.userId}:${sessionId}`);
+    // Re-read UNDER the second lock: it may have been cancelled or completed
+    // between the findActive and the lock being granted.
+    const fresh = await this.sessions.findOwn(sessionId, user.userId, tx);
+    if (!fresh || fresh.status !== "ACTIVE") return;
+
+    const definition = this.definitionOf(fresh);
+    const accepted = await this.ledger(fresh.id, tx);
+    const projection = deriveGuideProjection(definition, accepted, "CANCELLED");
+    const changed = await this.sessions.cancelActive(
+      fresh.id,
+      user.userId,
+      projection.stepsCompleted,
+      tx,
+    );
+    if (changed !== 1) guideFail("GUIDE_SESSION_INVALID_TRANSITION");
+  }
+
   // ─── Session mutations — one spine, four commands ────────────────────────
 
   /**
    * The shared transactional spine of every command that mutates an existing
-   * session. It holds `guide:session:<userId>:<sessionId>`, resolves the
-   * replay verdict BEFORE reading the session's state (so a replay is never
-   * rejected by a state reached since), then hands the ACTIVE-state decision
-   * to `apply`, and finally writes the receipt in the same transaction.
+   * session. It holds `guide:session:<userId>:<sessionId>` for EVERYTHING:
+   * loading the session, reading its pinned definition, building the receipt
+   * semantics from that definition, the replay verdict, and the transition.
+   *
+   * Loading the session is not judging it: the replay verdict is resolved
+   * BEFORE any ACTIVE/current-step/completeness check, so a replay is never
+   * rejected by a state reached since the original command.
    */
   private async mutate(
     user: AuthenticatedUser,
     sessionId: string,
-    semantics:
-      | ValidatedGuideStepCompleteSemantics
-      | ValidatedGuideStepRecallSemantics
-      | ValidatedGuideCancelSemantics
-      | ValidatedGuideSessionCompleteSemantics,
+    buildSemantics: (
+      session: GuideSessionRow,
+      definition: GuideDefinition,
+    ) => MutationSemantics,
     apply: (
       tx: Tx,
       session: GuideSessionRow,
@@ -437,13 +490,14 @@ export class GuideLifecycleService {
       this.prisma.$transaction(async (tx) => {
         await this.lock(tx, `guide:session:${user.userId}:${sessionId}`);
 
-        const seen = await this.receipts.inspectValidated(semantics, tx);
         const current = await this.sessions.findOwn(sessionId, user.userId, tx);
         // Foreign and nonexistent are the same value-free verdict.
         if (!current) guideFail("GUIDE_SESSION_NOT_FOUND");
         const session = current as GuideSessionRow;
         const definition = this.definitionOf(session);
+        const semantics = buildSemantics(session, definition);
 
+        const seen = await this.receipts.inspectValidated(semantics, tx);
         if (seen.state === "replay") {
           return this.snapshot(session, definition, tx, {
             created: false,
@@ -509,19 +563,42 @@ export class GuideLifecycleService {
     return this.mutate(
       user,
       command.sessionId,
-      // The receipt's semantics need the step's kind and target, which live in
-      // the PINNED definition — so the session is read once before the
-      // transaction opens. That read is safe: `guideKey`/`guideVersion` are
-      // immutable for the life of a session, and every state-dependent
-      // decision is re-taken inside the lock by `apply`.
-      await this.stepCompleteSemantics(user, command),
+      // Built UNDER the lock from the pinned definition: the client never
+      // declares kind or target, so a command cannot claim a step is
+      // something it is not.
+      (_session, definition) => {
+        const step = this.stepOf(definition, command.stepKey);
+        const base = {
+          commandType: "STEP_COMPLETE" as const,
+          userId: user.userId,
+          idempotencyKey: command.idempotencyKey,
+          sessionId: command.sessionId,
+          stepKey: step.stepKey,
+        };
+        switch (step.kind) {
+          case "CONCEPT_EXPLORATION":
+            return { ...base, kind: step.kind, conceptKey: step.conceptKey };
+          case "CATALOG_PRACTICE":
+            return { ...base, kind: step.kind, exerciseKey: step.exerciseKey };
+          case "EXPLICIT_CONFIRMATION":
+            return {
+              ...base,
+              kind: step.kind,
+              confirmationKey: step.confirmationKey,
+            };
+          case "ACTIVE_RECALL":
+            // Refused here so no receipt ever records a recall as a plain step.
+            return guideFail("GUIDE_STEP_COMMAND_MISMATCH");
+        }
+      },
       async (tx, session, definition) => {
         const step = this.stepOf(definition, command.stepKey);
-        if (step.kind === "ACTIVE_RECALL") {
-          guideFail("GUIDE_STEP_COMMAND_MISMATCH");
-        }
         const accepted = await this.ledger(session.id, tx);
         this.assertAcceptable(definition, accepted, step.stepKey, session);
+
+        // Context + entitlement, revalidated on THIS transaction for EVERY
+        // kind — including the concept and confirmation steps.
+        await this.revalidate(user, session, definition, tx);
 
         switch (step.kind) {
           case "CONCEPT_EXPLORATION":
@@ -537,8 +614,8 @@ export class GuideLifecycleService {
             );
             break;
           case "CATALOG_PRACTICE": {
-            const ctx = await this.resolveExercise(step.exerciseKey);
-            this.assertSameAnchor(session, ctx);
+            const exercise = await this.resolveExercise(step.exerciseKey, tx);
+            this.assertSameAnchor(session, exercise);
             await this.steps.appendAccepted(
               {
                 sessionId: session.id,
@@ -551,14 +628,11 @@ export class GuideLifecycleService {
             );
             const event: ValidatedLearningEvent<"practice_completed"> = {
               userId: user.userId,
-              idempotencyKey: deriveGuideEventKey(
-                "practice",
-                command.idempotencyKey,
-              ),
+              idempotencyKey: command.idempotencyKey,
               type: "practice_completed",
-              payload: buildPracticeCompletedPayload(ctx),
-              editionId: ctx.editionId,
-              unitId: ctx.unitId,
+              payload: buildPracticeCompletedPayload(exercise),
+              editionId: exercise.editionId,
+              unitId: exercise.unitId,
               guideSessionId: session.id,
             };
             await this.events.appendValidated(event, tx);
@@ -576,51 +650,14 @@ export class GuideLifecycleService {
               tx,
             );
             break;
+          case "ACTIVE_RECALL":
+            return guideFail("GUIDE_STEP_COMMAND_MISMATCH");
         }
 
         await this.applyLedgerProjection(session, definition, tx);
         return this.reread(session.id, user.userId, tx);
       },
     );
-  }
-
-  /**
-   * Build the STEP_COMPLETE semantics. The variant's target is read from the
-   * PINNED definition — the client never declares kind or target, so a command
-   * cannot claim a step is something it is not.
-   */
-  private async stepCompleteSemantics(
-    user: AuthenticatedUser,
-    command: GuideStepCompleteCommandInput,
-  ): Promise<ValidatedGuideStepCompleteSemantics> {
-    const session = await mapGuideErrors(() =>
-      this.sessions.findOwn(command.sessionId, user.userId),
-    );
-    if (!session) guideFail("GUIDE_SESSION_NOT_FOUND");
-    const definition = this.definitionOf(session as GuideSessionRow);
-    const step = this.stepOf(definition, command.stepKey);
-    const base = {
-      commandType: "STEP_COMPLETE" as const,
-      userId: user.userId,
-      idempotencyKey: command.idempotencyKey,
-      sessionId: command.sessionId,
-      stepKey: step.stepKey,
-    };
-    switch (step.kind) {
-      case "CONCEPT_EXPLORATION":
-        return { ...base, kind: step.kind, conceptKey: step.conceptKey };
-      case "CATALOG_PRACTICE":
-        return { ...base, kind: step.kind, exerciseKey: step.exerciseKey };
-      case "EXPLICIT_CONFIRMATION":
-        return {
-          ...base,
-          kind: step.kind,
-          confirmationKey: step.confirmationKey,
-        };
-      case "ACTIVE_RECALL":
-        // Refused here so the receipt never records a recall as a plain step.
-        return guideFail("GUIDE_STEP_COMMAND_MISMATCH");
-    }
   }
 
   // ─── STEP_RECALL — server-graded objective attempt ───────────────────────
@@ -635,17 +672,30 @@ export class GuideLifecycleService {
     user: AuthenticatedUser,
     command: GuideStepRecallCommandInput,
   ): Promise<GuideCommandResult> {
-    const semantics = await this.recallSemantics(user, command);
     return this.mutate(
       user,
       command.sessionId,
-      semantics,
+      (_session, definition): ValidatedGuideStepRecallSemantics => {
+        const step = this.recallStepOf(definition, command.stepKey);
+        return {
+          commandType: "STEP_RECALL",
+          userId: user.userId,
+          idempotencyKey: command.idempotencyKey,
+          sessionId: command.sessionId,
+          stepKey: step.stepKey,
+          // From the PINNED step — the client never sends an itemKey.
+          itemKey: step.itemKey,
+          selectedOptionKey: command.selectedOptionKey,
+        };
+      },
       async (tx, session, definition) => {
         const step = this.recallStepOf(definition, command.stepKey);
         const accepted = await this.ledger(session.id, tx);
         this.assertAcceptable(definition, accepted, step.stepKey, session);
 
-        const item = await this.resolveRecallItem(step.itemKey);
+        await this.revalidate(user, session, definition, tx);
+
+        const item = await this.resolveRecallItem(step.itemKey, tx);
         this.assertSameAnchor(session, item);
 
         // A chosen option outside the item's closed set (or a non-objective
@@ -676,7 +726,7 @@ export class GuideLifecycleService {
 
         const event: ValidatedLearningEvent<"active_recall_attempted"> = {
           userId: user.userId,
-          idempotencyKey: deriveGuideEventKey("recall", command.idempotencyKey),
+          idempotencyKey: command.idempotencyKey,
           type: "active_recall_attempted",
           payload,
           editionId: item.editionId,
@@ -692,29 +742,6 @@ export class GuideLifecycleService {
     );
   }
 
-  /** STEP_RECALL semantics — itemKey from the catalog, option from the client. */
-  private async recallSemantics(
-    user: AuthenticatedUser,
-    command: GuideStepRecallCommandInput,
-  ): Promise<ValidatedGuideStepRecallSemantics> {
-    const session = await mapGuideErrors(() =>
-      this.sessions.findOwn(command.sessionId, user.userId),
-    );
-    if (!session) guideFail("GUIDE_SESSION_NOT_FOUND");
-    const definition = this.definitionOf(session as GuideSessionRow);
-    const step = this.recallStepOf(definition, command.stepKey);
-    return {
-      commandType: "STEP_RECALL",
-      userId: user.userId,
-      idempotencyKey: command.idempotencyKey,
-      sessionId: command.sessionId,
-      stepKey: step.stepKey,
-      // From the PINNED step — the client never sends an itemKey.
-      itemKey: step.itemKey,
-      selectedOptionKey: command.selectedOptionKey,
-    };
-  }
-
   // ─── CANCEL ──────────────────────────────────────────────────────────────
 
   /** ACTIVE → CANCELLED. Emits no event: abandoning is not a learning fact. */
@@ -722,16 +749,15 @@ export class GuideLifecycleService {
     user: AuthenticatedUser,
     command: GuideCancelCommandInput,
   ): Promise<GuideCommandResult> {
-    const semantics: ValidatedGuideCancelSemantics = {
-      commandType: "CANCEL",
-      userId: user.userId,
-      idempotencyKey: command.idempotencyKey,
-      sessionId: command.sessionId,
-    };
     return this.mutate(
       user,
       command.sessionId,
-      semantics,
+      (): ValidatedGuideCancelSemantics => ({
+        commandType: "CANCEL",
+        userId: user.userId,
+        idempotencyKey: command.idempotencyKey,
+        sessionId: command.sessionId,
+      }),
       async (tx, session, definition) => {
         if (session.status !== "ACTIVE") {
           guideFail("GUIDE_SESSION_INVALID_TRANSITION");
@@ -765,16 +791,15 @@ export class GuideLifecycleService {
     user: AuthenticatedUser,
     command: GuideSessionCompleteCommandInput,
   ): Promise<GuideCommandResult> {
-    const semantics: ValidatedGuideSessionCompleteSemantics = {
-      commandType: "SESSION_COMPLETE",
-      userId: user.userId,
-      idempotencyKey: command.idempotencyKey,
-      sessionId: command.sessionId,
-    };
     return this.mutate(
       user,
       command.sessionId,
-      semantics,
+      (): ValidatedGuideSessionCompleteSemantics => ({
+        commandType: "SESSION_COMPLETE",
+        userId: user.userId,
+        idempotencyKey: command.idempotencyKey,
+        sessionId: command.sessionId,
+      }),
       async (tx, session, definition) => {
         const accepted = await this.ledger(session.id, tx);
         if (!canCompleteSession(definition, accepted, session.status)) {
@@ -795,10 +820,7 @@ export class GuideLifecycleService {
 
         const event: ValidatedLearningEvent<"guide_session_completed"> = {
           userId: user.userId,
-          idempotencyKey: deriveGuideEventKey(
-            "complete",
-            command.idempotencyKey,
-          ),
+          idempotencyKey: command.idempotencyKey,
           type: "guide_session_completed",
           payload: {
             guideSessionId: session.id,
@@ -837,20 +859,31 @@ export class GuideLifecycleService {
     if (changed !== 1) guideFail("GUIDE_SESSION_INVALID_TRANSITION");
   }
 
-  /** Resolver failures are editorial-context problems, value-free. */
-  private async resolveExercise(exerciseKey: string) {
+  /**
+   * Per-target resolution for the step that needs the TYPED context (the event
+   * payload). It runs on the caller's transaction, and its failures are
+   * classified exactly like the context service's: editorial → unresolved,
+   * infrastructure → storage.
+   */
+  private async resolveExercise(
+    exerciseKey: string,
+    tx: Tx,
+  ): Promise<ResolvedExerciseContext> {
     try {
-      return await this.resolver.resolveExercise(exerciseKey);
-    } catch {
-      return guideFail("GUIDE_CONTEXT_UNRESOLVED");
+      return await this.resolver.resolveExercise(exerciseKey, tx);
+    } catch (err) {
+      return classifyCatalogError(err);
     }
   }
 
-  private async resolveRecallItem(itemKey: string) {
+  private async resolveRecallItem(
+    itemKey: string,
+    tx: Tx,
+  ): Promise<ResolvedRecallItemContext> {
     try {
-      return await this.resolver.resolveRecallItem(itemKey);
-    } catch {
-      return guideFail("GUIDE_CONTEXT_UNRESOLVED");
+      return await this.resolver.resolveRecallItem(itemKey, tx);
+    } catch (err) {
+      return classifyCatalogError(err);
     }
   }
 }

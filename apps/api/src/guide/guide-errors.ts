@@ -1,3 +1,4 @@
+import { HttpException } from "@nestjs/common";
 import {
   GuideCommandIdempotencyConflictError,
   GuideCommandInvalidInputError,
@@ -114,4 +115,26 @@ export function translateGuideError(err: unknown): GuideLifecycleError {
     return new GuideLifecycleError("GUIDE_STORAGE_FAILURE");
   }
   return new GuideLifecycleError("GUIDE_STORAGE_FAILURE");
+}
+
+/**
+ * Catalog-resolution failures, classified ONCE for every caller that resolves
+ * an editorial target (the context service and the per-target resolutions of
+ * the step commands).
+ *
+ * The resolver speaks in `HttpException`s: 404 (the key does not exist) and
+ * 422 (an editorial link is broken) are EDITORIAL verdicts → the context is
+ * unresolved. Anything else — a Prisma/pg/adapter failure, a bug — is
+ * INFRASTRUCTURE and must surface as a storage failure, never as an editorial
+ * judgement about content that may be perfectly fine.
+ */
+export function classifyCatalogError(err: unknown): never {
+  if (err instanceof GuideLifecycleError) throw err;
+  if (err instanceof HttpException) {
+    const status = err.getStatus();
+    if (status >= 404 && status <= 422) {
+      return guideFail("GUIDE_CONTEXT_UNRESOLVED");
+    }
+  }
+  return guideFail("GUIDE_STORAGE_FAILURE");
 }

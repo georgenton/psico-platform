@@ -9,8 +9,10 @@ GUIDE_CONTEXT_POLICY=SERVER_DERIVED_FROM_TARGETS
 CLIENT_EDITORIAL_CONTEXT_ALLOWED=false
 GUIDE_DEFINITION_MERGE_SHA=364a8b274aba7d4396320c27c9cf6484a76bb721
 GUIDE_COMMANDS=5
-GUIDE_EVENT_EMITTING_COMMANDS=3
+GUIDE_EVENT_EMITTING_COMMANDS=4
 GUIDE_LOCK_NAMESPACES=2
+GUIDE_EVENT_KEY_POLICY=SAME_AS_COMMAND
+GUIDE_LOCK_ORDER=START_THEN_SESSION
 ```
 
 Este documento describe **qué garantiza** el lifecycle de Guide V1 y **qué no**.
@@ -77,8 +79,15 @@ catálogo se movió por debajo, el paso se rechaza en vez de escribir una fila
 contra otra unidad.
 
 La **entitlement** usa el mismo `ContentAccessService.assertCanReadUnit` que
-todas las superficies de contenido, ejecutado **dentro de la transacción** de
-START. El lifecycle no reimplementa la regla FREE/PRO.
+todas las superficies de contenido, ejecutado **dentro de la transacción** —
+tanto en START como en **cada paso**. El lifecycle no reimplementa la regla
+FREE/PRO.
+
+La revalidación por paso cubre las cuatro modalidades, incluidas
+`CONCEPT_EXPLORATION` (su `conceptKey` se resuelve de verdad) y
+`EXPLICIT_CONFIRMATION` (no aporta objetivo propio, pero la guía a la que
+pertenece sí tiene contexto: perder el acceso a mitad de sesión también la
+detiene).
 
 ---
 
@@ -109,10 +118,10 @@ efecto:
   (se responde antes de evaluar la transición);
 - misma clave con semántica distinta → conflicto → transición inválida.
 
-Los eventos educativos usan una clave derivada de forma determinista desde la
-clave del comando (hash con versión 8, variante canónica). Así el append es
-idempotente en reintentos y no colisiona con las claves que un cliente elija
-para los comandos educativos autónomos.
+El `LearningEvent` usa exactamente la misma `idempotencyKey` canónica que el
+comando y que su `GuideCommandReceipt`. Son tablas distintas y dominios de
+escritura distintos: que un comando **diferente** reutilice esa UUID es un
+conflicto correcto, no algo que haya que esquivar.
 
 ---
 
@@ -123,30 +132,56 @@ para los comandos educativos autónomos.
 | `guide:start:<userId>`               | START                                                   |
 | `guide:session:<userId>:<sessionId>` | STEP_COMPLETE · STEP_RECALL · CANCEL · SESSION_COMPLETE |
 
-El orden es siempre START_LOCK → SESSION_MUTATION_LOCK. **Ningún comando toma
-los dos**, así que el orden no puede invertirse y no hay deadlock posible por
-esta vía. El único SQL crudo del lifecycle es
-`pg_advisory_xact_lock(...)`, que no escribe ninguna fila (los ratchets de
-escritor único siguen intactos).
+El orden es siempre START_LOCK → SESSION_MUTATION_LOCK, **nunca al revés**.
+START toma el START_LOCK y, **cuando autocancela una sesión previa, toma
+después el SESSION_MUTATION_LOCK de esa sesión** — es el único punto donde se
+sostienen los dos, y siempre en ese orden, así que no hay deadlock posible por
+esta vía. El único SQL crudo del lifecycle es `pg_advisory_xact_lock(...)`, que
+no escribe ninguna fila (los ratchets de escritor único siguen intactos).
 
-El autocancel de START es una transición de mantenimiento del servidor: **no
-crea recibo y no emite evento**. Conserva el conteo que su ledger justifica y
-deja el cursor en `null`.
+El autocancel es una transición de mantenimiento del servidor: **no crea recibo
+y no emite evento**. Bajo el segundo lock relee la sesión, y el conteo que
+conserva lo **deriva la máquina de estados** desde el ledger — nunca cuenta
+filas crudas. Si su definición fijada ya no está en el registry, la sesión no
+es razonable y el lifecycle falla cerrado.
 
-`guide-lifecycle.pg-spec.ts` prueba la matriz obligatoria sobre conexiones
-concurrentes reales: dos START con la misma clave, dos START con claves
-distintas, dos pasos con la misma clave, dos pasos con claves distintas, CANCEL
-contra SESSION_COMPLETE, y dos intentos de recall con opciones distintas.
+### Matriz de concurrencia del ADR
+
+`guide-lifecycle.pg-spec.ts` prueba los seis escenarios obligatorios sobre
+conexiones concurrentes reales:
+
+| #   | Escenario                                    | Resultado exigido                                                                                                 |
+| --- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| M1  | Dos START, claves distintas                  | 2 sesiones · 1 ACTIVE · 1 CANCELLED con `cancelledAt`                                                             |
+| M2  | Dos accepts del mismo paso, claves distintas | uno acepta · el otro falla · 1 fila de ledger · 1 recibo                                                          |
+| M3  | Pasos fuera de orden                         | solo la transición que permite el cursor persiste; todo rechazo deja cero recibo/ledger/evento                    |
+| M4  | Último paso vs SESSION_COMPLETE              | un complete prematuro falla **sin persistir recibo**, así que reintentar con la misma clave puede aceptar después |
+| M5  | CANCEL vs paso                               | ningún ledger aceptado después de CANCELLED; el contador siempre es el que el ledger justifica                    |
+| M6  | COMPLETE vs COMPLETE                         | claves distintas → uno completa; misma clave → replay; un solo evento de completado                               |
+
+Además se prueba **START (autocancel) contra un paso sobre la sesión previa**:
+la historia queda serializada, sin ledger aceptado después de la cancelación y
+sin contador stale.
+
+Los escenarios adicionales (C1–C6: dos START con la misma clave, dos pasos con
+la misma clave, CANCEL contra SESSION_COMPLETE, dos recalls con opciones
+distintas) se conservan como cobertura extra.
 
 ---
 
 ## 7. Atomicidad
 
 Recibo, fila del ledger, proyección de la sesión y evento educativo **commitean
-o revierten juntos**. La prueba de rollback envenena el append del evento
-después de que la fila del ledger y la actualización de la sesión ya están
-preparadas en la transacción, y verifica que no queda nada: ni fila, ni recibo,
-y el cursor sigue apuntando al mismo paso.
+o revierten juntos**. Se prueban los tres puntos de fallo:
+
+1. **conflicto de LearningEvent** después del ledger (una fila ya ocupa la
+   clave del comando con otro contenido);
+2. **conflicto de ledger**;
+3. **fallo al actualizar `GuideSession`** (la proyección afecta cero filas).
+
+En los tres casos se verifica delta cero: sin fila de ledger, sin recibo, sin
+evento y con la proyección intacta. Los rechazos por contexto, por entitlement
+y por conflicto de recibo prueban lo mismo.
 
 ---
 
@@ -163,6 +198,13 @@ asigna, porque un `cause` serializado filtraría texto del driver.
 
 Una sesión **ajena** y una **inexistente** producen exactamente el mismo error:
 toda búsqueda y toda actualización va por `(id, userId)`.
+
+La clasificación distingue hechos distintos: un problema **editorial** (el
+catálogo dice que no: 404–422) es `GUIDE_CONTEXT_UNRESOLVED`; una divergencia
+explícita entre objetivos es `GUIDE_CONTEXT_MISMATCH`; una denegación del gate
+es `GUIDE_FORBIDDEN`; y un fallo de **infraestructura** (Prisma, el adaptador,
+pg, un bug) es `GUIDE_STORAGE_FAILURE` — nunca un veredicto editorial sobre
+contenido que puede estar perfectamente bien.
 
 ---
 

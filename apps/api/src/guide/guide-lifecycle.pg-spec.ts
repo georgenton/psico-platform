@@ -1,9 +1,18 @@
 import { execSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
+import type { LearningEventKind } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { ForbiddenException } from "@nestjs/common";
 import type { PrismaService } from "../prisma";
 import type { AuthenticatedUser } from "../auth";
 import { backfillContentCore } from "../content-core/backfill";
@@ -13,7 +22,10 @@ import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 import { LearningEventRepository } from "../learning/learning-event.repository";
 import { GuideCommandReceiptRepository } from "./guide-command-receipt.repository";
 import { GuideSessionRepository } from "./guide-session.repository";
-import { GuideSessionStepRepository } from "./guide-session-step.repository";
+import {
+  GuideSessionStepRepository,
+  GuideStepConflictError,
+} from "./guide-session-step.repository";
 import { GuideTargetContextService } from "./guide-target-context.service";
 import { GuideLifecycleService } from "./guide-lifecycle.service";
 import { GuideLifecycleError } from "./guide-errors";
@@ -84,6 +96,10 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
   let prisma: PrismaClient;
   let pool: Pool;
   let service: GuideLifecycleService;
+  let resolver: LearningCatalogResolver;
+  let sessionRepo: GuideSessionRepository;
+  let accessSvc: ContentAccessService;
+  let stepRepo: GuideSessionStepRepository;
   let userA: AuthenticatedUser;
   let userB: AuthenticatedUser;
   let seq = 0;
@@ -173,14 +189,17 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
     userB = { userId: b.id, plan: "FREE" } as AuthenticatedUser;
 
     const svc = prisma as unknown as PrismaService;
-    const resolver = new LearningCatalogResolver(svc);
+    resolver = new LearningCatalogResolver(svc);
+    sessionRepo = new GuideSessionRepository(prisma);
+    accessSvc = new ContentAccessService(svc);
+    stepRepo = new GuideSessionStepRepository(prisma);
     service = new GuideLifecycleService(
       svc,
       resolver,
-      new ContentAccessService(svc),
+      accessSvc,
       new GuideTargetContextService(resolver),
-      new GuideSessionRepository(prisma),
-      new GuideSessionStepRepository(prisma),
+      sessionRepo,
+      stepRepo,
       new GuideCommandReceiptRepository(prisma),
       new LearningEventRepository(prisma),
     );
@@ -198,6 +217,11 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
     await prisma.guideCommandReceipt.deleteMany();
     await prisma.guideSession.deleteMany();
     await prisma.learningEvent.deleteMany();
+    vi.restoreAllMocks();
+    await prisma.book.update({
+      where: { slug: BOOK_SLUG },
+      data: { plan: "FREE" },
+    });
   });
 
   // ── START ────────────────────────────────────────────────────────────────
@@ -763,21 +787,20 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
       stepKey: STEP_CONCEPT,
     });
 
-    // Poison the practice command: an event with the SAME derived key but
-    // different content already exists, so the append conflicts AFTER the
-    // ledger row and the session update were staged in the transaction.
+    // Poison the practice command: an event already holds ITS OWN key with
+    // different content, so the append conflicts AFTER the ledger row and the
+    // session update were staged in the transaction.
     const practiceKey = nextKey();
     const before = await counts();
-    const derived = await prisma.learningEvent.create({
+    await prisma.learningEvent.create({
       data: {
         userId: userA.userId,
-        idempotencyKey: deriveKeyForTest("practice", practiceKey),
+        idempotencyKey: practiceKey,
         kind: "UNIT_OPENED",
         payload: { editionKey: "x", unitKey: "y" },
         schemaVersion: 1,
       },
     });
-    expect(derived.id).toBeTruthy();
 
     await expectCode(
       service.completeStep(userA, {
@@ -801,23 +824,486 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
       ).currentStepKey,
     ).toBe(STEP_PRACTICE);
   });
-});
+  // ── Idempotency-key policy (§1) ──────────────────────────────────────────
 
-/**
- * Mirror of the service's private derivation — duplicated ON PURPOSE so the
- * test pins the contract rather than importing whatever the service happens to
- * compute (a change to the derivation must break this test loudly).
- */
-function deriveKeyForTest(scope: string, commandKey: string): string {
-  const h = createHash("sha256")
-    .update(`guide-event:v1:${scope}:${commandKey}`)
-    .digest("hex");
-  const variant = ((parseInt(h[16] as string, 16) & 0x3) | 0x8).toString(16);
-  return [
-    h.slice(0, 8),
-    h.slice(8, 12),
-    `8${h.slice(13, 16)}`,
-    `${variant}${h.slice(17, 20)}`,
-    h.slice(20, 32),
-  ].join("-");
-}
+  it("every emitted event carries the COMMAND's own key, same as its receipt", async () => {
+    const startKey = nextKey();
+    const started = await service.start(userA, {
+      idempotencyKey: startKey,
+      guideKey: GUIDE_KEY,
+      guideVersion: 1,
+    });
+    const conceptKey = nextKey();
+    await service.completeStep(userA, {
+      idempotencyKey: conceptKey,
+      sessionId: started.sessionId,
+      stepKey: STEP_CONCEPT,
+    });
+    const practiceKey = nextKey();
+    await service.completeStep(userA, {
+      idempotencyKey: practiceKey,
+      sessionId: started.sessionId,
+      stepKey: STEP_PRACTICE,
+    });
+    const recallKey = nextKey();
+    await service.completeRecallStep(userA, {
+      idempotencyKey: recallKey,
+      sessionId: started.sessionId,
+      stepKey: STEP_RECALL,
+      selectedOptionKey: CORRECT_OPTION,
+    });
+    const completeKey = nextKey();
+    await service.completeSession(userA, {
+      idempotencyKey: completeKey,
+      sessionId: started.sessionId,
+    });
+
+    // EVENT_IDEMPOTENCY_KEY_EQUALS_COMMAND_KEY
+    const byKind = async (kind: LearningEventKind) =>
+      (await prisma.learningEvent.findFirstOrThrow({ where: { kind } }))
+        .idempotencyKey;
+    expect(await byKind("GUIDE_SESSION_STARTED")).toBe(startKey);
+    expect(await byKind("PRACTICE_COMPLETED")).toBe(practiceKey);
+    expect(await byKind("ACTIVE_RECALL_ATTEMPTED")).toBe(recallKey);
+    expect(await byKind("GUIDE_SESSION_COMPLETED")).toBe(completeKey);
+
+    // EVENT_IDEMPOTENCY_KEY_EQUALS_RECEIPT_KEY — the same canonical UUID lives
+    // in both tables; they are different write domains, not a namespace clash.
+    const receiptKeys = (
+      await prisma.guideCommandReceipt.findMany({
+        select: { idempotencyKey: true },
+      })
+    ).map((r) => r.idempotencyKey);
+    for (const k of [
+      startKey,
+      conceptKey,
+      practiceKey,
+      recallKey,
+      completeKey,
+    ]) {
+      expect(receiptKeys).toContain(k);
+    }
+    // The concept step emits NO event, so its key exists only as a receipt.
+    expect(
+      await prisma.learningEvent.count({
+        where: { idempotencyKey: conceptKey },
+      }),
+    ).toBe(0);
+  });
+
+  // ── Context + entitlement inside the transaction (§3 · §5) ───────────────
+
+  it("START resolves the catalog on its OWN transaction client", async () => {
+    const spy = vi.spyOn(resolver, "resolveConcept");
+    await service.start(userA, {
+      idempotencyKey: nextKey(),
+      guideKey: GUIDE_KEY,
+      guideVersion: 1,
+    });
+    expect(spy).toHaveBeenCalled();
+    const db = spy.mock.calls[0]?.[1];
+    // A client WAS threaded, and it is the transaction's, not the base one.
+    expect(db).toBeDefined();
+    expect(db).not.toBe(prisma);
+  });
+
+  it("a step re-runs the entitlement gate on ITS transaction", async () => {
+    const started = await service.start(userA, {
+      idempotencyKey: nextKey(),
+      guideKey: GUIDE_KEY,
+      guideVersion: 1,
+    });
+    const spy = vi.spyOn(accessSvc, "assertCanReadUnit");
+
+    await service.completeStep(userA, {
+      idempotencyKey: nextKey(),
+      sessionId: started.sessionId,
+      stepKey: STEP_CONCEPT,
+    });
+
+    // The gate ran for the STEP (not only at START) and got a client.
+    expect(spy).toHaveBeenCalledTimes(1);
+    const db = spy.mock.calls[0]?.[1];
+    expect(db).toBeDefined();
+    expect(db).not.toBe(prisma);
+  });
+
+  it("a denied step is GUIDE_FORBIDDEN and writes nothing", async () => {
+    const started = await service.start(userA, {
+      idempotencyKey: nextKey(),
+      guideKey: GUIDE_KEY,
+      guideVersion: 1,
+    });
+    const before = await counts();
+    // Access is revoked between START and the step. (The real FREE/PRO rule
+    // grants chapter 1 as a preview, so the denial is injected at the gate
+    // rather than faked by editing the fixture's plan.)
+    vi.spyOn(accessSvc, "assertCanReadUnit").mockRejectedValue(
+      new ForbiddenException("PRO_REQUIRED"),
+    );
+
+    await expectCode(
+      service.completeStep(userA, {
+        idempotencyKey: nextKey(),
+        sessionId: started.sessionId,
+        stepKey: STEP_CONCEPT,
+      }),
+      "GUIDE_FORBIDDEN",
+    );
+    expect(await counts()).toEqual(before);
+  });
+
+  it("a CONCEPT step revalidates its own target", async () => {
+    const started = await service.start(userA, {
+      idempotencyKey: nextKey(),
+      guideKey: GUIDE_KEY,
+      guideVersion: 1,
+    });
+    const before = await counts();
+    // Break the concept→unit link: the concept can no longer be resolved to
+    // exactly one owning unit, so the step must refuse.
+    const links = await prisma.conceptLink.findMany({
+      where: { concept: { conceptKey: "eec-cuerpo-antes-que-mente" } },
+      select: { id: true },
+    });
+    expect(links.length).toBeGreaterThan(0);
+    await prisma.conceptLink.deleteMany({
+      where: { id: { in: links.map((l) => l.id) } },
+    });
+
+    await expectCode(
+      service.completeStep(userA, {
+        idempotencyKey: nextKey(),
+        sessionId: started.sessionId,
+        stepKey: STEP_CONCEPT,
+      }),
+      "GUIDE_CONTEXT_UNRESOLVED",
+    );
+    expect(await counts()).toEqual(before);
+    // Restore for the rest of the suite (the fixture is shared).
+    await backfillContentCore(prisma);
+  });
+
+  // ── Error classification (§6) ────────────────────────────────────────────
+
+  it("an infrastructure failure is a storage failure, not an editorial verdict", async () => {
+    vi.spyOn(resolver, "resolveConcept").mockRejectedValue(
+      new Error("connection terminated unexpectedly"),
+    );
+    await expectCode(
+      service.start(userA, {
+        idempotencyKey: nextKey(),
+        guideKey: GUIDE_KEY,
+        guideVersion: 1,
+      }),
+      "GUIDE_STORAGE_FAILURE",
+    );
+    expect(await prisma.guideSession.count()).toBe(0);
+  });
+
+  // ── ADR concurrency matrix (§8) — M1..M6, real connections ───────────────
+
+  it("M1 · two STARTs, different keys → 2 sessions, 1 ACTIVE, 1 CANCELLED", async () => {
+    await Promise.all([
+      service.start(userA, {
+        idempotencyKey: nextKey(),
+        guideKey: GUIDE_KEY,
+        guideVersion: 1,
+      }),
+      service.start(userA, {
+        idempotencyKey: nextKey(),
+        guideKey: GUIDE_KEY,
+        guideVersion: 1,
+      }),
+    ]);
+    expect(await prisma.guideSession.count()).toBe(2);
+    expect(
+      await prisma.guideSession.count({ where: { status: "ACTIVE" } }),
+    ).toBe(1);
+    const cancelled = await prisma.guideSession.findMany({
+      where: { status: "CANCELLED" },
+    });
+    expect(cancelled).toHaveLength(1);
+    expect(cancelled[0]?.cancelledAt).not.toBeNull();
+  });
+
+  it("M2 · two accepts of the SAME step, different keys → 1 ledger row, 1 receipt", async () => {
+    const started = await service.start(userA, {
+      idempotencyKey: nextKey(),
+      guideKey: GUIDE_KEY,
+      guideVersion: 1,
+    });
+    const receiptsBefore = await prisma.guideCommandReceipt.count();
+
+    const results = await Promise.allSettled([
+      service.completeStep(userA, {
+        idempotencyKey: nextKey(),
+        sessionId: started.sessionId,
+        stepKey: STEP_CONCEPT,
+      }),
+      service.completeStep(userA, {
+        idempotencyKey: nextKey(),
+        sessionId: started.sessionId,
+        stepKey: STEP_CONCEPT,
+      }),
+    ]);
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+    expect(await prisma.guideSessionStep.count()).toBe(1);
+    // The loser persisted NO receipt.
+    expect(await prisma.guideCommandReceipt.count()).toBe(receiptsBefore + 1);
+  });
+
+  it("M3 · out-of-order steps → only the cursor's transition persists", async () => {
+    const started = await service.start(userA, {
+      idempotencyKey: nextKey(),
+      guideKey: GUIDE_KEY,
+      guideVersion: 1,
+    });
+    const receiptsBefore = await prisma.guideCommandReceipt.count();
+
+    const results = await Promise.allSettled([
+      service.completeStep(userA, {
+        idempotencyKey: nextKey(),
+        sessionId: started.sessionId,
+        stepKey: STEP_CONCEPT,
+      }),
+      // Not the current step under ANY interleaving of the two.
+      service.completeStep(userA, {
+        idempotencyKey: nextKey(),
+        sessionId: started.sessionId,
+        stepKey: STEP_PRACTICE,
+      }),
+    ]);
+
+    const accepted = await prisma.guideSessionStep.findMany();
+    // Whatever the order, only steps the cursor allowed are in the ledger and
+    // every rejection left nothing behind.
+    expect(accepted.length).toBe(
+      results.filter((r) => r.status === "fulfilled").length,
+    );
+    expect(accepted[0]?.stepKey).toBe(STEP_CONCEPT);
+    expect(await prisma.guideCommandReceipt.count()).toBe(
+      receiptsBefore + accepted.length,
+    );
+  });
+
+  it("M4 · last step vs SESSION_COMPLETE → a premature complete persists nothing", async () => {
+    const sessionId = await startAndAdvance(userA);
+    const completeKey = nextKey();
+
+    // Complete BEFORE the last step: refused, and it writes no receipt…
+    await expectCode(
+      service.completeSession(userA, {
+        idempotencyKey: completeKey,
+        sessionId,
+      }),
+      "GUIDE_SESSION_INVALID_TRANSITION",
+    );
+    expect(
+      await prisma.guideCommandReceipt.count({
+        where: { idempotencyKey: completeKey },
+      }),
+    ).toBe(0);
+
+    await service.completeRecallStep(userA, {
+      idempotencyKey: nextKey(),
+      sessionId,
+      stepKey: STEP_RECALL,
+      selectedOptionKey: CORRECT_OPTION,
+    });
+
+    // …so retrying with the SAME key can now legitimately accept.
+    const done = await service.completeSession(userA, {
+      idempotencyKey: completeKey,
+      sessionId,
+    });
+    expect(done.created).toBe(true);
+    expect(done.status).toBe("COMPLETED");
+  });
+
+  it("M5 · CANCEL vs step → the history stays honest either way", async () => {
+    const started = await service.start(userA, {
+      idempotencyKey: nextKey(),
+      guideKey: GUIDE_KEY,
+      guideVersion: 1,
+    });
+
+    const results = await Promise.allSettled([
+      service.cancel(userA, {
+        idempotencyKey: nextKey(),
+        sessionId: started.sessionId,
+      }),
+      service.completeStep(userA, {
+        idempotencyKey: nextKey(),
+        sessionId: started.sessionId,
+        stepKey: STEP_CONCEPT,
+      }),
+    ]);
+
+    const stored = await prisma.guideSession.findUniqueOrThrow({
+      where: { id: started.sessionId },
+    });
+    expect(stored.status).toBe("CANCELLED");
+    const ledger = await prisma.guideSessionStep.count();
+    const stepOk = results[1].status === "fulfilled";
+    // Either the step ran first and stays in history, or cancel ran first and
+    // the step left nothing. Never a ledger row accepted AFTER cancellation.
+    expect(ledger).toBe(stepOk ? 1 : 0);
+    expect(stored.stepsCompleted).toBe(ledger);
+  });
+
+  it("M6 · COMPLETE vs COMPLETE → one completion, one event", async () => {
+    const sessionId = await startAndAdvance(userA);
+    await service.completeRecallStep(userA, {
+      idempotencyKey: nextKey(),
+      sessionId,
+      stepKey: STEP_RECALL,
+      selectedOptionKey: CORRECT_OPTION,
+    });
+
+    // Different keys → exactly one wins.
+    const diff = await Promise.allSettled([
+      service.completeSession(userA, { idempotencyKey: nextKey(), sessionId }),
+      service.completeSession(userA, { idempotencyKey: nextKey(), sessionId }),
+    ]);
+    expect(diff.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(
+      await prisma.learningEvent.count({
+        where: { kind: "GUIDE_SESSION_COMPLETED" },
+      }),
+    ).toBe(1);
+
+    // Same key → one creates, the other replays (it already completed above,
+    // so both calls here are replays of that winner's key).
+    const winnerKey = (
+      await prisma.guideCommandReceipt.findFirstOrThrow({
+        where: { commandType: "SESSION_COMPLETE" },
+      })
+    ).idempotencyKey;
+    const same = await Promise.all([
+      service.completeSession(userA, { idempotencyKey: winnerKey, sessionId }),
+      service.completeSession(userA, { idempotencyKey: winnerKey, sessionId }),
+    ]);
+    expect(same.every((r) => r.replayed)).toBe(true);
+    expect(
+      await prisma.learningEvent.count({
+        where: { kind: "GUIDE_SESSION_COMPLETED" },
+      }),
+    ).toBe(1);
+  });
+
+  // ── START autocancel vs a step on the previous session (§7) ──────────────
+
+  it("START's autocancel and a step on the previous session serialize", async () => {
+    const first = await service.start(userA, {
+      idempotencyKey: nextKey(),
+      guideKey: GUIDE_KEY,
+      guideVersion: 1,
+    });
+
+    const results = await Promise.allSettled([
+      service.start(userA, {
+        idempotencyKey: nextKey(),
+        guideKey: GUIDE_KEY,
+        guideVersion: 1,
+      }),
+      service.completeStep(userA, {
+        idempotencyKey: nextKey(),
+        sessionId: first.sessionId,
+        stepKey: STEP_CONCEPT,
+      }),
+    ]);
+
+    // The START always succeeds (it holds both locks in order).
+    expect(results[0].status).toBe("fulfilled");
+    const old = await prisma.guideSession.findUniqueOrThrow({
+      where: { id: first.sessionId },
+    });
+    expect(old.status).toBe("CANCELLED");
+
+    const acceptedOnOld = await prisma.guideSessionStep.count({
+      where: { sessionId: first.sessionId },
+    });
+    // No ledger row may be accepted after the cancellation, and the retained
+    // counter is exactly what the ledger justifies — never stale.
+    if (results[1].status === "rejected") {
+      expect(acceptedOnOld).toBe(0);
+    }
+    expect(old.stepsCompleted).toBe(acceptedOnOld);
+    expect(old.currentStepKey).toBeNull();
+  });
+
+  // ── Atomicity — the other two failure points (§9) ────────────────────────
+
+  it("a ledger conflict rolls the whole command back", async () => {
+    const started = await service.start(userA, {
+      idempotencyKey: nextKey(),
+      guideKey: GUIDE_KEY,
+      guideVersion: 1,
+    });
+    const before = await counts();
+    vi.spyOn(stepRepo, "appendAccepted").mockRejectedValue(
+      new GuideStepConflictError(),
+    );
+
+    await expectCode(
+      service.completeStep(userA, {
+        idempotencyKey: nextKey(),
+        sessionId: started.sessionId,
+        stepKey: STEP_CONCEPT,
+      }),
+      "GUIDE_SESSION_INVALID_TRANSITION",
+    );
+    expect(await counts()).toEqual(before);
+  });
+
+  it("a failed session update rolls the whole command back", async () => {
+    const started = await service.start(userA, {
+      idempotencyKey: nextKey(),
+      guideKey: GUIDE_KEY,
+      guideVersion: 1,
+    });
+    const before = await counts();
+    // The projection write matches zero rows (the session moved under us).
+    vi.spyOn(sessionRepo, "applyProjection").mockResolvedValue(0);
+
+    await expectCode(
+      service.completeStep(userA, {
+        idempotencyKey: nextKey(),
+        sessionId: started.sessionId,
+        stepKey: STEP_CONCEPT,
+      }),
+      "GUIDE_SESSION_INVALID_TRANSITION",
+    );
+    // The ledger row it had already staged is gone with the transaction.
+    expect(await counts()).toEqual(before);
+  });
+
+  it("a receipt conflict writes nothing", async () => {
+    const started = await service.start(userA, {
+      idempotencyKey: nextKey(),
+      guideKey: GUIDE_KEY,
+      guideVersion: 1,
+    });
+    const reused = nextKey();
+    await service.completeStep(userA, {
+      idempotencyKey: reused,
+      sessionId: started.sessionId,
+      stepKey: STEP_CONCEPT,
+    });
+    const before = await counts();
+
+    // The same key now means something else (a different step).
+    await expectCode(
+      service.completeStep(userA, {
+        idempotencyKey: reused,
+        sessionId: started.sessionId,
+        stepKey: STEP_PRACTICE,
+      }),
+      "GUIDE_SESSION_INVALID_TRANSITION",
+    );
+    expect(await counts()).toEqual(before);
+  });
+});

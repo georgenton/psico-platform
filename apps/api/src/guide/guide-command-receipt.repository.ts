@@ -1,9 +1,11 @@
 import type { GuideCommandReceipt, PrismaClient } from "@prisma/client";
 import { canonicalizeIdempotencyKey } from "../shared/idempotency-key";
+import { isValidGuideCatalogKey } from "./guide-catalog";
 import {
   computeSemanticFingerprint,
   SEMANTIC_FINGERPRINT_VERSION,
-  type ValidatedGuideCommand,
+  type GuideCommandReceiptWrite,
+  type ValidatedGuideCommandSemantics,
 } from "./guide-command-semantics";
 
 /**
@@ -13,15 +15,17 @@ import {
  * file, and zero raw SQL INSERT/UPDATE/DELETE anywhere.
  *
  * The receipt is the ONE transversal replay/conflict authority for the five
- * Guide commands (START / STEP_COMPLETE / STEP_RECALL / CANCEL /
- * SESSION_COMPLETE). It is NOT a source of `stepsCompleted` — the ledger
- * (`GuideSessionStep`) is (ADR 0019 §3). CC-7.4C's lifecycle will call it
- * inside its transactions: receipt + step + session state + events commit or
- * roll back TOGETHER. Nothing imports it at runtime yet.
+ * Guide commands. It is NOT a source of `stepsCompleted` — the ledger
+ * (`GuideSessionStep`) is (ADR 0019 §3). Semantics and result linkage are
+ * SEPARATE (PR #590 closure): `inspectValidated` takes SEMANTICS only (a
+ * START inspection needs no sessionId — none exists yet); `appendValidated`
+ * takes a WRITE, which for START carries the `resultSessionId` the server
+ * just created. A START replay returns the ORIGINAL receipt with the
+ * ORIGINAL session — never a placeholder.
  *
- * Nest-free, transaction-safe (CC-7.2 pattern): non-aborting
- * `createMany({ skipDuplicates: true })` → `findUnique` → exact semantic
- * comparison. Errors are EXACTLY three value-free types; raw Prisma/pg
+ * EVERY command is fail-closed validated PRE-DB: kind/target coupling,
+ * closed catalog-key grammar, canonical UUID key — invalid input never
+ * round-trips. Errors are EXACTLY three value-free types; raw Prisma/pg
  * errors never escape and are never attached as `cause`.
  */
 
@@ -73,10 +77,145 @@ export interface AppendGuideCommandReceiptResult {
   receipt: GuideCommandReceipt;
 }
 
-/** The exact column projection a validated command persists — field by
- * field, per command type. Unset columns are explicit NULLs (never the
- * caller's extra properties). */
-function toColumns(command: ValidatedGuideCommand) {
+// ─── Fail-closed PRE-DB validation (closure §3) ─────────────────────────────
+
+const invalid = (): never => {
+  throw new GuideCommandInvalidInputError();
+};
+
+/** Non-empty plain id (cuid-shaped server ids — not catalog keys). */
+function requireId(value: unknown): string {
+  if (typeof value !== "string" || value.length === 0 || /\s/.test(value)) {
+    invalid();
+  }
+  return value as string;
+}
+
+/** Closed catalog-key grammar — shared with the catalog validator. */
+function requireCatalogKey(value: unknown): string {
+  if (!isValidGuideCatalogKey(value)) invalid();
+  return value as string;
+}
+
+/** Reject any own key outside the exact allowlist (malicious casts carrying
+ * an extra target are invalid PRE-DB, not silently dropped). */
+function assertExactKeys(
+  obj: Record<string, unknown>,
+  allowed: readonly string[],
+): void {
+  for (const key of Reflect.ownKeys(obj)) {
+    if (typeof key !== "string" || !allowed.includes(key)) invalid();
+  }
+}
+
+const BASE_KEYS = ["commandType", "userId", "idempotencyKey"] as const;
+
+/**
+ * Runtime authority over the semantics union: exact shape per command type
+ * (kind↔target coupling included), closed grammar for every catalog key.
+ * Types make mismatches inexpressible; this guards malicious casts.
+ */
+function assertValidSemantics(semantics: ValidatedGuideCommandSemantics): void {
+  const obj = semantics as unknown as Record<string, unknown>;
+  requireId(semantics.userId);
+  switch (semantics.commandType) {
+    case "START": {
+      assertExactKeys(obj, [
+        ...BASE_KEYS,
+        "guideKey",
+        "guideVersion",
+        "editionId",
+        "unitId",
+      ]);
+      requireCatalogKey(semantics.guideKey);
+      if (
+        !Number.isInteger(semantics.guideVersion) ||
+        semantics.guideVersion < 1
+      ) {
+        invalid();
+      }
+      // Editorial anchor is all-or-nothing; ids are server-resolved.
+      if ((semantics.editionId === null) !== (semantics.unitId === null)) {
+        invalid();
+      }
+      if (semantics.editionId !== null) requireId(semantics.editionId);
+      if (semantics.unitId !== null) requireId(semantics.unitId);
+      return;
+    }
+    case "STEP_COMPLETE": {
+      requireId(semantics.sessionId);
+      requireCatalogKey(semantics.stepKey);
+      switch (semantics.kind) {
+        case "CONCEPT_EXPLORATION":
+          assertExactKeys(obj, [
+            ...BASE_KEYS,
+            "sessionId",
+            "stepKey",
+            "kind",
+            "conceptKey",
+          ]);
+          requireCatalogKey(semantics.conceptKey);
+          return;
+        case "CATALOG_PRACTICE":
+          assertExactKeys(obj, [
+            ...BASE_KEYS,
+            "sessionId",
+            "stepKey",
+            "kind",
+            "exerciseKey",
+          ]);
+          requireCatalogKey(semantics.exerciseKey);
+          return;
+        case "EXPLICIT_CONFIRMATION":
+          assertExactKeys(obj, [
+            ...BASE_KEYS,
+            "sessionId",
+            "stepKey",
+            "kind",
+            "confirmationKey",
+          ]);
+          requireCatalogKey(semantics.confirmationKey);
+          return;
+        default:
+          return invalid();
+      }
+    }
+    case "STEP_RECALL":
+      assertExactKeys(obj, [
+        ...BASE_KEYS,
+        "sessionId",
+        "stepKey",
+        "itemKey",
+        "selectedOptionKey",
+      ]);
+      requireId(semantics.sessionId);
+      requireCatalogKey(semantics.stepKey);
+      requireCatalogKey(semantics.itemKey);
+      requireCatalogKey(semantics.selectedOptionKey);
+      return;
+    case "CANCEL":
+    case "SESSION_COMPLETE":
+      assertExactKeys(obj, [...BASE_KEYS, "sessionId"]);
+      requireId(semantics.sessionId);
+      return;
+    default:
+      return invalid();
+  }
+}
+
+// ─── Column projection + structural comparison ──────────────────────────────
+
+/** The stored sessionId: START links the session the server CREATED; every
+ * other command's sessionId IS its semantics. */
+function sessionIdOf(write: GuideCommandReceiptWrite): string {
+  return "resultSessionId" in write
+    ? write.resultSessionId
+    : write.semantics.sessionId;
+}
+
+/** Field-by-field projection — nothing off the per-type whitelist reaches
+ * storage; unset columns are explicit NULLs. */
+function toColumns(semantics: ValidatedGuideCommandSemantics) {
   const base = {
     stepKey: null as string | null,
     guideKey: null as string | null,
@@ -89,64 +228,76 @@ function toColumns(command: ValidatedGuideCommand) {
     confirmationKey: null as string | null,
     selectedOptionKey: null as string | null,
   };
-  switch (command.commandType) {
+  switch (semantics.commandType) {
     case "START":
       return {
         ...base,
-        guideKey: command.guideKey,
-        guideVersion: command.guideVersion,
-        editionId: command.editionId,
-        unitId: command.unitId,
+        guideKey: semantics.guideKey,
+        guideVersion: semantics.guideVersion,
+        editionId: semantics.editionId,
+        unitId: semantics.unitId,
       };
-    case "STEP_COMPLETE": {
-      const target = command.target;
-      return {
-        ...base,
-        stepKey: command.stepKey,
-        conceptKey: "conceptKey" in target ? target.conceptKey : null,
-        exerciseKey: "exerciseKey" in target ? target.exerciseKey : null,
-        confirmationKey:
-          "confirmationKey" in target ? target.confirmationKey : null,
-      };
-    }
+    case "STEP_COMPLETE":
+      switch (semantics.kind) {
+        case "CONCEPT_EXPLORATION":
+          return {
+            ...base,
+            stepKey: semantics.stepKey,
+            conceptKey: semantics.conceptKey,
+          };
+        case "CATALOG_PRACTICE":
+          return {
+            ...base,
+            stepKey: semantics.stepKey,
+            exerciseKey: semantics.exerciseKey,
+          };
+        case "EXPLICIT_CONFIRMATION":
+          return {
+            ...base,
+            stepKey: semantics.stepKey,
+            confirmationKey: semantics.confirmationKey,
+          };
+      }
+      break;
     case "STEP_RECALL":
       return {
         ...base,
-        stepKey: command.stepKey,
-        itemKey: command.itemKey,
-        selectedOptionKey: command.selectedOptionKey,
+        stepKey: semantics.stepKey,
+        itemKey: semantics.itemKey,
+        selectedOptionKey: semantics.selectedOptionKey,
       };
     case "CANCEL":
     case "SESSION_COMPLETE":
       return base;
   }
+  // Unreachable for valid unions; fail closed for malicious casts.
+  return invalid();
 }
 
 /**
- * Exact structural comparison: the fingerprint (with its version) PLUS every
+ * Exact structural comparison: fingerprint (with its version) PLUS every
  * semantic column, per command type. On START the stored `sessionId` is the
  * session the ORIGINAL command created — result linkage, never compared as
- * input semantics (the retry does not know it). On every other type the
- * sessionId IS semantic and must match.
+ * input semantics. On every other type the sessionId IS semantic.
  */
 function isSameSemantics(
   stored: GuideCommandReceipt,
-  command: ValidatedGuideCommand,
+  semantics: ValidatedGuideCommandSemantics,
 ): boolean {
-  if (stored.commandType !== command.commandType) return false;
+  if (stored.commandType !== semantics.commandType) return false;
   if (stored.semanticFingerprintVersion !== SEMANTIC_FINGERPRINT_VERSION) {
     return false;
   }
-  if (stored.semanticFingerprint !== computeSemanticFingerprint(command)) {
+  if (stored.semanticFingerprint !== computeSemanticFingerprint(semantics)) {
     return false;
   }
-  const cols = toColumns(command);
   if (
-    command.commandType !== "START" &&
-    stored.sessionId !== command.sessionId
+    semantics.commandType !== "START" &&
+    stored.sessionId !== semantics.sessionId
   ) {
     return false;
   }
+  const cols = toColumns(semantics);
   return (
     stored.stepKey === cols.stepKey &&
     stored.guideKey === cols.guideKey &&
@@ -161,14 +312,6 @@ function isSameSemantics(
   );
 }
 
-const COMMAND_TYPES = new Set([
-  "START",
-  "STEP_COMPLETE",
-  "STEP_RECALL",
-  "CANCEL",
-  "SESSION_COMPLETE",
-]);
-
 export class GuideCommandReceiptRepository {
   constructor(private readonly prisma: GuideCommandReceiptDb) {}
 
@@ -179,43 +322,29 @@ export class GuideCommandReceiptRepository {
     );
   }
 
-  private assertValid(command: ValidatedGuideCommand): void {
-    if (!COMMAND_TYPES.has(command.commandType)) {
-      throw new GuideCommandInvalidInputError();
-    }
-    if (typeof command.userId !== "string" || command.userId.length === 0) {
-      throw new GuideCommandInvalidInputError();
-    }
-    if (
-      typeof command.sessionId !== "string" ||
-      command.sessionId.length === 0
-    ) {
-      throw new GuideCommandInvalidInputError();
-    }
-  }
-
   /**
-   * READ-ONLY replay/conflict verdict, so a lifecycle command can decide
-   * BEFORE running an irreversible transition (e.g. the autocancel of a
-   * start — a replay must never autocancel, ADR 0019 §6). Accepts a
-   * `$transaction` client so the inspection shares the caller's snapshot and
-   * advisory lock.
+   * READ-ONLY replay/conflict verdict over SEMANTICS alone — a START
+   * inspection needs no sessionId (the server has not created one yet), so a
+   * lifecycle command can decide BEFORE any irreversible transition (e.g.
+   * the autocancel of a start: a replay must never autocancel, ADR 0019 §6).
+   * Accepts a `$transaction` client so the inspection shares the caller's
+   * snapshot and advisory lock.
    */
   async inspectValidated(
-    command: ValidatedGuideCommand,
+    semantics: ValidatedGuideCommandSemantics,
     db?: GuideCommandReceiptDb,
   ): Promise<GuideCommandInspection> {
     const client = db ?? this.prisma;
-    this.assertValid(command);
-    const idempotencyKey = this.canonicalKey(command.idempotencyKey);
+    assertValidSemantics(semantics);
+    const idempotencyKey = this.canonicalKey(semantics.idempotencyKey);
     try {
       const existing = await client.guideCommandReceipt.findUnique({
         where: {
-          userId_idempotencyKey: { userId: command.userId, idempotencyKey },
+          userId_idempotencyKey: { userId: semantics.userId, idempotencyKey },
         },
       });
       if (!existing) return { state: "absent" };
-      if (!isSameSemantics(existing, command)) {
+      if (!isSameSemantics(existing, semantics)) {
         throw new GuideCommandIdempotencyConflictError();
       }
       return { state: "replay", receipt: existing };
@@ -225,27 +354,30 @@ export class GuideCommandReceiptRepository {
   }
 
   /**
-   * Persist one validated command receipt — transaction-safe and race-safe
-   * (CC-7.2 pattern, never `find → create`):
+   * Persist one receipt WRITE — transaction-safe and race-safe (CC-7.2
+   * pattern, never `find → create`):
    *
-   *   1. fail-closed validation + key canonicalization (no DB touch on bad
-   *      input);
+   *   1. fail-closed validation of the SEMANTICS + key canonicalization (no
+   *      DB touch on bad input); for START, the write's `resultSessionId` is
+   *      the REAL session the server just created (server-owned linkage);
    *   2. NON-ABORTING `createMany({ skipDuplicates: true })` — a concurrent
    *      duplicate inside the caller's `$transaction` never raises P2002 and
    *      never poisons the transaction;
    *   3. `count` tells whether THIS call inserted;
-   *   4. read by `(userId, canonicalKey)` and compare EXACTLY (fingerprint +
-   *      every semantic column): match ⇒ replay; drift ⇒ conflict thrown by
-   *      OUR code (clean, deliberate rollback for the caller).
+   *   4. read by `(userId, canonicalKey)` and compare EXACTLY: match ⇒
+   *      replay of the ORIGINAL receipt (a START replay returns the ORIGINAL
+   *      session's linkage); drift ⇒ conflict thrown by OUR code.
    */
   async appendValidated(
-    command: ValidatedGuideCommand,
+    write: GuideCommandReceiptWrite,
     db?: GuideCommandReceiptDb,
   ): Promise<AppendGuideCommandReceiptResult> {
     const client = db ?? this.prisma;
-    this.assertValid(command);
-    const idempotencyKey = this.canonicalKey(command.idempotencyKey);
-    const cols = toColumns(command);
+    const semantics = write.semantics;
+    assertValidSemantics(semantics);
+    const idempotencyKey = this.canonicalKey(semantics.idempotencyKey);
+    const sessionId = requireId(sessionIdOf(write));
+    const cols = toColumns(semantics);
 
     try {
       // Single write primitive of the whole API for this table (see
@@ -253,13 +385,13 @@ export class GuideCommandReceiptRepository {
       const { count } = await client.guideCommandReceipt.createMany({
         data: [
           {
-            userId: command.userId,
+            userId: semantics.userId,
             idempotencyKey,
-            commandType: command.commandType,
-            sessionId: command.sessionId,
+            commandType: semantics.commandType,
+            sessionId,
             ...cols,
             semanticFingerprintVersion: SEMANTIC_FINGERPRINT_VERSION,
-            semanticFingerprint: computeSemanticFingerprint(command),
+            semanticFingerprint: computeSemanticFingerprint(semantics),
           },
         ],
         skipDuplicates: true,
@@ -267,7 +399,7 @@ export class GuideCommandReceiptRepository {
 
       const stored = await client.guideCommandReceipt.findUnique({
         where: {
-          userId_idempotencyKey: { userId: command.userId, idempotencyKey },
+          userId_idempotencyKey: { userId: semantics.userId, idempotencyKey },
         },
       });
       if (!stored) throw new GuideCommandStorageError();
@@ -275,7 +407,7 @@ export class GuideCommandReceiptRepository {
       if (count === 1) {
         return { created: true, replayed: false, receipt: stored };
       }
-      if (!isSameSemantics(stored, command)) {
+      if (!isSameSemantics(stored, semantics)) {
         throw new GuideCommandIdempotencyConflictError();
       }
       return { created: false, replayed: true, receipt: stored };

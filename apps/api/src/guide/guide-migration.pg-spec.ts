@@ -217,7 +217,19 @@ suite("CC-7.4B · migration over a PRE-CC-7.4B schema with real rows", () => {
       "GuideSession_version_positive",
     ]);
 
+    // Ownership: the (id, userId) unique target + the COMPOSITE FK that
+    // forbids a receipt referencing another user's session (closure §1).
+    const { rows: fk } = await pool.query(
+      `SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
+        WHERE contype = 'f'
+          AND conname = 'GuideCommandReceipt_sessionId_userId_fkey'`,
+    );
+    expect(fk).toHaveLength(1);
+    expect(fk[0].def).toContain('FOREIGN KEY ("sessionId", "userId")');
+    expect(fk[0].def).toMatch(/REFERENCES "GuideSession"\(id, "userId"\)/);
+
     for (const index of [
+      "GuideSession_id_userId_key",
       "GuideSessionStep_sessionId_stepKey_key",
       "GuideSessionStep_sessionId_order_key",
       "GuideCommandReceipt_userId_idempotencyKey_key",

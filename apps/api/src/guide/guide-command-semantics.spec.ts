@@ -2,31 +2,26 @@ import { describe, expect, it } from "vitest";
 import {
   computeSemanticFingerprint,
   part,
-  type ValidatedGuideCommand,
+  type ValidatedGuideCommandSemantics,
+  type ValidatedGuideStartSemantics,
+  type ValidatedGuideStepCompleteSemantics,
 } from "./guide-command-semantics";
 
 /**
- * CC-7.4B — fingerprint unit suite (instruction §6): deterministic encoding,
- * unambiguous `part` segments (null vs empty vs delimiter-bearing), drift on
- * EVERY semantic component, and the START formula excluding the
- * server-generated sessionId.
+ * CC-7.4B — fingerprint + semantics-union unit suite (PR #590 closure):
+ * deterministic encoding, unambiguous `part` segments, drift on EVERY
+ * semantic component, START structurally WITHOUT a sessionId, and the
+ * type-level proof that kind/target mismatches are inexpressible.
  */
 
 const KEY = "cccccccc-cccc-4ccc-8ccc-000000000101";
 
 const start = (
-  over: Partial<{
-    sessionId: string;
-    guideKey: string;
-    guideVersion: number;
-    editionId: string | null;
-    unitId: string | null;
-  }> = {},
-): ValidatedGuideCommand => ({
+  over: Partial<Omit<ValidatedGuideStartSemantics, "commandType">> = {},
+): ValidatedGuideStartSemantics => ({
   commandType: "START",
   userId: "u-fp",
   idempotencyKey: KEY,
-  sessionId: over.sessionId ?? "sess-1",
   guideKey: over.guideKey ?? "guia-prueba",
   guideVersion: over.guideVersion ?? 1,
   editionId: over.editionId !== undefined ? over.editionId : "ed-1",
@@ -46,18 +41,65 @@ describe("guide command semantics · part()", () => {
   });
 });
 
+describe("guide command semantics · type-level contracts", () => {
+  it("START cannot carry a sessionId; kind/target mismatches are inexpressible", () => {
+    // @ts-expect-error START semantics has NO sessionId — result linkage is server-owned
+    const startWithSession: ValidatedGuideStartSemantics = {
+      commandType: "START",
+      userId: "u",
+      idempotencyKey: KEY,
+      guideKey: "g",
+      guideVersion: 1,
+      editionId: null,
+      unitId: null,
+      sessionId: "s",
+    };
+    // @ts-expect-error concept cannot carry exerciseKey
+    const conceptWithExercise: ValidatedGuideStepCompleteSemantics = {
+      commandType: "STEP_COMPLETE",
+      userId: "u",
+      idempotencyKey: KEY,
+      sessionId: "s",
+      stepKey: "k",
+      kind: "CONCEPT_EXPLORATION",
+      exerciseKey: "e",
+    };
+    // @ts-expect-error practice cannot carry confirmationKey
+    const practiceWithConfirmation: ValidatedGuideStepCompleteSemantics = {
+      commandType: "STEP_COMPLETE",
+      userId: "u",
+      idempotencyKey: KEY,
+      sessionId: "s",
+      stepKey: "k",
+      kind: "CATALOG_PRACTICE",
+      confirmationKey: "c",
+    };
+    // @ts-expect-error confirmation cannot carry conceptKey
+    const confirmationWithConcept: ValidatedGuideStepCompleteSemantics = {
+      commandType: "STEP_COMPLETE",
+      userId: "u",
+      idempotencyKey: KEY,
+      sessionId: "s",
+      stepKey: "k",
+      kind: "EXPLICIT_CONFIRMATION",
+      conceptKey: "c",
+    };
+    // The variables exist only to host the @ts-expect-error assertions:
+    expect([
+      startWithSession,
+      conceptWithExercise,
+      practiceWithConfirmation,
+      confirmationWithConcept,
+    ]).toHaveLength(4);
+  });
+});
+
 describe("guide command semantics · fingerprint", () => {
-  it("is deterministic: same command, same fingerprint, always", () => {
+  it("is deterministic: same semantics, same fingerprint, always", () => {
     const a = computeSemanticFingerprint(start());
     const b = computeSemanticFingerprint(start());
     expect(a).toBe(b);
     expect(a.startsWith("v1|")).toBe(true);
-  });
-
-  it("START excludes the server-generated sessionId — two attempts with different created sessions match", () => {
-    const a = computeSemanticFingerprint(start({ sessionId: "sess-1" }));
-    const b = computeSemanticFingerprint(start({ sessionId: "sess-999" }));
-    expect(a).toBe(b);
   });
 
   it("START drifts on every SEMANTIC component (guideKey, version, edition, unit, null↔value)", () => {
@@ -81,17 +123,21 @@ describe("guide command semantics · fingerprint", () => {
 
   it("STEP_COMPLETE drifts on sessionId, stepKey, kind and the exact target key", () => {
     const cmd = (
-      over: Partial<{ sessionId: string; stepKey: string; conceptKey: string }>,
-    ): ValidatedGuideCommand => ({
+      over: Partial<{
+        sessionId: string;
+        stepKey: string;
+        conceptKey: string;
+      }> = {},
+    ): ValidatedGuideCommandSemantics => ({
       commandType: "STEP_COMPLETE",
       userId: "u-fp",
       idempotencyKey: KEY,
       sessionId: over.sessionId ?? "sess-1",
       stepKey: over.stepKey ?? "explora",
       kind: "CONCEPT_EXPLORATION",
-      target: { conceptKey: over.conceptKey ?? "familia-ensamblada" },
+      conceptKey: over.conceptKey ?? "familia-ensamblada",
     });
-    const base = computeSemanticFingerprint(cmd({}));
+    const base = computeSemanticFingerprint(cmd());
     expect(computeSemanticFingerprint(cmd({ sessionId: "s2" }))).not.toBe(base);
     expect(computeSemanticFingerprint(cmd({ stepKey: "otro" }))).not.toBe(base);
     expect(computeSemanticFingerprint(cmd({ conceptKey: "otro" }))).not.toBe(
@@ -99,20 +145,20 @@ describe("guide command semantics · fingerprint", () => {
     );
     // Same target VALUE under a different kind still drifts (kind is a
     // component):
-    const practice: ValidatedGuideCommand = {
+    const practice: ValidatedGuideCommandSemantics = {
       commandType: "STEP_COMPLETE",
       userId: "u-fp",
       idempotencyKey: KEY,
       sessionId: "sess-1",
       stepKey: "explora",
       kind: "CATALOG_PRACTICE",
-      target: { exerciseKey: "familia-ensamblada" },
+      exerciseKey: "familia-ensamblada",
     };
     expect(computeSemanticFingerprint(practice)).not.toBe(base);
   });
 
   it("STEP_RECALL includes the selected option — same item, different option, different fingerprint", () => {
-    const recall = (option: string): ValidatedGuideCommand => ({
+    const recall = (option: string): ValidatedGuideCommandSemantics => ({
       commandType: "STEP_RECALL",
       userId: "u-fp",
       idempotencyKey: KEY,
@@ -130,7 +176,7 @@ describe("guide command semantics · fingerprint", () => {
     const make = (
       commandType: "CANCEL" | "SESSION_COMPLETE",
       sessionId: string,
-    ): ValidatedGuideCommand => ({
+    ): ValidatedGuideCommandSemantics => ({
       commandType,
       userId: "u-fp",
       idempotencyKey: KEY,

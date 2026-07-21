@@ -2547,6 +2547,9 @@ model GuideSession {
   steps    GuideSessionStep[]
   receipts GuideCommandReceipt[]
 
+  // Ownership target for the receipt composite FK (a receipt can only
+  // reference a session of ITS OWN user — DB-enforced, see migration).
+  @@unique([id, userId])
   @@index([userId, status])
   @@index([userId, startedAt])
   @@index([guideKey, guideVersion])
@@ -2609,7 +2612,9 @@ model GuideCommandReceipt {
   createdAt                  DateTime @default(now())
 
   user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  session GuideSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  // Composite ownership FK: (sessionId, userId) → GuideSession(id, userId).
+  // The database itself forbids a receipt pointing at another user's session.
+  session GuideSession @relation(fields: [sessionId, userId], references: [id, userId], onDelete: Cascade)
 
   @@unique([userId, idempotencyKey])
   @@index([sessionId, commandType])

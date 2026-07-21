@@ -112,6 +112,9 @@ CREATE INDEX "GuideCommandReceipt_userId_createdAt_idx" ON "GuideCommandReceipt"
 -- NOT represented in schema.prisma (Prisma cannot); pinned by pg-specs.
 CREATE UNIQUE INDEX "GuideSession_one_active_per_user" ON "GuideSession"("userId") WHERE "status" = 'ACTIVE';
 
+-- CreateIndex — ownership target of the receipt composite FK below.
+CREATE UNIQUE INDEX "GuideSession_id_userId_key" ON "GuideSession"("id", "userId");
+
 -- AddForeignKey
 ALTER TABLE "GuideSession" ADD CONSTRAINT "GuideSession_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -121,8 +124,11 @@ ALTER TABLE "GuideSessionStep" ADD CONSTRAINT "GuideSessionStep_sessionId_fkey" 
 -- AddForeignKey
 ALTER TABLE "GuideCommandReceipt" ADD CONSTRAINT "GuideCommandReceipt_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
-ALTER TABLE "GuideCommandReceipt" ADD CONSTRAINT "GuideCommandReceipt_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "GuideSession"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey — COMPOSITE ownership FK: the database itself forbids a
+-- receipt whose userId differs from its session's userId (a receipt can
+-- never reference another user's session, nor be relinked through another
+-- actor).
+ALTER TABLE "GuideCommandReceipt" ADD CONSTRAINT "GuideCommandReceipt_sessionId_userId_fkey" FOREIGN KEY ("sessionId", "userId") REFERENCES "GuideSession"("id", "userId") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- ─── GuideSession invariants (ADR 0019 §6) ──────────────────────────────────
 

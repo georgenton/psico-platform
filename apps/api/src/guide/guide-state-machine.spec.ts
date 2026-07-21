@@ -6,14 +6,17 @@ import {
   deriveGuideProjection,
   GuideStateError,
   nextExpectedStepKey,
+  parseAcceptedGuideStepRow,
+  type AcceptedGuideStep,
+  type StoredGuideStepRow,
 } from "./guide-state-machine";
 
 /**
- * CC-7.4B — pure state machine (instruction §12 "Máquina"): projection from
- * an EMPTY ledger, sequential advance, out-of-order rejection, the four
- * variants, completed/cancelled projections, definition/version mismatch,
- * ledger rows outside the definition — and the structural proof that NO
- * LearningEvent is read to derive counters (the input type cannot carry one).
+ * CC-7.4B — pure state machine over FULL ledger semantics (PR #590 closure
+ * §4): a row only counts toward `stepsCompleted` after stepKey, order, kind,
+ * completionPolicy and the EXACT target matched the pinned definition.
+ * Recall's option/result are accepted evidence whose SHAPE the parser
+ * validates. No LearningEvent can enter — the input type cannot carry one.
  */
 
 const definition = validateGuideDefinition({
@@ -55,7 +58,43 @@ const definition = validateGuideDefinition({
   ],
 });
 
-const row = (stepKey: string, order: number) => ({ stepKey, order });
+// Exact catalog-matched rows, one per variant:
+const conceptRow = (): AcceptedGuideStep => ({
+  stepKey: "explora",
+  order: 1,
+  kind: "CONCEPT_EXPLORATION",
+  completionPolicy: "EXPLICIT_CONFIRMATION",
+  conceptKey: "familia-ensamblada",
+});
+const recallRow = (): AcceptedGuideStep => ({
+  stepKey: "recall",
+  order: 2,
+  kind: "ACTIVE_RECALL",
+  completionPolicy: "OBJECTIVE_RECALL",
+  itemKey: "quiz-1",
+  selectedOptionKey: "opt-b",
+  recallResult: "CORRECT",
+});
+const practiceRow = (): AcceptedGuideStep => ({
+  stepKey: "practica",
+  order: 3,
+  kind: "CATALOG_PRACTICE",
+  completionPolicy: "CATALOG_PRACTICE_CONFIRMATION",
+  exerciseKey: "respiracion-1",
+});
+const confirmationRow = (): AcceptedGuideStep => ({
+  stepKey: "confirma",
+  order: 4,
+  kind: "EXPLICIT_CONFIRMATION",
+  completionPolicy: "EXPLICIT_CONFIRMATION",
+  confirmationKey: "pausa-hecha",
+});
+const fullLedger = () => [
+  conceptRow(),
+  recallRow(),
+  practiceRow(),
+  confirmationRow(),
+];
 
 describe("guide state machine · projection", () => {
   it("empty ledger → 0/4, cursor on the first step", () => {
@@ -66,23 +105,20 @@ describe("guide state machine · projection", () => {
     });
   });
 
-  it("sequential advance moves the cursor across the four variants", () => {
-    const ledger = [row("explora", 1)];
-    expect(deriveGuideProjection(definition, ledger, "ACTIVE")).toEqual({
-      stepsCompleted: 1,
-      totalSteps: 4,
-      currentStepKey: "recall",
-    });
-    ledger.push(row("recall", 2), row("practica", 3));
-    expect(deriveGuideProjection(definition, ledger, "ACTIVE")).toEqual({
-      stepsCompleted: 3,
-      totalSteps: 4,
-      currentStepKey: "confirma",
-    });
+  it("sequential advance across the four FULLY-MATCHED variants moves the cursor", () => {
+    expect(deriveGuideProjection(definition, [conceptRow()], "ACTIVE")).toEqual(
+      { stepsCompleted: 1, totalSteps: 4, currentStepKey: "recall" },
+    );
+    expect(
+      deriveGuideProjection(
+        definition,
+        [conceptRow(), recallRow(), practiceRow()],
+        "ACTIVE",
+      ),
+    ).toEqual({ stepsCompleted: 3, totalSteps: 4, currentStepKey: "confirma" });
     // All accepted, still ACTIVE: cursor null, WAITING for the explicit
     // session-complete command (never auto-completes).
-    ledger.push(row("confirma", 4));
-    expect(deriveGuideProjection(definition, ledger, "ACTIVE")).toEqual({
+    expect(deriveGuideProjection(definition, fullLedger(), "ACTIVE")).toEqual({
       stepsCompleted: 4,
       totalSteps: 4,
       currentStepKey: null,
@@ -90,9 +126,8 @@ describe("guide state machine · projection", () => {
   });
 
   it("canAcceptStep only accepts the CURRENT expected step of an ACTIVE session", () => {
-    const ledger = [row("explora", 1)];
+    const ledger = [conceptRow()];
     expect(canAcceptStep(definition, ledger, "recall", "ACTIVE")).toBe(true);
-    // A future step, an already-accepted step, and a closed session all say no:
     expect(canAcceptStep(definition, ledger, "practica", "ACTIVE")).toBe(false);
     expect(canAcceptStep(definition, ledger, "explora", "ACTIVE")).toBe(false);
     expect(canAcceptStep(definition, ledger, "recall", "COMPLETED")).toBe(
@@ -104,67 +139,127 @@ describe("guide state machine · projection", () => {
   });
 
   it("canCompleteSession requires ALL steps accepted and an ACTIVE session", () => {
-    const partial = [row("explora", 1), row("recall", 2)];
-    expect(canCompleteSession(definition, partial, "ACTIVE")).toBe(false);
-    const full = [
-      row("explora", 1),
-      row("recall", 2),
-      row("practica", 3),
-      row("confirma", 4),
-    ];
-    expect(canCompleteSession(definition, full, "ACTIVE")).toBe(true);
-    expect(canCompleteSession(definition, full, "COMPLETED")).toBe(false);
-  });
-
-  it("COMPLETED projection: full ledger, cursor null; incomplete ledger is an invariant violation", () => {
-    const full = [
-      row("explora", 1),
-      row("recall", 2),
-      row("practica", 3),
-      row("confirma", 4),
-    ];
-    expect(deriveGuideProjection(definition, full, "COMPLETED")).toEqual({
-      stepsCompleted: 4,
-      totalSteps: 4,
-      currentStepKey: null,
-    });
-    expect(() =>
-      deriveGuideProjection(definition, [row("explora", 1)], "COMPLETED"),
-    ).toThrow(GuideStateError);
-  });
-
-  it("CANCELLED projection keeps accepted steps but has no cursor", () => {
     expect(
-      deriveGuideProjection(definition, [row("explora", 1)], "CANCELLED"),
+      canCompleteSession(definition, [conceptRow(), recallRow()], "ACTIVE"),
+    ).toBe(false);
+    expect(canCompleteSession(definition, fullLedger(), "ACTIVE")).toBe(true);
+    expect(canCompleteSession(definition, fullLedger(), "COMPLETED")).toBe(
+      false,
+    );
+  });
+
+  it("COMPLETED requires a full ledger; CANCELLED retains the accepted count with no cursor", () => {
+    expect(
+      deriveGuideProjection(definition, fullLedger(), "COMPLETED"),
+    ).toEqual({ stepsCompleted: 4, totalSteps: 4, currentStepKey: null });
+    expect(() =>
+      deriveGuideProjection(definition, [conceptRow()], "COMPLETED"),
+    ).toThrow(GuideStateError);
+    expect(
+      deriveGuideProjection(definition, [conceptRow()], "CANCELLED"),
     ).toEqual({ stepsCompleted: 1, totalSteps: 4, currentStepKey: null });
   });
 });
 
-describe("guide state machine · invariants", () => {
-  it("rejects an out-of-order ledger (gap in the sequential prefix)", () => {
-    expect(() => nextExpectedStepKey(definition, [row("recall", 2)])).toThrow(
-      GuideStateError,
-    );
-  });
-
-  it("rejects a ledger row whose step does not exist in the pinned version", () => {
+describe("guide state machine · FULL semantic validation against the pinned definition", () => {
+  it("same stepKey/order but the WRONG kind is rejected", () => {
+    // A structurally-valid union member claiming step "recall" with a
+    // concept variant — kind drifts from the catalog:
+    const wrongKind: AcceptedGuideStep = {
+      stepKey: "recall",
+      order: 2,
+      kind: "CONCEPT_EXPLORATION",
+      completionPolicy: "EXPLICIT_CONFIRMATION",
+      conceptKey: "familia-ensamblada",
+    };
     expect(() =>
-      deriveGuideProjection(definition, [row("fantasma", 1)], "ACTIVE"),
-    ).toThrow(GuideStateError);
+      deriveGuideProjection(definition, [conceptRow(), wrongKind], "ACTIVE"),
+    ).toThrow(/GUIDE_STATE_KIND_MISMATCH/);
   });
 
-  it("rejects duplicates and order mismatches against the catalog", () => {
+  it("same stepKey/order + kind but the WRONG policy (malicious cast) is rejected", () => {
+    const wrongPolicy = {
+      ...conceptRow(),
+      completionPolicy: "OBJECTIVE_RECALL",
+    } as unknown as AcceptedGuideStep;
+    expect(() =>
+      deriveGuideProjection(definition, [wrongPolicy], "ACTIVE"),
+    ).toThrow(/GUIDE_STATE_POLICY_MISMATCH/);
+  });
+
+  it("a DIFFERENT target than the definition's is rejected, per variant", () => {
+    const cases: Array<[string, AcceptedGuideStep[]]> = [
+      ["concept: otro conceptKey", [{ ...conceptRow(), conceptKey: "otro" }]],
+      [
+        "recall: otro itemKey",
+        [conceptRow(), { ...recallRow(), itemKey: "quiz-99" }],
+      ],
+      [
+        "practice: otro exerciseKey",
+        [
+          conceptRow(),
+          recallRow(),
+          { ...practiceRow(), exerciseKey: "otra-practica" },
+        ],
+      ],
+      [
+        "confirmation: otro confirmationKey",
+        [
+          conceptRow(),
+          recallRow(),
+          practiceRow(),
+          { ...confirmationRow(), confirmationKey: "otra-pausa" },
+        ],
+      ],
+    ];
+    for (const [label, ledger] of cases) {
+      expect(
+        () => deriveGuideProjection(definition, ledger, "ACTIVE"),
+        label,
+      ).toThrow(/GUIDE_STATE_TARGET_MISMATCH/);
+    }
+  });
+
+  it("a full EXACT row is counted; recall's option/result are evidence, not targets", () => {
+    // Two recall rows differing only in evidence both match the catalog —
+    // evidence shape is validated, its VALUE is the accepted attempt:
+    const incorrectAttempt: AcceptedGuideStep = {
+      ...recallRow(),
+      selectedOptionKey: "opt-a",
+      recallResult: "INCORRECT",
+    };
+    expect(
+      deriveGuideProjection(
+        definition,
+        [conceptRow(), incorrectAttempt],
+        "ACTIVE",
+      ),
+    ).toEqual({ stepsCompleted: 2, totalSteps: 4, currentStepKey: "practica" });
+  });
+});
+
+describe("guide state machine · structural invariants", () => {
+  it("rejects out-of-order, unknown steps, duplicates and order drift", () => {
+    expect(() => nextExpectedStepKey(definition, [recallRow()])).toThrow(
+      /GUIDE_STATE_OUT_OF_ORDER/,
+    );
     expect(() =>
       deriveGuideProjection(
         definition,
-        [row("explora", 1), row("explora", 1)],
+        [{ ...conceptRow(), stepKey: "fantasma" }],
         "ACTIVE",
       ),
-    ).toThrow(GuideStateError);
-    // Stored order drifts from the catalog's order for that step:
+    ).toThrow(/GUIDE_STATE_STEP_NOT_IN_DEFINITION/);
     expect(() =>
-      deriveGuideProjection(definition, [row("explora", 2)], "ACTIVE"),
-    ).toThrow(GuideStateError);
+      deriveGuideProjection(definition, [conceptRow(), conceptRow()], "ACTIVE"),
+    ).toThrow(/GUIDE_STATE_DUPLICATE_STEP/);
+    expect(() =>
+      deriveGuideProjection(
+        definition,
+        [{ ...conceptRow(), order: 2 }],
+        "ACTIVE",
+      ),
+    ).toThrow(/GUIDE_STATE_ORDER_MISMATCH/);
   });
 
   it("definition/version mismatch: the SAME ledger is invalid under another version's catalog", () => {
@@ -182,23 +277,105 @@ describe("guide state machine · invariants", () => {
         },
       ],
     });
-    // A ledger accepted under v1 does not project under v2 — sessions pin
-    // their exact version for exactly this reason:
-    expect(() =>
-      deriveGuideProjection(v2, [row("explora", 1)], "ACTIVE"),
-    ).toThrow(GuideStateError);
+    expect(() => deriveGuideProjection(v2, [conceptRow()], "ACTIVE")).toThrow(
+      GuideStateError,
+    );
   });
 
   it("counters derive ONLY from ledger rows — the input type carries no LearningEvent", () => {
-    // Structural proof: an AcceptedStepRow is {stepKey, order} and nothing
-    // else; extra fields (e.g. a smuggled event) are not read.
+    // Structural proof: extra fields (e.g. a smuggled event) are not read.
     const ledger = [
-      { stepKey: "explora", order: 1, kind: "unused", payload: { x: 1 } },
-    ] as unknown as Array<{ stepKey: string; order: number }>;
+      { ...conceptRow(), payload: { smuggled: true }, eventKind: "unused" },
+    ] as unknown as AcceptedGuideStep[];
     expect(deriveGuideProjection(definition, ledger, "ACTIVE")).toEqual({
       stepsCompleted: 1,
       totalSteps: 4,
       currentStepKey: "recall",
     });
+  });
+});
+
+describe("guide state machine · stored-row parser", () => {
+  const storedBase: StoredGuideStepRow = {
+    stepKey: "explora",
+    order: 1,
+    kind: "CONCEPT_EXPLORATION",
+    completionPolicy: "EXPLICIT_CONFIRMATION",
+    conceptKey: "familia-ensamblada",
+    itemKey: null,
+    exerciseKey: null,
+    confirmationKey: null,
+    selectedOptionKey: null,
+    recallResult: null,
+  };
+
+  it("parses one valid stored row per variant into the closed union", () => {
+    expect(parseAcceptedGuideStepRow(storedBase).kind).toBe(
+      "CONCEPT_EXPLORATION",
+    );
+    expect(
+      parseAcceptedGuideStepRow({
+        ...storedBase,
+        stepKey: "recall",
+        order: 2,
+        kind: "ACTIVE_RECALL",
+        completionPolicy: "OBJECTIVE_RECALL",
+        conceptKey: null,
+        itemKey: "quiz-1",
+        selectedOptionKey: "opt-b",
+        recallResult: "CORRECT",
+      }).kind,
+    ).toBe("ACTIVE_RECALL");
+    expect(
+      parseAcceptedGuideStepRow({
+        ...storedBase,
+        stepKey: "practica",
+        order: 3,
+        kind: "CATALOG_PRACTICE",
+        completionPolicy: "CATALOG_PRACTICE_CONFIRMATION",
+        conceptKey: null,
+        exerciseKey: "respiracion-1",
+      }).kind,
+    ).toBe("CATALOG_PRACTICE");
+    expect(
+      parseAcceptedGuideStepRow({
+        ...storedBase,
+        stepKey: "confirma",
+        order: 4,
+        kind: "EXPLICIT_CONFIRMATION",
+        conceptKey: null,
+        confirmationKey: "pausa-hecha",
+      }).kind,
+    ).toBe("EXPLICIT_CONFIRMATION");
+  });
+
+  it("rejects stored rows whose columns drifted from their variant", () => {
+    const bad: Array<[string, StoredGuideStepRow]> = [
+      ["policy drift", { ...storedBase, completionPolicy: "OBJECTIVE_RECALL" }],
+      ["missing target", { ...storedBase, conceptKey: null }],
+      ["extra target", { ...storedBase, exerciseKey: "extra" }],
+      [
+        "recall fields on a non-recall row",
+        { ...storedBase, selectedOptionKey: "opt-a" },
+      ],
+      ["unknown kind", { ...storedBase, kind: "SERVER_ACTION" }],
+      [
+        "recall with an invalid result",
+        {
+          ...storedBase,
+          kind: "ACTIVE_RECALL",
+          completionPolicy: "OBJECTIVE_RECALL",
+          conceptKey: null,
+          itemKey: "quiz-1",
+          selectedOptionKey: "opt-a",
+          recallResult: "MAYBE",
+        },
+      ],
+    ];
+    for (const [label, row] of bad) {
+      expect(() => parseAcceptedGuideStepRow(row), label).toThrow(
+        /GUIDE_STATE_INVALID_ROW/,
+      );
+    }
   });
 });

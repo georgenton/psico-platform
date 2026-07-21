@@ -707,6 +707,39 @@ suite("CC-7.4B · Guide SQL invariants (real PostgreSQL)", () => {
     ).rejects.toThrow(/GuideCommandReceipt_key_canonical/);
   });
 
+  // ── Receipt → session OWNERSHIP (composite FK, PR #590 closure §1) ──────
+
+  it("a receipt for the actor's OWN session is accepted; another user's session is REJECTED by the DB", async () => {
+    // U1 receipt → U1 session (rc-1..rc-5 above already prove acceptance).
+    // U2 receipt (valid shape, valid key) → U1's session: the composite FK
+    // (sessionId, userId) → GuideSession(id, userId) rejects it.
+    await expect(
+      insertReceipt({
+        id: "rown-1",
+        userId: U2,
+        idempotencyKey: key(40),
+        commandType: "CANCEL",
+        sessionId: "gs-active",
+      }),
+    ).rejects.toThrow(/GuideCommandReceipt_sessionId_userId_fkey/);
+    // Symmetric: U1 cannot link U2's session either — the sessionId cannot
+    // be relinked through another actor.
+    await expect(
+      insertReceipt({
+        id: "rown-2",
+        userId: U1,
+        idempotencyKey: key(41),
+        commandType: "SESSION_COMPLETE",
+        sessionId: "gs-anchored",
+      }),
+    ).rejects.toThrow(/GuideCommandReceipt_sessionId_userId_fkey/);
+    const { rows } = await pool.query(
+      `SELECT count(*)::int AS n FROM "GuideCommandReceipt"
+        WHERE id IN ('rown-1','rown-2')`,
+    );
+    expect(rows[0].n).toBe(0);
+  });
+
   // ── Account close: full cascade ──────────────────────────────────────────
 
   it("deleting the User cascades sessions, ledger and receipts", async () => {

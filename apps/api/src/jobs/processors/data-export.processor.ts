@@ -153,7 +153,7 @@ export class DataExportProcessor extends WorkerHost {
    * the JSON file is self-documenting.
    */
   private async buildPayload(userId: string) {
-    const [user, progress, subscription] = await Promise.all([
+    const [user, progress, subscription, guideSessions] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: userId },
         include: {
@@ -178,6 +178,15 @@ export class DataExportProcessor extends WorkerHost {
         orderBy: { completedAt: "asc" },
       }),
       this.prisma.subscription.findUnique({ where: { userId } }),
+      // CC-7.4B: the user's guided sessions + their accepted-step ledger.
+      // Catalog keys, states, timestamps and the objective result enum ONLY —
+      // never GuideCommandReceipt, idempotency keys or fingerprints (internal
+      // operation data, ADR 0019 §9).
+      this.prisma.guideSession.findMany({
+        where: { userId },
+        orderBy: { startedAt: "asc" },
+        include: { steps: { orderBy: { order: "asc" } } },
+      }),
     ]);
 
     if (!user) throw new Error(`User ${userId} not found during export`);
@@ -232,6 +241,26 @@ export class DataExportProcessor extends WorkerHost {
             createdAt: subscription.createdAt,
           }
         : null,
+      guideSessions: guideSessions.map((session) => ({
+        guideKey: session.guideKey,
+        guideVersion: session.guideVersion,
+        status: session.status,
+        editionId: session.editionId,
+        unitId: session.unitId,
+        startedAt: session.startedAt,
+        completedAt: session.completedAt,
+        cancelledAt: session.cancelledAt,
+        steps: session.steps.map((step) => ({
+          stepKey: step.stepKey,
+          kind: step.kind,
+          conceptKey: step.conceptKey,
+          itemKey: step.itemKey,
+          exerciseKey: step.exerciseKey,
+          confirmationKey: step.confirmationKey,
+          recallResult: step.recallResult,
+          acceptedAt: step.acceptedAt,
+        })),
+      })),
     };
   }
 }

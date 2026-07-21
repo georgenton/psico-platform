@@ -24,6 +24,15 @@ const FORBIDDEN: Array<[name: string, re: RegExp]> = [
   ["learningEvent delegate", /\blearningEvent\b/],
   ["LearningEventRepository", /\bLearningEventRepository\b/],
   ["GuideSession identifier", /\bGuideSession\b|\bguideSession\b/],
+  // CC-7.4B: the step ledger, the command receipts and the guide catalog are
+  // as forbidden as the session itself — the Map reads NONE of Guide.
+  ["GuideSessionStep identifier", /\bGuideSessionStep\b|\bguideSessionStep\b/],
+  [
+    "GuideCommandReceipt identifier",
+    /\bGuideCommandReceipt\b|\bguideCommandReceipt\b/,
+  ],
+  ["guide catalog naming", /guide[-_]?(catalog|definition|step|registry)/i],
+  ["import from the guide module", /from\s+"[^"]*\/guide[/"]/],
   // No \b prefix: camelCase like `buildLearningReadModel` must also trip it.
   ["learning read-model naming", /learning[-_]?(event|progress|read)/i],
   ["import from the learning module", /from\s+"[^"]*\/learning[/"]/],

@@ -3627,3 +3627,4 @@ export * from "./chapter-concepts";
 
 // ─── CC-7.1 — learning domain commands + server-constructed event records ─
 export * from "./learning-events";
+export * from "./guide";

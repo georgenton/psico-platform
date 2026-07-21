@@ -155,6 +155,8 @@ model User {
   diaryTextFeatures       DiaryTextFeature[]
   resonances              Resonance[]
   learningEvents          LearningEvent[]
+  guideSessions           GuideSession[]
+  guideCommandReceipts    GuideCommandReceipt[]
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -2475,4 +2477,146 @@ model LearningEvent {
   @@unique([userId, idempotencyKey])
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, kind])
+}
+
+// ─── CC-7.4B · Guide V1 (ADR 0019, approved via PR #589) ─────────────────────
+//
+// GuideSessionStep is the ONLY probative source of stepsCompleted (explicit
+// step ledger); GuideSession.stepsCompleted is a denormalized projection kept
+// in the SAME transaction by future CC-7.4C transitions, never accepted from
+// a client. GuideCommandReceipt is the transversal replay/conflict authority
+// for the five Guide commands. State/shape invariants live as SQL CHECK
+// constraints plus a partial unique (one ACTIVE session per user) in the
+// migration — Prisma cannot express them, the database enforces them.
+// No payload Json, no metadata, no free text, no transcript anywhere.
+
+enum GuideSessionStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum GuideStepKind {
+  CONCEPT_EXPLORATION
+  ACTIVE_RECALL
+  CATALOG_PRACTICE
+  EXPLICIT_CONFIRMATION
+}
+
+enum GuideStepCompletionPolicy {
+  EXPLICIT_CONFIRMATION
+  OBJECTIVE_RECALL
+  CATALOG_PRACTICE_CONFIRMATION
+}
+
+enum GuideStepRecallResult {
+  CORRECT
+  INCORRECT
+}
+
+enum GuideCommandType {
+  START
+  STEP_COMPLETE
+  STEP_RECALL
+  CANCEL
+  SESSION_COMPLETE
+}
+
+model GuideSession {
+  id           String             @id @default(cuid())
+  userId       String
+  guideKey     String
+  guideVersion Int
+  status       GuideSessionStatus @default(ACTIVE)
+
+  // Optional editorial anchor — all-or-nothing (SQL CHECK). Historical
+  // server-resolved ids: NO FK to content, so an editorial reshuffle can
+  // never silently delete session history.
+  editionId String?
+  unitId    String?
+
+  stepsCompleted Int     @default(0)
+  totalSteps     Int
+  currentStepKey String?
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  cancelledAt DateTime?
+
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  steps    GuideSessionStep[]
+  receipts GuideCommandReceipt[]
+
+  // Ownership target for the receipt composite FK (a receipt can only
+  // reference a session of ITS OWN user — DB-enforced, see migration).
+  @@unique([id, userId])
+  @@index([userId, status])
+  @@index([userId, startedAt])
+  @@index([guideKey, guideVersion])
+}
+
+model GuideSessionStep {
+  id               String                    @id @default(cuid())
+  sessionId        String
+  stepKey          String
+  order            Int
+  kind             GuideStepKind
+  completionPolicy GuideStepCompletionPolicy
+
+  // Exactly ONE target, coupled to `kind` by SQL CHECK (mirror of the
+  // discriminated union in @psico/types/guide.ts).
+  conceptKey      String?
+  itemKey         String?
+  exerciseKey     String?
+  confirmationKey String?
+
+  // ACTIVE_RECALL only (SQL CHECK): the chosen option + the SERVER-graded
+  // result. Enum, never the answer as text.
+  selectedOptionKey String?
+  recallResult      GuideStepRecallResult?
+
+  acceptedAt DateTime @default(now())
+
+  session GuideSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, stepKey])
+  @@unique([sessionId, order])
+  @@index([sessionId, acceptedAt])
+}
+
+model GuideCommandReceipt {
+  id             String           @id @default(cuid())
+  userId         String
+  // Canonical lowercase UUID (SQL CHECK + runtime canonicalization).
+  idempotencyKey String
+  commandType    GuideCommandType
+  // On START this is the session the command CREATED — result linkage, not
+  // part of START's input semantics (the fingerprint excludes it).
+  sessionId      String
+
+  stepKey String?
+
+  guideKey     String?
+  guideVersion Int?
+  editionId    String?
+  unitId       String?
+
+  conceptKey        String?
+  itemKey           String?
+  exerciseKey       String?
+  confirmationKey   String?
+  selectedOptionKey String?
+
+  semanticFingerprintVersion Int      @default(1)
+  semanticFingerprint        String
+  createdAt                  DateTime @default(now())
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Composite ownership FK: (sessionId, userId) → GuideSession(id, userId).
+  // The database itself forbids a receipt pointing at another user's session.
+  session GuideSession @relation(fields: [sessionId, userId], references: [id, userId], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@index([sessionId, commandType])
+  @@index([userId, createdAt])
 }

@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { LearningEventRecord } from "@psico/types";
+import { canonicalizeIdempotencyKey } from "../shared/idempotency-key";
 import type { ValidatedLearningEvent } from "./validated-learning-event";
 import {
   isSemanticallyEquivalent,
@@ -87,34 +88,18 @@ export class LearningEventStorageError extends Error {
 // ─── Idempotency-key canonicalization (fail-closed, ADR 0017 §3) ────────────
 
 /**
- * Internal branded type: proof that a key passed `canonicalizeIdempotencyKey`.
- * The insert and the unique lookup only accept this type, so an un-validated
- * string cannot reach the database through any code path in this file.
- */
-type CanonicalIdempotencyKey = string & {
-  readonly __canonicalIdempotencyKey: unique symbol;
-};
-
-/**
- * Same shape the CC-7.1 parsers enforce (learning-command-parser.ts): RFC
- * UUID, version 1–8, canonical variant. Case-insensitive on input; the
- * CANONICAL form is lowercase.
- */
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-/**
  * The repository does not trust its caller with the idempotency key: a valid
  * UUID in any casing is canonicalized to lowercase (CC-7.1 contract);
  * anything else — whitespace, arbitrary strings, non-strings — is rejected
- * BEFORE any DB access. Never silently normalizes a non-UUID, and never
- * mutates the caller's object.
+ * BEFORE any DB access. The shape/canonical definition is the SHARED helper
+ * (`shared/idempotency-key.ts`, extracted in CC-7.4B) — one regex for the
+ * learning writer and the Guide receipt repository; behavior unchanged.
  */
-function canonicalizeIdempotencyKey(raw: unknown): CanonicalIdempotencyKey {
-  if (typeof raw !== "string" || !UUID_RE.test(raw)) {
-    throw new LearningEventInvalidInputError();
-  }
-  return raw.toLowerCase() as CanonicalIdempotencyKey;
+function canonicalizeKey(raw: unknown) {
+  return canonicalizeIdempotencyKey(
+    raw,
+    () => new LearningEventInvalidInputError(),
+  );
 }
 
 interface StoredRow {
@@ -169,7 +154,7 @@ export class LearningEventRepository {
     db?: LearningEventDb,
   ): Promise<LearningEventInspection> {
     const client = db ?? this.prisma;
-    const idempotencyKey = canonicalizeIdempotencyKey(input.idempotencyKey);
+    const idempotencyKey = canonicalizeKey(input.idempotencyKey);
     if (TYPE_TO_KIND[input.type] === undefined) {
       throw new LearningEventInvalidInputError();
     }
@@ -217,7 +202,7 @@ export class LearningEventRepository {
     const client = db ?? this.prisma;
 
     // Fail-closed BEFORE any DB access — invalid inputs never round-trip.
-    const idempotencyKey = canonicalizeIdempotencyKey(input.idempotencyKey);
+    const idempotencyKey = canonicalizeKey(input.idempotencyKey);
     const kind = TYPE_TO_KIND[input.type];
     if (kind === undefined) {
       throw new LearningEventInvalidInputError();

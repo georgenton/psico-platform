@@ -453,6 +453,9 @@ importers:
       typescript:
         specifier: ^5.4.5
         version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@20.19.39)(happy-dom@15.11.7)(jsdom@25.0.1)(lightningcss@1.32.0)(terser@5.46.2)
 
   packages/crypto:
     dependencies:

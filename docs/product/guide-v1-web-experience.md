@@ -22,6 +22,12 @@ GUIDE_FINISH_REQUIRES_COMPLETE_SERVER_PROJECTION=true
 
 GUIDE_WEB_EMOTIONAL_INFERENCE=false
 GUIDE_WEB_MAP_WRITE=false
+
+GUIDE_RECOVERY_ACTOR_SCOPED=true
+GUIDE_RECOVERY_SCOPE_KIND=SHA256_SERVER_DERIVED
+GUIDE_RECOVERY_RAW_USER_ID_STORED=false
+GUIDE_RECOVERY_EMAIL_STORED=false
+GUIDE_CROSS_ACCOUNT_AUTO_START=false
 ```
 
 Consume la superficie HTTP de [guide-v1-http-surface.md](guide-v1-http-surface.md)
@@ -95,8 +101,39 @@ registro inválido se borra y la pantalla vuelve a la portada — sin auto-start
 Si el replay responde `GUIDE_SESSION_NOT_FOUND`, se borra la recuperación y se
 ofrece `Empezar de nuevo` como acción explícita.
 
-Nada de esto identifica a una persona: no hay `userId` en storage ni en
-ninguna petición.
+El recovery **no guarda identidad cruda**. Conserva un `actorScope` opaco
+derivado server-side que únicamente impide reutilizar el registro entre
+cuentas. Ver §3.0.
+
+### 3.0 El registro pertenece a UNA cuenta
+
+`GuideCommandReceipt` está aislado por `(userId, idempotencyKey)`, así que una
+start key creada por la cuenta A es una key **ausente** para la cuenta B.
+Reproducirla como B, en un navegador compartido, iniciaría una guía que B nunca
+pidió — y de paso **autocancelaría** la sesión `ACTIVE` legítima de B, porque
+un START fresco cierra la sesión activa anterior.
+
+Por eso el registro lleva un `actorScope`: un SHA-256 en base64url del `userId`,
+derivado en `apps/web/src/lib/guide-recovery-scope.server.ts` (marcado
+`server-only`, así que una importación desde cliente es un error de build).
+
+Lo que eso es y lo que no es:
+
+- **no** es una credencial ni una autorización — el JWT sigue autorizando cada
+  comando, y el scope no viaja al API;
+- **no** contiene el `userId`, el email ni ningún token;
+- **sí** particiona el recovery local: misma cuenta → mismo scope, cuentas
+  distintas → scopes distintos.
+
+La comparación ocurre **antes** de cualquier `createGuideSession`. Un scope
+ausente, mal formado, distinto, o un registro legacy anterior a este cambio, se
+tratan igual que un blob corrupto: se borra el registro, se devuelve `empty` y
+la pantalla muestra el inicio fresco. La autoridad es siempre el prop calculado
+server-side, nunca el scope leído de `localStorage`.
+
+Es un SHA-256 plano, no un KDF, y es deliberado: defiende contra reutilizar un
+registro entre cuentas, no contra alguien con el dispositivo — quien puede leer
+`localStorage` también puede leer la cookie de sesión.
 
 ### 3.1 El efecto no se protege con un flag de montaje
 

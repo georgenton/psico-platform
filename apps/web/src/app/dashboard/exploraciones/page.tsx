@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import type { JourneyListResponse } from "@psico/types";
 
-import { serverFetch } from "@/lib/api.server";
+import { redirect } from "next/navigation";
+
+import { getSessionUser, serverFetch } from "@/lib/api.server";
+import { deriveGuideRecoveryActorScope } from "@/lib/guide-recovery-scope.server";
 import { ExCard } from "@/components/dashboard/exploraciones/ExCard";
 import { ExFeaturedCard } from "@/components/dashboard/exploraciones/ExFeaturedCard";
 import { GuideEntryCard } from "@/components/dashboard/guide/GuideEntryCard";
@@ -23,6 +26,11 @@ export const dynamic = "force-dynamic";
  * `/journeys` failing cannot hide it.
  */
 export default async function ExploracionesPage() {
+  const user = getSessionUser();
+  if (!user) redirect("/login");
+  // The entry card only says "Continuar" for THIS account's own record.
+  const actorScope = deriveGuideRecoveryActorScope(user.userId);
+
   let data: JourneyListResponse | null = null;
   try {
     data = await serverFetch<JourneyListResponse>("/journeys");
@@ -47,7 +55,7 @@ export default async function ExploracionesPage() {
         reflexión. Cada experiencia dice por sí misma qué registra.
       </p>
 
-      <GuideEntryCard />
+      <GuideEntryCard actorScope={actorScope} />
 
       {featured ? (
         <>

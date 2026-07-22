@@ -112,7 +112,16 @@ function screenOf(state: PlayerState): Screen {
   return stepPresentationFor(s.currentStepKey) ? "step" : "unknown-step";
 }
 
-export function GuidePlayer() {
+export interface GuidePlayerProps {
+  /**
+   * Opaque partition derived server-side from the authenticated user. The
+   * AUTHORITY on who this browser is right now — never read back from storage,
+   * because a record written by another account would then vouch for itself.
+   */
+  actorScope: string;
+}
+
+export function GuidePlayer({ actorScope }: GuidePlayerProps) {
   const [state, setState] = useState<PlayerState>(INITIAL);
   const [choice, setChoice] = useState<GuideOptionKeyWeb | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -147,6 +156,23 @@ export function GuidePlayer() {
    * Replay the stored START. Returns the session the server currently has for
    * that idempotency key — this is the ONLY way the browser learns state.
    */
+  /** Every record this component writes is stamped with the CURRENT actor. */
+  const recordFor = useCallback(
+    (
+      fields: Omit<
+        GuideRecoveryRecord,
+        "schemaVersion" | "actorScope" | "guideKey" | "guideVersion"
+      >,
+    ): GuideRecoveryRecord => ({
+      schemaVersion: 1,
+      actorScope,
+      guideKey: GUIDE_KEY,
+      guideVersion: GUIDE_VERSION,
+      ...fields,
+    }),
+    [actorScope],
+  );
+
   const replayStart = useCallback(
     async (record: GuideRecoveryRecord): Promise<GuideSessionView> => {
       const res = await guideApi.createGuideSession({
@@ -199,13 +225,10 @@ export function GuidePlayer() {
       patch({ busy: true, error: null, retry: null });
       try {
         const res = await invoke(command);
-        const settled: GuideRecoveryRecord = {
-          schemaVersion: 1,
-          guideKey: GUIDE_KEY,
-          guideVersion: GUIDE_VERSION,
+        const settled = recordFor({
           startIdempotencyKey: record.startIdempotencyKey,
           sessionId: res.session.sessionId,
-        };
+        });
         remember(settled);
         setChoice(null);
         patch({
@@ -221,13 +244,10 @@ export function GuidePlayer() {
           // START key — never by inventing a different command.
           try {
             const session = await replayStart(record);
-            const settled: GuideRecoveryRecord = {
-              schemaVersion: 1,
-              guideKey: GUIDE_KEY,
-              guideVersion: GUIDE_VERSION,
+            const settled = recordFor({
               startIdempotencyKey: record.startIdempotencyKey,
               sessionId: session.sessionId,
-            };
+            });
             remember(settled);
             setChoice(null);
             patch({
@@ -289,7 +309,7 @@ export function GuidePlayer() {
         patch({ busy: false, error: uiError, retry: null });
       }
     },
-    [invoke, patch, remember, replayStart],
+    [invoke, patch, recordFor, remember, replayStart],
   );
 
   /**
@@ -371,13 +391,10 @@ export function GuidePlayer() {
         return;
       }
 
-      const settled: GuideRecoveryRecord = {
-        schemaVersion: 1,
-        guideKey: GUIDE_KEY,
-        guideVersion: GUIDE_VERSION,
+      const settled = recordFor({
         startIdempotencyKey: record.startIdempotencyKey,
         sessionId: session.sessionId,
-      };
+      });
 
       if (command.sessionId !== session.sessionId) {
         // The command belongs to another session. Drop it — never re-aim it.
@@ -393,7 +410,7 @@ export function GuidePlayer() {
       patch({ session, record: settled });
       await dispatch(command, settled);
     },
-    [blockOnStorage, dispatch, patch, remember, replayStart],
+    [blockOnStorage, dispatch, patch, recordFor, remember, replayStart],
   );
 
   // ── Mount: recover, never auto-start ──────────────────────────────────────
@@ -403,7 +420,7 @@ export function GuidePlayer() {
   // START replay is idempotent, so two requests with the SAME key are strictly
   // better than a frozen screen. `cancelled` only discards THIS setup's answer.
   useEffect(() => {
-    const read = readGuideRecovery();
+    const read = readGuideRecovery(actorScope);
     if (read.state === "unavailable") {
       blockOnStorage();
       return;
@@ -427,14 +444,11 @@ export function GuidePlayer() {
         // this run — so it is dropped, not guessed at.
         const bound = pending ? pending.sessionId === session.sessionId : false;
 
-        const settled: GuideRecoveryRecord = {
-          schemaVersion: 1,
-          guideKey: GUIDE_KEY,
-          guideVersion: GUIDE_VERSION,
+        const settled = recordFor({
           startIdempotencyKey: record.startIdempotencyKey,
           sessionId: session.sessionId,
           ...(pending && bound ? { pendingCommand: pending } : {}),
-        };
+        });
         if (!remember(settled)) {
           blockOnStorage();
           return;
@@ -476,7 +490,15 @@ export function GuidePlayer() {
     return () => {
       cancelled = true;
     };
-  }, [blockOnStorage, dispatch, patch, remember, replayStart]);
+  }, [
+    actorScope,
+    blockOnStorage,
+    dispatch,
+    patch,
+    recordFor,
+    remember,
+    replayStart,
+  ]);
 
   // Move focus to the heading after a transition so a screen reader announces
   // the new step instead of leaving the user on a button that is now gone.
@@ -498,12 +520,7 @@ export function GuidePlayer() {
       });
       return;
     }
-    const record = remember({
-      schemaVersion: 1,
-      guideKey: GUIDE_KEY,
-      guideVersion: GUIDE_VERSION,
-      startIdempotencyKey: idempotencyKey,
-    });
+    const record = remember(recordFor({ startIdempotencyKey: idempotencyKey }));
     // The key must be readable again before the request exists, not after.
     if (!record) {
       blockOnStorage();
@@ -512,7 +529,7 @@ export function GuidePlayer() {
 
     patch({ busy: true, error: null, retry: null, record });
     await runStart(record);
-  }, [blockOnStorage, patch, remember, runStart]);
+  }, [blockOnStorage, patch, recordFor, remember, runStart]);
 
   const restart = useCallback(() => {
     clearGuideRecovery();

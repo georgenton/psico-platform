@@ -10,8 +10,20 @@ import type { JourneyListResponse } from "@psico/types";
  * Journey list or the Journey components.
  */
 
-const { serverFetch } = vi.hoisted(() => ({ serverFetch: vi.fn() }));
-vi.mock("@/lib/api.server", () => ({ serverFetch }));
+const { serverFetch, getSessionUser, deriveGuideRecoveryActorScope } =
+  vi.hoisted(() => ({
+    serverFetch: vi.fn(),
+    getSessionUser: vi.fn(),
+    deriveGuideRecoveryActorScope: vi.fn(),
+  }));
+
+// Both modules are `server-only`, which throws when a test environment pulls
+// it in. Mocking them is also what lets us assert the wiring: the page must
+// derive the scope from the SESSION user, never from anything client-side.
+vi.mock("@/lib/api.server", () => ({ serverFetch, getSessionUser }));
+vi.mock("@/lib/guide-recovery-scope.server", () => ({
+  deriveGuideRecoveryActorScope,
+}));
 
 import ExploracionesPage from "./page";
 
@@ -29,9 +41,18 @@ async function renderPage() {
   render(await ExploracionesPage());
 }
 
+const SCOPE_A = "A".repeat(43);
+
 beforeEach(() => {
   window.localStorage.clear();
   vi.clearAllMocks();
+  getSessionUser.mockReturnValue({
+    userId: "u_1",
+    email: "a@example.test",
+    role: "USER",
+    plan: "FREE",
+  });
+  deriveGuideRecoveryActorScope.mockReturnValue(SCOPE_A);
 });
 
 describe("ExploracionesPage", () => {
@@ -82,6 +103,16 @@ describe("ExploracionesPage", () => {
     // The guide is its own product: it never wears the journey tag.
     const guideCard = screen.getByText("Guía breve").closest(".card");
     expect(guideCard?.textContent).not.toContain("Recorrido sugerido");
+  });
+
+  it("derives the guide's actor scope from the session user", async () => {
+    serverFetch.mockResolvedValue({ journeys: [] });
+    await renderPage();
+
+    expect(deriveGuideRecoveryActorScope).toHaveBeenCalledWith("u_1");
+    // The raw id stays server-side: it must not appear in the markup.
+    expect(document.body.innerHTML).not.toContain("u_1");
+    expect(document.body.innerHTML).not.toContain("a@example.test");
   });
 
   it("does not claim every experience feeds the emotional map", async () => {

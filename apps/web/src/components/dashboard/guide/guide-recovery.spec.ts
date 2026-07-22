@@ -20,9 +20,12 @@ import {
 const KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const OTHER_KEY = "bbbbbbbb-bbbb-4bbb-9bbb-bbbbbbbbbbbb";
 const SESSION = "cmb0abc1234567890";
+const SCOPE_A = "A".repeat(43);
+const SCOPE_B = "B".repeat(43);
 
 const validRecord: GuideRecoveryRecord = {
   schemaVersion: 1,
+  actorScope: SCOPE_A,
   guideKey: "eec-c1-cuerpo-antes-que-mente",
   guideVersion: 1,
   startIdempotencyKey: KEY,
@@ -42,59 +45,119 @@ describe("storage key", () => {
 
 describe("parseGuideRecoveryRecord", () => {
   it("accepts the exact shape and rebuilds it field by field", () => {
-    const parsed = parseGuideRecoveryRecord({ ...validRecord });
+    const parsed = parseGuideRecoveryRecord({ ...validRecord }, SCOPE_A);
     expect(parsed).toEqual(validRecord);
   });
 
   it("rejects anything that is not a plain object", () => {
     for (const bad of [null, undefined, 7, "x", [], new Date()]) {
-      expect(parseGuideRecoveryRecord(bad)).toBeNull();
+      expect(parseGuideRecoveryRecord(bad, SCOPE_A)).toBeNull();
     }
   });
 
   it("rejects an extra key", () => {
     expect(
-      parseGuideRecoveryRecord({ ...validRecord, userId: "someone" }),
+      parseGuideRecoveryRecord({ ...validRecord, userId: "someone" }, SCOPE_A),
     ).toBeNull();
   });
 
   it("rejects a wrong schema version, guide or version", () => {
     expect(
-      parseGuideRecoveryRecord({ ...validRecord, schemaVersion: 2 }),
+      parseGuideRecoveryRecord({ ...validRecord, schemaVersion: 2 }, SCOPE_A),
     ).toBeNull();
     expect(
-      parseGuideRecoveryRecord({ ...validRecord, guideKey: "otra-guia" }),
+      parseGuideRecoveryRecord(
+        { ...validRecord, guideKey: "otra-guia" },
+        SCOPE_A,
+      ),
     ).toBeNull();
     expect(
-      parseGuideRecoveryRecord({ ...validRecord, guideVersion: 2 }),
+      parseGuideRecoveryRecord({ ...validRecord, guideVersion: 2 }, SCOPE_A),
     ).toBeNull();
   });
 
   it("rejects a malformed idempotency key", () => {
     for (const bad of ["", "not-a-uuid", 123, `${KEY}-extra`]) {
       expect(
-        parseGuideRecoveryRecord({ ...validRecord, startIdempotencyKey: bad }),
+        parseGuideRecoveryRecord(
+          { ...validRecord, startIdempotencyKey: bad },
+          SCOPE_A,
+        ),
       ).toBeNull();
     }
   });
 
   it("rejects a session id with whitespace or control characters", () => {
     expect(
-      parseGuideRecoveryRecord({ ...validRecord, sessionId: "with space" }),
+      parseGuideRecoveryRecord(
+        { ...validRecord, sessionId: "with space" },
+        SCOPE_A,
+      ),
     ).toBeNull();
     expect(
-      parseGuideRecoveryRecord({ ...validRecord, sessionId: "" }),
+      parseGuideRecoveryRecord({ ...validRecord, sessionId: "" }, SCOPE_A),
     ).toBeNull();
     expect(
-      parseGuideRecoveryRecord({ ...validRecord, sessionId: SESSION }),
+      parseGuideRecoveryRecord({ ...validRecord, sessionId: SESSION }, SCOPE_A),
     ).toEqual({ ...validRecord, sessionId: SESSION });
   });
 
+  it("rejects a record written by another account", () => {
+    // The whole point: A's start key is ABSENT for B on the server, so
+    // replaying it as B would start a guide B never asked for.
+    expect(
+      parseGuideRecoveryRecord(
+        { ...validRecord, actorScope: SCOPE_B },
+        SCOPE_A,
+      ),
+    ).toBeNull();
+  });
+
+  it("rejects a missing or malformed scope, and a legacy record", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropping the scope IS the case
+    const { actorScope: _dropped, ...legacy } = validRecord;
+    expect(parseGuideRecoveryRecord(legacy, SCOPE_A)).toBeNull();
+    for (const bad of [
+      "",
+      "too-short",
+      "A".repeat(42),
+      "A".repeat(44),
+      "A/B",
+    ]) {
+      expect(
+        parseGuideRecoveryRecord({ ...validRecord, actorScope: bad }, SCOPE_A),
+      ).toBeNull();
+    }
+    // A caller with no usable scope gets nothing either.
+    expect(parseGuideRecoveryRecord({ ...validRecord }, "")).toBeNull();
+  });
+
+  it("rejects any record carrying raw identity", () => {
+    for (const field of [
+      "userId",
+      "email",
+      "accessToken",
+      "refreshToken",
+      "jwt",
+    ]) {
+      expect(
+        parseGuideRecoveryRecord(
+          { ...validRecord, [field]: "whatever" },
+          SCOPE_A,
+        ),
+        field,
+      ).toBeNull();
+    }
+  });
+
   it("keeps the START key when the pending command is unreadable", () => {
-    const parsed = parseGuideRecoveryRecord({
-      ...validRecord,
-      pendingCommand: { commandType: "NOPE" },
-    });
+    const parsed = parseGuideRecoveryRecord(
+      {
+        ...validRecord,
+        pendingCommand: { commandType: "NOPE" },
+      },
+      SCOPE_A,
+    );
     expect(parsed).toEqual(validRecord);
     expect(parsed?.pendingCommand).toBeUndefined();
   });
@@ -227,14 +290,14 @@ describe("parsePendingGuideCommand", () => {
 
 describe("readGuideRecovery", () => {
   it("reports 'empty' when nothing is stored", () => {
-    expect(readGuideRecovery()).toEqual({ state: "empty" });
-    expect(guideRecoveryState()).toBe("empty");
+    expect(readGuideRecovery(SCOPE_A)).toEqual({ state: "empty" });
+    expect(guideRecoveryState(SCOPE_A)).toBe("empty");
   });
 
   it("drops and clears a corrupt blob without throwing", () => {
     window.localStorage.setItem(GUIDE_STORAGE_KEY, "{not json");
-    expect(() => readGuideRecovery()).not.toThrow();
-    expect(readGuideRecovery()).toEqual({ state: "empty" });
+    expect(() => readGuideRecovery(SCOPE_A)).not.toThrow();
+    expect(readGuideRecovery(SCOPE_A)).toEqual({ state: "empty" });
     expect(window.localStorage.getItem(GUIDE_STORAGE_KEY)).toBeNull();
   });
 
@@ -243,7 +306,7 @@ describe("readGuideRecovery", () => {
       GUIDE_STORAGE_KEY,
       JSON.stringify({ ...validRecord, userId: "someone" }),
     );
-    expect(readGuideRecovery()).toEqual({ state: "empty" });
+    expect(readGuideRecovery(SCOPE_A)).toEqual({ state: "empty" });
     expect(window.localStorage.getItem(GUIDE_STORAGE_KEY)).toBeNull();
   });
 
@@ -251,13 +314,13 @@ describe("readGuideRecovery", () => {
     expect(writeGuideRecovery({ ...validRecord, sessionId: SESSION })).toEqual({
       ok: true,
     });
-    expect(readGuideRecovery()).toEqual({
+    expect(readGuideRecovery(SCOPE_A)).toEqual({
       state: "valid",
       record: { ...validRecord, sessionId: SESSION },
     });
-    expect(guideRecoveryState()).toBe("valid");
+    expect(guideRecoveryState(SCOPE_A)).toBe("valid");
     clearGuideRecovery();
-    expect(readGuideRecovery()).toEqual({ state: "empty" });
+    expect(readGuideRecovery(SCOPE_A)).toEqual({ state: "empty" });
   });
 
   it("reports 'unavailable' — NOT 'empty' — when reading throws", () => {
@@ -269,8 +332,8 @@ describe("readGuideRecovery", () => {
       .mockImplementation(() => {
         throw new Error("denied");
       });
-    expect(readGuideRecovery()).toEqual({ state: "unavailable" });
-    expect(guideRecoveryState()).toBe("unavailable");
+    expect(readGuideRecovery(SCOPE_A)).toEqual({ state: "unavailable" });
+    expect(guideRecoveryState(SCOPE_A)).toBe("unavailable");
     spy.mockRestore();
   });
 });

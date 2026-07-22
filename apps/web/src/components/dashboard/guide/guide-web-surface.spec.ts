@@ -18,6 +18,12 @@ import { describe, expect, it } from "vitest";
  *   GUIDE_WEB_USER_ID_REQUEST_FIELDS=0
  *   GUIDE_WEB_EDITORIAL_CONTEXT_REQUEST_FIELDS=0
  *   GUIDE_WEB_RESULT_REQUEST_FIELDS=0
+ *   GUIDE_RECOVERY_ACTOR_SCOPE_REQUIRED=true
+ *   GUIDE_RECOVERY_RAW_USER_ID_FIELDS=0
+ *   GUIDE_RECOVERY_EMAIL_FIELDS=0
+ *   GUIDE_RECOVERY_TOKEN_FIELDS=0
+ *   GUIDE_RECOVERY_SCOPE_SENT_TO_API=false
+ *   GUIDE_CROSS_ACCOUNT_AUTO_START_CALLS=0
  */
 
 const GUIDE_DIR = __dirname;
@@ -136,10 +142,51 @@ describe("ratchet · guide web surface", () => {
     }
   });
 
+  it("binds the recovery record to an actor scope, and only to a scope", () => {
+    const recovery = readFileSync(join(GUIDE_DIR, "guide-recovery.ts"), "utf8");
+    // GUIDE_RECOVERY_ACTOR_SCOPE_REQUIRED=true — the parser cannot be called
+    // without an expected scope, and the record declares one.
+    expect(recovery).toMatch(/actorScope: string;/);
+    expect(recovery).toMatch(/expectedActorScope: string/);
+    expect(recovery).toMatch(/value\.actorScope !== expectedActorScope/);
+
+    // GUIDE_RECOVERY_RAW_USER_ID_FIELDS=0 · EMAIL=0 · TOKEN=0
+    const source = stripComments(recovery);
+    for (const forbidden of [
+      "userId",
+      "email",
+      "accessToken",
+      "refreshToken",
+      "jwt",
+    ]) {
+      expect(source.includes(forbidden), forbidden).toBe(false);
+    }
+  });
+
+  it("derives the scope server-side and never sends it to the API", () => {
+    const scopeModule = readFileSync(
+      join(WEB_SRC, "lib", "guide-recovery-scope.server.ts"),
+      "utf8",
+    );
+    // `server-only` is what makes a client import a BUILD error, not a review
+    // comment — the raw user id can never cross the boundary.
+    expect(scopeModule).toMatch(/^import "server-only";/m);
+    expect(scopeModule).toMatch(/createHash\("sha256"\)/);
+
+    // GUIDE_RECOVERY_SCOPE_SENT_TO_API=false — the player passes the scope to
+    // storage helpers only; no guideApi call carries it.
+    const player = readFileSync(join(GUIDE_DIR, "GuidePlayer.tsx"), "utf8");
+    for (const call of [
+      ...player.matchAll(/guideApi\.[a-zA-Z]+\(([^;]*?)\);/g),
+    ]) {
+      expect(call[1]).not.toContain("actorScope");
+    }
+  });
+
   it("the guide never enters the Journey list or its components", () => {
     const page = readFileSync(join(EXPLORACIONES_DIR, "page.tsx"), "utf8");
     // The guide card is rendered on its own, not through a journey component.
-    expect(page).toMatch(/<GuideEntryCard\s*\/>/);
+    expect(page).toMatch(/<GuideEntryCard\s+actorScope=\{actorScope\}\s*\/>/);
     expect(page).not.toMatch(/journeys\.(push|concat|unshift)/);
     expect(page).not.toMatch(/ExFeaturedCard\s+journey=\{\s*guide/);
   });

@@ -21,14 +21,21 @@ import { guideRecoveryState } from "./guide-recovery";
  * There is no progress bar. We could not fill one without a GET, and drawing
  * an empty or invented one would be worse than drawing none.
  */
-export function GuideEntryCard() {
+export interface GuideEntryCardProps {
+  /** Opaque partition derived server-side — see `guide-recovery-scope.server`. */
+  actorScope: string;
+}
+
+export function GuideEntryCard({ actorScope }: GuideEntryCardProps) {
   const [storage, setStorage] = useState<"empty" | "valid" | "unavailable">(
     "empty",
   );
 
   useEffect(() => {
-    setStorage(guideRecoveryState());
-  }, []);
+    // A record belonging to another account reads as `empty`, so the CTA says
+    // "Empezar" — promising to continue someone else's run would be a lie.
+    setStorage(guideRecoveryState(actorScope));
+  }, [actorScope]);
 
   const canResume = storage === "valid";
 

@@ -22,8 +22,11 @@ import {
  * BEFORE the request leaves, so a timeout can be retried with the SAME key.
  * Either the original applied (replay) or it never did (created) — never twice.
  *
- * Nothing here identifies a person: no userId, no email, no session content.
- * Everything stored is a key this browser generated plus catalog identifiers.
+ * The record holds no raw identity: no userId, no email, no token, no session
+ * content. It does carry an OPAQUE `actorScope` derived server-side, whose only
+ * job is to stop one account's record from being replayed by another — a start
+ * key belongs to `(userId, idempotencyKey)` on the server, so replaying it as
+ * someone else would start a guide they never asked for.
  */
 
 const STORAGE_KEY = `psico.guide.${GUIDE_KEY}.v1`;
@@ -56,6 +59,8 @@ export type PendingGuideCommand =
 
 export interface GuideRecoveryRecord {
   schemaVersion: 1;
+  /** Opaque server-derived partition — never a userId, never a credential. */
+  actorScope: string;
   guideKey: typeof GUIDE_KEY;
   guideVersion: typeof GUIDE_VERSION;
   startIdempotencyKey: string;
@@ -65,12 +70,20 @@ export interface GuideRecoveryRecord {
 
 const RECORD_KEYS = [
   "schemaVersion",
+  "actorScope",
   "guideKey",
   "guideVersion",
   "startIdempotencyKey",
   "sessionId",
   "pendingCommand",
 ] as const;
+
+/** SHA-256 in base64url — exactly what `deriveGuideRecoveryActorScope` emits. */
+const ACTOR_SCOPE_RE = /^[A-Za-z0-9_-]{43}$/;
+
+function isActorScope(value: unknown): value is string {
+  return typeof value === "string" && ACTOR_SCOPE_RE.test(value);
+}
 
 /** Canonical UUID, versions 1-8 — the shape the API accepts. */
 const UUID_RE =
@@ -189,16 +202,24 @@ export function parsePendingGuideCommand(
  */
 export function parseGuideRecoveryRecord(
   value: unknown,
+  expectedActorScope: string,
 ): GuideRecoveryRecord | null {
   if (!isPlainObject(value)) return null;
   if (!hasOnlyKeys(value, RECORD_KEYS)) return null;
   if (value.schemaVersion !== 1) return null;
+  // The scope check comes BEFORE anything else usable: a record written by
+  // another account (or by a build that predates scoping, which has no scope
+  // at all) must never become a START. Same failure as a corrupt blob.
+  if (!isActorScope(expectedActorScope)) return null;
+  if (!isActorScope(value.actorScope)) return null;
+  if (value.actorScope !== expectedActorScope) return null;
   if (value.guideKey !== GUIDE_KEY) return null;
   if (value.guideVersion !== GUIDE_VERSION) return null;
   if (!isUuid(value.startIdempotencyKey)) return null;
 
   const record: GuideRecoveryRecord = {
     schemaVersion: 1,
+    actorScope: expectedActorScope,
     guideKey: GUIDE_KEY,
     guideVersion: GUIDE_VERSION,
     startIdempotencyKey: value.startIdempotencyKey,
@@ -230,7 +251,9 @@ export type GuideRecoveryReadResult =
   | { state: "unavailable" };
 
 /** Read + validate. Never throws, even if `localStorage` is unavailable. */
-export function readGuideRecovery(): GuideRecoveryReadResult {
+export function readGuideRecovery(
+  expectedActorScope: string,
+): GuideRecoveryReadResult {
   let raw: string | null = null;
   try {
     raw = window.localStorage.getItem(STORAGE_KEY);
@@ -247,8 +270,10 @@ export function readGuideRecovery(): GuideRecoveryReadResult {
     return { state: "empty" };
   }
 
-  const record = parseGuideRecoveryRecord(parsed);
+  const record = parseGuideRecoveryRecord(parsed, expectedActorScope);
   if (!record) {
+    // Includes the cross-account case: another actor's record is dropped, not
+    // handed back, so the next screen is a fresh cover with no START in it.
     clearGuideRecovery();
     return { state: "empty" };
   }
@@ -282,9 +307,11 @@ export function clearGuideRecovery(): void {
 }
 
 /** For surfaces that only need to know whether a run can be resumed. */
-export function guideRecoveryState(): GuideRecoveryReadResult["state"] {
+export function guideRecoveryState(
+  expectedActorScope: string,
+): GuideRecoveryReadResult["state"] {
   if (typeof window === "undefined") return "empty";
-  return readGuideRecovery().state;
+  return readGuideRecovery(expectedActorScope).state;
 }
 
 /**

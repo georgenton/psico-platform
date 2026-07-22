@@ -26,6 +26,7 @@ import { EcoModule } from "./eco";
 import { LectorModule } from "./lector";
 import { ContentCoreModule } from "./content-core/content-core.module";
 import { LearningModule } from "./learning/learning.module";
+import { GuideModule } from "./guide/guide.module";
 import { PatronesModule } from "./patrones";
 import { EmotionalMapModule } from "./emotional-map";
 import { ResonancesModule } from "./resonances";
@@ -68,6 +69,7 @@ import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
     LectorModule, // Sprint S6 — /api/lector/*, /api/highlights/*, /api/annotations/*
     ContentCoreModule, // CC-6A — /api/content/* (read adapter, dual-read; lector untouched)
     LearningModule, // CC-7.3 — /api/learning/* domain commands + derived progress (ADR 0017)
+    GuideModule, // CC-7.4D — /api/guide/* session commands (ADR 0019)
     PatronesModule, // Sprint S10 — /api/patrones/* (Pro)
     EmotionalMapModule, // Sprint D — /api/emotional-map (radar driver)
     ResonancesModule, // Fase E (V2) — /api/resonances (ARC cycle)

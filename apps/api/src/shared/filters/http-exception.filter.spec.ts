@@ -14,9 +14,15 @@ import { HttpExceptionFilter } from "./http-exception.filter";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * A handler exception always comes from a route Express MATCHED, so the mock
+ * carries the template by default — that is what the filter reports. Pass
+ * `route: null` for the router-level 404, where no template exists.
+ */
 function makeHost(
   url = "/api/test",
   method = "GET",
+  route: string | null = url,
 ): {
   host: ArgumentsHost;
   status: ReturnType<typeof vi.fn>;
@@ -25,7 +31,7 @@ function makeHost(
   const json = vi.fn();
   const status = vi.fn().mockReturnValue({ json });
   const response = { status };
-  const request = { url, method };
+  const request = { url, method, ...(route ? { route: { path: route } } : {}) };
 
   const host = {
     switchToHttp: () => ({
@@ -159,6 +165,21 @@ describe("HttpExceptionFilter", () => {
         "statusCode",
         "timestamp",
       ]);
+    });
+
+    it("reports a constant for an UNMATCHED route — no client segment", () => {
+      const { host, json } = makeHost(
+        "/api/guide/sessions/cmb0real123/cancel?token=secret",
+        "POST",
+        null, // the router never matched: there is no template to report
+      );
+
+      filter.catch(new NotFoundException("x"), host);
+
+      const body = json.mock.calls[0][0];
+      expect(body.path).toBe("/api/:unmatched");
+      expect(body.path).not.toContain("cmb0real123");
+      expect(body.path).not.toContain("secret");
     });
   });
 });

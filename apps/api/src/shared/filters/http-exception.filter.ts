@@ -2,6 +2,7 @@ import type { ArgumentsHost, ExceptionFilter } from "@nestjs/common";
 import { Catch, HttpException, HttpStatus, Logger } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { captureException } from "../../observability/sentry";
+import { safeRequestPath } from "./safe-request-path";
 
 /**
  * Unified error envelope for the entire API.
@@ -43,25 +44,37 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const { statusCode, code, message, details } = this.normalize(exception);
+    const normalized = this.normalize(exception);
+    const { statusCode, code, details } = normalized;
+    // ONE sanitized value for every error surface: the matched route template,
+    // never the client's ids or query string (see `safe-request-path.ts`).
+    const path = safeRequestPath(request);
+
+    // When the ROUTER itself failed to match, the exception is Nest's own and
+    // its message is built from the raw URL ("Cannot POST /api/x/<id>?t=..."),
+    // which would re-introduce exactly what `path` was sanitized to remove.
+    // That message is not ours and says nothing the code doesn't: replace it.
+    const routeMatched =
+      typeof request.route?.path === "string" && request.route.path.length > 0;
+    const message = routeMatched ? normalized.message : code;
 
     // 5xx always logs full stack; 4xx is a user-error signal, log at warn level.
     if (statusCode >= 500) {
       this.logger.error(
-        `${request.method} ${request.url} → ${statusCode} ${code}: ${message}`,
+        `${request.method} ${path} → ${statusCode} ${code}: ${message}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
       // Surface to Sentry. 4xx are user-input issues — noise; 5xx is the
       // signal we actually want a triaging alert on.
       captureException(exception, {
         method: request.method,
-        path: request.url,
+        path,
         statusCode,
         code,
       });
     } else if (statusCode >= 400) {
       this.logger.warn(
-        `${request.method} ${request.url} → ${statusCode} ${code}: ${message}`,
+        `${request.method} ${path} → ${statusCode} ${code}: ${message}`,
       );
     }
 
@@ -71,7 +84,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message,
       ...(details !== undefined ? { details } : {}),
       timestamp: new Date().toISOString(),
-      path: request.url,
+      path,
     };
 
     response.status(statusCode).json(body);

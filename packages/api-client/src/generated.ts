@@ -2010,6 +2010,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guide/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Abre una sesión de un guideKey@guideVersion exacto; el contexto editorial lo deriva el servidor. */
+        post: operations["createGuideSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guide/sessions/{sessionId}/steps/{stepKey}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acepta el paso actual de tipo concepto / práctica / confirmación. */
+        post: operations["completeGuideSessionStep"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guide/sessions/{sessionId}/steps/{stepKey}/recall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acepta el paso de recall objetivo; el SERVIDOR califica la opción elegida y nunca devuelve la respuesta correcta. */
+        post: operations["submitGuideStepRecall"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guide/sessions/{sessionId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cierra la sesión como CANCELLED. No emite evento educativo. */
+        post: operations["cancelGuideSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guide/sessions/{sessionId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cierra la sesión como COMPLETED; exige el ledger completo de la versión fijada. */
+        post: operations["completeGuideSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/patrones": {
         parameters: {
             query?: never;
@@ -11508,6 +11593,607 @@ export interface operations {
             };
         };
     };
+    createGuideSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description Clave de idempotencia del cliente (UUID, cualquier casing).
+                     */
+                    idempotencyKey: string;
+                    /** @description Clave de la guía publicada. */
+                    guideKey: string;
+                    /** @description Versión EXACTA — la superficie nunca resuelve una «última». */
+                    guideVersion: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Esta llamada aplicó la transición (HTTP 201). */
+                        created: boolean;
+                        /** @description Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). */
+                        replayed: boolean;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsPostResponses200ContentApplicationJsonSessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                    };
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Esta llamada aplicó la transición (HTTP 201). */
+                        created: boolean;
+                        /** @description Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). */
+                        replayed: boolean;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsPostResponses201ContentApplicationJsonSessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    completeGuideSessionStep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+                stepKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description Clave de idempotencia del cliente (UUID, cualquier casing).
+                     */
+                    idempotencyKey: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Esta llamada aplicó la transición (HTTP 201). */
+                        created: boolean;
+                        /** @description Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). */
+                        replayed: boolean;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsSessionIdStepsStepKeyCompletePostResponses200ContentApplicationJsonSessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                    };
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Esta llamada aplicó la transición (HTTP 201). */
+                        created: boolean;
+                        /** @description Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). */
+                        replayed: boolean;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsSessionIdStepsStepKeyCompletePostResponses201ContentApplicationJsonSessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    submitGuideStepRecall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+                stepKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description Clave de idempotencia del cliente (UUID, cualquier casing).
+                     */
+                    idempotencyKey: string;
+                    /** @description La opción elegida del catálogo del ítem — el SERVIDOR la califica. `itemKey`, `result` y `evaluationSource` nunca se aceptan. */
+                    selectedOptionKey: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Esta llamada aplicó la transición (HTTP 201). */
+                        created: boolean;
+                        /** @description Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). */
+                        replayed: boolean;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsSessionIdStepsStepKeyRecallPostResponses200ContentApplicationJsonSessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                    };
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Esta llamada aplicó la transición (HTTP 201). */
+                        created: boolean;
+                        /** @description Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). */
+                        replayed: boolean;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsSessionIdStepsStepKeyRecallPostResponses201ContentApplicationJsonSessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    cancelGuideSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description Clave de idempotencia del cliente (UUID, cualquier casing).
+                     */
+                    idempotencyKey: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Esta llamada aplicó la transición (HTTP 201). */
+                        created: boolean;
+                        /** @description Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). */
+                        replayed: boolean;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsSessionIdCancelPostResponses200ContentApplicationJsonSessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                    };
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Esta llamada aplicó la transición (HTTP 201). */
+                        created: boolean;
+                        /** @description Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). */
+                        replayed: boolean;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsSessionIdCancelPostResponses201ContentApplicationJsonSessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    completeGuideSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description Clave de idempotencia del cliente (UUID, cualquier casing).
+                     */
+                    idempotencyKey: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Esta llamada aplicó la transición (HTTP 201). */
+                        created: boolean;
+                        /** @description Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). */
+                        replayed: boolean;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsSessionIdCompletePostResponses200ContentApplicationJsonSessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                    };
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Esta llamada aplicó la transición (HTTP 201). */
+                        created: boolean;
+                        /** @description Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). */
+                        replayed: boolean;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsSessionIdCompletePostResponses201ContentApplicationJsonSessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     PatronesController_getPatrones: {
         parameters: {
             query?: {
@@ -14985,6 +15671,56 @@ export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentA
 }
 export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf6Type {
     practice_completed = "practice_completed"
+}
+export enum PathsApiGuideSessionsPostResponses200ContentApplicationJsonSessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
+}
+export enum PathsApiGuideSessionsPostResponses201ContentApplicationJsonSessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
+}
+export enum PathsApiGuideSessionsSessionIdStepsStepKeyCompletePostResponses200ContentApplicationJsonSessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
+}
+export enum PathsApiGuideSessionsSessionIdStepsStepKeyCompletePostResponses201ContentApplicationJsonSessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
+}
+export enum PathsApiGuideSessionsSessionIdStepsStepKeyRecallPostResponses200ContentApplicationJsonSessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
+}
+export enum PathsApiGuideSessionsSessionIdStepsStepKeyRecallPostResponses201ContentApplicationJsonSessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
+}
+export enum PathsApiGuideSessionsSessionIdCancelPostResponses200ContentApplicationJsonSessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
+}
+export enum PathsApiGuideSessionsSessionIdCancelPostResponses201ContentApplicationJsonSessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
+}
+export enum PathsApiGuideSessionsSessionIdCompletePostResponses200ContentApplicationJsonSessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
+}
+export enum PathsApiGuideSessionsSessionIdCompletePostResponses201ContentApplicationJsonSessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
 }
 export enum PathsApiPatronesGetParametersQueryPeriod {
     Value30d = "30d",

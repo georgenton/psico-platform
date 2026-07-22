@@ -71,26 +71,11 @@ export interface CompletePracticeRequestBody {
 }
 
 /**
- * Editorial context is all-or-nothing: either the session starts without an
- * anchor, or it anchors a published unit (editionKey AND unitKey together).
- * A partial context is invalid.
+ * The Guide command contracts live in `./guide` (CC-7.4D). They are NOT here:
+ * a Guide session is started and advanced through the Guide surface, whose
+ * bodies never carry editorial context (SERVER_DERIVED_FROM_TARGETS). There is
+ * exactly one public authority per command.
  */
-export type CreateGuideSessionRequestBody =
-  | {
-      idempotencyKey: string;
-      editionKey?: never;
-      unitKey?: never;
-    }
-  | {
-      idempotencyKey: string;
-      editionKey: string;
-      unitKey: string;
-    };
-
-/** `stepsCompleted` is counted by the server from session state — never sent. */
-export interface CompleteGuideSessionRequestBody {
-  idempotencyKey: string;
-}
 
 // ─── Domain commands (route params + body, merged by the pure parsers) ───────
 
@@ -126,21 +111,6 @@ export type SubmitRecallAttemptCommand =
 export interface CompletePracticeCommand {
   idempotencyKey: string;
   exerciseKey: string;
-}
-
-export type CreateGuideSessionCommand =
-  | {
-      idempotencyKey: string;
-      context: null;
-    }
-  | {
-      idempotencyKey: string;
-      context: { editionKey: string; unitKey: string };
-    };
-
-export interface CompleteGuideSessionCommand {
-  idempotencyKey: string;
-  guideSessionId: string;
 }
 
 // ─── Persisted payloads (server-constructed — never read from the wire) ──────

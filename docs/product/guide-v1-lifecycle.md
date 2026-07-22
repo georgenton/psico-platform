@@ -1,9 +1,10 @@
 # Guide V1 — lifecycle interno de sesión (CC-7.4C)
 
 ```
-LIFECYCLE_IMPLEMENTATION_STATUS=IN_REVIEW
-LIFECYCLE_SURFACE=INTERNAL_ONLY
-HTTP_SURFACE_EXPOSED=false
+LIFECYCLE_IMPLEMENTATION_STATUS=MERGED_TO_DEVELOP
+GUIDE_LIFECYCLE_MERGE_SHA=7aec34606da5958db7932e8f57e82947abf9dbab
+HTTP_SURFACE_EXPOSED=true
+CC7_4D_STATUS=IN_REVIEW
 GUIDE_COUNTER_SOURCE=GUIDE_SESSION_STEP
 GUIDE_CONTEXT_POLICY=SERVER_DERIVED_FROM_TARGETS
 CLIENT_EDITORIAL_CONTEXT_ALLOWED=false
@@ -20,9 +21,9 @@ Es la contraparte de la definición aprobada en
 [guide-v1-first-definition.md](guide-v1-first-definition.md) y de
 [ADR 0019](../adr/0019-guide-session-step-source.md).
 
-> **No hay superficie HTTP.** `GuideLifecycleService` es `@Injectable` pero no
-> está registrado en `AppModule` y ningún controller lo expone. Nada de lo
-> descrito aquí es alcanzable desde un cliente todavía; eso es CC-7.4D.
+> **La superficie HTTP existe desde CC-7.4D** — ver
+> [guide-v1-http-surface.md](guide-v1-http-surface.md). Las garantías descritas
+> aquí no cambian: el controller traduce comandos y estados, no toma decisiones.
 
 ---
 
@@ -226,10 +227,10 @@ contenido que puede estar perfectamente bien.
 
 ## 10. Estado
 
-- `LIFECYCLE_IMPLEMENTATION_STATUS=IN_REVIEW` — implementado y probado contra
-  PostgreSQL real, pendiente de merge.
-- `HTTP_SURFACE_EXPOSED=false` — sin controller, sin OpenAPI, sin clientes, sin
-  registro en `AppModule`.
+- `LIFECYCLE_IMPLEMENTATION_STATUS=MERGED_TO_DEVELOP` — implementado, probado
+  contra PostgreSQL real y mergeado (`GUIDE_LIFECYCLE_MERGE_SHA`).
+- `HTTP_SURFACE_EXPOSED=true` — CC-7.4D expone los cinco comandos; el contrato
+  público vive en [guide-v1-http-surface.md](guide-v1-http-surface.md).
 - Ninguna ejecución tocó la base de producción.
-- Lo siguiente (CC-7.4D) es la superficie HTTP, que deberá mapear los ocho
-  códigos cerrados a estados HTTP sin ampliarlos.
+- CC-7.4D mapea los ocho códigos cerrados a estados HTTP **sin ampliarlos** y
+  añade dos códigos de parsing propios.

@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  parseCompleteGuideSessionCommand,
   parseCompletePracticeCommand,
   parseCompleteUnitCommand,
-  parseCreateGuideSessionCommand,
   parseExploreConceptCommand,
   parseOpenUnitCommand,
   parseSubmitRecallAttemptCommand,
@@ -52,14 +50,6 @@ const BODY_PARSERS: Array<{
   {
     name: "completePractice",
     parse: (b) => parseCompletePracticeCommand({ exerciseKey: "e-1" }, b),
-  },
-  {
-    name: "createGuideSession",
-    parse: (b) => parseCreateGuideSessionCommand(b),
-  },
-  {
-    name: "completeGuideSession",
-    parse: (b) => parseCompleteGuideSessionCommand({ id: "gs-1" }, b),
   },
 ];
 
@@ -139,40 +129,6 @@ describe("learning command parsers — happy paths", () => {
     expect(r).toEqual({
       ok: true,
       command: { idempotencyKey: UUID, exerciseKey: "respiracion-1" },
-    });
-  });
-
-  it("create guide session: no editorial context → context null", () => {
-    const r = parseCreateGuideSessionCommand({ idempotencyKey: UUID });
-    expect(r).toEqual({
-      ok: true,
-      command: { idempotencyKey: UUID, context: null },
-    });
-  });
-
-  it("create guide session: full context (editionKey AND unitKey)", () => {
-    const r = parseCreateGuideSessionCommand({
-      idempotencyKey: UUID,
-      editionKey: "familias-ensambladas-1e",
-      unitKey: "unit-abc",
-    });
-    expect(r).toEqual({
-      ok: true,
-      command: {
-        idempotencyKey: UUID,
-        context: { editionKey: "familias-ensambladas-1e", unitKey: "unit-abc" },
-      },
-    });
-  });
-
-  it("complete guide session: route id + idempotencyKey only", () => {
-    const r = parseCompleteGuideSessionCommand(
-      { id: "cmb0abc123" },
-      { idempotencyKey: UUID },
-    );
-    expect(r).toEqual({
-      ok: true,
-      command: { idempotencyKey: UUID, guideSessionId: "cmb0abc123" },
     });
   });
 
@@ -382,22 +338,6 @@ describe("privacy — the closed whitelist rejects every undeclared field", () =
       );
     }
   });
-
-  it("complete guide session: stepsCompleted/summary/transcript/result rejected", () => {
-    for (const field of [
-      { stepsCompleted: 7 },
-      { summary: "…" },
-      { transcript: "…" },
-      { result: "done" },
-    ]) {
-      expectInvalid(
-        parseCompleteGuideSessionCommand(
-          { id: "gs-1" },
-          { idempotencyKey: UUID, ...field },
-        ),
-      );
-    }
-  });
 });
 
 describe("recall attempt — exclusive union, server-owned result", () => {
@@ -492,35 +432,6 @@ describe("recall attempt — exclusive union, server-owned result", () => {
         selectedOptionKey: "option-a",
       }),
     );
-  });
-});
-
-describe("guide session create — all-or-nothing editorial context", () => {
-  it("editionKey without unitKey → invalid (and vice versa)", () => {
-    expectInvalid(
-      parseCreateGuideSessionCommand({
-        idempotencyKey: UUID,
-        editionKey: "familias-ensambladas-1e",
-      }),
-    );
-    expectInvalid(
-      parseCreateGuideSessionCommand({ idempotencyKey: UUID, unitKey: "u-1" }),
-    );
-  });
-
-  it("prompt/message/emotion/map/diary/eco fields rejected", () => {
-    for (const field of [
-      { prompt: "…" },
-      { message: "…" },
-      { emotion: "sad" },
-      { map: {} },
-      { diary: "…" },
-      { eco: "…" },
-    ]) {
-      expectInvalid(
-        parseCreateGuideSessionCommand({ idempotencyKey: UUID, ...field }),
-      );
-    }
   });
 });
 

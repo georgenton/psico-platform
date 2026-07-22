@@ -13355,6 +13355,1333 @@
         ]
       }
     },
+    "/api/guide/sessions": {
+      "post": {
+        "operationId": "createGuideSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "idempotencyKey",
+                  "guideKey",
+                  "guideVersion"
+                ],
+                "properties": {
+                  "idempotencyKey": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Clave de idempotencia del cliente (UUID, cualquier casing)."
+                  },
+                  "guideKey": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "Clave de la guía publicada."
+                  },
+                  "guideVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Versión EXACTA — la superficie nunca resuelve una «última»."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "created",
+                    "replayed",
+                    "session"
+                  ],
+                  "properties": {
+                    "created": {
+                      "type": "boolean",
+                      "description": "Esta llamada aplicó la transición (HTTP 201)."
+                    },
+                    "replayed": {
+                      "type": "boolean",
+                      "description": "Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200)."
+                    },
+                    "session": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "sessionId",
+                        "guideKey",
+                        "guideVersion",
+                        "status",
+                        "stepsCompleted",
+                        "totalSteps",
+                        "currentStepKey"
+                      ],
+                      "properties": {
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "guideKey": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "guideVersion": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ACTIVE",
+                            "COMPLETED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "stepsCompleted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
+                        },
+                        "totalSteps": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "currentStepKey": {
+                          "type": "string",
+                          "nullable": true,
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "created",
+                    "replayed",
+                    "session"
+                  ],
+                  "properties": {
+                    "created": {
+                      "type": "boolean",
+                      "description": "Esta llamada aplicó la transición (HTTP 201)."
+                    },
+                    "replayed": {
+                      "type": "boolean",
+                      "description": "Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200)."
+                    },
+                    "session": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "sessionId",
+                        "guideKey",
+                        "guideVersion",
+                        "status",
+                        "stepsCompleted",
+                        "totalSteps",
+                        "currentStepKey"
+                      ],
+                      "properties": {
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "guideKey": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "guideVersion": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ACTIVE",
+                            "COMPLETED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "stepsCompleted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
+                        },
+                        "totalSteps": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "currentStepKey": {
+                          "type": "string",
+                          "nullable": true,
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Abre una sesión de un guideKey@guideVersion exacto; el contexto editorial lo deriva el servidor.",
+        "tags": [
+          "Guide"
+        ]
+      }
+    },
+    "/api/guide/sessions/{sessionId}/steps/{stepKey}/complete": {
+      "post": {
+        "operationId": "completeGuideSessionStep",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stepKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "idempotencyKey"
+                ],
+                "properties": {
+                  "idempotencyKey": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Clave de idempotencia del cliente (UUID, cualquier casing)."
+                  }
+                },
+                "description": "`sessionId` y `stepKey` viajan solo como parámetros de ruta; los contadores de progreso los cuenta el servidor."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "created",
+                    "replayed",
+                    "session"
+                  ],
+                  "properties": {
+                    "created": {
+                      "type": "boolean",
+                      "description": "Esta llamada aplicó la transición (HTTP 201)."
+                    },
+                    "replayed": {
+                      "type": "boolean",
+                      "description": "Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200)."
+                    },
+                    "session": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "sessionId",
+                        "guideKey",
+                        "guideVersion",
+                        "status",
+                        "stepsCompleted",
+                        "totalSteps",
+                        "currentStepKey"
+                      ],
+                      "properties": {
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "guideKey": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "guideVersion": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ACTIVE",
+                            "COMPLETED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "stepsCompleted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
+                        },
+                        "totalSteps": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "currentStepKey": {
+                          "type": "string",
+                          "nullable": true,
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "created",
+                    "replayed",
+                    "session"
+                  ],
+                  "properties": {
+                    "created": {
+                      "type": "boolean",
+                      "description": "Esta llamada aplicó la transición (HTTP 201)."
+                    },
+                    "replayed": {
+                      "type": "boolean",
+                      "description": "Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200)."
+                    },
+                    "session": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "sessionId",
+                        "guideKey",
+                        "guideVersion",
+                        "status",
+                        "stepsCompleted",
+                        "totalSteps",
+                        "currentStepKey"
+                      ],
+                      "properties": {
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "guideKey": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "guideVersion": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ACTIVE",
+                            "COMPLETED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "stepsCompleted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
+                        },
+                        "totalSteps": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "currentStepKey": {
+                          "type": "string",
+                          "nullable": true,
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Acepta el paso actual de tipo concepto / práctica / confirmación.",
+        "tags": [
+          "Guide"
+        ]
+      }
+    },
+    "/api/guide/sessions/{sessionId}/steps/{stepKey}/recall": {
+      "post": {
+        "operationId": "submitGuideStepRecall",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stepKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "idempotencyKey",
+                  "selectedOptionKey"
+                ],
+                "properties": {
+                  "idempotencyKey": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Clave de idempotencia del cliente (UUID, cualquier casing)."
+                  },
+                  "selectedOptionKey": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "La opción elegida del catálogo del ítem — el SERVIDOR la califica. `itemKey`, `result` y `evaluationSource` nunca se aceptan."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "created",
+                    "replayed",
+                    "session"
+                  ],
+                  "properties": {
+                    "created": {
+                      "type": "boolean",
+                      "description": "Esta llamada aplicó la transición (HTTP 201)."
+                    },
+                    "replayed": {
+                      "type": "boolean",
+                      "description": "Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200)."
+                    },
+                    "session": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "sessionId",
+                        "guideKey",
+                        "guideVersion",
+                        "status",
+                        "stepsCompleted",
+                        "totalSteps",
+                        "currentStepKey"
+                      ],
+                      "properties": {
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "guideKey": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "guideVersion": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ACTIVE",
+                            "COMPLETED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "stepsCompleted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
+                        },
+                        "totalSteps": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "currentStepKey": {
+                          "type": "string",
+                          "nullable": true,
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "created",
+                    "replayed",
+                    "session"
+                  ],
+                  "properties": {
+                    "created": {
+                      "type": "boolean",
+                      "description": "Esta llamada aplicó la transición (HTTP 201)."
+                    },
+                    "replayed": {
+                      "type": "boolean",
+                      "description": "Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200)."
+                    },
+                    "session": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "sessionId",
+                        "guideKey",
+                        "guideVersion",
+                        "status",
+                        "stepsCompleted",
+                        "totalSteps",
+                        "currentStepKey"
+                      ],
+                      "properties": {
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "guideKey": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "guideVersion": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ACTIVE",
+                            "COMPLETED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "stepsCompleted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
+                        },
+                        "totalSteps": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "currentStepKey": {
+                          "type": "string",
+                          "nullable": true,
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Acepta el paso de recall objetivo; el SERVIDOR califica la opción elegida y nunca devuelve la respuesta correcta.",
+        "tags": [
+          "Guide"
+        ]
+      }
+    },
+    "/api/guide/sessions/{sessionId}/cancel": {
+      "post": {
+        "operationId": "cancelGuideSession",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "idempotencyKey"
+                ],
+                "properties": {
+                  "idempotencyKey": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Clave de idempotencia del cliente (UUID, cualquier casing)."
+                  }
+                },
+                "description": "`sessionId` y `stepKey` viajan solo como parámetros de ruta; los contadores de progreso los cuenta el servidor."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "created",
+                    "replayed",
+                    "session"
+                  ],
+                  "properties": {
+                    "created": {
+                      "type": "boolean",
+                      "description": "Esta llamada aplicó la transición (HTTP 201)."
+                    },
+                    "replayed": {
+                      "type": "boolean",
+                      "description": "Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200)."
+                    },
+                    "session": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "sessionId",
+                        "guideKey",
+                        "guideVersion",
+                        "status",
+                        "stepsCompleted",
+                        "totalSteps",
+                        "currentStepKey"
+                      ],
+                      "properties": {
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "guideKey": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "guideVersion": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ACTIVE",
+                            "COMPLETED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "stepsCompleted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
+                        },
+                        "totalSteps": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "currentStepKey": {
+                          "type": "string",
+                          "nullable": true,
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "created",
+                    "replayed",
+                    "session"
+                  ],
+                  "properties": {
+                    "created": {
+                      "type": "boolean",
+                      "description": "Esta llamada aplicó la transición (HTTP 201)."
+                    },
+                    "replayed": {
+                      "type": "boolean",
+                      "description": "Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200)."
+                    },
+                    "session": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "sessionId",
+                        "guideKey",
+                        "guideVersion",
+                        "status",
+                        "stepsCompleted",
+                        "totalSteps",
+                        "currentStepKey"
+                      ],
+                      "properties": {
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "guideKey": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "guideVersion": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ACTIVE",
+                            "COMPLETED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "stepsCompleted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
+                        },
+                        "totalSteps": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "currentStepKey": {
+                          "type": "string",
+                          "nullable": true,
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cierra la sesión como CANCELLED. No emite evento educativo.",
+        "tags": [
+          "Guide"
+        ]
+      }
+    },
+    "/api/guide/sessions/{sessionId}/complete": {
+      "post": {
+        "operationId": "completeGuideSession",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "idempotencyKey"
+                ],
+                "properties": {
+                  "idempotencyKey": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Clave de idempotencia del cliente (UUID, cualquier casing)."
+                  }
+                },
+                "description": "`sessionId` y `stepKey` viajan solo como parámetros de ruta; los contadores de progreso los cuenta el servidor."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "created",
+                    "replayed",
+                    "session"
+                  ],
+                  "properties": {
+                    "created": {
+                      "type": "boolean",
+                      "description": "Esta llamada aplicó la transición (HTTP 201)."
+                    },
+                    "replayed": {
+                      "type": "boolean",
+                      "description": "Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200)."
+                    },
+                    "session": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "sessionId",
+                        "guideKey",
+                        "guideVersion",
+                        "status",
+                        "stepsCompleted",
+                        "totalSteps",
+                        "currentStepKey"
+                      ],
+                      "properties": {
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "guideKey": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "guideVersion": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ACTIVE",
+                            "COMPLETED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "stepsCompleted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
+                        },
+                        "totalSteps": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "currentStepKey": {
+                          "type": "string",
+                          "nullable": true,
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "created",
+                    "replayed",
+                    "session"
+                  ],
+                  "properties": {
+                    "created": {
+                      "type": "boolean",
+                      "description": "Esta llamada aplicó la transición (HTTP 201)."
+                    },
+                    "replayed": {
+                      "type": "boolean",
+                      "description": "Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200)."
+                    },
+                    "session": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "sessionId",
+                        "guideKey",
+                        "guideVersion",
+                        "status",
+                        "stepsCompleted",
+                        "totalSteps",
+                        "currentStepKey"
+                      ],
+                      "properties": {
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "guideKey": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "guideVersion": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ACTIVE",
+                            "COMPLETED",
+                            "CANCELLED"
+                          ]
+                        },
+                        "stepsCompleted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
+                        },
+                        "totalSteps": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "currentStepKey": {
+                          "type": "string",
+                          "nullable": true,
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cierra la sesión como COMPLETED; exige el ledger completo de la versión fijada.",
+        "tags": [
+          "Guide"
+        ]
+      }
+    },
     "/api/patrones": {
       "get": {
         "operationId": "PatronesController_getPatrones",

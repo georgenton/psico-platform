@@ -11,7 +11,8 @@ GUIDE_EDITORIAL_APPROVAL_DATE=2026-07-21
 GUIDE_REGISTRY_STATUS=MERGED_TO_DEVELOP
 GUIDE_DEFINITION_MERGE_SHA=364a8b274aba7d4396320c27c9cf6484a76bb721
 GUIDE_CONTEXT_POLICY=SERVER_DERIVED_FROM_TARGETS
-CC7_4C_STATUS=IN_REVIEW
+CC7_4C_STATUS=CLOSED
+CC7_4D_STATUS=IN_REVIEW
 ```
 
 La mención `self-review` se conserva deliberadamente: fue una autorrevisión del
@@ -101,10 +102,10 @@ contra ese pin.
 - `GUIDE_REGISTRY_STATUS=MERGED_TO_DEVELOP` — la definición está en código
   (`PRODUCTION_GUIDE_DEFINITIONS`, 1 entrada), probada contra PostgreSQL real
   y mergeada en `develop` (`GUIDE_DEFINITION_MERGE_SHA`).
-- `CC7_4C_STATUS=IN_REVIEW` — el lifecycle interno de sesión ya está
+- `CC7_4C_STATUS=CLOSED` · `CC7_4D_STATUS=IN_REVIEW` — el lifecycle interno ya está
   implementado y probado (ver
   [guide-v1-lifecycle.md](guide-v1-lifecycle.md)); aplica la política de
   contexto derivado antes de crear cualquier sesión.
-- **Todavía no hay endpoints ni deploy.** No existe ninguna ruta HTTP de Guide
-  y ninguna ejecución tocó la base de producción. La superficie HTTP es
-  CC-7.4D.
+- **Todavía no hay deploy.** La superficie HTTP existe desde CC-7.4D
+  ([guide-v1-http-surface.md](guide-v1-http-surface.md)), pero ninguna
+  ejecución tocó la base de producción y no hay UI web ni mobile.

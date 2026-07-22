@@ -1,9 +1,7 @@
 import {
   RECALL_RESULTS,
-  type CompleteGuideSessionCommand,
   type CompletePracticeCommand,
   type CompleteUnitCommand,
-  type CreateGuideSessionCommand,
   type ExploreConceptCommand,
   type LearningCommandValidationCode,
   type OpenUnitCommand,
@@ -33,9 +31,7 @@ export type LearningCommandErrorField =
   | "exerciseKey"
   | "itemKey"
   | "selectedOptionKey"
-  | "selfResult"
-  | "editionKey"
-  | "guideSessionId";
+  | "selfResult";
 
 /** Closed union of static details — input values can never appear here. */
 export type LearningCommandErrorDetail =
@@ -46,8 +42,7 @@ export type LearningCommandErrorDetail =
   | "not_a_uuid"
   | "invalid_key"
   | "exactly_one_of_option_or_self_result"
-  | "not_in_enum"
-  | "partial_editorial_context";
+  | "not_in_enum";
 
 export interface LearningCommandError {
   code: LearningCommandValidationCode;
@@ -79,7 +74,7 @@ const UUID_RE =
 
 /**
  * Catalog keys / opaque ids (unitKey, conceptKey, exerciseKey, itemKey,
- * editionKey, selectedOptionKey, guide session id). Every real key in the
+ * selectedOptionKey). Every real key in the
  * system — Content Core uuidv5/slugs ("-1e", "cuv-…"), concept/exercise slugs
  * ("eec-cuerpo-antes-que-mente"), Prisma cuids — is a whitespace-free token,
  * so the rule is: non-empty string, NO whitespace at any position (Unicode
@@ -295,61 +290,6 @@ export function parseCompletePracticeCommand(
     command: {
       idempotencyKey: checked.idempotencyKey,
       exerciseKey: param.value,
-    },
-  };
-}
-
-export function parseCreateGuideSessionCommand(
-  body: unknown,
-): ParseResult<CreateGuideSessionCommand> {
-  const checked = checkBody(body, ["idempotencyKey", "editionKey", "unitKey"]);
-  if (!checked.ok) return checked;
-  const raw = checked.body;
-  const hasEdition = raw.editionKey !== undefined;
-  const hasUnit = raw.unitKey !== undefined;
-  if (hasEdition !== hasUnit) {
-    // Editorial context is all-or-nothing (contract §B).
-    return fail(INVALID, undefined, "partial_editorial_context");
-  }
-  if (!hasEdition) {
-    return {
-      ok: true,
-      command: {
-        idempotencyKey: checked.idempotencyKey,
-        context: null,
-      },
-    };
-  }
-  if (!isValidKey(raw.editionKey)) {
-    return fail(INVALID, "editionKey", "invalid_key");
-  }
-  if (!isValidKey(raw.unitKey)) {
-    return fail(INVALID, "unitKey", "invalid_key");
-  }
-  return {
-    ok: true,
-    command: {
-      idempotencyKey: checked.idempotencyKey,
-      context: { editionKey: raw.editionKey, unitKey: raw.unitKey },
-    },
-  };
-}
-
-export function parseCompleteGuideSessionCommand(
-  params: unknown,
-  body: unknown,
-): ParseResult<CompleteGuideSessionCommand> {
-  // `stepsCompleted` is server-counted (CC-7.4) — not in the whitelist, so a
-  // client declaring it dies as an unexpected field.
-  const param = readParamKey(params, "id", "guideSessionId");
-  if (!param.ok) return param;
-  const checked = checkBody(body, ["idempotencyKey"]);
-  if (!checked.ok) return checked;
-  return {
-    ok: true,
-    command: {
-      idempotencyKey: checked.idempotencyKey,
-      guideSessionId: param.value,
     },
   };
 }

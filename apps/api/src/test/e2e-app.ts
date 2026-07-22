@@ -164,8 +164,22 @@ export interface E2EHarness {
   resetMocks: () => Promise<void>;
 }
 
-export async function createE2EApp(): Promise<E2EHarness> {
-  const prisma = makePrismaMock();
+/**
+ * CC-7.4D — options for specs that need the REAL database.
+ *
+ * `prisma` swaps the mock for a live PrismaClient (an isolated test database),
+ * so a spec can exercise the full HTTP → controller → lifecycle → PostgreSQL
+ * path. Everything else in the harness (global prefix, pipes, filter, Redis
+ * mock) stays identical, so what is tested is still what production wires.
+ */
+export interface E2EAppOptions {
+  prisma?: unknown;
+}
+
+export async function createE2EApp(
+  options: E2EAppOptions = {},
+): Promise<E2EHarness> {
+  const prisma = (options.prisma ?? makePrismaMock()) as MockedPrisma;
   const redis = new RedisMock() as IoRedis;
 
   const moduleRef = await Test.createTestingModule({

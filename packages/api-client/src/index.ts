@@ -17,6 +17,9 @@ export { emotionalMapApi } from "./emotional-map";
 export { resonancesApi } from "./resonances";
 // CC-7.3 — learning domain commands + derived progress (ADR 0017).
 export { learningApi } from "./learning";
+
+// CC-7.4D — the five Guide V1 session commands (ADR 0019).
+export { guideApi } from "./guide";
 // Sprint D — GET /api/activity (Inicio timeline feed).
 export { activityApi } from "./activity";
 // Sprint E1 — GET /api/evolucion (stats + achievements for "Mi Evolución").

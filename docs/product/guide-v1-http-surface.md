@@ -123,14 +123,42 @@ ruta resuelta devuelve la **plantilla** que Express emparejó:
 /api/guide/sessions/:sessionId/steps/:stepKey/complete
 ```
 
-Para una ruta no resuelta (404 del router) descarta el query string y redacta
-cada segmento con forma de identificador. Así un 404 por sesión ajena no
-imprime el id de esa sesión, y los logs agregan por ruta y no por id.
+Para una ruta **no resuelta** (404 del router) no hay plantilla — y tampoco
+forma de distinguir una palabra fija de un valor, porque la tabla de rutas que
+podría hacerlo es justamente la que acaba de no emparejar. Una heurística por
+segmento fallaría abierta, así que el resultado es una **constante sin ninguna
+entrada del cliente**:
 
-Cubierto por `safe-request-path.spec.ts` (sanitizador puro) y por el E2E en los
-cuatro escenarios: 404 ajeno, 404 inexistente, 409 sobre un paso y un 500
-simulado — verificando en cada uno que ni el `sessionId` ni el `stepKey` reales
-aparecen en la respuesta, en la línea de log ni en el contexto de Sentry.
+```
+/api/:unmatched     ← la petición apuntaba al prefijo /api
+/:unmatched         ← cualquier otro caso
+```
+
+Además, cuando el router no empareja, el mensaje de la excepción lo construye
+Nest a partir de la URL cruda (`Cannot POST /api/guide/sessions/<id>/…?t=…`).
+Ese mensaje reintroduciría justo lo que el `path` quitó, así que el filtro lo
+sustituye por el código (`NOT_FOUND`). Las rutas resueltas conservan su mensaje.
+
+Cubierto por `safe-request-path.spec.ts` (sanitizador puro, incluidos
+`/api/x/12345`, `/api/x/alice`, `/api/x/%2Fsecret` y `/api/x/value?token=…`, que
+colapsan todos en la misma constante) y por el E2E en cinco escenarios: 404
+ajeno, 404 inexistente, 404 sin ruta, 409 sobre un paso y un 500 simulado —
+verificando en cada uno que ni el `sessionId` ni el `stepKey` reales aparecen en
+la respuesta, en la línea de log ni en el contexto de Sentry.
+
+### 4.2 El evento de Sentry no lleva la URL cruda
+
+`captureException(...)` manda el `path` seguro en `contexts.custom`, pero la
+instrumentación HTTP de Sentry adjunta por su cuenta `request.url` (y según la
+integración `query_string` y `data`) tomados de la petición sin sanitizar.
+Redactar cabeceras no basta: la URL **es** la fuga.
+
+`sanitizeSentryEvent(event)` — función pura en
+`apps/api/src/observability/sentry.ts`, cableada como `beforeSend` — conserva la
+redacción de cabeceras (`authorization`, `cookie`, `x-api-key`,
+`stripe-signature`) y **borra** `request.url`, `request.query_string` y
+`request.data`. No intenta reconstruir la plantilla: en `beforeSend` ya no queda
+contexto de Express, y el valor útil para triage viaja en `contexts.custom.path`.
 
 ## 5. OpenAPI y cliente
 

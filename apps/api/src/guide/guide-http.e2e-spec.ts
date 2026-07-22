@@ -654,6 +654,36 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
       assertNoLeak([sessionId, STEP_PRACTICE, STEP_CONCEPT, k]);
     });
 
+    it("404 · an UNMATCHED route reports a constant, not the segments", async () => {
+      const sessionId = await start();
+      // No such action: the router itself fails to match, so there is no
+      // template — and no way to tell a route word from a value.
+      const res = await http()
+        .post(`/api/guide/sessions/${sessionId}/no-such-action?token=secreto`)
+        .set(auth(tokenA))
+        .send({ idempotencyKey: nextKey() })
+        .expect(404);
+
+      // UNMATCHED_DYNAMIC_VALUE_IN_RESPONSE_PATH=false
+      // UNMATCHED_QUERY_IN_RESPONSE_PATH=false
+      expect(res.body.path).toBe("/api/:unmatched");
+      expect(res.body.path).not.toContain(sessionId);
+      expect(res.body.path).not.toContain("no-such-action");
+      expect(res.body.path).not.toContain("secreto");
+      expect(res.body.path).not.toContain("?");
+      // Nest's router-level message quotes the raw URL, so it is replaced by
+      // the code — otherwise the body would leak what `path` just removed.
+      expect(res.body.message).toBe("NOT_FOUND");
+      expect(JSON.stringify(res.body)).not.toContain(sessionId);
+      expect(JSON.stringify(res.body)).not.toContain("secreto");
+
+      // UNMATCHED_DYNAMIC_VALUE_IN_LOG=false
+      const lines = warned.filter((l) => l.includes("404"));
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain("/api/:unmatched");
+      assertNoLeak([sessionId, "no-such-action", "secreto"]);
+    });
+
     it("500 · a simulated failure logs and reports the template only", async () => {
       const sessionId = await start();
       vi.spyOn(

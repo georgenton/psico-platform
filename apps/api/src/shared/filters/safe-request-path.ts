@@ -13,9 +13,12 @@
  *   /api/guide/sessions/:sessionId/cancel
  *   /api/guide/sessions/:sessionId/steps/:stepKey/complete
  *
- * For an UNRESOLVED route (a genuine 404 from the router) there is no template.
- * The query string is dropped and every segment that looks like an identifier
- * is redacted, so the value stays useful for ops without echoing input back.
+ * For an UNRESOLVED route (a genuine 404 from the router) there is no template
+ * and no way to tell a fixed route word from a value: `/api/x/alice` is
+ * indistinguishable from `/api/x/12345` without the route table that just
+ * failed to match. Guessing per segment is a heuristic, and a heuristic on a
+ * privacy boundary fails open. So the result is a CONSTANT that contains no
+ * input at all — only whether the request was aimed at the API prefix.
  *
  * Pure: no IO, no logging, never mutates the request.
  */
@@ -29,27 +32,9 @@ export interface SanitizablePathRequest {
   route?: { path?: unknown } | null;
 }
 
-/** Placeholder for a segment that could carry a real value. */
-const REDACTED = ":redacted";
-
-/**
- * A segment that must never be echoed: UUIDs, cuids, and anything long or
- * mixed-case enough to be an id rather than a fixed route word. Fixed route
- * words in this API are short, lowercase and hyphenated.
- */
-function looksLikeIdentifier(segment: string): boolean {
-  if (segment.length === 0) return false;
-  if (segment.length > 24) return true;
-  if (/\d/.test(segment) && /[a-z]/i.test(segment)) return true;
-  if (/[^a-z0-9-]/.test(segment)) return true;
-  return false;
-}
-
-/** Drop the query string — it is client input in its entirety. */
-function withoutQuery(value: string): string {
-  const cut = value.search(/[?#]/);
-  return cut === -1 ? value : value.slice(0, cut);
-}
+/** The two possible fail-closed values. Neither derives from client input. */
+export const UNMATCHED_API_PATH = "/api/:unmatched";
+export const UNMATCHED_PATH = "/:unmatched";
 
 export function safeRequestPath(request: SanitizablePathRequest): string {
   const template = request.route?.path;
@@ -67,10 +52,11 @@ export function safeRequestPath(request: SanitizablePathRequest): string {
     (typeof request.originalUrl === "string" && request.originalUrl) ||
     (typeof request.url === "string" && request.url) ||
     "";
-  if (raw === "") return "/";
 
-  return withoutQuery(raw)
-    .split("/")
-    .map((segment) => (looksLikeIdentifier(segment) ? REDACTED : segment))
-    .join("/");
+  // The ONLY thing read out of the raw value is whether it targets the API
+  // prefix — a single bit, useful for splitting app errors from anything else,
+  // and incapable of carrying a session id, a key or a token.
+  return raw === "/api" || raw.startsWith("/api/") || raw.startsWith("/api?")
+    ? UNMATCHED_API_PATH
+    : UNMATCHED_PATH;
 }

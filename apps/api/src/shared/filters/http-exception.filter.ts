@@ -44,10 +44,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const { statusCode, code, message, details } = this.normalize(exception);
+    const normalized = this.normalize(exception);
+    const { statusCode, code, details } = normalized;
     // ONE sanitized value for every error surface: the matched route template,
     // never the client's ids or query string (see `safe-request-path.ts`).
     const path = safeRequestPath(request);
+
+    // When the ROUTER itself failed to match, the exception is Nest's own and
+    // its message is built from the raw URL ("Cannot POST /api/x/<id>?t=..."),
+    // which would re-introduce exactly what `path` was sanitized to remove.
+    // That message is not ours and says nothing the code doesn't: replace it.
+    const routeMatched =
+      typeof request.route?.path === "string" && request.route.path.length > 0;
+    const message = routeMatched ? normalized.message : code;
 
     // 5xx always logs full stack; 4xx is a user-error signal, log at warn level.
     if (statusCode >= 500) {

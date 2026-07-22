@@ -21,6 +21,17 @@ import { GuideController } from "./guide.controller";
  */
 
 const GUIDE_DIR = __dirname;
+const TYPES_GUIDE = join(
+  __dirname,
+  "..",
+  "..",
+  "..",
+  "..",
+  "packages",
+  "types",
+  "src",
+  "guide.ts",
+);
 const CLIENT_DIR = join(
   __dirname,
   "..",
@@ -32,12 +43,27 @@ const CLIENT_DIR = join(
   "src",
 );
 
-/** The files that DEFINE the public wire. */
-const PUBLIC_SURFACE = [
-  join(GUIDE_DIR, "guide.controller.ts"),
+/**
+ * The files that DECLARE the wire: a field here IS a contract field. The
+ * public types are included because a shape added there becomes a contract
+ * even before any parser accepts it.
+ */
+const CONTRACT_SURFACE = [
   join(GUIDE_DIR, "guide-command-parser.ts"),
   join(GUIDE_DIR, "dto", "guide.openapi.ts"),
   join(CLIENT_DIR, "guide.ts"),
+  TYPES_GUIDE,
+];
+
+/**
+ * The controller TRANSLATES; it declares no contract of its own. It is held to
+ * the editorial-context rule (it must never read context from the wire) but not
+ * to generic result-shaped words, since `result: GuideCommandResult` is a local
+ * parameter, not a field a client could send.
+ */
+const PUBLIC_SURFACE = [
+  ...CONTRACT_SURFACE,
+  join(GUIDE_DIR, "guide.controller.ts"),
 ];
 
 function listGuideRuntimeFiles(): string[] {
@@ -118,6 +144,27 @@ describe("ratchet · guide public surface", () => {
           asWhitelisted.test(stripComments(source)),
           `${file} → "${key}"`,
         ).toBe(false);
+      }
+    }
+  });
+
+  it("no server-owned verdict or envelope can become a contract field", () => {
+    // Only on the files that DECLARE the wire — the controller's local
+    // `result` variable is not a field a client could ever send.
+    const forbiddenKeys = [
+      "correctOptionKey",
+      "result",
+      "evaluationSource",
+      "metadata",
+      "payload",
+    ];
+    for (const file of CONTRACT_SURFACE) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      for (const key of forbiddenKeys) {
+        const asKey = new RegExp(`(^|[^\\w.])${key}\\s*:`, "m");
+        const asWhitelisted = new RegExp(`"${key}"`);
+        expect(asKey.test(source), `${file} → ${key}:`).toBe(false);
+        expect(asWhitelisted.test(source), `${file} → "${key}"`).toBe(false);
       }
     }
   });

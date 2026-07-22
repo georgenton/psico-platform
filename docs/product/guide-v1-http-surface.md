@@ -98,8 +98,39 @@ lifecycle, no del tipo de ruta.
 | `GUIDE_STORAGE_FAILURE`            | 500  | Infraestructura                     |
 
 El mensaje público **es** el código. Nunca viaja un mensaje de Prisma, pg, Nest
-o del resolver. Una sesión **ajena** y una **inexistente** devuelven el mismo
-404, con el mismo código y el mismo envelope — verificado byte a byte en el E2E.
+o del resolver.
+
+Una sesión **ajena** y una **inexistente** devuelven el mismo 404 con **todos
+los campos estables idénticos** — `statusCode`, `code`, `message`, `path` y el
+conjunto de claves del envelope:
+
+```
+FOREIGN_AND_MISSING_STABLE_ERROR_FIELDS_IDENTICAL=true
+```
+
+`timestamp` es operativo y avanza con el reloj, así que las dos respuestas **no**
+son byte a byte iguales; afirmarlo sería falso.
+
+### 4.1 El `path` de error nunca lleva un valor real
+
+`safeRequestPath(request)` (en `apps/api/src/shared/filters/`) es el **único**
+valor de ruta que usan las tres superficies de error: `logger.warn`,
+`logger.error`, el contexto de Sentry y el campo `path` del envelope. Para una
+ruta resuelta devuelve la **plantilla** que Express emparejó:
+
+```
+/api/guide/sessions/:sessionId/cancel
+/api/guide/sessions/:sessionId/steps/:stepKey/complete
+```
+
+Para una ruta no resuelta (404 del router) descarta el query string y redacta
+cada segmento con forma de identificador. Así un 404 por sesión ajena no
+imprime el id de esa sesión, y los logs agregan por ruta y no por id.
+
+Cubierto por `safe-request-path.spec.ts` (sanitizador puro) y por el E2E en los
+cuatro escenarios: 404 ajeno, 404 inexistente, 409 sobre un paso y un 500
+simulado — verificando en cada uno que ni el `sessionId` ni el `stepKey` reales
+aparecen en la respuesta, en la línea de log ni en el contexto de Sentry.
 
 ## 5. OpenAPI y cliente
 
@@ -128,11 +159,32 @@ guide_step_completed=0
 concept_explored=0
 ```
 
-y **delta cero** en todos los read models emocionales (snapshots del Mapa,
-resonancias, check-ins, mood logs, features de texto, entradas de diario),
-contando filas antes y después. Además prueba que borrar los `LearningEvent`
-no cambia `stepsCompleted`: el progreso sale del ledger, los eventos son
-consecuencias.
+y sobre todo **delta cero en la proyección canónica del Mapa**:
+
+```
+GUIDE_FULL_STACK_FIREWALL_PASS=true
+```
+
+La autoridad de ese resultado es la proyección, no un conteo de filas. El test
+siembra una señal emocional **real y no vacía** (mood logs por el normalizador
+real + check-ins del catálogo real), captura `before` recomputando por el camino
+real (`invalidate` + `getForUser` sobre el `EmotionalMapService` real), recorre
+la guía por HTTP, vuelve a invalidar y recomputar, y exige que `after` sea igual
+a `before`. Un **control negativo** — un check-in legítimo por su servicio real —
+comprueba que esa misma proyección **sí** se mueve; sin él, la igualdad no
+probaría nada. El conteo de filas emocionales se conserva como defensa extra,
+nunca como la prueba.
+
+La definición de qué es "el Mapa" y qué cuenta como "señal emocional" vive una
+sola vez, en `apps/api/src/test/emotional-firewall-testkit.ts`, y la consumen
+tanto este E2E como `learning-firewall.pg-spec.ts`: dos listas independientes
+podrían divergir y dejar pasar una fuga en una mientras la otra sigue en verde.
+
+Cada `it` levanta su propio usuario y su propia sesión, así que el archivo pasa
+aislado, en orden aleatorio y dentro de la suite completa.
+
+Además prueba que borrar los `LearningEvent` no cambia `stepsCompleted`: el
+progreso sale del ledger, los eventos son consecuencias.
 
 ## 7. Privacidad
 

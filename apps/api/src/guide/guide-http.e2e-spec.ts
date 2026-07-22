@@ -3,9 +3,22 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import request from "supertest";
+import { Logger } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { createE2EApp, closeE2EApp, type E2EHarness } from "../test/e2e-app";
+import type * as SentryModule from "../observability/sentry";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { GuideLifecycleService } from "./guide-lifecycle.service";
 import { backfillContentCore } from "../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
 
@@ -40,6 +53,20 @@ const WRONG_OPTION = "opcion-mente-primero";
 /** Zero-entropy canonical UUIDs (Gitleaks-safe). */
 const key = (n: number) =>
   `dddddddd-dddd-4ddd-8ddd-${String(n).padStart(12, "0")}`;
+
+/**
+ * The Sentry sink, intercepted at the module boundary the filter imports from.
+ * `vi.hoisted` is what lets the (hoisted) mock factory reference it.
+ */
+const { sentrySpy } = vi.hoisted(() => ({ sentrySpy: vi.fn() }));
+vi.mock("../observability/sentry", async (importOriginal) => {
+  const actual = await importOriginal<typeof SentryModule>();
+  return {
+    ...actual,
+    captureException: (exception: unknown, context?: unknown) =>
+      sentrySpy(exception, context) as unknown,
+  };
+});
 
 function withDatabase(url: string, dbName: string): string {
   const u = new URL(url);
@@ -454,7 +481,7 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
 
   // ── Ownership ────────────────────────────────────────────────────────────
 
-  it("a foreign session is byte-identical to a nonexistent one", async () => {
+  it("a foreign session is indistinguishable from a nonexistent one", async () => {
     const sessionId = await start();
 
     const foreign = await http()
@@ -468,9 +495,15 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
       .send({ idempotencyKey: nextKey() })
       .expect(404);
 
+    // Every STABLE field is identical. `timestamp` is operational and moves
+    // with the clock, so the responses are not byte-identical — and claiming
+    // they were would be false.
     expect(foreign.body.code).toBe("GUIDE_SESSION_NOT_FOUND");
+    expect(foreign.status).toBe(missing.status);
+    expect(foreign.body.statusCode).toBe(missing.body.statusCode);
     expect(foreign.body.code).toBe(missing.body.code);
     expect(foreign.body.message).toBe(missing.body.message);
+    expect(foreign.body.path).toBe(missing.body.path);
     expect(Object.keys(foreign.body).sort()).toEqual(
       Object.keys(missing.body).sort(),
     );
@@ -518,5 +551,133 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
       .expect((r) =>
         expect(r.body.code).toBe("GUIDE_IDEMPOTENCY_KEY_REQUIRED"),
       );
+  });
+
+  // ── Error paths never echo a real id ─────────────────────────────────────
+
+  describe("error surfaces carry the route TEMPLATE, never the values", () => {
+    const CANCEL_TEMPLATE = "/api/guide/sessions/:sessionId/cancel";
+    const STEP_TEMPLATE =
+      "/api/guide/sessions/:sessionId/steps/:stepKey/complete";
+
+    let warned: string[] = [];
+    let errored: string[] = [];
+
+    beforeEach(() => {
+      warned = [];
+      errored = [];
+      sentrySpy.mockClear();
+      vi.spyOn(Logger.prototype, "warn").mockImplementation(
+        (message: unknown) => {
+          warned.push(String(message));
+        },
+      );
+      vi.spyOn(Logger.prototype, "error").mockImplementation(
+        (message: unknown) => {
+          errored.push(String(message));
+        },
+      );
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    /** Every surface at once: response envelope, log line, Sentry context. */
+    const assertNoLeak = (values: string[]) => {
+      for (const line of [...warned, ...errored]) {
+        for (const value of values) {
+          expect(line.includes(value), `logged: ${line}`).toBe(false);
+        }
+      }
+      for (const call of sentrySpy.mock.calls) {
+        const context = JSON.stringify(call[1] ?? {});
+        for (const value of values) {
+          expect(context.includes(value), `sentry: ${context}`).toBe(false);
+        }
+      }
+    };
+
+    it("404 · a foreign session and a missing one share every stable field", async () => {
+      const sessionId = await start();
+
+      const foreign = await http()
+        .post(`/api/guide/sessions/${sessionId}/cancel`)
+        .set(auth(tokenB))
+        .send({ idempotencyKey: nextKey() })
+        .expect(404);
+      const missing = await http()
+        .post("/api/guide/sessions/ses-que-no-existe/cancel")
+        .set(auth(tokenB))
+        .send({ idempotencyKey: nextKey() })
+        .expect(404);
+
+      // The path is the template — the real session id never travels back.
+      expect(foreign.body.path).toBe(CANCEL_TEMPLATE);
+      expect(missing.body.path).toBe(CANCEL_TEMPLATE);
+      expect(foreign.body.path).not.toContain(sessionId);
+
+      // FOREIGN_AND_MISSING_STABLE_ERROR_FIELDS_IDENTICAL: statusCode, code,
+      // message, path and the key set. `timestamp` is operational and is
+      // ALLOWED to differ — the two responses are not byte-identical.
+      expect(foreign.body.statusCode).toBe(missing.body.statusCode);
+      expect(foreign.body.code).toBe(missing.body.code);
+      expect(foreign.body.message).toBe(missing.body.message);
+      expect(foreign.body.path).toBe(missing.body.path);
+      expect(Object.keys(foreign.body).sort()).toEqual(
+        Object.keys(missing.body).sort(),
+      );
+
+      // Two 404s were logged, both against the template.
+      const lines = warned.filter((l) => l.includes("404"));
+      expect(lines).toHaveLength(2);
+      for (const line of lines) expect(line).toContain(CANCEL_TEMPLATE);
+      assertNoLeak([sessionId, "ses-que-no-existe"]);
+    });
+
+    it("409 · a step conflict reports the step template, not the keys", async () => {
+      const sessionId = await start();
+      const k = nextKey();
+      await completeStep(sessionId, STEP_CONCEPT, k).expect(201);
+      // The same key aimed at a DIFFERENT step is a conflict.
+      const conflict = await completeStep(sessionId, STEP_PRACTICE, k).expect(
+        409,
+      );
+
+      expect(conflict.body.path).toBe(STEP_TEMPLATE);
+      expect(conflict.body.path).not.toContain(sessionId);
+      expect(conflict.body.path).not.toContain(STEP_PRACTICE);
+
+      const lines = warned.filter((l) => l.includes("409"));
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain(STEP_TEMPLATE);
+      assertNoLeak([sessionId, STEP_PRACTICE, STEP_CONCEPT, k]);
+    });
+
+    it("500 · a simulated failure logs and reports the template only", async () => {
+      const sessionId = await start();
+      vi.spyOn(
+        h.app.get(GuideLifecycleService),
+        "completeStep",
+      ).mockRejectedValue(new Error("simulated lifecycle failure"));
+
+      const res = await completeStep(sessionId, STEP_CONCEPT).expect(500);
+
+      expect(res.body.code).toBe("INTERNAL_ERROR");
+      expect(res.body.path).toBe(STEP_TEMPLATE);
+      expect(res.body.path).not.toContain(sessionId);
+      expect(res.body.path).not.toContain(STEP_CONCEPT);
+
+      // The log line and the Sentry context use the SAME sanitized value.
+      expect(errored.some((l) => l.includes(STEP_TEMPLATE))).toBe(true);
+      expect(sentrySpy).toHaveBeenCalledTimes(1);
+      expect(sentrySpy.mock.calls[0]?.[1]).toMatchObject({
+        method: "POST",
+        path: STEP_TEMPLATE,
+        statusCode: 500,
+        code: "INTERNAL_ERROR",
+      });
+      assertNoLeak([sessionId, STEP_CONCEPT]);
+    });
   });
 });

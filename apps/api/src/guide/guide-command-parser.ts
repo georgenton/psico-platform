@@ -147,16 +147,33 @@ function checkBody(
   return { ok: true, body, idempotencyKey: key.toLowerCase() };
 }
 
-/** Route params: a plain object whose keys are exactly the declared ones. */
+/**
+ * Route params, closed with the SAME discipline as the body: a plain object,
+ * no symbol keys, exactly the declared names, and every declared name present
+ * as an OWN property. The controller happens to build a fresh literal today,
+ * but the parser is what the contract promises — so it enforces it itself.
+ */
 function checkParams(
   params: unknown,
-  allowedParams: readonly string[],
+  requiredParams: readonly string[],
 ): { ok: true; params: Record<string, unknown> } | ReturnType<typeof fail> {
   if (!isPlainObject(params)) {
     return fail(INVALID, undefined, "params_must_be_object");
   }
+  if (Object.getOwnPropertySymbols(params).length > 0) {
+    return fail(INVALID, undefined, "symbol_keys_not_allowed");
+  }
   for (const key of Object.keys(params)) {
-    if (!allowedParams.includes(key)) {
+    if (!requiredParams.includes(key)) {
+      return fail(INVALID, undefined, "unexpected_param");
+    }
+  }
+  for (const key of requiredParams) {
+    // An inherited value must never satisfy a route parameter.
+    if (
+      !Object.prototype.hasOwnProperty.call(params, key) ||
+      params[key] === undefined
+    ) {
       return fail(INVALID, undefined, "unexpected_param");
     }
   }

@@ -306,3 +306,41 @@ describe("guide command parsers · closed grammars", () => {
     );
   });
 });
+
+describe("guide command parsers · closed route params", () => {
+  const body = { idempotencyKey: UUID };
+
+  it("rejects symbol-keyed params", () => {
+    const params: Record<string | symbol, unknown> = { sessionId: SESSION };
+    params[Symbol("smuggled")] = "…";
+    expectInvalid(parseCancelGuideSessionCommand(params, body));
+  });
+
+  it("rejects inherited sessionId and stepKey", () => {
+    expectInvalid(
+      parseCancelGuideSessionCommand(
+        Object.create({ sessionId: SESSION }) as object,
+        body,
+      ),
+    );
+    const inheritedStep = Object.create({ stepKey: STEP }) as Record<
+      string,
+      unknown
+    >;
+    inheritedStep.sessionId = SESSION;
+    expectInvalid(parseCompleteGuideSessionStepCommand(inheritedStep, body));
+  });
+
+  it("rejects a missing own sessionId or stepKey", () => {
+    expectInvalid(parseCancelGuideSessionCommand({}, body));
+    expectInvalid(
+      parseCompleteGuideSessionStepCommand({ sessionId: SESSION }, body),
+    );
+    expectInvalid(
+      parseCompleteGuideSessionStepCommand({ stepKey: STEP }, body),
+    );
+    expectInvalid(
+      parseCancelGuideSessionCommand({ sessionId: undefined }, body),
+    );
+  });
+});

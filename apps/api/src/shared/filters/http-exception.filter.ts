@@ -2,6 +2,7 @@ import type { ArgumentsHost, ExceptionFilter } from "@nestjs/common";
 import { Catch, HttpException, HttpStatus, Logger } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { captureException } from "../../observability/sentry";
+import { safeRequestPath } from "./safe-request-path";
 
 /**
  * Unified error envelope for the entire API.
@@ -44,24 +45,27 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     const { statusCode, code, message, details } = this.normalize(exception);
+    // ONE sanitized value for every error surface: the matched route template,
+    // never the client's ids or query string (see `safe-request-path.ts`).
+    const path = safeRequestPath(request);
 
     // 5xx always logs full stack; 4xx is a user-error signal, log at warn level.
     if (statusCode >= 500) {
       this.logger.error(
-        `${request.method} ${request.url} → ${statusCode} ${code}: ${message}`,
+        `${request.method} ${path} → ${statusCode} ${code}: ${message}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
       // Surface to Sentry. 4xx are user-input issues — noise; 5xx is the
       // signal we actually want a triaging alert on.
       captureException(exception, {
         method: request.method,
-        path: request.url,
+        path,
         statusCode,
         code,
       });
     } else if (statusCode >= 400) {
       this.logger.warn(
-        `${request.method} ${request.url} → ${statusCode} ${code}: ${message}`,
+        `${request.method} ${path} → ${statusCode} ${code}: ${message}`,
       );
     }
 
@@ -71,7 +75,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message,
       ...(details !== undefined ? { details } : {}),
       timestamp: new Date().toISOString(),
-      path: request.url,
+      path,
     };
 
     response.status(statusCode).json(body);

@@ -4,22 +4,26 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CHECKIN_ITEMS } from "@psico/types";
-import type { EmotionalMapResult } from "@psico/types";
 
-import { EmotionalMapService } from "../emotional-map/emotional-map.service";
+import type { EmotionalMapService } from "../emotional-map/emotional-map.service";
 import {
   IMPORTANT_CONF_N,
   IMPORTANT_GOOD_N,
   RESONANCE_CONF_N,
   RESONANCE_GOOD_N,
 } from "../emotional-map/emotional-map.scoring";
-import type { IEmotionalMapProvider } from "../emotional-map/providers/provider.interface";
 import { MoodService } from "../mood/mood.service";
-import { deriveMoodNormalization } from "../mood/mood-normalization";
 import type { PrismaService } from "../prisma";
-import { createRedisClient } from "../redis/redis.module";
 import { ResonancesService } from "../resonances/resonances.service";
 import type { ConfirmResonanceDto } from "../resonances/dto/confirm-resonance.dto";
+import {
+  assertNonEmptyEmotionalBaseline,
+  createFirewallEmotionalMapService,
+  freshProjection as freshMapProjection,
+  projectedDimension as dim,
+  seedEmotionalSignal,
+} from "../test/emotional-firewall-testkit";
+import type { MapProjection as Projection } from "../test/emotional-firewall-testkit";
 import { LearningEventRepository } from "./learning-event.repository";
 import type { ValidatedLearningEvent } from "./validated-learning-event";
 
@@ -69,40 +73,6 @@ const key = (n: number) =>
 /** Served dimension values are rounded to 2 decimals by the scoring. */
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
-const DAY = 86_400_000;
-const daysAgo = (n: number) => new Date(Date.now() - n * DAY);
-
-/**
- * The canonical projection: everything semantically meaningful — axes and
- * their order, value, confidence, status/measured, sources, evidence,
- * provenance, momento, affect dynamics, coverage, pct, v2 marker — with ONLY
- * the operational/non-deterministic fields excluded (`computedAt` is the
- * compute clock; `narrative` is the optional non-deterministic LLM copy).
- * The JSON round-trip normalizes `undefined` vs absent.
- */
-function canonicalMapProjection(
-  map: EmotionalMapResult,
-): Record<string, unknown> {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- strip the excluded fields, keep the rest
-  const { computedAt: _clock, narrative: _copy, ...semantic } = map;
-  return JSON.parse(JSON.stringify(semantic)) as Record<string, unknown>;
-}
-
-type Projection = ReturnType<typeof canonicalMapProjection>;
-interface ProjectedDimension {
-  key: string;
-  value: number;
-  confidence: number;
-  measured?: boolean;
-  evidence?: { modelId: string; n: number } | null;
-  sources: string;
-}
-const dim = (p: Projection, k: string): ProjectedDimension => {
-  const d = (p.dimensions as ProjectedDimension[]).find((x) => x.key === k);
-  if (!d) throw new Error(`projection has no dimension '${k}'`);
-  return d;
-};
-
 suite("CC-7.2 · dynamic emotional firewall (real PostgreSQL)", () => {
   let prisma: PrismaClient;
   let pool: Pool;
@@ -113,62 +83,9 @@ suite("CC-7.2 · dynamic emotional firewall (real PostgreSQL)", () => {
   let chapterId: string;
   let blockId: string;
 
-  /** Real recompute path: bump the user's cache generation, then read. */
-  async function freshProjection(userId: string): Promise<Projection> {
-    await emotionalMap.invalidate(userId);
-    return canonicalMapProjection(await emotionalMap.getForUser(userId));
-  }
-
-  async function seedSignal(
-    userId: string,
-    moodLogs: number,
-    checkins: number,
-  ): Promise<void> {
-    // Backdated ELIGIBLE mood observations built by the REAL normalizer, so
-    // every server-owned column (and the INV-1 CHECK) matches what the mood
-    // surface itself would have written.
-    const cycle = ["good", "ok", "good", "great", "good"] as const;
-    for (let i = 0; i < moodLogs; i++) {
-      const raw = cycle[i % cycle.length];
-      const norm = deriveMoodNormalization({
-        raw,
-        source: "MOOD_LOG",
-        selectionVersion: "mood-log-v1",
-      });
-      await prisma.moodLog.create({
-        data: {
-          userId,
-          mood: norm.moodNormalized as string,
-          ...norm,
-          createdAt: daysAgo(2 + i * 2),
-        },
-      });
-    }
-    // Diary metadata (opaque dummy cipher — scoring reads mood/tags only).
-    const diaryMoods = ["good", "hard", "good", "low", "good", "hard"];
-    for (let i = 0; i < Math.min(6, moodLogs); i++) {
-      await prisma.diaryEntry.create({
-        data: {
-          userId,
-          textCiphertext: "b64stub-cipher",
-          textNonce: "b64stub-nonce",
-          mood: diaryMoods[i % diaryMoods.length],
-          tags: i % 2 === 0 ? ["familia", "trabajo"] : [],
-          createdAt: daysAgo(3 + i * 3),
-        },
-      });
-    }
-    for (let i = 0; i < checkins; i++) {
-      await prisma.checkinResponse.create({
-        data: {
-          userId,
-          itemKey: CHECKIN_ITEMS[i % CHECKIN_ITEMS.length].key,
-          score: 3,
-          createdAt: daysAgo(4 + i * 2),
-        },
-      });
-    }
-  }
+  /** Real recompute path — the SHARED one (see the firewall testkit). */
+  const freshProjection = (userId: string): Promise<Projection> =>
+    freshMapProjection(emotionalMap, userId);
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
@@ -185,28 +102,12 @@ suite("CC-7.2 · dynamic emotional firewall (real PostgreSQL)", () => {
     pool = new Pool({ connectionString: url });
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
-    // Real cache-identity semantics over the REAL redis factory (no
-    // REDIS_URL → the same ioredis-mock production dev-mode would use).
-    const redis = createRedisClient({
-      get: () => undefined,
-    } as never);
-
-    // Under V2 the provider must NEVER score (decision L3) — a throwing stub
-    // turns any regression into a hard failure. No `narrate` ⇒ deterministic
-    // maps with narrative null.
-    const provider: IEmotionalMapProvider = {
-      name: "cc72-firewall-stub",
-      score: () => {
-        throw new Error(
-          "provider.score() was invoked — the V2 contract forbids LLM axis scoring",
-        );
-      },
-    };
-
-    emotionalMap = new EmotionalMapService(
-      prisma as unknown as PrismaService,
-      provider,
-      redis,
+    // Real cache identity + a provider that must never score (decision L3):
+    // the SHARED wiring, so this suite and the Guide HTTP firewall agree on
+    // what "the Map" is.
+    emotionalMap = createFirewallEmotionalMapService(
+      prisma,
+      "cc72-firewall-stub",
     );
     resonances = new ResonancesService(
       prisma as unknown as PrismaService,
@@ -239,8 +140,8 @@ suite("CC-7.2 · dynamic emotional firewall (real PostgreSQL)", () => {
     });
     blockId = block.id;
 
-    await seedSignal(U1, 20, 4);
-    await seedSignal(U2, 10, 3);
+    await seedEmotionalSignal(prisma, U1, { moodLogs: 20, checkins: 4 });
+    await seedEmotionalSignal(prisma, U2, { moodLogs: 10, checkins: 3 });
   }, 180_000);
 
   afterAll(async () => {
@@ -259,16 +160,19 @@ suite("CC-7.2 · dynamic emotional firewall (real PostgreSQL)", () => {
     const before = await freshProjection(U1);
 
     // The baseline is a REAL, stable emotional signal — this test must never
-    // pass by comparing two empty maps.
+    // pass by comparing two empty maps. The shared assertion is the floor;
+    // this suite pins a stronger, specific baseline on top of it.
+    assertNonEmptyEmotionalBaseline(before);
     expect(before.coverage as number).toBeGreaterThan(0.15);
-    expect(before.momento).not.toBeNull();
     expect(before.v2).toBe(true);
     expect(dim(before, "calma").confidence).toBeGreaterThan(0);
     expect(dim(before, "claridad").confidence).toBeGreaterThan(0);
 
     // 1) The seven V1 learning events, persisted through the single writer.
-    //    (guide_session_* are persisted RECORDS with their typed payloads —
-    //    no GuideSession model exists yet, by design of this PR.)
+    //    These are the RAW records with their typed payloads, appended
+    //    directly — CC-7.4C's lifecycle (which is what actually emits the
+    //    guide_session_* events in production) is exercised end-to-end over
+    //    HTTP by `guide-firewall.e2e-spec.ts`, against this same projection.
     const batch: ValidatedLearningEvent[] = [
       {
         userId: U1,
@@ -361,10 +265,12 @@ suite("CC-7.2 · dynamic emotional firewall (real PostgreSQL)", () => {
     });
 
     // 2-bis) CC-7.4B — Guide persistence (session + accepted-step ledger +
-    //    command receipt). No lifecycle exists yet and no Guide events are
-    //    emitted; the ROWS themselves must already be emotionally inert.
-    //    Raw SQL keeps the single-writer ratchets meaningful (specs are the
-    //    sanctioned exception) and exercises the real constraints.
+    //    command receipt). Here the ROWS are written directly, to pin that
+    //    the persisted state itself is emotionally inert regardless of how it
+    //    got there; the lifecycle that writes them in production is covered
+    //    by `guide-firewall.e2e-spec.ts`. Raw SQL keeps the single-writer
+    //    ratchets meaningful (specs are the sanctioned exception) and
+    //    exercises the real constraints.
     await pool.query(
       `INSERT INTO "GuideSession"
         ("id","userId","guideKey","guideVersion","totalSteps","currentStepKey")

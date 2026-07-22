@@ -15,13 +15,17 @@ import { createHash } from "node:crypto";
  *
  *   - the raw `userId` never reaches a client component, `localStorage`, a
  *     request or a log;
- *   - the scope is not a credential and grants nothing — the JWT still
- *     authorises every command;
  *   - the same account always derives the same scope, two accounts never do.
  *
- * It is a plain SHA-256, not a KDF, and that is deliberate: this defends
- * against reusing a record across accounts, not against an attacker with the
- * device — someone who can read `localStorage` can read the session cookie too.
+ * The actorScope is NOT treated as a secret. It is a pseudonymous partition
+ * that authorises no command and grants no access; authorisation continues to
+ * depend exclusively on the JWT session the API validates. That is why a plain
+ * SHA-256 is enough here and a KDF would buy nothing: the value gates which
+ * stored record may be replayed, never what the server will accept.
+ *
+ * The actor itself comes from the API (`/user/me` through `serverFetch`), not
+ * from decoding the access cookie — that cookie expires in 15 minutes while
+ * the session lives 30 days.
  */
 
 const GUIDE_ACTOR_SCOPE_VERSION = "guide-recovery-actor-v1";

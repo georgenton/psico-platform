@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import type { JourneyListResponse } from "@psico/types";
+import type { JourneyListResponse, UserMeResponse } from "@psico/types";
 
-import { redirect } from "next/navigation";
-
-import { getSessionUser, serverFetch } from "@/lib/api.server";
+import { isNextThrow, serverFetch } from "@/lib/api.server";
 import { deriveGuideRecoveryActorScope } from "@/lib/guide-recovery-scope.server";
 import { ExCard } from "@/components/dashboard/exploraciones/ExCard";
 import { ExFeaturedCard } from "@/components/dashboard/exploraciones/ExFeaturedCard";
@@ -26,15 +24,23 @@ export const dynamic = "force-dynamic";
  * `/journeys` failing cannot hide it.
  */
 export default async function ExploracionesPage() {
-  const user = getSessionUser();
-  if (!user) redirect("/login");
+  // The authenticated actor, resolved through the refresh-aware fetcher: the
+  // access cookie expires in 15 minutes while the session lives 30 days, so
+  // reading only that cookie would lock a recoverable session out of this
+  // screen. Deliberately OUTSIDE the try below — an auth failure is not an
+  // empty state of Journeys.
+  const me = await serverFetch<UserMeResponse>("/user/me");
   // The entry card only says "Continuar" for THIS account's own record.
-  const actorScope = deriveGuideRecoveryActorScope(user.userId);
+  const actorScope = deriveGuideRecoveryActorScope(me.user.id);
 
   let data: JourneyListResponse | null = null;
   try {
     data = await serverFetch<JourneyListResponse>("/journeys");
-  } catch {
+  } catch (err) {
+    // A journeys outage degrades to an empty list, but a Next redirect is not
+    // an outage: swallowing it would render a page for a session that the
+    // fetcher already decided has to log in again.
+    if (isNextThrow(err)) throw err;
     data = { journeys: [] };
   }
 

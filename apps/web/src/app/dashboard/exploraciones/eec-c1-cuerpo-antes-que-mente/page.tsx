@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import type { UserMeResponse } from "@psico/types";
 
-import { getSessionUser } from "@/lib/api.server";
+import { serverFetch } from "@/lib/api.server";
 import { deriveGuideRecoveryActorScope } from "@/lib/guide-recovery-scope.server";
 import { GuidePlayer } from "@/components/dashboard/guide/GuidePlayer";
 
@@ -22,15 +22,23 @@ export const metadata: Metadata = {
  *
  * Its one job is the actor partition: the local recovery record is bound to an
  * OPAQUE digest of the user id, derived here so the raw id never crosses into
- * the client. Without an authenticated user there is no scope and no page.
+ * the client.
+ *
+ * The actor comes from `/user/me` through `serverFetch`, NOT from decoding the
+ * access cookie. The access token lives 15 minutes and the refresh token 30
+ * days, and the middleware treats either one as a session — so a page that
+ * read only the access token would send a perfectly recoverable session to
+ * `/login`, which the middleware bounces straight back to `/dashboard`.
+ * `serverFetch` uses the access token when it is there, refreshes when it is
+ * not, and hands off to the global logout convention when no session survives.
+ * So `/user/me` returns the id of whoever the API actually authenticated.
  */
 export const dynamic = "force-dynamic";
 
-export default function GuidePage() {
-  const user = getSessionUser();
-  if (!user) redirect("/login");
+export default async function GuidePage() {
+  const me = await serverFetch<UserMeResponse>("/user/me");
+  // Only the derived scope crosses to the client — never `me.user.id` itself.
+  const actorScope = deriveGuideRecoveryActorScope(me.user.id);
 
-  return (
-    <GuidePlayer actorScope={deriveGuideRecoveryActorScope(user.userId)} />
-  );
+  return <GuidePlayer actorScope={actorScope} />;
 }

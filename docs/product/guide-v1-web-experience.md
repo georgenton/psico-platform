@@ -28,6 +28,11 @@ GUIDE_RECOVERY_SCOPE_KIND=SHA256_SERVER_DERIVED
 GUIDE_RECOVERY_RAW_USER_ID_STORED=false
 GUIDE_RECOVERY_EMAIL_STORED=false
 GUIDE_CROSS_ACCOUNT_AUTO_START=false
+
+GUIDE_ACTOR_SOURCE=AUTHENTICATED_USER_ME
+GUIDE_GUIDE_PAGES_GET_SESSION_USER_REFERENCES=0
+GUIDE_REFRESH_ONLY_SESSION_REDIRECT_TO_LOGIN=false
+GUIDE_RAW_USER_ID_CLIENT_PROPS=0
 ```
 
 Consume la superficie HTTP de [guide-v1-http-surface.md](guide-v1-http-surface.md)
@@ -131,9 +136,28 @@ tratan igual que un blob corrupto: se borra el registro, se devuelve `empty` y
 la pantalla muestra el inicio fresco. La autoridad es siempre el prop calculado
 server-side, nunca el scope leído de `localStorage`.
 
-Es un SHA-256 plano, no un KDF, y es deliberado: defiende contra reutilizar un
-registro entre cuentas, no contra alguien con el dispositivo — quien puede leer
-`localStorage` también puede leer la cookie de sesión.
+El `actorScope` **no se trata como secreto**. Es una partición pseudónima que no
+autoriza comandos ni concede acceso; la autorización continúa dependiendo
+exclusivamente de la sesión JWT validada por el API. Por eso un SHA-256 plano
+alcanza y un KDF no compraría nada: el valor decide qué registro local puede
+reproducirse, nunca qué acepta el servidor.
+
+### 3.0.1 El actor sale del API, no de la cookie
+
+El access token dura 15 minutos; el refresh token, 30 días. El middleware
+considera que hay sesión con cualquiera de los dos, así que una página que
+decodificara solo la cookie de access mandaría a `/login` a una sesión
+perfectamente recuperable — y el middleware la devolvería a `/dashboard`.
+
+Por eso ambas páginas resuelven al actor con
+`serverFetch<UserMeResponse>("/user/me")`: usa el access token cuando existe,
+refresca cuando corresponde, y aplica la convención global de logout cuando no
+queda sesión. Al cliente solo cruza el `actorScope` derivado, nunca
+`me.user.id`.
+
+El fetch de `/user/me` queda **fuera** del `try` que degrada `/journeys` a lista
+vacía, y ese `catch` re-lanza los throws internos de Next (`isNextThrow`): un
+fallo de autenticación no es un empty state de Recorridos.
 
 ### 3.1 El efecto no se protege con un flag de montaje
 

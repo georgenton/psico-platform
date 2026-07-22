@@ -24,6 +24,10 @@ import { describe, expect, it } from "vitest";
  *   GUIDE_RECOVERY_TOKEN_FIELDS=0
  *   GUIDE_RECOVERY_SCOPE_SENT_TO_API=false
  *   GUIDE_CROSS_ACCOUNT_AUTO_START_CALLS=0
+ *   GUIDE_ACTOR_SOURCE=AUTHENTICATED_USER_ME
+ *   GUIDE_GUIDE_PAGES_GET_SESSION_USER_REFERENCES=0
+ *   GUIDE_REFRESH_ONLY_SESSION_REDIRECT_TO_LOGIN=false
+ *   GUIDE_RAW_USER_ID_CLIENT_PROPS=0
  */
 
 const GUIDE_DIR = __dirname;
@@ -181,6 +185,50 @@ describe("ratchet · guide web surface", () => {
     ]) {
       expect(call[1]).not.toContain("actorScope");
     }
+  });
+
+  it("resolves the actor through the authenticated user, not a cookie", () => {
+    const pages = [
+      join(EXPLORACIONES_DIR, "page.tsx"),
+      join(EXPLORACIONES_DIR, "eec-c1-cuerpo-antes-que-mente", "page.tsx"),
+    ];
+    for (const file of pages) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      const label = relative(EXPLORACIONES_DIR, file);
+
+      // GUIDE_ACTOR_SOURCE=AUTHENTICATED_USER_ME
+      expect(source, label).toMatch(
+        /serverFetch<UserMeResponse>\("\/user\/me"\)/,
+      );
+      expect(source, label).toMatch(
+        /deriveGuideRecoveryActorScope\(me\.user\.id\)/,
+      );
+
+      // GUIDE_GUIDE_PAGES_GET_SESSION_USER_REFERENCES=0 — decoding the access
+      // cookie would lock out a session whose access token expired but whose
+      // refresh token is still valid.
+      expect(source.includes("getSessionUser"), label).toBe(false);
+
+      // GUIDE_REFRESH_ONLY_SESSION_REDIRECT_TO_LOGIN=false — the fetcher owns
+      // the auth outcome; a hand-rolled bounce to /login is what the
+      // middleware sends straight back to /dashboard.
+      expect(source.includes('redirect("/login")'), label).toBe(false);
+
+      // GUIDE_RAW_USER_ID_CLIENT_PROPS=0 — only the derived scope crosses.
+      expect(source.includes("me.user.id}"), label).toBe(false);
+      expect(source.includes("userId={"), label).toBe(false);
+      expect(source.includes("email={"), label).toBe(false);
+    }
+  });
+
+  it("never swallows a Next redirect while degrading journeys", () => {
+    const source = stripComments(
+      readFileSync(join(EXPLORACIONES_DIR, "page.tsx"), "utf8"),
+    );
+    // A bare `catch {` around a serverFetch turns a forced re-login into a
+    // fully rendered page for a session that no longer exists.
+    expect(source).not.toMatch(/catch\s*\{/);
+    expect(source).toMatch(/if \(isNextThrow\(err\)\) throw err;/);
   });
 
   it("the guide never enters the Journey list or its components", () => {

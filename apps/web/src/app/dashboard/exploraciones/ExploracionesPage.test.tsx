@@ -8,19 +8,26 @@ import type { JourneyListResponse } from "@psico/types";
  * The point of these tests is separation: the guide is always reachable, even
  * when `/journeys` is empty or failing, and it never travels through the
  * Journey list or the Journey components.
+ *
+ * They also pin WHERE the actor comes from. Decoding the access cookie would
+ * lock out a session whose access token expired but whose refresh token is
+ * still valid; `/user/me` through `serverFetch` is the only source that
+ * survives that window.
  */
 
-const { serverFetch, getSessionUser, deriveGuideRecoveryActorScope } =
-  vi.hoisted(() => ({
+const { serverFetch, isNextThrow, deriveGuideRecoveryActorScope } = vi.hoisted(
+  () => ({
     serverFetch: vi.fn(),
-    getSessionUser: vi.fn(),
+    isNextThrow: vi.fn(),
     deriveGuideRecoveryActorScope: vi.fn(),
-  }));
+  }),
+);
 
 // Both modules are `server-only`, which throws when a test environment pulls
 // it in. Mocking them is also what lets us assert the wiring: the page must
-// derive the scope from the SESSION user, never from anything client-side.
-vi.mock("@/lib/api.server", () => ({ serverFetch, getSessionUser }));
+// derive the scope from the AUTHENTICATED user, never from anything
+// client-side and never from a cookie it decodes itself.
+vi.mock("@/lib/api.server", () => ({ serverFetch, isNextThrow }));
 vi.mock("@/lib/guide-recovery-scope.server", () => ({
   deriveGuideRecoveryActorScope,
 }));
@@ -43,21 +50,29 @@ async function renderPage() {
 
 const SCOPE_A = "A".repeat(43);
 
+/** `/user/me` always resolves; `/journeys` is what each test varies. */
+function mockFetch(journeys: (() => unknown) | { journeys: unknown[] }) {
+  serverFetch.mockImplementation((path: string) => {
+    if (path === "/user/me") {
+      return Promise.resolve({
+        user: { id: "u_1", email: "a@example.test" },
+      });
+    }
+    if (typeof journeys === "function") return Promise.resolve(journeys());
+    return Promise.resolve(journeys);
+  });
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   vi.clearAllMocks();
-  getSessionUser.mockReturnValue({
-    userId: "u_1",
-    email: "a@example.test",
-    role: "USER",
-    plan: "FREE",
-  });
+  isNextThrow.mockReturnValue(false);
   deriveGuideRecoveryActorScope.mockReturnValue(SCOPE_A);
+  mockFetch({ journeys: [] });
 });
 
 describe("ExploracionesPage", () => {
   it("shows the guide card even when there are no journeys", async () => {
-    serverFetch.mockResolvedValue({ journeys: [] });
     await renderPage();
 
     expect(screen.getByText("Guía breve")).toBeInTheDocument();
@@ -69,14 +84,33 @@ describe("ExploracionesPage", () => {
   });
 
   it("shows the guide card even when /journeys fails", async () => {
-    serverFetch.mockRejectedValue(new Error("down"));
+    serverFetch.mockImplementation((path: string) =>
+      path === "/user/me"
+        ? Promise.resolve({ user: { id: "u_1", email: "a@example.test" } })
+        : Promise.reject(new Error("down")),
+    );
     await renderPage();
 
     expect(screen.getByText("Guía breve")).toBeInTheDocument();
   });
 
+  it("lets a Next redirect out of the journeys catch", async () => {
+    const redirectThrow = Object.assign(new Error("NEXT_REDIRECT"), {
+      digest: "NEXT_REDIRECT;replace;/logout;307;",
+    });
+    isNextThrow.mockImplementation((err: unknown) => err === redirectThrow);
+    serverFetch.mockImplementation((path: string) =>
+      path === "/user/me"
+        ? Promise.resolve({ user: { id: "u_1", email: "a@example.test" } })
+        : Promise.reject(redirectThrow),
+    );
+
+    // Degrading to `journeys: []` here would render a full page for a session
+    // the fetcher already decided must log in again.
+    await expect(renderPage()).rejects.toBe(redirectThrow);
+  });
+
   it("links the guide to its static route", async () => {
-    serverFetch.mockResolvedValue({ journeys: [] });
     await renderPage();
 
     expect(screen.getByRole("link", { name: /guía/i })).toHaveAttribute(
@@ -86,7 +120,7 @@ describe("ExploracionesPage", () => {
   });
 
   it("keeps rendering journeys alongside the guide", async () => {
-    serverFetch.mockResolvedValue({ journeys: [journey] });
+    mockFetch({ journeys: [journey] });
     await renderPage();
 
     expect(screen.getByText("Guía breve")).toBeInTheDocument();
@@ -95,28 +129,29 @@ describe("ExploracionesPage", () => {
   });
 
   it("never asks the journeys endpoint for the guide", async () => {
-    serverFetch.mockResolvedValue({ journeys: [journey] });
+    mockFetch({ journeys: [journey] });
     await renderPage();
 
-    expect(serverFetch).toHaveBeenCalledTimes(1);
-    expect(serverFetch).toHaveBeenCalledWith("/journeys");
+    expect(serverFetch.mock.calls.map((c) => c[0])).toEqual([
+      "/user/me",
+      "/journeys",
+    ]);
     // The guide is its own product: it never wears the journey tag.
     const guideCard = screen.getByText("Guía breve").closest(".card");
     expect(guideCard?.textContent).not.toContain("Recorrido sugerido");
   });
 
-  it("derives the guide's actor scope from the session user", async () => {
-    serverFetch.mockResolvedValue({ journeys: [] });
+  it("derives the guide's actor scope from the authenticated user", async () => {
     await renderPage();
 
+    expect(serverFetch).toHaveBeenCalledWith("/user/me");
     expect(deriveGuideRecoveryActorScope).toHaveBeenCalledWith("u_1");
-    // The raw id stays server-side: it must not appear in the markup.
+    // The raw identity stays server-side: it must not appear in the markup.
     expect(document.body.innerHTML).not.toContain("u_1");
     expect(document.body.innerHTML).not.toContain("a@example.test");
   });
 
   it("does not claim every experience feeds the emotional map", async () => {
-    serverFetch.mockResolvedValue({ journeys: [] });
     await renderPage();
 
     const subtitle = document.querySelector(".screen-sub");

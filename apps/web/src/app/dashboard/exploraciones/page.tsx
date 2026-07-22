@@ -4,19 +4,23 @@ import type { JourneyListResponse } from "@psico/types";
 import { serverFetch } from "@/lib/api.server";
 import { ExCard } from "@/components/dashboard/exploraciones/ExCard";
 import { ExFeaturedCard } from "@/components/dashboard/exploraciones/ExFeaturedCard";
-import { PlaceholderCard } from "@/components/dashboard/shell/PlaceholderCard";
+import { GuideEntryCard } from "@/components/dashboard/guide/GuideEntryCard";
 
 export const metadata: Metadata = { title: "Exploraciones" };
 export const dynamic = "force-dynamic";
 
 /**
- * /dashboard/exploraciones — Sprint F1.
+ * /dashboard/exploraciones — Sprint F1, extended by CC-7.5.
  *
- * Aligns with `docs/design/redesign-v2/dashboard/index.html` (s-exploraciones):
- * `screen-head` + `screen-sub` + featured `card.ex-feature` + `sec-label`
- * + `explore-grid` of `card.ex-card`. Reuses the same `JourneyListResponse`
- * data that powered Sprint B5, but rebrands the surface in the design's
- * vocabulary so the screen visually matches Claude Design.
+ * The screen now hosts two DIFFERENT products:
+ *
+ *   - a Guía breve (Guide V1): three short steps, its own route, its own
+ *     lifecycle. It is not a Journey and never travels in `JourneyListResponse`;
+ *   - the Journey paths: multi-book routes that keep the design's
+ *     `ex-feature` + `explore-grid` vocabulary untouched.
+ *
+ * The guide card renders unconditionally, so the screen is never empty and
+ * `/journeys` failing cannot hide it.
  */
 export default async function ExploracionesPage() {
   let data: JourneyListResponse | null = null;
@@ -26,26 +30,9 @@ export default async function ExploracionesPage() {
     data = { journeys: [] };
   }
 
-  if (!data || data.journeys.length === 0) {
-    return (
-      <PlaceholderCard
-        icon="🧭"
-        subtitle="Próximamente"
-        title="Exploraciones"
-        body={
-          <p>
-            Estamos curando las primeras rutas. Vuelve en unos días para
-            encontrar bundles temáticos de libros y prácticas.
-          </p>
-        }
-      />
-    );
-  }
-
-  // First journey takes the featured slot; the rest fill the grid. When
-  // only one is available we render just the featured card and the grid
-  // collapses naturally.
-  const [featured, ...rest] = data.journeys;
+  const journeys = data?.journeys ?? [];
+  // First journey takes the featured slot; the rest fill the grid.
+  const [featured, ...rest] = journeys;
 
   return (
     <>
@@ -56,12 +43,20 @@ export default async function ExploracionesPage() {
         </div>
       </div>
       <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
-        No son cursos ni libros sueltos — son recorridos guiados hacia algo que
-        quieres trabajar en ti. Cada uno combina lectura, ejercicios y
-        reflexión, y alimenta tu mapa.
+        Guías breves y recorridos más largos que combinan lectura, ejercicios y
+        reflexión. Cada experiencia dice por sí misma qué registra.
       </p>
 
-      {featured ? <ExFeaturedCard journey={featured} /> : null}
+      <GuideEntryCard />
+
+      {featured ? (
+        <>
+          <div className="sec-label" style={{ marginTop: 8 }}>
+            Recorridos
+          </div>
+          <ExFeaturedCard journey={featured} />
+        </>
+      ) : null}
 
       {rest.length > 0 ? (
         <>
@@ -72,6 +67,27 @@ export default async function ExploracionesPage() {
             {rest.map((journey, i) => (
               <ExCard key={journey.id} journey={journey} index={i} />
             ))}
+          </div>
+        </>
+      ) : null}
+
+      {journeys.length === 0 ? (
+        <>
+          <div className="sec-label" style={{ marginTop: 8 }}>
+            Recorridos
+          </div>
+          <div className="card" style={{ padding: 24 }}>
+            <p
+              style={{
+                fontSize: 14,
+                lineHeight: 1.6,
+                color: "var(--color-warm-600)",
+                margin: 0,
+              }}
+            >
+              Estamos curando las primeras rutas. Vuelve en unos días para
+              encontrar bundles temáticos de libros y prácticas.
+            </p>
           </div>
         </>
       ) : null}

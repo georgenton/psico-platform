@@ -11,6 +11,15 @@ GUIDE_WEB_PENDING_COMMAND_RECOVERY=true
 GUIDE_WEB_CLIENT_PROGRESS_AUTHORITY=false
 GUIDE_WEB_CORRECT_OPTION_EXPOSED=false
 
+GUIDE_STRICT_MODE_RECOVERY_PASS=true
+GUIDE_START_AMBIGUOUS_RETRY_SAME_KEY=true
+GUIDE_START_NEW_KEY_AFTER_AMBIGUITY=false
+GUIDE_NETWORK_AFTER_CONFIRMED_PERSISTENCE_ONLY=true
+GUIDE_PENDING_SESSION_BOUND_TO_START=true
+GUIDE_PENDING_COMMAND_STEP_COMPATIBLE=true
+GUIDE_RESYNC_FAILURE_PRESERVES_PENDING=true
+GUIDE_FINISH_REQUIRES_COMPLETE_SERVER_PROJECTION=true
+
 GUIDE_WEB_EMOTIONAL_INFERENCE=false
 GUIDE_WEB_MAP_WRITE=false
 ```
@@ -89,6 +98,52 @@ ofrece `Empezar de nuevo` como acción explícita.
 Nada de esto identifica a una persona: no hay `userId` en storage ni en
 ninguna petición.
 
+### 3.1 El efecto no se protege con un flag de montaje
+
+Bajo StrictMode React monta, desmonta y vuelve a montar. Un `ref` que se
+tragara el segundo setup dejaría la pantalla congelada en «Recuperando tu
+avance…» para siempre, así que **cada setup ejecuta su propia recuperación**.
+Puede haber más de una petición; todas usan la MISMA `startIdempotencyKey`,
+y dos replays idénticos son estrictamente mejores que una pantalla muerta.
+El `cancelled` del cleanup solo descarta la respuesta de ESE setup.
+
+### 3.2 Storage confirmado antes de la red
+
+`writeGuideRecovery` devuelve `{ ok }` y el llamador lo comprueba: **ninguna**
+petición sale si su clave no llegó a storage. Sin esa clave, un comando
+aplicado quedaría sin forma de identificarse, que es justo lo que el modelo de
+recuperación existe para evitar.
+
+Cuando no se puede persistir la pantalla lo dice —
+«Este navegador no puede guardar la recuperación de la guía.» — ofrece volver a
+Exploraciones y **no** genera claves nuevas en bucle.
+
+La lectura distingue tres estados: `empty`, `valid` y `unavailable`. Un
+`localStorage` inaccesible **no** es «no hay sesión»: quien no puede leer
+tampoco puede escribir, y tratarlo como navegador nuevo invitaría a un START
+cuya clave nadie podría recuperar.
+
+### 3.3 Un START ambiguo se repite, no se sustituye
+
+START no es un `PendingGuideCommand` — su identidad ya vive en
+`startIdempotencyKey`. Un fallo retryable del START (al pulsar o al montar)
+conserva el registro y ofrece `Reintentar` con **la misma clave**; el CTA de
+inicio fresco, que acuñaría otra, no se muestra. Solo se genera una clave nueva
+tras `GUIDE_SESSION_NOT_FOUND` con limpieza del registro, o tras un
+«Empezar de nuevo» explícito desde un estado terminal.
+
+### 3.4 Un pendiente pertenece a UNA sesión
+
+Tras el replay, si `pendingCommand.sessionId` no es el de la sesión devuelta,
+el comando **no se envía**: se descarta solo el pendiente, se persiste el
+registro con la sesión derivada del servidor y se muestra ese snapshot.
+Reapuntar el intento de otra sesión a esta sería aplicar la respuesta de
+alguien más.
+
+El parser además cierra la compatibilidad kind/step: `STEP_COMPLETE` solo para
+los pasos de confirmación, `STEP_RECALL` solo para el de recall. Un
+emparejamiento que el servidor nunca aceptaría no es uno que guardemos.
+
 ## 4. Comandos pendientes
 
 Cada transición persiste su key **antes** de salir a la red, dentro de una
@@ -103,7 +158,11 @@ STEP_COMPLETE · STEP_RECALL · CANCEL · SESSION_COMPLETE
 - el reintento usa la **misma** key: o la original ya se aplicó (replay) o no
   se aplicó nunca (created), jamás dos veces;
 - al montar con un pendiente, primero se recupera la sesión con el START y
-  después se reintenta ese comando exacto.
+  después se reintenta ese comando exacto;
+- si el **resync tras un 409 falla**, el pendiente y su clave se conservan: el
+  `Reintentar` vuelve a hacer START, decide desde ese snapshot si el comando
+  sigue siendo aplicable, y solo entonces lo reenvía con su clave original.
+  Perderlo ahí dejaría varado un intento cuyo desenlace nadie conoce.
 
 Un comando cuyo paso u opción no estén en el catálogo de este build se
 descarta: reintentar una key que no podemos describir sería adivinar la
@@ -121,7 +180,13 @@ Un `currentStepKey` desconocido produce un estado **fail-closed**:
 
 > No pudimos mostrar el paso actual.
 
-Desde ahí no sale ningún comando.
+Y un cursor nulo **no basta** para ofrecer la finalización: una sesión `ACTIVE`
+que reporta menos pasos aceptados de los que la guía tiene es contradictoria, y
+cerrarla sería afirmar algo que el servidor no dijo. Ese caso muestra:
+
+> No pudimos mostrar el estado actual.
+
+Desde cualquiera de los dos no sale ningún comando.
 
 ## 6. Los tres pasos
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { GUIDE_PRESENTATION } from "./guide-presentation";
-import { hasGuideRecovery } from "./guide-recovery";
+import { guideRecoveryState } from "./guide-recovery";
 
 /**
  * CC-7.5 — the Guide entry point inside Exploraciones.
@@ -22,11 +22,15 @@ import { hasGuideRecovery } from "./guide-recovery";
  * an empty or invented one would be worse than drawing none.
  */
 export function GuideEntryCard() {
-  const [canResume, setCanResume] = useState(false);
+  const [storage, setStorage] = useState<"empty" | "valid" | "unavailable">(
+    "empty",
+  );
 
   useEffect(() => {
-    setCanResume(hasGuideRecovery());
+    setStorage(guideRecoveryState());
   }, []);
+
+  const canResume = storage === "valid";
 
   return (
     <div
@@ -73,6 +77,21 @@ export function GuideEntryCard() {
           ? GUIDE_PRESENTATION.labels.resume
           : GUIDE_PRESENTATION.labels.start}
       </Link>
+      {storage === "unavailable" ? (
+        // Saying "Empezar" without this would promise something this browser
+        // cannot deliver: without storage there is no key to recover with.
+        <p
+          style={{
+            flexBasis: "100%",
+            margin: 0,
+            fontSize: 13,
+            lineHeight: 1.5,
+            color: "var(--color-warm-500)",
+          }}
+        >
+          Este navegador no puede guardar la recuperación de la guía.
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import {
   GUIDE_KEY,
+  GUIDE_PRESENTATION,
   GUIDE_VERSION,
   isGuideOptionKey,
   isGuideStepKey,
@@ -109,6 +110,20 @@ function hasOnlyKeys(
 }
 
 /**
+ * Which command a step accepts, read from the presentation catalog's surface.
+ * A confirm step is completed by `STEP_COMPLETE`; the recall step is completed
+ * ONLY by its dedicated command. Pairing them the other way round is not a
+ * command the server would accept, so it is not a command we replay.
+ */
+function commandTypeForStep(
+  stepKey: GuideStepKeyWeb,
+): "STEP_COMPLETE" | "STEP_RECALL" | null {
+  const step = GUIDE_PRESENTATION.steps.find((s) => s.stepKey === stepKey);
+  if (!step) return null;
+  return step.surface === "recall" ? "STEP_RECALL" : "STEP_COMPLETE";
+}
+
+/**
  * Rebuild a pending command field by field. A command whose step or option is
  * not in this build's catalog is rejected: retrying a key we cannot describe
  * would be guessing at someone's answer.
@@ -125,6 +140,9 @@ export function parsePendingGuideCommand(
       const allowed = ["commandType", "idempotencyKey", "sessionId", "stepKey"];
       if (!hasOnlyKeys(value, allowed)) return null;
       if (!isGuideStepKey(value.stepKey)) return null;
+      // A confirm command aimed at the recall step is not a command the
+      // server accepts, so it is not one we hold on to.
+      if (commandTypeForStep(value.stepKey) !== "STEP_COMPLETE") return null;
       return {
         commandType: "STEP_COMPLETE",
         idempotencyKey,
@@ -142,6 +160,7 @@ export function parsePendingGuideCommand(
       ];
       if (!hasOnlyKeys(value, allowed)) return null;
       if (!isGuideStepKey(value.stepKey)) return null;
+      if (commandTypeForStep(value.stepKey) !== "STEP_RECALL") return null;
       if (!isGuideOptionKey(value.selectedOptionKey)) return null;
       return {
         commandType: "STEP_RECALL",
@@ -200,35 +219,57 @@ export function parseGuideRecoveryRecord(
   return record;
 }
 
+/**
+ * The three answers storage can give. "unavailable" is NOT "empty": a browser
+ * that cannot read is a browser that cannot write either, and treating it as
+ * "no session yet" would invite a START whose key nobody can remember.
+ */
+export type GuideRecoveryReadResult =
+  | { state: "empty" }
+  | { state: "valid"; record: GuideRecoveryRecord }
+  | { state: "unavailable" };
+
 /** Read + validate. Never throws, even if `localStorage` is unavailable. */
-export function readGuideRecovery(): GuideRecoveryRecord | null {
+export function readGuideRecovery(): GuideRecoveryReadResult {
   let raw: string | null = null;
   try {
     raw = window.localStorage.getItem(STORAGE_KEY);
   } catch {
-    return null;
+    return { state: "unavailable" };
   }
-  if (raw === null) return null;
+  if (raw === null) return { state: "empty" };
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
     clearGuideRecovery();
-    return null;
+    return { state: "empty" };
   }
 
   const record = parseGuideRecoveryRecord(parsed);
-  if (!record) clearGuideRecovery();
-  return record;
+  if (!record) {
+    clearGuideRecovery();
+    return { state: "empty" };
+  }
+  return { state: "valid", record };
 }
 
-export function writeGuideRecovery(record: GuideRecoveryRecord): void {
+/**
+ * Whether the record actually reached storage. The caller MUST check it: the
+ * whole recovery model rests on the key surviving the request, so a write that
+ * silently failed would leave an applied command with no way to identify it.
+ */
+export type GuideStorageWriteResult = { ok: true } | { ok: false };
+
+export function writeGuideRecovery(
+  record: GuideRecoveryRecord,
+): GuideStorageWriteResult {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
+    return { ok: true };
   } catch {
-    // A browser with storage disabled loses recovery, not correctness: every
-    // command still carries its own key for the lifetime of the page.
+    return { ok: false };
   }
 }
 
@@ -236,14 +277,14 @@ export function clearGuideRecovery(): void {
   try {
     window.localStorage.removeItem(STORAGE_KEY);
   } catch {
-    // Nothing to do — see writeGuideRecovery.
+    // Nothing to do — the caller's next write will report the failure.
   }
 }
 
-/** True when a stored record could resume a run. Safe to call on the server. */
-export function hasGuideRecovery(): boolean {
-  if (typeof window === "undefined") return false;
-  return readGuideRecovery() !== null;
+/** For surfaces that only need to know whether a run can be resumed. */
+export function guideRecoveryState(): GuideRecoveryReadResult["state"] {
+  if (typeof window === "undefined") return "empty";
+  return readGuideRecovery().state;
 }
 
 /**

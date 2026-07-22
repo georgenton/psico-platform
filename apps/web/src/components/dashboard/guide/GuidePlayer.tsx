@@ -24,6 +24,19 @@ import {
 } from "./guide-recovery";
 
 /**
+ * What a `Reintentar` would repeat. START is NOT a `PendingGuideCommand`: its
+ * identity already lives in `record.startIdempotencyKey`, and modelling it as
+ * one would invite a second start key for the same ambiguous attempt.
+ */
+type GuideRetryState =
+  | { kind: "START"; record: GuideRecoveryRecord }
+  | {
+      kind: "COMMAND";
+      record: GuideRecoveryRecord;
+      command: PendingGuideCommand;
+    };
+
+/**
  * CC-7.5 — the Guide V1 player.
  *
  * The server owns the run. This component never computes what comes next: it
@@ -46,11 +59,14 @@ const { labels } = GUIDE_PRESENTATION;
 type Screen =
   | "booting"
   | "cover"
+  | "start-retry"
+  | "storage-unavailable"
   | "step"
   | "finish"
   | "completed"
   | "cancelled"
-  | "unknown-step";
+  | "unknown-step"
+  | "inconsistent";
 
 interface PlayerState {
   session: GuideSessionView | null;
@@ -58,8 +74,10 @@ interface PlayerState {
   booting: boolean;
   busy: boolean;
   error: GuideUiError | null;
-  /** Present when a write's outcome is unknown and can be retried as-is. */
-  retryable: PendingGuideCommand | null;
+  /** Present when an attempt's outcome is unknown and repeatable as-is. */
+  retry: GuideRetryState | null;
+  /** This browser cannot persist the recovery key, so it must not start. */
+  storageBlocked: boolean;
 }
 
 const INITIAL: PlayerState = {
@@ -68,17 +86,29 @@ const INITIAL: PlayerState = {
   booting: true,
   busy: false,
   error: null,
-  retryable: null,
+  retry: null,
+  storageBlocked: false,
+};
+
+const STORAGE_BLOCKED: GuideUiError = {
+  kind: "terminal",
+  message: "Este navegador no puede guardar la recuperación de la guía.",
 };
 
 /** The screen is a pure function of server state — never of local counters. */
 function screenOf(state: PlayerState): Screen {
   if (state.booting) return "booting";
+  if (state.storageBlocked) return "storage-unavailable";
   const s = state.session;
-  if (!s) return "cover";
+  if (!s) return state.retry?.kind === "START" ? "start-retry" : "cover";
   if (s.status === "COMPLETED") return "completed";
   if (s.status === "CANCELLED") return "cancelled";
-  if (s.currentStepKey === null) return "finish";
+  if (s.currentStepKey === null) {
+    // A null cursor is not enough to offer completion: an ACTIVE session that
+    // reports fewer accepted steps than the guide has is contradictory, and
+    // completing it would be asserting something the server did not say.
+    return s.stepsCompleted === s.totalSteps ? "finish" : "inconsistent";
+  }
   return stepPresentationFor(s.currentStepKey) ? "step" : "unknown-step";
 }
 
@@ -86,17 +116,32 @@ export function GuidePlayer() {
   const [state, setState] = useState<PlayerState>(INITIAL);
   const [choice, setChoice] = useState<GuideOptionKeyWeb | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const bootedRef = useRef(false);
 
   const patch = useCallback((next: Partial<PlayerState>) => {
     setState((prev) => ({ ...prev, ...next }));
   }, []);
 
-  /** Persist the record BEFORE anything reaches the network. */
-  const remember = useCallback((record: GuideRecoveryRecord) => {
-    writeGuideRecovery(record);
-    return record;
-  }, []);
+  /**
+   * Persist the record BEFORE anything reaches the network, and report
+   * whether it worked. A write that silently failed would leave an applied
+   * command with no key to identify it — so the caller must not proceed.
+   */
+  const remember = useCallback(
+    (record: GuideRecoveryRecord): GuideRecoveryRecord | null =>
+      writeGuideRecovery(record).ok ? record : null,
+    [],
+  );
+
+  /** Storage refused: no request leaves, and no new key is minted. */
+  const blockOnStorage = useCallback(() => {
+    patch({
+      busy: false,
+      booting: false,
+      storageBlocked: true,
+      error: STORAGE_BLOCKED,
+      retry: null,
+    });
+  }, [patch]);
 
   /**
    * Replay the stored START. Returns the session the server currently has for
@@ -151,7 +196,7 @@ export function GuidePlayer() {
    */
   const dispatch = useCallback(
     async (command: PendingGuideCommand, record: GuideRecoveryRecord) => {
-      patch({ busy: true, error: null, retryable: null });
+      patch({ busy: true, error: null, retry: null });
       try {
         const res = await invoke(command);
         const settled: GuideRecoveryRecord = {
@@ -167,7 +212,7 @@ export function GuidePlayer() {
           session: res.session,
           record: settled,
           busy: false,
-          retryable: null,
+          retry: null,
         });
       } catch (err) {
         const uiError = toGuideUiError(err);
@@ -190,11 +235,24 @@ export function GuidePlayer() {
               record: settled,
               busy: false,
               error: uiError,
-              retryable: null,
+              retry: null,
             });
             return;
           } catch {
-            patch({ busy: false, error: uiError, retryable: null });
+            // The resync itself failed. Losing the pending command here would
+            // strand an attempt whose outcome nobody knows — so it and its key
+            // stay, and `Reintentar` resyncs before re-sending it.
+            const pendingRecord: GuideRecoveryRecord = {
+              ...record,
+              pendingCommand: command,
+            };
+            remember(pendingRecord);
+            patch({
+              busy: false,
+              error: uiError,
+              record: pendingRecord,
+              retry: { kind: "COMMAND", record: pendingRecord, command },
+            });
             return;
           }
         }
@@ -209,8 +267,8 @@ export function GuidePlayer() {
           patch({
             busy: false,
             error: uiError,
-            retryable: command,
             record: pendingRecord,
+            retry: { kind: "COMMAND", record: pendingRecord, command },
           });
           return;
         }
@@ -220,7 +278,7 @@ export function GuidePlayer() {
           patch({
             busy: false,
             error: uiError,
-            retryable: null,
+            retry: null,
             session: null,
             record: null,
           });
@@ -228,37 +286,163 @@ export function GuidePlayer() {
         }
 
         remember({ ...record, pendingCommand: undefined });
-        patch({ busy: false, error: uiError, retryable: null });
+        patch({ busy: false, error: uiError, retry: null });
       }
     },
     [invoke, patch, remember, replayStart],
   );
 
-  // ── Mount: recover, never auto-start ──────────────────────────────────────
-  useEffect(() => {
-    if (bootedRef.current) return;
-    bootedRef.current = true;
+  /**
+   * Run (or re-run) the START for a stored record. The SAME key every time:
+   * a failure here is ambiguous — the session may or may not exist — and a
+   * fresh key would turn that ambiguity into a duplicate session.
+   */
+  const runStart = useCallback(
+    async (record: GuideRecoveryRecord) => {
+      try {
+        const session = await replayStart(record);
+        const settled = remember({
+          ...record,
+          sessionId: session.sessionId,
+        });
+        if (!settled) {
+          blockOnStorage();
+          return;
+        }
+        patch({ session, record: settled, busy: false, retry: null });
+      } catch (err) {
+        const uiError = toGuideUiError(err);
+        if (uiError.kind === "gone") {
+          clearGuideRecovery();
+          patch({
+            busy: false,
+            error: uiError,
+            session: null,
+            record: null,
+            retry: null,
+          });
+          return;
+        }
+        if (uiError.kind === "retryable") {
+          patch({
+            busy: false,
+            error: uiError,
+            record,
+            retry: { kind: "START", record },
+          });
+          return;
+        }
+        patch({ busy: false, error: uiError, record, retry: null });
+      }
+    },
+    [blockOnStorage, patch, remember, replayStart],
+  );
 
-    const record = readGuideRecovery();
-    if (!record) {
+  /**
+   * Retry a command whose outcome is unknown. It re-reads the session with
+   * the START key FIRST, because the snapshot decides whether the command is
+   * still applicable — and only then re-sends it with its ORIGINAL key.
+   */
+  const retryCommand = useCallback(
+    async (record: GuideRecoveryRecord, command: PendingGuideCommand) => {
+      patch({ busy: true, error: null, retry: null });
+      let session: GuideSessionView;
+      try {
+        session = await replayStart(record);
+      } catch (err) {
+        const uiError = toGuideUiError(err);
+        if (uiError.kind === "gone") {
+          clearGuideRecovery();
+          patch({
+            busy: false,
+            error: uiError,
+            session: null,
+            record: null,
+            retry: null,
+          });
+          return;
+        }
+        // Still ambiguous: keep the command and its key for the next attempt.
+        patch({
+          busy: false,
+          error: uiError,
+          retry: { kind: "COMMAND", record, command },
+        });
+        return;
+      }
+
+      const settled: GuideRecoveryRecord = {
+        schemaVersion: 1,
+        guideKey: GUIDE_KEY,
+        guideVersion: GUIDE_VERSION,
+        startIdempotencyKey: record.startIdempotencyKey,
+        sessionId: session.sessionId,
+      };
+
+      if (command.sessionId !== session.sessionId) {
+        // The command belongs to another session. Drop it — never re-aim it.
+        remember(settled);
+        patch({ session, record: settled, busy: false, retry: null });
+        return;
+      }
+
+      if (!remember({ ...settled, pendingCommand: command })) {
+        blockOnStorage();
+        return;
+      }
+      patch({ session, record: settled });
+      await dispatch(command, settled);
+    },
+    [blockOnStorage, dispatch, patch, remember, replayStart],
+  );
+
+  // ── Mount: recover, never auto-start ──────────────────────────────────────
+  // No "already booted" guard: under StrictMode React mounts, tears down and
+  // mounts again, and a ref that swallowed the second setup would leave the
+  // screen stuck on "booting" forever. Every setup runs its own recovery —
+  // START replay is idempotent, so two requests with the SAME key are strictly
+  // better than a frozen screen. `cancelled` only discards THIS setup's answer.
+  useEffect(() => {
+    const read = readGuideRecovery();
+    if (read.state === "unavailable") {
+      blockOnStorage();
+      return;
+    }
+    if (read.state === "empty") {
       // No prior START from this browser ⇒ the cover, and an explicit click.
       patch({ booting: false });
       return;
     }
 
+    const record = read.record;
     let cancelled = false;
     void (async () => {
       try {
         const session = await replayStart(record);
         if (cancelled) return;
+
+        const pending = record.pendingCommand;
+        // A pending command belongs to ONE session. If the server handed back
+        // a different one, replaying it would apply someone else's attempt to
+        // this run — so it is dropped, not guessed at.
+        const bound = pending ? pending.sessionId === session.sessionId : false;
+
         const settled: GuideRecoveryRecord = {
-          ...record,
+          schemaVersion: 1,
+          guideKey: GUIDE_KEY,
+          guideVersion: GUIDE_VERSION,
+          startIdempotencyKey: record.startIdempotencyKey,
           sessionId: session.sessionId,
+          ...(pending && bound ? { pendingCommand: pending } : {}),
         };
-        remember(settled);
-        patch({ session, record: settled, booting: false });
-        if (record.pendingCommand) {
-          await dispatch(record.pendingCommand, settled);
+        if (!remember(settled)) {
+          blockOnStorage();
+          return;
+        }
+        patch({ session, record: settled, booting: false, retry: null });
+
+        if (pending && bound) {
+          await dispatch(pending, settled);
         }
       } catch (err) {
         if (cancelled) return;
@@ -270,17 +454,29 @@ export function GuidePlayer() {
             session: null,
             record: null,
             error: uiError,
+            retry: null,
           });
           return;
         }
-        patch({ booting: false, error: uiError });
+        if (uiError.kind === "retryable") {
+          // The record stays: retrying must replay THIS start key, and the
+          // fresh-start cover would offer to mint a different one.
+          patch({
+            booting: false,
+            record,
+            error: uiError,
+            retry: { kind: "START", record },
+          });
+          return;
+        }
+        patch({ booting: false, record, error: uiError, retry: null });
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [dispatch, patch, remember, replayStart]);
+  }, [blockOnStorage, dispatch, patch, remember, replayStart]);
 
   // Move focus to the heading after a transition so a screen reader announces
   // the new step instead of leaving the user on a button that is now gone.
@@ -308,23 +504,20 @@ export function GuidePlayer() {
       guideVersion: GUIDE_VERSION,
       startIdempotencyKey: idempotencyKey,
     });
-
-    patch({ busy: true, error: null, retryable: null, record });
-    try {
-      const session = await replayStart(record);
-      const settled = remember({ ...record, sessionId: session.sessionId });
-      patch({ session, record: settled, busy: false });
-    } catch (err) {
-      // The key stays stored: a retry replays this START, it never opens a
-      // second session.
-      patch({ busy: false, error: toGuideUiError(err) });
+    // The key must be readable again before the request exists, not after.
+    if (!record) {
+      blockOnStorage();
+      return;
     }
-  }, [patch, remember, replayStart]);
+
+    patch({ busy: true, error: null, retry: null, record });
+    await runStart(record);
+  }, [blockOnStorage, patch, remember, runStart]);
 
   const restart = useCallback(() => {
     clearGuideRecovery();
     setChoice(null);
-    patch({ session: null, record: null, error: null, retryable: null });
+    patch({ session: null, record: null, error: null, retry: null });
   }, [patch]);
 
   // ── Commands ──────────────────────────────────────────────────────────────
@@ -344,11 +537,16 @@ export function GuidePlayer() {
       }
       const command = build(key, session.sessionId);
       // Persisted BEFORE the request: an ambiguous timeout is retried with
-      // this exact key, never with a fresh one.
+      // this exact key, never with a fresh one. If it cannot be persisted the
+      // request does not happen at all.
       const pendingRecord = remember({ ...record, pendingCommand: command });
+      if (!pendingRecord) {
+        blockOnStorage();
+        return;
+      }
       void dispatch(command, pendingRecord);
     },
-    [dispatch, patch, remember, state],
+    [blockOnStorage, dispatch, patch, remember, state],
   );
 
   const completeStep = (stepKey: GuideStepPresentation["stepKey"]) =>
@@ -386,9 +584,14 @@ export function GuidePlayer() {
     }));
 
   const retry = () => {
-    if (state.retryable && state.record) {
-      void dispatch(state.retryable, state.record);
+    const pending = state.retry;
+    if (!pending || state.busy) return;
+    if (pending.kind === "START") {
+      patch({ busy: true, error: null, retry: null });
+      void runStart(pending.record);
+      return;
     }
+    void retryCommand(pending.record, pending.command);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -422,7 +625,7 @@ export function GuidePlayer() {
             }}
           >
             {state.error.message}
-            {state.retryable ? (
+            {state.retry ? (
               <>
                 {" "}
                 <button
@@ -445,6 +648,48 @@ export function GuidePlayer() {
           <p style={{ color: "var(--color-warm-500)", fontSize: 14 }}>
             Recuperando tu avance…
           </p>
+        </div>
+      ) : null}
+
+      {screen === "storage-unavailable" ? (
+        <div className="card" style={{ padding: 26 }}>
+          <h2 ref={headingRef} tabIndex={-1} style={headingStyle}>
+            No podemos guardar tu avance en este navegador
+          </h2>
+          <p style={bodyStyle}>
+            Sin poder guardar la clave de recuperación no podemos garantizar que
+            un paso se registre una sola vez, así que no iniciamos la guía.
+          </p>
+          <div style={actionsStyle}>
+            <Link
+              href="/dashboard/exploraciones"
+              className="btn primary"
+              style={linkBtnStyle}
+            >
+              {labels.back}
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
+      {screen === "start-retry" ? (
+        <div className="card" style={{ padding: 26 }}>
+          <h2 ref={headingRef} tabIndex={-1} style={headingStyle}>
+            No pudimos abrir tu guía
+          </h2>
+          <p style={bodyStyle}>
+            Tu avance sigue guardado. Reintenta cuando quieras — usaremos el
+            mismo intento, así que no se duplicará nada.
+          </p>
+          <div style={actionsStyle}>
+            <Link
+              href="/dashboard/exploraciones"
+              className="btn ghost"
+              style={linkBtnStyle}
+            >
+              {labels.back}
+            </Link>
+          </div>
         </div>
       ) : null}
 
@@ -651,6 +896,26 @@ export function GuidePlayer() {
             >
               {labels.restart}
             </button>
+          </div>
+        </div>
+      ) : null}
+
+      {screen === "inconsistent" ? (
+        <div className="card" style={{ padding: 26 }}>
+          <h2 ref={headingRef} tabIndex={-1} style={headingStyle}>
+            No pudimos mostrar el estado actual.
+          </h2>
+          <p style={bodyStyle}>
+            Tu avance está guardado. Vuelve a intentarlo más tarde.
+          </p>
+          <div style={actionsStyle}>
+            <Link
+              href="/dashboard/exploraciones"
+              className="btn primary"
+              style={linkBtnStyle}
+            >
+              {labels.back}
+            </Link>
           </div>
         </div>
       ) : null}

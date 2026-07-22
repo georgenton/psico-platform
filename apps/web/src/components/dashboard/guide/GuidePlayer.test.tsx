@@ -1,3 +1,4 @@
+import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -603,6 +604,307 @@ describe("GuidePlayer · terminal states and privacy", () => {
       await screen.findByText(
         "Esta guía registra avance educativo. No interpreta cómo te sientes ni modifica automáticamente tu Mapa Emocional.",
       ),
+    ).toBeInTheDocument();
+  });
+});
+
+/**
+ * CC-7.5 fix round — recovery must fail CLOSED.
+ *
+ * These pin the four ways the previous version could strand a run: a
+ * StrictMode remount, an ambiguous START, a storage write nobody checked, and
+ * a pending command aimed at another session. Plus the contradictory-server
+ * snapshot, which must never be completed on the client's initiative.
+ */
+describe("GuidePlayer · StrictMode", () => {
+  it("recovers under a double mount, always with the SAME start key", async () => {
+    storeRecord();
+    createGuideSession.mockResolvedValue(
+      replayed({
+        stepsCompleted: 1,
+        currentStepKey: "practicar-escucharte-por-dentro",
+      }),
+    );
+
+    render(
+      <React.StrictMode>
+        <GuidePlayer />
+      </React.StrictMode>,
+    );
+
+    // GUIDE_STRICT_MODE_STUCK_BOOTING=false — the screen must arrive.
+    expect(
+      await screen.findByRole("button", { name: "Ya hice esta práctica" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Recuperando tu avance…")).toBeNull();
+
+    // More than one call is fine; a second START KEY would not be.
+    expect(createGuideSession.mock.calls.length).toBeGreaterThanOrEqual(1);
+    for (const [body] of createGuideSession.mock.calls) {
+      expect(body.idempotencyKey).toBe(START_KEY);
+    }
+  });
+});
+
+describe("GuidePlayer · ambiguous START", () => {
+  it("keeps the stored key after a failed click, and reuses it on retry", async () => {
+    createGuideSession.mockRejectedValueOnce(new TypeError("network"));
+    createGuideSession.mockResolvedValueOnce(ok());
+    const user = userEvent.setup();
+    render(<GuidePlayer />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Empezar guía" }),
+    );
+    const firstKey = createGuideSession.mock.calls[0]![0]!.idempotencyKey;
+    expect(readRecord()?.startIdempotencyKey).toBe(firstKey);
+
+    await user.click(await screen.findByRole("button", { name: "Reintentar" }));
+
+    await waitFor(() => expect(createGuideSession).toHaveBeenCalledTimes(2));
+    // GUIDE_START_NEW_KEY_AFTER_AMBIGUITY=false
+    expect(createGuideSession.mock.calls[1]![0]!.idempotencyKey).toBe(firstKey);
+  });
+
+  it("after a failed mount replay it offers retry, not a fresh start", async () => {
+    storeRecord();
+    createGuideSession.mockRejectedValueOnce(new TypeError("network"));
+    createGuideSession.mockResolvedValueOnce(replayed({ stepsCompleted: 1 }));
+    const user = userEvent.setup();
+    render(<GuidePlayer />);
+
+    // The fresh-start CTA would mint a different key — it must not be offered.
+    expect(
+      await screen.findByRole("button", { name: "Reintentar" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Empezar guía" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+
+    await waitFor(() => expect(createGuideSession).toHaveBeenCalledTimes(2));
+    for (const [body] of createGuideSession.mock.calls) {
+      expect(body.idempotencyKey).toBe(START_KEY);
+    }
+  });
+});
+
+describe("GuidePlayer · storage must confirm before the network", () => {
+  const STORAGE_COPY =
+    "Este navegador no puede guardar la recuperación de la guía.";
+
+  function blockWrites() {
+    return vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("quota");
+    });
+  }
+
+  it("does not START when the key cannot be persisted", async () => {
+    const spy = blockWrites();
+    const user = userEvent.setup();
+    render(<GuidePlayer />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Empezar guía" }),
+    );
+
+    // GUIDE_STORAGE_FAILURE_API_CALLS=0
+    expect(createGuideSession).not.toHaveBeenCalled();
+    expect(await screen.findByText(STORAGE_COPY)).toBeInTheDocument();
+    spy.mockRestore();
+  });
+
+  it("does not send a step or the completion either", async () => {
+    const cases: Array<[Partial<GuideSessionView>, string, () => unknown]> = [
+      [{}, "He explorado esta idea", () => completeGuideSessionStep],
+      [
+        {
+          stepsCompleted: 1,
+          currentStepKey: "practicar-escucharte-por-dentro",
+        },
+        "Ya hice esta práctica",
+        () => completeGuideSessionStep,
+      ],
+      [
+        { stepsCompleted: 3, currentStepKey: null },
+        "Finalizar guía",
+        () => completeGuideSession,
+      ],
+    ];
+
+    for (const [over, label, spyOf] of cases) {
+      vi.clearAllMocks();
+      window.localStorage.clear();
+      storeRecord();
+      createGuideSession.mockResolvedValue(replayed(over));
+      const user = userEvent.setup();
+      const view = render(<GuidePlayer />);
+      const cta = await screen.findByRole("button", { name: label });
+
+      const spy = blockWrites();
+      await user.click(cta);
+      expect(spyOf()).not.toHaveBeenCalled();
+      expect(await screen.findByText(STORAGE_COPY)).toBeInTheDocument();
+      spy.mockRestore();
+      view.unmount();
+    }
+  });
+
+  it("does not send the cancel when its key cannot be persisted", async () => {
+    storeRecord();
+    createGuideSession.mockResolvedValue(replayed());
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const user = userEvent.setup();
+    render(<GuidePlayer />);
+
+    const cta = await screen.findByRole("button", { name: "Salir de la guía" });
+    const spy = blockWrites();
+    await user.click(cta);
+
+    expect(cancelGuideSession).not.toHaveBeenCalled();
+    spy.mockRestore();
+    confirm.mockRestore();
+  });
+
+  it("does not send the recall when its key cannot be persisted", async () => {
+    storeRecord();
+    createGuideSession.mockResolvedValue(
+      replayed({
+        stepsCompleted: 2,
+        currentStepKey: "recordar-cuerpo-antes-que-mente",
+      }),
+    );
+    const user = userEvent.setup();
+    render(<GuidePlayer />);
+
+    await user.click((await screen.findAllByRole("radio"))[0]!);
+    const spy = blockWrites();
+    await user.click(
+      screen.getByRole("button", { name: "Registrar respuesta" }),
+    );
+
+    expect(submitGuideStepRecall).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("treats an unreadable storage as blocked, not as a fresh browser", async () => {
+    const spy = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new Error("denied");
+      });
+    render(<GuidePlayer />);
+
+    expect(await screen.findByText(STORAGE_COPY)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Empezar guía" })).toBeNull();
+    expect(createGuideSession).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
+
+describe("GuidePlayer · a pending command belongs to one session", () => {
+  it("drops a pending whose sessionId is not the recovered one", async () => {
+    storeRecord({
+      sessionId: "cmb0otrasesion999",
+      pendingCommand: {
+        commandType: "STEP_COMPLETE",
+        idempotencyKey: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        sessionId: "cmb0otrasesion999",
+        stepKey: "explorar-cuerpo-antes-que-mente",
+      },
+    });
+    createGuideSession.mockResolvedValue(
+      replayed({
+        stepsCompleted: 1,
+        currentStepKey: "practicar-escucharte-por-dentro",
+      }),
+    );
+    render(<GuidePlayer />);
+
+    // The recovered snapshot renders…
+    expect(
+      await screen.findByRole("button", { name: "Ya hice esta práctica" }),
+    ).toBeInTheDocument();
+    // …and the foreign command is never sent, nor kept.
+    expect(completeGuideSessionStep).not.toHaveBeenCalled();
+    expect(readRecord()?.pendingCommand).toBeUndefined();
+    expect(readRecord()?.sessionId).toBe(SESSION_ID);
+  });
+});
+
+describe("GuidePlayer · a failed resync keeps the pending", () => {
+  it("preserves both keys and applies them on the later retry", async () => {
+    storeRecord();
+    createGuideSession
+      .mockResolvedValueOnce(replayed())
+      // The resync after the 409 fails…
+      .mockRejectedValueOnce(new TypeError("network"))
+      // …and succeeds when the person retries.
+      .mockResolvedValueOnce(replayed());
+    completeGuideSessionStep
+      .mockRejectedValueOnce(await apiError(409, "GUIDE_STEP_NOT_CURRENT"))
+      .mockResolvedValueOnce(
+        ok({
+          stepsCompleted: 1,
+          currentStepKey: "practicar-escucharte-por-dentro",
+        }),
+      );
+    const user = userEvent.setup();
+    render(<GuidePlayer />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "He explorado esta idea" }),
+    );
+
+    // GUIDE_RESYNC_FAILURE_PRESERVES_PENDING=true
+    const retryBtn = await screen.findByRole("button", { name: "Reintentar" });
+    const commandKey =
+      completeGuideSessionStep.mock.calls[0]![2]!.idempotencyKey;
+    expect(readRecord()?.pendingCommand?.idempotencyKey).toBe(commandKey);
+
+    await user.click(retryBtn);
+
+    await waitFor(() =>
+      expect(completeGuideSessionStep).toHaveBeenCalledTimes(2),
+    );
+    // GUIDE_RESYNC_RETRY_START_KEY_REUSED=true
+    for (const [body] of createGuideSession.mock.calls) {
+      expect(body.idempotencyKey).toBe(START_KEY);
+    }
+    // GUIDE_RESYNC_RETRY_COMMAND_KEY_REUSED=true
+    expect(completeGuideSessionStep.mock.calls[1]![2]!.idempotencyKey).toBe(
+      commandKey,
+    );
+  });
+});
+
+describe("GuidePlayer · a contradictory snapshot is not completed", () => {
+  it("refuses to finish an ACTIVE session with steps missing", async () => {
+    storeRecord();
+    createGuideSession.mockResolvedValue(
+      replayed({ status: "ACTIVE", currentStepKey: null, stepsCompleted: 1 }),
+    );
+    render(<GuidePlayer />);
+
+    expect(
+      await screen.findByText("No pudimos mostrar el estado actual."),
+    ).toBeInTheDocument();
+    // GUIDE_CONTRADICTORY_STATE_COMMAND_CALLS=0
+    expect(screen.queryByRole("button", { name: "Finalizar guía" })).toBeNull();
+    expect(completeGuideSession).not.toHaveBeenCalled();
+    expect(cancelGuideSession).not.toHaveBeenCalled();
+    expect(completeGuideSessionStep).not.toHaveBeenCalled();
+    expect(submitGuideStepRecall).not.toHaveBeenCalled();
+  });
+
+  it("still finishes when the server reports every step accepted", async () => {
+    storeRecord();
+    createGuideSession.mockResolvedValue(
+      replayed({ status: "ACTIVE", currentStepKey: null, stepsCompleted: 3 }),
+    );
+    render(<GuidePlayer />);
+
+    expect(
+      await screen.findByRole("button", { name: "Finalizar guía" }),
     ).toBeInTheDocument();
   });
 });

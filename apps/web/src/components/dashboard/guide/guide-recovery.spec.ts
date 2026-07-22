@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   GUIDE_STORAGE_KEY,
   clearGuideRecovery,
-  hasGuideRecovery,
+  guideRecoveryState,
   newIdempotencyKey,
   parseGuideRecoveryRecord,
   parsePendingGuideCommand,
@@ -185,6 +185,35 @@ describe("parsePendingGuideCommand", () => {
     ).toBeNull();
   });
 
+  it("rejects a command whose kind does not fit its step", () => {
+    // The server completes the recall step ONLY through its own command, and
+    // a confirm step only through STEP_COMPLETE. A stored pairing that could
+    // never be accepted is not one we hold on to.
+    expect(
+      parsePendingGuideCommand({
+        ...base,
+        commandType: "STEP_COMPLETE",
+        stepKey: "recordar-cuerpo-antes-que-mente",
+      }),
+    ).toBeNull();
+    expect(
+      parsePendingGuideCommand({
+        ...base,
+        commandType: "STEP_RECALL",
+        stepKey: "explorar-cuerpo-antes-que-mente",
+        selectedOptionKey: "opcion-cuerpo-primero",
+      }),
+    ).toBeNull();
+    expect(
+      parsePendingGuideCommand({
+        ...base,
+        commandType: "STEP_RECALL",
+        stepKey: "practicar-escucharte-por-dentro",
+        selectedOptionKey: "opcion-cuerpo-primero",
+      }),
+    ).toBeNull();
+  });
+
   it("rejects an extra field even on a valid command", () => {
     expect(
       parsePendingGuideCommand({
@@ -197,15 +226,15 @@ describe("parsePendingGuideCommand", () => {
 });
 
 describe("readGuideRecovery", () => {
-  it("returns null when nothing is stored", () => {
-    expect(readGuideRecovery()).toBeNull();
-    expect(hasGuideRecovery()).toBe(false);
+  it("reports 'empty' when nothing is stored", () => {
+    expect(readGuideRecovery()).toEqual({ state: "empty" });
+    expect(guideRecoveryState()).toBe("empty");
   });
 
   it("drops and clears a corrupt blob without throwing", () => {
     window.localStorage.setItem(GUIDE_STORAGE_KEY, "{not json");
     expect(() => readGuideRecovery()).not.toThrow();
-    expect(readGuideRecovery()).toBeNull();
+    expect(readGuideRecovery()).toEqual({ state: "empty" });
     expect(window.localStorage.getItem(GUIDE_STORAGE_KEY)).toBeNull();
   });
 
@@ -214,25 +243,46 @@ describe("readGuideRecovery", () => {
       GUIDE_STORAGE_KEY,
       JSON.stringify({ ...validRecord, userId: "someone" }),
     );
-    expect(readGuideRecovery()).toBeNull();
+    expect(readGuideRecovery()).toEqual({ state: "empty" });
     expect(window.localStorage.getItem(GUIDE_STORAGE_KEY)).toBeNull();
   });
 
   it("round-trips a written record", () => {
-    writeGuideRecovery({ ...validRecord, sessionId: SESSION });
-    expect(readGuideRecovery()).toEqual({ ...validRecord, sessionId: SESSION });
-    expect(hasGuideRecovery()).toBe(true);
+    expect(writeGuideRecovery({ ...validRecord, sessionId: SESSION })).toEqual({
+      ok: true,
+    });
+    expect(readGuideRecovery()).toEqual({
+      state: "valid",
+      record: { ...validRecord, sessionId: SESSION },
+    });
+    expect(guideRecoveryState()).toBe("valid");
     clearGuideRecovery();
-    expect(readGuideRecovery()).toBeNull();
+    expect(readGuideRecovery()).toEqual({ state: "empty" });
   });
 
-  it("survives a localStorage that throws", () => {
+  it("reports 'unavailable' — NOT 'empty' — when reading throws", () => {
+    // The distinction matters: a browser that cannot read cannot write
+    // either, so treating this as "no session yet" would invite a START
+    // whose key nobody could ever recover.
     const spy = vi
       .spyOn(Storage.prototype, "getItem")
       .mockImplementation(() => {
         throw new Error("denied");
       });
-    expect(readGuideRecovery()).toBeNull();
+    expect(readGuideRecovery()).toEqual({ state: "unavailable" });
+    expect(guideRecoveryState()).toBe("unavailable");
+    spy.mockRestore();
+  });
+});
+
+describe("writeGuideRecovery", () => {
+  it("reports the failure instead of swallowing it", () => {
+    const spy = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("quota");
+      });
+    expect(writeGuideRecovery(validRecord)).toEqual({ ok: false });
     spy.mockRestore();
   });
 });

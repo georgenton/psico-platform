@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
@@ -142,13 +143,32 @@ export function parseRecallCatalogContent(
   return null;
 }
 
+/**
+ * The narrow Prisma surface every resolution chain touches. A `$transaction`
+ * client satisfies it, so a caller can resolve the catalog INSIDE its own
+ * transaction (CC-7.4C: the Guide lifecycle must observe one snapshot across
+ * context, entitlement and its writes). Omitting it keeps the previous
+ * behaviour exactly.
+ */
+export type LearningCatalogDb = Pick<
+  PrismaClient,
+  "concept" | "exercise" | "contentUnit" | "revisionUnit" | "book"
+>;
+
 @Injectable()
 export class LearningCatalogResolver {
   constructor(private readonly prisma: PrismaService) {}
 
   /** `unitKey → ContentUnit → published RevisionUnit → Edition → Book`. */
-  async resolveUnit(unitKey: string): Promise<ResolvedUnitContext> {
-    return this.resolveUnitByWhere({ unitKey }, "LEARNING_EVENT_UNKNOWN_UNIT");
+  async resolveUnit(
+    unitKey: string,
+    db?: LearningCatalogDb,
+  ): Promise<ResolvedUnitContext> {
+    return this.resolveUnitByWhere(
+      { unitKey },
+      "LEARNING_EVENT_UNKNOWN_UNIT",
+      db,
+    );
   }
 
   /**
@@ -156,8 +176,12 @@ export class LearningCatalogResolver {
    * published revision → edition → book`. A concept linked to zero units or
    * to MORE THAN ONE distinct unit has no unambiguous owner → 422.
    */
-  async resolveConcept(conceptKey: string): Promise<ResolvedConceptContext> {
-    const concept = await this.prisma.concept.findUnique({
+  async resolveConcept(
+    conceptKey: string,
+    db?: LearningCatalogDb,
+  ): Promise<ResolvedConceptContext> {
+    const client = db ?? this.prisma;
+    const concept = await client.concept.findUnique({
       where: { conceptKey },
       select: {
         id: true,
@@ -174,6 +198,7 @@ export class LearningCatalogResolver {
       { id: unitIds[0] },
       // The concept EXISTS — an unresolvable owning unit is a context problem.
       "LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT",
+      db,
     );
     return { ...ctx, conceptId: concept.id, conceptKey: concept.conceptKey };
   }
@@ -183,8 +208,12 @@ export class LearningCatalogResolver {
    * published revision → edition → book`. A QUIZ is a recall item, not a
    * completable practice — it never resolves here.
    */
-  async resolveExercise(exerciseKey: string): Promise<ResolvedExerciseContext> {
-    const exercise = await this.prisma.exercise.findUnique({
+  async resolveExercise(
+    exerciseKey: string,
+    db?: LearningCatalogDb,
+  ): Promise<ResolvedExerciseContext> {
+    const client = db ?? this.prisma;
+    const exercise = await client.exercise.findUnique({
       where: { id: exerciseKey },
       select: { id: true, type: true, chapterId: true },
     });
@@ -195,6 +224,7 @@ export class LearningCatalogResolver {
       { unitKey: unitKeyFromLegacyChapterId(exercise.chapterId) },
       // The exercise exists; a missing/unpublished unit is a context problem.
       "LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT",
+      db,
     );
     return { ...ctx, exerciseKey: exercise.id };
   }
@@ -204,8 +234,12 @@ export class LearningCatalogResolver {
    * unit → published revision → edition → book`, plus the declared concept
    * binding — which must belong to the SAME editorial context as the item.
    */
-  async resolveRecallItem(itemKey: string): Promise<ResolvedRecallItemContext> {
-    const exercise = await this.prisma.exercise.findUnique({
+  async resolveRecallItem(
+    itemKey: string,
+    db?: LearningCatalogDb,
+  ): Promise<ResolvedRecallItemContext> {
+    const client = db ?? this.prisma;
+    const exercise = await client.exercise.findUnique({
       where: { id: itemKey },
       select: { id: true, type: true, chapterId: true, content: true },
     });
@@ -224,6 +258,7 @@ export class LearningCatalogResolver {
     const ctx = await this.resolveUnitByWhere(
       { unitKey: unitKeyFromLegacyChapterId(exercise.chapterId) },
       "LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT",
+      db,
     );
 
     let conceptId: string | null = null;
@@ -233,7 +268,7 @@ export class LearningCatalogResolver {
       // distinct owning unit) — but every failure here is 422, never
       // UNKNOWN_CONCEPT: this key comes from the item's INTERNAL catalog,
       // not from the client.
-      const concept = await this.prisma.concept.findUnique({
+      const concept = await client.concept.findUnique({
         where: { conceptKey: catalog.conceptKey },
         select: {
           id: true,
@@ -281,8 +316,10 @@ export class LearningCatalogResolver {
     missingCode:
       | "LEARNING_EVENT_UNKNOWN_UNIT"
       | "LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT",
+    db?: LearningCatalogDb,
   ): Promise<ResolvedUnitContext> {
-    const units = await this.prisma.contentUnit.findMany({
+    const client = db ?? this.prisma;
+    const units = await client.contentUnit.findMany({
       where,
       select: {
         id: true,
@@ -308,7 +345,7 @@ export class LearningCatalogResolver {
     if (!unit.edition.publishedRevisionId) {
       throw learningException("LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT");
     }
-    const manifestEntry = await this.prisma.revisionUnit.findUnique({
+    const manifestEntry = await client.revisionUnit.findUnique({
       where: {
         revisionId_unitId: {
           revisionId: unit.edition.publishedRevisionId,
@@ -321,7 +358,7 @@ export class LearningCatalogResolver {
     if (!manifestEntry) {
       throw learningException("LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT");
     }
-    const book = await this.prisma.book.findUnique({
+    const book = await client.book.findUnique({
       where: { slug: unit.edition.slug },
       select: { id: true, slug: true, plan: true },
     });

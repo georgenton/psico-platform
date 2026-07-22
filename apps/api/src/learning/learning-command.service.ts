@@ -28,6 +28,10 @@ import {
 } from "./learning-event.repository";
 import { learningException, mapRepositoryErrors } from "./learning-errors";
 import type { ValidatedLearningEvent } from "./validated-learning-event";
+import {
+  buildObjectiveRecallAttempt,
+  buildPracticeCompletedPayload,
+} from "./learning-event-builders";
 
 /**
  * CC-7.3 — the five learning domain commands (ADR 0017 §1/§2).
@@ -236,25 +240,9 @@ export class LearningCommandService {
 
     let payload: ValidatedLearningEvent<"active_recall_attempted">["payload"];
     if (command.kind === "objective") {
-      if (item.mode !== "objective") {
-        // A selectedOptionKey against a self-assessed item is a payload error.
-        throw learningException("LEARNING_EVENT_INVALID_PAYLOAD");
-      }
-      if (!item.optionKeys.includes(command.selectedOptionKey)) {
-        throw learningException("LEARNING_EVENT_INVALID_PAYLOAD");
-      }
-      payload = {
-        unitKey: item.unitKey,
-        itemKey: item.itemKey,
-        conceptKey: item.conceptKey,
-        evaluationSource: "server",
-        selectedOptionKey: command.selectedOptionKey,
-        // SERVER-graded — the client never sends result/evaluationSource.
-        result:
-          command.selectedOptionKey === item.correctOptionKey
-            ? "correct"
-            : "incorrect",
-      };
+      // SHARED with the Guide lifecycle (CC-7.4C): one definition of the mode
+      // check, the option-key check and the server grading rule.
+      payload = buildObjectiveRecallAttempt(item, command.selectedOptionKey);
     } else {
       if (item.mode !== "self_assessed") {
         // A selfResult against an objective item is a payload error — the
@@ -302,7 +290,7 @@ export class LearningCommandService {
       userId: user.userId,
       idempotencyKey: command.idempotencyKey,
       type: "practice_completed",
-      payload: { exerciseKey: ctx.exerciseKey, unitKey: ctx.unitKey },
+      payload: buildPracticeCompletedPayload(ctx),
       editionId: ctx.editionId,
       unitId: ctx.unitId,
     };

@@ -8,8 +8,10 @@ GUIDE_EDITORIAL_APPROVED=true
 GUIDE_EDITORIAL_AUTHOR=Jorge
 GUIDE_EDITORIAL_REVIEWER=Jorge (self-review)
 GUIDE_EDITORIAL_APPROVAL_DATE=2026-07-21
-GUIDE_REGISTRY_STATUS=IMPLEMENTED_PENDING_MERGE
+GUIDE_REGISTRY_STATUS=MERGED_TO_DEVELOP
+GUIDE_DEFINITION_MERGE_SHA=364a8b274aba7d4396320c27c9cf6484a76bb721
 GUIDE_CONTEXT_POLICY=SERVER_DERIVED_FROM_TARGETS
+CC7_4C_STATUS=IN_REVIEW
 ```
 
 La mención `self-review` se conserva deliberadamente: fue una autorrevisión del
@@ -96,10 +98,13 @@ contra ese pin.
 
 ## 7. Estado
 
-- `GUIDE_REGISTRY_STATUS=IMPLEMENTED_PENDING_MERGE` — la definición está en
-  código (`PRODUCTION_GUIDE_DEFINITIONS`, 1 entrada) y probada contra
-  PostgreSQL real, pendiente de merge.
-- **Todavía no hay lifecycle, endpoints ni deploy.** No existe START, ni
-  sesión, ni ruta HTTP de Guide; ninguna ejecución tocó la base de producción.
-- Lo siguiente (CC-7.4C) es el lifecycle de sesión, que deberá aplicar la
-  política de contexto derivado antes de crear cualquier sesión.
+- `GUIDE_REGISTRY_STATUS=MERGED_TO_DEVELOP` — la definición está en código
+  (`PRODUCTION_GUIDE_DEFINITIONS`, 1 entrada), probada contra PostgreSQL real
+  y mergeada en `develop` (`GUIDE_DEFINITION_MERGE_SHA`).
+- `CC7_4C_STATUS=IN_REVIEW` — el lifecycle interno de sesión ya está
+  implementado y probado (ver
+  [guide-v1-lifecycle.md](guide-v1-lifecycle.md)); aplica la política de
+  contexto derivado antes de crear cualquier sesión.
+- **Todavía no hay endpoints ni deploy.** No existe ninguna ruta HTTP de Guide
+  y ninguna ejecución tocó la base de producción. La superficie HTTP es
+  CC-7.4D.

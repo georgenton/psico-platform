@@ -52,8 +52,12 @@ export function assertContentAccess(input: {
   }
 }
 
-// The narrow Prisma surface the resolvers need — stubbable in unit tests.
-type AccessDb = Pick<
+/**
+ * The narrow Prisma surface the resolvers need — stubbable in unit tests, and
+ * satisfied by a `$transaction` client so a caller can gate inside its own
+ * transaction (CC-7.4C).
+ */
+export type AccessDb = Pick<
   PrismaClient,
   | "book"
   | "chapter"

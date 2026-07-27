@@ -1,9 +1,10 @@
 # CC-7 — Production readiness (inventory + local rehearsal)
 
 ```
-CC7_R2_STATUS=IN_REVIEW
-PRODUCTION_READINESS=READY
-PRODUCTION_BLOCKERS=0
+CC7_R2_STATUS=CHANGES_APPLIED_PENDING_REVIEW
+PRODUCTION_READINESS=PARTIALLY_VERIFIED
+PRODUCTION_BLOCKERS=1
+PRODUCTION_BLOCKER_ENV_OFF_FIRST_NOT_APPLIED=true
 
 MAIN_SHA=c4a4b5bf59a82c31aef60d9d4e2c6ff58620fd7e
 DEVELOP_SHA=52d7764063ccdea650fb049edeed7592782be4c5
@@ -24,13 +25,39 @@ LOCAL_MAIN_MIGRATIONS_PASS=true
 LOCAL_DEVELOP_UPGRADE_PASS=true
 LOCAL_SECOND_MIGRATE_DEPLOY_NOOP=true
 
-LOCAL_CONTENT_BACKFILL_PASS=true
-LOCAL_EXERCISE_INGESTION_PASS=true
-LOCAL_SECOND_INGESTION_NOOP=true
-LOCAL_GUIDE_TARGET_RESOLUTION_PASS=true
+LOCAL_BACKFILL_PG_SPECS_PASS=true
+LOCAL_EXERCISE_INGESTION_PG_SPECS_PASS=true
+LOCAL_GUIDE_TARGET_PG_SPECS_PASS=true
 
+LOCAL_CONTENT_BACKFILL_DRY_RUN_PASS=true
+LOCAL_DRY_RUN_DB_DELTA=0
+LOCAL_CONTENT_BACKFILL_CLI_APPLY_PASS=true
+LOCAL_EXERCISE_ROWS_EXPECTED=true
+LOCAL_GUIDE_TARGET_RESOLUTION_AFTER_CLI=true
+LOCAL_SECOND_CLI_APPLY_NOOP=true
+LOCAL_SECOND_CLI_PARTIAL_STATE=false
+
+MAIN_API_BUILD_PASS=true
+MAIN_WORKER_BUILD_PASS=true
+ROLLBACK_MAIN_API_BOOT_PASS=true
+ROLLBACK_MAIN_HEALTH_PASS=true
+ROLLBACK_MAIN_AUTH_SMOKE_PASS=true
+ROLLBACK_MAIN_CONTENT_SMOKE_PASS=true
+ROLLBACK_MAIN_WORKER_BOOT_PASS=true
+ROLLBACK_MAIN_WORKER_PROCESSORS_ACTIVE=true
 ROLLBACK_CODE_ON_UPGRADED_DB_PASS=true
+
+ROLLBACK_PRISMA_CLIENT_QUERY_PROBE_PASS=true
+ROLLBACK_UNKNOWN_ENUM_PROBE_FAILS=true
+MAIN_RUNTIME_LEARNING_EVENT_READS=0
 DB_DOWN_MIGRATION_REQUIRED_FOR_CODE_ROLLBACK=false
+
+PRISMA_CLIENT_BACKUP_CREATED=true
+PRISMA_CLIENT_RESTORED_BYTE_EQUIVALENT=true
+DEVELOP_GUIDE_E2E_AFTER_RESTORE_PASS=true
+
+PRODUCTION_LEARNING_EVENT_CARDINALITY_VERIFIED=false
+LEARNING_EVENT_INDEX_LOCK_RISK=UNKNOWN_PENDING_PREDEPLOY_CHECK
 
 API_DEPLOY_REQUIRED=true
 WORKER_DEPLOY_REQUIRED=true
@@ -40,6 +67,9 @@ MOBILE_RELEASE_REQUIRED=false
 GUIDE_INITIAL_PRODUCTION_MODE_RECOMMENDED=off
 GUIDE_PILOT_USERS_CONFIGURED=false
 GUIDE_PRODUCTION_DEPLOYED=false
+
+ENV_OFF_FIRST_PLAN_READY=true
+ENV_OFF_FIRST_APPLIED=false
 ENVIRONMENT_CHANGED=false
 DEPLOY_EXECUTED=false
 ```
@@ -128,7 +158,7 @@ the merge-base): main has 47, develop has 49.
 | Tables touched      | `LearningEvent` only                                                                                                                     |
 | Classification      | **additive**                                                                                                                             |
 | Statements          | 3 × `ALTER TYPE … ADD VALUE`, 4 × `ADD COLUMN` (all nullable, no default), 1 × `CREATE UNIQUE INDEX`                                     |
-| Locks               | brief `ACCESS EXCLUSIVE` on `LearningEvent` for the ADD COLUMNs; index build on a small table                                            |
+| Locks               | brief `ACCESS EXCLUSIVE` on `LearningEvent` for the ADD COLUMNs; plus a non-concurrent unique-index build (see the note below)           |
 | Existing data       | preserved — no backfill, no rewrite; NULL `idempotencyKey` rows are exempt from the unique index by PostgreSQL's distinct-NULL semantics |
 | Old-code compatible | yes (see §5)                                                                                                                             |
 | DB rollback         | not required                                                                                                                             |
@@ -136,6 +166,23 @@ the merge-base): main has 47, develop has 49.
 The destructive scan matched `RENAME` **once**, in the prose comment
 "Existing values are neither removed nor renamed". Actual
 `ALTER … RENAME` statements: **0**.
+
+> **Index lock risk — unknown, not small.**
+>
+> `LearningEvent` production cardinality was not queried in CC-7.R2. The
+> non-concurrent unique-index build has an operational lock/duration risk whose
+> magnitude is unknown until a pre-deploy production metadata check.
+>
+> ```
+> PRODUCTION_LEARNING_EVENT_CARDINALITY_VERIFIED=false
+> LEARNING_EVENT_INDEX_LOCK_RISK=UNKNOWN_PENDING_PREDEPLOY_CHECK
+> ```
+>
+> This is a **mandatory precheck** of the future production preparation: read the
+> row count (and only the count — no rows, no personal data), size the expected
+> lock window, and get that window approved before merging the sync PR. Local
+> rehearsal timings say nothing about production here, because the local table
+> was effectively empty.
 
 ### `20260721000000_cc7_4b_guide_catalog_ledger`
 
@@ -181,19 +228,95 @@ after the existing 8 values (existing values unmoved).
 
 ---
 
-## 5. Code-rollback compatibility — executed, with a documented caveat
+## 5. Code-rollback compatibility — full runtime rehearsal
 
 Strategy under test: **old code + new schema**, so an emergency rollback never
-needs a down migration.
+needs a down migration. A Prisma client probe alone is not enough to call the
+runtime compatible, so main's API and worker were **built and actually booted**
+against the upgraded database.
 
-Main's Prisma client was generated from main's schema and run against the
-**upgraded** database.
+### 5.1 Prisma client isolation (no silent overwrite)
 
-| Probe                                                                                                                                                                                                                  | Result                                                                          |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| 13 model queries main knows (`User`, `Book`, `Chapter`, `ChapterBlock`, `RefreshToken`, `DiaryEntry`, `MoodLog`, `Resonance`, `ContentUnit`, `RevisionUnit`, `LearningEvent` count + findMany, `EmotionalMapSnapshot`) | **13/13 pass, 0 fail**                                                          |
-| Guide delegates present in main's client                                                                                                                                                                               | absent, as expected (`guideSession`, `guideSessionStep`, `guideCommandReceipt`) |
-| `LearningEvent.findMany` on a table with no V1 rows                                                                                                                                                                    | passes                                                                          |
+`prisma generate` writes into the workspace-shared client directory, so
+generating main's client would clobber develop's. It was therefore backed up,
+regenerated, and restored under checksum:
+
+```
+PRISMA_CLIENT_BACKUP_CREATED=true              (16 files, sha256 manifest)
+PRISMA_CLIENT_RESTORED_BYTE_EQUIVALENT=true    (all 16 sha256 match after restore)
+DEVELOP_GUIDE_E2E_AFTER_RESTORE_PASS=true      (Guide HTTP E2E 30/30; full API suite 1432 pass / 1 skipped)
+```
+
+The functional re-check matters more than the checksum: a byte-identical restore
+that failed to run would still be a broken workspace.
+
+### 5.2 Build
+
+Built from main's worktree, with main's own client:
+
+```
+MAIN_API_BUILD_PASS=true
+MAIN_WORKER_BUILD_PASS=true
+```
+
+Sanity check that these are genuinely main's artefacts and not develop's:
+`dist/guide/` is **absent** from the build.
+
+### 5.3 API — booted and exercised
+
+Main's `dist/main.js` against the upgraded DB, a local isolated Redis, and
+`NODE_ENV=development`. No production URL, no production credential; the
+placeholder values are obviously non-secret local strings.
+
+```
+ROLLBACK_MAIN_API_BOOT_PASS=true       187 routes mapped · 0 /api/guide · 0 /api/learning
+ROLLBACK_MAIN_HEALTH_PASS=true         GET /health → 200
+ROLLBACK_MAIN_AUTH_SMOKE_PASS=true
+ROLLBACK_MAIN_CONTENT_SMOKE_PASS=true
+```
+
+Statuses only — no tokens, no bodies:
+
+| Request (main's own OpenAPI surface)  | Status |
+| ------------------------------------- | ------ |
+| `GET /health`                         | 200    |
+| `POST /api/auth/register`             | 201    |
+| `POST /api/auth/login`                | 200    |
+| `POST /api/auth/refresh`              | 200    |
+| `POST /api/auth/login` (bad password) | 401    |
+| `GET /api/books`                      | 200    |
+| `GET /api/books/categories`           | 200    |
+| `GET /api/user/me`                    | 200    |
+| `GET /api/home`                       | 200    |
+| `GET /api/user/me` (no JWT)           | 401    |
+| `GET /api/home` (no JWT)              | 401    |
+
+Register/login/refresh **write real rows** through main's Prisma client against
+the upgraded schema — the strongest available evidence that old code transacts
+correctly on the new tables. Prisma errors logged across the whole run: **0**.
+
+`GET /api/books` answers 200 unauthenticated because it is a public catalog in
+main — expected, not a gate failure; the auth-gated routes above answer 401.
+
+### 5.4 Worker — booted and observed
+
+```
+ROLLBACK_MAIN_WORKER_BOOT_PASS=true
+ROLLBACK_MAIN_WORKER_PROCESSORS_ACTIVE=true
+```
+
+Observed for ~33 s: process alive throughout, Redis connected, log line
+`Worker started · processors: email, data-export, account-deletion, daily-usage`
+followed by `Awaiting jobs from Redis…`. Crash-loop markers: 0. Prisma errors: 0.
+
+### 5.5 Verdict
+
+All five required gates (API build, worker build, API boot, health, worker boot)
+pass, so:
+
+```
+ROLLBACK_CODE_ON_UPGRADED_DB_PASS=true
+```
 
 ### The caveat worth knowing
 
@@ -205,7 +328,14 @@ Value 'CONCEPT_EXPLORED' not found in enum 'LearningEventKind'
 ```
 
 This is a genuine Prisma property: an older client cannot deserialise an enum
-value it does not know.
+value it does not know. It is recorded as a real incompatibility, kept separate
+from the runtime verdict rather than folded into it:
+
+```
+ROLLBACK_PRISMA_CLIENT_QUERY_PROBE_PASS=true    13/13 model queries main knows
+ROLLBACK_UNKNOWN_ENUM_PROBE_FAILS=true          the hazard reproduces on demand
+MAIN_RUNTIME_LEARNING_EVENT_READS=0             which is why it is unreachable
+```
 
 **Why it does not block rollback:** main's runtime code never queries
 `LearningEvent`. Verified across `apps/api/src` in the main worktree —
@@ -246,8 +376,11 @@ An `--apply` on a deployed box additionally requires
 (`previous_published_revision_id`, `previous_main_sha`) before applying, emits
 metrics-only stdout, and surfaces errors as whitelisted machine codes.
 
-Rehearsal ran the repository's own authority suites against real PostgreSQL —
-these create isolated databases and assert idempotency and non-destructiveness:
+### 6.1 Domain suites (not a CLI rehearsal)
+
+The repository's own authority suites run against real PostgreSQL, creating
+isolated databases and asserting idempotency and non-destructiveness. They prove
+the **domain logic**; they do not exercise the shipped CLI binary:
 
 | Suite                                                              | Tests    |
 | ------------------------------------------------------------------ | -------- |
@@ -257,20 +390,90 @@ these create isolated databases and assert idempotency and non-destructiveness:
 | `exercise-ingestion.pg-spec`                                       | 20 pass  |
 | guide + learning domain (incl. `guide-production-catalog.pg-spec`) | 168 pass |
 
-Production guide definition, as asserted by `guide-production-catalog.pg-spec`
-against a real database (real names, not invented ones):
-
 ```
-productionGuideRegistry.size            = 1
-latestStartableVersion(guideKey)        = 1
-definition.steps                        = 3   (order 1,2,3 · unique stepKeys · all required)
-step kinds                              = CONCEPT_EXPLORATION, CATALOG_PRACTICE, ACTIVE_RECALL
-exercise ingestion targets              = 1 practice (guided_reflection) + 1 objective recall (QUIZ)
-definition frozen (Object.isFrozen)     = true
+LOCAL_BACKFILL_PG_SPECS_PASS=true
+LOCAL_EXERCISE_INGESTION_PG_SPECS_PASS=true
+LOCAL_GUIDE_TARGET_PG_SPECS_PASS=true
 ```
 
-> Production ingestion has **not** been run. These counts are what the local
-> rehearsal and the authority specs establish as expected.
+(Whole locks suite at the time of writing: 315 pass / 25 files.)
+
+### 6.2 The official CLI, actually executed
+
+On a throwaway copy of the upgraded database, seeded with the repo's own tools:
+`prisma/seed.ts`, then `scripts/ingest-chapter-md.mjs` for the three real Parte I
+chapters (382 blocks). That script is frozen for production because it
+cascade-deletes marks; it was run under its own documented non-production escape
+hatch, on a database with **zero** highlights and annotations. Then develop's API
+was built and `dist/content-core/backfill-cli.js` was run for real.
+
+**Dry-run** (default, no `--apply`):
+
+```
+LOCAL_CONTENT_BACKFILL_DRY_RUN_PASS=true
+LOCAL_DRY_RUN_DB_DELTA=0
+```
+
+Report (metrics only): `book_found=true` · `current_manifest_source=legacy` ·
+`chapters_found=3` · `legacy_blocks_found=382` · `concepts_found=3` ·
+`planned_content_units_created=3` · `planned_content_blocks_created=382` ·
+`drift_conflicts=0` · `unresolved_blocks=0` · `destructive_operations=0` ·
+`database_writes=0` · `backfill_safe=true`. Row counts before and after the
+dry-run were identical — the "no writes" claim is measured, not trusted.
+
+**Apply** (`ALLOW_CONTENT_CORE_BACKFILL=on … --apply`):
+
+```
+LOCAL_CONTENT_BACKFILL_CLI_APPLY_PASS=true
+LOCAL_EXERCISE_ROWS_EXPECTED=true
+LOCAL_GUIDE_TARGET_RESOLUTION_AFTER_CLI=true
+```
+
+Resulting shape, using the **real** table names (`Work`, `Edition`, `Revision`,
+`ContentUnit`, `ContentUnitVersion`, `ContentBlock`, `Concept`, `Exercise`):
+
+```
+Work 1 · Edition 1 · Revision 1 · ContentUnit 3 · ContentUnitVersion 3
+ContentBlock 382 · Concept 3 · ConceptLink 3 · Exercise 2
+post_manifest_source = content-core
+```
+
+The two `Exercise` rows are chapter 1 order 1 (`REFLECTION`, the guided practice)
+and order 2 (`QUIZ`, the objective recall) — exactly the pair
+`EXERCISE_INGESTION_CATALOG` declares. Note the real model: `Exercise` has
+columns `id, chapterId, order, title, type, content` and **no `exerciseKey`
+column** — the `exerciseKey` in the catalog is a code-side identifier, resolved
+through `(bookSlug, chapterOrder, order)`. The rows are created by `backfill.ts`
+via `ingestUnitExercises`, i.e. by the CLI, not by a separate command.
+
+**Guide target resolution after the CLI** — the real
+`GuideTargetContextService.resolve()` was run against the backfilled database
+with the pinned production definition:
+
+```
+GUIDE_DEFINITION_FOUND=true · GUIDE_STEPS=3
+GUIDE_TARGET_RESOLUTION_PASS=true · 9 editorial anchors resolved
+```
+
+**Re-apply** (twice more):
+
+```
+LOCAL_SECOND_CLI_APPLY_NOOP=true
+LOCAL_SECOND_CLI_PARTIAL_STATE=false
+```
+
+Every row count identical across applies. One thing worth reading correctly: the
+`previous_published_revision_id` register is `null` on the first apply and
+non-null afterwards. That is the **rollback register being captured** (the
+pointer that existed before this run), not evidence of a new revision — the
+`Revision` count stayed at 1 throughout.
+
+`GuideDefinition` is **not a database table**: no such relation exists after the
+migrations. The guide definition is code-owned in `guide-catalog.ts`; ingestion
+creates the `Exercise` targets it resolves against.
+
+> Production ingestion has **not** been run. The counts above are what the local
+> rehearsal establishes as expected.
 
 ---
 
@@ -283,8 +486,15 @@ Diffed `env.schema.ts` between the worktrees; no new entries in `shared/flags.ts
 | `GUIDE_ROLLOUT_MODE`   | API (+ worker for posture) | yes on a deployed box    | `off`         | no                             | yes     |
 | `GUIDE_PILOT_USER_IDS` | API (+ worker for posture) | only when mode = `pilot` | unset         | operational — treat as private | yes     |
 
-Vercel receives **neither**. The web surface reads only the pre-existing
-`NEXT_PUBLIC_API_URL`.
+**API is the functional authority for the Guide rollout.** The API resolves and
+applies `GUIDE_ROLLOUT_MODE`; the worker exposes no Guide command and does not
+necessarily instantiate the Guide module. Mirroring the value on the worker is
+**deployment posture** — one operational answer across services — not a
+functional requirement, and this document makes no claim that an absent value on
+the worker necessarily produces a boot failure.
+
+**Vercel receives neither Guide rollout variable.** The web surface reads only
+the pre-existing `NEXT_PUBLIC_API_URL`.
 
 Pre-existing flags/epochs referenced by the changed code (posture unchanged by
 this delta, listed as presence only): `EMOTIONAL_MAP_PUBLIC` (required, must be
@@ -298,15 +508,40 @@ No value of any variable was read or printed during this preparation.
 
 ## 8. Verdict
 
-`PRODUCTION_READINESS=READY` — every gate below was executed, not assumed:
+```
+PRODUCTION_READINESS=PARTIALLY_VERIFIED
+PRODUCTION_BLOCKERS=1
+```
+
+Everything that could be verified locally **was executed, not assumed**:
 
 - `MAIN_ONLY_SEMANTIC_CHANGES=0` · `MAIN_TREE_HISTORY_RECONCILED=true`
 - `LOCAL_MAIN_MIGRATIONS_PASS` · `LOCAL_DEVELOP_UPGRADE_PASS` · `LOCAL_SECOND_MIGRATE_DEPLOY_NOOP`
 - `DESTRUCTIVE_MIGRATIONS_WITHOUT_PLAN=0`
-- `LOCAL_CONTENT_BACKFILL_PASS` · `LOCAL_EXERCISE_INGESTION_PASS` · `LOCAL_SECOND_INGESTION_NOOP` · `LOCAL_GUIDE_TARGET_RESOLUTION_PASS`
-- `ROLLBACK_CODE_ON_UPGRADED_DB_PASS` (with the §5 invariant recorded)
-- `ENV_OFF_FIRST_READY=true` · `SMOKE_PLAN_COMPLETE=true` · `ROLLBACK_PLAN_COMPLETE=true`
+- domain suites: `LOCAL_BACKFILL_PG_SPECS_PASS` · `LOCAL_EXERCISE_INGESTION_PG_SPECS_PASS` · `LOCAL_GUIDE_TARGET_PG_SPECS_PASS`
+- the official CLI, really run: `LOCAL_CONTENT_BACKFILL_DRY_RUN_PASS` (`LOCAL_DRY_RUN_DB_DELTA=0`) · `LOCAL_CONTENT_BACKFILL_CLI_APPLY_PASS` · `LOCAL_EXERCISE_ROWS_EXPECTED` · `LOCAL_GUIDE_TARGET_RESOLUTION_AFTER_CLI` · `LOCAL_SECOND_CLI_APPLY_NOOP`
+- main's runtime, really booted: `MAIN_API_BUILD_PASS` · `MAIN_WORKER_BUILD_PASS` · `ROLLBACK_MAIN_API_BOOT_PASS` · `ROLLBACK_MAIN_HEALTH_PASS` · `ROLLBACK_MAIN_AUTH_SMOKE_PASS` · `ROLLBACK_MAIN_CONTENT_SMOKE_PASS` · `ROLLBACK_MAIN_WORKER_BOOT_PASS` · `ROLLBACK_MAIN_WORKER_PROCESSORS_ACTIVE` → `ROLLBACK_CODE_ON_UPGRADED_DB_PASS=true` (with the §5 invariant recorded)
+- `ENV_OFF_FIRST_PLAN_READY=true` · `SMOKE_PLAN_COMPLETE=true` · `ROLLBACK_PLAN_COMPLETE=true`
 
-`PRODUCTION_BLOCKERS=0`. Readiness is not permission: the promotion itself is a
-separate, explicitly authorised execution — see
+### Why not READY
+
+```
+PRODUCTION_BLOCKER_ENV_OFF_FIRST_NOT_APPLIED=true
+```
+
+CC-7.R2 does not touch Railway, so the off-first posture is **planned, not
+applied**: `ENV_OFF_FIRST_APPLIED=false`, `ENVIRONMENT_CHANGED=false`. Until a
+separate authorised execution sets `GUIDE_ROLLOUT_MODE=off` on the API and worker
+and verifies it, production readiness cannot honestly be called complete — every
+local gate passing does not make an unset production variable safe.
+
+Two further items are **unverified rather than passing**, and belong to the same
+future execution:
+
+- `PRODUCTION_LEARNING_EVENT_CARDINALITY_VERIFIED=false` /
+  `LEARNING_EVENT_INDEX_LOCK_RISK=UNKNOWN_PENDING_PREDEPLOY_CHECK` (§3)
+- production ingestion has not been run anywhere (§6)
+
+Readiness is not permission: the promotion itself is a separate, explicitly
+authorised execution — see
 [cc7-production-runbook.md](cc7-production-runbook.md).

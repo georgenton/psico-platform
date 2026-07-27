@@ -6,6 +6,9 @@ GUIDE_PRODUCTION_DEPLOYED=false
 GUIDE_PILOT_USERS_CONFIGURED=false
 GUIDE_INITIAL_PRODUCTION_MODE=off
 GUIDE_MODE_CHANGE_REQUIRES_RESTART=true
+ENV_OFF_FIRST_PLAN_READY=true
+ENV_OFF_FIRST_APPLIED=false
+ENVIRONMENT_CHANGED=false
 DEPLOY_EXECUTED=false
 ```
 
@@ -32,9 +35,17 @@ GUIDE_PILOT_USER_IDS=<unset>
 Vercel (web): no Guide variable. Never the allowlist.
 ```
 
-The command gate lives in the **API**. Keeping the same posture on the **worker**
-is operational coherence — both services read one config and neither can drift
-into a different answer — not a functional requirement.
+**API is the functional authority for the Guide rollout.** The API resolves and
+applies `GUIDE_ROLLOUT_MODE`. The worker exposes no Guide command and does not
+decide Guide command availability; mirroring the variable there is **deployment
+posture**, so the two services never read a different answer. Nothing here claims
+an absent value on the worker necessarily fails its boot.
+
+**Vercel receives neither Guide rollout variable.**
+
+This posture is **planned, not applied** (`ENV_OFF_FIRST_APPLIED=false`). Setting
+and verifying it in Railway is step 1 below and is itself the open production
+blocker recorded in the readiness document.
 
 **A mode change is not instantaneous.** `GUIDE_ROLLOUT_MODE` is resolved **once at
 boot** by `resolveGuideRolloutConfig`. Changing the variable needs no commit, no
@@ -68,12 +79,18 @@ PR to `main`.
 It may only be used once all of these hold:
 
 ```
-MAIN_TREE_HISTORY_RECONCILED=true     ✅ (readiness §1)
-MAIN_ONLY_SEMANTIC_CHANGES=0          ✅ (readiness §1)
-LOCAL_MIGRATION_REHEARSAL=PASS        ✅ (readiness §4)
-ROLLBACK_COMPATIBILITY=PASS           ✅ (readiness §5)
-ENV_OFF_FIRST_READY=true              ✅ (§1 above, once actually set)
+MAIN_TREE_HISTORY_RECONCILED=true                  ✅ (readiness §1)
+MAIN_ONLY_SEMANTIC_CHANGES=0                       ✅ (readiness §1)
+LOCAL_MIGRATION_REHEARSAL=PASS                     ✅ (readiness §4)
+ROLLBACK_COMPATIBILITY=PASS                        ✅ (readiness §5, runtime booted)
+LOCAL_CONTENT_BACKFILL_CLI_APPLY_PASS=true         ✅ (readiness §6.2)
+ENV_OFF_FIRST_APPLIED=true                         ⬜ NOT YET — step 1 below
+PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=true ⬜ NOT YET — precheck, readiness §3
+EXPECTED_INDEX_WINDOW_APPROVED=true                ⬜ NOT YET — precheck, readiness §3
 ```
+
+The three unchecked rows are the reason readiness reads
+`PARTIALLY_VERIFIED`, not `READY`.
 
 Verification the future execution must demand, before merging:
 
@@ -93,8 +110,10 @@ commit — never force.
 Activation of the pilot is **not** part of the first deploy.
 
 ```
+ 0. Precheck: read LearningEvent production row count (count only), size the
+    unique-index lock window, get that window approved.  (readiness §3)
  1. Stage env posture: GUIDE_ROLLOUT_MODE=off, GUIDE_PILOT_USER_IDS unset.
- 2. Verify API and worker carry the same posture.
+ 2. Verify API and worker carry the same posture → ENV_OFF_FIRST_APPLIED=true.
  3. Create the exact-tree sync PR to main.
  4. Wait for CI.
  5. Merge (authorised).
@@ -114,19 +133,44 @@ be deferred indefinitely without leaving the system in a half-state.
 
 ### Ingestion (step 8)
 
+Five ordered moves — the guard is opened for the apply and closed again, never
+left standing open:
+
 ```
-node dist/content-core/backfill-cli.js --book-slug=<slug>           # dry-run first
-node dist/content-core/backfill-cli.js --book-slug=<slug> --apply   # then apply
+1. dry-run:
+   node dist/content-core/backfill-cli.js --book-slug=<slug>
+2. review the report: drift_conflicts, unresolved_blocks,
+   destructive_operations, database_writes=0, backfill_safe=true
+3. temporarily enable the guard: ALLOW_CONTENT_CORE_BACKFILL=on
+4. apply:
+   ALLOW_CONTENT_CORE_BACKFILL=on \
+     node dist/content-core/backfill-cli.js --book-slug=<slug> --apply
+5. verify, then REMOVE ALLOW_CONTENT_CORE_BACKFILL (or restore its prior
+   posture). Do not leave the backfill guard permanently open.
 ```
 
-`--apply` on a deployed box also requires `ALLOW_CONTENT_CORE_BACKFILL=on`. Read
-the dry-run report before applying. The CLI records
-`previous_published_revision_id` and `previous_main_sha` as rollback registers;
-capture both from its output. stdout is metrics-only by design — do not paste
-block text, titles or quotes into any report.
+The CLI records `previous_published_revision_id` and `previous_main_sha` as
+rollback registers; capture both from its output. On a first backfill the
+previous pointer is `null` — that is the register's initial state, not an error.
+stdout is metrics-only by design — do not paste block text, titles or quotes into
+any report.
 
-Expected post-ingestion shape (from the local rehearsal): 1 guide definition at
-version 1, 3 steps, 1 practice target, 1 objective-recall target.
+**What ingestion creates, and what it does not:**
+
+```
+Exercise rows are created/verified by ingestion.
+GuideDefinition is code-owned and is verified by target resolution; it is not
+inserted by the backfill CLI.
+```
+
+There is no `GuideDefinition` table. The definition lives in
+`apps/api/src/guide/guide-catalog.ts`; ingestion creates the `Exercise` rows its
+steps resolve against, and success is confirmed by resolution, not by a row count
+for the guide itself.
+
+Expected post-ingestion shape (from the local rehearsal, readiness §6.2): the
+pinned definition at version 1 with 3 steps, resolving against 1 practice target
+(`REFLECTION`) and 1 objective-recall target (`QUIZ`).
 
 ---
 
@@ -156,10 +200,12 @@ Roll back **web + API + worker together**. Do not roll back a single surface
 unless a diagnosis explicitly names it — mixed versions across the API/web
 contract are their own outage.
 
-No down migration is required: the readiness rehearsal proved main's code runs
-against the upgraded schema (readiness §5). Note the recorded invariant — main
-never queries `LearningEvent`, which is what makes the new enum values harmless
-to it. Re-check that property before choosing a different rollback SHA.
+No down migration is required: the readiness rehearsal **built and booted** main's
+API and worker against the upgraded schema — health 200, auth and content smoke
+green, worker processors alive, zero Prisma errors (readiness §5). Note the
+recorded invariant — main never queries `LearningEvent`, which is what makes the
+new enum values harmless to it. An older client genuinely cannot read a new enum
+value; re-check that property before choosing a different rollback SHA.
 
 ### Triggers
 

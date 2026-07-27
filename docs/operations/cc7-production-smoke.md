@@ -29,6 +29,19 @@ private URLs, connection strings, block text, titles or quotes.
 | `GUIDE_ROLLOUT_MODE` (API + worker) | `off`                           |
 | `GUIDE_PILOT_USER_IDS`              | unset                           |
 
+Three gates must already be **true before the release starts** — they are the
+open items from CC-7.R2, not smoke steps to discover on the way:
+
+```
+PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=true
+EXPECTED_INDEX_WINDOW_APPROVED=true
+ENV_OFF_FIRST_APPLIED=true
+```
+
+Record the booleans only. The cardinality figure itself may be operationally
+sensitive — the boolean plus the window approval is the whole reportable
+outcome; do not paste row counts or any row content.
+
 Capture the four baseline counts **before** smoking, so every later delta is
 meaningful:
 

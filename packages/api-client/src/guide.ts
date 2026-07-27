@@ -2,6 +2,7 @@ import type {
   CancelGuideSessionRequestBody,
   CompleteGuideSessionRequestBody,
   CompleteGuideSessionStepRequestBody,
+  GuideAvailabilityResponse,
   GuideCommandResponse,
   StartGuideSessionRequestBody,
   SubmitGuideStepRecallRequestBody,
@@ -24,6 +25,15 @@ import { apiClient } from "./client";
  * nothing here to store.
  */
 export const guideApi = {
+  /**
+   * CC-7.R1 — the server-owned pilot gate. A single opaque boolean: whether
+   * Guide is enabled for the authenticated actor right now. It never reveals
+   * the rollout mode, the pilot allowlist or the reason it is `false`, and it
+   * creates no session, step, receipt or LearningEvent.
+   */
+  getGuideAvailability: () =>
+    apiClient.get<GuideAvailabilityResponse>("/guide/availability"),
+
   createGuideSession: (body: StartGuideSessionRequestBody) =>
     apiClient.post<GuideCommandResponse>("/guide/sessions", body),
 

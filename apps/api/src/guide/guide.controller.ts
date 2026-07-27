@@ -1,4 +1,13 @@
-import { Controller, Param, Post, Req, Res, UseGuards } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Header,
+  Param,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from "@nestjs/common";
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -10,12 +19,16 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnprocessableEntityResponse,
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import type { Request, Response } from "express";
-import type { GuideCommandResponse } from "@psico/types";
+import type {
+  GuideAvailabilityResponse,
+  GuideCommandResponse,
+} from "@psico/types";
 import { JwtAuthGuard } from "../auth";
 import type { AuthenticatedUser } from "../auth";
 import { CurrentUser } from "../shared";
@@ -24,6 +37,9 @@ import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { GuideLifecycleService } from "./guide-lifecycle.service";
 import type { GuideCommandResult } from "./guide-lifecycle.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { GuideRolloutService } from "./guide-rollout.service";
+import { GuideRolloutGuard } from "./guide-rollout.guard";
 import {
   parseCancelGuideSessionCommand,
   parseCompleteGuideSessionCommand,
@@ -37,6 +53,7 @@ import {
   mapGuideParserError,
 } from "./guide-http-errors";
 import {
+  GUIDE_AVAILABILITY_RESPONSE,
   GUIDE_COMMAND_RESPONSE,
   GUIDE_RECALL_BODY,
   IDEMPOTENT_GUIDE_BODY,
@@ -71,7 +88,35 @@ import {
 @UseGuards(JwtAuthGuard)
 @Controller("guide")
 export class GuideController {
-  constructor(private readonly lifecycle: GuideLifecycleService) {}
+  constructor(
+    private readonly lifecycle: GuideLifecycleService,
+    private readonly rollout: GuideRolloutService,
+  ) {}
+
+  /**
+   * CC-7.R1 — the pilot availability check.
+   *
+   * A single opaque boolean, gated only by JWT (never by the rollout guard, so
+   * it can honestly answer `false`). It NEVER creates a session, step, receipt
+   * or LearningEvent, and never reveals the mode, the allowlist or the reason.
+   * `private, no-store` because the decision is per-actor and can change on an
+   * env flip.
+   */
+  @Get("availability")
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "getGuideAvailability",
+    summary:
+      "Si la guía está habilitada para el actor autenticado ahora mismo. " +
+      "No revela el modo, la allowlist ni la razón.",
+  })
+  @ApiOkResponse({ schema: GUIDE_AVAILABILITY_RESPONSE })
+  getGuideAvailability(
+    @CurrentUser() user: AuthenticatedUser,
+  ): GuideAvailabilityResponse {
+    return { available: this.rollout.isAvailable(user.userId) };
+  }
 
   /** Parser verdict → typed command, or the mapped 400. */
   private unwrap<T>(result: GuideParseResult<T>): T {
@@ -106,6 +151,8 @@ export class GuideController {
 
   @Post("sessions")
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @UseGuards(GuideRolloutGuard)
+  @ApiServiceUnavailableResponse({ type: ErrorEnvelopeDto })
   @ApiOperation({
     operationId: "createGuideSession",
     summary:
@@ -129,6 +176,8 @@ export class GuideController {
 
   @Post("sessions/:sessionId/steps/:stepKey/complete")
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @UseGuards(GuideRolloutGuard)
+  @ApiServiceUnavailableResponse({ type: ErrorEnvelopeDto })
   @ApiOperation({
     operationId: "completeGuideSessionStep",
     summary:
@@ -155,6 +204,8 @@ export class GuideController {
 
   @Post("sessions/:sessionId/steps/:stepKey/recall")
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @UseGuards(GuideRolloutGuard)
+  @ApiServiceUnavailableResponse({ type: ErrorEnvelopeDto })
   @ApiOperation({
     operationId: "submitGuideStepRecall",
     summary:
@@ -182,6 +233,8 @@ export class GuideController {
 
   @Post("sessions/:sessionId/cancel")
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @UseGuards(GuideRolloutGuard)
+  @ApiServiceUnavailableResponse({ type: ErrorEnvelopeDto })
   @ApiOperation({
     operationId: "cancelGuideSession",
     summary: "Cierra la sesión como CANCELLED. No emite evento educativo.",
@@ -206,6 +259,8 @@ export class GuideController {
 
   @Post("sessions/:sessionId/complete")
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @UseGuards(GuideRolloutGuard)
+  @ApiServiceUnavailableResponse({ type: ErrorEnvelopeDto })
   @ApiOperation({
     operationId: "completeGuideSession",
     summary:

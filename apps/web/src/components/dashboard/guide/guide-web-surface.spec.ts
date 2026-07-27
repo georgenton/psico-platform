@@ -34,6 +34,13 @@ import { describe, expect, it } from "vitest";
  *   GUIDE_NAVIGATION_TOKEN_SYNC_COUNT=1
  *   GUIDE_API_CLIENT_CONFIGURE_IN_RENDER_COUNT=0
  *   GUIDE_API_CLIENT_CONFIGURE_IN_EFFECT_COUNT=1
+ *   GUIDE_WEB_AVAILABILITY_DEFAULT=false
+ *   GUIDE_WEB_AVAILABILITY_GATES_ENTRY=true
+ *   GUIDE_WEB_AVAILABILITY_GATES_PLAYER=true
+ *   GUIDE_WEB_AVAILABILITY_FETCH_NO_STORE=true
+ *   GUIDE_WEB_AVAILABILITY_FAILS_CLOSED=true
+ *   GUIDE_WEB_ROLLOUT_MODE_REFERENCES=0
+ *   GUIDE_WEB_PILOT_ALLOWLIST_REFERENCES=0
  */
 
 const GUIDE_DIR = __dirname;
@@ -299,6 +306,86 @@ describe("ratchet · guide web surface", () => {
       readFileSync(join(WEB_SRC, "app", "dashboard", "layout.tsx"), "utf8"),
     );
     expect(layout).toMatch(/GuideActorScopeProvider/);
+  });
+
+  it("the pilot availability gate defaults closed and gates both mounts", () => {
+    // GUIDE_WEB_AVAILABILITY_DEFAULT=false — an unresolved availability behaves
+    // exactly like being outside the pilot; it never assumes the guide is on.
+    const ctx = stripComments(
+      readFileSync(join(GUIDE_DIR, "guide-availability.tsx"), "utf8"),
+    );
+    expect(ctx).toMatch(/createContext<boolean>\(false\)/);
+
+    // GUIDE_WEB_AVAILABILITY_GATES_ENTRY=true — the entry card is hidden when
+    // the gate is closed (returns null before rendering the card).
+    const entry = stripComments(
+      readFileSync(join(GUIDE_DIR, "GuideEntryCardMount.tsx"), "utf8"),
+    );
+    expect(entry).toMatch(/useGuideAvailability\(\)/);
+    expect(entry).toMatch(/if \(!available\) return null;/);
+
+    // GUIDE_WEB_AVAILABILITY_GATES_PLAYER=true — the player is not mounted when
+    // the gate is closed; a calm "not available" card shows instead.
+    const player = stripComments(
+      readFileSync(join(GUIDE_DIR, "GuidePlayerMount.tsx"), "utf8"),
+    );
+    expect(player).toMatch(/useGuideAvailability\(\)/);
+    expect(player).toMatch(/if \(!available\)/);
+    expect(player).toContain("Esta guía no está disponible por ahora");
+  });
+
+  it("resolves availability with no-store and fails closed to false", () => {
+    // GUIDE_WEB_AVAILABILITY_FETCH_NO_STORE=true — the decision is per-actor and
+    // must never be cached; GUIDE_WEB_AVAILABILITY_FAILS_CLOSED=true — any
+    // failure yields false, so it is NOT a serverFetch (a 401 must not log out).
+    const template = stripComments(
+      readFileSync(join(EXPLORACIONES_DIR, "template.tsx"), "utf8"),
+    );
+    expect(template).toMatch(/\/api\/guide\/availability/);
+    expect(template).toMatch(/cache:\s*"no-store"/);
+    expect(template).toMatch(/GuideAvailabilityProvider/);
+    // Fails closed: both the no-token guard and the catch return false.
+    expect(template).toMatch(/return false;/);
+    // The availability probe is a raw fetch, not serverFetch (no forced logout).
+    expect(template.includes("serverFetch<GuideAvailabilityResponse>")).toBe(
+      false,
+    );
+  });
+
+  it("never reveals the rollout mode, the allowlist or the reason", () => {
+    // GUIDE_WEB_ROLLOUT_MODE_REFERENCES=0 · GUIDE_WEB_PILOT_ALLOWLIST_REFERENCES=0
+    // The web surface knows only the opaque boolean; it must not name the mode
+    // (off/pilot/on), the allowlist, or the server-side env vars.
+    const surface = [
+      ...GUIDE_FILES,
+      join(EXPLORACIONES_DIR, "template.tsx"),
+      join(EXPLORACIONES_DIR, "page.tsx"),
+    ];
+    const forbidden = [
+      "GUIDE_ROLLOUT_MODE",
+      "GUIDE_PILOT_USER_IDS",
+      "pilotUserIds",
+      "allowlist",
+      "rolloutMode",
+    ];
+    for (const file of surface) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      for (const term of forbidden) {
+        expect(source.includes(term), `${file} → ${term}`).toBe(false);
+      }
+    }
+  });
+
+  it("maps GUIDE_UNAVAILABLE to a reassuring, retryable message", () => {
+    const errors = stripComments(
+      readFileSync(join(GUIDE_DIR, "guide-errors.ts"), "utf8"),
+    );
+    expect(errors).toMatch(/GUIDE_UNAVAILABLE:/);
+    // Retryable — an env flip can reopen the gate — and it reassures about
+    // saved progress rather than alarming.
+    expect(errors).toContain(
+      "Esta guía no está disponible por ahora. Tu avance sigue guardado.",
+    );
   });
 
   it("serverFetch does not rotate the token pair during a render", () => {

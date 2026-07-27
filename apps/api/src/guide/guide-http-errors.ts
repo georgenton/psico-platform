@@ -6,12 +6,14 @@ import type { GuideCommandError } from "./guide-command-parser";
 /**
  * CC-7.4D — the single place Guide codes become HTTP responses.
  *
- * The eight lifecycle codes are NOT widened here: this file only decides which
- * status each already-closed code deserves, and adds the two PARSING codes for
- * bodies that never reached the lifecycle. Every exception carries ONLY the
- * stable code (as `code` AND as the message) — never a received value, an id, a
- * catalog detail, an entitlement reason, or a Prisma/pg/Nest/resolver message.
- * The global HttpExceptionFilter serializes the standard envelope from it.
+ * There are three CATEGORIES of code here, kept distinct: the two PARSING codes
+ * for bodies that never reached the lifecycle, the eight LIFECYCLE codes (not
+ * widened here — this file only assigns each a status), and the one ROLLOUT
+ * code (`GUIDE_UNAVAILABLE`) the pilot gate returns before either. Every
+ * exception carries ONLY the stable code (as `code` AND as the message) — never
+ * a received value, an id, a catalog detail, an entitlement reason, a rollout
+ * mode/allowlist, or a Prisma/pg/Nest/resolver message. The global
+ * HttpExceptionFilter serializes the standard envelope from it.
  *
  * A FOREIGN session and a NONEXISTENT one both map to 404 through the same
  * `GUIDE_SESSION_NOT_FOUND` — identical status, code and envelope.
@@ -36,6 +38,10 @@ const CODE_STATUS: Record<GuideApiErrorCode, HttpStatus> = {
 
   // Infrastructure — never an editorial verdict.
   GUIDE_STORAGE_FAILURE: HttpStatus.INTERNAL_SERVER_ERROR,
+
+  // Rollout gate — Guide is not enabled for this actor right now (CC-7.R1).
+  // Opaque by design: it never says the mode, the allowlist or the reason.
+  GUIDE_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
 };
 
 /** Build the value-free HTTP exception for a Guide code. */

@@ -186,6 +186,25 @@ export interface GuideCommandResponse {
 }
 
 /**
+ * CC-7.R1 — the availability decision for a controlled pilot rollout.
+ *
+ * A single boolean, deliberately opaque: it never reveals WHY it is false (the
+ * mode `off|pilot|on`, the pilot allowlist, or whether this actor is on it).
+ * The server owns the decision; the client only learns whether the surface is
+ * on for it right now.
+ */
+export interface GuideAvailabilityResponse {
+  available: boolean;
+}
+
+/**
+ * CC-7.R1 — the rollout gate's only public code. A 503 that says "not on for
+ * you right now" and nothing more; it is NOT one of the eight lifecycle codes
+ * and never widens them.
+ */
+export type GuideRolloutErrorCode = "GUIDE_UNAVAILABLE";
+
+/**
  * Request-shape rejections. These are PARSING failures, a different category
  * from the eight lifecycle codes — a body that never reached the lifecycle.
  */
@@ -207,4 +226,5 @@ export type GuideLifecycleErrorCode =
 /** Every code a Guide route can return. */
 export type GuideApiErrorCode =
   | GuideRequestValidationCode
-  | GuideLifecycleErrorCode;
+  | GuideLifecycleErrorCode
+  | GuideRolloutErrorCode;

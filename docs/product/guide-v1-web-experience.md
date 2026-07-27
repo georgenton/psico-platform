@@ -52,7 +52,17 @@ GUIDE_API_CLIENT_SERVER_RENDER_MUTATION=false
 GUIDE_SERVER_RENDER_CONFIGURE_CALLS=0
 GUIDE_BOUNDARY_STRICT_MODE_PASS=true
 GUIDE_BOUNDARY_STUCK_LOADING=false
+
+PILOT_ROLLOUT_STATUS=IN_REVIEW
 ```
+
+> **CC-7.R1 — el gate de piloto.** La superficie web ya no ofrece la guía sin
+> permiso: el template de Exploraciones resuelve `GET /api/guide/availability`
+> (booleano opaco, fail-closed) y la publica por contexto; la tarjeta de entrada
+> se oculta y el player muestra un estado "no disponible por ahora" cuando el
+> gate está cerrado. El detalle del gate server-owned (modos, allowlist,
+> despliegue) vive en
+> [guide-v1-pilot-rollout.md](guide-v1-pilot-rollout.md).
 
 Consume la superficie HTTP de [guide-v1-http-surface.md](guide-v1-http-surface.md)
 (mergeada en `6ea42eab`). Esta ronda **no** toca backend, OpenAPI, cliente,

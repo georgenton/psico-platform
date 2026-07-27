@@ -29,10 +29,17 @@ GUIDE_RECOVERY_RAW_USER_ID_STORED=false
 GUIDE_RECOVERY_EMAIL_STORED=false
 GUIDE_CROSS_ACCOUNT_AUTO_START=false
 
-GUIDE_ACTOR_SOURCE=AUTHENTICATED_USER_ME
+GUIDE_ACTOR_SOURCE=LAYOUT_AUTHENTICATED_USER_ME
 GUIDE_GUIDE_PAGES_GET_SESSION_USER_REFERENCES=0
 GUIDE_REFRESH_ONLY_SESSION_REDIRECT_TO_LOGIN=false
 GUIDE_RAW_USER_ID_CLIENT_PROPS=0
+DASHBOARD_USER_ME_FETCH_COUNT=1
+
+AUTH_REFRESH_WRITABLE_BOUNDARY=true
+AUTH_SERVER_COMPONENT_TOKEN_ROTATION_COUNT=0
+AUTH_REFRESH_CALLS_PER_NAVIGATION_MAX=1
+AUTH_ROTATED_COOKIES_PERSISTED=true
+GUIDE_CLIENT_USES_ROTATED_ACCESS=true
 ```
 
 Consume la superficie HTTP de [guide-v1-http-surface.md](guide-v1-http-surface.md)
@@ -142,22 +149,40 @@ exclusivamente de la sesión JWT validada por el API. Por eso un SHA-256 plano
 alcanza y un KDF no compraría nada: el valor decide qué registro local puede
 reproducirse, nunca qué acepta el servidor.
 
-### 3.0.1 El actor sale del API, no de la cookie
+### 3.0.1 El actor lo resuelve el layout, no las páginas
 
-El access token dura 15 minutos; el refresh token, 30 días. El middleware
-considera que hay sesión con cualquiera de los dos, así que una página que
-decodificara solo la cookie de access mandaría a `/login` a una sesión
-perfectamente recuperable — y el middleware la devolvería a `/dashboard`.
+El access token dura 15 minutos; el refresh token, 30 días. El **middleware**
+renueva el par antes del render, en la única frontera que puede escribir
+cookies (§3.0.2). Cuando el render corre, el `DashboardLayout` ya obtuvo
+`serverFetch<UserMeResponse>("/user/me")` con el access token vigente y deriva
+el `actorScope` una sola vez. Lo publica por un contexto cliente
+(`GuideActorScopeProvider`), así que las páginas de la guía **no consultan
+identidad**: solo renderizan `GuidePlayerMount` / `GuideEntryCardMount`, que lo
+leen. Al cliente cruza únicamente el `actorScope` opaco, nunca `me.user.id`.
 
-Por eso ambas páginas resuelven al actor con
-`serverFetch<UserMeResponse>("/user/me")`: usa el access token cuando existe,
-refresca cuando corresponde, y aplica la convención global de logout cuando no
-queda sesión. Al cliente solo cruza el `actorScope` derivado, nunca
-`me.user.id`.
+Un solo `/user/me` por render (`DASHBOARD_USER_ME_FETCH_COUNT=1`). Si `me` no
+se puede resolver, `actorScope` es `null` y la superficie de la guía **falla
+cerrada**: no lee recovery, no envía START, muestra indisponibilidad temporal.
 
-El fetch de `/user/me` queda **fuera** del `try` que degrada `/journeys` a lista
-vacía, y ese `catch` re-lanza los throws internos de Next (`isNextThrow`): un
-fallo de autenticación no es un empty state de Recorridos.
+El único fetch de la página de Exploraciones es `/journeys`, y su `catch`
+re-lanza los throws internos de Next (`isNextThrow`) — un fallo de
+autenticación no es un empty state de Recorridos.
+
+### 3.0.2 La renovación ocurre en el middleware, no en el render
+
+`serverFetch` ya **no rota** el par durante el render de un Server Component:
+`cookies().set()` lanza ahí, así que la rotación anterior revocaba el refresh
+viejo en el API mientras el navegador seguía con él — la siguiente navegación
+fallaba el refresh y expulsaba al usuario.
+
+Ahora, en `middleware.ts`, cuando el access está ausente o expirado y hay
+refresh presente en un área autenticada (`/dashboard`, `/onboarding`,
+`/autor`), el middleware hace **un** `POST /api/auth/refresh` y persiste el par
+rotado en la **request** (para que el `cookies()` de este render lea el access
+nuevo) y en la **response** (para que el navegador lo guarde). Un `401/403/410`
+del refresh aplica la convención de logout; un `429/5xx` devuelve un fallo
+temporal seguro (503) sin tocar cookies y sin loop. El primer comando de la
+guía tras el render usa el access **rotado** (vía `ApiClientBootstrap`).
 
 ### 3.1 El efecto no se protege con un flag de montaje
 

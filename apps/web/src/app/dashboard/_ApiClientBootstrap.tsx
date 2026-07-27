@@ -26,15 +26,15 @@ import { apiClient } from "@psico/api-client";
  * Cookies are HttpOnly (the JWT lives in a cookie that JS cannot read).
  * We pass the access token down from the server layout as a prop, store it
  * in a closure here, and tell the apiClient to use it on every request.
- * If the token expires mid-session, the next `serverFetch` will refresh
- * and stamp a new cookie; the browser sees that on the next navigation/
- * reload. For client-only screens (Eco's chat, Tour catalog) this is fine
- * because their access windows are short.
+ * The layout reads that token from the request cookie AFTER the middleware's
+ * refresh handoff (see `middleware.ts`) has run, so on a refresh-only session
+ * this prop is the freshly ROTATED access token, not a stale one — the first
+ * client command (Eco's chat, Tour catalog) uses the rotated token.
  *
- * Note: this does NOT enable the singleton's auto-refresh — that flow
- * requires reading/writing the refresh cookie, which is HttpOnly. Hooking
- * into that responsibly would need a dedicated `/api/auth/session` round
- * trip; for v1 we tolerate the once-per-15min reload as the recovery path.
+ * Note: this does NOT enable the singleton's auto-refresh — that flow requires
+ * reading/writing the refresh cookie, which is HttpOnly. Renewal is the
+ * middleware's job (the one writable boundary); the browser sees a new access
+ * cookie on the next navigation/reload.
  */
 export function ApiClientBootstrap({
   apiBase,

@@ -22,8 +22,12 @@ import { guideRecoveryState } from "./guide-recovery";
  * an empty or invented one would be worse than drawing none.
  */
 export interface GuideEntryCardProps {
-  /** Opaque partition derived server-side — see `guide-recovery-scope.server`. */
-  actorScope: string;
+  /**
+   * Opaque partition derived server-side — see `guide-recovery-scope.server`.
+   * `null` when the layout could not resolve the authenticated identity this
+   * render: the card fails closed to "Empezar", never promising to resume.
+   */
+  actorScope: string | null;
 }
 
 export function GuideEntryCard({ actorScope }: GuideEntryCardProps) {
@@ -32,8 +36,13 @@ export function GuideEntryCard({ actorScope }: GuideEntryCardProps) {
   );
 
   useEffect(() => {
-    // A record belonging to another account reads as `empty`, so the CTA says
-    // "Empezar" — promising to continue someone else's run would be a lie.
+    // No scope (identity unresolved) reads as `empty`, exactly like a record
+    // belonging to another account — the CTA says "Empezar" because promising
+    // to continue a run we cannot attribute would be a lie.
+    if (!actorScope) {
+      setStorage("empty");
+      return;
+    }
     setStorage(guideRecoveryState(actorScope));
   }, [actorScope]);
 

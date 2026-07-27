@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import type { JourneyListResponse, UserMeResponse } from "@psico/types";
+import type { JourneyListResponse } from "@psico/types";
 
 import { isNextThrow, serverFetch } from "@/lib/api.server";
-import { deriveGuideRecoveryActorScope } from "@/lib/guide-recovery-scope.server";
 import { ExCard } from "@/components/dashboard/exploraciones/ExCard";
 import { ExFeaturedCard } from "@/components/dashboard/exploraciones/ExFeaturedCard";
-import { GuideEntryCard } from "@/components/dashboard/guide/GuideEntryCard";
+import { GuideEntryCardMount } from "@/components/dashboard/guide/GuideEntryCardMount";
 
 export const metadata: Metadata = { title: "Exploraciones" };
 export const dynamic = "force-dynamic";
@@ -22,17 +21,13 @@ export const dynamic = "force-dynamic";
  *
  * The guide card renders unconditionally, so the screen is never empty and
  * `/journeys` failing cannot hide it.
+ *
+ * CC-7.5 — this page fetches NO identity. The dashboard layout already
+ * resolved the authenticated user and published the Guide actor scope through
+ * `GuideActorScopeProvider`; `GuideEntryCardMount` reads it from context. So
+ * the only server fetch here is `/journeys`.
  */
 export default async function ExploracionesPage() {
-  // The authenticated actor, resolved through the refresh-aware fetcher: the
-  // access cookie expires in 15 minutes while the session lives 30 days, so
-  // reading only that cookie would lock a recoverable session out of this
-  // screen. Deliberately OUTSIDE the try below — an auth failure is not an
-  // empty state of Journeys.
-  const me = await serverFetch<UserMeResponse>("/user/me");
-  // The entry card only says "Continuar" for THIS account's own record.
-  const actorScope = deriveGuideRecoveryActorScope(me.user.id);
-
   let data: JourneyListResponse | null = null;
   try {
     data = await serverFetch<JourneyListResponse>("/journeys");
@@ -61,7 +56,7 @@ export default async function ExploracionesPage() {
         reflexión. Cada experiencia dice por sí misma qué registra.
       </p>
 
-      <GuideEntryCard actorScope={actorScope} />
+      <GuideEntryCardMount />
 
       {featured ? (
         <>

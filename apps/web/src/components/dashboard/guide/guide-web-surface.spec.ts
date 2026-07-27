@@ -24,10 +24,12 @@ import { describe, expect, it } from "vitest";
  *   GUIDE_RECOVERY_TOKEN_FIELDS=0
  *   GUIDE_RECOVERY_SCOPE_SENT_TO_API=false
  *   GUIDE_CROSS_ACCOUNT_AUTO_START_CALLS=0
- *   GUIDE_ACTOR_SOURCE=AUTHENTICATED_USER_ME
+ *   GUIDE_ACTOR_SOURCE=LAYOUT_AUTHENTICATED_USER_ME
  *   GUIDE_GUIDE_PAGES_GET_SESSION_USER_REFERENCES=0
  *   GUIDE_REFRESH_ONLY_SESSION_REDIRECT_TO_LOGIN=false
  *   GUIDE_RAW_USER_ID_CLIENT_PROPS=0
+ *   AUTH_SERVER_COMPONENT_TOKEN_ROTATION_COUNT=0
+ *   AUTH_REFRESH_WRITABLE_BOUNDARY=true
  */
 
 const GUIDE_DIR = __dirname;
@@ -187,7 +189,17 @@ describe("ratchet · guide web surface", () => {
     }
   });
 
-  it("resolves the actor through the authenticated user, not a cookie", () => {
+  it("resolves the actor in the LAYOUT, never in the guide pages", () => {
+    // GUIDE_ACTOR_SOURCE=LAYOUT_AUTHENTICATED_USER_ME — the layout is the ONE
+    // place that fetches `/user/me` and derives the scope, so the guide pages
+    // stay identity-free (DASHBOARD_USER_ME_FETCH_COUNT=1).
+    const layout = stripComments(
+      readFileSync(join(WEB_SRC, "app", "dashboard", "layout.tsx"), "utf8"),
+    );
+    expect(layout).toMatch(/serverFetch<UserMeResponse>\("\/user\/me"\)/);
+    expect(layout).toMatch(/deriveGuideRecoveryActorScope\(me\.user\.id\)/);
+    expect(layout).toMatch(/GuideActorScopeProvider/);
+
     const pages = [
       join(EXPLORACIONES_DIR, "page.tsx"),
       join(EXPLORACIONES_DIR, "eec-c1-cuerpo-antes-que-mente", "page.tsx"),
@@ -196,26 +208,23 @@ describe("ratchet · guide web surface", () => {
       const source = stripComments(readFileSync(file, "utf8"));
       const label = relative(EXPLORACIONES_DIR, file);
 
-      // GUIDE_ACTOR_SOURCE=AUTHENTICATED_USER_ME
-      expect(source, label).toMatch(
-        /serverFetch<UserMeResponse>\("\/user\/me"\)/,
+      // The pages must not fetch identity again, and must not decode the
+      // access cookie themselves — GUIDE_GUIDE_PAGES_GET_SESSION_USER_REFERENCES=0.
+      expect(
+        source.includes('serverFetch<UserMeResponse>("/user/me")'),
+        label,
+      ).toBe(false);
+      expect(source.includes("deriveGuideRecoveryActorScope"), label).toBe(
+        false,
       );
-      expect(source, label).toMatch(
-        /deriveGuideRecoveryActorScope\(me\.user\.id\)/,
-      );
-
-      // GUIDE_GUIDE_PAGES_GET_SESSION_USER_REFERENCES=0 — decoding the access
-      // cookie would lock out a session whose access token expired but whose
-      // refresh token is still valid.
       expect(source.includes("getSessionUser"), label).toBe(false);
 
-      // GUIDE_REFRESH_ONLY_SESSION_REDIRECT_TO_LOGIN=false — the fetcher owns
-      // the auth outcome; a hand-rolled bounce to /login is what the
-      // middleware sends straight back to /dashboard.
+      // GUIDE_REFRESH_ONLY_SESSION_REDIRECT_TO_LOGIN=false — no hand-rolled
+      // bounce to /login; the middleware owns renewal.
       expect(source.includes('redirect("/login")'), label).toBe(false);
 
-      // GUIDE_RAW_USER_ID_CLIENT_PROPS=0 — only the derived scope crosses.
-      expect(source.includes("me.user.id}"), label).toBe(false);
+      // GUIDE_RAW_USER_ID_CLIENT_PROPS=0 — the pages carry no raw identity.
+      expect(source.includes("me.user.id"), label).toBe(false);
       expect(source.includes("userId={"), label).toBe(false);
       expect(source.includes("email={"), label).toBe(false);
     }
@@ -233,9 +242,28 @@ describe("ratchet · guide web surface", () => {
 
   it("the guide never enters the Journey list or its components", () => {
     const page = readFileSync(join(EXPLORACIONES_DIR, "page.tsx"), "utf8");
-    // The guide card is rendered on its own, not through a journey component.
-    expect(page).toMatch(/<GuideEntryCard\s+actorScope=\{actorScope\}\s*\/>/);
+    // The guide card is rendered through its own mount, not a journey component.
+    expect(page).toMatch(/<GuideEntryCardMount\s*\/>/);
     expect(page).not.toMatch(/journeys\.(push|concat|unshift)/);
     expect(page).not.toMatch(/ExFeaturedCard\s+journey=\{\s*guide/);
+  });
+
+  it("serverFetch does not rotate the token pair during a render", () => {
+    // AUTH_SERVER_COMPONENT_TOKEN_ROTATION_COUNT=0 — the render context cannot
+    // persist a rotated pair, so it must not call the refresh endpoint. The
+    // renewal is the middleware's job (AUTH_REFRESH_WRITABLE_BOUNDARY=true).
+    const apiServer = stripComments(
+      readFileSync(join(WEB_SRC, "lib", "api.server.ts"), "utf8"),
+    );
+    expect(apiServer).not.toMatch(/authApi\.refresh/);
+    expect(apiServer).not.toMatch(/attemptRefresh/);
+
+    const middleware = stripComments(
+      readFileSync(join(WEB_SRC, "middleware.ts"), "utf8"),
+    );
+    expect(middleware).toMatch(/\/api\/auth\/refresh/);
+    // Rotated pair persisted on BOTH the request (this render) and response.
+    expect(middleware).toMatch(/request\.cookies\.set/);
+    expect(middleware).toMatch(/response\.cookies\.set/);
   });
 });

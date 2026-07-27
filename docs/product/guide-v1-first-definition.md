@@ -12,7 +12,8 @@ GUIDE_REGISTRY_STATUS=MERGED_TO_DEVELOP
 GUIDE_DEFINITION_MERGE_SHA=364a8b274aba7d4396320c27c9cf6484a76bb721
 GUIDE_CONTEXT_POLICY=SERVER_DERIVED_FROM_TARGETS
 CC7_4C_STATUS=CLOSED
-CC7_4D_STATUS=IN_REVIEW
+CC7_4D_STATUS=CLOSED
+CC7_5_STATUS=IN_REVIEW
 ```
 
 La mención `self-review` se conserva deliberadamente: fue una autorrevisión del
@@ -102,7 +103,7 @@ contra ese pin.
 - `GUIDE_REGISTRY_STATUS=MERGED_TO_DEVELOP` — la definición está en código
   (`PRODUCTION_GUIDE_DEFINITIONS`, 1 entrada), probada contra PostgreSQL real
   y mergeada en `develop` (`GUIDE_DEFINITION_MERGE_SHA`).
-- `CC7_4C_STATUS=CLOSED` · `CC7_4D_STATUS=IN_REVIEW` — el lifecycle interno ya está
+- `CC7_4C_STATUS=CLOSED` · `CC7_4D_STATUS=CLOSED` · `CC7_5_STATUS=IN_REVIEW` — el lifecycle interno ya está
   implementado y probado (ver
   [guide-v1-lifecycle.md](guide-v1-lifecycle.md)); aplica la política de
   contexto derivado antes de crear cualquier sesión.

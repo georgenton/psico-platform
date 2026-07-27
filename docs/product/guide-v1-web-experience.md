@@ -40,6 +40,12 @@ AUTH_SERVER_COMPONENT_TOKEN_ROTATION_COUNT=0
 AUTH_REFRESH_CALLS_PER_NAVIGATION_MAX=1
 AUTH_ROTATED_COOKIES_PERSISTED=true
 GUIDE_CLIENT_USES_ROTATED_ACCESS=true
+
+GUIDE_NAVIGATION_TOKEN_SYNC_BOUNDARY=template
+GUIDE_NAVIGATION_TOKEN_SYNC_COUNT=1
+GUIDE_API_CLIENT_CONFIGURED_BEFORE_PLAYER_MOUNT=true
+GUIDE_FIRST_COMMAND_USES_ROTATED_ACCESS=true
+GUIDE_OLD_ACCESS_TOKEN_REFERENCES=0
 ```
 
 Consume la superficie HTTP de [guide-v1-http-surface.md](guide-v1-http-surface.md)
@@ -181,8 +187,34 @@ refresh presente en un área autenticada (`/dashboard`, `/onboarding`,
 rotado en la **request** (para que el `cookies()` de este render lea el access
 nuevo) y en la **response** (para que el navegador lo guarde). Un `401/403/410`
 del refresh aplica la convención de logout; un `429/5xx` devuelve un fallo
-temporal seguro (503) sin tocar cookies y sin loop. El primer comando de la
-guía tras el render usa el access **rotado** (vía `ApiClientBootstrap`).
+temporal seguro (503) sin tocar cookies y sin loop.
+
+### 3.0.3 El cliente se re-sincroniza por navegación (template)
+
+El singleton `@psico/api-client` lee su access token de una closure que
+instala `ApiClientBootstrap` en el layout. App Router **conserva** ese layout
+entre navegaciones suaves, así que tras rotar A → B el singleton podría seguir
+mandando `Bearer A` y el primer `createGuideSession` daría 401.
+
+La guía se re-sincroniza con un **template** de segmento
+(`app/dashboard/exploraciones/template.tsx`): a diferencia de un layout, App
+Router lo **remonta en cada navegación**. El template lee la cookie de access
+recién rotada con `getAccessToken()` y la pasa a `GuideApiClientBoundary`, que
+reconfigura el singleton **durante su primer render** (inicializador `useState`,
+una sola vez, antes de montar cualquier hijo) — así el comando de recuperación
+de `GuidePlayer` nunca sale con un token viejo. El template no resuelve
+identidad (sin `/user/me`, sin actorScope, sin refresh); el boundary no lee
+cookies ni almacena el token. Esta garantía es **solo para la guía**: Eco/Tour
+seguirán recibiendo el token del layout (fresco en carga completa/reload, no en
+navegación suave) salvo que añadan su propio re-sync.
+
+```
+middleware rota y persiste el par
+→ el template de Exploraciones se remonta
+→ lee la cookie de access nueva (getAccessToken)
+→ GuideApiClientBoundary reconfigura el singleton (Bearer B)
+→ recién entonces monta GuidePlayer
+```
 
 ### 3.1 El efecto no se protege con un flag de montaje
 

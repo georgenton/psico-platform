@@ -30,6 +30,8 @@ import { describe, expect, it } from "vitest";
  *   GUIDE_RAW_USER_ID_CLIENT_PROPS=0
  *   AUTH_SERVER_COMPONENT_TOKEN_ROTATION_COUNT=0
  *   AUTH_REFRESH_WRITABLE_BOUNDARY=true
+ *   GUIDE_NAVIGATION_TOKEN_SYNC_BOUNDARY=template
+ *   GUIDE_NAVIGATION_TOKEN_SYNC_COUNT=1
  */
 
 const GUIDE_DIR = __dirname;
@@ -246,6 +248,41 @@ describe("ratchet · guide web surface", () => {
     expect(page).toMatch(/<GuideEntryCardMount\s*\/>/);
     expect(page).not.toMatch(/journeys\.(push|concat|unshift)/);
     expect(page).not.toMatch(/ExFeaturedCard\s+journey=\{\s*guide/);
+  });
+
+  it("re-syncs the client token per navigation via a template", () => {
+    // GUIDE_NAVIGATION_TOKEN_SYNC_BOUNDARY=template — App Router remounts a
+    // template on every navigation (a layout would be preserved and keep a
+    // stale token). Exactly one such sync point exists.
+    const template = stripComments(
+      readFileSync(join(EXPLORACIONES_DIR, "template.tsx"), "utf8"),
+    );
+    expect(template).toMatch(/getAccessToken\(\)/);
+    expect(template).toMatch(/<GuideApiClientBoundary/);
+
+    // The template resolves NO identity: no /user/me, no actorScope, no refresh.
+    expect(template.includes('serverFetch<UserMeResponse>("/user/me")')).toBe(
+      false,
+    );
+    expect(template.includes("deriveGuideRecoveryActorScope")).toBe(false);
+    expect(template.includes("getRefreshToken")).toBe(false);
+
+    // The boundary re-configures the singleton and keeps the refresh cookie
+    // out of the client; it reads no cookies and stores no token of its own.
+    const boundary = stripComments(
+      readFileSync(join(GUIDE_DIR, "GuideApiClientBoundary.tsx"), "utf8"),
+    );
+    expect(boundary).toMatch(/apiClient\.configure/);
+    expect(boundary).toMatch(/getRefreshToken:\s*\(\)\s*=>\s*null/);
+    expect(boundary.includes("cookies")).toBe(false);
+    expect(boundary.includes("localStorage")).toBe(false);
+
+    // GuideActorScopeProvider stays in the LAYOUT, not the template.
+    expect(template.includes("GuideActorScopeProvider")).toBe(false);
+    const layout = stripComments(
+      readFileSync(join(WEB_SRC, "app", "dashboard", "layout.tsx"), "utf8"),
+    );
+    expect(layout).toMatch(/GuideActorScopeProvider/);
   });
 
   it("serverFetch does not rotate the token pair during a render", () => {

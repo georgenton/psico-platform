@@ -2,10 +2,17 @@ import { Module } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import { ContentAccessModule } from "../content-core/access/content-access.module";
+import { isDeployedEnvironment } from "../shared/psico-environment";
 import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 import { LearningEventRepository } from "../learning/learning-event.repository";
 import { GuideCommandReceiptRepository } from "./guide-command-receipt.repository";
 import { GuideLifecycleService } from "./guide-lifecycle.service";
+import {
+  GUIDE_ROLLOUT_CONFIG,
+  resolveGuideRolloutConfig,
+} from "./guide-rollout";
+import { GuideRolloutGuard } from "./guide-rollout.guard";
+import { GuideRolloutService } from "./guide-rollout.service";
 import { GuideSessionRepository } from "./guide-session.repository";
 import { GuideSessionStepRepository } from "./guide-session-step.repository";
 import { GuideTargetContextService } from "./guide-target-context.service";
@@ -33,6 +40,16 @@ import { GuideController } from "./guide.controller";
     LearningCatalogResolver,
     GuideTargetContextService,
     GuideLifecycleService,
+    // CC-7.R1 — the rollout config resolved ONCE at boot. The deployed flag
+    // comes from the neutral environment resolver, so `pilot` requires an
+    // allowlist and a missing mode fails a deployed box closed.
+    {
+      provide: GUIDE_ROLLOUT_CONFIG,
+      useFactory: () =>
+        resolveGuideRolloutConfig(process.env, isDeployedEnvironment()),
+    },
+    GuideRolloutService,
+    GuideRolloutGuard,
     {
       provide: GuideSessionRepository,
       useFactory: (prisma: PrismaService) => new GuideSessionRepository(prisma),

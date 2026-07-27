@@ -14,6 +14,7 @@ import { apiClient } from "./client";
 
 describe("guideApi", () => {
   let post: ReturnType<typeof vi.spyOn>;
+  let get: ReturnType<typeof vi.spyOn>;
 
   const KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
@@ -21,6 +22,21 @@ describe("guideApi", () => {
     post = vi
       .spyOn(apiClient, "post")
       .mockResolvedValue(undefined as never) as ReturnType<typeof vi.spyOn>;
+    get = vi
+      .spyOn(apiClient, "get")
+      .mockResolvedValue({ available: true } as never) as ReturnType<
+      typeof vi.spyOn
+    >;
+  });
+
+  it("getGuideAvailability GETs the opaque boolean and sends no body", async () => {
+    const result = await guideApi.getGuideAvailability();
+    expect(get).toHaveBeenCalledWith("/guide/availability");
+    // A GET with a single path arg — nothing about the mode or allowlist leaks
+    // outward, and no body is posted.
+    expect(get.mock.calls[0]).toEqual(["/guide/availability"]);
+    expect(result).toEqual({ available: true });
+    expect(post).not.toHaveBeenCalled();
   });
 
   it("createGuideSession posts the exact start body", async () => {

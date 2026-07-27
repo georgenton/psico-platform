@@ -80,6 +80,8 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
   let pool: Pool;
   let tokenA = "";
   let tokenB = "";
+  let userAId = "";
+  let userBId = "";
   let seq = 0;
 
   const nextKey = () => key(++seq);
@@ -159,6 +161,9 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
     const b = await prisma.user.create({
       data: { email: "cc74d-b@example.test", name: "B", plan: "FREE" },
     });
+
+    userAId = a.id;
+    userBId = b.id;
 
     h = await createE2EApp({ prisma });
     const jwt = h.app.get(JwtService);
@@ -708,6 +713,183 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
         code: "INTERNAL_ERROR",
       });
       assertNoLeak([sessionId, STEP_CONCEPT]);
+    });
+  });
+
+  // ── CC-7.R1 · server-owned pilot rollout gate ─────────────────────────────
+
+  describe("CC-7.R1 · pilot rollout gate", () => {
+    // Three apps over the SAME database and the SAME JWTs, differing only in the
+    // server-owned rollout config. Booting per-mode is what lets us prove the
+    // decision is the SERVER'S — the client sends nothing about the mode.
+    let hOff: E2EHarness;
+    let hPilot: E2EHarness;
+    let hOn: E2EHarness;
+
+    const httpOf = (harness: E2EHarness) =>
+      request(harness.app.getHttpServer());
+
+    beforeAll(async () => {
+      hOff = await createE2EApp({
+        prisma,
+        guideRollout: { mode: "off", pilotUserIds: [] },
+      });
+      // A is the exact pilot member; B is a real authenticated user who is not.
+      hPilot = await createE2EApp({
+        prisma,
+        guideRollout: { mode: "pilot", pilotUserIds: [userAId] },
+      });
+      hOn = await createE2EApp({
+        prisma,
+        guideRollout: { mode: "on", pilotUserIds: [] },
+      });
+    }, 60_000);
+
+    afterAll(async () => {
+      await closeE2EApp(hOff);
+      await closeE2EApp(hPilot);
+      await closeE2EApp(hOn);
+    });
+
+    // ── availability ────────────────────────────────────────────────────────
+
+    it("availability requires a JWT", async () => {
+      await httpOf(hOn).get("/api/guide/availability").expect(401);
+    });
+
+    it("off → available:false for an authenticated actor, with zero rows", async () => {
+      const before = await counts();
+      const res = await httpOf(hOff)
+        .get("/api/guide/availability")
+        .set(auth(tokenA))
+        .expect(200);
+      expect(res.body).toEqual({ available: false });
+      // The opaque boolean never states the mode, the allowlist or the reason.
+      expect(Object.keys(res.body)).toEqual(["available"]);
+      expect(JSON.stringify(res.body)).not.toContain("pilot");
+      expect(JSON.stringify(res.body)).not.toContain(userAId);
+      // No session, step, receipt or event is created by a mere check.
+      expect(await counts()).toEqual(before);
+    });
+
+    it("on → available:true for any authenticated actor (no PRO required)", async () => {
+      // A is a FREE user: availability is the ROLLOUT gate, not the entitlement
+      // gate — it answers true without a plan upgrade.
+      const res = await httpOf(hOn)
+        .get("/api/guide/availability")
+        .set(auth(tokenA))
+        .expect(200);
+      expect(res.body).toEqual({ available: true });
+    });
+
+    it("pilot → true for the exact member, false for a non-member", async () => {
+      const member = await httpOf(hPilot)
+        .get("/api/guide/availability")
+        .set(auth(tokenA))
+        .expect(200);
+      expect(member.body).toEqual({ available: true });
+
+      const outsider = await httpOf(hPilot)
+        .get("/api/guide/availability")
+        .set(auth(tokenB))
+        .expect(200);
+      expect(outsider.body).toEqual({ available: false });
+      // Even for the outsider, nothing about the allowlist leaks.
+      expect(JSON.stringify(outsider.body)).not.toContain(userAId);
+    });
+
+    // ── denial: 503 with zero writes ──────────────────────────────────────────
+
+    it("every command is 503 GUIDE_UNAVAILABLE with zero writes when off", async () => {
+      const before = await counts();
+      const commands: Array<[string, Record<string, unknown>]> = [
+        ["/api/guide/sessions", { guideKey: GUIDE_KEY, guideVersion: 1 }],
+        [`/api/guide/sessions/ses-x/steps/${STEP_CONCEPT}/complete`, {}],
+        [
+          `/api/guide/sessions/ses-x/steps/${STEP_RECALL}/recall`,
+          { selectedOptionKey: CORRECT_OPTION },
+        ],
+        ["/api/guide/sessions/ses-x/cancel", {}],
+        ["/api/guide/sessions/ses-x/complete", {}],
+      ];
+      for (const [route, extra] of commands) {
+        await httpOf(hOff)
+          .post(route)
+          .set(auth(tokenA))
+          .send({ idempotencyKey: nextKey(), ...extra })
+          .expect(503)
+          .expect((r) => expect(r.body.code).toBe("GUIDE_UNAVAILABLE"));
+      }
+      // The gate closed before the parser, the lifecycle and the database.
+      expect(await counts()).toEqual(before);
+    });
+
+    it("a pilot non-member is denied the commands too", async () => {
+      const before = await counts();
+      await httpOf(hPilot)
+        .post("/api/guide/sessions")
+        .set(auth(tokenB))
+        .send({
+          idempotencyKey: nextKey(),
+          guideKey: GUIDE_KEY,
+          guideVersion: 1,
+        })
+        .expect(503)
+        .expect((r) => expect(r.body.code).toBe("GUIDE_UNAVAILABLE"));
+      expect(await counts()).toEqual(before);
+    });
+
+    it("the rollout gate runs BEFORE the parser — a malformed body is still 503", async () => {
+      // A denied actor sending garbage gets the gate's 503, never the parser's
+      // 400: the guard fires before the handler ever reads the body.
+      const before = await counts();
+      await httpOf(hOff)
+        .post("/api/guide/sessions")
+        .set(auth(tokenA))
+        .send({ nonsense: true, metadata: {} })
+        .expect(503)
+        .expect((r) => expect(r.body.code).toBe("GUIDE_UNAVAILABLE"));
+      expect(await counts()).toEqual(before);
+    });
+
+    // ── pilot member runs the whole flow ──────────────────────────────────────
+
+    it("the pilot member completes a full session end to end", async () => {
+      const startRes = await httpOf(hPilot)
+        .post("/api/guide/sessions")
+        .set(auth(tokenA))
+        .send({
+          idempotencyKey: nextKey(),
+          guideKey: GUIDE_KEY,
+          guideVersion: 1,
+        })
+        .expect(201);
+      const sessionId = startRes.body.session.sessionId as string;
+
+      await httpOf(hPilot)
+        .post(`/api/guide/sessions/${sessionId}/steps/${STEP_CONCEPT}/complete`)
+        .set(auth(tokenA))
+        .send({ idempotencyKey: nextKey() })
+        .expect(201);
+      await httpOf(hPilot)
+        .post(
+          `/api/guide/sessions/${sessionId}/steps/${STEP_PRACTICE}/complete`,
+        )
+        .set(auth(tokenA))
+        .send({ idempotencyKey: nextKey() })
+        .expect(201);
+      await httpOf(hPilot)
+        .post(`/api/guide/sessions/${sessionId}/steps/${STEP_RECALL}/recall`)
+        .set(auth(tokenA))
+        .send({ idempotencyKey: nextKey(), selectedOptionKey: CORRECT_OPTION })
+        .expect(201);
+
+      const done = await httpOf(hPilot)
+        .post(`/api/guide/sessions/${sessionId}/complete`)
+        .set(auth(tokenA))
+        .send({ idempotencyKey: nextKey() })
+        .expect(201);
+      expect(done.body.session.status).toBe("COMPLETED");
     });
   });
 });

@@ -109,6 +109,20 @@ const GUIDE_SESSION_VIEW: SchemaObject = {
   },
 };
 
+/**
+ * CC-7.R1 — GET /api/guide/availability.
+ *
+ * A single opaque boolean: whether Guide is on for the authenticated actor
+ * right now. It never states the rollout mode, the pilot allowlist or the
+ * reason it is false.
+ */
+export const GUIDE_AVAILABILITY_RESPONSE: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["available"],
+  properties: { available: { type: "boolean" } },
+};
+
 /** The response of all five commands. */
 export const GUIDE_COMMAND_RESPONSE: SchemaObject = {
   type: "object",

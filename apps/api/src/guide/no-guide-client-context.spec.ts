@@ -9,11 +9,17 @@ import { GuideController } from "./guide.controller";
  * The lifecycle already has its single-writer ratchets. These pin the SHAPE of
  * what is exposed:
  *
- *   GUIDE_HTTP_ROUTE_COUNT=5
+ *   GUIDE_HTTP_ROUTE_COUNT=6
+ *   GUIDE_HTTP_COMMAND_ROUTE_COUNT=5
+ *   GUIDE_HTTP_AVAILABILITY_GET_COUNT=1
  *   GUIDE_CONTROLLER_COUNT=1
  *   GUIDE_GENERIC_EVENT_ENDPOINT_COUNT=0
  *   GUIDE_CLIENT_CONTEXT_FIELDS=0
  *   GUIDE_CORRECT_OPTION_PUBLIC_REFERENCES=0
+ *
+ * CC-7.R1 added ONE read route — the opaque `GET /availability` pilot gate.
+ * Everything else about the surface is unchanged: five commands, one
+ * controller, no generic event/progress/discovery route.
  *
  * The public boundary is: the parser's accepted keys, the DTO/OpenAPI schemas,
  * the controller and the API client. Grading internals may legitimately name
@@ -78,7 +84,7 @@ function listGuideRuntimeFiles(): string[] {
 }
 
 describe("ratchet · guide public surface", () => {
-  it("exposes exactly one controller with five routes", () => {
+  it("exposes exactly one controller with five commands and the availability gate", () => {
     const controllers = listGuideRuntimeFiles().filter((f) =>
       f.endsWith(".controller.ts"),
     );
@@ -87,11 +93,16 @@ describe("ratchet · guide public surface", () => {
     const source = readFileSync(controllers[0] as string, "utf8");
     const posts = source.match(/@Post\(/g) ?? [];
     expect(posts).toHaveLength(5);
-    // Only POST — no GET/PATCH/PUT/DELETE surface in this PR.
-    for (const verb of ["@Get(", "@Patch(", "@Put(", "@Delete("]) {
+    // Exactly ONE read route — the CC-7.R1 availability gate — and no mutation
+    // verb beyond the five POST commands.
+    const gets = source.match(/@Get\(/g) ?? [];
+    expect(gets).toHaveLength(1);
+    expect(source).toContain('@Get("availability")');
+    for (const verb of ["@Patch(", "@Put(", "@Delete("]) {
       expect(source.includes(verb), verb).toBe(false);
     }
-    // The five handlers are the five commands.
+    // The handlers: the five commands + the availability gate (plus the two
+    // private helpers).
     expect(
       Object.getOwnPropertyNames(GuideController.prototype)
         .filter((n) => n !== "constructor")
@@ -101,6 +112,7 @@ describe("ratchet · guide public surface", () => {
       "completeGuideSession",
       "completeGuideSessionStep",
       "createGuideSession",
+      "getGuideAvailability",
       "submitGuideStepRecall",
       "toResponse",
       "unwrap",

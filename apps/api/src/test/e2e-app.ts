@@ -44,6 +44,10 @@ import { AppModule } from "../app.module";
 import { PrismaService } from "../prisma";
 import { REDIS_CLIENT } from "../redis";
 import { HttpExceptionFilter } from "../shared";
+import {
+  GUIDE_ROLLOUT_CONFIG,
+  type GuideRolloutConfig,
+} from "../guide/guide-rollout";
 
 /**
  * Programmable Prisma mock — every model.method is a `vi.fn()`. Tests use it
@@ -174,6 +178,15 @@ export interface E2EHarness {
  */
 export interface E2EAppOptions {
   prisma?: unknown;
+  /**
+   * CC-7.R1 — override the server-owned Guide rollout config for this app.
+   *
+   * When unset, the app resolves it exactly as production does (from
+   * `process.env`, which in `test` yields `on`), so every existing Guide E2E
+   * keeps seeing the gate open. A spec pins a specific mode/allowlist to
+   * exercise the pilot gate without touching real environment variables.
+   */
+  guideRollout?: GuideRolloutConfig;
 }
 
 export async function createE2EApp(
@@ -182,14 +195,21 @@ export async function createE2EApp(
   const prisma = (options.prisma ?? makePrismaMock()) as MockedPrisma;
   const redis = new RedisMock() as IoRedis;
 
-  const moduleRef = await Test.createTestingModule({
+  const builder = Test.createTestingModule({
     imports: [AppModule],
   })
     .overrideProvider(PrismaService)
     .useValue(prisma)
     .overrideProvider(REDIS_CLIENT)
-    .useValue(redis)
-    .compile();
+    .useValue(redis);
+
+  if (options.guideRollout) {
+    builder
+      .overrideProvider(GUIDE_ROLLOUT_CONFIG)
+      .useValue(options.guideRollout);
+  }
+
+  const moduleRef = await builder.compile();
 
   const app = moduleRef.createNestApplication();
 

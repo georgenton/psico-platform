@@ -64,6 +64,14 @@ const BY_CODE: Record<string, GuideUiError> = {
     message: "Esta guía no está disponible temporalmente.",
   },
   GUIDE_STORAGE_FAILURE: { kind: "retryable", message: RETRY_MESSAGE },
+  // CC-7.R1 — the server-owned pilot gate closed (503). This is not a failure
+  // of the run: an env flip can reopen it, so it is retryable, and the copy is
+  // reassuring rather than alarming.
+  GUIDE_UNAVAILABLE: {
+    kind: "retryable",
+    message:
+      "Esta guía no está disponible por ahora. Tu avance sigue guardado.",
+  },
 };
 
 /** The one place an API failure becomes something a person reads. */

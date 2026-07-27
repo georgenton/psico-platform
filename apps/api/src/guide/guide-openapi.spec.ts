@@ -3,15 +3,21 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * CC-7.4D — ratchet over the PUBLISHED Guide contract (`openapi.json` + the
- * generated client). The pure parsers are the runtime authority; this spec
- * pins that the DOCUMENTED contract states the same thing:
+ * CC-7.4D + CC-7.R1 — ratchet over the PUBLISHED Guide contract
+ * (`openapi.json` + the generated client). The pure parsers are the runtime
+ * authority; this spec pins that the DOCUMENTED contract states the same thing:
  *
- *   - exactly five paths and five operation ids — no generic event endpoint,
- *     no progress endpoint, no discovery endpoint;
- *   - every request body is CLOSED (`additionalProperties: false`) with an
- *     exact `required` list;
- *   - the response is closed and carries only the seven public session fields;
+ *   - exactly six paths — the five COMMANDS (POST) plus the opaque
+ *     availability check (GET); no generic event endpoint, no progress
+ *     endpoint, no discovery endpoint;
+ *   - every command request body is CLOSED (`additionalProperties: false`)
+ *     with an exact `required` list;
+ *   - the command response is closed and carries only the seven public session
+ *     fields;
+ *   - the availability response is a single closed `{ available: boolean }` —
+ *     it never states the mode, the allowlist or the reason;
+ *   - only the five COMMANDS document `503 GUIDE_UNAVAILABLE`; the JWT-gated
+ *     availability check never does (it answers `false` instead of denying);
  *   - the catalog's correct option, the editorial ids and `userId` appear
  *     NOWHERE in any Guide schema, and `selectedOptionKey` only in the recall
  *     body.
@@ -35,14 +41,22 @@ interface Operation {
   responses?: Record<string, { content?: Record<string, { schema?: Schema }> }>;
 }
 
+interface PathItem {
+  get?: Operation;
+  post?: Operation;
+}
+
 const openapi = JSON.parse(
   readFileSync(join(process.cwd(), "openapi.json"), "utf8"),
-) as { paths: Record<string, Record<string, Operation>> };
+) as { paths: Record<string, PathItem> };
 
 const GUIDE_PATHS = Object.keys(openapi.paths)
   .filter((p) => p.startsWith("/api/guide"))
   .sort();
 
+const AVAILABILITY_PATH = "/api/guide/availability";
+
+/** The five COMMAND paths (POST) — the availability GET is deliberately not here. */
 const EXPECTED_PATHS = [
   "/api/guide/sessions",
   "/api/guide/sessions/{sessionId}/cancel",
@@ -50,6 +64,9 @@ const EXPECTED_PATHS = [
   "/api/guide/sessions/{sessionId}/steps/{stepKey}/complete",
   "/api/guide/sessions/{sessionId}/steps/{stepKey}/recall",
 ];
+
+/** The full published Guide surface — the five commands plus the pilot gate. */
+const ALL_GUIDE_PATHS = [...EXPECTED_PATHS, AVAILABILITY_PATH].sort();
 
 const EXPECTED_OPERATION_IDS = [
   "cancelGuideSession",
@@ -68,18 +85,33 @@ const responseOf = (path: string, status: string): Schema =>
     ?.schema as Schema;
 
 describe("ratchet · guide OpenAPI surface", () => {
-  it("publishes exactly five paths and five operation ids", () => {
-    expect(GUIDE_PATHS).toEqual(EXPECTED_PATHS);
-    const ids = GUIDE_PATHS.map((p) => openapi.paths[p]?.post?.operationId)
+  it("publishes exactly six paths — five commands and the availability gate", () => {
+    expect(GUIDE_PATHS).toEqual(ALL_GUIDE_PATHS);
+    const ids = EXPECTED_PATHS.map((p) => openapi.paths[p]?.post?.operationId)
       .filter((id): id is string => typeof id === "string")
       .sort();
     expect(ids).toEqual(EXPECTED_OPERATION_IDS);
   });
 
-  it("exposes ONLY POST on every Guide path", () => {
-    for (const path of GUIDE_PATHS) {
+  it("exposes ONLY POST on the five COMMAND paths", () => {
+    for (const path of EXPECTED_PATHS) {
       expect(Object.keys(openapi.paths[path] ?? {})).toEqual(["post"]);
     }
+  });
+
+  it("availability is a GET-only opaque boolean, with its own operationId", () => {
+    const ops = openapi.paths[AVAILABILITY_PATH];
+    expect(Object.keys(ops ?? {})).toEqual(["get"]);
+    const get = ops?.get;
+    expect(get?.operationId).toBe("getGuideAvailability");
+    // No request body — it takes nothing but the JWT.
+    expect(get?.requestBody).toBeUndefined();
+    const schema =
+      get?.responses?.["200"]?.content?.["application/json"]?.schema;
+    expect(schema?.additionalProperties).toBe(false);
+    expect([...(schema?.required ?? [])].sort()).toEqual(["available"]);
+    expect(Object.keys(schema?.properties ?? {})).toEqual(["available"]);
+    expect(schema?.properties?.available?.type).toBe("boolean");
   });
 
   it("has no generic event / progress / discovery endpoint", () => {
@@ -117,6 +149,20 @@ describe("ratchet · guide OpenAPI surface", () => {
     }
   });
 
+  it("only the five COMMANDS document 503, and the availability gate never does", () => {
+    for (const path of EXPECTED_PATHS) {
+      expect(
+        Object.keys(openapi.paths[path]?.post?.responses ?? {}),
+        `${path} → 503`,
+      ).toContain("503");
+    }
+    // The JWT-gated availability check answers `false`; it never DENIES with a
+    // 503, so publishing one would misrepresent the contract.
+    expect(
+      Object.keys(openapi.paths[AVAILABILITY_PATH]?.get?.responses ?? {}),
+    ).not.toContain("503");
+  });
+
   it("the response is closed and carries only the public session fields", () => {
     const SESSION_FIELDS = [
       "currentStepKey",
@@ -127,7 +173,7 @@ describe("ratchet · guide OpenAPI surface", () => {
       "stepsCompleted",
       "totalSteps",
     ];
-    for (const path of GUIDE_PATHS) {
+    for (const path of EXPECTED_PATHS) {
       for (const status of ["200", "201"]) {
         const schema = responseOf(path, status);
         expect(schema, `${path} ${status}`).toBeDefined();
@@ -175,7 +221,7 @@ describe("ratchet · guide OpenAPI surface", () => {
   });
 
   it("selectedOptionKey exists ONLY in the recall body", () => {
-    for (const path of GUIDE_PATHS) {
+    for (const path of EXPECTED_PATHS) {
       const props = Object.keys(bodyOf(path).properties ?? {});
       const isRecall = path.endsWith("/recall");
       expect(props.includes("selectedOptionKey"), path).toBe(isRecall);
@@ -191,7 +237,7 @@ describe("ratchet · guide OpenAPI surface", () => {
     }
   });
 
-  it("the generated client preserves the five Guide operations", () => {
+  it("the generated client preserves the five commands and the availability gate", () => {
     const generated = readFileSync(
       join(
         process.cwd(),
@@ -204,10 +250,10 @@ describe("ratchet · guide OpenAPI surface", () => {
       ),
       "utf8",
     );
-    for (const path of EXPECTED_PATHS) {
+    for (const path of ALL_GUIDE_PATHS) {
       expect(generated, path).toContain(path);
     }
-    for (const id of EXPECTED_OPERATION_IDS) {
+    for (const id of [...EXPECTED_OPERATION_IDS, "getGuideAvailability"]) {
       expect(generated, id).toContain(id);
     }
     expect(generated).not.toContain("correctOptionKey");

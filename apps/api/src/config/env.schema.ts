@@ -113,6 +113,14 @@ export const envSchema = z
     // standpoint.
     SENTRY_DSN: z.string().url().optional(),
     SENTRY_RELEASE: z.string().optional(),
+
+    // CC-7.R1 — Guide pilot rollout. Optional HERE only for typing: the
+    // DEPLOYED requirement (mode required, `pilot` needs an allowlist) is
+    // enforced fail-closed by the Guide rollout resolver
+    // (`guide/guide-rollout.ts`) via `resolveEnvironment()`, not by this schema.
+    // The allowlist is server-side operational data — never copied to Vercel.
+    GUIDE_ROLLOUT_MODE: z.string().optional(),
+    GUIDE_PILOT_USER_IDS: z.string().optional(),
   })
   // Cross-field validation: in production, certain optional fields become
   // required. Keeping the rule here (instead of separate per-env schemas)

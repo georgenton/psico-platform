@@ -751,10 +751,50 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
       await closeE2EApp(hOn);
     });
 
+    beforeEach(async () => {
+      // hOff/hPilot/hOn share one in-memory ioredis-mock store, so the per-route
+      // throttle counters accumulate across every request in this block — and
+      // several gate tests fan out over all five commands. These tests exercise
+      // the ROLLOUT gate, not the throttler, so reset the counters each time.
+      await hOff.redis.flushall();
+    });
+
     // ── availability ────────────────────────────────────────────────────────
 
     it("availability requires a JWT", async () => {
       await httpOf(hOn).get("/api/guide/availability").expect(401);
+    });
+
+    // ── order: JwtAuthGuard → GuideRolloutGuard ───────────────────────────────
+
+    it("off + no JWT → 401 on every command, never the rollout 503", async () => {
+      // GUIDE_OFF_UNAUTHENTICATED_STATUS=401 —
+      // GUIDE_OFF_UNAUTHENTICATED_ROLLOUT_STATUS_NOT_503=true.
+      //
+      // JwtAuthGuard runs BEFORE GuideRolloutGuard: an unauthenticated request
+      // is rejected as 401 and never reaches the gate that would otherwise
+      // answer 503. This pins the ACTUAL order, not just the Nest convention.
+      const before = await counts();
+      const commands: Array<[string, Record<string, unknown>]> = [
+        ["/api/guide/sessions", { guideKey: GUIDE_KEY, guideVersion: 1 }],
+        [`/api/guide/sessions/ses-x/steps/${STEP_CONCEPT}/complete`, {}],
+        [
+          `/api/guide/sessions/ses-x/steps/${STEP_RECALL}/recall`,
+          { selectedOptionKey: CORRECT_OPTION },
+        ],
+        ["/api/guide/sessions/ses-x/cancel", {}],
+        ["/api/guide/sessions/ses-x/complete", {}],
+      ];
+      for (const [route, extra] of commands) {
+        const res = await httpOf(hOff)
+          .post(route)
+          .send({ idempotencyKey: nextKey(), ...extra })
+          .expect(401);
+        // The gate never got the chance to speak.
+        expect(res.status).not.toBe(503);
+      }
+      // And an unauthenticated, denied request writes nothing either.
+      expect(await counts()).toEqual(before);
     });
 
     it("off → available:false for an authenticated actor, with zero rows", async () => {
@@ -764,6 +804,9 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
         .set(auth(tokenA))
         .expect(200);
       expect(res.body).toEqual({ available: false });
+      // GUIDE_AVAILABILITY_CACHE_CONTROL=private,no-store — the decision is
+      // per-actor and flips with an env change, so it must never be cached.
+      expect(res.headers["cache-control"]).toBe("private, no-store");
       // The opaque boolean never states the mode, the allowlist or the reason.
       expect(Object.keys(res.body)).toEqual(["available"]);
       expect(JSON.stringify(res.body)).not.toContain("pilot");
@@ -822,6 +865,47 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
       }
       // The gate closed before the parser, the lifecycle and the database.
       expect(await counts()).toEqual(before);
+    });
+
+    it("denied commands never reach the lifecycle (0 calls)", async () => {
+      // GUIDE_DENIED_LIFECYCLE_CALLS=0 — proven directly, not inferred from row
+      // counts. Spy the REAL transactional service on the denied app and assert
+      // not one of its five entry points is ever invoked.
+      const lifecycle = hOff.app.get(GuideLifecycleService);
+      const spies = [
+        vi.spyOn(lifecycle, "start"),
+        vi.spyOn(lifecycle, "completeStep"),
+        vi.spyOn(lifecycle, "completeRecallStep"),
+        vi.spyOn(lifecycle, "cancel"),
+        vi.spyOn(lifecycle, "completeSession"),
+      ];
+      try {
+        const before = await counts();
+        const commands: Array<[string, Record<string, unknown>]> = [
+          ["/api/guide/sessions", { guideKey: GUIDE_KEY, guideVersion: 1 }],
+          [`/api/guide/sessions/ses-x/steps/${STEP_CONCEPT}/complete`, {}],
+          [
+            `/api/guide/sessions/ses-x/steps/${STEP_RECALL}/recall`,
+            { selectedOptionKey: CORRECT_OPTION },
+          ],
+          ["/api/guide/sessions/ses-x/cancel", {}],
+          ["/api/guide/sessions/ses-x/complete", {}],
+        ];
+        for (const [route, extra] of commands) {
+          await httpOf(hOff)
+            .post(route)
+            .set(auth(tokenA))
+            .send({ idempotencyKey: nextKey(), ...extra })
+            .expect(503);
+        }
+        for (const spy of spies) {
+          expect(spy).not.toHaveBeenCalled();
+        }
+        // GUIDE_DENIED_DB_WRITES=0 — the four ledgers are untouched.
+        expect(await counts()).toEqual(before);
+      } finally {
+        for (const spy of spies) spy.mockRestore();
+      }
     });
 
     it("a pilot non-member is denied the commands too", async () => {

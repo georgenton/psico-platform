@@ -1006,3 +1006,64 @@ describe("GuidePlayer · the recovery record is bound to an account", () => {
     }
   });
 });
+
+/**
+ * CC-7.R1 — the pilot gate reached mid-run is a RETRYABLE stop, not a dead end.
+ *
+ * A `503 GUIDE_UNAVAILABLE` (an env flip closed the gate under an in-progress
+ * run) travels the SAME retryable path as a network failure: the reassuring
+ * copy shows, the raw code never does, the pending command and its key are
+ * preserved, and the retry reuses that exact key — a second attempt is never
+ * minted. There is NO special-casing in the player for this code.
+ */
+describe("GuidePlayer · GUIDE_UNAVAILABLE is retryable, not terminal", () => {
+  const UNAVAILABLE_COPY =
+    "Esta guía no está disponible por ahora. Tu avance sigue guardado.";
+
+  it("keeps the pending command and reuses its key on retry", async () => {
+    storeRecord();
+    createGuideSession.mockResolvedValue(replayed());
+    // The gate closes on the first attempt, reopens on the retry.
+    completeGuideSessionStep.mockRejectedValueOnce(
+      await apiError(503, "GUIDE_UNAVAILABLE"),
+    );
+    completeGuideSessionStep.mockResolvedValueOnce(
+      ok({
+        stepsCompleted: 1,
+        currentStepKey: "practicar-escucharte-por-dentro",
+      }),
+    );
+    const user = userEvent.setup();
+    render(<GuidePlayer actorScope={SCOPE_A} />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "He explorado esta idea" }),
+    );
+
+    // GUIDE_UNAVAILABLE_RETRY_KIND=true — the reassuring copy, offering a retry.
+    expect(await screen.findByText(UNAVAILABLE_COPY)).toBeInTheDocument();
+    // GUIDE_UNAVAILABLE_RAW_CODE_VISIBLE=false — the stable code never shows.
+    expect(screen.queryByText(/GUIDE_UNAVAILABLE/)).toBeNull();
+
+    // GUIDE_UNAVAILABLE_PENDING_PRESERVED=true — the STEP_COMPLETE and its key
+    // survive, and the START record is not thrown away.
+    const sentKey = completeGuideSessionStep.mock.calls[0]![2]!.idempotencyKey;
+    const stored = readRecord();
+    expect(stored?.pendingCommand?.commandType).toBe("STEP_COMPLETE");
+    expect(stored?.pendingCommand?.idempotencyKey).toBe(sentKey);
+    expect(stored?.startIdempotencyKey).toBe(START_KEY);
+
+    await user.click(await screen.findByRole("button", { name: "Reintentar" }));
+
+    await waitFor(() =>
+      expect(completeGuideSessionStep).toHaveBeenCalledTimes(2),
+    );
+    // GUIDE_UNAVAILABLE_RETRY_KEY_REUSED=true ·
+    // GUIDE_UNAVAILABLE_NEW_KEY_CREATED=false — the very same command key.
+    expect(completeGuideSessionStep.mock.calls[1]![2]!.idempotencyKey).toBe(
+      sentKey,
+    );
+    // Settled ⇒ nothing pending is left behind.
+    expect(readRecord()?.pendingCommand).toBeUndefined();
+  });
+});

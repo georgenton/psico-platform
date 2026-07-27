@@ -33,6 +33,11 @@ GUIDE_WEB_AVAILABILITY_GATES_ENTRY=true
 GUIDE_WEB_AVAILABILITY_GATES_PLAYER=true
 GUIDE_WEB_ROLLOUT_MODE_REFERENCES=0
 GUIDE_WEB_PILOT_ALLOWLIST_REFERENCES=0
+
+GUIDE_INITIAL_PRODUCTION_MODE_RECOMMENDED=off
+GUIDE_PILOT_USERS_CONFIGURED=false
+GUIDE_PRODUCTION_DEPLOYED=false
+GUIDE_MODE_CHANGE_REQUIRES_RESTART=true
 ```
 
 ## Qué resuelve
@@ -125,15 +130,60 @@ tiene la guía habilitada:
 
 ## Operar el piloto
 
-1. En el servicio API de Railway, setear `GUIDE_ROLLOUT_MODE=pilot` y
-   `GUIDE_PILOT_USER_IDS=<id1>,<id2>,…` con los `userId` de los pilotos.
-2. Confirmar el boot limpio (sin error de config).
-3. Para ampliar a todos: `GUIDE_ROLLOUT_MODE=on` (la allowlist se ignora).
-4. Kill switch inmediato: `GUIDE_ROLLOUT_MODE=off` — nadie ve la guía; el avance
-   guardado sigue intacto.
+**El cambio de modo no es instantáneo.** Cambiar el modo **no** requiere un
+nuevo commit, una migración ni una nueva versión del código. Pero la config se
+resuelve **una sola vez al boot** (`resolveGuideRolloutConfig` corre en el
+factory del provider), así que el cambio **solo entra en vigor después de
+reiniciar o redesplegar** las instancias del servicio API. No es un kill switch
+de efecto inmediato: es una variable + un restart.
 
-Ningún cambio de código, ninguna migración, ningún deploy es necesario para
-mover el gate: solo la variable de entorno y un restart del servicio.
+### Estado inicial recomendado (antes del primer deploy)
+
+- `GUIDE_INITIAL_PRODUCTION_MODE_RECOMMENDED=off` — producción arranca con la
+  guía apagada para todos.
+- `GUIDE_PILOT_USERS_CONFIGURED=false` — sin IDs reales configurados todavía.
+- `GUIDE_PRODUCTION_DEPLOYED=false` — este PR no despliega nada.
+
+Antes del futuro sync `develop → main`, dejar registrado el estado que debe
+tener producción:
+
+```
+API + worker:
+GUIDE_ROLLOUT_MODE=off
+GUIDE_PILOT_USER_IDS=<unset>
+```
+
+Mantener la variable también en el **worker** es postura operacional coherente
+(que ambos servicios lean la misma config), aunque la **decisión de comandos
+vive solo en el API** — el worker no expone la superficie Guide. Nunca se copia
+a Vercel.
+
+### Orden productivo (cuando se decida encender el piloto)
+
+1. Dejar el modo en `off` (stage).
+2. Sync `develop → main`.
+3. Deploy + migraciones (flujo normal).
+4. Ingesta productiva del contenido de la guía.
+5. Smoke interno con una cuenta de prueba (availability + un comando).
+6. Configurar los `GUIDE_PILOT_USER_IDS` aprobados.
+7. Cambiar `GUIDE_ROLLOUT_MODE=pilot`.
+8. **Reiniciar / redesplegar el API** para que la config re-resuelva.
+9. Smoke de la cohorte con un piloto real.
+
+Para ampliar a todos: `GUIDE_ROLLOUT_MODE=on` (la allowlist se ignora) +
+restart/redeploy del API.
+
+### Rollback
+
+```
+GUIDE_ROLLOUT_MODE=off
+→ reiniciar / redesplegar el API
+→ los datos y el recovery del cliente permanecen intactos
+```
+
+Apagar el gate nunca borra sesiones, pasos, recibos ni LearningEvents: un
+comando denegado responde `503 GUIDE_UNAVAILABLE` sin escribir, y el avance
+guardado del cliente sobrevive para cuando el gate reabra.
 
 ## Fuera de alcance (deliberado)
 

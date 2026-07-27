@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, waitFor } from "@testing-library/react";
-import { useEffect } from "react";
+import { render, screen, waitFor } from "@testing-library/react";
+import { StrictMode, useEffect } from "react";
 import { apiClient, guideApi } from "@psico/api-client";
 
 import { GuideApiClientBoundary } from "./GuideApiClientBoundary";
@@ -42,7 +42,7 @@ function CommandOnMount() {
       })
       .catch(() => {});
   }, []);
-  return null;
+  return <div data-testid="command-child" />;
 }
 
 /** The layout's initial configuration: token A. */
@@ -89,6 +89,32 @@ describe("Guide token resync (real apiClient)", () => {
     // GUIDE_FIRST_COMMAND_USES_ROTATED_ACCESS=true
     expect(capturedAuth[0]).toBe("Bearer token-B");
     // GUIDE_OLD_ACCESS_TOKEN_REFERENCES=0
+    expect(capturedAuth.some((a) => a.includes("token-A"))).toBe(false);
+  });
+
+  it("Strict Mode: every configuration and command uses B, never A, never stuck", async () => {
+    mockFetch();
+    configureWith("token-A");
+
+    render(
+      <StrictMode>
+        <GuideApiClientBoundary
+          apiBase="https://api.test"
+          accessToken="token-B"
+        >
+          <CommandOnMount />
+        </GuideApiClientBoundary>
+      </StrictMode>,
+    );
+
+    // The child eventually mounts (not stuck on loading), and every request it
+    // makes carries B — StrictMode's double-invoked effects never leak A.
+    await waitFor(() =>
+      expect(screen.getByTestId("command-child")).toBeInTheDocument(),
+    );
+    await waitFor(() => expect(capturedAuth.length).toBeGreaterThanOrEqual(1));
+    // GUIDE_BOUNDARY_STRICT_MODE_PASS=true
+    expect(capturedAuth.every((a) => a === "Bearer token-B")).toBe(true);
     expect(capturedAuth.some((a) => a.includes("token-A"))).toBe(false);
   });
 });

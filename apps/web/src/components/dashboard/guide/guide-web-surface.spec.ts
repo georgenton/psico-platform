@@ -32,6 +32,8 @@ import { describe, expect, it } from "vitest";
  *   AUTH_REFRESH_WRITABLE_BOUNDARY=true
  *   GUIDE_NAVIGATION_TOKEN_SYNC_BOUNDARY=template
  *   GUIDE_NAVIGATION_TOKEN_SYNC_COUNT=1
+ *   GUIDE_API_CLIENT_CONFIGURE_IN_RENDER_COUNT=0
+ *   GUIDE_API_CLIENT_CONFIGURE_IN_EFFECT_COUNT=1
  */
 
 const GUIDE_DIR = __dirname;
@@ -276,6 +278,20 @@ describe("ratchet · guide web surface", () => {
     expect(boundary).toMatch(/getRefreshToken:\s*\(\)\s*=>\s*null/);
     expect(boundary.includes("cookies")).toBe(false);
     expect(boundary.includes("localStorage")).toBe(false);
+
+    // GUIDE_API_CLIENT_CONFIGURE_IN_RENDER_COUNT=0 — configuring the singleton
+    // is a side effect, so it must live inside a `useEffect`, NOT in render
+    // (where SSR runs it and concurrent React may repeat/abandon it).
+    expect(boundary).toMatch(/useEffect\(/);
+    // No side effect smuggled into a lazy initializer or a memo.
+    expect(boundary).not.toMatch(/useState\(\s*\(\s*\)\s*=>/);
+    expect(boundary).not.toMatch(/useMemo\(/);
+    // The single `configure` call appears AFTER `useEffect(` and never before,
+    // so it cannot be running in the component body.
+    const idxEffect = boundary.indexOf("useEffect(");
+    const idxConfigure = boundary.indexOf("apiClient.configure(");
+    expect(idxEffect).toBeGreaterThan(-1);
+    expect(idxConfigure).toBeGreaterThan(idxEffect);
 
     // GuideActorScopeProvider stays in the LAYOUT, not the template.
     expect(template.includes("GuideActorScopeProvider")).toBe(false);

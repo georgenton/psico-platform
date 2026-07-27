@@ -46,6 +46,12 @@ GUIDE_NAVIGATION_TOKEN_SYNC_COUNT=1
 GUIDE_API_CLIENT_CONFIGURED_BEFORE_PLAYER_MOUNT=true
 GUIDE_FIRST_COMMAND_USES_ROTATED_ACCESS=true
 GUIDE_OLD_ACCESS_TOKEN_REFERENCES=0
+
+GUIDE_API_CLIENT_RENDER_SIDE_EFFECT=false
+GUIDE_API_CLIENT_SERVER_RENDER_MUTATION=false
+GUIDE_SERVER_RENDER_CONFIGURE_CALLS=0
+GUIDE_BOUNDARY_STRICT_MODE_PASS=true
+GUIDE_BOUNDARY_STUCK_LOADING=false
 ```
 
 Consume la superficie HTTP de [guide-v1-http-surface.md](guide-v1-http-surface.md)
@@ -199,20 +205,29 @@ mandando `Bearer A` y el primer `createGuideSession` daría 401.
 La guía se re-sincroniza con un **template** de segmento
 (`app/dashboard/exploraciones/template.tsx`): a diferencia de un layout, App
 Router lo **remonta en cada navegación**. El template lee la cookie de access
-recién rotada con `getAccessToken()` y la pasa a `GuideApiClientBoundary`, que
-reconfigura el singleton **durante su primer render** (inicializador `useState`,
-una sola vez, antes de montar cualquier hijo) — así el comando de recuperación
-de `GuidePlayer` nunca sale con un token viejo. El template no resuelve
-identidad (sin `/user/me`, sin actorScope, sin refresh); el boundary no lee
-cookies ni almacena el token. Esta garantía es **solo para la guía**: Eco/Tour
-seguirán recibiendo el token del layout (fresco en carga completa/reload, no en
-navegación suave) salvo que añadan su propio re-sync.
+recién rotada con `getAccessToken()` y la pasa a `GuideApiClientBoundary`.
+
+Configurar el singleton es un **efecto**, no algo de render: los Client
+Components también se prerenderizan en el servidor y React concurrente puede
+repetir o abandonar un render, así que `apiClient.configure` **nunca** corre
+en render. El boundary **renderiza primero un estado cerrado** (un placeholder
+accesible, sin tokens); después de hidratar, un `useEffect` configura el
+singleton y **solo entonces** monta los hijos. Los hijos montan únicamente
+cuando el par configurado coincide exactamente con los props actuales, así que
+en una ventana A → B (props que cambian en la misma instancia) el gate queda
+cerrado hasta reconfigurar a B — ningún comando de la guía sale con un token
+viejo. El template no resuelve identidad (sin `/user/me`, sin actorScope, sin
+refresh); el boundary no lee cookies ni almacena el token. Esta garantía es
+**solo para la guía**: Eco/Tour seguirán recibiendo el token del layout (fresco
+en carga completa/reload, no en navegación suave) salvo que añadan su propio
+re-sync.
 
 ```
 middleware rota y persiste el par
 → el template de Exploraciones se remonta
 → lee la cookie de access nueva (getAccessToken)
-→ GuideApiClientBoundary reconfigura el singleton (Bearer B)
+→ el boundary renderiza primero un estado cerrado
+→ tras hidratar, un efecto configura el singleton (Bearer B)
 → recién entonces monta GuidePlayer
 ```
 

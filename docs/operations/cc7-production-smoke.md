@@ -29,13 +29,14 @@ private URLs, connection strings, block text, titles or quotes.
 | `GUIDE_ROLLOUT_MODE` (API + worker) | `off`                           |
 | `GUIDE_PILOT_USER_IDS`              | unset                           |
 
-Three gates must already be **true before the release starts** — they are the
-open items from CC-7.R2, not smoke steps to discover on the way:
+Four gates must already be **true before the release starts** — they are the open
+items from CC-7.R2, not smoke steps to discover on the way:
 
 ```
-PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=true
-EXPECTED_INDEX_WINDOW_APPROVED=true
-ENV_OFF_FIRST_APPLIED=true
+RUNTIME_REHEARSAL_REMAINS_VALID=true            (runbook §2.0 — delta since the rehearsal is docs-only)
+PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=true   ┐ blocker 2
+EXPECTED_INDEX_WINDOW_APPROVED=true                  ┘
+ENV_OFF_FIRST_APPLIED=true                       blocker 1
 ```
 
 Record the booleans only. The cardinality figure itself may be operationally
@@ -67,16 +68,30 @@ Guide card visible   = false
 Guide player mounted = false
 ```
 
-Deltas after the whole OFF matrix:
+Deltas **attributable to the Guide requests in this matrix**:
 
 ```
 GuideSession delta        = 0
 GuideSessionStep delta    = 0
 GuideCommandReceipt delta = 0
-LearningEvent delta       = 0
+LearningEvent delta       = 0   (from the Guide requests above)
 ```
 
 A non-zero delta here is a **STOP**: the gate is not holding.
+
+> **Scope this correctly.** `mode=off` closes the five Guide commands, not the
+> whole learning domain:
+>
+> ```
+> GUIDE_OFF_PREVENTS_GUIDE_EVENTS=true
+> GUIDE_OFF_PREVENTS_ALL_LEARNING_V1_EVENTS=false
+> ```
+>
+> The standalone Learning HTTP commands remain reachable and may legitimately
+> write `CONCEPT_EXPLORED`, `ACTIVE_RECALL_ATTEMPTED` or `PRACTICE_COMPLETED`
+> while Guide is off. So measure the `LearningEvent` delta **around the Guide
+> requests specifically** — a row appearing from ordinary learning traffic is not
+> a gate failure, and reading a global count as one would produce a false STOP.
 
 ### Regression sweep (unchanged surfaces)
 
@@ -191,7 +206,7 @@ GUIDE_CARD_VISIBLE=false
 GUIDE_SESSION_DELTA=0
 GUIDE_SESSION_STEP_DELTA=0
 GUIDE_COMMAND_RECEIPT_DELTA=0
-LEARNING_EVENT_DELTA=0
+LEARNING_EVENT_DELTA_FROM_GUIDE_REQUESTS=0
 
 REGRESSION_FAILURES=<n>
 SMOKE_RESULT=PASS|FAIL

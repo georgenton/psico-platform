@@ -63,7 +63,52 @@ refuses to start ambiguous rather than starting open.
 
 Because of the squash/sync history, a plain `develop → main` PR is not guaranteed
 to produce a clean merge or an exact tree. The candidate is an exact-tree sync
-commit whose tree is byte-identical to the approved `develop`:
+commit whose tree is byte-identical to the approved `develop`.
+
+### 2.0 Re-validate the rehearsal first
+
+The runtime rehearsal ran against
+`RUNTIME_REHEARSAL_SHA=52d7764063ccdea650fb049edeed7592782be4c5`. Merging the
+readiness PR advances develop past that point, so before building any sync commit:
+
+```bash
+git fetch origin
+git diff --name-status \
+  52d7764063ccdea650fb049edeed7592782be4c5 \
+  origin/develop
+```
+
+The delta must contain **only** these three paths:
+
+```
+docs/operations/cc7-production-readiness.md
+docs/operations/cc7-production-runbook.md
+docs/operations/cc7-production-smoke.md
+```
+
+If it does — the rehearsal still describes the code being shipped:
+
+```
+POST_REHEARSAL_RUNTIME_CHANGE_DETECTED=false
+RUNTIME_REHEARSAL_REMAINS_VALID=true
+```
+
+If anything else appears — runtime, schema, migration, package, workflow, web or
+mobile — the rehearsal is stale and describes code that is no longer what would
+ship:
+
+```
+POST_REHEARSAL_RUNTIME_CHANGE_DETECTED=true
+PRODUCTION_PREP_STATUS=BLOCKED_REHEARSAL_STALE
+```
+
+Stop and repeat the affected inventory/rehearsal. Do not promote on the strength
+of a rehearsal that predates a runtime change.
+
+### 2.1 Building the commit
+
+**Use the tree of the new approved SHA** (`origin/develop` as re-read above) —
+never the historical `52d7764` tree, which no longer includes these documents.
 
 ```bash
 PARENT=$(git rev-parse origin/main)
@@ -84,13 +129,14 @@ MAIN_ONLY_SEMANTIC_CHANGES=0                       ✅ (readiness §1)
 LOCAL_MIGRATION_REHEARSAL=PASS                     ✅ (readiness §4)
 ROLLBACK_COMPATIBILITY=PASS                        ✅ (readiness §5, runtime booted)
 LOCAL_CONTENT_BACKFILL_CLI_APPLY_PASS=true         ✅ (readiness §6.2)
-ENV_OFF_FIRST_APPLIED=true                         ⬜ NOT YET — step 1 below
-PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=true ⬜ NOT YET — precheck, readiness §3
-EXPECTED_INDEX_WINDOW_APPROVED=true                ⬜ NOT YET — precheck, readiness §3
+RUNTIME_REHEARSAL_REMAINS_VALID=true               ⬜ NOT YET — §2.0 above
+ENV_OFF_FIRST_APPLIED=true                         ⬜ blocker 1 — step 1 below
+PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=true ⬜ blocker 2 — precheck, readiness §3
+EXPECTED_INDEX_WINDOW_APPROVED=true                ⬜ blocker 2 — precheck, readiness §3
 ```
 
-The three unchecked rows are the reason readiness reads
-`PARTIALLY_VERIFIED`, not `READY`.
+The unchecked rows are the reason readiness reads `PARTIALLY_VERIFIED`, not
+`READY` (`PRODUCTION_BLOCKERS=2`).
 
 Verification the future execution must demand, before merging:
 
@@ -155,6 +201,12 @@ previous pointer is `null` — that is the register's initial state, not an erro
 stdout is metrics-only by design — do not paste block text, titles or quotes into
 any report.
 
+**Re-running is safe but not free.** A repeat apply converges structurally (same
+row counts, no new `Revision`) yet still upserts `Work.title` / `Work.authorName`,
+`Edition.slug` and `Concept.label`, bumping their `@updatedAt`
+(`LOCAL_SECOND_CLI_WRITE_NOOP=false`, readiness §6.3). Treat a re-run as a real
+write, not a no-op.
+
 **What ingestion creates, and what it does not:**
 
 ```
@@ -190,7 +242,18 @@ Does **not** delete: `GuideSession`, `GuideSessionStep`, `GuideCommandReceipt`,
 `503 GUIDE_UNAVAILABLE` and writes nothing, so progress already saved survives
 for whenever the gate reopens.
 
-Reach for this first: it is narrow, reversible, and touches no other surface.
+Scope of the switch, precisely:
+
+```
+GUIDE_OFF_PREVENTS_GUIDE_EVENTS=true
+GUIDE_OFF_PREVENTS_ALL_LEARNING_V1_EVENTS=false
+```
+
+It closes the five Guide commands before the lifecycle, so no Guide-originated
+LearningEvent is written. It does **not** disable the standalone Learning HTTP
+commands, which remain reachable and may keep writing V1 events. Reach for it
+first for Guide problems — it is narrow, reversible, and touches no other
+surface — but do not treat it as a global LearningEvent kill switch.
 
 ### Level 2 — code rollback (all three surfaces together)
 
@@ -202,10 +265,21 @@ contract are their own outage.
 
 No down migration is required: the readiness rehearsal **built and booted** main's
 API and worker against the upgraded schema — health 200, auth and content smoke
-green, worker processors alive, zero Prisma errors (readiness §5). Note the
-recorded invariant — main never queries `LearningEvent`, which is what makes the
-new enum values harmless to it. An older client genuinely cannot read a new enum
-value; re-check that property before choosing a different rollback SHA.
+green, worker processors alive, zero Prisma errors (readiness §5).
+
+Rollback to `c4a4b5b` stays approved, and it stays approved **even once V1 rows
+exist**. The reason is narrow and worth stating exactly:
+
+```
+MAIN_RUNTIME_LEARNING_EVENT_READS=0
+```
+
+Main tolerates rows carrying `CONCEPT_EXPLORED`, `ACTIVE_RECALL_ATTEMPTED` or
+`PRACTICE_COMPLETED` because it never reads that table — not because such rows
+are assumed absent. They will not be absent: the standalone Learning HTTP
+commands write them regardless of Guide rollout (readiness §5). An older Prisma
+client genuinely cannot deserialise a new enum value, so **before choosing any
+rollback SHA other than `c4a4b5b`, verify that target's `LearningEvent` reads.**
 
 ### Triggers
 

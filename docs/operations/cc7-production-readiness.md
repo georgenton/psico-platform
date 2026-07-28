@@ -3,12 +3,17 @@
 ```
 CC7_R2_STATUS=CHANGES_APPLIED_PENDING_REVIEW
 PRODUCTION_READINESS=PARTIALLY_VERIFIED
-PRODUCTION_BLOCKERS=1
+PRODUCTION_BLOCKERS=2
 PRODUCTION_BLOCKER_ENV_OFF_FIRST_NOT_APPLIED=true
+PRODUCTION_BLOCKER_INDEX_WINDOW_NOT_APPROVED=true
 
 MAIN_SHA=c4a4b5bf59a82c31aef60d9d4e2c6ff58620fd7e
-DEVELOP_SHA=52d7764063ccdea650fb049edeed7592782be4c5
 MERGE_BASE_SHA=ff926c7ba4a87630f207b6f85580095f6d7e8d7f
+
+RUNTIME_REHEARSAL_SHA=52d7764063ccdea650fb049edeed7592782be4c5
+PRODUCTION_NET_CHANGED_FILES_AT_REHEARSAL=143
+SYNC_CANDIDATE_SHA=PENDING_AFTER_PR598_MERGE
+POST_MERGE_DEVELOP_REVALIDATION_REQUIRED=true
 
 DEVELOP_AHEAD_BY=148
 DEVELOP_BEHIND_BY=11
@@ -34,8 +39,12 @@ LOCAL_DRY_RUN_DB_DELTA=0
 LOCAL_CONTENT_BACKFILL_CLI_APPLY_PASS=true
 LOCAL_EXERCISE_ROWS_EXPECTED=true
 LOCAL_GUIDE_TARGET_RESOLUTION_AFTER_CLI=true
-LOCAL_SECOND_CLI_APPLY_NOOP=true
+
+LOCAL_SECOND_CLI_ROW_COUNTS_STABLE=true
+LOCAL_SECOND_CLI_REVISION_DELTA=0
 LOCAL_SECOND_CLI_PARTIAL_STATE=false
+LOCAL_SECOND_CLI_STRUCTURAL_IDEMPOTENCY=true
+LOCAL_SECOND_CLI_WRITE_NOOP=false
 
 MAIN_API_BUILD_PASS=true
 MAIN_WORKER_BUILD_PASS=true
@@ -56,7 +65,12 @@ PRISMA_CLIENT_BACKUP_CREATED=true
 PRISMA_CLIENT_RESTORED_BYTE_EQUIVALENT=true
 DEVELOP_GUIDE_E2E_AFTER_RESTORE_PASS=true
 
+GUIDE_OFF_PREVENTS_GUIDE_EVENTS=true
+GUIDE_OFF_PREVENTS_ALL_LEARNING_V1_EVENTS=false
+
 PRODUCTION_LEARNING_EVENT_CARDINALITY_VERIFIED=false
+PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=false
+EXPECTED_INDEX_WINDOW_APPROVED=false
 LEARNING_EVENT_INDEX_LOCK_RISK=UNKNOWN_PENDING_PREDEPLOY_CHECK
 
 API_DEPLOY_REQUIRED=true
@@ -75,6 +89,14 @@ DEPLOY_EXECUTED=false
 ```
 
 This document is the evidence behind the verdict. Nothing here was executed against production: every rehearsal ran on throwaway local PostgreSQL databases.
+
+**Which SHA the evidence describes.** Every rehearsal below ran against
+`RUNTIME_REHEARSAL_SHA=52d7764…` — the develop head at the time. This PR itself
+advances develop (with docs only), so that SHA is deliberately **not** called
+"DEVELOP_SHA": after this PR merges, develop's head is a different commit, and
+the future sync commit must use the tree of that **new approved SHA**, not the
+historical `52d7764` tree. Before promoting, re-validate that the delta since the
+rehearsal is docs-only — the exact procedure is runbook §2.
 
 ---
 
@@ -352,8 +374,36 @@ So the unreachable-by-construction conclusion is:
 **Invariant to preserve:** any future rollback target that _does_ read
 `LearningEvent` must either know the V1 enum values or filter them out. Record
 this before choosing a rollback SHA other than
-`c4a4b5bf59a82c31aef60d9d4e2c6ff58620fd7e`. With Guide left at `mode=off` no V1
-rows are ever written, so the off-first window is unconditionally safe.
+`c4a4b5bf59a82c31aef60d9d4e2c6ff58620fd7e`.
+
+### What `mode=off` actually prevents
+
+```
+GUIDE_OFF_PREVENTS_GUIDE_EVENTS=true
+GUIDE_OFF_PREVENTS_ALL_LEARNING_V1_EVENTS=false
+```
+
+`GUIDE_ROLLOUT_MODE=off` prevents Guide-originated LearningEvents because the
+five Guide commands are denied before the lifecycle.
+
+It does not disable the standalone Learning HTTP commands. Those commands may
+write `CONCEPT_EXPLORED`, `ACTIVE_RECALL_ATTEMPTED` and `PRACTICE_COMPLETED`
+independently of Guide rollout.
+
+Verified in code: `LearningController` is `@Controller("learning")` guarded only
+by `JwtAuthGuard`, exposing `units/:unitKey/open`, `units/:unitKey/complete`,
+`concepts/:conceptKey/explore`, `recall-attempts` and
+`practices/:exerciseKey/complete`. `GuideRolloutGuard` is applied **nowhere**
+outside `guide/`.
+
+So the rollback justification rests on exactly one fact, and no other:
+
+```
+ROLLBACK_CODE_ON_UPGRADED_DB_PASS=true   because   MAIN_RUNTIME_LEARNING_EVENT_READS=0
+```
+
+Main tolerates V1 rows because it never reads that table — **not** because the
+table is assumed to stay free of new enum values. It will not stay free of them.
 
 ---
 
@@ -455,18 +505,46 @@ GUIDE_DEFINITION_FOUND=true · GUIDE_STEPS=3
 GUIDE_TARGET_RESOLUTION_PASS=true · 9 editorial anchors resolved
 ```
 
-**Re-apply** (twice more):
+### 6.3 Re-apply — structurally idempotent, but not a write no-op
 
 ```
-LOCAL_SECOND_CLI_APPLY_NOOP=true
+LOCAL_SECOND_CLI_ROW_COUNTS_STABLE=true
+LOCAL_SECOND_CLI_REVISION_DELTA=0
 LOCAL_SECOND_CLI_PARTIAL_STATE=false
+LOCAL_SECOND_CLI_STRUCTURAL_IDEMPOTENCY=true
+LOCAL_SECOND_CLI_WRITE_NOOP=false
 ```
 
-Every row count identical across applies. One thing worth reading correctly: the
-`previous_published_revision_id` register is `null` on the first apply and
-non-null afterwards. That is the **rollback register being captured** (the
-pointer that existed before this run), not evidence of a new revision — the
-`Revision` count stayed at 1 throughout.
+Every row count is identical across applies and no new `Revision` is minted — the
+structure converges. That is **not** the same as "the second run does nothing",
+and this document previously overstated it.
+
+`backfillContentCore()` upserts mutable metadata on **every** run:
+
+```
+Work.title / Work.authorName
+Edition.slug
+Concept.label
+```
+
+All three models carry `@updatedAt`, so Prisma issues the UPDATE whether or not
+the values changed. Measured on a rebuilt throwaway database — `updatedAt`
+captured before and after a re-apply:
+
+| Model     | after apply #1 | after apply #2 |
+| --------- | -------------- | -------------- |
+| `Work`    | T              | **T + ~4 s**   |
+| `Edition` | T              | **T + ~3 s**   |
+| `Concept` | T              | **T + ~4 s**   |
+
+All three advanced. So a repeat run is safe and convergent, but it **does write**
+— never describe it as a no-op, and do not treat unchanged row counts as evidence
+that nothing was touched.
+
+One register worth reading correctly: `previous_published_revision_id` is `null`
+on the first apply and non-null afterwards. That is the **rollback register being
+captured** (the pointer that existed before this run), not evidence of a new
+revision — the `Revision` count stayed at 1 throughout.
 
 `GuideDefinition` is **not a database table**: no such relation exists after the
 migrations. The guide definition is code-owned in `guide-catalog.ts`; ingestion
@@ -510,7 +588,7 @@ No value of any variable was read or printed during this preparation.
 
 ```
 PRODUCTION_READINESS=PARTIALLY_VERIFIED
-PRODUCTION_BLOCKERS=1
+PRODUCTION_BLOCKERS=2
 ```
 
 Everything that could be verified locally **was executed, not assumed**:
@@ -519,28 +597,36 @@ Everything that could be verified locally **was executed, not assumed**:
 - `LOCAL_MAIN_MIGRATIONS_PASS` · `LOCAL_DEVELOP_UPGRADE_PASS` · `LOCAL_SECOND_MIGRATE_DEPLOY_NOOP`
 - `DESTRUCTIVE_MIGRATIONS_WITHOUT_PLAN=0`
 - domain suites: `LOCAL_BACKFILL_PG_SPECS_PASS` · `LOCAL_EXERCISE_INGESTION_PG_SPECS_PASS` · `LOCAL_GUIDE_TARGET_PG_SPECS_PASS`
-- the official CLI, really run: `LOCAL_CONTENT_BACKFILL_DRY_RUN_PASS` (`LOCAL_DRY_RUN_DB_DELTA=0`) · `LOCAL_CONTENT_BACKFILL_CLI_APPLY_PASS` · `LOCAL_EXERCISE_ROWS_EXPECTED` · `LOCAL_GUIDE_TARGET_RESOLUTION_AFTER_CLI` · `LOCAL_SECOND_CLI_APPLY_NOOP`
+- the official CLI, really run: `LOCAL_CONTENT_BACKFILL_DRY_RUN_PASS` (`LOCAL_DRY_RUN_DB_DELTA=0`) · `LOCAL_CONTENT_BACKFILL_CLI_APPLY_PASS` · `LOCAL_EXERCISE_ROWS_EXPECTED` · `LOCAL_GUIDE_TARGET_RESOLUTION_AFTER_CLI` · `LOCAL_SECOND_CLI_STRUCTURAL_IDEMPOTENCY` (with `LOCAL_SECOND_CLI_WRITE_NOOP=false` measured, §6.3)
 - main's runtime, really booted: `MAIN_API_BUILD_PASS` · `MAIN_WORKER_BUILD_PASS` · `ROLLBACK_MAIN_API_BOOT_PASS` · `ROLLBACK_MAIN_HEALTH_PASS` · `ROLLBACK_MAIN_AUTH_SMOKE_PASS` · `ROLLBACK_MAIN_CONTENT_SMOKE_PASS` · `ROLLBACK_MAIN_WORKER_BOOT_PASS` · `ROLLBACK_MAIN_WORKER_PROCESSORS_ACTIVE` → `ROLLBACK_CODE_ON_UPGRADED_DB_PASS=true` (with the §5 invariant recorded)
 - `ENV_OFF_FIRST_PLAN_READY=true` · `SMOKE_PLAN_COMPLETE=true` · `ROLLBACK_PLAN_COMPLETE=true`
 
-### Why not READY
+### Why not READY — two blockers
 
 ```
 PRODUCTION_BLOCKER_ENV_OFF_FIRST_NOT_APPLIED=true
+PRODUCTION_BLOCKER_INDEX_WINDOW_NOT_APPROVED=true
 ```
 
-CC-7.R2 does not touch Railway, so the off-first posture is **planned, not
-applied**: `ENV_OFF_FIRST_APPLIED=false`, `ENVIRONMENT_CHANGED=false`. Until a
-separate authorised execution sets `GUIDE_ROLLOUT_MODE=off` on the API and worker
-and verifies it, production readiness cannot honestly be called complete — every
-local gate passing does not make an unset production variable safe.
+**Blocker 1 — off-first posture not applied.** CC-7.R2 does not touch Railway, so
+the posture is **planned, not applied**: `ENV_OFF_FIRST_APPLIED=false`,
+`ENVIRONMENT_CHANGED=false`. Until a separate authorised execution sets
+`GUIDE_ROLLOUT_MODE=off` on the API and worker and verifies it, readiness cannot
+honestly be called complete — every local gate passing does not make an unset
+production variable safe.
 
-Two further items are **unverified rather than passing**, and belong to the same
-future execution:
+**Blocker 2 — index window not approved.**
 
-- `PRODUCTION_LEARNING_EVENT_CARDINALITY_VERIFIED=false` /
-  `LEARNING_EVENT_INDEX_LOCK_RISK=UNKNOWN_PENDING_PREDEPLOY_CHECK` (§3)
-- production ingestion has not been run anywhere (§6)
+```
+PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=false
+EXPECTED_INDEX_WINDOW_APPROVED=false
+```
+
+Production cardinality was never read, so the non-concurrent unique-index build
+carries an unsized lock/duration risk (§3). Both must be true before the sync PR.
+
+**Not a blocker:** production ingestion has not been run anywhere. That is
+correct — it is a **post-deploy** step (runbook §3 step 8), not a pre-sync gate.
 
 Readiness is not permission: the promotion itself is a separate, explicitly
 authorised execution — see

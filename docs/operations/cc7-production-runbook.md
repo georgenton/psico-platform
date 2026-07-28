@@ -16,6 +16,11 @@ Nothing in this runbook has been executed. It is the plan to be authorised
 separately. Evidence: [cc7-production-readiness.md](cc7-production-readiness.md).
 Smoke matrices: [cc7-production-smoke.md](cc7-production-smoke.md).
 
+Every smoke count is taken **scoped to a dedicated smoke actor** (and, for
+Guide-originated events, to the Guide session created during the run). Global
+table counts are not an acceptable substitute — see the smoke document's
+prechecks.
+
 ---
 
 ## 1. Environment posture — off-first
@@ -129,14 +134,20 @@ MAIN_ONLY_SEMANTIC_CHANGES=0                       ✅ (readiness §1)
 LOCAL_MIGRATION_REHEARSAL=PASS                     ✅ (readiness §4)
 ROLLBACK_COMPATIBILITY=PASS                        ✅ (readiness §5, runtime booted)
 LOCAL_CONTENT_BACKFILL_CLI_APPLY_PASS=true         ✅ (readiness §6.2)
-RUNTIME_REHEARSAL_REMAINS_VALID=true               ⬜ NOT YET — §2.0 above
+RUNTIME_REHEARSAL_REMAINS_VALID=true               ⬜ NOT YET — §2.0 above (procedural gate)
 ENV_OFF_FIRST_APPLIED=true                         ⬜ blocker 1 — step 1 below
-PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=true ⬜ blocker 2 — precheck, readiness §3
-EXPECTED_INDEX_WINDOW_APPROVED=true                ⬜ blocker 2 — precheck, readiness §3
+PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=true      ┐
+PRODUCTION_LEARNING_EVENT_SIZE_CHECKED=true             │ blocker 2 — precheck,
+PRODUCTION_LEARNING_EVENT_WRITE_ACTIVITY_CHECKED=true   │ readiness §3
+EXPECTED_INDEX_WINDOW_APPROVED=true                     ┘
 ```
 
-The unchecked rows are the reason readiness reads `PARTIALLY_VERIFIED`, not
-`READY` (`PRODUCTION_BLOCKERS=2`).
+The two blockers are the reason readiness reads `PARTIALLY_VERIFIED`, not `READY`
+(`PRODUCTION_BLOCKERS=2`). The rehearsal revalidation is a **procedural** gate on
+this execution, not a third production blocker.
+
+The precheck reports **only those four booleans** — no counts, no sizes, no rows,
+no identities.
 
 Verification the future execution must demand, before merging:
 
@@ -166,7 +177,8 @@ Activation of the pilot is **not** part of the first deploy.
  6. Wait for Railway API + worker + Vercel to report success.
  7. Confirm migrations applied (expect the 2 net migrations, once each).
  8. Run the approved production ingestion.
- 9. Run the smoke suite with Guide still off.
+ 9. Run the smoke suite with Guide still off, using the dedicated smoke actor
+    (all counts scoped to it — never global table counts).
 10. Observe stability.
 11. Configure the approved pilot user IDs.
 12. Set GUIDE_ROLLOUT_MODE=pilot.

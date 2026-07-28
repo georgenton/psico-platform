@@ -29,26 +29,77 @@ private URLs, connection strings, block text, titles or quotes.
 | `GUIDE_ROLLOUT_MODE` (API + worker) | `off`                           |
 | `GUIDE_PILOT_USER_IDS`              | unset                           |
 
-Four gates must already be **true before the release starts** — they are the open
-items from CC-7.R2, not smoke steps to discover on the way:
+These gates must already be **true before the release starts** — they are the
+open items from CC-7.R2, not smoke steps to discover on the way:
 
 ```
-RUNTIME_REHEARSAL_REMAINS_VALID=true            (runbook §2.0 — delta since the rehearsal is docs-only)
-PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=true   ┐ blocker 2
-EXPECTED_INDEX_WINDOW_APPROVED=true                  ┘
+RUNTIME_REHEARSAL_REMAINS_VALID=true            (runbook §2.0 — procedural gate)
+
+PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=true      ┐
+PRODUCTION_LEARNING_EVENT_SIZE_CHECKED=true             │ blocker 2
+PRODUCTION_LEARNING_EVENT_WRITE_ACTIVITY_CHECKED=true   │
+EXPECTED_INDEX_WINDOW_APPROVED=true                     ┘
+
 ENV_OFF_FIRST_APPLIED=true                       blocker 1
 ```
 
-Record the booleans only. The cardinality figure itself may be operationally
-sensitive — the boolean plus the window approval is the whole reportable
-outcome; do not paste row counts or any row content.
+Record the booleans only. The cardinality and size figures are operationally
+sensitive — the four booleans are the whole reportable outcome; never paste row
+counts, table sizes or any row content.
 
-Capture the four baseline counts **before** smoking, so every later delta is
-meaningful:
+### The dedicated smoke actor
 
 ```
-GuideSession, GuideSessionStep, GuideCommandReceipt, LearningEvent
+DEDICATED_SMOKE_ACCOUNT_READY=true
+DEDICATED_SMOKE_ACCOUNT_HAS_NO_CONCURRENT_ACTIVITY=true
 ```
+
+Use one account — synthetic, or operationally approved — that is **not** doing
+anything else during the window. Its identity is used internally to scope
+queries and is never written down: no `userId`, `email`, token, full
+`sessionId` or `idempotencyKey` belongs in this document or in any report.
+
+### Baselines are scoped to that actor, never global
+
+Capture baselines **before** smoking, and take the after-counts the same way, so
+every delta means "this actor did this" rather than "the platform moved":
+
+```
+All baseline and after-count queries are scoped internally to the dedicated
+smoke actor.
+
+GuideSession:
+  WHERE userId = internal smoke actor
+
+GuideSessionStep:
+  JOIN GuideSession and scope by GuideSession.userId
+
+GuideCommandReceipt:
+  WHERE userId = internal smoke actor
+
+LearningEvent:
+  WHERE userId = internal smoke actor
+```
+
+During the pilot flow, Guide-originated events are additionally correlated
+internally to the session that was created:
+
+```
+LearningEvent.guideSessionId = internal Guide session
+```
+
+That id is used for the query and is not reported.
+
+If scoped counts cannot be obtained:
+
+```
+SMOKE_COUNT_SCOPING_PASS=false
+SMOKE_RESULT=FAIL
+```
+
+Do not fall back to a global table count. A global count cannot distinguish the
+gate leaking from another user simply being active, which is exactly the
+distinction the whole matrix exists to make.
 
 ---
 
@@ -68,16 +119,21 @@ Guide card visible   = false
 Guide player mounted = false
 ```
 
-Deltas **attributable to the Guide requests in this matrix**:
+Deltas, **scoped to the dedicated smoke actor**:
 
 ```
-GuideSession delta        = 0
-GuideSessionStep delta    = 0
-GuideCommandReceipt delta = 0
-LearningEvent delta       = 0   (from the Guide requests above)
+GUIDE_SESSION_DELTA=0
+GUIDE_SESSION_STEP_DELTA=0
+GUIDE_COMMAND_RECEIPT_DELTA=0
+LEARNING_EVENT_DELTA_FROM_GUIDE_REQUESTS=0
 ```
 
 A non-zero delta here is a **STOP**: the gate is not holding.
+
+**Do not exercise the standalone Learning endpoints with this account during the
+OFF window.** They are legitimately reachable while Guide is off, so using them
+here would put rows in the actor's own `LearningEvent` scope and make the delta
+ambiguous.
 
 > **Scope this correctly.** `mode=off` closes the five Guide commands, not the
 > whole learning domain:
@@ -87,11 +143,9 @@ A non-zero delta here is a **STOP**: the gate is not holding.
 > GUIDE_OFF_PREVENTS_ALL_LEARNING_V1_EVENTS=false
 > ```
 >
-> The standalone Learning HTTP commands remain reachable and may legitimately
-> write `CONCEPT_EXPLORED`, `ACTIVE_RECALL_ATTEMPTED` or `PRACTICE_COMPLETED`
-> while Guide is off. So measure the `LearningEvent` delta **around the Guide
-> requests specifically** — a row appearing from ordinary learning traffic is not
-> a gate failure, and reading a global count as one would produce a false STOP.
+> Other users' ordinary learning traffic may legitimately write
+> `CONCEPT_EXPLORED`, `ACTIVE_RECALL_ATTEMPTED` or `PRACTICE_COMPLETED` while
+> Guide is off. Actor-scoping is what keeps that from reading as a gate failure.
 
 ### Regression sweep (unchanged surfaces)
 
@@ -132,6 +186,27 @@ been restarted/redeployed**.
 | ----------------------------- | ---------------------------- |
 | `GET /api/guide/availability` | 200 · `{ available: false }` |
 | any command                   | 503 · `GUIDE_UNAVAILABLE`    |
+
+### What the pilot run must emit — exact counts
+
+Per actor **and** per Guide session (`LearningEvent.guideSessionId` = the session
+created above), never global:
+
+```
+GUIDE_SESSION_STARTED_EVENT_DELTA=1
+PRACTICE_COMPLETED_EVENT_DELTA=1
+ACTIVE_RECALL_ATTEMPTED_EVENT_DELTA=1
+GUIDE_SESSION_COMPLETED_EVENT_DELTA=1
+
+GUIDE_STEP_COMPLETED_EVENT_DELTA=0
+CONCEPT_EXPLORED_FROM_GUIDE_DELTA=0
+```
+
+The two zeros are structural, not incidental: **there is no
+`guide_step_completed` event** (ADR 0019), and the concept step and the explicit
+confirmation emit nothing at all. Only the practice step, the recall step and the
+two session-lifecycle transitions produce events. A non-zero value in either zero
+row means the lifecycle is emitting something the contract does not define.
 
 ### Firewall — the educational/emotional boundary
 
@@ -203,6 +278,13 @@ GUIDE_COMMAND_STATUS=503
 GUIDE_UNAUTHENTICATED_STATUS=401
 GUIDE_CARD_VISIBLE=false
 
+DEDICATED_SMOKE_ACCOUNT_READY=true
+DEDICATED_SMOKE_ACCOUNT_HAS_NO_CONCURRENT_ACTIVITY=true
+SMOKE_COUNTS_ACTOR_SCOPED=true
+SMOKE_GUIDE_EVENTS_SESSION_SCOPED=true
+SMOKE_GLOBAL_TABLE_COUNTS_USED=false
+SMOKE_COUNT_SCOPING_PASS=true
+
 GUIDE_SESSION_DELTA=0
 GUIDE_SESSION_STEP_DELTA=0
 GUIDE_COMMAND_RECEIPT_DELTA=0
@@ -211,3 +293,17 @@ LEARNING_EVENT_DELTA_FROM_GUIDE_REQUESTS=0
 REGRESSION_FAILURES=<n>
 SMOKE_RESULT=PASS|FAIL
 ```
+
+After the pilot matrix, add the per-actor / per-session event counts:
+
+```
+GUIDE_SESSION_STARTED_EVENT_DELTA=1
+PRACTICE_COMPLETED_EVENT_DELTA=1
+ACTIVE_RECALL_ATTEMPTED_EVENT_DELTA=1
+GUIDE_SESSION_COMPLETED_EVENT_DELTA=1
+GUIDE_STEP_COMPLETED_EVENT_DELTA=0
+CONCEPT_EXPLORED_FROM_GUIDE_DELTA=0
+```
+
+Nothing above is an identifier. Keep it that way — statuses, booleans and counts
+only.

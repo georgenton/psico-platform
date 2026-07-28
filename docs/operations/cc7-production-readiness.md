@@ -11,18 +11,18 @@ MAIN_SHA=c4a4b5bf59a82c31aef60d9d4e2c6ff58620fd7e
 MERGE_BASE_SHA=ff926c7ba4a87630f207b6f85580095f6d7e8d7f
 
 RUNTIME_REHEARSAL_SHA=52d7764063ccdea650fb049edeed7592782be4c5
-PRODUCTION_NET_CHANGED_FILES_AT_REHEARSAL=143
 SYNC_CANDIDATE_SHA=PENDING_AFTER_PR598_MERGE
 POST_MERGE_DEVELOP_REVALIDATION_REQUIRED=true
 
-DEVELOP_AHEAD_BY=148
-DEVELOP_BEHIND_BY=11
+DEVELOP_AHEAD_BY_AT_REHEARSAL=148
+DEVELOP_BEHIND_BY_AT_REHEARSAL=11
 
 MAIN_TREE_EQUIVALENT_DEVELOP_SHA=d04fb11bddd7ff8b3e53add8b85de7d55aa91d2e
 MAIN_TREE_HISTORY_RECONCILED=true
 MAIN_ONLY_SEMANTIC_CHANGES=0
 
-PRODUCTION_NET_CHANGED_FILES=143
+RUNTIME_NET_CHANGED_FILES_AT_REHEARSAL=143
+SYNC_CANDIDATE_NET_CHANGED_FILES=PENDING_POST_MERGE_REVALIDATION
 PRODUCTION_NET_MIGRATIONS=2
 DESTRUCTIVE_MIGRATIONS_WITHOUT_PLAN=0
 
@@ -68,8 +68,9 @@ DEVELOP_GUIDE_E2E_AFTER_RESTORE_PASS=true
 GUIDE_OFF_PREVENTS_GUIDE_EVENTS=true
 GUIDE_OFF_PREVENTS_ALL_LEARNING_V1_EVENTS=false
 
-PRODUCTION_LEARNING_EVENT_CARDINALITY_VERIFIED=false
 PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=false
+PRODUCTION_LEARNING_EVENT_SIZE_CHECKED=false
+PRODUCTION_LEARNING_EVENT_WRITE_ACTIVITY_CHECKED=false
 EXPECTED_INDEX_WINDOW_APPROVED=false
 LEARNING_EVENT_INDEX_LOCK_RISK=UNKNOWN_PENDING_PREDEPLOY_CHECK
 
@@ -93,10 +94,12 @@ This document is the evidence behind the verdict. Nothing here was executed agai
 **Which SHA the evidence describes.** Every rehearsal below ran against
 `RUNTIME_REHEARSAL_SHA=52d7764…` — the develop head at the time. This PR itself
 advances develop (with docs only), so that SHA is deliberately **not** called
-"DEVELOP_SHA": after this PR merges, develop's head is a different commit, and
-the future sync commit must use the tree of that **new approved SHA**, not the
-historical `52d7764` tree. Before promoting, re-validate that the delta since the
-rehearsal is docs-only — the exact procedure is runbook §2.
+"DEVELOP_SHA", and every count taken from it is suffixed `_AT_REHEARSAL` rather
+than presented as a standing production figure. After this PR merges, develop's
+head is a different commit, and the future sync commit must use the tree of that
+**new approved SHA**, not the historical `52d7764` tree. Before promoting,
+re-validate that the delta since the rehearsal is docs-only — the exact procedure
+is runbook §2.0.
 
 ---
 
@@ -136,10 +139,17 @@ which is why no semantic change is exclusive to `main`.
 
 ---
 
-## 2. Net production delta — 143 files, zero deletions
+## 2. Runtime production delta at the rehearsal SHA — 143 files
 
-`git diff --name-status origin/main..origin/develop` → 143 files,
+`git diff --name-status origin/main..RUNTIME_REHEARSAL_SHA` → 143 files,
 41 869 insertions, 218 deletions, **0 files deleted**.
+
+> **143 excludes the three readiness documents introduced by PR #598.** The
+> future total sync-candidate file count is not frozen until the post-merge
+> revalidation runs — hence
+> `SYNC_CANDIDATE_NET_CHANGED_FILES=PENDING_POST_MERGE_REVALIDATION`. Do not
+> pre-compute a total here: develop can still advance, and the authority is the
+> real diff taken at promotion time (runbook §2.0).
 
 | Category                            | Files |   A |   M | Requires migration | Requires prod data                  | Rollback risk                | Smoke                         |
 | ----------------------------------- | ----: | --: | --: | ------------------ | ----------------------------------- | ---------------------------- | ----------------------------- |
@@ -196,15 +206,34 @@ The destructive scan matched `RENAME` **once**, in the prose comment
 > magnitude is unknown until a pre-deploy production metadata check.
 >
 > ```
-> PRODUCTION_LEARNING_EVENT_CARDINALITY_VERIFIED=false
 > LEARNING_EVENT_INDEX_LOCK_RISK=UNKNOWN_PENDING_PREDEPLOY_CHECK
 > ```
 >
-> This is a **mandatory precheck** of the future production preparation: read the
-> row count (and only the count — no rows, no personal data), size the expected
-> lock window, and get that window approved before merging the sync PR. Local
-> rehearsal timings say nothing about production here, because the local table
-> was effectively empty.
+> Local rehearsal timings say nothing about production here, because the local
+> table was effectively empty.
+
+This is a **mandatory precheck** of the future production preparation, and it is
+the second blocker. One blocker, four components:
+
+```
+PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=false
+PRODUCTION_LEARNING_EVENT_SIZE_CHECKED=false
+PRODUCTION_LEARNING_EVENT_WRITE_ACTIVITY_CHECKED=false
+EXPECTED_INDEX_WINDOW_APPROVED=false
+```
+
+The authorised execution inspects, **internally**:
+
+- `COUNT(*)` on `LearningEvent`
+- relation and index size
+- recent write activity against the table
+- locks or long-running transactions that would contend with the build
+- the operational window, and gets it approved
+
+No production SQL is included here to run, deliberately. And the future report
+keeps **only the four booleans** — never exact counts, never sizes, never rows,
+never content, never identities. A magnitude that is operationally sensitive does
+not become safe by living in a runbook.
 
 ### `20260721000000_cc7_4b_guide_catalog_ledger`
 
@@ -615,18 +644,27 @@ the posture is **planned, not applied**: `ENV_OFF_FIRST_APPLIED=false`,
 honestly be called complete — every local gate passing does not make an unset
 production variable safe.
 
-**Blocker 2 — index window not approved.**
+**Blocker 2 — index window not approved.** Four components, one blocker:
 
 ```
 PRODUCTION_LEARNING_EVENT_CARDINALITY_CHECKED=false
+PRODUCTION_LEARNING_EVENT_SIZE_CHECKED=false
+PRODUCTION_LEARNING_EVENT_WRITE_ACTIVITY_CHECKED=false
 EXPECTED_INDEX_WINDOW_APPROVED=false
 ```
 
-Production cardinality was never read, so the non-concurrent unique-index build
-carries an unsized lock/duration risk (§3). Both must be true before the sync PR.
+Production cardinality, size and write activity were never read, so the
+non-concurrent unique-index build carries an unsized lock/duration risk (§3). All
+four must be true before the sync PR.
 
-**Not a blocker:** production ingestion has not been run anywhere. That is
-correct — it is a **post-deploy** step (runbook §3 step 8), not a pre-sync gate.
+**Neither is a third blocker:**
+
+- Production ingestion has not been run anywhere — correct, it is a **post-deploy**
+  step (runbook §3 step 8), not a pre-sync gate.
+- `POST_MERGE_DEVELOP_REVALIDATION_REQUIRED=true` is a **procedural gate** on the
+  promotion execution (runbook §2.0), not a production blocker: nothing about
+  production is wrong, the evidence simply has to be re-pointed at the SHA that
+  will actually ship.
 
 Readiness is not permission: the promotion itself is a separate, explicitly
 authorised execution — see

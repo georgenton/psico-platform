@@ -24,11 +24,21 @@ export default defineConfig({
     }),
   ],
   test: {
-    include: ["src/**/*.pg-spec.ts"],
+    // `*.pg-spec.ts` plus the Guide HTTP/firewall E2E, which boot the real
+    // Nest app against the SAME isolated PostgreSQL (CC-7.4D).
+    include: ["src/**/*.pg-spec.ts", "src/guide/guide-*.e2e-spec.ts"],
     setupFiles: ["./src/test/setup-env.ts"],
     // Every test runs two genuinely concurrent transactions, each waiting on the
     // other to commit. They must not be starved of a worker thread.
     pool: "threads",
     testTimeout: 30_000,
+    server: {
+      deps: {
+        // `voyageai` ships ESM directory imports that Node cannot resolve;
+        // inlining it lets the Guide E2E boot the real AppModule (same reason
+        // the unit config inlines it).
+        inline: ["voyageai"],
+      },
+    },
   },
 });

@@ -25,6 +25,7 @@ describe("DataExportProcessor", () => {
     user: { findUnique: vi.fn() },
     userProgress: { findMany: vi.fn().mockResolvedValue([]) },
     subscription: { findUnique: vi.fn().mockResolvedValue(null) },
+    guideSession: { findMany: vi.fn().mockResolvedValue([]) },
   };
   const mockStorage = {
     uploadFile: vi.fn().mockResolvedValue("https://r2.example/exports/x.json"),

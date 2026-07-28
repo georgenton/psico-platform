@@ -173,6 +173,12 @@ jobs:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
+      - name: Test · API client (Vitest — path/body contract)
+        run: pnpm turbo run test --filter=@psico/api-client
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
       - name: Test · Web (Vitest + RTL + jsdom)
         run: pnpm turbo run test --filter=@psico/web
         env:

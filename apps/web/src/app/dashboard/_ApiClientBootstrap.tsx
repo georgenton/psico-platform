@@ -25,16 +25,22 @@ import { apiClient } from "@psico/api-client";
  * --------------
  * Cookies are HttpOnly (the JWT lives in a cookie that JS cannot read).
  * We pass the access token down from the server layout as a prop, store it
- * in a closure here, and tell the apiClient to use it on every request.
- * If the token expires mid-session, the next `serverFetch` will refresh
- * and stamp a new cookie; the browser sees that on the next navigation/
- * reload. For client-only screens (Eco's chat, Tour catalog) this is fine
- * because their access windows are short.
+ * in a closure here, and tell the apiClient to use it on every request. This
+ * is the INITIAL, general configuration for `/dashboard/*`.
  *
- * Note: this does NOT enable the singleton's auto-refresh — that flow
- * requires reading/writing the refresh cookie, which is HttpOnly. Hooking
- * into that responsibly would need a dedicated `/api/auth/session` round
- * trip; for v1 we tolerate the once-per-15min reload as the recovery path.
+ * Freshness caveat: this reflects the rotated token only when the LAYOUT
+ * re-renders — a full load, a browser reload, or a hard navigation. App Router
+ * PRESERVES this layout across soft client navigations, so after the middleware
+ * rotates A → B on a soft nav into another segment, this closure can still hold
+ * A. Do NOT assume Eco/Tour/etc. get the rotated token on a soft navigation
+ * unless that surface adds its own per-navigation resync. The Guide surface
+ * does exactly that: its Exploraciones `template` (which App Router remounts on
+ * every navigation) re-reads the fresh access cookie and re-syncs the singleton
+ * before GuidePlayer mounts (see `GuideApiClientBoundary`).
+ *
+ * Note: this does NOT enable the singleton's auto-refresh — that flow requires
+ * reading/writing the refresh cookie, which is HttpOnly. Renewal is the
+ * middleware's job (the one writable boundary).
  */
 export function ApiClientBootstrap({
   apiBase,

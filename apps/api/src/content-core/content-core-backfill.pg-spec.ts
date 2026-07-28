@@ -8,6 +8,14 @@ import {
   blockKeyFromLegacyId,
   unitKeyFromLegacyChapterId,
 } from "./lib/block-key";
+import { EXERCISE_INGESTION_CATALOG } from "./exercise-ingestion-catalog";
+
+// CC-7.4B.2: this scenario uses the productive slug `emociones-en-construccion`,
+// so it must carry the approved editorial source block — the ingestion fails
+// closed for a catalog-listed book that lacks it.
+const EEC_PRACTICE_HEADING =
+  EXERCISE_INGESTION_CATALOG["emociones-en-construccion"][0].practice
+    .sourceHeading;
 
 /**
  * Content Core (CC-3) — the REAL backfill, end-to-end on Postgres 18.
@@ -115,6 +123,15 @@ suite("Content Core · CC-3 backfill · creation + idempotency", () => {
         content: "Un encabezado",
       },
     });
+    // The approved editorial source block for the first Guide unit (CC-7.4B.2).
+    await prisma.chapterBlock.create({
+      data: {
+        chapterId: ch1.id,
+        order: 2,
+        kind: "HEADING",
+        content: EEC_PRACTICE_HEADING,
+      },
+    });
     await prisma.chapterBlock.create({
       data: {
         chapterId: ch2.id,
@@ -200,8 +217,8 @@ suite("Content Core · CC-3 backfill · creation + idempotency", () => {
 
   it("is idempotent — the second run is a no-op (identical stats, no duplicate rows)", async () => {
     expect(secondRun).toEqual(firstRun);
-    expect(await prisma.contentBlock.count()).toBe(3);
-    expect(await prisma.blockVersion.count()).toBe(3);
+    expect(await prisma.contentBlock.count()).toBe(4);
+    expect(await prisma.blockVersion.count()).toBe(4);
     expect(await prisma.contentUnit.count()).toBe(2);
     expect(await prisma.revisionUnit.count()).toBe(2);
     expect(await prisma.conceptLink.count()).toBe(2);
@@ -212,7 +229,7 @@ suite("Content Core · CC-3 backfill · creation + idempotency", () => {
   it("performs zero DELETE — the legacy rows remain intact", async () => {
     expect(await prisma.book.count()).toBe(1);
     expect(await prisma.chapter.count()).toBe(2);
-    expect(await prisma.chapterBlock.count()).toBe(3);
+    expect(await prisma.chapterBlock.count()).toBe(4);
   });
 });
 

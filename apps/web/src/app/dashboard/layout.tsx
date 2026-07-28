@@ -13,7 +13,9 @@ import {
   isNextThrow,
   serverFetch,
 } from "@/lib/api.server";
+import { deriveGuideRecoveryActorScope } from "@/lib/guide-recovery-scope.server";
 import { getDiaryWrapKey } from "@/actions/diary-session";
+import { GuideActorScopeProvider } from "@/components/dashboard/guide/guide-actor-scope";
 import { ApiClientBootstrap } from "./_ApiClientBootstrap";
 import { DashboardShell } from "./_DashboardShell";
 import { TimezoneSync } from "./_TimezoneSync";
@@ -95,6 +97,13 @@ export default async function DashboardLayout({
     ? rawAmbient
     : "calma";
 
+  // CC-7.5 — resolve the Guide actor scope ONCE, here, from the `/user/me` we
+  // already fetched. The opaque scope (never the raw id) is published through a
+  // client context so the Guide pages under this layout stay identity-free and
+  // never issue a second `/user/me`. `null` when `me` could not be resolved —
+  // the Guide surface fails closed on that.
+  const guideActorScope = me ? deriveGuideRecoveryActorScope(me.user.id) : null;
+
   return (
     <DashboardShell
       user={user}
@@ -106,7 +115,9 @@ export default async function DashboardLayout({
     >
       <ApiClientBootstrap apiBase={API_ROOT} accessToken={accessToken} />
       <TimezoneSync needsProbe={needsTimezoneProbe} />
-      {children}
+      <GuideActorScopeProvider scope={guideActorScope}>
+        {children}
+      </GuideActorScopeProvider>
     </DashboardShell>
   );
 }

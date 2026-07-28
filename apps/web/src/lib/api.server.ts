@@ -4,8 +4,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { UserPlan, UserRole } from "@psico/types";
 
-import { apiFetch, ApiError, authApi } from "./api";
-import { TOKEN_NAMES, cookieOptions } from "./cookies";
+import { apiFetch, ApiError } from "./api";
+import { TOKEN_NAMES } from "./cookies";
 
 // ── Session user (decoded from JWT, no extra API call) ─────────────────────
 
@@ -47,73 +47,22 @@ export function getSessionUser(): SessionUser | null {
   }
 }
 
-// ── Token helpers ──────────────────────────────────────────────────────────
-
-function getTokens() {
-  const store = cookies();
-  return {
-    accessToken: store.get(TOKEN_NAMES.access)?.value ?? null,
-    refreshToken: store.get(TOKEN_NAMES.refresh)?.value ?? null,
-  };
-}
-
-// Sets new tokens after a successful refresh.
-// In Server Components (read-only context) `cookies().set()` throws. We
-// swallow that here — attemptRefresh still resolves with the new token so
-// the in-flight request can retry; the cookie itself rotates on the next
-// Server Action or Route Handler (middleware bumps it).
-function setTokens(accessToken: string, refreshToken: string) {
-  try {
-    const store = cookies();
-    store.set(TOKEN_NAMES.access, accessToken, cookieOptions.access);
-    store.set(TOKEN_NAMES.refresh, refreshToken, cookieOptions.refresh);
-  } catch {
-    // Server Component context — cookies are read-only. Documented above.
-  }
-}
-
-function clearTokens() {
-  try {
-    const store = cookies();
-    store.delete(TOKEN_NAMES.access);
-    store.delete(TOKEN_NAMES.refresh);
-  } catch {
-    // In Server Component context, cookie writes are not allowed.
-    // Middleware will clean up on the next request.
-  }
-}
-
-// Attempts a token refresh.  Returns the new access token, or null on a
-// genuine auth failure (invalid/expired refresh token → the caller logs the
-// user out).
-//
-// Transient failures — a rate limit (429) or a server error (5xx) — are NOT
-// auth failures: the session is probably still valid, the backend is just
-// busy. We RE-THROW those so the caller surfaces the error instead of
-// bouncing the user through /logout on a temporary hiccup (which is what
-// caused the ERR_TOO_MANY_REDIRECTS loop when the refresh endpoint got
-// throttled).
-async function attemptRefresh(refreshToken: string): Promise<string | null> {
-  try {
-    const refreshed = await authApi.refresh(refreshToken);
-    setTokens(refreshed.accessToken, refreshed.refreshToken);
-    return refreshed.accessToken;
-  } catch (err) {
-    if (err instanceof ApiError && (err.status === 429 || err.status >= 500)) {
-      throw err;
-    }
-    return null;
-  }
-}
-
 // ── Server-side fetch wrapper ──────────────────────────────────────────────
 //
 // Usage:  const books = await serverFetch<BookListResponse>('/books')
 //
 // Automatic behaviour:
 //   1. Attaches the stored access token to every request.
-//   2. On 401, attempts a silent token refresh.
-//   3. If refresh also fails (or no tokens exist), redirects to /login.
+//   2. On 401, redirects to /logout (the writable boundary that clears the
+//      cookies and lands on /login).
+//
+// It deliberately does NOT refresh the token pair. Refresh-token rotation
+// revokes the old refresh and issues a new one, and a Server Component render
+// cannot persist that new pair (`cookies().set()` throws here). Rotating during
+// render therefore burned the session: the API revoked the old refresh while
+// the browser kept holding it, so the NEXT navigation's refresh failed and the
+// user was force-logged-out. The renewal now happens in the middleware, the one
+// context that can write cookies — see ADR-less note in `middleware.ts`.
 
 // ── Helper: detect Next.js redirect/notFound throws ────────────────────────
 //
@@ -137,9 +86,12 @@ export async function serverFetch<T>(
   path: string,
   init: Omit<Parameters<typeof apiFetch>[1], "token"> = {},
 ): Promise<T> {
-  const { accessToken, refreshToken } = getTokens();
+  // During a Server Component render the middleware may have just rotated the
+  // pair and written the fresh access token onto the REQUEST cookies (see
+  // `middleware.ts` → `refreshHandoff`), so this reflects the renewed token.
+  const accessToken = getAccessToken();
 
-  // ── First attempt ────────────────────────────────────────────────────────
+  // ── The one attempt ───────────────────────────────────────────────────────
   if (accessToken) {
     try {
       return await apiFetch<T>(path, { ...init, token: accessToken });
@@ -158,32 +110,20 @@ export async function serverFetch<T>(
         }
         throw err;
       }
-      // Fall through to refresh
+      // A 401 falls through to /logout below. There is NO refresh here — the
+      // middleware already renews an expired token before the render, so a 401
+      // that still reaches this point means the token is genuinely rejected
+      // (revoked or absent), not merely expired.
     }
-  }
-
-  // ── Refresh attempt ──────────────────────────────────────────────────────
-  if (refreshToken) {
-    const newToken = await attemptRefresh(refreshToken);
-
-    if (newToken) {
-      // Retry the original request with the fresh token
-      return apiFetch<T>(path, { ...init, token: newToken });
-    }
-
-    // Refresh failed with a genuine auth error — clean up and force re-login.
-    clearTokens();
   }
 
   // No usable token. Redirect to /logout — NOT /login.
   //
-  // Clearing cookies here (clearTokens above) is a no-op during a Server
-  // Component render: `cookies().delete()` throws and we swallow it. So the
-  // cookies survive, the middleware still sees a "session", and it bounces
-  // /login → /dashboard → serverFetch fails again → /login … forever
-  // (ERR_TOO_MANY_REDIRECTS). /logout runs `logoutAction`, a Server Action
-  // where cookie writes ARE allowed, so it actually clears the session and
-  // then lands on /login with no loop.
+  // /logout runs `logoutAction`, a Route Handler where cookie writes ARE
+  // allowed, so it actually clears the session and then lands on /login with
+  // no loop. Redirecting straight to /login would leave the cookies in place,
+  // the middleware would still see a "session", and it would bounce
+  // /login → /dashboard → 401 → /login forever (ERR_TOO_MANY_REDIRECTS).
   redirect("/logout");
 }
 

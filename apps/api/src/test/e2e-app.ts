@@ -44,6 +44,10 @@ import { AppModule } from "../app.module";
 import { PrismaService } from "../prisma";
 import { REDIS_CLIENT } from "../redis";
 import { HttpExceptionFilter } from "../shared";
+import {
+  GUIDE_ROLLOUT_CONFIG,
+  type GuideRolloutConfig,
+} from "../guide/guide-rollout";
 
 /**
  * Programmable Prisma mock — every model.method is a `vi.fn()`. Tests use it
@@ -99,6 +103,40 @@ function makePrismaMock() {
       delete: fn(),
       count: fn(),
     },
+    // CC-7.3 — learning domain commands (catalog resolution + entitlement +
+    // the single-writer repository).
+    book: {
+      findUnique: fn(),
+    },
+    chapter: {
+      findMany: fn(),
+    },
+    contentUnit: {
+      findMany: fn(),
+    },
+    revisionUnit: {
+      findUnique: fn(),
+      findMany: fn(),
+    },
+    concept: {
+      findUnique: fn(),
+    },
+    exercise: {
+      findUnique: fn(),
+    },
+    revision: {
+      findUnique: fn(),
+    },
+    edition: {
+      findUnique: fn(),
+    },
+    learningEvent: {
+      createMany: fn(),
+      findUnique: fn(),
+      findFirst: fn(),
+      findMany: fn(),
+      count: fn(),
+    },
     // Other models added on demand by future sprints.
   };
   // Callback-form $transaction passes the mock itself as the tx client, so
@@ -107,11 +145,16 @@ function makePrismaMock() {
   // Array-form awaits the pre-built promises.
   const $transaction = vi.fn(async (arg: unknown) => {
     if (typeof arg === "function") {
-      return (arg as (tx: unknown) => unknown)(base);
+      return (arg as (tx: unknown) => unknown)(txClient);
     }
     return Promise.all(arg as Promise<unknown>[]);
   });
-  return { ...base, $transaction };
+  // CC-7.3 — the unit-completion transition takes a pg advisory lock via
+  // `tx.$executeRaw` inside the callback-form transaction; the mock tx client
+  // needs the member so the flow is exercisable without real PostgreSQL.
+  const $executeRaw = vi.fn().mockResolvedValue(0);
+  const txClient = { ...base, $executeRaw };
+  return { ...base, $transaction, $executeRaw };
 }
 
 export interface E2EHarness {
@@ -125,18 +168,48 @@ export interface E2EHarness {
   resetMocks: () => Promise<void>;
 }
 
-export async function createE2EApp(): Promise<E2EHarness> {
-  const prisma = makePrismaMock();
+/**
+ * CC-7.4D — options for specs that need the REAL database.
+ *
+ * `prisma` swaps the mock for a live PrismaClient (an isolated test database),
+ * so a spec can exercise the full HTTP → controller → lifecycle → PostgreSQL
+ * path. Everything else in the harness (global prefix, pipes, filter, Redis
+ * mock) stays identical, so what is tested is still what production wires.
+ */
+export interface E2EAppOptions {
+  prisma?: unknown;
+  /**
+   * CC-7.R1 — override the server-owned Guide rollout config for this app.
+   *
+   * When unset, the app resolves it exactly as production does (from
+   * `process.env`, which in `test` yields `on`), so every existing Guide E2E
+   * keeps seeing the gate open. A spec pins a specific mode/allowlist to
+   * exercise the pilot gate without touching real environment variables.
+   */
+  guideRollout?: GuideRolloutConfig;
+}
+
+export async function createE2EApp(
+  options: E2EAppOptions = {},
+): Promise<E2EHarness> {
+  const prisma = (options.prisma ?? makePrismaMock()) as MockedPrisma;
   const redis = new RedisMock() as IoRedis;
 
-  const moduleRef = await Test.createTestingModule({
+  const builder = Test.createTestingModule({
     imports: [AppModule],
   })
     .overrideProvider(PrismaService)
     .useValue(prisma)
     .overrideProvider(REDIS_CLIENT)
-    .useValue(redis)
-    .compile();
+    .useValue(redis);
+
+  if (options.guideRollout) {
+    builder
+      .overrideProvider(GUIDE_ROLLOUT_CONFIG)
+      .useValue(options.guideRollout);
+  }
+
+  const moduleRef = await builder.compile();
 
   const app = moduleRef.createNestApplication();
 

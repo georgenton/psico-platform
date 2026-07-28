@@ -14,6 +14,14 @@ import {
 } from "../lib/block-key";
 import { ContentAccessService } from "./content-access.service";
 import { ContentReadService } from "../read/content-read.service";
+import { EXERCISE_INGESTION_CATALOG } from "../exercise-ingestion-catalog";
+
+// CC-7.4B.2: this suite seeds the productive slug `emociones-en-construccion`,
+// so its chapter 1 must carry the approved editorial source block — the
+// ingestion fails closed for a catalog-listed book that lacks it.
+const EEC_PRACTICE_HEADING =
+  EXERCISE_INGESTION_CATALOG["emociones-en-construccion"][0].practice
+    .sourceHeading;
 
 /**
  * CC-6E — content access parity on real PostgreSQL 18.
@@ -124,6 +132,15 @@ suite("Content Core · CC-6E access parity (real PostgreSQL)", () => {
         order: 0,
         kind: "PARAGRAPH",
         content: "F1",
+      },
+    });
+    // The approved editorial source block for the first Guide unit (CC-7.4B.2).
+    await prisma.chapterBlock.create({
+      data: {
+        chapterId: freeCh1.id,
+        order: 1,
+        kind: "HEADING",
+        content: EEC_PRACTICE_HEADING,
       },
     });
     await prisma.chapterBlock.create({

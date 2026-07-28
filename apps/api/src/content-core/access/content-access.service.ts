@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../prisma";
 import {
+  type AccessDb,
   assertContentAccess,
   resolveBookTarget,
   resolveUnitTarget,
@@ -39,15 +40,25 @@ export class ContentAccessService {
     });
   }
 
-  /** Content Core read + marks GET — resolve the (editionKey, unitKey) then gate. */
-  async assertCanReadUnit(input: {
-    userId: string;
-    userPlan: string;
-    editionKey: string;
-    unitKey: string;
-  }): Promise<void> {
+  /**
+   * Content Core read + marks GET — resolve the (editionKey, unitKey) then gate.
+   *
+   * `db` lets a caller run the gate INSIDE its own transaction (CC-7.4C: the
+   * Guide START must decide entitlement under the same snapshot and advisory
+   * lock as the session it is about to create). Omitted, it behaves exactly as
+   * before — the policy itself is unchanged and still defined in ONE place.
+   */
+  async assertCanReadUnit(
+    input: {
+      userId: string;
+      userPlan: string;
+      editionKey: string;
+      unitKey: string;
+    },
+    db?: AccessDb,
+  ): Promise<void> {
     const target = await resolveUnitTarget(
-      this.prisma,
+      db ?? this.prisma,
       input.editionKey,
       input.unitKey,
     );

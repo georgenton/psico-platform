@@ -14,7 +14,7 @@ import { TYPE_TO_KIND } from "./learning-event-semantics";
 import type { ValidatedLearningEvent } from "./validated-learning-event";
 
 /**
- * CC-7.2 — the single writer against REAL PostgreSQL: creation of all seven
+ * CC-7.2 — the single writer against REAL PostgreSQL: creation of all eight
  * V1 types, enum mapping, exact payloads, server-owned columns, idempotent
  * replay, semantic conflicts, genuine concurrency on the unique constraint,
  * cross-user key reuse, legacy-row coexistence, transaction rollback, and
@@ -107,6 +107,19 @@ function inputs(
       payload: { exerciseKey: "respiracion-1", unitKey: "unit-a" },
       unitId: "cu-1",
     },
+    chapter_media_completed: {
+      userId,
+      idempotencyKey: key(base + 8),
+      type: "chapter_media_completed",
+      payload: {
+        mediaKey: "eec-c1-audiobook-v1",
+        mediaKind: "AUDIOBOOK",
+        mediaVersion: 1,
+        unitKey: "unit-a",
+      },
+      editionId: "ed-1",
+      unitId: "cu-1",
+    },
   };
 }
 
@@ -148,8 +161,8 @@ suite("CC-7.2 · LearningEventRepository (real PostgreSQL)", () => {
     await admin.end();
   });
 
-  // ── (1)(2)(3)(4)(5)(6)(14)(15) creation of the seven types ───────────────
-  it("creates all seven V1 types with exact payloads and server-owned columns", async () => {
+  // ── (1)(2)(3)(4)(5)(6)(14)(15) creation of the eight types ───────────────
+  it("creates all eight V1 types with exact payloads and server-owned columns", async () => {
     const before = new Date();
     const all = inputs(U1, 100);
     for (const input of Object.values(all)) {

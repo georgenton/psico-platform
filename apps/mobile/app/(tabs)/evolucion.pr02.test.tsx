@@ -31,6 +31,12 @@ const STATS = {
   diasActivos30d: 4,
   conversacionesEco: 2,
   marcasLectura: 6,
+  audiolibrosCompletados: 2,
+  podcastsCompletados: 0,
+  videoexplicacionesCompletadas: 1,
+  lecturasGuiadasCompletadas: 3,
+  practicasCompletadas: 4,
+  recallsRealizados: 5,
 };
 
 function evolucion(over: Record<string, unknown> = {}) {

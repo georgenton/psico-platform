@@ -1732,6 +1732,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/lector/media/{mediaKey}/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** URL firmada de corta vida para un medio disponible y autorizado. Nunca se devuelve en SSR ni se cachea. */
+        get: operations["getChapterMediaAccess"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lector/media/{mediaKey}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Registra que el reproductor llegó a su final. No significa comprensión, atención ni efecto emocional: la actividad va a Mi Evolución. */
+        post: operations["completeChapterMedia"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lector/{bookId}/{chapterOrder}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Formatos del capítulo con su disponibilidad. Solo metadata: sin URLs. */
+        get: operations["getChapterMediaManifest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/lector/{bookId}/{chapterOrder}": {
         parameters: {
             query?: never;
@@ -9036,6 +9087,156 @@ export interface operations {
             };
         };
     };
+    getChapterMediaAccess: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mediaKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    completeChapterMedia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mediaKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    getChapterMediaManifest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: string;
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     LectorController_getChapter: {
         parameters: {
             query?: never;
@@ -9753,6 +9954,28 @@ export interface operations {
                             unitId: string | null;
                             conceptId: string | null;
                             guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf7SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf7Type;
+                            payload: {
+                                mediaKey: string;
+                                /** @enum {string} */
+                                mediaKind: PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf7PayloadMediaKind;
+                                mediaVersion: number;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
                         };
                     };
                 };
@@ -9912,6 +10135,28 @@ export interface operations {
                             type: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf6Type;
                             payload: {
                                 exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf7SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf7Type;
+                            payload: {
+                                mediaKey: string;
+                                /** @enum {string} */
+                                mediaKind: PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf7PayloadMediaKind;
+                                mediaVersion: number;
                                 unitKey: string;
                             };
                             editionId: string | null;
@@ -10146,6 +10391,28 @@ export interface operations {
                             unitId: string | null;
                             conceptId: string | null;
                             guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf7SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf7Type;
+                            payload: {
+                                mediaKey: string;
+                                /** @enum {string} */
+                                mediaKind: PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf7PayloadMediaKind;
+                                mediaVersion: number;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
                         };
                     };
                 };
@@ -10305,6 +10572,28 @@ export interface operations {
                             type: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf6Type;
                             payload: {
                                 exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf7SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf7Type;
+                            payload: {
+                                mediaKey: string;
+                                /** @enum {string} */
+                                mediaKind: PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf7PayloadMediaKind;
+                                mediaVersion: number;
                                 unitKey: string;
                             };
                             editionId: string | null;
@@ -10539,6 +10828,28 @@ export interface operations {
                             unitId: string | null;
                             conceptId: string | null;
                             guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf7SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf7Type;
+                            payload: {
+                                mediaKey: string;
+                                /** @enum {string} */
+                                mediaKind: PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf7PayloadMediaKind;
+                                mediaVersion: number;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
                         };
                     };
                 };
@@ -10698,6 +11009,28 @@ export interface operations {
                             type: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf6Type;
                             payload: {
                                 exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf7SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf7Type;
+                            payload: {
+                                mediaKey: string;
+                                /** @enum {string} */
+                                mediaKind: PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf7PayloadMediaKind;
+                                mediaVersion: number;
                                 unitKey: string;
                             };
                             editionId: string | null;
@@ -10945,6 +11278,28 @@ export interface operations {
                             unitId: string | null;
                             conceptId: string | null;
                             guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf7SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf7Type;
+                            payload: {
+                                mediaKey: string;
+                                /** @enum {string} */
+                                mediaKind: PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf7PayloadMediaKind;
+                                mediaVersion: number;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
                         };
                     };
                 };
@@ -11104,6 +11459,28 @@ export interface operations {
                             type: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf6Type;
                             payload: {
                                 exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf7SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf7Type;
+                            payload: {
+                                mediaKey: string;
+                                /** @enum {string} */
+                                mediaKind: PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf7PayloadMediaKind;
+                                mediaVersion: number;
                                 unitKey: string;
                             };
                             editionId: string | null;
@@ -11338,6 +11715,28 @@ export interface operations {
                             unitId: string | null;
                             conceptId: string | null;
                             guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf7SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf7Type;
+                            payload: {
+                                mediaKey: string;
+                                /** @enum {string} */
+                                mediaKind: PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf7PayloadMediaKind;
+                                mediaVersion: number;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
                         };
                     };
                 };
@@ -11497,6 +11896,28 @@ export interface operations {
                             type: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf6Type;
                             payload: {
                                 exerciseKey: string;
+                                unitKey: string;
+                            };
+                            editionId: string | null;
+                            unitId: string | null;
+                            conceptId: string | null;
+                            guideSessionId: string | null;
+                        } | {
+                            id: string;
+                            /** @enum {integer} */
+                            schemaVersion: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf7SchemaVersion;
+                            /**
+                             * Format: date-time
+                             * @description Reloj del servidor — el cliente no fecha eventos.
+                             */
+                            occurredAt: string;
+                            /** @enum {string} */
+                            type: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf7Type;
+                            payload: {
+                                mediaKey: string;
+                                /** @enum {string} */
+                                mediaKind: PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf7PayloadMediaKind;
+                                mediaVersion: number;
                                 unitKey: string;
                             };
                             editionId: string | null;
@@ -15280,6 +15701,17 @@ export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJs
 export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf6Type {
     practice_completed = "practice_completed"
 }
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf7SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf7Type {
+    chapter_media_completed = "chapter_media_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf7PayloadMediaKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
+}
 export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf0SchemaVersion {
     Value1 = 1
 }
@@ -15336,6 +15768,17 @@ export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJs
 }
 export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf6Type {
     practice_completed = "practice_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf7SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf7Type {
+    chapter_media_completed = "chapter_media_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyOpenPostResponses201ContentApplicationJsonEventOneOf7PayloadMediaKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
 }
 export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf0SchemaVersion {
     Value1 = 1
@@ -15394,6 +15837,17 @@ export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicati
 export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf6Type {
     practice_completed = "practice_completed"
 }
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf7SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf7Type {
+    chapter_media_completed = "chapter_media_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses200ContentApplicationJsonEventOneOf7PayloadMediaKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
+}
 export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf0SchemaVersion {
     Value1 = 1
 }
@@ -15450,6 +15904,17 @@ export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicati
 }
 export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf6Type {
     practice_completed = "practice_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf7SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf7Type {
+    chapter_media_completed = "chapter_media_completed"
+}
+export enum PathsApiLearningUnitsUnitKeyCompletePostResponses201ContentApplicationJsonEventOneOf7PayloadMediaKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
 }
 export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf0SchemaVersion {
     Value1 = 1
@@ -15508,6 +15973,17 @@ export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentAppl
 export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf6Type {
     practice_completed = "practice_completed"
 }
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf7SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf7Type {
+    chapter_media_completed = "chapter_media_completed"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses200ContentApplicationJsonEventOneOf7PayloadMediaKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
+}
 export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf0SchemaVersion {
     Value1 = 1
 }
@@ -15564,6 +16040,17 @@ export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentAppl
 }
 export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf6Type {
     practice_completed = "practice_completed"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf7SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf7Type {
+    chapter_media_completed = "chapter_media_completed"
+}
+export enum PathsApiLearningConceptsConceptKeyExplorePostResponses201ContentApplicationJsonEventOneOf7PayloadMediaKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
 }
 export enum PathsApiLearningRecallAttemptsPostRequestBodyContentApplicationJsonOneOf1SelfResult {
     correct = "correct",
@@ -15627,6 +16114,17 @@ export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJson
 export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf6Type {
     practice_completed = "practice_completed"
 }
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf7SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf7Type {
+    chapter_media_completed = "chapter_media_completed"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses200ContentApplicationJsonEventOneOf7PayloadMediaKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
+}
 export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf0SchemaVersion {
     Value1 = 1
 }
@@ -15683,6 +16181,17 @@ export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJson
 }
 export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf6Type {
     practice_completed = "practice_completed"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf7SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf7Type {
+    chapter_media_completed = "chapter_media_completed"
+}
+export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJsonEventOneOf7PayloadMediaKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
 }
 export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf0SchemaVersion {
     Value1 = 1
@@ -15741,6 +16250,17 @@ export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentA
 export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf6Type {
     practice_completed = "practice_completed"
 }
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf7SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf7Type {
+    chapter_media_completed = "chapter_media_completed"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf7PayloadMediaKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
+}
 export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf0SchemaVersion {
     Value1 = 1
 }
@@ -15797,6 +16317,17 @@ export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentA
 }
 export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf6Type {
     practice_completed = "practice_completed"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf7SchemaVersion {
+    Value1 = 1
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf7Type {
+    chapter_media_completed = "chapter_media_completed"
+}
+export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentApplicationJsonEventOneOf7PayloadMediaKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
 }
 export enum PathsApiGuideSessionsPostResponses200ContentApplicationJsonSessionStatus {
     ACTIVE = "ACTIVE",

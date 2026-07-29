@@ -6046,6 +6046,210 @@
         ]
       }
     },
+    "/api/lector/media/{mediaKey}/access": {
+      "get": {
+        "operationId": "getChapterMediaAccess",
+        "parameters": [
+          {
+            "name": "mediaKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "URL firmada de corta vida para un medio disponible y autorizado. Nunca se devuelve en SSR ni se cachea.",
+        "tags": [
+          "Lector"
+        ]
+      }
+    },
+    "/api/lector/media/{mediaKey}/complete": {
+      "post": {
+        "operationId": "completeChapterMedia",
+        "parameters": [
+          {
+            "name": "mediaKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Registra que el reproductor llegó a su final. No significa comprensión, atención ni efecto emocional: la actividad va a Mi Evolución.",
+        "tags": [
+          "Lector"
+        ]
+      }
+    },
+    "/api/lector/{bookId}/{chapterOrder}/media": {
+      "get": {
+        "operationId": "getChapterMediaManifest",
+        "parameters": [
+          {
+            "name": "bookId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Formatos del capítulo con su disponibilidad. Solo metadata: sin URLs.",
+        "tags": [
+          "Lector"
+        ]
+      }
+    },
     "/api/lector/{bookId}/{chapterOrder}": {
       "get": {
         "operationId": "LectorController_getChapter",
@@ -7406,6 +7610,89 @@
                               "nullable": true
                             }
                           }
+                        },
+                        {
+                          "type": "object",
+                          "title": "LearningEventRecord_chapter_media_completed",
+                          "additionalProperties": false,
+                          "required": [
+                            "id",
+                            "schemaVersion",
+                            "occurredAt",
+                            "type",
+                            "payload",
+                            "editionId",
+                            "unitId",
+                            "conceptId",
+                            "guideSessionId"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "schemaVersion": {
+                              "type": "integer",
+                              "enum": [
+                                1
+                              ]
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Reloj del servidor — el cliente no fecha eventos."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "chapter_media_completed"
+                              ]
+                            },
+                            "payload": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "mediaKey",
+                                "mediaKind",
+                                "mediaVersion",
+                                "unitKey"
+                              ],
+                              "properties": {
+                                "mediaKey": {
+                                  "type": "string"
+                                },
+                                "mediaKind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUDIOBOOK",
+                                    "PODCAST",
+                                    "VIDEO"
+                                  ]
+                                },
+                                "mediaVersion": {
+                                  "type": "integer"
+                                },
+                                "unitKey": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "editionId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "unitId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "conceptId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "guideSessionId": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
                         }
                       ]
                     }
@@ -7979,6 +8266,89 @@
                               "properties": {
                                 "exerciseKey": {
                                   "type": "string"
+                                },
+                                "unitKey": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "editionId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "unitId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "conceptId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "guideSessionId": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "title": "LearningEventRecord_chapter_media_completed",
+                          "additionalProperties": false,
+                          "required": [
+                            "id",
+                            "schemaVersion",
+                            "occurredAt",
+                            "type",
+                            "payload",
+                            "editionId",
+                            "unitId",
+                            "conceptId",
+                            "guideSessionId"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "schemaVersion": {
+                              "type": "integer",
+                              "enum": [
+                                1
+                              ]
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Reloj del servidor — el cliente no fecha eventos."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "chapter_media_completed"
+                              ]
+                            },
+                            "payload": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "mediaKey",
+                                "mediaKind",
+                                "mediaVersion",
+                                "unitKey"
+                              ],
+                              "properties": {
+                                "mediaKey": {
+                                  "type": "string"
+                                },
+                                "mediaKind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUDIOBOOK",
+                                    "PODCAST",
+                                    "VIDEO"
+                                  ]
+                                },
+                                "mediaVersion": {
+                                  "type": "integer"
                                 },
                                 "unitKey": {
                                   "type": "string"
@@ -8695,6 +9065,89 @@
                               "nullable": true
                             }
                           }
+                        },
+                        {
+                          "type": "object",
+                          "title": "LearningEventRecord_chapter_media_completed",
+                          "additionalProperties": false,
+                          "required": [
+                            "id",
+                            "schemaVersion",
+                            "occurredAt",
+                            "type",
+                            "payload",
+                            "editionId",
+                            "unitId",
+                            "conceptId",
+                            "guideSessionId"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "schemaVersion": {
+                              "type": "integer",
+                              "enum": [
+                                1
+                              ]
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Reloj del servidor — el cliente no fecha eventos."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "chapter_media_completed"
+                              ]
+                            },
+                            "payload": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "mediaKey",
+                                "mediaKind",
+                                "mediaVersion",
+                                "unitKey"
+                              ],
+                              "properties": {
+                                "mediaKey": {
+                                  "type": "string"
+                                },
+                                "mediaKind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUDIOBOOK",
+                                    "PODCAST",
+                                    "VIDEO"
+                                  ]
+                                },
+                                "mediaVersion": {
+                                  "type": "integer"
+                                },
+                                "unitKey": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "editionId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "unitId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "conceptId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "guideSessionId": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
                         }
                       ]
                     }
@@ -9268,6 +9721,89 @@
                               "properties": {
                                 "exerciseKey": {
                                   "type": "string"
+                                },
+                                "unitKey": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "editionId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "unitId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "conceptId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "guideSessionId": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "title": "LearningEventRecord_chapter_media_completed",
+                          "additionalProperties": false,
+                          "required": [
+                            "id",
+                            "schemaVersion",
+                            "occurredAt",
+                            "type",
+                            "payload",
+                            "editionId",
+                            "unitId",
+                            "conceptId",
+                            "guideSessionId"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "schemaVersion": {
+                              "type": "integer",
+                              "enum": [
+                                1
+                              ]
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Reloj del servidor — el cliente no fecha eventos."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "chapter_media_completed"
+                              ]
+                            },
+                            "payload": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "mediaKey",
+                                "mediaKind",
+                                "mediaVersion",
+                                "unitKey"
+                              ],
+                              "properties": {
+                                "mediaKey": {
+                                  "type": "string"
+                                },
+                                "mediaKind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUDIOBOOK",
+                                    "PODCAST",
+                                    "VIDEO"
+                                  ]
+                                },
+                                "mediaVersion": {
+                                  "type": "integer"
                                 },
                                 "unitKey": {
                                   "type": "string"
@@ -9984,6 +10520,89 @@
                               "nullable": true
                             }
                           }
+                        },
+                        {
+                          "type": "object",
+                          "title": "LearningEventRecord_chapter_media_completed",
+                          "additionalProperties": false,
+                          "required": [
+                            "id",
+                            "schemaVersion",
+                            "occurredAt",
+                            "type",
+                            "payload",
+                            "editionId",
+                            "unitId",
+                            "conceptId",
+                            "guideSessionId"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "schemaVersion": {
+                              "type": "integer",
+                              "enum": [
+                                1
+                              ]
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Reloj del servidor — el cliente no fecha eventos."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "chapter_media_completed"
+                              ]
+                            },
+                            "payload": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "mediaKey",
+                                "mediaKind",
+                                "mediaVersion",
+                                "unitKey"
+                              ],
+                              "properties": {
+                                "mediaKey": {
+                                  "type": "string"
+                                },
+                                "mediaKind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUDIOBOOK",
+                                    "PODCAST",
+                                    "VIDEO"
+                                  ]
+                                },
+                                "mediaVersion": {
+                                  "type": "integer"
+                                },
+                                "unitKey": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "editionId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "unitId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "conceptId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "guideSessionId": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
                         }
                       ]
                     }
@@ -10557,6 +11176,89 @@
                               "properties": {
                                 "exerciseKey": {
                                   "type": "string"
+                                },
+                                "unitKey": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "editionId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "unitId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "conceptId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "guideSessionId": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "title": "LearningEventRecord_chapter_media_completed",
+                          "additionalProperties": false,
+                          "required": [
+                            "id",
+                            "schemaVersion",
+                            "occurredAt",
+                            "type",
+                            "payload",
+                            "editionId",
+                            "unitId",
+                            "conceptId",
+                            "guideSessionId"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "schemaVersion": {
+                              "type": "integer",
+                              "enum": [
+                                1
+                              ]
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Reloj del servidor — el cliente no fecha eventos."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "chapter_media_completed"
+                              ]
+                            },
+                            "payload": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "mediaKey",
+                                "mediaKind",
+                                "mediaVersion",
+                                "unitKey"
+                              ],
+                              "properties": {
+                                "mediaKey": {
+                                  "type": "string"
+                                },
+                                "mediaKind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUDIOBOOK",
+                                    "PODCAST",
+                                    "VIDEO"
+                                  ]
+                                },
+                                "mediaVersion": {
+                                  "type": "integer"
                                 },
                                 "unitKey": {
                                   "type": "string"
@@ -11314,6 +12016,89 @@
                               "nullable": true
                             }
                           }
+                        },
+                        {
+                          "type": "object",
+                          "title": "LearningEventRecord_chapter_media_completed",
+                          "additionalProperties": false,
+                          "required": [
+                            "id",
+                            "schemaVersion",
+                            "occurredAt",
+                            "type",
+                            "payload",
+                            "editionId",
+                            "unitId",
+                            "conceptId",
+                            "guideSessionId"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "schemaVersion": {
+                              "type": "integer",
+                              "enum": [
+                                1
+                              ]
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Reloj del servidor — el cliente no fecha eventos."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "chapter_media_completed"
+                              ]
+                            },
+                            "payload": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "mediaKey",
+                                "mediaKind",
+                                "mediaVersion",
+                                "unitKey"
+                              ],
+                              "properties": {
+                                "mediaKey": {
+                                  "type": "string"
+                                },
+                                "mediaKind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUDIOBOOK",
+                                    "PODCAST",
+                                    "VIDEO"
+                                  ]
+                                },
+                                "mediaVersion": {
+                                  "type": "integer"
+                                },
+                                "unitKey": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "editionId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "unitId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "conceptId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "guideSessionId": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
                         }
                       ]
                     }
@@ -11887,6 +12672,89 @@
                               "properties": {
                                 "exerciseKey": {
                                   "type": "string"
+                                },
+                                "unitKey": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "editionId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "unitId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "conceptId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "guideSessionId": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "title": "LearningEventRecord_chapter_media_completed",
+                          "additionalProperties": false,
+                          "required": [
+                            "id",
+                            "schemaVersion",
+                            "occurredAt",
+                            "type",
+                            "payload",
+                            "editionId",
+                            "unitId",
+                            "conceptId",
+                            "guideSessionId"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "schemaVersion": {
+                              "type": "integer",
+                              "enum": [
+                                1
+                              ]
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Reloj del servidor — el cliente no fecha eventos."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "chapter_media_completed"
+                              ]
+                            },
+                            "payload": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "mediaKey",
+                                "mediaKind",
+                                "mediaVersion",
+                                "unitKey"
+                              ],
+                              "properties": {
+                                "mediaKey": {
+                                  "type": "string"
+                                },
+                                "mediaKind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUDIOBOOK",
+                                    "PODCAST",
+                                    "VIDEO"
+                                  ]
+                                },
+                                "mediaVersion": {
+                                  "type": "integer"
                                 },
                                 "unitKey": {
                                   "type": "string"
@@ -12603,6 +13471,89 @@
                               "nullable": true
                             }
                           }
+                        },
+                        {
+                          "type": "object",
+                          "title": "LearningEventRecord_chapter_media_completed",
+                          "additionalProperties": false,
+                          "required": [
+                            "id",
+                            "schemaVersion",
+                            "occurredAt",
+                            "type",
+                            "payload",
+                            "editionId",
+                            "unitId",
+                            "conceptId",
+                            "guideSessionId"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "schemaVersion": {
+                              "type": "integer",
+                              "enum": [
+                                1
+                              ]
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Reloj del servidor — el cliente no fecha eventos."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "chapter_media_completed"
+                              ]
+                            },
+                            "payload": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "mediaKey",
+                                "mediaKind",
+                                "mediaVersion",
+                                "unitKey"
+                              ],
+                              "properties": {
+                                "mediaKey": {
+                                  "type": "string"
+                                },
+                                "mediaKind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUDIOBOOK",
+                                    "PODCAST",
+                                    "VIDEO"
+                                  ]
+                                },
+                                "mediaVersion": {
+                                  "type": "integer"
+                                },
+                                "unitKey": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "editionId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "unitId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "conceptId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "guideSessionId": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
                         }
                       ]
                     }
@@ -13176,6 +14127,89 @@
                               "properties": {
                                 "exerciseKey": {
                                   "type": "string"
+                                },
+                                "unitKey": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "editionId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "unitId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "conceptId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "guideSessionId": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "title": "LearningEventRecord_chapter_media_completed",
+                          "additionalProperties": false,
+                          "required": [
+                            "id",
+                            "schemaVersion",
+                            "occurredAt",
+                            "type",
+                            "payload",
+                            "editionId",
+                            "unitId",
+                            "conceptId",
+                            "guideSessionId"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "schemaVersion": {
+                              "type": "integer",
+                              "enum": [
+                                1
+                              ]
+                            },
+                            "occurredAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Reloj del servidor — el cliente no fecha eventos."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "chapter_media_completed"
+                              ]
+                            },
+                            "payload": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "mediaKey",
+                                "mediaKind",
+                                "mediaVersion",
+                                "unitKey"
+                              ],
+                              "properties": {
+                                "mediaKey": {
+                                  "type": "string"
+                                },
+                                "mediaKind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUDIOBOOK",
+                                    "PODCAST",
+                                    "VIDEO"
+                                  ]
+                                },
+                                "mediaVersion": {
+                                  "type": "integer"
                                 },
                                 "unitKey": {
                                   "type": "string"

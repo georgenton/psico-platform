@@ -1,7 +1,7 @@
 # Guided Reading V1 — Blueprint canónico
 
 ```
-GUIDED_READING_SPEC_VERSION=0.7
+GUIDED_READING_SPEC_VERSION=0.8
 
 GUIDED_READING_BLUEPRINT_STATUS=APPROVED
 GUIDED_READING_IMPLEMENTATION_STATUS=NOT_STARTED
@@ -20,6 +20,14 @@ PRODUCT_OWNER_APPROVAL_DATE=2026-07-29
 GR1_FINAL_VISUAL_APPROVAL_BY_JORGE=true
 GR1_FINAL_VISUAL_APPROVAL_DATE=2026-07-29
 GR1_STATUS=CLOSED
+
+GR2_STATUS=IN_REVIEW
+GR2_IMPLEMENTATION_STATUS=IN_REVIEW
+GR2_MEDIA_STACK_APPROVED=true
+GR2_VIDEO_PROVIDER=CLOUDFLARE_STREAM
+GR2_OBJECT_STORAGE=CLOUDFLARE_R2
+GR2_MEDIA_CATALOG_STATUS=IMPLEMENTED
+GR2_EXTERNAL_ASSETS_STATUS=PENDING_EDITORIAL_ASSETS
 
 GUIDED_READING_DECISION_PACKET_APPROVED=true
 
@@ -231,11 +239,16 @@ El **audiolibro se mantiene separado**, porque es narración fiel del texto y no
 deriva del guion explicativo.
 
 ```
-MEDIA_HOSTING_PROVIDER=TBD
-VIDEO_ASSET_URL=TBD
-PODCAST_ASSET_URL=TBD
-AUDIOBOOK_ASSET_URL=TBD
+MEDIA_HOSTING_PROVIDER=CLOUDFLARE_STREAM_AND_R2
+VIDEO_HOSTING=CLOUDFLARE_STREAM
+AUDIO_AND_ASSET_HOSTING=CLOUDFLARE_R2
+MEDIA_CATALOG=CODE_OWNED
 ```
+
+Decidido en GR-2: video en Cloudflare Stream con token firmado corto; audio,
+transcripción y poster en R2 con URL firmada. El catálogo vive en código
+revisado (`apps/api/src/lector/media/chapter-media.catalog.ts`), no en una base
+de datos editorial.
 
 No se crea un CMS.
 
@@ -291,7 +304,13 @@ PODCAST_V1_STYLE=CONVERSATIONAL_SCRIPT
 MEDIA_PLAYBACK_RESUME=LOCAL_ONLY
 MEDIA_PLAYBACK_RESUME_SERVER_SYNC=false
 
-MEDIA_HOSTING_PROVIDER=TBD_UNTIL_GR2
+MEDIA_ACTIVITY_DESTINATION=MI_EVOLUCION
+GUIDE_ACTIVITY_DESTINATION=MI_EVOLUCION
+
+MEDIA_AUTOMATIC_MAP_WRITE=false
+GUIDED_READING_AUTOMATIC_MAP_WRITE=false
+
+MEDIA_HOSTING_PROVIDER=CLOUDFLARE_STREAM_AND_R2
 MEDIA_HOSTING_BLOCKS_GR1=false
 
 LEGACY_READER_MODE_INTERNAL_VALUE=guia
@@ -716,9 +735,9 @@ NO nuevo scoring del Mapa
 GR0_STATUS=CLOSED
 GR1_STATUS=CLOSED
 
-GR2_STATUS=READY_FOR_MEDIA_HOSTING_DECISION
-GR2_IMPLEMENTATION_STATUS=NOT_STARTED
-GR2_BLOCKER=MEDIA_HOSTING_PROVIDER
+GR2_STATUS=IN_REVIEW
+GR2_IMPLEMENTATION_STATUS=IN_REVIEW
+GR2_BLOCKER=PENDING_EDITORIAL_ASSETS
 
 GR3_STATUS=BLOCKED_RUNTIME_ANCHOR
 GR4_STATUS=BLOCKED_BY_GR3
@@ -816,7 +835,7 @@ migración de `ReaderMode` (**no**), GR-P09 (aprobada como **GR-021**) y GR-P10
 Quedan dos asuntos diferidos, ninguno bloquea GR-1:
 
 ```
-MEDIA_HOSTING_PROVIDER=TBD_UNTIL_GR2
+MEDIA_HOSTING_PROVIDER=CLOUDFLARE_STREAM_AND_R2
 
 ANCHOR_BLOCK_KEY=TBD
 ANCHOR_SOURCE_HEADING=TBD
@@ -824,12 +843,15 @@ ANCHOR_SOURCE_HEADING=TBD
 
 ```
 OPEN_BLOCKERS_FOR_GR1=0
-OPEN_DECISIONS_FOR_GR2=1
+OPEN_DECISIONS_FOR_GR2=0
+OPEN_BLOCKERS_FOR_GR2=1
 OPEN_BLOCKERS_FOR_GR3=1
 ```
 
-El proveedor de hosting bloquea GR-2, no GR-1. El anchor exacto bloquea GR-3,
-no GR-1.
+El proveedor de hosting ya está decidido (GR-2). Lo que queda pendiente para
+GR-2 no es una decisión sino producción: los masters editoriales
+(`docs/product/chapter-01-media-package.md`). El anchor exacto bloquea GR-3, no
+GR-1 ni GR-2.
 
 ### Notas de la revisión visual de GR-1
 
@@ -959,6 +981,135 @@ Core, multimedia real, escritura de `Resonance` ni del Mapa Emocional.
 
 ---
 
+## 15ter. GR-2 Implementation
+
+```
+GR2_STATUS=IN_REVIEW
+GR2_IMPLEMENTATION_STATUS=IN_REVIEW
+
+GR2_MEDIA_CATALOG_STATUS=IMPLEMENTED
+PRODUCTION_MEDIA_DEFINITIONS=3
+PUBLISHED_MEDIA_DEFINITIONS=1
+DRAFT_MEDIA_DEFINITIONS=2
+
+STREAM_SIGNED_ACCESS_IMPLEMENTED=true
+R2_SIGNED_ACCESS_REUSED=true
+CHAPTER_AUDIO_ENDPOINT_PRESERVED=true
+
+MEDIA_ACTIVITY_EVENT=chapter_media_completed
+MEDIA_ACTIVITY_EVENT_COUNT=1
+MEDIA_EVENT_GRANULARITY=COMPLETION_ONLY
+LEARNING_EVENT_TYPES_SUPPORTED=8
+MEDIA_COMPLETION_IDEMPOTENCY=SERVER_DERIVED
+MEDIA_COMPLETION_CROSS_DEVICE_DUPLICATES=0
+
+EVOLUTION_MEDIA_ACTIVITY_IMPLEMENTED=true
+EVOLUTION_GUIDE_ACTIVITY_IMPLEMENTED=true
+
+MEDIA_AUTOMATIC_MAP_WRITE=false
+EMOTIONAL_MAP_CANONICAL_DELTA=0
+EMOTIONAL_MAP_LEARNING_EVENT_READS=0
+
+MIGRATION_FILES_ADDED=1
+SCHEMA_TABLES_ADDED=0
+SCHEMA_COLUMNS_ADDED=0
+
+MEDIA_PACKAGE_STATUS=PENDING_EDITORIAL_ASSETS
+CLOUDFLARE_RESOURCES_CHANGED=false
+R2_OBJECTS_UPLOADED=0
+PRODUCTION_CHANGED=false
+DEPLOY_EXECUTED=false
+```
+
+### Lo que GR-2 implementó
+
+La capa multimedia real del capítulo, reutilizando lo que ya existía:
+
+| Formato          | Fuente                 | Firma                               | Estado hoy |
+| ---------------- | ---------------------- | ----------------------------------- | ---------- |
+| Audiolibro       | la fila `Audio` actual | `LectorService.getAudio` (6 h)      | PUBLISHED  |
+| Podcast          | R2                     | `StorageService.getSignedUrl` (1 h) | DRAFT      |
+| Videoexplicación | Cloudflare Stream      | token firmado ~15 min → iframe      | DRAFT      |
+
+Tres rutas nuevas bajo el Lector: `GET …/:chapterOrder/media` (metadata, firma
+nada), `GET …/media/:mediaKey/access` (la única respuesta con URL firmada) y
+`POST …/media/:mediaKey/complete` (sin body).
+
+El selector visible pasa a **Leer · Escuchar · Ver**. El valor local legacy
+`"guia"` sigue significando Escuchar, así que ninguna preferencia guardada se
+migra. «Lectura guiada» permanece en esta especificación y en el prototipo como
+autoridad de GR-3, y deliberadamente **no** es un cuarto botón: un botón que no
+lleva a ningún lado es peor que su ausencia.
+
+### Actividad y Mapa
+
+```
+Mi Evolución registra qué hizo la persona.
+Mapa Emocional registra únicamente señales que la persona decidió expresar.
+```
+
+Terminar un audiolibro, un podcast o un video emite un único evento
+(`chapter_media_completed`) con granularidad de finalización. Ese evento va a Mi
+Evolución —la tarjeta «Actividad de aprendizaje», seis contadores— y **nunca** al
+Mapa Emocional. El firewall dinámico lo demuestra sobre PostgreSQL real: la
+proyección canónica del Mapa queda idéntica byte a byte, y el control negativo
+(un check-in explícito) sí la mueve.
+
+La idempotencia la deriva el servidor de `mediaKey + mediaVersion`, así que la
+misma persona terminando el mismo medio produce **una** fila tras recarga, doble
+evento `ended`, segundo dispositivo o retry de red. Una versión nueva del master
+es una actividad nueva, no un duplicado.
+
+### Evidencia visual
+
+```
+GR2_SCREENSHOTS_CREATED=5
+GR2_SCREENSHOTS_PLANNED=6
+GR2_MOBILE_CAPTURE_BLOCKED=DASHBOARD_SHELL_NOT_RESPONSIVE_AT_390
+```
+
+Capturas del lector productivo a 1365 × 900 (2×), contra el API real corriendo
+en local con la cuenta de prueba de un entorno de desarrollo. Recortadas a la
+columna de contenido: la barra lateral muestra el correo de la sesión y **nunca**
+entra en una captura commiteada. Sin tokens, sin IDs, sin URLs firmadas.
+
+| #   | Vista                                | Captura                                                                                                 |
+| --- | ------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| 1   | Escuchar · audiolibro                | [01-reader-listen-audiobook.webp](assets/gr2-media/01-reader-listen-audiobook.webp)                     |
+| 2   | Escuchar · podcast en producción     | [02-reader-listen-podcast-coming-soon.webp](assets/gr2-media/02-reader-listen-podcast-coming-soon.webp) |
+| 3   | Ver · videoexplicación en producción | [03-reader-watch-video.webp](assets/gr2-media/03-reader-watch-video.webp)                               |
+| 4   | Escuchar · podcast con transcripción | [04-reader-transcript.webp](assets/gr2-media/04-reader-transcript.webp)                                 |
+| 5   | Mi Evolución · actividad             | [05-evolution-learning-activity.webp](assets/gr2-media/05-evolution-learning-activity.webp)             |
+
+La captura 4 usa una **fixture segura** interceptada en el navegador para
+publicar el podcast (sin token, sin UID, sin URL firmada real), porque el master
+todavía no existe. Las otras cuatro son el estado real del código.
+
+La sexta captura —el lector multimedia en móvil— **no se produjo**. A 390 px el
+shell del dashboard no cambia a layout móvil en este entorno: la barra lateral se
+superpone al lector y el correo de la sesión quedaría en cuadro. Preferimos no
+publicar una captura engañosa ni una con datos personales; la superficie móvil
+del selector queda por verificar en su propio pase.
+
+### Lo que GR-2 NO implementó
+
+```
+CLOUDFLARE_RESOURCES_CREATED=false
+ASSETS_UPLOADED=false
+GUIDE_LIFECYCLE_IN_READER=false
+RESONANCE_OR_CHECKIN_FROM_MEDIA=false
+CMS=false
+PER_SECOND_TRACKING=false
+SEPARATE_MEDIA_PROGRESS_TABLE=false
+SECOND_BOOK=false
+```
+
+Los masters editoriales no existen todavía: el podcast y el video quedan `DRAFT`
+y la interfaz dice «En producción». El paquete pendiente y el proceso para
+activarlo están en [`chapter-01-media-package.md`](chapter-01-media-package.md).
+
+---
+
 ## 16. Change Log
 
 Mapa de promoción aplicado en 0.3 — los IDs `GR-P0x` ya no existen:
@@ -971,15 +1122,16 @@ GR-P04 → GR-016    GR-P09 → GR-021
 GR-P05 → GR-017    GR-P10 → GR-022
 ```
 
-| Fecha      | Versión | Cambio                                                                                                                                                                                                                                                                                                                                                                                        |
-| ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-07-29 | 0.1     | Initial blueprint from Jorge's product direction: multimodal chapter + integrated Guided Reading.                                                                                                                                                                                                                                                                                             |
-| 2026-07-29 | 0.2     | Corrected Content Core facts, scoped Map rule, candidate authority status, editorial anchor, recall authority and scene/checkpoint continuity proposals.                                                                                                                                                                                                                                      |
-| 2026-07-29 | 0.3     | Jorge approved the Guided Reading decision packet. Promoted GR-P01…GR-P10 to GR-013…GR-022. Approved MVP constraints for media analytics, podcast format, local scene and playback state, ReaderMode compatibility, deferred hosting and the visual prototype anchor.                                                                                                                         |
-| 2026-07-29 | 0.4     | Created the isolated Guided Reading visual prototype for product review. No runtime integration, API calls, persistence or production exposure.                                                                                                                                                                                                                                               |
-| 2026-07-29 | 0.5     | Corrected prototype interaction and layout after Jorge's visual review, and set the activity policy: media and Guided Reading activity go to Mi Evolucion with a single completion event; the Emotional Map only receives explicit user actions.                                                                                                                                              |
-| 2026-07-29 | 0.6     | Final visual close of GR-1: resonance and the optional check-in became independent blocks (the check-in is no longer an answer to the resonance question), the mobile sheet hides the mode selector and keeps chapter text visible behind it, and the sheet moved to dynamic viewport units with two sizes.                                                                                   |
-| 2026-07-29 | 0.7     | Jorge granted final visual approval for GR-1. Approved: desktop reader + side panel; mobile reader + bottom sheet; selector and four modalities; anchor post-click state; inline practice; recall and feedback; completion; and the separation of educational activity, resonance and the optional check-in. GR-1 closed. No runtime, API, database, production or Map integration was added. |
+| Fecha      | Versión | Cambio                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-07-29 | 0.1     | Initial blueprint from Jorge's product direction: multimodal chapter + integrated Guided Reading.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 2026-07-29 | 0.2     | Corrected Content Core facts, scoped Map rule, candidate authority status, editorial anchor, recall authority and scene/checkpoint continuity proposals.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 2026-07-29 | 0.3     | Jorge approved the Guided Reading decision packet. Promoted GR-P01…GR-P10 to GR-013…GR-022. Approved MVP constraints for media analytics, podcast format, local scene and playback state, ReaderMode compatibility, deferred hosting and the visual prototype anchor.                                                                                                                                                                                                                                                                                                                                                                      |
+| 2026-07-29 | 0.4     | Created the isolated Guided Reading visual prototype for product review. No runtime integration, API calls, persistence or production exposure.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 2026-07-29 | 0.5     | Corrected prototype interaction and layout after Jorge's visual review, and set the activity policy: media and Guided Reading activity go to Mi Evolucion with a single completion event; the Emotional Map only receives explicit user actions.                                                                                                                                                                                                                                                                                                                                                                                           |
+| 2026-07-29 | 0.6     | Final visual close of GR-1: resonance and the optional check-in became independent blocks (the check-in is no longer an answer to the resonance question), the mobile sheet hides the mode selector and keeps chapter text visible behind it, and the sheet moved to dynamic viewport units with two sizes.                                                                                                                                                                                                                                                                                                                                |
+| 2026-07-29 | 0.7     | Jorge granted final visual approval for GR-1. Approved: desktop reader + side panel; mobile reader + bottom sheet; selector and four modalities; anchor post-click state; inline practice; recall and feedback; completion; and the separation of educational activity, resonance and the optional check-in. GR-1 closed. No runtime, API, database, production or Map integration was added.                                                                                                                                                                                                                                              |
+| 2026-07-29 | 0.8     | GR-2 implemented the real chapter media layer: a code-owned catalog (audiobook PUBLISHED over the existing chapter audio; podcast and video DRAFT until their masters exist), private Cloudflare Stream access, R2 signing reused through the shared storage service, ONE new educational event (`chapter_media_completed`, completion granularity, server-derived idempotency), the Leer · Escuchar · Ver selector with the legacy `"guia"` value preserved, and the «Actividad de aprendizaje» card in Mi Evolución. One additive migration, no new table or column. Media activity goes to Mi Evolución and never to the Emotional Map. |
 
 Toda futura modificación del producto debe actualizar `SPEC_VERSION`,
 `LAST_UPDATED`, el Decision Registry y este Change Log.

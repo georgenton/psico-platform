@@ -27,6 +27,15 @@ export const PROTOTYPE_CLIENT_GRADING = false;
 /** El cierre solo cambia estado local; no crea `Resonance`. */
 export const PROTOTYPE_RESONANCE_WRITE = false;
 export const EMOTIONAL_MAP_WRITE = false;
+/** El prototipo tampoco escribe en Mi Evolucion ni registra un check-in. */
+export const PROTOTYPE_EVOLUTION_WRITE = false;
+export const PROTOTYPE_CHECKIN_WRITE = false;
+
+/**
+ * La practica no se puede dar por terminada sin una ruta explicita: terminar la
+ * pausa, terminarla antes, o elegir continuar sin temporizador.
+ */
+export const PRACTICE_EXPLICIT_ROUTE_REQUIRED = true;
 
 /** El progreso por checkpoint es del servidor; aquí está simulado. */
 export const CHECKPOINT_PROGRESS_AUTHORITY =
@@ -39,6 +48,13 @@ export const REFERENCE_CLONE = false;
 export const EXPERIENCE_TONE = "ACCOMPANIED_NOT_ADMINISTRATIVE" as const;
 
 /* ── Contexto editorial ───────────────────────────────────────────────── */
+
+/**
+ * Politica de datos (spec 0.5): la actividad va a Mi Evolucion; el Mapa
+ * Emocional solo recibe lo que la persona decide expresar. El prototipo
+ * anuncia el destino pero no escribe nada.
+ */
+export const EVOLUTION_NOTE = "Esta experiencia se registrará en Mi Evolución.";
 
 export const CHAPTER = {
   bookTitle: "Emociones en construcción",
@@ -53,30 +69,36 @@ export type PrototypeMode = "read" | "listen" | "watch" | "guide";
 export const MODE_OPTIONS: readonly {
   mode: PrototypeMode;
   label: string;
+  /** Etiqueta de la tira compacta: `Leer · Escuchar · Ver · Guía`. */
+  shortLabel: string;
   hint: string;
   icon: string;
 }[] = [
   {
     mode: "read",
     label: "Leer",
+    shortLabel: "Leer",
     hint: "El capítulo completo, a tu ritmo",
     icon: "📖",
   },
   {
     mode: "listen",
     label: "Escuchar",
+    shortLabel: "Escuchar",
     hint: "Audiolibro o podcast",
     icon: "🎧",
   },
   {
     mode: "watch",
     label: "Ver",
+    shortLabel: "Ver",
     hint: "Videoexplicación del capítulo",
     icon: "🎬",
   },
   {
     mode: "guide",
     label: "Lectura guiada",
+    shortLabel: "Guía",
     hint: "8–10 minutos acompañados",
     icon: "🌿",
   },
@@ -187,6 +209,9 @@ export const VIDEO = {
   targetLabel: "7–9 min (objetivo editorial)",
   totalLabel: "08:12",
   posterCaption: "Jorge en cámara + apoyo visual",
+  audioOnlyCaption: "Solo audio · sin imagen",
+  subtitleLine:
+    "…el cuerpo puede iniciar una respuesta antes de que la nombremos.",
   chapters: [
     { at: "00:00", title: "¿Qué ocurre antes de que pensemos?" },
     { at: "00:50", title: "El cuerpo inicia una respuesta" },
@@ -236,6 +261,9 @@ export const GUIDE_COVER = {
 export const GUIDE_CLIP = {
   title: "Antes de ponerle un nombre",
   durationLabel: "60–90 segundos",
+  audioOnlyLabel: "Escuchar solo audio",
+  backToVideoLabel: "Volver al video",
+  audioOnlyCaption: "Solo audio · sin imagen",
   transcript: [
     "Imagina que escuchas un ruido inesperado detrás de ti. Tu cuerpo puede tensarse, cambiar la respiración o prepararse para moverse antes de que conscientemente comprendas lo ocurrido.",
     "Esa diferencia de tiempo ayuda a entender una de las ideas centrales del capítulo: una respuesta corporal puede comenzar antes de que podamos reconocerla y nombrarla.",
@@ -250,6 +278,8 @@ export const GUIDE_ANCHOR_SCENE = {
   explanation:
     "La idea no es que el cuerpo «piense» o comprenda intelectualmente. La propuesta es que algunos cambios corporales pueden comenzar antes de que podamos reconocerlos y nombrarlos conscientemente.",
   checkpointCta: "He explorado esta idea",
+  locatedLabel: "Pasaje localizado ✓",
+  continueCta: "Continuar",
 } as const;
 
 export const GUIDE_PRACTICE = {
@@ -329,9 +359,13 @@ export const GUIDE_COMPLETION = {
   actions: ["Continuar leyendo", "Volver al pasaje", "Repetir la guía"],
   resonanceQuestion: "¿Esta idea fue personalmente significativa para ti?",
   resonanceYes: "Esto me resonó",
+  checkinCta: "Registrar cómo me siento",
   resonanceNo: "Ahora no",
   resonanceConfirmed:
     "En el prototipo esto solo cambia el estado local. No se guarda ninguna resonancia.",
+  checkinConfirmed:
+    "En el prototipo esto solo cambia el estado local. No se registra ningún check-in.",
+  evolutionNote: EVOLUTION_NOTE,
 } as const;
 
 /* ── Parámetros deterministas para capturas ───────────────────────────── */
@@ -379,8 +413,15 @@ export function resolvePrototypeParams(
   return { mode, scene, outcome };
 }
 
-/** Etiqueta «Concepto · parte 2 de 3» para la escena activa. */
+/**
+ * Etiqueta «Concepto · parte 2 de 3» para la escena activa.
+ *
+ * El feedback es un momento distinto dentro del checkpoint `Recordar`: se
+ * rotula como tal porque el checkpoint todavía NO está cerrado — solo el cierre
+ * lo marca como completado.
+ */
 export function scenePartLabel(scene: GuideSceneIndex): string | null {
+  if (scene === 6) return "Recordar · feedback";
   for (const checkpoint of GUIDE_CHECKPOINTS) {
     const index = checkpoint.scenes.indexOf(scene);
     if (index >= 0) {

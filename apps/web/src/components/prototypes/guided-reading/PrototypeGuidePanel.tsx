@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import styles from "./guided-reading-prototype.module.css";
 import { PrototypeProgress } from "./PrototypeProgress";
 import {
+  EVOLUTION_NOTE,
   GUIDE_ANCHOR_SCENE,
   GUIDE_CLIP,
   GUIDE_COMPLETION,
@@ -11,7 +12,10 @@ import {
   GUIDE_FEEDBACK,
   GUIDE_PRACTICE,
   GUIDE_RECALL,
+  PRACTICE_EXPLICIT_ROUTE_REQUIRED,
+  PROTOTYPE_CHECKIN_WRITE,
   PROTOTYPE_CLIENT_GRADING,
+  PROTOTYPE_EVOLUTION_WRITE,
   PROTOTYPE_RESONANCE_WRITE,
   type GuideCheckpointKey,
   type GuideSceneIndex,
@@ -29,22 +33,29 @@ import {
  * no hay `GuideSession`, ni receipts, ni idempotencia, ni recovery. El
  * feedback del recall llega del fixture y **nunca** de la opción elegida
  * (`PROTOTYPE_CLIENT_GRADING=false`).
+ *
+ * El estado local vive en este componente a propósito: la raíz lo reinicia
+ * remontando el panel con una `key` nueva cuando la persona repite la guía.
  */
 export function PrototypeGuidePanel({
   scene,
   outcome,
   completedCheckpoints,
   resonance,
+  checkin,
   onScene,
   onClose,
   onGoToPassage,
   onConfirmCheckpoint,
   onResonance,
+  onCheckin,
+  onRepeat,
 }: {
   scene: Exclude<GuideSceneIndex, 0>;
   outcome: PrototypeOutcome;
   completedCheckpoints: readonly GuideCheckpointKey[];
   resonance: "yes" | "no" | null;
+  checkin: boolean;
   onScene: (scene: GuideSceneIndex) => void;
   onClose: () => void;
   onGoToPassage: () => void;
@@ -53,12 +64,16 @@ export function PrototypeGuidePanel({
     next: GuideSceneIndex,
   ) => void;
   onResonance: (choice: "yes" | "no") => void;
+  onCheckin: () => void;
+  onRepeat: () => void;
 }) {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [clipPlaying, setClipPlaying] = useState(false);
   const [clipTranscript, setClipTranscript] = useState(false);
+  const [clipAudioOnly, setClipAudioOnly] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [practiceReady, setPracticeReady] = useState(false);
+  const [passageLocated, setPassageLocated] = useState(false);
 
   useEffect(() => {
     if (remaining === null) return;
@@ -73,6 +88,17 @@ export function PrototypeGuidePanel({
     );
     return () => clearTimeout(id);
   }, [remaining]);
+
+  // Terminar la pausa por cualquiera de las dos rutas explícitas.
+  const finishPractice = () => {
+    setRemaining(null);
+    setPracticeReady(true);
+  };
+
+  const locatePassage = () => {
+    onGoToPassage();
+    setPassageLocated(true);
+  };
 
   const back = () => {
     if (scene === 1) {
@@ -137,10 +163,21 @@ export function PrototypeGuidePanel({
           <>
             <p className={styles.sceneEyebrow}>Concepto</p>
             <h2 className={styles.sceneTitle}>{GUIDE_CLIP.title}</h2>
-            <div className={styles.clipCanvas} aria-hidden="true">
-              <span style={{ fontSize: "var(--text-3xl)" }}>
-                {clipPlaying ? "❚❚" : "▶"}
+            <div
+              className={`${styles.clipCanvas} ${
+                clipAudioOnly ? styles.clipCanvasAudio : ""
+              }`}
+              data-testid="clip-canvas"
+              data-representation={clipAudioOnly ? "audio" : "video"}
+            >
+              <span aria-hidden="true" style={{ fontSize: "var(--text-3xl)" }}>
+                {clipAudioOnly ? "◍" : clipPlaying ? "❚❚" : "▶"}
               </span>
+              {clipAudioOnly ? (
+                <span className={styles.clipCanvasCaption}>
+                  {GUIDE_CLIP.audioOnlyCaption}
+                </span>
+              ) : null}
             </div>
             <p className={styles.sceneText}>{GUIDE_CLIP.durationLabel}</p>
             <div className={styles.rowWrap}>
@@ -160,8 +197,15 @@ export function PrototypeGuidePanel({
               >
                 Leer transcripción
               </button>
-              <button type="button" className={styles.chip}>
-                Escuchar solo audio
+              <button
+                type="button"
+                className={`${styles.chip} ${clipAudioOnly ? styles.chipOn : ""}`}
+                aria-pressed={clipAudioOnly}
+                onClick={() => setClipAudioOnly((value) => !value)}
+              >
+                {clipAudioOnly
+                  ? GUIDE_CLIP.backToVideoLabel
+                  : GUIDE_CLIP.audioOnlyLabel}
               </button>
             </div>
             {clipTranscript ? (
@@ -179,13 +223,11 @@ export function PrototypeGuidePanel({
             <p className={styles.sceneEyebrow}>Concepto</p>
             <h2 className={styles.sceneTitle}>{GUIDE_ANCHOR_SCENE.title}</h2>
             <p className={styles.sceneText}>{GUIDE_ANCHOR_SCENE.description}</p>
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              onClick={onGoToPassage}
-            >
-              {GUIDE_ANCHOR_SCENE.cta}
-            </button>
+            {passageLocated ? (
+              <p className={styles.locatedNote} data-testid="passage-located">
+                {GUIDE_ANCHOR_SCENE.locatedLabel}
+              </p>
+            ) : null}
             <p
               className={styles.sceneText}
               style={{ marginTop: "var(--space-lg)" }}
@@ -226,10 +268,7 @@ export function PrototypeGuidePanel({
                 <button
                   type="button"
                   className={styles.chip}
-                  onClick={() => {
-                    setRemaining(null);
-                    setPracticeReady(true);
-                  }}
+                  onClick={finishPractice}
                 >
                   {GUIDE_PRACTICE.finishEarlyCta}
                 </button>
@@ -237,21 +276,18 @@ export function PrototypeGuidePanel({
               <button
                 type="button"
                 className={styles.chip}
-                onClick={() => {
-                  setRemaining(null);
-                  setPracticeReady(true);
-                }}
+                onClick={finishPractice}
               >
                 {GUIDE_PRACTICE.skipTimerCta}
               </button>
             </div>
 
             <p className={styles.privacyNote}>{GUIDE_PRACTICE.privacyNote}</p>
-            {practiceReady ? (
-              <p className={styles.privacyNote}>
-                Cuando quieras, confirma abajo que terminaste.
-              </p>
-            ) : null}
+            <p className={styles.privacyNote}>
+              {practiceReady
+                ? "Cuando quieras, confirma abajo que terminaste."
+                : "Elige una de las dos opciones para poder confirmar."}
+            </p>
           </>
         ) : null}
 
@@ -329,6 +365,10 @@ export function PrototypeGuidePanel({
               ))}
             </ul>
 
+            <p className={styles.evolutionNote} data-testid="evolution-note">
+              {EVOLUTION_NOTE}
+            </p>
+
             <div className={styles.resonance}>
               <p className={styles.sceneText} style={{ marginBottom: 0 }}>
                 {GUIDE_COMPLETION.resonanceQuestion}
@@ -344,6 +384,14 @@ export function PrototypeGuidePanel({
                 </button>
                 <button
                   type="button"
+                  className={`${styles.chip} ${checkin ? styles.chipOn : ""}`}
+                  aria-pressed={checkin}
+                  onClick={onCheckin}
+                >
+                  {GUIDE_COMPLETION.checkinCta}
+                </button>
+                <button
+                  type="button"
                   className={`${styles.chip} ${resonance === "no" ? styles.chipOn : ""}`}
                   aria-pressed={resonance === "no"}
                   onClick={() => onResonance("no")}
@@ -354,6 +402,11 @@ export function PrototypeGuidePanel({
               {resonance !== null ? (
                 <p className={styles.privacyNote}>
                   {GUIDE_COMPLETION.resonanceConfirmed}
+                </p>
+              ) : null}
+              {checkin ? (
+                <p className={styles.privacyNote}>
+                  {GUIDE_COMPLETION.checkinConfirmed}
                 </p>
               ) : null}
             </div>
@@ -382,20 +435,47 @@ export function PrototypeGuidePanel({
           </button>
         ) : null}
 
-        {scene === 3 ? (
+        {/*
+          Jerarquía de la escena del pasaje: primero localizarlo, después
+          cerrar el checkpoint. Hasta que el pasaje no se localiza, la acción
+          de completar el concepto ni siquiera existe en el DOM.
+        */}
+        {scene === 3 && !passageLocated ? (
           <button
             type="button"
             className={styles.primaryButton}
-            onClick={() => onConfirmCheckpoint("concepto", 4)}
+            onClick={locatePassage}
           >
-            {GUIDE_ANCHOR_SCENE.checkpointCta}
+            {GUIDE_ANCHOR_SCENE.cta}
           </button>
+        ) : null}
+
+        {scene === 3 && passageLocated ? (
+          <>
+            <button
+              type="button"
+              className={styles.primaryButton}
+              onClick={() => onConfirmCheckpoint("concepto", 4)}
+            >
+              {GUIDE_ANCHOR_SCENE.continueCta}
+            </button>
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={onGoToPassage}
+            >
+              {GUIDE_ANCHOR_SCENE.cta}
+            </button>
+          </>
         ) : null}
 
         {scene === 4 ? (
           <button
             type="button"
             className={styles.primaryButton}
+            // La confirmación exige una ruta explícita: sin pausa terminada ni
+            // «continuar sin temporizador» el botón no se puede pulsar.
+            disabled={PRACTICE_EXPLICIT_ROUTE_REQUIRED && !practiceReady}
             onClick={() => onConfirmCheckpoint("practica", 5)}
           >
             {GUIDE_PRACTICE.checkpointCta}
@@ -411,7 +491,9 @@ export function PrototypeGuidePanel({
               // El prototipo no compara la selección con nada:
               // PROTOTYPE_CLIENT_GRADING = false.
               void PROTOTYPE_CLIENT_GRADING;
-              onConfirmCheckpoint("recordar", 6);
+              // El checkpoint `Recordar` NO se cierra aquí: primero llega el
+              // feedback y solo el cierre lo marca como completado.
+              onScene(6);
             }}
           >
             {GUIDE_RECALL.cta}
@@ -422,7 +504,7 @@ export function PrototypeGuidePanel({
           <button
             type="button"
             className={styles.primaryButton}
-            onClick={() => onScene(7)}
+            onClick={() => onConfirmCheckpoint("recordar", 7)}
           >
             Continuar
           </button>
@@ -433,7 +515,14 @@ export function PrototypeGuidePanel({
             <button
               type="button"
               className={styles.primaryButton}
-              onClick={onClose}
+              onClick={() => {
+                // Cerrar no escribe nada: ni Mi Evolución, ni Resonance, ni
+                // check-in. El prototipo solo anuncia el destino.
+                void PROTOTYPE_EVOLUTION_WRITE;
+                void PROTOTYPE_RESONANCE_WRITE;
+                void PROTOTYPE_CHECKIN_WRITE;
+                onClose();
+              }}
             >
               {GUIDE_COMPLETION.actions[0]}
             </button>
@@ -447,11 +536,7 @@ export function PrototypeGuidePanel({
             <button
               type="button"
               className={styles.secondaryButton}
-              onClick={() => {
-                // Repetir es presentación pura: no se reabre ninguna sesión.
-                void PROTOTYPE_RESONANCE_WRITE;
-                onScene(1);
-              }}
+              onClick={onRepeat}
             >
               {GUIDE_COMPLETION.actions[2]}
             </button>

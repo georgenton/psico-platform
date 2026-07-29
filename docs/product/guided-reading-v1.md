@@ -1,7 +1,7 @@
 # Guided Reading V1 — Blueprint canónico
 
 ```
-GUIDED_READING_SPEC_VERSION=0.4
+GUIDED_READING_SPEC_VERSION=0.5
 
 GUIDED_READING_BLUEPRINT_STATUS=APPROVED
 GUIDED_READING_IMPLEMENTATION_STATUS=NOT_STARTED
@@ -28,6 +28,11 @@ GR1_PROTOTYPE_ROUTE=/prototipos/lectura-guiada
 GR1_RUNTIME_INTEGRATION=false
 GR1_API_INTEGRATION=false
 GR1_DATABASE_INTEGRATION=false
+
+PROTOTYPE_EVOLUTION_WRITE=false
+PROTOTYPE_RESONANCE_WRITE=false
+PROTOTYPE_CHECKIN_WRITE=false
+PROTOTYPE_MAP_WRITES=0
 
 DECISIONS_CHANGED_WITHOUT_APPROVAL=0
 
@@ -266,7 +271,11 @@ No se crea un CMS.
 ## 5.3 MVP implementation constraints
 
 ```
-NEW_MEDIA_ANALYTICS_EVENTS_IN_MVP=0
+MEDIA_ACTIVITY_TRACKING=MINIMAL
+NEW_MEDIA_ANALYTICS_EVENTS_IN_MVP=1
+MEDIA_ACTIVITY_EVENT=chapter_media_completed
+MEDIA_EVENT_GRANULARITY=COMPLETION_ONLY
+MEDIA_ACTIVITY_DESTINATION=MI_EVOLUCION
 
 PODCAST_V1_FORMAT=JORGE_SOLO
 PODCAST_V1_STYLE=CONVERSATIONAL_SCRIPT
@@ -288,7 +297,8 @@ SECOND_GUIDE_PRODUCTIVE_ALLOWED=false
 SECOND_BOOK_GUIDED_READING_ALLOWED=false
 ```
 
-- No se añaden eventos de video, podcast o reproducción durante el MVP.
+- El MVP añade un único evento de medios, de finalización, con destino Mi
+  Evolución (§9). No hay analítica segundo a segundo.
 - El progreso audiovisual **no** alimenta el Mapa.
 - El segundo exacto de reproducción puede recordarse localmente, sin sync.
 - El hosting se decide en GR-2, no durante GR-1.
@@ -566,20 +576,35 @@ Nunca se reinicia toda la Guide por perder estado de presentación.
 
 ## 9. Datos y privacidad
 
-| Acción               | Dato guardado                          | Mi Evolución | Mapa Emocional |
-| -------------------- | -------------------------------------- | ------------ | -------------- |
-| Leer capítulo        | Progreso de lectura                    | Sí           | **No**         |
-| Escuchar audiolibro  | Sin eventos nuevos en MVP              | —            | **No**         |
-| Escuchar podcast     | Sin eventos nuevos en MVP              | —            | **No**         |
-| Ver video            | Sin eventos nuevos en MVP              | —            | **No**         |
-| Lectura guiada       | Solo sus eventos educativos existentes | Posible      | **No**         |
-| Confirmar resonancia | `Resonance` explícita con procedencia  | —            | **Sí**         |
+| Acción                   | Dato guardado                          | Mi Evolución | Mapa Emocional |
+| ------------------------ | -------------------------------------- | ------------ | -------------- |
+| Leer capítulo            | Progreso de lectura                    | Sí           | **No**         |
+| Escuchar audiolibro      | `chapter_media_completed`              | Sí           | **No**         |
+| Escuchar podcast         | `chapter_media_completed`              | Sí           | **No**         |
+| Ver video                | `chapter_media_completed`              | Sí           | **No**         |
+| Lectura guiada           | Solo sus eventos educativos existentes | Posible      | **No**         |
+| Confirmar resonancia     | `Resonance` explícita con procedencia  | —            | **Sí**         |
+| Registrar cómo me siento | Check-in explícito posterior           | —            | **Sí**         |
 
 ```
-NEW_MEDIA_ANALYTICS_EVENTS_IN_MVP=0
+MEDIA_ACTIVITY_TRACKING=MINIMAL
+NEW_MEDIA_ANALYTICS_EVENTS_IN_MVP=1
+MEDIA_ACTIVITY_EVENT=chapter_media_completed
+MEDIA_EVENT_GRANULARITY=COMPLETION_ONLY
+
+MEDIA_ACTIVITY_KINDS=AUDIOBOOK|PODCAST|VIDEO
+MEDIA_ACTIVITY_DESTINATION=MI_EVOLUCION
+
+GUIDE_ACTIVITY_SOURCE=EXISTING_LEARNING_EVENTS
+GUIDE_ACTIVITY_DESTINATION=MI_EVOLUCION
+
 MEDIA_ACTIVITY_AUTOMATIC_MAP_WRITE=false
 GUIDED_READING_AUTOMATIC_MAP_WRITE=false
+
+MAP_ENTRY_REQUIRES_EXPLICIT_USER_ACTION=true
 GUIDED_READING_EXPLICIT_RESONANCE_ONLY=true
+OPTIONAL_POST_EXPERIENCE_CHECKIN=true
+EXPERIENCE_CAUSAL_INFERENCE=false
 GLOBAL_MAP_INPUTS_EXCLUSIVE_TO_RESONANCE=false
 ```
 
@@ -588,8 +613,30 @@ Mapa Emocional conserva otras fuentes explícitas ajenas a Guided Reading —án
 autoinformado y micro-checkins— que siguen gobernadas por sus propios
 contratos. Esta tabla no las restringe ni las modifica.
 
-El MVP **no añade** ningún evento analítico de medios. Medir reproducción en el
-futuro exigiría una decisión explícita y una actualización de esta matriz.
+```
+Mi Evolución registra qué hizo la persona.
+Mapa Emocional registra únicamente señales que la persona decidió expresar.
+```
+
+El MVP añade **un solo** evento de medios, `chapter_media_completed`, y solo con
+granularidad de finalización: audiolibro, podcast o video terminados. No hay
+telemetría segundo a segundo ni porcentajes de reproducción. Ese evento va a Mi
+Evolución —el registro de actividad— y **nunca** al Mapa Emocional.
+
+La actividad de Guided Reading no estrena eventos: reutiliza los eventos
+educativos que el runtime ya emite, y su destino es igualmente Mi Evolución.
+
+Nada de esto entra al Mapa por sí solo. El Mapa solo recibe una acción
+explícita: confirmar una resonancia o registrar cómo se siente la persona
+después de la experiencia. El check-in posterior es opcional y no se interpreta
+como efecto de la experiencia (`EXPERIENCE_CAUSAL_INFERENCE=false`): haber
+terminado un video no explica un estado de ánimo.
+
+Ampliar esta telemetría en el futuro exigiría una decisión explícita y una
+actualización de esta matriz.
+
+**GR-1 no implementa ninguno de estos writes.** El prototipo anuncia el destino
+—«Esta experiencia se registrará en Mi Evolución.»— y no escribe nada.
 
 ---
 

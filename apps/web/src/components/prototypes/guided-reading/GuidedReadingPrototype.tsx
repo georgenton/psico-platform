@@ -15,12 +15,27 @@ import {
 } from "./guided-reading-prototype.fixture";
 
 /**
+ * Los checkpoints ya cerrados se derivan de la escena inicial para que las
+ * capturas deterministas muestren un progreso coherente.
+ *
+ * `Recordar` solo cuenta como cerrado en el cierre (escena 7): durante el
+ * feedback el checkpoint sigue abierto.
+ */
+function completedForScene(scene: GuideSceneIndex): GuideCheckpointKey[] {
+  const done: GuideCheckpointKey[] = [];
+  if (scene >= 4) done.push("concepto");
+  if (scene >= 5) done.push("practica");
+  if (scene >= 7) done.push("recordar");
+  return done;
+}
+
+/**
  * Raíz del prototipo visual de Guided Reading V1 (GR-1).
  *
  * Aislado por diseño: no hace `fetch`, no usa `localStorage`/`sessionStorage`
- * ni cookies, no llama al API Guide y no escribe en el Mapa Emocional. Todo el
- * estado vive en React y se pierde al recargar, que es exactamente lo que
- * queremos para una revisión de diseño.
+ * ni cookies, no llama al API Guide y no escribe en Mi Evolución ni en el Mapa
+ * Emocional. Todo el estado vive en React y se pierde al recargar, que es
+ * exactamente lo que queremos para una revisión de diseño.
  */
 export function GuidedReadingPrototype({
   initial,
@@ -29,17 +44,19 @@ export function GuidedReadingPrototype({
 }) {
   const [mode, setMode] = useState<PrototypeMode>(initial.mode);
   const [scene, setScene] = useState<GuideSceneIndex>(initial.scene);
-  const [completed, setCompleted] = useState<GuideCheckpointKey[]>(() => {
-    // Los checkpoints ya confirmados se derivan de la escena inicial para que
-    // las capturas deterministas muestren un progreso coherente.
-    const done: GuideCheckpointKey[] = [];
-    if (initial.scene >= 4) done.push("concepto");
-    if (initial.scene >= 5) done.push("practica");
-    if (initial.scene >= 6) done.push("recordar");
-    return done;
-  });
+  const [completed, setCompleted] = useState<GuideCheckpointKey[]>(() =>
+    completedForScene(initial.scene),
+  );
   const [resonance, setResonance] = useState<"yes" | "no" | null>(null);
+  const [checkin, setCheckin] = useState(false);
   const [anchorFlash, setAnchorFlash] = useState(false);
+  // El selector nace grande y se compacta en cuanto la persona elige. Con un
+  // `?mode=` explícito la elección ya está hecha.
+  const [hasChosen, setHasChosen] = useState(initial.mode !== "read");
+  // Cambiar esta `key` remonta el panel y reinicia TODO su estado local:
+  // reproducción del clip, transcripción, solo-audio, temporizador, opción
+  // elegida y pasaje localizado.
+  const [runId, setRunId] = useState(0);
 
   const anchorRef = useRef<HTMLQuoteElement | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -66,6 +83,7 @@ export function GuidedReadingPrototype({
   }, []);
 
   const selectMode = useCallback((next: PrototypeMode) => {
+    setHasChosen(true);
     setMode(next);
     setScene(next === "guide" ? 1 : 0);
   }, []);
@@ -84,6 +102,15 @@ export function GuidedReadingPrototype({
     },
     [],
   );
+
+  /** «Repetir la guía» vuelve al punto de partida, no a mitad del recorrido. */
+  const repeatGuide = useCallback(() => {
+    setScene(1);
+    setCompleted([]);
+    setResonance(null);
+    setCheckin(false);
+    setRunId((value) => value + 1);
+  }, []);
 
   const panelOpen = mode === "guide" && scene >= 1;
 
@@ -104,7 +131,11 @@ export function GuidedReadingPrototype({
         className={`${styles.layout} ${panelOpen ? styles.layoutWithPanel : ""}`}
       >
         <div className={styles.readerCol}>
-          <ChapterModeSelector mode={mode} onSelect={selectMode} />
+          <ChapterModeSelector
+            mode={mode}
+            compact={hasChosen}
+            onSelect={selectMode}
+          />
 
           {mode === "listen" || mode === "watch" ? (
             <PrototypeMediaExperience mode={mode} />
@@ -118,15 +149,19 @@ export function GuidedReadingPrototype({
 
         {panelOpen ? (
           <PrototypeGuidePanel
+            key={runId}
             scene={scene as Exclude<GuideSceneIndex, 0>}
             outcome={initial.outcome}
             completedCheckpoints={completed}
             resonance={resonance}
+            checkin={checkin}
             onScene={setScene}
             onClose={closeGuide}
             onGoToPassage={goToPassage}
             onConfirmCheckpoint={confirmCheckpoint}
             onResonance={setResonance}
+            onCheckin={() => setCheckin(true)}
+            onRepeat={repeatGuide}
           />
         ) : null}
       </main>

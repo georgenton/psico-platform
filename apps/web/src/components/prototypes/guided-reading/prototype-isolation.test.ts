@@ -14,6 +14,10 @@ import {
   CHECKPOINT_PROGRESS_AUTHORITY,
   SCENE_PROGRESS_AUTHORITY,
   REFERENCE_CLONE,
+  PRACTICE_EXPLICIT_ROUTE_REQUIRED,
+  PROTOTYPE_EVOLUTION_WRITE,
+  PROTOTYPE_CHECKIN_WRITE,
+  EMOTIONAL_MAP_WRITE,
 } from "./guided-reading-prototype.fixture";
 
 vi.mock("next/navigation", () => ({
@@ -71,6 +75,11 @@ describe("prototipo — ratchets de aislamiento", () => {
     ["@psico/api-client", "PROTOTYPE_GUIDE_API_REFERENCES=0"],
     ["use server", "el prototipo no usa server actions"],
     ["correctOptionKey", "la clave correcta nunca llega al cliente"],
+    ["emotionalMapApi", "PROTOTYPE_MAP_WRITES=0"],
+    ["resonancesApi", "PROTOTYPE_RESONANCE_WRITE=false"],
+    ["moodApi", "PROTOTYPE_CHECKIN_WRITE=false"],
+    ["homeApi", "PROTOTYPE_EVOLUTION_WRITE=false"],
+    ["lectorApi", "el prototipo no toca el lector productivo"],
   ])("ningún archivo del prototipo contiene %s (%s)", (needle) => {
     const offenders = FILES.filter((file) => codeOf(file).includes(needle)).map(
       (file) => file.slice(WEB_SRC.length + 1),
@@ -95,6 +104,31 @@ describe("prototipo — ratchets de aislamiento", () => {
     expect(CHECKPOINT_PROGRESS_AUTHORITY).toBe("SIMULATED_SERVER_FIXTURE");
     expect(SCENE_PROGRESS_AUTHORITY).toBe("PRESENTATION");
     expect(REFERENCE_CLONE).toBe(false);
+    expect(PRACTICE_EXPLICIT_ROUTE_REQUIRED).toBe(true);
+    expect(PROTOTYPE_EVOLUTION_WRITE).toBe(false);
+    expect(PROTOTYPE_CHECKIN_WRITE).toBe(false);
+    expect(EMOTIONAL_MAP_WRITE).toBe(false);
+  });
+
+  /*
+   * jsdom no calcula layout: `scrollWidth` siempre es 0, así que una prueba
+   * unitaria NO puede demostrar que no hay desbordamiento horizontal. Lo que
+   * sí se puede fijar aquí es el contrato CSS que lo evita; la medición real
+   * (`document.documentElement.scrollWidth <= window.innerWidth`) se hace en
+   * un navegador real y queda registrada en la especificación.
+   */
+  it("el sheet móvil declara el contrato anti-overflow", () => {
+    const css = readFileSync(
+      join(HERE, "guided-reading-prototype.module.css"),
+      "utf8",
+    );
+    const mobile = css.slice(css.indexOf("@media (max-width: 1023px)"));
+    expect(mobile).toContain("max-width: 100vw");
+    expect(mobile).toContain("safe-area-inset-bottom");
+    expect(mobile).toContain("flex-direction: column");
+    // Nada de anchos fijos en píxeles dentro del bloque móvil (el `max-width`
+    // de la propia media query no cuenta).
+    expect(mobile).not.toMatch(/(^|[^-])width:\s*\d{3,}px/m);
   });
 });
 

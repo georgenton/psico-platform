@@ -7,14 +7,17 @@ import {
   afterEach,
   type Mock,
 } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { GuidedReadingPrototype } from "./GuidedReadingPrototype";
 import {
   GUIDE_SCENE_COUNT,
+  PRACTICE_EXPLICIT_ROUTE_REQUIRED,
   PROTOTYPE_ANCHOR_BLOCK_KEY,
+  PROTOTYPE_CHECKIN_WRITE,
   PROTOTYPE_CLIENT_GRADING,
+  PROTOTYPE_EVOLUTION_WRITE,
   PROTOTYPE_RESONANCE_WRITE,
   EMOTIONAL_MAP_WRITE,
   type PrototypeInitialState,
@@ -38,6 +41,9 @@ let fetchSpy: Mock;
 let setItemSpy: Mock;
 let scrollSpy: Mock;
 
+const ORIGINAL_SET_ITEM = Storage.prototype.setItem;
+const ORIGINAL_SCROLL_INTO_VIEW = Element.prototype.scrollIntoView;
+
 beforeEach(() => {
   fetchSpy = vi.fn(() =>
     Promise.reject(new Error("network is forbidden in GR-1")),
@@ -50,20 +56,43 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = scrollSpy;
 });
 
-const ORIGINAL_SET_ITEM = Storage.prototype.setItem;
-const ORIGINAL_SCROLL_INTO_VIEW = Element.prototype.scrollIntoView;
-
 afterEach(() => {
   Storage.prototype.setItem = ORIGINAL_SET_ITEM;
   Element.prototype.scrollIntoView = ORIGINAL_SCROLL_INTO_VIEW;
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 function renderPrototype(initial: Partial<PrototypeInitialState> = {}) {
   return render(
     <GuidedReadingPrototype initial={{ ...DEFAULT_INITIAL, ...initial }} />,
   );
+}
+
+/** Recorre el flujo desde el selector hasta la escena pedida. */
+async function walkTo(
+  user: ReturnType<typeof userEvent.setup>,
+  target: number,
+) {
+  await user.click(screen.getByRole("button", { name: /^Lectura guiada/ }));
+  if (target <= 1) return;
+  await user.click(screen.getByRole("button", { name: "Empezar" }));
+  if (target <= 2) return;
+  await user.click(screen.getByRole("button", { name: "Continuar" }));
+  if (target <= 3) return;
+  await user.click(screen.getByRole("button", { name: "Ir al pasaje" }));
+  await user.click(screen.getByRole("button", { name: "Continuar" }));
+  if (target <= 4) return;
+  await user.click(
+    screen.getByRole("button", { name: "Continuar sin temporizador" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Terminé la práctica" }));
+  if (target <= 5) return;
+  await user.click(screen.getAllByRole("radio")[0]);
+  await user.click(screen.getByRole("button", { name: "Responder" }));
+  if (target <= 6) return;
+  await user.click(screen.getByRole("button", { name: "Continuar" }));
 }
 
 describe("GuidedReadingPrototype — selector de modalidad", () => {
@@ -79,14 +108,30 @@ describe("GuidedReadingPrototype — selector de modalidad", () => {
     expect(screen.getByRole("tab", { name: "Audiolibro" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Podcast" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /^Ver/ }));
+    await user.click(screen.getByRole("button", { name: "Ver" }));
     expect(screen.getByLabelText("Ver el capítulo")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /^Lectura guiada/ }));
+    await user.click(screen.getByRole("button", { name: "Guía" }));
     expect(screen.getByTestId("guide-panel")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /^Leer/ }));
+    await user.click(screen.getByRole("button", { name: "Leer" }));
     expect(screen.getByLabelText("Texto del capítulo")).toBeInTheDocument();
+  });
+
+  it("nace grande y se compacta tras la primera elección", async () => {
+    const user = userEvent.setup();
+    renderPrototype();
+
+    expect(screen.getByTestId("mode-selector")).toHaveAttribute(
+      "data-variant",
+      "full",
+    );
+
+    await user.click(screen.getByRole("button", { name: /^Escuchar/ }));
+    expect(screen.getByTestId("mode-selector")).toHaveAttribute(
+      "data-variant",
+      "compact",
+    );
   });
 
   it("no arranca la lectura guiada automáticamente", () => {
@@ -151,9 +196,8 @@ describe("GuidedReadingPrototype — ocho escenas", () => {
     expect(screen.getByText("Ahora míralo en el libro")).toBeInTheDocument();
 
     // Escena 4 — práctica (cierra el checkpoint Concepto).
-    await user.click(
-      screen.getByRole("button", { name: "He explorado esta idea" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Ir al pasaje" }));
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
     expect(screen.getByTestId("guide-panel")).toHaveAttribute(
       "data-scene",
       "4",
@@ -161,6 +205,9 @@ describe("GuidedReadingPrototype — ocho escenas", () => {
     expect(screen.getByText("Escucharte por dentro")).toBeInTheDocument();
 
     // Escena 5 — recall.
+    await user.click(
+      screen.getByRole("button", { name: "Continuar sin temporizador" }),
+    );
     await user.click(
       screen.getByRole("button", { name: "Terminé la práctica" }),
     );
@@ -221,9 +268,49 @@ describe("GuidedReadingPrototype — pasaje anclado", () => {
     // El anchor del prototipo es visual: no hay `blockKey` real.
     expect(PROTOTYPE_ANCHOR_BLOCK_KEY).toBeNull();
   });
+
+  it("no ofrece completar el concepto antes de localizar el pasaje", async () => {
+    const user = userEvent.setup();
+    renderPrototype({ mode: "guide", scene: 3 });
+
+    expect(
+      screen.queryByRole("button", { name: "Continuar" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("passage-located")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Ir al pasaje" }));
+
+    expect(screen.getByTestId("passage-located")).toHaveTextContent(
+      "Pasaje localizado",
+    );
+    expect(
+      screen.getByRole("button", { name: "Continuar" }),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("GuidedReadingPrototype — práctica", () => {
+  it("no deja confirmar la práctica sin una ruta explícita", async () => {
+    const user = userEvent.setup();
+    renderPrototype({ mode: "guide", scene: 4 });
+
+    expect(PRACTICE_EXPLICIT_ROUTE_REQUIRED).toBe(true);
+    const cta = screen.getByRole("button", { name: "Terminé la práctica" });
+    expect(cta).toBeDisabled();
+
+    // Un click sobre el botón deshabilitado no cambia de escena.
+    await user.click(cta);
+    expect(screen.getByTestId("guide-panel")).toHaveAttribute(
+      "data-scene",
+      "4",
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Continuar sin temporizador" }),
+    );
+    expect(cta).toBeEnabled();
+  });
+
   it("permite la pausa con temporizador o continuar sin él", async () => {
     const user = userEvent.setup();
     renderPrototype({ mode: "guide", scene: 4 });
@@ -244,14 +331,9 @@ describe("GuidedReadingPrototype — práctica", () => {
       screen.getByRole("button", { name: "Terminar la pausa ahora" }),
     );
     expect(screen.queryByText("45")).not.toBeInTheDocument();
-
-    await user.click(
-      screen.getByRole("button", { name: "Continuar sin temporizador" }),
-    );
-    expect(screen.getByTestId("guide-panel")).toHaveAttribute(
-      "data-scene",
-      "4",
-    );
+    expect(
+      screen.getByRole("button", { name: "Terminé la práctica" }),
+    ).toBeEnabled();
   });
 });
 
@@ -280,21 +362,179 @@ describe("GuidedReadingPrototype — recall y feedback", () => {
     expect(screen.queryByText(/%/)).not.toBeInTheDocument();
     expect(screen.queryByText(/correctOptionKey/)).not.toBeInTheDocument();
   });
+
+  it("durante el feedback el checkpoint Recordar sigue abierto", async () => {
+    const user = userEvent.setup();
+    renderPrototype();
+    await walkTo(user, 6);
+
+    expect(screen.getByText("Recordar · feedback")).toBeInTheDocument();
+    // El checkpoint aún no lleva la marca de completado.
+    expect(screen.queryByText("✓ Recordar")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+    expect(screen.getByText("✓ Recordar")).toBeInTheDocument();
+  });
 });
 
 describe("GuidedReadingPrototype — cierre", () => {
-  it("la resonancia solo cambia estado local", async () => {
+  it("la resonancia y el check-in solo cambian estado local", async () => {
     const user = userEvent.setup();
     renderPrototype({ mode: "guide", scene: 7 });
 
+    expect(screen.getByTestId("evolution-note")).toHaveTextContent(
+      "Esta experiencia se registrará en Mi Evolución.",
+    );
+
     await user.click(screen.getByRole("button", { name: "Esto me resonó" }));
+    expect(
+      screen.getByText(/No se guarda ninguna resonancia/i),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Registrar cómo me siento" }),
+    );
+    expect(
+      screen.getByText(/No se registra ningún check-in/i),
+    ).toBeInTheDocument();
 
     expect(
-      screen.getByText(/solo cambia el estado local/i),
+      screen.getByRole("button", { name: "Ahora no" }),
     ).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(PROTOTYPE_RESONANCE_WRITE).toBe(false);
+    expect(PROTOTYPE_CHECKIN_WRITE).toBe(false);
+    expect(PROTOTYPE_EVOLUTION_WRITE).toBe(false);
     expect(EMOTIONAL_MAP_WRITE).toBe(false);
+  });
+
+  it("«Repetir la guía» reinicia el recorrido completo", async () => {
+    const user = userEvent.setup();
+    renderPrototype();
+    await walkTo(user, 7);
+
+    // Estado sucio antes de repetir.
+    await user.click(screen.getByRole("button", { name: "Esto me resonó" }));
+    expect(screen.getByText("✓ Concepto")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Repetir la guía" }));
+
+    // Vuelve a la portada, sin checkpoints cerrados.
+    expect(screen.getByTestId("guide-panel")).toHaveAttribute(
+      "data-scene",
+      "1",
+    );
+    expect(screen.queryByText("✓ Concepto")).not.toBeInTheDocument();
+    expect(screen.queryByText("✓ Recordar")).not.toBeInTheDocument();
+
+    // El estado local de las escenas también se reinicia: la práctica vuelve a
+    // exigir una ruta explícita y el recall vuelve sin opción elegida.
+    await user.click(screen.getByRole("button", { name: "Empezar" }));
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+    expect(screen.queryByTestId("passage-located")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Ir al pasaje" }));
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+    expect(
+      screen.getByRole("button", { name: "Terminé la práctica" }),
+    ).toBeDisabled();
+  });
+});
+
+describe("GuidedReadingPrototype — clip", () => {
+  it("«Escuchar solo audio» cambia la representación y permite volver", async () => {
+    const user = userEvent.setup();
+    renderPrototype({ mode: "guide", scene: 2 });
+
+    const canvas = screen.getByTestId("clip-canvas");
+    expect(canvas).toHaveAttribute("data-representation", "video");
+
+    const toggle = screen.getByRole("button", { name: "Escuchar solo audio" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(toggle);
+    expect(screen.getByTestId("clip-canvas")).toHaveAttribute(
+      "data-representation",
+      "audio",
+    );
+
+    const back = screen.getByRole("button", { name: "Volver al video" });
+    expect(back).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(back);
+    expect(screen.getByTestId("clip-canvas")).toHaveAttribute(
+      "data-representation",
+      "video",
+    );
+  });
+});
+
+describe("GuidedReadingPrototype — multimedia", () => {
+  it("la velocidad modifica el reloj simulado", () => {
+    // `fireEvent` en lugar de `userEvent`: con temporizadores falsos el
+    // pointer-events asíncrono de user-event se queda esperando.
+    vi.useFakeTimers();
+    renderPrototype({ mode: "listen" });
+
+    const clock = screen.getByTestId("player-clock");
+    expect(clock).toHaveTextContent("04:24");
+
+    fireEvent.click(screen.getByRole("button", { name: /^Reproducir/ }));
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    // A 1× el reloj avanza un segundo por segundo.
+    expect(clock).toHaveTextContent("04:26");
+
+    fireEvent.click(screen.getByRole("button", { name: "1.5×" }));
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    // A 1.5× avanza tres segundos en dos.
+    expect(clock).toHaveTextContent("04:29");
+    expect(screen.getByTestId("simulated-player")).toHaveAttribute(
+      "data-speed",
+      "1.5",
+    );
+  });
+
+  it("los subtítulos se ven y «Solo audio» cambia el poster", async () => {
+    const user = userEvent.setup();
+    renderPrototype({ mode: "watch" });
+
+    // Los subtítulos vienen activos: hay una línea visible sobre el poster.
+    expect(screen.getByTestId("video-subtitle")).toBeInTheDocument();
+    expect(screen.getByTestId("video-poster")).toHaveAttribute(
+      "data-representation",
+      "video",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Subtítulos" }));
+    expect(screen.queryByTestId("video-subtitle")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Solo audio" }));
+    expect(screen.getByTestId("video-poster")).toHaveAttribute(
+      "data-representation",
+      "audio",
+    );
+
+    // La transcripción sigue funcionando en cualquier representación.
+    await user.click(screen.getByRole("button", { name: "Transcripción" }));
+    expect(
+      screen.getByText(/Imagina que escuchas un ruido inesperado/),
+    ).toBeInTheDocument();
+  });
+
+  it("cada modalidad de medios anuncia el destino en Mi Evolución", async () => {
+    const user = userEvent.setup();
+    renderPrototype({ mode: "listen" });
+
+    expect(screen.getByTestId("evolution-note")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Podcast" }));
+    expect(screen.getByTestId("evolution-note")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Ver" }));
+    expect(screen.getByTestId("evolution-note")).toBeInTheDocument();
   });
 });
 
@@ -305,13 +545,17 @@ describe("GuidedReadingPrototype — aislamiento", () => {
 
     await user.click(screen.getByRole("button", { name: /^Escuchar/ }));
     await user.click(screen.getByRole("tab", { name: "Podcast" }));
-    await user.click(screen.getByRole("button", { name: /^Ver/ }));
+    await user.click(screen.getByRole("button", { name: "Ver" }));
     await user.click(screen.getByRole("button", { name: "Transcripción" }));
-    await user.click(screen.getByRole("button", { name: /^Lectura guiada/ }));
+    await user.click(screen.getByRole("button", { name: "Solo audio" }));
+    await user.click(screen.getByRole("button", { name: "Guía" }));
     await user.click(screen.getByRole("button", { name: "Empezar" }));
     await user.click(screen.getByRole("button", { name: "Reproducir" }));
     await user.click(
       screen.getByRole("button", { name: "Leer transcripción" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Escuchar solo audio" }),
     );
     await user.click(screen.getByRole("button", { name: "Continuar" }));
     await user.click(screen.getByRole("button", { name: "Ir al pasaje" }));

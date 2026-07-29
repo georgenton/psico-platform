@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import styles from "./guided-reading-prototype.module.css";
 import {
   AUDIOBOOK,
+  EVOLUTION_NOTE,
   PODCAST,
   VIDEO,
   type ListenTrack,
@@ -19,9 +20,11 @@ function mmss(totalSeconds: number): string {
 /**
  * Reproductor simulado.
  *
- * No hay audio ni video reales: «reproducir» solo avanza una posición local
- * para que la línea de tiempo se vea viva durante la revisión. El hosting de
- * medios se decide en GR-2 (`MEDIA_HOSTING_PROVIDER=TBD_UNTIL_GR2`).
+ * No hay audio ni video reales: «reproducir» avanza un reloj local para que la
+ * línea de tiempo se vea viva durante la revisión. La velocidad afecta a ese
+ * reloj —1.5× avanza una vez y media por segundo— para que el control se sienta
+ * conectado a algo. El hosting de medios se decide en GR-2
+ * (`MEDIA_HOSTING_PROVIDER=TBD_UNTIL_GR2`).
  */
 function SimulatedPlayer({
   label,
@@ -39,23 +42,25 @@ function SimulatedPlayer({
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(startSeconds);
   const [speed, setSpeed] = useState(1);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // El intervalo lee la velocidad viva por referencia: cambiarla no reinicia
+  // la reproducción.
+  const speedRef = useRef(1);
+  speedRef.current = speed;
 
   useEffect(() => {
     if (!playing) return;
-    timer.current = setInterval(() => {
-      setPosition((current) => Math.min(totalSeconds, current + 1));
+    const id = setInterval(() => {
+      setPosition((current) =>
+        Math.min(totalSeconds, current + speedRef.current),
+      );
     }, 1000);
-    return () => {
-      if (timer.current) clearInterval(timer.current);
-      timer.current = null;
-    };
+    return () => clearInterval(id);
   }, [playing, totalSeconds]);
 
   const pct = totalSeconds > 0 ? (position / totalSeconds) * 100 : 0;
 
   return (
-    <div>
+    <div data-testid="simulated-player" data-speed={speed}>
       <div className={styles.playerRow}>
         <button
           type="button"
@@ -65,7 +70,9 @@ function SimulatedPlayer({
         >
           {playing ? "❚❚" : "▶"}
         </button>
-        <span className={styles.timeLabel}>{mmss(position)}</span>
+        <span className={styles.timeLabel} data-testid="player-clock">
+          {mmss(position)}
+        </span>
         <div
           className={styles.timeline}
           role="progressbar"
@@ -96,6 +103,15 @@ function SimulatedPlayer({
         ))}
       </div>
     </div>
+  );
+}
+
+/** La misma línea en las tres modalidades: qué se registrará al terminar. */
+function EvolutionNote() {
+  return (
+    <p className={styles.evolutionNote} data-testid="evolution-note">
+      {EVOLUTION_NOTE}
+    </p>
   );
 }
 
@@ -149,6 +165,7 @@ function ListenExperience() {
               </li>
             ))}
           </ul>
+          <EvolutionNote />
         </div>
       ) : (
         <div>
@@ -171,6 +188,7 @@ function ListenExperience() {
               </li>
             ))}
           </ul>
+          <EvolutionNote />
         </div>
       )}
     </section>
@@ -184,48 +202,66 @@ function WatchExperience() {
 
   return (
     <section className={styles.mediaCard} aria-label="Ver el capítulo">
-      <div className={styles.poster} aria-hidden="true">
-        <span style={{ fontSize: "var(--text-4xl)" }}>▶</span>
-        <span className={styles.posterCaption}>{VIDEO.posterCaption}</span>
-      </div>
-      <h2 className={styles.mediaTitle}>{VIDEO.title}</h2>
-      <p className={styles.mediaSubtitle}>
-        {VIDEO.subtitle} · {VIDEO.targetLabel} · {VIDEO.totalLabel}
-      </p>
+      <div className={styles.videoHead}>
+        <div
+          className={`${styles.poster} ${audioOnly ? styles.posterAudio : ""}`}
+          data-testid="video-poster"
+          data-representation={audioOnly ? "audio" : "video"}
+        >
+          <span aria-hidden="true" style={{ fontSize: "var(--text-3xl)" }}>
+            {audioOnly ? "◍" : "▶"}
+          </span>
+          <span className={styles.posterCaption}>
+            {audioOnly ? VIDEO.audioOnlyCaption : VIDEO.posterCaption}
+          </span>
+          {subtitles && !audioOnly ? (
+            <span className={styles.subtitleLine} data-testid="video-subtitle">
+              {VIDEO.subtitleLine}
+            </span>
+          ) : null}
+        </div>
 
-      <SimulatedPlayer
-        label="la videoexplicación"
-        totalSeconds={492}
-        totalLabel={VIDEO.totalLabel}
-        startSeconds={0}
-        speeds={[0.75, 1, 1.25, 1.5]}
-      />
+        <div className={styles.videoMeta}>
+          <h2 className={styles.mediaTitle}>{VIDEO.title}</h2>
+          <p className={styles.mediaSubtitle}>
+            {VIDEO.subtitle} · {VIDEO.targetLabel} · {VIDEO.totalLabel}
+          </p>
 
-      <div className={styles.rowWrap}>
-        <button
-          type="button"
-          aria-pressed={subtitles}
-          onClick={() => setSubtitles((value) => !value)}
-          className={`${styles.chip} ${subtitles ? styles.chipOn : ""}`}
-        >
-          Subtítulos
-        </button>
-        <button
-          type="button"
-          aria-pressed={audioOnly}
-          onClick={() => setAudioOnly((value) => !value)}
-          className={`${styles.chip} ${audioOnly ? styles.chipOn : ""}`}
-        >
-          Solo audio
-        </button>
-        <button
-          type="button"
-          aria-expanded={transcriptOpen}
-          onClick={() => setTranscriptOpen((value) => !value)}
-          className={`${styles.chip} ${transcriptOpen ? styles.chipOn : ""}`}
-        >
-          Transcripción
-        </button>
+          <SimulatedPlayer
+            label="la videoexplicación"
+            totalSeconds={492}
+            totalLabel={VIDEO.totalLabel}
+            startSeconds={0}
+            speeds={[0.75, 1, 1.25, 1.5]}
+          />
+
+          <div className={styles.rowWrap}>
+            <button
+              type="button"
+              aria-pressed={subtitles}
+              onClick={() => setSubtitles((value) => !value)}
+              className={`${styles.chip} ${subtitles ? styles.chipOn : ""}`}
+            >
+              Subtítulos
+            </button>
+            <button
+              type="button"
+              aria-pressed={audioOnly}
+              onClick={() => setAudioOnly((value) => !value)}
+              className={`${styles.chip} ${audioOnly ? styles.chipOn : ""}`}
+            >
+              Solo audio
+            </button>
+            <button
+              type="button"
+              aria-expanded={transcriptOpen}
+              onClick={() => setTranscriptOpen((value) => !value)}
+              className={`${styles.chip} ${transcriptOpen ? styles.chipOn : ""}`}
+            >
+              Transcripción
+            </button>
+          </div>
+        </div>
       </div>
 
       {transcriptOpen ? (
@@ -245,6 +281,8 @@ function WatchExperience() {
           </li>
         ))}
       </ul>
+
+      <EvolutionNote />
     </section>
   );
 }

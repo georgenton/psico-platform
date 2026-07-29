@@ -6,8 +6,10 @@ import { PrototypeProgress } from "./PrototypeProgress";
 import {
   EVOLUTION_NOTE,
   GUIDE_ANCHOR_SCENE,
+  GUIDE_CHECKIN_BLOCK,
   GUIDE_CLIP,
   GUIDE_COMPLETION,
+  GUIDE_RESONANCE_BLOCK,
   GUIDE_COVER,
   GUIDE_FEEDBACK,
   GUIDE_PRACTICE,
@@ -110,7 +112,11 @@ export function PrototypeGuidePanel({
 
   return (
     <aside
-      className={styles.panel}
+      className={`${styles.panel} ${
+        // Dos clases visuales y ninguna más: el sheet crece solo donde el
+        // contenido lo pide (práctica y recall).
+        scene === 4 || scene === 5 ? styles.sheetExpanded : styles.sheetStandard
+      }`}
       aria-label="Lectura guiada"
       data-testid="guide-panel"
       data-scene={scene}
@@ -369,9 +375,13 @@ export function PrototypeGuidePanel({
               {EVOLUTION_NOTE}
             </p>
 
-            <div className={styles.resonance}>
+            <section
+              className={styles.closingBlock}
+              aria-label="Resonancia"
+              data-testid="resonance-block"
+            >
               <p className={styles.sceneText} style={{ marginBottom: 0 }}>
-                {GUIDE_COMPLETION.resonanceQuestion}
+                {GUIDE_RESONANCE_BLOCK.question}
               </p>
               <div className={styles.resonanceRow}>
                 <button
@@ -380,15 +390,7 @@ export function PrototypeGuidePanel({
                   aria-pressed={resonance === "yes"}
                   onClick={() => onResonance("yes")}
                 >
-                  {GUIDE_COMPLETION.resonanceYes}
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.chip} ${checkin ? styles.chipOn : ""}`}
-                  aria-pressed={checkin}
-                  onClick={onCheckin}
-                >
-                  {GUIDE_COMPLETION.checkinCta}
+                  {GUIDE_RESONANCE_BLOCK.confirmCta}
                 </button>
                 <button
                   type="button"
@@ -396,20 +398,42 @@ export function PrototypeGuidePanel({
                   aria-pressed={resonance === "no"}
                   onClick={() => onResonance("no")}
                 >
-                  {GUIDE_COMPLETION.resonanceNo}
+                  {GUIDE_RESONANCE_BLOCK.dismissCta}
                 </button>
               </div>
+              <p className={styles.privacyNote}>{GUIDE_RESONANCE_BLOCK.note}</p>
               {resonance !== null ? (
                 <p className={styles.privacyNote}>
-                  {GUIDE_COMPLETION.resonanceConfirmed}
+                  {GUIDE_RESONANCE_BLOCK.prototypeNote}
                 </p>
               ) : null}
+            </section>
+
+            <section
+              className={styles.closingBlock}
+              aria-label="Check-in opcional"
+              data-testid="checkin-block"
+            >
+              <p className={styles.sceneText} style={{ marginBottom: 0 }}>
+                {GUIDE_CHECKIN_BLOCK.question}
+              </p>
+              <div className={styles.resonanceRow}>
+                <button
+                  type="button"
+                  className={`${styles.chip} ${checkin ? styles.chipOn : ""}`}
+                  aria-pressed={checkin}
+                  onClick={onCheckin}
+                >
+                  {GUIDE_CHECKIN_BLOCK.cta}
+                </button>
+              </div>
+              <p className={styles.privacyNote}>{GUIDE_CHECKIN_BLOCK.note}</p>
               {checkin ? (
                 <p className={styles.privacyNote}>
-                  {GUIDE_COMPLETION.checkinConfirmed}
+                  {GUIDE_CHECKIN_BLOCK.prototypeNote}
                 </p>
               ) : null}
-            </div>
+            </section>
           </>
         ) : null}
       </div>

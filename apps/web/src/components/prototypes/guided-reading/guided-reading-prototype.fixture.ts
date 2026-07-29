@@ -56,6 +56,14 @@ export const EXPERIENCE_TONE = "ACCOMPANIED_NOT_ADMINISTRATIVE" as const;
  */
 export const EVOLUTION_NOTE = "Esta experiencia se registrará en Mi Evolución.";
 
+/**
+ * Alcance de la nota anterior:
+ *
+ *   En GR-1 es copy de prototipo.
+ *   El write real pertenece a GR-2/GR-3.
+ */
+export const EVOLUTION_NOTE_SCOPE = "PROTOTYPE_COPY_ONLY" as const;
+
 export const CHAPTER = {
   bookTitle: "Emociones en construcción",
   partLabel: "Parte I · Deconstruyendo lo que sabíamos",
@@ -271,7 +279,7 @@ export const GUIDE_CLIP = {
 } as const;
 
 export const GUIDE_ANCHOR_SCENE = {
-  title: "Ahora míralo en el libro",
+  title: "Observa esta idea en el texto",
   description:
     "Este pasaje presenta la secuencia entre la reacción corporal y la comprensión consciente.",
   cta: "Ir al pasaje",
@@ -357,15 +365,31 @@ export const GUIDE_COMPLETION = {
     "Una pregunta para consolidar la idea",
   ],
   actions: ["Continuar leyendo", "Volver al pasaje", "Repetir la guía"],
-  resonanceQuestion: "¿Esta idea fue personalmente significativa para ti?",
-  resonanceYes: "Esto me resonó",
-  checkinCta: "Registrar cómo me siento",
-  resonanceNo: "Ahora no",
-  resonanceConfirmed:
-    "En el prototipo esto solo cambia el estado local. No se guarda ninguna resonancia.",
-  checkinConfirmed:
-    "En el prototipo esto solo cambia el estado local. No se registra ningún check-in.",
   evolutionNote: EVOLUTION_NOTE,
+} as const;
+
+/**
+ * Resonancia y check-in son dos bloques independientes.
+ *
+ * El check-in NO es una respuesta a la pregunta de resonancia: son cosas
+ * distintas —una marca el contenido como significativo, la otra registra un
+ * estado— y mezclarlas insinuaría que la guía causó ese estado.
+ */
+export const GUIDE_RESONANCE_BLOCK = {
+  question: "¿Esta idea te resonó personalmente?",
+  confirmCta: "Guardar como resonancia",
+  dismissCta: "Ahora no",
+  note: "Solo se guarda si tú lo confirmas.",
+  prototypeNote:
+    "En el prototipo esto solo cambia el estado local. No se guarda ninguna resonancia.",
+} as const;
+
+export const GUIDE_CHECKIN_BLOCK = {
+  question: "¿Quieres registrar cómo te sientes ahora?",
+  cta: "Registrar mi momento",
+  note: "Es opcional y no significa que la guía haya causado ese estado.",
+  prototypeNote:
+    "En el prototipo esto solo cambia el estado local. No se registra ningún check-in.",
 } as const;
 
 /* ── Parámetros deterministas para capturas ───────────────────────────── */

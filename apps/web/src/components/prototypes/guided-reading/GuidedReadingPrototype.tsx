@@ -134,6 +134,7 @@ export function GuidedReadingPrototype({
           <ChapterModeSelector
             mode={mode}
             compact={hasChosen}
+            mobileHidden={panelOpen}
             onSelect={selectMode}
           />
 

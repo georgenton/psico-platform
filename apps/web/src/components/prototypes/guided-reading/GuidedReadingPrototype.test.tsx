@@ -193,7 +193,9 @@ describe("GuidedReadingPrototype — ocho escenas", () => {
       "data-scene",
       "3",
     );
-    expect(screen.getByText("Ahora míralo en el libro")).toBeInTheDocument();
+    expect(
+      screen.getByText("Observa esta idea en el texto"),
+    ).toBeInTheDocument();
 
     // Escena 4 — práctica (cierra el checkpoint Concepto).
     await user.click(screen.getByRole("button", { name: "Ir al pasaje" }));
@@ -378,7 +380,50 @@ describe("GuidedReadingPrototype — recall y feedback", () => {
 });
 
 describe("GuidedReadingPrototype — cierre", () => {
-  it("la resonancia y el check-in solo cambian estado local", async () => {
+  it("presenta resonancia y check-in como bloques separados", () => {
+    renderPrototype({ mode: "guide", scene: 7 });
+
+    const resonance = screen.getByTestId("resonance-block");
+    const checkin = screen.getByTestId("checkin-block");
+
+    // Son dos grupos, no uno.
+    expect(resonance).not.toContainElement(checkin);
+    expect(checkin).not.toContainElement(resonance);
+
+    expect(
+      within(resonance).getByText("¿Esta idea te resonó personalmente?"),
+    ).toBeInTheDocument();
+    expect(
+      within(checkin).getByText("¿Quieres registrar cómo te sientes ahora?"),
+    ).toBeInTheDocument();
+  });
+
+  it("el check-in no es una respuesta a la pregunta de resonancia", () => {
+    renderPrototype({ mode: "guide", scene: 7 });
+
+    const resonance = screen.getByTestId("resonance-block");
+    const answers = within(resonance)
+      .getAllByRole("button")
+      .map((button) => button.textContent);
+
+    // La pregunta de resonancia solo admite dos respuestas.
+    expect(answers).toEqual(["Guardar como resonancia", "Ahora no"]);
+    expect(
+      within(resonance).queryByRole("button", { name: /Registrar/ }),
+    ).not.toBeInTheDocument();
+
+    const checkin = screen.getByTestId("checkin-block");
+    expect(
+      within(checkin).getByRole("button", { name: "Registrar mi momento" }),
+    ).toBeInTheDocument();
+    expect(
+      within(checkin).getByText(
+        /no significa que la guía haya causado ese estado/i,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("guardar una resonancia no escribe nada", async () => {
     const user = userEvent.setup();
     renderPrototype({ mode: "guide", scene: 7 });
 
@@ -386,23 +431,32 @@ describe("GuidedReadingPrototype — cierre", () => {
       "Esta experiencia se registrará en Mi Evolución.",
     );
 
-    await user.click(screen.getByRole("button", { name: "Esto me resonó" }));
+    await user.click(
+      screen.getByRole("button", { name: "Guardar como resonancia" }),
+    );
     expect(
       screen.getByText(/No se guarda ninguna resonancia/i),
     ).toBeInTheDocument();
 
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(PROTOTYPE_RESONANCE_WRITE).toBe(false);
+    expect(EMOTIONAL_MAP_WRITE).toBe(false);
+  });
+
+  it("registrar el momento no escribe nada", async () => {
+    const user = userEvent.setup();
+    renderPrototype({ mode: "guide", scene: 7 });
+
     await user.click(
-      screen.getByRole("button", { name: "Registrar cómo me siento" }),
+      screen.getByRole("button", { name: "Registrar mi momento" }),
     );
     expect(
       screen.getByText(/No se registra ningún check-in/i),
     ).toBeInTheDocument();
 
-    expect(
-      screen.getByRole("button", { name: "Ahora no" }),
-    ).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(PROTOTYPE_RESONANCE_WRITE).toBe(false);
+    expect(setItemSpy).not.toHaveBeenCalled();
     expect(PROTOTYPE_CHECKIN_WRITE).toBe(false);
     expect(PROTOTYPE_EVOLUTION_WRITE).toBe(false);
     expect(EMOTIONAL_MAP_WRITE).toBe(false);
@@ -414,7 +468,9 @@ describe("GuidedReadingPrototype — cierre", () => {
     await walkTo(user, 7);
 
     // Estado sucio antes de repetir.
-    await user.click(screen.getByRole("button", { name: "Esto me resonó" }));
+    await user.click(
+      screen.getByRole("button", { name: "Guardar como resonancia" }),
+    );
     expect(screen.getByText("✓ Concepto")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Repetir la guía" }));
@@ -437,6 +493,56 @@ describe("GuidedReadingPrototype — cierre", () => {
     expect(
       screen.getByRole("button", { name: "Terminé la práctica" }),
     ).toBeDisabled();
+  });
+});
+
+describe("GuidedReadingPrototype — móvil", () => {
+  /*
+   * jsdom no aplica media queries ni calcula layout: lo que estas pruebas
+   * fijan es el contrato del DOM (`data-mobile-hidden` + la clase que el CSS
+   * móvil oculta). Que en 390 x 844 el selector desaparezca de verdad y el
+   * texto quede visible detrás del sheet se mide en navegador y queda
+   * registrado en la especificación.
+   */
+  it("con la Guide abierta el selector compacto se marca como oculto en móvil", async () => {
+    const user = userEvent.setup();
+    renderPrototype();
+
+    await user.click(screen.getByRole("button", { name: /^Lectura guiada/ }));
+    const selector = screen.getByTestId("mode-selector");
+    expect(selector).toHaveAttribute("data-variant", "compact");
+    expect(selector).toHaveAttribute("data-mobile-hidden", "true");
+    expect(selector.className).toContain("hiddenOnMobile");
+  });
+
+  it("al cerrar la Guide el selector vuelve", async () => {
+    const user = userEvent.setup();
+    renderPrototype({ mode: "guide", scene: 1 });
+
+    expect(screen.getByTestId("mode-selector")).toHaveAttribute(
+      "data-mobile-hidden",
+      "true",
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Cerrar lectura guiada" }),
+    );
+
+    const selector = screen.getByTestId("mode-selector");
+    expect(selector).toHaveAttribute("data-mobile-hidden", "false");
+    expect(selector.className).not.toContain("hiddenOnMobile");
+  });
+
+  it("el texto del capítulo sigue montado detrás del sheet", () => {
+    renderPrototype({ mode: "guide", scene: 4 });
+
+    expect(screen.getByLabelText("Texto del capítulo")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Una reacción que llega antes que la palabra/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Solemos pensar que primero entendemos/),
+    ).toBeInTheDocument();
   });
 });
 

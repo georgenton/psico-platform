@@ -972,7 +972,9 @@
   }
 
   .sheetExpanded {
-    max-height: 82dvh;
+    /* Crece lo justo: por encima de esto el texto del capítulo desaparece
+       detrás del sheet, y el cuerpo del panel ya tiene scroll propio. */
+    max-height: 76dvh;
   }
 
   /*
@@ -1000,7 +1002,14 @@
     padding: var(--space-lg);
   }
 
-  /* La cabecera conserva el contexto del capítulo en una sola línea. */
+  /*
+   * La cabecera conserva el contexto del capítulo —libro, parte y capítulo— y
+   * suelta la etiqueta de prototipo, que no es contexto de lectura.
+   */
+  [data-panel-open="true"] .eyebrow {
+    display: none;
+  }
+
   .layoutWithPanel .chapterTitle {
     white-space: nowrap;
     overflow: hidden;

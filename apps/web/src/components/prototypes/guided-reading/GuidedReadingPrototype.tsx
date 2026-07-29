@@ -115,7 +115,7 @@ export function GuidedReadingPrototype({
   const panelOpen = mode === "guide" && scene >= 1;
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} data-panel-open={panelOpen}>
       <header className={styles.topbar}>
         <div className={styles.topbarInner}>
           <span className={styles.eyebrow}>Prototipo · revisión de diseño</span>

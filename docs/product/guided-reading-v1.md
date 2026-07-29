@@ -828,6 +828,21 @@ GR1_PROTOTYPE_ROUTE=/prototipos/lectura-guiada
 PROTOTYPE_AVAILABLE_IN_PRODUCTION=false
 PROTOTYPE_LINKED_FROM_PRODUCT_NAV=false
 
+VISUAL_EVIDENCE_SOURCE_SHA=ea6e63a640bea3bb9edf1f8397e6e7a8850ebb57
+SCREENSHOTS_REGENERATED_FROM_SINGLE_HEAD=true
+
+PRACTICE_EXPLICIT_ROUTE_REQUIRED=true
+PRACTICE_COMPLETE_BEFORE_ROUTE_CALLS=0
+ANCHOR_ACTION_HIERARCHY_PASS=true
+REPEAT_FLOW_FULL_RESET=true
+MEDIA_CONTROLS_COHERENT=true
+MOBILE_HORIZONTAL_OVERFLOW=0
+
+PROTOTYPE_EVOLUTION_WRITE=false
+PROTOTYPE_RESONANCE_WRITE=false
+PROTOTYPE_CHECKIN_WRITE=false
+PROTOTYPE_MAP_WRITES=0
+
 PROTOTYPE_ANCHOR_KIND=VISUAL_PLACEHOLDER
 PROTOTYPE_ANCHOR_BLOCK_KEY=null
 RUNTIME_ANCHOR_APPROVED=false
@@ -864,6 +879,17 @@ Parametros deterministas usados para las capturas (solo preview, nunca contrato
 productivo): `?mode=read|listen|watch`, `?mode=guide&scene=1..7`,
 `&outcome=correct|review`.
 
+Medicion real de desbordamiento horizontal a 390 x 844, en navegador (no en
+jsdom, que no calcula layout). Las diez superficies moviles —lectura, escuchar,
+ver y las siete escenas de la Guide— miden
+`document.documentElement.scrollWidth = 390` con `window.innerWidth = 390`, y el
+sheet ocupa exactamente 390 px:
+
+```
+MOBILE_HORIZONTAL_OVERFLOW=0
+MOBILE_SCENES_MEASURED=10
+```
+
 Lo que las capturas **no** demuestran, porque GR-1 no lo implementa: sesion
 real, receipts, idempotencia, recovery entre dispositivos, anchor de Content
 Core, multimedia real, escritura de `Resonance` ni del Mapa Emocional.
@@ -888,6 +914,7 @@ GR-P05 → GR-017    GR-P10 → GR-022
 | 2026-07-29 | 0.2     | Corrected Content Core facts, scoped Map rule, candidate authority status, editorial anchor, recall authority and scene/checkpoint continuity proposals.                                                                                                              |
 | 2026-07-29 | 0.3     | Jorge approved the Guided Reading decision packet. Promoted GR-P01…GR-P10 to GR-013…GR-022. Approved MVP constraints for media analytics, podcast format, local scene and playback state, ReaderMode compatibility, deferred hosting and the visual prototype anchor. |
 | 2026-07-29 | 0.4     | Created the isolated Guided Reading visual prototype for product review. No runtime integration, API calls, persistence or production exposure.                                                                                                                       |
+| 2026-07-29 | 0.5     | Corrected prototype interaction and layout after Jorge's visual review, and set the activity policy: media and Guided Reading activity go to Mi Evolucion with a single completion event; the Emotional Map only receives explicit user actions.                      |
 
 Toda futura modificación del producto debe actualizar `SPEC_VERSION`,
 `LAST_UPDATED`, el Decision Registry y este Change Log.

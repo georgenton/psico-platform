@@ -1010,10 +1010,4 @@
     display: none;
   }
 
-  .layoutWithPanel .chapterTitle {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-  }
 }

@@ -1,14 +1,24 @@
 # Guided Reading V1 — Blueprint canónico
 
 ```
-GUIDED_READING_SPEC_VERSION=0.2
-GUIDED_READING_BLUEPRINT_STATUS=IN_REVIEW
-GUIDED_READING_IMPLEMENTATION_STATUS=NOT_STARTED
-GUIDED_READING_VISUAL_PROTOTYPE_STATUS=NOT_STARTED
+GUIDED_READING_SPEC_VERSION=0.3
 
-AUTHORITATIVE_PRODUCT_SPEC=false
-AUTHORITATIVE_PRODUCT_SPEC_STATUS=CANDIDATE
+GUIDED_READING_BLUEPRINT_STATUS=APPROVED
+GUIDED_READING_IMPLEMENTATION_STATUS=NOT_STARTED
+GUIDED_READING_VISUAL_PROTOTYPE_STATUS=READY_TO_IMPLEMENT
+
+STORYBOARD_STATUS=APPROVED_FOR_VISUAL_PROTOTYPE
+
+AUTHORITATIVE_PRODUCT_SPEC=true
+AUTHORITATIVE_PRODUCT_SPEC_STATUS=APPROVED
+AUTHORITATIVE_PRODUCT_SPEC_EFFECTIVE_WHEN=MERGED_TO_DEVELOP
+
 PRODUCT_OWNER=Jorge
+PRODUCT_OWNER_APPROVAL=true
+PRODUCT_OWNER_APPROVAL_DATE=2026-07-29
+
+GUIDED_READING_DECISION_PACKET_APPROVED=true
+
 LAST_UPDATED=2026-07-29
 
 PRODUCTION_RUNTIME_CHANGED=false
@@ -20,12 +30,14 @@ IMPLEMENTATION_SNAPSHOT_DEVELOP_SHA=f9f178ac2c86dca4e8a1842ce134158b06f7a0ae
 
 ## Alcance de autoridad
 
-El documento se vuelve autoridad definitiva solo después de la aprobación
-explícita de Jorge y de su merge. Las decisiones `APPROVED` reflejan dirección
-ya aceptada; el storyboard y todo elemento `PROPOSED` siguen sujetos a revisión.
+Jorge aprobó el paquete de decisiones el 2026-07-29. Este documento es la
+**autoridad de producto** —experiencia, presentación multimedia y límites de
+datos— y entra en vigor al mergearse a `develop`.
 
-Este documento aspira a ser **autoridad de producto**: experiencia, presentación
-multimedia y límites de datos.
+La aprobación autoriza el prototipo visual GR-1.
+
+No autoriza todavía la integración runtime GR-3, porque el `anchorBlockKey`
+editorial definitivo continúa pendiente.
 
 Los ADR y contratos existentes **siguen siendo autoridad** sobre lifecycle,
 persistencia, idempotencia, entitlement, receipts, locks y rollout. Cuando este
@@ -88,20 +100,23 @@ fila se verificó contra el código en el SHA de arriba.
 
 ### 1.4 No implementado
 
-| Capacidad                                    | Estado          |
-| -------------------------------------------- | --------------- |
-| Videoexplicación completa                    | NOT_IMPLEMENTED |
-| Podcast del capítulo                         | NOT_IMPLEMENTED |
-| Clips Guide                                  | NOT_IMPLEMENTED |
-| Subtítulos                                   | NOT_IMPLEMENTED |
-| Transcripción multimedia versionada          | NOT_IMPLEMENTED |
-| Panel Guide dentro del lector                | NOT_IMPLEMENTED |
-| Anchor visual al pasaje                      | NOT_IMPLEMENTED |
-| Práctica inline                              | NOT_IMPLEMENTED |
-| Feedback educativo de recall                 | NOT_IMPLEMENTED |
-| Fallback de video                            | NOT_IMPLEMENTED |
-| E2E de navegador de la experiencia integrada | NOT_IMPLEMENTED |
-| Anchor editorial aprobado                    | NOT_IMPLEMENTED |
+| Capacidad                                    | Estado                                   |
+| -------------------------------------------- | ---------------------------------------- |
+| Videoexplicación completa                    | NOT_IMPLEMENTED                          |
+| Podcast del capítulo                         | NOT_IMPLEMENTED                          |
+| Clips Guide                                  | NOT_IMPLEMENTED                          |
+| Subtítulos                                   | NOT_IMPLEMENTED                          |
+| Transcripción multimedia versionada          | NOT_IMPLEMENTED                          |
+| Panel Guide dentro del lector                | NOT_IMPLEMENTED                          |
+| Anchor visual al pasaje                      | NOT_IMPLEMENTED                          |
+| Práctica inline                              | NOT_IMPLEMENTED                          |
+| Feedback educativo de recall                 | NOT_IMPLEMENTED                          |
+| Fallback de video                            | NOT_IMPLEMENTED                          |
+| E2E de navegador de la experiencia integrada | NOT_IMPLEMENTED                          |
+| Anchor editorial aprobado                    | NOT_IMPLEMENTED                          |
+| Blueprint canónico                           | APPROVED                                 |
+| Prototipo visual                             | NOT_IMPLEMENTED · READY_TO_IMPLEMENT     |
+| Integración runtime                          | NOT_IMPLEMENTED · BLOCKED_PENDING_ANCHOR |
 
 La deuda real del anclaje **no** es de contrato ni de identidad: ambos existen y
 son source-aware. La deuda es editorial y visual —
@@ -208,51 +223,86 @@ No se crea un CMS.
 
 ## 5. Decision Registry
 
-### 5.1 Aprobadas
+### 5.1 Aprobadas (22)
 
-| ID     | Decisión                                                                                                                                                 | Estado   | Fecha      | Razón                                                                         | Impacto                              |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------- | ----------------------------------------------------------------------------- | ------------------------------------ |
-| GR-001 | Un capítulo ofrece Leer, Escuchar, Ver y Lectura guiada                                                                                                  | APPROVED | 2026-07-29 | Distintas personas absorben distinto; el capítulo es la unidad, no el formato | Selector de modalidad en el lector   |
-| GR-002 | Escuchar contiene Audiolibro y Podcast                                                                                                                   | APPROVED | 2026-07-29 | Son intenciones distintas: fidelidad vs explicación                           | Dos assets, un solo punto de entrada |
-| GR-003 | Ver contiene una videoexplicación completa del capítulo                                                                                                  | APPROVED | 2026-07-29 | Alternativa real al texto, no un adorno                                       | Producción de video por capítulo     |
-| GR-004 | Lectura guiada vive dentro del lector; no obliga a salir y regresar                                                                                      | APPROVED | 2026-07-29 | Hoy el player está en otra ruta y rompe el hilo de lectura                    | Panel/sheet dentro del lector        |
-| GR-005 | La Guide conserva sus tres checkpoints server-owned, pero la presentación puede contener múltiples escenas                                               | APPROVED | 2026-07-29 | Separar narrativa de lifecycle evita rehacer el runtime                       | Escenas ≠ pasos                      |
-| GR-006 | Video, transcripción y audio son alternativas; completar el 100 % del video no es condición de avance                                                    | APPROVED | 2026-07-29 | Accesibilidad y respeto por el ritmo del usuario                              | Sin gating por reproducción          |
-| GR-007 | La Guide nunca comienza automáticamente                                                                                                                  | APPROVED | 2026-07-29 | Consentimiento explícito; evita sesiones fantasma                             | `GUIDE_AUTOSTART=false`              |
-| GR-008 | Completar Guide, ver video, escuchar audio o podcast no modifica automáticamente el Mapa Emocional                                                       | APPROVED | 2026-07-29 | Actividad ≠ estado interior (programa V2)                                     | Firewall se mantiene                 |
-| GR-009 | Dentro de Guided Reading y de las modalidades multimedia, solo una resonancia confirmada explícitamente por la persona puede alimentar el Mapa Emocional | APPROVED | 2026-07-29 | ADR 0018                                                                      | Un tap, revocable                    |
-| GR-010 | Se valida el capítulo 1 antes de añadir otro libro o una segunda Guide productiva                                                                        | APPROVED | 2026-07-29 | Evitar escalar un formato no validado                                         | Alcance cerrado                      |
-| GR-011 | Primero storyboard y prototipo visual; después integración runtime                                                                                       | APPROVED | 2026-07-29 | Barato equivocarse en papel                                                   | GR-1 antes que GR-3                  |
-| GR-012 | No crear CMS, nuevas tablas ni un nuevo lifecycle para el primer prototipo                                                                               | APPROVED | 2026-07-29 | El runtime actual ya cubre los tres checkpoints                               | Cero migraciones                     |
+| ID     | Decisión                                                                                                                                                                                                                                                                                                                             | Estado   | Fecha      | Razón                                                                         | Impacto                              |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | ---------- | ----------------------------------------------------------------------------- | ------------------------------------ |
+| GR-001 | Un capítulo ofrece Leer, Escuchar, Ver y Lectura guiada                                                                                                                                                                                                                                                                              | APPROVED | 2026-07-29 | Distintas personas absorben distinto; el capítulo es la unidad, no el formato | Selector de modalidad en el lector   |
+| GR-002 | Escuchar contiene Audiolibro y Podcast                                                                                                                                                                                                                                                                                               | APPROVED | 2026-07-29 | Son intenciones distintas: fidelidad vs explicación                           | Dos assets, un solo punto de entrada |
+| GR-003 | Ver contiene una videoexplicación completa del capítulo                                                                                                                                                                                                                                                                              | APPROVED | 2026-07-29 | Alternativa real al texto, no un adorno                                       | Producción de video por capítulo     |
+| GR-004 | Lectura guiada vive dentro del lector; no obliga a salir y regresar                                                                                                                                                                                                                                                                  | APPROVED | 2026-07-29 | Hoy el player está en otra ruta y rompe el hilo de lectura                    | Panel/sheet dentro del lector        |
+| GR-005 | La Guide conserva sus tres checkpoints server-owned, pero la presentación puede contener múltiples escenas                                                                                                                                                                                                                           | APPROVED | 2026-07-29 | Separar narrativa de lifecycle evita rehacer el runtime                       | Escenas ≠ pasos                      |
+| GR-006 | Video, transcripción y audio son alternativas; completar el 100 % del video no es condición de avance                                                                                                                                                                                                                                | APPROVED | 2026-07-29 | Accesibilidad y respeto por el ritmo del usuario                              | Sin gating por reproducción          |
+| GR-007 | La Guide nunca comienza automáticamente                                                                                                                                                                                                                                                                                              | APPROVED | 2026-07-29 | Consentimiento explícito; evita sesiones fantasma                             | `GUIDE_AUTOSTART=false`              |
+| GR-008 | Completar Guide, ver video, escuchar audio o podcast no modifica automáticamente el Mapa Emocional                                                                                                                                                                                                                                   | APPROVED | 2026-07-29 | Actividad ≠ estado interior (programa V2)                                     | Firewall se mantiene                 |
+| GR-009 | Dentro de Guided Reading y de las modalidades multimedia, solo una resonancia confirmada explícitamente por la persona puede alimentar el Mapa Emocional                                                                                                                                                                             | APPROVED | 2026-07-29 | ADR 0018                                                                      | Un tap, revocable                    |
+| GR-010 | Se valida el capítulo 1 antes de añadir otro libro o una segunda Guide productiva                                                                                                                                                                                                                                                    | APPROVED | 2026-07-29 | Evitar escalar un formato no validado                                         | Alcance cerrado                      |
+| GR-011 | Primero storyboard y prototipo visual; después integración runtime                                                                                                                                                                                                                                                                   | APPROVED | 2026-07-29 | Barato equivocarse en papel                                                   | GR-1 antes que GR-3                  |
+| GR-012 | No crear CMS, nuevas tablas ni un nuevo lifecycle para el primer prototipo                                                                                                                                                                                                                                                           | APPROVED | 2026-07-29 | El runtime actual ya cubre los tres checkpoints                               | Cero migraciones                     |
+| GR-013 | La videoexplicación completa tiene una duración objetivo de 7–9 minutos. Guía editorial, no validación rígida de runtime                                                                                                                                                                                                             | APPROVED | 2026-07-29 | Ritmo de atención                                                             | Producción                           |
+| GR-014 | El podcast tiene una duración objetivo de 8–12 minutos. Guía editorial, no validación rígida                                                                                                                                                                                                                                         | APPROVED | 2026-07-29 | Formato conversacional                                                        | Producción                           |
+| GR-015 | El clip de Lectura guiada tiene una duración objetivo de 60–90 segundos                                                                                                                                                                                                                                                              | APPROVED | 2026-07-29 | Escena corta                                                                  | Producción                           |
+| GR-016 | La práctica propone una pausa opcional de 45 s; se puede continuar sin temporizador. El tiempo no prueba que la práctica se hiciera correctamente                                                                                                                                                                                    | APPROVED | 2026-07-29 | No medir lo que no se puede medir                                             | UI                                   |
+| GR-017 | Estilo inicial del video: Jorge en cámara + gráficos simples, palabras clave, esquemas y pasajes del libro. Orientación ≈30 % Jorge / 70 % apoyo visual — no es proporción técnica obligatoria                                                                                                                                       | APPROVED | 2026-07-29 | Cercanía + claridad                                                           | Producción                           |
+| GR-018 | Desktop muestra el texto y un panel lateral de Lectura guiada                                                                                                                                                                                                                                                                        | APPROVED | 2026-07-29 | No perder el lugar                                                            | GR-1                                 |
+| GR-019 | Móvil mantiene el texto visible y presenta la Lectura guiada como bottom sheet                                                                                                                                                                                                                                                       | APPROVED | 2026-07-29 | Móvil prioritario                                                             | GR-1                                 |
+| GR-020 | El recall devuelve feedback editorial server-owned con `CORRECT` / `REVIEW`. Nunca score, porcentaje, `correctOptionKey`, juicio personal ni diagnóstico                                                                                                                                                                             | APPROVED | 2026-07-29 | Educativo, no evaluativo                                                      | GR-3                                 |
+| GR-021 | La posición dentro de las escenas es estado de presentación, no de dominio. Local y scoped por `actorScope` + `guideKey` + `guideVersion` + `sessionId` + `checkpointKey`. Sin tabla ni migración. Fallback: si falta o es inválida, volver a la primera escena del checkpoint server-owned actual, nunca al inicio de toda la Guide | APPROVED | 2026-07-29 | Continuidad sin persistencia nueva                                            | GR-3                                 |
+| GR-022 | La UI separa progreso de checkpoints y de escenas. `CHECKPOINT_PROGRESS_AUTHORITY=SERVER`, `SCENE_PROGRESS_AUTHORITY=PRESENTATION`. Copy: «Concepto · parte 2 de 3». No presentar ocho escenas como ocho pasos persistidos                                                                                                           | APPROVED | 2026-07-29 | Honestidad del progreso                                                       | GR-1/GR-3                            |
 
-`APPROVED_DECISIONS_COUNT=12`
+`APPROVED_DECISIONS_COUNT=22`
 
-### 5.2 Propuestas — no aprobadas
+`PROPOSED_DECISIONS_COUNT=0`
 
-| ID     | Propuesta                                                                                                                                                                                                                                                                                                                                          | Estado   | Nota                                                                             |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------- |
-| GR-P01 | Video completo de 7–9 minutos                                                                                                                                                                                                                                                                                                                      | PROPOSED | Duración a validar con el guion real                                             |
-| GR-P02 | Podcast de 8–12 minutos                                                                                                                                                                                                                                                                                                                            | PROPOSED | —                                                                                |
-| GR-P03 | Clip Guide de 60–90 segundos                                                                                                                                                                                                                                                                                                                       | PROPOSED | —                                                                                |
-| GR-P04 | Práctica con temporizador opcional de 45 segundos                                                                                                                                                                                                                                                                                                  | PROPOSED | Debe poder omitirse                                                              |
-| GR-P05 | Estilo de video: Jorge en cámara + gráficos simples                                                                                                                                                                                                                                                                                                | PROPOSED | Decisión de producción                                                           |
-| GR-P06 | Desktop: texto y panel lateral                                                                                                                                                                                                                                                                                                                     | PROPOSED | —                                                                                |
-| GR-P07 | Móvil: texto y bottom sheet                                                                                                                                                                                                                                                                                                                        | PROPOSED | —                                                                                |
-| GR-P08 | Feedback recall con outcome `CORRECT\|REVIEW`                                                                                                                                                                                                                                                                                                      | PROPOSED | Nunca score ni porcentaje                                                        |
-| GR-P09 | La posición dentro de las escenas es estado de presentación, no estado de dominio. Puede conservarse localmente y scoped por actor + guide/version + session + checkpoint, sin tabla ni migración. Fallback: si el estado local falta o es inválido, volver a la primera escena del checkpoint server-owned actual; nunca reiniciar toda la Guide. | PROPOSED | Sin persistencia nueva                                                           |
-| GR-P10 | La UI separa progreso de checkpoints y progreso de escenas                                                                                                                                                                                                                                                                                         | PROPOSED | `CHECKPOINT_PROGRESS_AUTHORITY=SERVER` · `SCENE_PROGRESS_AUTHORITY=PRESENTATION` |
+---
 
-`PROPOSED_DECISIONS_COUNT=10`
+## 5.3 MVP implementation constraints
+
+```
+NEW_MEDIA_ANALYTICS_EVENTS_IN_MVP=0
+
+PODCAST_V1_FORMAT=JORGE_SOLO
+PODCAST_V1_STYLE=CONVERSATIONAL_SCRIPT
+
+MEDIA_PLAYBACK_RESUME=LOCAL_ONLY
+MEDIA_PLAYBACK_RESUME_SERVER_SYNC=false
+
+MEDIA_HOSTING_PROVIDER=TBD_UNTIL_GR2
+MEDIA_HOSTING_BLOCKS_GR1=false
+
+LEGACY_READER_MODE_INTERNAL_VALUE=guia
+LEGACY_READER_MODE_VISIBLE_LABEL=Escuchar
+LEGACY_READER_MODE_LOCALSTORAGE_MIGRATION=false
+
+GR1_VISUAL_ANCHOR_PLACEHOLDER_ALLOWED=true
+GR3_RUNTIME_ANCHOR_STATUS=PENDING_EDITORIAL_BLOCK_KEY
+
+SECOND_GUIDE_PRODUCTIVE_ALLOWED=false
+SECOND_BOOK_GUIDED_READING_ALLOWED=false
+```
+
+- No se añaden eventos de video, podcast o reproducción durante el MVP.
+- El progreso audiovisual **no** alimenta el Mapa.
+- El segundo exacto de reproducción puede recordarse localmente, sin sync.
+- El hosting se decide en GR-2, no durante GR-1.
+- No se migra el valor `localStorage["psico:lector:mode"]`; el interno sigue
+  siendo `guia` y la etiqueta visible pasa a «Escuchar».
+- El prototipo puede usar un anchor visual fixture.
+- GR-3 no puede integrar el anchor real mientras `ANCHOR_BLOCK_KEY=TBD`.
 
 ---
 
 ## 6. Storyboard — capítulo 1
 
 ```
+STORYBOARD_STATUS=APPROVED_FOR_VISUAL_PROTOTYPE
+```
+
+```
 Libro:            Emociones en construcción
 Capítulo:         1 — ¿Realmente sabemos qué es una emoción?
 Lectura guiada:   El cuerpo sabe antes que la mente
-Duración:         8–10 minutos (PROVISIONAL)
+Duración:         8–10 minutos (objetivo editorial flexible)
 Checkpoints:      3 (server-owned)
 Escenas:          8
 ```
@@ -297,7 +347,7 @@ Solo `Empezar` crea la `GuideSession`.
 
 ### Escena 2 — Clip · «Antes de ponerle un nombre»
 
-Duración propuesta: 60–90 s (GR-P03).
+Duración objetivo: 60–90 s (GR-015).
 
 > Imagina que escuchas un ruido inesperado detrás de ti. Tu cuerpo puede
 > tensarse, cambiar la respiración o prepararse para moverse antes de que
@@ -326,6 +376,9 @@ la reacción corporal y la comprensión consciente.
 ANCHOR_EDITORIAL_STATUS=PENDING_APPROVAL
 ANCHOR_BLOCK_KEY=TBD
 ANCHOR_SOURCE_HEADING=TBD
+
+ANCHOR_BLOCKS_GR1=false
+ANCHOR_BLOCKS_GR3=true
 ```
 
 La identidad estable del bloque ya existe (§1.1). Lo que falta es la decisión
@@ -441,7 +494,8 @@ Solo el primer botón puede crear una `Resonance`.
 
 ## 7. Videoexplicación completa
 
-Estructura propuesta — todos los tiempos **PROVISIONAL**:
+Estructura aprobada — los tiempos son **objetivo editorial flexible**, no
+requisitos de código (GR-013):
 
 ```
 00:00 — ¿Qué ocurre antes de que pensemos?
@@ -458,6 +512,11 @@ Estructura propuesta — todos los tiempos **PROVISIONAL**:
 ## 8. Podcast
 
 ```
+PODCAST_V1_FORMAT=JORGE_SOLO
+PODCAST_V1_STYLE=CONVERSATIONAL_SCRIPT
+```
+
+```
 pregunta inicial
 ejemplo cotidiano
 explicación científica
@@ -466,24 +525,52 @@ aplicación a la vida
 cierre
 ```
 
-No es una lectura literal del capítulo.
+Jorge explica el capítulo con un guion conversacional. No es lectura literal y
+no requiere voz entrevistadora en V1.
 
-Formato aún abierto: Jorge solo, o Jorge + voz entrevistadora.
+Evolución posible futura, **no** implementada ahora: Jorge + entrevistador,
+Jorge + especialista, preguntas de lectores.
+
+---
+
+## 8.5 Progreso y recuperación entre escenas
+
+```
+Servidor:       conserva el checkpoint real.
+Presentación:   conserva la escena visual dentro del checkpoint.
+```
+
+Ejemplo: checkpoint `Concepto`, escena local `Pasaje anclado`.
+
+| Situación                       | Resultado                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Recarga en el mismo navegador   | vuelve al pasaje anclado                                                                         |
+| Estado local ausente o corrupto | vuelve al inicio del checkpoint `Concepto`                                                       |
+| Otro dispositivo                | el servidor conserva `Concepto` pendiente; la presentación abre la primera escena del checkpoint |
+
+```
+CROSS_DEVICE_SCENE_SYNC=false
+CROSS_DEVICE_CHECKPOINT_SYNC=true
+```
+
+Nunca se reinicia toda la Guide por perder estado de presentación.
 
 ---
 
 ## 9. Datos y privacidad
 
-| Acción               | Dato guardado                            | Mi Evolución | Mapa Emocional |
-| -------------------- | ---------------------------------------- | ------------ | -------------- |
-| Leer capítulo        | Progreso de lectura                      | Sí           | **No**         |
-| Escuchar audiolibro  | Progreso educativo mínimo, si se aprueba | Posible      | **No**         |
-| Ver video            | Progreso educativo mínimo, si se aprueba | Posible      | **No**         |
-| Escuchar podcast     | Progreso educativo mínimo, si se aprueba | Posible      | **No**         |
-| Completar Guide      | Sesión, ledger y eventos educativos      | Posible      | **No**         |
-| Confirmar resonancia | `Resonance` explícita con procedencia    | —            | **Sí**         |
+| Acción               | Dato guardado                          | Mi Evolución | Mapa Emocional |
+| -------------------- | -------------------------------------- | ------------ | -------------- |
+| Leer capítulo        | Progreso de lectura                    | Sí           | **No**         |
+| Escuchar audiolibro  | Sin eventos nuevos en MVP              | —            | **No**         |
+| Escuchar podcast     | Sin eventos nuevos en MVP              | —            | **No**         |
+| Ver video            | Sin eventos nuevos en MVP              | —            | **No**         |
+| Lectura guiada       | Solo sus eventos educativos existentes | Posible      | **No**         |
+| Confirmar resonancia | `Resonance` explícita con procedencia  | —            | **Sí**         |
 
 ```
+NEW_MEDIA_ANALYTICS_EVENTS_IN_MVP=0
+MEDIA_ACTIVITY_AUTOMATIC_MAP_WRITE=false
 GUIDED_READING_AUTOMATIC_MAP_WRITE=false
 GUIDED_READING_EXPLICIT_RESONANCE_ONLY=true
 GLOBAL_MAP_INPUTS_EXCLUSIVE_TO_RESONANCE=false
@@ -494,16 +581,16 @@ Mapa Emocional conserva otras fuentes explícitas ajenas a Guided Reading —án
 autoinformado y micro-checkins— que siguen gobernadas por sus propios
 contratos. Esta tabla no las restringe ni las modifica.
 
-Este documento **no aprueba** nuevos eventos analíticos. Las filas marcadas
-«si se aprueba» requieren una decisión posterior.
+El MVP **no añade** ningún evento analítico de medios. Medir reproducción en el
+futuro exigiría una decisión explícita y una actualización de esta matriz.
 
 ---
 
 ## 10. Desktop, móvil y accesibilidad
 
 ```
-Desktop propuesto:  texto visible + panel lateral Guide      (GR-P06)
-Móvil propuesto:    texto visible + bottom sheet Guide       (GR-P07)
+Desktop:  texto visible + panel lateral Guide      (GR-018)
+Móvil:    texto visible + bottom sheet Guide       (GR-019)
 ```
 
 Requisitos:
@@ -527,7 +614,11 @@ controles accesibles
 DESIGN_REFERENCE=Rise Guide-like guided micro-learning flow
 REFERENCE_USE=inspiration_only
 REFERENCE_CLONE=false
+EXPERIENCE_TONE=ACCOMPANIED_NOT_ADMINISTRATIVE
 ```
+
+La Guide no debe sentirse como un formulario, un checklist administrativo, ni
+como salir y regresar.
 
 Principios preservados: video breve y explicativo; escenas cortas; una acción
 principal; progreso visible; transición explicación → práctica → recall; móvil
@@ -559,15 +650,25 @@ NO nuevo scoring del Mapa
 
 ## 12. Roadmap
 
-| Fase | Contenido                                                                      |
-| ---- | ------------------------------------------------------------------------------ |
-| GR-0 | Blueprint documental                                                           |
-| GR-1 | Prototipo visual sin lifecycle real; capturas desktop y móvil                  |
-| GR-2 | Capa multimedia mínima: Leer/Escuchar/Ver/Guía, video + transcript fallback    |
-| GR-3 | Guide integrada al lector: anchor, práctica inline, recall, feedback, recovery |
-| GR-4 | Playwright, privacidad, firewall, desktop, móvil                               |
-| GR-5 | Prueba moderada con Jorge + 3–5 personas                                       |
-| GR-6 | Segundo capítulo o libro, solo tras validar GR-5                               |
+```
+GR0_STATUS=APPROVED_PENDING_MERGE
+GR1_STATUS=READY_TO_IMPLEMENT
+GR2_STATUS=BLOCKED_MEDIA_HOSTING_DECISION
+GR3_STATUS=BLOCKED_RUNTIME_ANCHOR
+GR4_STATUS=BLOCKED_BY_GR3
+GR5_STATUS=BLOCKED_BY_GR4
+GR6_STATUS=BLOCKED_BY_GR5
+```
+
+| Fase | Contenido                                                                                                                                                                                                          |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GR-0 | Blueprint documental — aprobado                                                                                                                                                                                    |
+| GR-1 | Prototipo visual navegable: sin lifecycle productivo, sin nuevas llamadas de API, sin base de datos, sin migración, sin despliegue. Capturas desktop y móvil, fixtures multimedia locales o assets de demostración |
+| GR-2 | Capa multimedia mínima: Leer/Escuchar/Ver/Guía, video + transcript fallback                                                                                                                                        |
+| GR-3 | Guide integrada al lector: anchor, práctica inline, recall, feedback, recovery                                                                                                                                     |
+| GR-4 | Playwright, privacidad, firewall, desktop, móvil                                                                                                                                                                   |
+| GR-5 | Prueba moderada con Jorge + 3–5 personas                                                                                                                                                                           |
+| GR-6 | Segundo capítulo o libro, solo tras validar GR-5                                                                                                                                                                   |
 
 ---
 
@@ -578,8 +679,8 @@ CANONICAL_PRODUCT_SPEC_CREATED=true
 CURRENT_STATE_INVENTORY_COMPLETE=true
 CONTEXT_INDEX_COMPLETE=true
 
-APPROVED_DECISIONS_COUNT=12
-PROPOSED_DECISIONS_COUNT=10
+APPROVED_DECISIONS_COUNT=22
+PROPOSED_DECISIONS_COUNT=0
 
 STORYBOARD_SCENES=8
 MEDIA_MODALITIES=4
@@ -598,7 +699,7 @@ RECALL_EDITORIAL_AUTHORITY_DEFINED=true
 CORRECT_OPTION_CLIENT_EXPOSED=false
 
 CHECKPOINT_PROGRESS_AUTHORITY=SERVER
-SCENE_PROGRESS_AUTHORITY=PRESENTATION_PROPOSED
+SCENE_PROGRESS_AUTHORITY=PRESENTATION
 
 NEW_RUNTIME_CODE=0
 NEW_SCHEMA=0
@@ -623,12 +724,12 @@ NEW_MIGRATIONS=0
 | `apps/web/src/components/dashboard/lector/LectorShell.tsx`                   | Contenedor del lector, `ReaderMode`     | §3, GR-004            | Al implementar el selector o renombrar modos        |
 | `apps/web/src/components/dashboard/lector/AudioBar.tsx`                      | Audio del capítulo                      | GR-002                | Al separar Audiolibro de Podcast                    |
 | `apps/web/src/components/dashboard/lector/BlockRenderer.tsx`                 | Render de bloques                       | GR-006                | Al añadir anchor visual                             |
-| `apps/web/src/components/dashboard/lector/companion/ReaderCompanionDock.tsx` | Panel dentro del lector                 | GR-004, GR-P06/P07    | Al diseñar el panel Guide                           |
+| `apps/web/src/components/dashboard/lector/companion/ReaderCompanionDock.tsx` | Panel dentro del lector                 | GR-004, GR-018/019    | Al diseñar el panel Guide                           |
 | `apps/api/src/content-core/anchors.ts`                                       | Anclaje a bloques                       | Escena 3              | Al implementar «Ir al pasaje»                       |
 | `apps/api/src/content-core/exercise-ingestion-catalog.ts`                    | Práctica y recall editoriales           | Escenas 4–6           | Al editar la pregunta o la práctica                 |
 | `packages/types/src/index.ts` (`ContentUnitRead`)                            | Identidad estable del bloque y `source` | Escena 3, §1.1        | Antes de implementar el anchor                      |
 | `docs/product/exercise-content-first-guide-unit.md`                          | Contenido editorial del recall          | Escena 5              | Antes de editar pregunta u opciones                 |
-| Frontera checkpoint ↔ escena (`guide-lifecycle.service.ts` vs presentación)  | Quién manda sobre qué progreso          | GR-P09, GR-P10        | Antes de implementar navegación entre escenas       |
+| Frontera checkpoint ↔ escena (`guide-lifecycle.service.ts` vs presentación)  | Quién manda sobre qué progreso          | GR-021, GR-022        | Antes de implementar navegación entre escenas       |
 | `docs/adr/0018-resonance-axis-policy.md`                                     | Resonance → Mapa                        | GR-008, GR-009        | Antes de tocar el firewall                          |
 | `docs/adr/0019-guide-session-step-source.md`                                 | Origen del ledger de pasos              | GR-005                | Antes de cambiar el ledger                          |
 | `apps/api/src/emotional-map/`                                                | Scoring del Mapa                        | GR-008                | Solo para confirmar que Guide no escribe            |
@@ -639,30 +740,50 @@ NEW_MIGRATIONS=0
 
 ---
 
-## 15. Preguntas abiertas
+## 15. Asuntos diferidos
 
-1. ¿El progreso de audiolibro, podcast y video genera evento educativo, o solo
-   el texto y la Guide? (§9, filas «si se aprueba»)
-2. ¿El podcast lleva voz entrevistadora? (§8)
-3. ¿Dónde se hospedan los assets? (`MEDIA_HOSTING_PROVIDER=TBD`)
-4. ¿El renombrado de `ReaderMode` migra la preferencia guardada o la deja caer
-   al default? (§3)
-5. ¿Cuál es el `anchorBlockKey` editorial aprobado y cuál es el rango visual
-   exacto que debe enfocarse? (escena 3 — bloquea la integración runtime, no
-   el prototipo visual)
-6. ¿Se aprueba GR-P09 —posición de escena como estado de presentación, local y
-   scoped, con fallback al inicio del checkpoint server-owned actual?
-7. ¿Se aprueba GR-P10 —separar en la UI el progreso de checkpoints del progreso
-   de escenas?
+Resueltas en la aprobación del 2026-07-29 y retiradas de esta lista: eventos
+educativos de medios (**no** en el MVP), formato del podcast (**Jorge solo**),
+migración de `ReaderMode` (**no**), GR-P09 (aprobada como **GR-021**) y GR-P10
+(aprobada como **GR-022**).
+
+Quedan dos asuntos diferidos, ninguno bloquea GR-1:
+
+```
+MEDIA_HOSTING_PROVIDER=TBD_UNTIL_GR2
+
+ANCHOR_BLOCK_KEY=TBD
+ANCHOR_SOURCE_HEADING=TBD
+```
+
+```
+OPEN_BLOCKERS_FOR_GR1=0
+OPEN_BLOCKERS_FOR_GR2=1
+OPEN_BLOCKERS_FOR_GR3=1
+```
+
+El proveedor de hosting bloquea GR-2, no GR-1. El anchor exacto bloquea GR-3,
+no GR-1.
 
 ---
 
 ## 16. Change Log
 
-| Fecha      | Versión | Cambio                                                                                                                                                   |
-| ---------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-07-29 | 0.1     | Initial blueprint from Jorge's product direction: multimodal chapter + integrated Guided Reading.                                                        |
-| 2026-07-29 | 0.2     | Corrected Content Core facts, scoped Map rule, candidate authority status, editorial anchor, recall authority and scene/checkpoint continuity proposals. |
+Mapa de promoción aplicado en 0.3 — los IDs `GR-P0x` ya no existen:
+
+```
+GR-P01 → GR-013    GR-P06 → GR-018
+GR-P02 → GR-014    GR-P07 → GR-019
+GR-P03 → GR-015    GR-P08 → GR-020
+GR-P04 → GR-016    GR-P09 → GR-021
+GR-P05 → GR-017    GR-P10 → GR-022
+```
+
+| Fecha      | Versión | Cambio                                                                                                                                                                                                                                                                |
+| ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-29 | 0.1     | Initial blueprint from Jorge's product direction: multimodal chapter + integrated Guided Reading.                                                                                                                                                                     |
+| 2026-07-29 | 0.2     | Corrected Content Core facts, scoped Map rule, candidate authority status, editorial anchor, recall authority and scene/checkpoint continuity proposals.                                                                                                              |
+| 2026-07-29 | 0.3     | Jorge approved the Guided Reading decision packet. Promoted GR-P01…GR-P10 to GR-013…GR-022. Approved MVP constraints for media analytics, podcast format, local scene and playback state, ReaderMode compatibility, deferred hosting and the visual prototype anchor. |
 
 Toda futura modificación del producto debe actualizar `SPEC_VERSION`,
 `LAST_UPDATED`, el Decision Registry y este Change Log.

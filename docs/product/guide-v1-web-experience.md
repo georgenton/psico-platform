@@ -1,5 +1,13 @@
 # Guide V1 — experiencia web
 
+> ```
+> CURRENT_GUIDE_V1_UI_STATUS=LEGACY_PILOT
+> TARGET_GUIDED_READING_SPEC=docs/product/guided-reading-v1.md
+> ```
+>
+> Este documento describe la implementación piloto actualmente existente.
+> No es la autoridad de la experiencia objetivo.
+
 ```
 GUIDE_WEB_STATUS=IMPLEMENTED_PENDING_MERGE
 GUIDE_WEB_ROUTE_COUNT=1

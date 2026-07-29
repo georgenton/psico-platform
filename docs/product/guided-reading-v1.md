@@ -1,7 +1,7 @@
 # Guided Reading V1 — Blueprint canónico
 
 ```
-GUIDED_READING_SPEC_VERSION=0.5
+GUIDED_READING_SPEC_VERSION=0.6
 
 GUIDED_READING_BLUEPRINT_STATUS=APPROVED
 GUIDED_READING_IMPLEMENTATION_STATUS=NOT_STARTED
@@ -33,6 +33,10 @@ PROTOTYPE_EVOLUTION_WRITE=false
 PROTOTYPE_RESONANCE_WRITE=false
 PROTOTYPE_CHECKIN_WRITE=false
 PROTOTYPE_MAP_WRITES=0
+
+COMPLETION_RESONANCE_AND_CHECKIN_SEPARATED=true
+MOBILE_SELECTOR_HIDDEN_WHILE_GUIDE_OPEN=true
+MOBILE_READER_TEXT_VISIBLE_BEHIND_SHEET=true
 
 DECISIONS_CHANGED_WITHOUT_APPROVAL=0
 
@@ -828,7 +832,7 @@ GR1_PROTOTYPE_ROUTE=/prototipos/lectura-guiada
 PROTOTYPE_AVAILABLE_IN_PRODUCTION=false
 PROTOTYPE_LINKED_FROM_PRODUCT_NAV=false
 
-VISUAL_EVIDENCE_SOURCE_SHA=ea6e63a640bea3bb9edf1f8397e6e7a8850ebb57
+VISUAL_EVIDENCE_SOURCE_SHA=4ef4eb4008fd793c45671cce63d35ef51a8d4578
 SCREENSHOTS_REGENERATED_FROM_SINGLE_HEAD=true
 
 PRACTICE_EXPLICIT_ROUTE_REQUIRED=true
@@ -837,6 +841,9 @@ ANCHOR_ACTION_HIERARCHY_PASS=true
 REPEAT_FLOW_FULL_RESET=true
 MEDIA_CONTROLS_COHERENT=true
 MOBILE_HORIZONTAL_OVERFLOW=0
+COMPLETION_RESONANCE_AND_CHECKIN_SEPARATED=true
+MOBILE_SELECTOR_HIDDEN_WHILE_GUIDE_OPEN=true
+MOBILE_READER_TEXT_VISIBLE_BEHIND_SHEET=true
 
 PROTOTYPE_EVOLUTION_WRITE=false
 PROTOTYPE_RESONANCE_WRITE=false
@@ -879,16 +886,35 @@ Parametros deterministas usados para las capturas (solo preview, nunca contrato
 productivo): `?mode=read|listen|watch`, `?mode=guide&scene=1..7`,
 `&outcome=correct|review`.
 
-Medicion real de desbordamiento horizontal a 390 x 844, en navegador (no en
-jsdom, que no calcula layout). Las diez superficies moviles —lectura, escuchar,
-ver y las siete escenas de la Guide— miden
-`document.documentElement.scrollWidth = 390` con `window.innerWidth = 390`, y el
-sheet ocupa exactamente 390 px:
+Medicion real en navegador a 390 x 844 (no en jsdom, que no calcula layout).
+Las diez superficies moviles —lectura, escuchar, ver y las siete escenas de la
+Guide— miden `document.documentElement.scrollWidth = 390` con
+`window.innerWidth = 390`. En las siete escenas de la Guide el selector compacto
+esta oculto (`display: none`) y queda al menos un bloque de texto del capitulo
+visible por encima del sheet; en lectura, escuchar y ver el selector vuelve a
+mostrarse.
+
+| Escena movil | Overflow | Selector | Borde superior del sheet | Bloques de texto visibles |
+| ------------ | -------- | -------- | ------------------------ | ------------------------- |
+| Portada      | 0        | oculto   | 360 px                   | 2                         |
+| Clip         | 0        | oculto   | 236 px                   | 1                         |
+| Pasaje       | 0        | oculto   | 236 px                   | 1                         |
+| Practica     | 0        | oculto   | 203 px                   | 1                         |
+| Recall       | 0        | oculto   | 203 px                   | 1                         |
+| Feedback     | 0        | oculto   | 236 px                   | 1                         |
+| Cierre       | 0        | oculto   | 236 px                   | 1                         |
 
 ```
 MOBILE_HORIZONTAL_OVERFLOW=0
 MOBILE_SCENES_MEASURED=10
+MOBILE_SELECTOR_HIDDEN_WHILE_GUIDE_OPEN=true
+MOBILE_READER_TEXT_VISIBLE_BEHIND_SHEET=true
 ```
+
+Limite conocido del cierre en escritorio: a 1365 x 900 el bloque de resonancia
+se ve completo y el de check-in empieza a asomar; quedan 161 px por debajo del
+pliegue del panel, alcanzables con el scroll propio del cuerpo. En movil y en
+pantallas mas altas ambos bloques caben.
 
 Lo que las capturas **no** demuestran, porque GR-1 no lo implementa: sesion
 real, receipts, idempotencia, recovery entre dispositivos, anchor de Content
@@ -908,13 +934,14 @@ GR-P04 → GR-016    GR-P09 → GR-021
 GR-P05 → GR-017    GR-P10 → GR-022
 ```
 
-| Fecha      | Versión | Cambio                                                                                                                                                                                                                                                                |
-| ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-07-29 | 0.1     | Initial blueprint from Jorge's product direction: multimodal chapter + integrated Guided Reading.                                                                                                                                                                     |
-| 2026-07-29 | 0.2     | Corrected Content Core facts, scoped Map rule, candidate authority status, editorial anchor, recall authority and scene/checkpoint continuity proposals.                                                                                                              |
-| 2026-07-29 | 0.3     | Jorge approved the Guided Reading decision packet. Promoted GR-P01…GR-P10 to GR-013…GR-022. Approved MVP constraints for media analytics, podcast format, local scene and playback state, ReaderMode compatibility, deferred hosting and the visual prototype anchor. |
-| 2026-07-29 | 0.4     | Created the isolated Guided Reading visual prototype for product review. No runtime integration, API calls, persistence or production exposure.                                                                                                                       |
-| 2026-07-29 | 0.5     | Corrected prototype interaction and layout after Jorge's visual review, and set the activity policy: media and Guided Reading activity go to Mi Evolucion with a single completion event; the Emotional Map only receives explicit user actions.                      |
+| Fecha      | Versión | Cambio                                                                                                                                                                                                                                                                                                      |
+| ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-29 | 0.1     | Initial blueprint from Jorge's product direction: multimodal chapter + integrated Guided Reading.                                                                                                                                                                                                           |
+| 2026-07-29 | 0.2     | Corrected Content Core facts, scoped Map rule, candidate authority status, editorial anchor, recall authority and scene/checkpoint continuity proposals.                                                                                                                                                    |
+| 2026-07-29 | 0.3     | Jorge approved the Guided Reading decision packet. Promoted GR-P01…GR-P10 to GR-013…GR-022. Approved MVP constraints for media analytics, podcast format, local scene and playback state, ReaderMode compatibility, deferred hosting and the visual prototype anchor.                                       |
+| 2026-07-29 | 0.4     | Created the isolated Guided Reading visual prototype for product review. No runtime integration, API calls, persistence or production exposure.                                                                                                                                                             |
+| 2026-07-29 | 0.5     | Corrected prototype interaction and layout after Jorge's visual review, and set the activity policy: media and Guided Reading activity go to Mi Evolucion with a single completion event; the Emotional Map only receives explicit user actions.                                                            |
+| 2026-07-29 | 0.6     | Final visual close of GR-1: resonance and the optional check-in became independent blocks (the check-in is no longer an answer to the resonance question), the mobile sheet hides the mode selector and keeps chapter text visible behind it, and the sheet moved to dynamic viewport units with two sizes. |
 
 Toda futura modificación del producto debe actualizar `SPEC_VERSION`,
 `LAST_UPDATED`, el Decision Registry y este Change Log.

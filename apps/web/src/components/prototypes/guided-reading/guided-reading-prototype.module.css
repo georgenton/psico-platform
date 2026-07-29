@@ -749,7 +749,7 @@
 }
 
 .evolutionNote {
-  margin: var(--space-lg) 0 0;
+  margin: var(--space-md) 0 0;
   padding: 10px var(--space-md);
   border-radius: var(--radius-md);
   background: var(--bg-subtle);
@@ -853,10 +853,10 @@
 
 .checklist {
   list-style: none;
-  margin: 0 0 var(--space-lg);
+  margin: 0 0 var(--space-md);
   padding: 0;
   display: grid;
-  gap: var(--space-sm);
+  gap: 6px;
 }
 
 .checklistItem {
@@ -873,8 +873,10 @@
 }
 
 .closingBlock {
-  margin-top: var(--space-lg);
-  padding: var(--space-lg);
+  /* El cierre tiene dos bloques de decisión: se mantienen compactos para que
+     ambos quepan en la misma pantalla. */
+  margin-top: var(--space-md);
+  padding: var(--space-md);
   border-radius: var(--radius-lg);
   border: 1px solid var(--bg-divider);
   background: var(--bg-page);

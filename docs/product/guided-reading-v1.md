@@ -1,11 +1,11 @@
 # Guided Reading V1 — Blueprint canónico
 
 ```
-GUIDED_READING_SPEC_VERSION=0.3
+GUIDED_READING_SPEC_VERSION=0.4
 
 GUIDED_READING_BLUEPRINT_STATUS=APPROVED
 GUIDED_READING_IMPLEMENTATION_STATUS=NOT_STARTED
-GUIDED_READING_VISUAL_PROTOTYPE_STATUS=READY_TO_IMPLEMENT
+GUIDED_READING_VISUAL_PROTOTYPE_STATUS=IN_REVIEW
 
 STORYBOARD_STATUS=APPROVED_FOR_VISUAL_PROTOTYPE
 
@@ -23,6 +23,13 @@ LAST_UPDATED=2026-07-29
 
 PRODUCTION_RUNTIME_CHANGED=false
 PILOT_CONFIGURATION_CHANGED=false
+
+GR1_PROTOTYPE_ROUTE=/prototipos/lectura-guiada
+GR1_RUNTIME_INTEGRATION=false
+GR1_API_INTEGRATION=false
+GR1_DATABASE_INTEGRATION=false
+
+DECISIONS_CHANGED_WITHOUT_APPROVAL=0
 
 IMPLEMENTATION_SNAPSHOT_MAIN_SHA=c7295cdc27090c5d2826c430156675a0539a2245
 IMPLEMENTATION_SNAPSHOT_DEVELOP_SHA=f9f178ac2c86dca4e8a1842ce134158b06f7a0ae
@@ -652,7 +659,7 @@ NO nuevo scoring del Mapa
 
 ```
 GR0_STATUS=APPROVED_PENDING_MERGE
-GR1_STATUS=READY_TO_IMPLEMENT
+GR1_STATUS=IN_REVIEW
 GR2_STATUS=BLOCKED_MEDIA_HOSTING_DECISION
 GR3_STATUS=BLOCKED_RUNTIME_ANCHOR
 GR4_STATUS=BLOCKED_BY_GR3
@@ -767,6 +774,55 @@ no GR-1.
 
 ---
 
+## 15bis. GR-1 Visual Evidence
+
+```
+GR1_PROTOTYPE_ROUTE=/prototipos/lectura-guiada
+PROTOTYPE_AVAILABLE_IN_PRODUCTION=false
+PROTOTYPE_LINKED_FROM_PRODUCT_NAV=false
+
+PROTOTYPE_ANCHOR_KIND=VISUAL_PLACEHOLDER
+PROTOTYPE_ANCHOR_BLOCK_KEY=null
+RUNTIME_ANCHOR_APPROVED=false
+
+PROTOTYPE_CLIENT_GRADING=false
+PROTOTYPE_RESONANCE_WRITE=false
+EMOTIONAL_MAP_WRITE=false
+
+CHECKPOINT_PROGRESS_AUTHORITY=SIMULATED_SERVER_FIXTURE
+SCENE_PROGRESS_AUTHORITY=PRESENTATION
+
+DESIGN_REFERENCE_USE=inspiration_only
+REFERENCE_CLONE=false
+EXPERIENCE_TONE=ACCOMPANIED_NOT_ADMINISTRATIVE
+```
+
+Capturas de la superficie aislada de revisión. Escritorio a 1365 x 900; movil a
+390 x 844. Todo el contenido sale del fixture editorial local: no hay identidad,
+ni datos reales, ni llamadas de red.
+
+| #   | Vista                             | Captura                                                                                               |
+| --- | --------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 1   | Selector de modalidad + lector    | [01-selector-desktop.webp](assets/guided-reading-v1-prototype/01-selector-desktop.webp)               |
+| 2   | Escuchar (audiolibro / podcast)   | [02-listen-desktop.webp](assets/guided-reading-v1-prototype/02-listen-desktop.webp)                   |
+| 3   | Ver (videoexplicacion)            | [03-watch-desktop.webp](assets/guided-reading-v1-prototype/03-watch-desktop.webp)                     |
+| 4   | Guide - escena 1, portada         | [04-guide-cover-desktop.webp](assets/guided-reading-v1-prototype/04-guide-cover-desktop.webp)         |
+| 5   | Guide - escena 3, pasaje anclado  | [05-guide-anchor-desktop.webp](assets/guided-reading-v1-prototype/05-guide-anchor-desktop.webp)       |
+| 6   | Guide - escena 4, practica inline | [06-guide-practice-desktop.webp](assets/guided-reading-v1-prototype/06-guide-practice-desktop.webp)   |
+| 7   | Guide - escena 6, feedback REVIEW | [07-guide-feedback-desktop.webp](assets/guided-reading-v1-prototype/07-guide-feedback-desktop.webp)   |
+| 8   | Guide - escena 7, cierre          | [08-guide-completed-desktop.webp](assets/guided-reading-v1-prototype/08-guide-completed-desktop.webp) |
+| 9   | Guide en movil (bottom sheet)     | [09-guide-mobile.webp](assets/guided-reading-v1-prototype/09-guide-mobile.webp)                       |
+
+Parametros deterministas usados para las capturas (solo preview, nunca contrato
+productivo): `?mode=read|listen|watch`, `?mode=guide&scene=1..7`,
+`&outcome=correct|review`.
+
+Lo que las capturas **no** demuestran, porque GR-1 no lo implementa: sesion
+real, receipts, idempotencia, recovery entre dispositivos, anchor de Content
+Core, multimedia real, escritura de `Resonance` ni del Mapa Emocional.
+
+---
+
 ## 16. Change Log
 
 Mapa de promoción aplicado en 0.3 — los IDs `GR-P0x` ya no existen:
@@ -784,6 +840,7 @@ GR-P05 → GR-017    GR-P10 → GR-022
 | 2026-07-29 | 0.1     | Initial blueprint from Jorge's product direction: multimodal chapter + integrated Guided Reading.                                                                                                                                                                     |
 | 2026-07-29 | 0.2     | Corrected Content Core facts, scoped Map rule, candidate authority status, editorial anchor, recall authority and scene/checkpoint continuity proposals.                                                                                                              |
 | 2026-07-29 | 0.3     | Jorge approved the Guided Reading decision packet. Promoted GR-P01…GR-P10 to GR-013…GR-022. Approved MVP constraints for media analytics, podcast format, local scene and playback state, ReaderMode compatibility, deferred hosting and the visual prototype anchor. |
+| 2026-07-29 | 0.4     | Created the isolated Guided Reading visual prototype for product review. No runtime integration, API calls, persistence or production exposure.                                                                                                                       |
 
 Toda futura modificación del producto debe actualizar `SPEC_VERSION`,
 `LAST_UPDATED`, el Decision Registry y este Change Log.

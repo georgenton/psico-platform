@@ -832,7 +832,7 @@ GR1_PROTOTYPE_ROUTE=/prototipos/lectura-guiada
 PROTOTYPE_AVAILABLE_IN_PRODUCTION=false
 PROTOTYPE_LINKED_FROM_PRODUCT_NAV=false
 
-VISUAL_EVIDENCE_SOURCE_SHA=4ef4eb4008fd793c45671cce63d35ef51a8d4578
+VISUAL_EVIDENCE_SOURCE_SHA=d0e83ce50893db7c7bad8e4061c63ed9021189f4
 SCREENSHOTS_REGENERATED_FROM_SINGLE_HEAD=true
 
 PRACTICE_EXPLICIT_ROUTE_REQUIRED=true
@@ -909,6 +909,17 @@ MOBILE_HORIZONTAL_OVERFLOW=0
 MOBILE_SCENES_MEASURED=10
 MOBILE_SELECTOR_HIDDEN_WHILE_GUIDE_OPEN=true
 MOBILE_READER_TEXT_VISIBLE_BEHIND_SHEET=true
+```
+
+Las nueve capturas se regeneraron desde un checkout limpio del head del PR
+(`git worktree` nuevo, `pnpm install --frozen-lockfile`, build desde cero) y se
+sirvieron desde ese build, no desde una carpeta de build previa:
+
+```
+SCREENSHOT_BUILD_SOURCE_SHA=d0e83ce50893db7c7bad8e4061c63ed9021189f4
+SCREENSHOT_BUILD_CLEAN=true
+ALL_SCREENSHOTS_FROM_SINGLE_CODE_SHA=true
+STALE_SCREENSHOTS_REMAINING=0
 ```
 
 Limite conocido del cierre en escritorio: a 1365 x 900 el bloque de resonancia

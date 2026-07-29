@@ -3,6 +3,9 @@
 > ```
 > CURRENT_GUIDE_V1_UI_STATUS=LEGACY_PILOT
 > TARGET_GUIDED_READING_SPEC=docs/product/guided-reading-v1.md
+> DOCUMENT_KIND=HISTORICAL_IMPLEMENTATION_RECORD
+> STATUS_FIELDS_BELOW_ARE_HISTORICAL=true
+> CURRENT_RUNTIME_STATUS_IS_NOT_DEFINED_HERE=true
 > ```
 >
 > Este documento describe la implementación piloto actualmente existente.

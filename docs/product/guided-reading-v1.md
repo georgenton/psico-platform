@@ -1,21 +1,25 @@
 # Guided Reading V1 — Blueprint canónico
 
 ```
-GUIDED_READING_SPEC_VERSION=0.3
+GUIDED_READING_SPEC_VERSION=0.7
 
 GUIDED_READING_BLUEPRINT_STATUS=APPROVED
 GUIDED_READING_IMPLEMENTATION_STATUS=NOT_STARTED
-GUIDED_READING_VISUAL_PROTOTYPE_STATUS=READY_TO_IMPLEMENT
+GUIDED_READING_VISUAL_PROTOTYPE_STATUS=APPROVED
 
-STORYBOARD_STATUS=APPROVED_FOR_VISUAL_PROTOTYPE
+STORYBOARD_STATUS=APPROVED
 
 AUTHORITATIVE_PRODUCT_SPEC=true
 AUTHORITATIVE_PRODUCT_SPEC_STATUS=APPROVED
-AUTHORITATIVE_PRODUCT_SPEC_EFFECTIVE_WHEN=MERGED_TO_DEVELOP
+AUTHORITATIVE_PRODUCT_SPEC_EFFECTIVE=true
+AUTHORITATIVE_PRODUCT_SPEC_EFFECTIVE_SINCE=2c58323ed644c7141052995a1042997424e18ac3
 
 PRODUCT_OWNER=Jorge
 PRODUCT_OWNER_APPROVAL=true
 PRODUCT_OWNER_APPROVAL_DATE=2026-07-29
+GR1_FINAL_VISUAL_APPROVAL_BY_JORGE=true
+GR1_FINAL_VISUAL_APPROVAL_DATE=2026-07-29
+GR1_STATUS=CLOSED
 
 GUIDED_READING_DECISION_PACKET_APPROVED=true
 
@@ -23,6 +27,22 @@ LAST_UPDATED=2026-07-29
 
 PRODUCTION_RUNTIME_CHANGED=false
 PILOT_CONFIGURATION_CHANGED=false
+
+GR1_PROTOTYPE_ROUTE=/prototipos/lectura-guiada
+GR1_RUNTIME_INTEGRATION=false
+GR1_API_INTEGRATION=false
+GR1_DATABASE_INTEGRATION=false
+
+PROTOTYPE_EVOLUTION_WRITE=false
+PROTOTYPE_RESONANCE_WRITE=false
+PROTOTYPE_CHECKIN_WRITE=false
+PROTOTYPE_MAP_WRITES=0
+
+COMPLETION_RESONANCE_AND_CHECKIN_SEPARATED=true
+MOBILE_SELECTOR_HIDDEN_WHILE_GUIDE_OPEN=true
+MOBILE_READER_TEXT_VISIBLE_BEHIND_SHEET=true
+
+DECISIONS_CHANGED_WITHOUT_APPROVAL=0
 
 IMPLEMENTATION_SNAPSHOT_MAIN_SHA=c7295cdc27090c5d2826c430156675a0539a2245
 IMPLEMENTATION_SNAPSHOT_DEVELOP_SHA=f9f178ac2c86dca4e8a1842ce134158b06f7a0ae
@@ -259,7 +279,11 @@ No se crea un CMS.
 ## 5.3 MVP implementation constraints
 
 ```
-NEW_MEDIA_ANALYTICS_EVENTS_IN_MVP=0
+MEDIA_ACTIVITY_TRACKING=MINIMAL
+NEW_MEDIA_ANALYTICS_EVENTS_IN_MVP=1
+MEDIA_ACTIVITY_EVENT=chapter_media_completed
+MEDIA_EVENT_GRANULARITY=COMPLETION_ONLY
+MEDIA_ACTIVITY_DESTINATION=MI_EVOLUCION
 
 PODCAST_V1_FORMAT=JORGE_SOLO
 PODCAST_V1_STYLE=CONVERSATIONAL_SCRIPT
@@ -281,7 +305,8 @@ SECOND_GUIDE_PRODUCTIVE_ALLOWED=false
 SECOND_BOOK_GUIDED_READING_ALLOWED=false
 ```
 
-- No se añaden eventos de video, podcast o reproducción durante el MVP.
+- El MVP añade un único evento de medios, de finalización, con destino Mi
+  Evolución (§9). No hay analítica segundo a segundo.
 - El progreso audiovisual **no** alimenta el Mapa.
 - El segundo exacto de reproducción puede recordarse localmente, sin sync.
 - El hosting se decide en GR-2, no durante GR-1.
@@ -295,7 +320,7 @@ SECOND_BOOK_GUIDED_READING_ALLOWED=false
 ## 6. Storyboard — capítulo 1
 
 ```
-STORYBOARD_STATUS=APPROVED_FOR_VISUAL_PROTOTYPE
+STORYBOARD_STATUS=APPROVED
 ```
 
 ```
@@ -559,20 +584,35 @@ Nunca se reinicia toda la Guide por perder estado de presentación.
 
 ## 9. Datos y privacidad
 
-| Acción               | Dato guardado                          | Mi Evolución | Mapa Emocional |
-| -------------------- | -------------------------------------- | ------------ | -------------- |
-| Leer capítulo        | Progreso de lectura                    | Sí           | **No**         |
-| Escuchar audiolibro  | Sin eventos nuevos en MVP              | —            | **No**         |
-| Escuchar podcast     | Sin eventos nuevos en MVP              | —            | **No**         |
-| Ver video            | Sin eventos nuevos en MVP              | —            | **No**         |
-| Lectura guiada       | Solo sus eventos educativos existentes | Posible      | **No**         |
-| Confirmar resonancia | `Resonance` explícita con procedencia  | —            | **Sí**         |
+| Acción                   | Dato guardado                          | Mi Evolución | Mapa Emocional |
+| ------------------------ | -------------------------------------- | ------------ | -------------- |
+| Leer capítulo            | Progreso de lectura                    | Sí           | **No**         |
+| Escuchar audiolibro      | `chapter_media_completed`              | Sí           | **No**         |
+| Escuchar podcast         | `chapter_media_completed`              | Sí           | **No**         |
+| Ver video                | `chapter_media_completed`              | Sí           | **No**         |
+| Lectura guiada           | Solo sus eventos educativos existentes | Posible      | **No**         |
+| Confirmar resonancia     | `Resonance` explícita con procedencia  | —            | **Sí**         |
+| Registrar cómo me siento | Check-in explícito posterior           | —            | **Sí**         |
 
 ```
-NEW_MEDIA_ANALYTICS_EVENTS_IN_MVP=0
+MEDIA_ACTIVITY_TRACKING=MINIMAL
+NEW_MEDIA_ANALYTICS_EVENTS_IN_MVP=1
+MEDIA_ACTIVITY_EVENT=chapter_media_completed
+MEDIA_EVENT_GRANULARITY=COMPLETION_ONLY
+
+MEDIA_ACTIVITY_KINDS=AUDIOBOOK|PODCAST|VIDEO
+MEDIA_ACTIVITY_DESTINATION=MI_EVOLUCION
+
+GUIDE_ACTIVITY_SOURCE=EXISTING_LEARNING_EVENTS
+GUIDE_ACTIVITY_DESTINATION=MI_EVOLUCION
+
 MEDIA_ACTIVITY_AUTOMATIC_MAP_WRITE=false
 GUIDED_READING_AUTOMATIC_MAP_WRITE=false
+
+MAP_ENTRY_REQUIRES_EXPLICIT_USER_ACTION=true
 GUIDED_READING_EXPLICIT_RESONANCE_ONLY=true
+OPTIONAL_POST_EXPERIENCE_CHECKIN=true
+EXPERIENCE_CAUSAL_INFERENCE=false
 GLOBAL_MAP_INPUTS_EXCLUSIVE_TO_RESONANCE=false
 ```
 
@@ -581,8 +621,30 @@ Mapa Emocional conserva otras fuentes explícitas ajenas a Guided Reading —án
 autoinformado y micro-checkins— que siguen gobernadas por sus propios
 contratos. Esta tabla no las restringe ni las modifica.
 
-El MVP **no añade** ningún evento analítico de medios. Medir reproducción en el
-futuro exigiría una decisión explícita y una actualización de esta matriz.
+```
+Mi Evolución registra qué hizo la persona.
+Mapa Emocional registra únicamente señales que la persona decidió expresar.
+```
+
+El MVP añade **un solo** evento de medios, `chapter_media_completed`, y solo con
+granularidad de finalización: audiolibro, podcast o video terminados. No hay
+telemetría segundo a segundo ni porcentajes de reproducción. Ese evento va a Mi
+Evolución —el registro de actividad— y **nunca** al Mapa Emocional.
+
+La actividad de Guided Reading no estrena eventos: reutiliza los eventos
+educativos que el runtime ya emite, y su destino es igualmente Mi Evolución.
+
+Nada de esto entra al Mapa por sí solo. El Mapa solo recibe una acción
+explícita: confirmar una resonancia o registrar cómo se siente la persona
+después de la experiencia. El check-in posterior es opcional y no se interpreta
+como efecto de la experiencia (`EXPERIENCE_CAUSAL_INFERENCE=false`): haber
+terminado un video no explica un estado de ánimo.
+
+Ampliar esta telemetría en el futuro exigiría una decisión explícita y una
+actualización de esta matriz.
+
+**GR-1 no implementa ninguno de estos writes.** El prototipo anuncia el destino
+—«Esta experiencia se registrará en Mi Evolución.»— y no escribe nada.
 
 ---
 
@@ -651,9 +713,13 @@ NO nuevo scoring del Mapa
 ## 12. Roadmap
 
 ```
-GR0_STATUS=APPROVED_PENDING_MERGE
-GR1_STATUS=READY_TO_IMPLEMENT
-GR2_STATUS=BLOCKED_MEDIA_HOSTING_DECISION
+GR0_STATUS=CLOSED
+GR1_STATUS=CLOSED
+
+GR2_STATUS=READY_FOR_MEDIA_HOSTING_DECISION
+GR2_IMPLEMENTATION_STATUS=NOT_STARTED
+GR2_BLOCKER=MEDIA_HOSTING_PROVIDER
+
 GR3_STATUS=BLOCKED_RUNTIME_ANCHOR
 GR4_STATUS=BLOCKED_BY_GR3
 GR5_STATUS=BLOCKED_BY_GR4
@@ -758,12 +824,138 @@ ANCHOR_SOURCE_HEADING=TBD
 
 ```
 OPEN_BLOCKERS_FOR_GR1=0
-OPEN_BLOCKERS_FOR_GR2=1
+OPEN_DECISIONS_FOR_GR2=1
 OPEN_BLOCKERS_FOR_GR3=1
 ```
 
 El proveedor de hosting bloquea GR-2, no GR-1. El anchor exacto bloquea GR-3,
 no GR-1.
+
+### Notas de la revisión visual de GR-1
+
+Diferidas por decisión de Jorge al aprobar el prototipo. Ninguna bloquea GR-2 ni
+GR-3.
+
+```
+ANCHOR_SECONDARY_BUTTON_COPY_REFINEMENT_DEFERRED=true
+DESKTOP_COMPLETION_INTERNAL_SCROLL_ACCEPTED=true
+MOBILE_SHEET_DRAG_AND_SNAP_DEFERRED=true
+```
+
+- Tras localizar el pasaje, el botón secundario sigue diciendo «Ir al pasaje».
+  Podrá convertirse en «Volver al pasaje» o «Resaltar de nuevo».
+- En 1365 x 900 el bloque de check-in del cierre exige un pequeño scroll dentro
+  del panel. Aceptado como está.
+- El bottom sheet no incorpora arrastre ni puntos de anclaje: V1 no introduce un
+  motor de gestos.
+
+---
+
+## 15bis. GR-1 Visual Evidence
+
+```
+GR1_PROTOTYPE_ROUTE=/prototipos/lectura-guiada
+PROTOTYPE_AVAILABLE_IN_PRODUCTION=false
+PROTOTYPE_LINKED_FROM_PRODUCT_NAV=false
+
+VISUAL_EVIDENCE_SOURCE_SHA=d0e83ce50893db7c7bad8e4061c63ed9021189f4
+SCREENSHOTS_REGENERATED_FROM_SINGLE_HEAD=true
+
+PRACTICE_EXPLICIT_ROUTE_REQUIRED=true
+PRACTICE_COMPLETE_BEFORE_ROUTE_CALLS=0
+ANCHOR_ACTION_HIERARCHY_PASS=true
+REPEAT_FLOW_FULL_RESET=true
+MEDIA_CONTROLS_COHERENT=true
+MOBILE_HORIZONTAL_OVERFLOW=0
+COMPLETION_RESONANCE_AND_CHECKIN_SEPARATED=true
+MOBILE_SELECTOR_HIDDEN_WHILE_GUIDE_OPEN=true
+MOBILE_READER_TEXT_VISIBLE_BEHIND_SHEET=true
+
+PROTOTYPE_EVOLUTION_WRITE=false
+PROTOTYPE_RESONANCE_WRITE=false
+PROTOTYPE_CHECKIN_WRITE=false
+PROTOTYPE_MAP_WRITES=0
+
+PROTOTYPE_ANCHOR_KIND=VISUAL_PLACEHOLDER
+PROTOTYPE_ANCHOR_BLOCK_KEY=null
+RUNTIME_ANCHOR_APPROVED=false
+
+PROTOTYPE_CLIENT_GRADING=false
+PROTOTYPE_RESONANCE_WRITE=false
+EMOTIONAL_MAP_WRITE=false
+
+CHECKPOINT_PROGRESS_AUTHORITY=SIMULATED_SERVER_FIXTURE
+SCENE_PROGRESS_AUTHORITY=PRESENTATION
+
+DESIGN_REFERENCE_USE=inspiration_only
+REFERENCE_CLONE=false
+EXPERIENCE_TONE=ACCOMPANIED_NOT_ADMINISTRATIVE
+```
+
+Capturas de la superficie aislada de revisión. Escritorio a 1365 x 900; movil a
+390 x 844. Todo el contenido sale del fixture editorial local: no hay identidad,
+ni datos reales, ni llamadas de red.
+
+| #   | Vista                             | Captura                                                                                               |
+| --- | --------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 1   | Selector de modalidad + lector    | [01-selector-desktop.webp](assets/guided-reading-v1-prototype/01-selector-desktop.webp)               |
+| 2   | Escuchar (audiolibro / podcast)   | [02-listen-desktop.webp](assets/guided-reading-v1-prototype/02-listen-desktop.webp)                   |
+| 3   | Ver (videoexplicacion)            | [03-watch-desktop.webp](assets/guided-reading-v1-prototype/03-watch-desktop.webp)                     |
+| 4   | Guide - escena 1, portada         | [04-guide-cover-desktop.webp](assets/guided-reading-v1-prototype/04-guide-cover-desktop.webp)         |
+| 5   | Guide - escena 3, pasaje anclado  | [05-guide-anchor-desktop.webp](assets/guided-reading-v1-prototype/05-guide-anchor-desktop.webp)       |
+| 6   | Guide - escena 4, practica inline | [06-guide-practice-desktop.webp](assets/guided-reading-v1-prototype/06-guide-practice-desktop.webp)   |
+| 7   | Guide - escena 6, feedback REVIEW | [07-guide-feedback-desktop.webp](assets/guided-reading-v1-prototype/07-guide-feedback-desktop.webp)   |
+| 8   | Guide - escena 7, cierre          | [08-guide-completed-desktop.webp](assets/guided-reading-v1-prototype/08-guide-completed-desktop.webp) |
+| 9   | Guide en movil (bottom sheet)     | [09-guide-mobile.webp](assets/guided-reading-v1-prototype/09-guide-mobile.webp)                       |
+
+Parametros deterministas usados para las capturas (solo preview, nunca contrato
+productivo): `?mode=read|listen|watch`, `?mode=guide&scene=1..7`,
+`&outcome=correct|review`.
+
+Medicion real en navegador a 390 x 844 (no en jsdom, que no calcula layout).
+Las diez superficies moviles —lectura, escuchar, ver y las siete escenas de la
+Guide— miden `document.documentElement.scrollWidth = 390` con
+`window.innerWidth = 390`. En las siete escenas de la Guide el selector compacto
+esta oculto (`display: none`) y queda al menos un bloque de texto del capitulo
+visible por encima del sheet; en lectura, escuchar y ver el selector vuelve a
+mostrarse.
+
+| Escena movil | Overflow | Selector | Borde superior del sheet | Bloques de texto visibles |
+| ------------ | -------- | -------- | ------------------------ | ------------------------- |
+| Portada      | 0        | oculto   | 360 px                   | 2                         |
+| Clip         | 0        | oculto   | 236 px                   | 1                         |
+| Pasaje       | 0        | oculto   | 236 px                   | 1                         |
+| Practica     | 0        | oculto   | 203 px                   | 1                         |
+| Recall       | 0        | oculto   | 203 px                   | 1                         |
+| Feedback     | 0        | oculto   | 236 px                   | 1                         |
+| Cierre       | 0        | oculto   | 236 px                   | 1                         |
+
+```
+MOBILE_HORIZONTAL_OVERFLOW=0
+MOBILE_SCENES_MEASURED=10
+MOBILE_SELECTOR_HIDDEN_WHILE_GUIDE_OPEN=true
+MOBILE_READER_TEXT_VISIBLE_BEHIND_SHEET=true
+```
+
+Las nueve capturas se regeneraron desde un checkout limpio del head del PR
+(`git worktree` nuevo, `pnpm install --frozen-lockfile`, build desde cero) y se
+sirvieron desde ese build, no desde una carpeta de build previa:
+
+```
+SCREENSHOT_BUILD_SOURCE_SHA=d0e83ce50893db7c7bad8e4061c63ed9021189f4
+SCREENSHOT_BUILD_CLEAN=true
+ALL_SCREENSHOTS_FROM_SINGLE_CODE_SHA=true
+STALE_SCREENSHOTS_REMAINING=0
+```
+
+Limite conocido del cierre en escritorio: a 1365 x 900 el bloque de resonancia
+se ve completo y el de check-in empieza a asomar; quedan 161 px por debajo del
+pliegue del panel, alcanzables con el scroll propio del cuerpo. En movil y en
+pantallas mas altas ambos bloques caben.
+
+Lo que las capturas **no** demuestran, porque GR-1 no lo implementa: sesion
+real, receipts, idempotencia, recovery entre dispositivos, anchor de Content
+Core, multimedia real, escritura de `Resonance` ni del Mapa Emocional.
 
 ---
 
@@ -779,11 +971,15 @@ GR-P04 → GR-016    GR-P09 → GR-021
 GR-P05 → GR-017    GR-P10 → GR-022
 ```
 
-| Fecha      | Versión | Cambio                                                                                                                                                                                                                                                                |
-| ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-07-29 | 0.1     | Initial blueprint from Jorge's product direction: multimodal chapter + integrated Guided Reading.                                                                                                                                                                     |
-| 2026-07-29 | 0.2     | Corrected Content Core facts, scoped Map rule, candidate authority status, editorial anchor, recall authority and scene/checkpoint continuity proposals.                                                                                                              |
-| 2026-07-29 | 0.3     | Jorge approved the Guided Reading decision packet. Promoted GR-P01…GR-P10 to GR-013…GR-022. Approved MVP constraints for media analytics, podcast format, local scene and playback state, ReaderMode compatibility, deferred hosting and the visual prototype anchor. |
+| Fecha      | Versión | Cambio                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-29 | 0.1     | Initial blueprint from Jorge's product direction: multimodal chapter + integrated Guided Reading.                                                                                                                                                                                                                                                                                             |
+| 2026-07-29 | 0.2     | Corrected Content Core facts, scoped Map rule, candidate authority status, editorial anchor, recall authority and scene/checkpoint continuity proposals.                                                                                                                                                                                                                                      |
+| 2026-07-29 | 0.3     | Jorge approved the Guided Reading decision packet. Promoted GR-P01…GR-P10 to GR-013…GR-022. Approved MVP constraints for media analytics, podcast format, local scene and playback state, ReaderMode compatibility, deferred hosting and the visual prototype anchor.                                                                                                                         |
+| 2026-07-29 | 0.4     | Created the isolated Guided Reading visual prototype for product review. No runtime integration, API calls, persistence or production exposure.                                                                                                                                                                                                                                               |
+| 2026-07-29 | 0.5     | Corrected prototype interaction and layout after Jorge's visual review, and set the activity policy: media and Guided Reading activity go to Mi Evolucion with a single completion event; the Emotional Map only receives explicit user actions.                                                                                                                                              |
+| 2026-07-29 | 0.6     | Final visual close of GR-1: resonance and the optional check-in became independent blocks (the check-in is no longer an answer to the resonance question), the mobile sheet hides the mode selector and keeps chapter text visible behind it, and the sheet moved to dynamic viewport units with two sizes.                                                                                   |
+| 2026-07-29 | 0.7     | Jorge granted final visual approval for GR-1. Approved: desktop reader + side panel; mobile reader + bottom sheet; selector and four modalities; anchor post-click state; inline practice; recall and feedback; completion; and the separation of educational activity, resonance and the optional check-in. GR-1 closed. No runtime, API, database, production or Map integration was added. |
 
 Toda futura modificación del producto debe actualizar `SPEC_VERSION`,
 `LAST_UPDATED`, el Decision Registry y este Change Log.

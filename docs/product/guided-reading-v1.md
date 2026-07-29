@@ -1,21 +1,25 @@
 # Guided Reading V1 — Blueprint canónico
 
 ```
-GUIDED_READING_SPEC_VERSION=0.6
+GUIDED_READING_SPEC_VERSION=0.7
 
 GUIDED_READING_BLUEPRINT_STATUS=APPROVED
 GUIDED_READING_IMPLEMENTATION_STATUS=NOT_STARTED
-GUIDED_READING_VISUAL_PROTOTYPE_STATUS=IN_REVIEW
+GUIDED_READING_VISUAL_PROTOTYPE_STATUS=APPROVED
 
-STORYBOARD_STATUS=APPROVED_FOR_VISUAL_PROTOTYPE
+STORYBOARD_STATUS=APPROVED
 
 AUTHORITATIVE_PRODUCT_SPEC=true
 AUTHORITATIVE_PRODUCT_SPEC_STATUS=APPROVED
-AUTHORITATIVE_PRODUCT_SPEC_EFFECTIVE_WHEN=MERGED_TO_DEVELOP
+AUTHORITATIVE_PRODUCT_SPEC_EFFECTIVE=true
+AUTHORITATIVE_PRODUCT_SPEC_EFFECTIVE_SINCE=2c58323ed644c7141052995a1042997424e18ac3
 
 PRODUCT_OWNER=Jorge
 PRODUCT_OWNER_APPROVAL=true
 PRODUCT_OWNER_APPROVAL_DATE=2026-07-29
+GR1_FINAL_VISUAL_APPROVAL_BY_JORGE=true
+GR1_FINAL_VISUAL_APPROVAL_DATE=2026-07-29
+GR1_STATUS=CLOSED
 
 GUIDED_READING_DECISION_PACKET_APPROVED=true
 
@@ -316,7 +320,7 @@ SECOND_BOOK_GUIDED_READING_ALLOWED=false
 ## 6. Storyboard — capítulo 1
 
 ```
-STORYBOARD_STATUS=APPROVED_FOR_VISUAL_PROTOTYPE
+STORYBOARD_STATUS=APPROVED
 ```
 
 ```
@@ -709,9 +713,13 @@ NO nuevo scoring del Mapa
 ## 12. Roadmap
 
 ```
-GR0_STATUS=APPROVED_PENDING_MERGE
-GR1_STATUS=IN_REVIEW
-GR2_STATUS=BLOCKED_MEDIA_HOSTING_DECISION
+GR0_STATUS=CLOSED
+GR1_STATUS=CLOSED
+
+GR2_STATUS=READY_FOR_MEDIA_HOSTING_DECISION
+GR2_IMPLEMENTATION_STATUS=NOT_STARTED
+GR2_BLOCKER=MEDIA_HOSTING_PROVIDER
+
 GR3_STATUS=BLOCKED_RUNTIME_ANCHOR
 GR4_STATUS=BLOCKED_BY_GR3
 GR5_STATUS=BLOCKED_BY_GR4
@@ -816,12 +824,30 @@ ANCHOR_SOURCE_HEADING=TBD
 
 ```
 OPEN_BLOCKERS_FOR_GR1=0
-OPEN_BLOCKERS_FOR_GR2=1
+OPEN_DECISIONS_FOR_GR2=1
 OPEN_BLOCKERS_FOR_GR3=1
 ```
 
 El proveedor de hosting bloquea GR-2, no GR-1. El anchor exacto bloquea GR-3,
 no GR-1.
+
+### Notas de la revisión visual de GR-1
+
+Diferidas por decisión de Jorge al aprobar el prototipo. Ninguna bloquea GR-2 ni
+GR-3.
+
+```
+ANCHOR_SECONDARY_BUTTON_COPY_REFINEMENT_DEFERRED=true
+DESKTOP_COMPLETION_INTERNAL_SCROLL_ACCEPTED=true
+MOBILE_SHEET_DRAG_AND_SNAP_DEFERRED=true
+```
+
+- Tras localizar el pasaje, el botón secundario sigue diciendo «Ir al pasaje».
+  Podrá convertirse en «Volver al pasaje» o «Resaltar de nuevo».
+- En 1365 x 900 el bloque de check-in del cierre exige un pequeño scroll dentro
+  del panel. Aceptado como está.
+- El bottom sheet no incorpora arrastre ni puntos de anclaje: V1 no introduce un
+  motor de gestos.
 
 ---
 
@@ -945,14 +971,15 @@ GR-P04 → GR-016    GR-P09 → GR-021
 GR-P05 → GR-017    GR-P10 → GR-022
 ```
 
-| Fecha      | Versión | Cambio                                                                                                                                                                                                                                                                                                      |
-| ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-07-29 | 0.1     | Initial blueprint from Jorge's product direction: multimodal chapter + integrated Guided Reading.                                                                                                                                                                                                           |
-| 2026-07-29 | 0.2     | Corrected Content Core facts, scoped Map rule, candidate authority status, editorial anchor, recall authority and scene/checkpoint continuity proposals.                                                                                                                                                    |
-| 2026-07-29 | 0.3     | Jorge approved the Guided Reading decision packet. Promoted GR-P01…GR-P10 to GR-013…GR-022. Approved MVP constraints for media analytics, podcast format, local scene and playback state, ReaderMode compatibility, deferred hosting and the visual prototype anchor.                                       |
-| 2026-07-29 | 0.4     | Created the isolated Guided Reading visual prototype for product review. No runtime integration, API calls, persistence or production exposure.                                                                                                                                                             |
-| 2026-07-29 | 0.5     | Corrected prototype interaction and layout after Jorge's visual review, and set the activity policy: media and Guided Reading activity go to Mi Evolucion with a single completion event; the Emotional Map only receives explicit user actions.                                                            |
-| 2026-07-29 | 0.6     | Final visual close of GR-1: resonance and the optional check-in became independent blocks (the check-in is no longer an answer to the resonance question), the mobile sheet hides the mode selector and keeps chapter text visible behind it, and the sheet moved to dynamic viewport units with two sizes. |
+| Fecha      | Versión | Cambio                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-29 | 0.1     | Initial blueprint from Jorge's product direction: multimodal chapter + integrated Guided Reading.                                                                                                                                                                                                                                                                                             |
+| 2026-07-29 | 0.2     | Corrected Content Core facts, scoped Map rule, candidate authority status, editorial anchor, recall authority and scene/checkpoint continuity proposals.                                                                                                                                                                                                                                      |
+| 2026-07-29 | 0.3     | Jorge approved the Guided Reading decision packet. Promoted GR-P01…GR-P10 to GR-013…GR-022. Approved MVP constraints for media analytics, podcast format, local scene and playback state, ReaderMode compatibility, deferred hosting and the visual prototype anchor.                                                                                                                         |
+| 2026-07-29 | 0.4     | Created the isolated Guided Reading visual prototype for product review. No runtime integration, API calls, persistence or production exposure.                                                                                                                                                                                                                                               |
+| 2026-07-29 | 0.5     | Corrected prototype interaction and layout after Jorge's visual review, and set the activity policy: media and Guided Reading activity go to Mi Evolucion with a single completion event; the Emotional Map only receives explicit user actions.                                                                                                                                              |
+| 2026-07-29 | 0.6     | Final visual close of GR-1: resonance and the optional check-in became independent blocks (the check-in is no longer an answer to the resonance question), the mobile sheet hides the mode selector and keeps chapter text visible behind it, and the sheet moved to dynamic viewport units with two sizes.                                                                                   |
+| 2026-07-29 | 0.7     | Jorge granted final visual approval for GR-1. Approved: desktop reader + side panel; mobile reader + bottom sheet; selector and four modalities; anchor post-click state; inline practice; recall and feedback; completion; and the separation of educational activity, resonance and the optional check-in. GR-1 closed. No runtime, API, database, production or Map integration was added. |
 
 Toda futura modificación del producto debe actualizar `SPEC_VERSION`,
 `LAST_UPDATED`, el Decision Registry y este Change Log.

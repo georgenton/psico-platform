@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import type {
   ContentUnitMarks,
   ContentUnitRead,
@@ -483,5 +484,71 @@ describe("LectorShell — marks read is source-aware + fail-closed (CC-6D)", () 
       screen.getByRole("button", { name: /abrir panel del lector/i }),
     );
     expect(screen.queryByText("Nota del envelope")).not.toBeInTheDocument();
+  });
+});
+
+describe("LectorShell — reader mode is hydration-safe", () => {
+  /**
+   * Regression: the mode used to be seeded from `localStorage` inside the
+   * `useState` initialiser. The server has no `localStorage`, so it rendered
+   * Leer while the first client render rendered the saved mode — React reported
+   * a text-content mismatch, discarded the server HTML for the whole document,
+   * and in development painted an error indicator over the reader. That is what
+   * put a red «1 error» into a GR-2 evidence capture.
+   *
+   * The contract: the FIRST render always matches the server (Leer), and the
+   * saved preference is adopted afterwards, in an effect.
+   */
+  it("server-renders Leer even when another mode is stored on the client", () => {
+    // The server has no `localStorage`; if the component ever consults it while
+    // producing markup, this string would disagree with the client's first
+    // render and React would throw the server HTML away.
+    window.localStorage.setItem("psico:lector:mode", "ver");
+    const html = renderToString(
+      <LectorShell
+        apiBase="https://api.example/api"
+        token="bearer-stub"
+        bookSlug="emociones-en-construccion"
+        initial={buildInitial()}
+        unit={buildUnit()}
+        marks={null}
+        marksUnavailable={false}
+      />,
+    );
+    const leerSelected =
+      /aria-selected="true"[^>]*>[^<]*(?:<[^>]+>)*[^<]*Leer/.test(html);
+    expect(html).toContain('aria-label="Modo de lectura"');
+    expect(leerSelected || !html.includes("Ver</button>")).toBe(true);
+    // The decisive part: the stored mode must NOT appear as selected.
+    const verSelectedIndex = html.indexOf("Ver");
+    const selectedTrueBeforeVer = html.lastIndexOf(
+      'aria-selected="true"',
+      verSelectedIndex,
+    );
+    const selectedFalseBeforeVer = html.lastIndexOf(
+      'aria-selected="false"',
+      verSelectedIndex,
+    );
+    expect(selectedFalseBeforeVer).toBeGreaterThan(selectedTrueBeforeVer);
+  });
+
+  it("adopts the stored mode after mount, so the preference is not lost", async () => {
+    window.localStorage.setItem("psico:lector:mode", "ver");
+    renderShell();
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: /Ver/ })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      ),
+    );
+  });
+
+  it("stays on Leer when nothing is stored", () => {
+    window.localStorage.removeItem("psico:lector:mode");
+    renderShell();
+    expect(screen.getByRole("tab", { name: /Leer/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 });

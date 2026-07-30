@@ -325,16 +325,56 @@ for (const vp of VIEWPORTS) {
   const page = await ctx.newPage();
   console.log(`\n${vp.w}×${vp.h}`);
 
+  // A hydration mismatch throws the server HTML away and, in development, puts
+  // an error indicator on screen — which is exactly how a misleading capture
+  // got into the evidence set once. Collect them per state and assert on zero.
+  const consoleErrors = [];
+  const pageErrors = [];
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(m.text().slice(0, 200));
+  });
+  page.on("pageerror", (e) => pageErrors.push(String(e).slice(0, 200)));
+
   const tab = async (name) => {
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.getByRole("tab", { name }).click({ force: true });
     await page.waitForTimeout(700);
   };
   const state = async (label, url, prepare) => {
-    await page.goto(url, { waitUntil: "networkidle" });
+    // NOT `networkidle`: the reader fires a session heartbeat every 5 seconds,
+    // so the network never goes idle and the wait would time out on a
+    // correctly configured stack. Wait for the DOM, then settle explicitly.
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1200);
     if (prepare) await prepare();
     await page.waitForTimeout(600);
     assertUniversal(`${vp.w}px ${label}`, await page.evaluate(MEASURE));
+
+    const hydration = [...consoleErrors, ...pageErrors].filter((t) =>
+      /hydrat|Text content|did not match/i.test(t),
+    );
+    const unhandled = pageErrors.filter(
+      (t) => !/hydrat|Text content|did not match/i.test(t),
+    );
+    const devOverlay = await page.evaluate(
+      () => !!document.querySelector("nextjs-portal"),
+    );
+    check(
+      `${vp.w}px ${label}: no hydration mismatch`,
+      hydration.length === 0,
+      JSON.stringify(hydration.slice(0, 2)),
+    );
+    check(
+      `${vp.w}px ${label}: no unhandled page error`,
+      unhandled.length === 0,
+      JSON.stringify(unhandled.slice(0, 2)),
+    );
+    check(
+      `${vp.w}px ${label}: no development error indicator on screen`,
+      devOverlay === false,
+    );
+    consoleErrors.length = 0;
+    pageErrors.length = 0;
   };
 
   await state("Leer", READER);
@@ -376,7 +416,8 @@ for (const vp of VIEWPORTS) {
 
   // The drawer is the replacement for the sidebar, so it has to actually work.
   if (vp.w <= COMPACT_MAX) {
-    await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1200);
     const parked = await page.evaluate(() => ({
       inert: document.querySelector(".side")?.inert ?? null,
       tabbables: [

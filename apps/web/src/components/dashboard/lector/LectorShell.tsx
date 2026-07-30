@@ -224,10 +224,20 @@ export function LectorShell({
   // The STORED values do not change: `"libro"` still means Leer and the legacy
   // `"guia"` still means Escuchar, so nobody's saved preference is migrated
   // (`LEGACY_READER_MODE_LOCALSTORAGE_MIGRATION=false`). Only `"ver"` is new.
-  const [mode, setMode] = useState<ReaderMode>(() => {
-    if (typeof window === "undefined") return "leer";
-    return storedToMode(window.localStorage.getItem("psico:lector:mode"));
-  });
+  //
+  // The initial value must be the one the SERVER renders. Reading
+  // `localStorage` inside the `useState` initialiser made the first client
+  // render disagree with the server HTML whenever a mode was already saved:
+  // React reported a text-content mismatch, threw away the server markup for
+  // the whole document, and in development put an error indicator on screen.
+  // So the stored preference is adopted in an effect, after hydration.
+  const [mode, setMode] = useState<ReaderMode>("leer");
+  useEffect(() => {
+    const stored = storedToMode(
+      window.localStorage.getItem("psico:lector:mode"),
+    );
+    if (stored !== "leer") setMode(stored);
+  }, []);
   function changeMode(next: ReaderMode) {
     setMode(next);
     if (typeof window !== "undefined") {

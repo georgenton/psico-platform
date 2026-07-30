@@ -1118,43 +1118,86 @@ Patrones IA, Reflexiones, Exploraciones, Biblioteca y Eco: las ocho cargan
 inaccesible detrás de él. Biblioteca necesitó el mismo tratamiento que los
 selectores del lector (sus cinco pestañas medían 443 px de contenido mínimo).
 
+### El estado DRAFT del video, verificado
+
+```
+VIDEO_DEFINITION_STATUS=DRAFT
+VIDEO_DEFINITION_SOURCE=null
+VIDEO_DRAFT_STATE_HONEST=true
+VIDEO_PLAYER_MOUNTED_WHILE_DRAFT=false
+VIDEO_ACCESS_REQUESTS_WHILE_DRAFT=0
+```
+
+Medido en Chrome sobre el head, **sin ninguna fixture ni interceptación**, a
+390 / 768 / 1365 px: `Leer → Ver` dice «Videoexplicación en producción», el
+manifiesto llega de verdad (la descripción visible es la del catálogo), y el
+cliente **no** monta el iframe de Stream, **no** pide acceso y **no** hace
+ninguna petición a un dominio de proveedor. `DRAFT ⇒ source === null` sigue
+comprobado en runtime por el catálogo.
+
+**Y un error que sí era real.** El indicador rojo «1 error» que apareció en una
+captura anterior de `Ver` no era una imagen vieja: se reproducía. Entrar al
+lector con un modo ya guardado producía un desajuste de hidratación porque el
+modo se sembraba desde `localStorage` **dentro del inicializador de `useState`**
+— el servidor no tiene `localStorage`, así que renderizaba Leer mientras el
+primer render del cliente renderizaba el modo guardado. React reportaba
+«Text content did not match», descartaba el HTML del servidor de todo el
+documento y, en desarrollo, pintaba el indicador de error sobre el lector.
+
+Antes del fix, entrando a `Ver`: **13 avisos de hidratación** y `nextjs-portal`
+en pantalla, en los tres viewports. Después: **cero**, en todos los estados y
+todos los viewports. La preferencia no se pierde — se adopta en un efecto, tras
+la hidratación. Tres tests jsdom fijan el contrato y el arnés de navegador real
+ahora afirma, por viewport y por estado, que no hay desajuste de hidratación, ni
+error no manejado, ni indicador de desarrollo en el DOM (262 → 316 aserciones).
+
 ### Evidencia visual
 
 ```
 SCREENSHOTS_CREATED=6
 ALL_SCREENSHOTS_FROM_SINGLE_SHA=true
 MOBILE_SCREENSHOT_CROPPED=false
+STALE_SCREENSHOTS_REMAINING=0
+DEVELOPMENT_OVERLAYS_IN_SCREENSHOTS=0
+PII_IN_SCREENSHOTS=false
 ```
 
-Las seis capturas salen del **mismo árbol** (`189abaa`), contra el API real en
+Las seis capturas salen del **mismo árbol** (`93c0375`), contra el API real en
 local y una cuenta sintética de desarrollo. Son de **viewport completo**: no hay
 recorte. Donde la barra lateral aparece, el bloque de cuenta va **tapado con una
 máscara opaca** — el layout completo queda a la vista y la dirección no; en
 móvil no hay máscara porque el cajón está aparcado fuera de lienzo, y el script
-lo comprueba (`accountRight = -17`) antes de disparar en vez de confiar.
+lo comprueba (`accountRight = -17`) antes de disparar en vez de confiar. El
+script **se niega a escribir** una captura si encuentra `nextjs-portal` en el
+DOM, y la 3 se niega además si aparece un iframe o falta el copy de DRAFT.
 
-| #   | Vista                                         | Viewport   | Captura                                                                                                 |
-| --- | --------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------- |
-| 1   | Escuchar · audiolibro con reproductor abierto | 1365 × 900 | [01-reader-listen-audiobook.webp](assets/gr2-media/01-reader-listen-audiobook.webp)                     |
-| 2   | Escuchar · podcast en producción              | 1365 × 900 | [02-reader-listen-podcast-coming-soon.webp](assets/gr2-media/02-reader-listen-podcast-coming-soon.webp) |
-| 3   | Ver · videoexplicación en producción          | 1365 × 900 | [03-reader-watch-video.webp](assets/gr2-media/03-reader-watch-video.webp)                               |
-| 4   | Cajón de navegación móvil abierto             | 390 × 844  | [04-dashboard-mobile-drawer.webp](assets/gr2-media/04-dashboard-mobile-drawer.webp)                     |
-| 5   | Mi Evolución · actividad de aprendizaje       | 1365 × 900 | [05-evolution-learning-activity.webp](assets/gr2-media/05-evolution-learning-activity.webp)             |
-| 6   | Lector multimedia en móvil                    | 390 × 844  | [06-reader-media-mobile.webp](assets/gr2-media/06-reader-media-mobile.webp)                             |
+| #   | Vista                                         | Viewport   | Fixture | Captura                                                                                                 |
+| --- | --------------------------------------------- | ---------- | ------- | ------------------------------------------------------------------------------------------------------- |
+| 1   | Escuchar · audiolibro con reproductor abierto | 1365 × 900 | sí      | [01-reader-listen-audiobook.webp](assets/gr2-media/01-reader-listen-audiobook.webp)                     |
+| 2   | Escuchar · podcast en producción              | 1365 × 900 | no      | [02-reader-listen-podcast-coming-soon.webp](assets/gr2-media/02-reader-listen-podcast-coming-soon.webp) |
+| 3   | Ver · videoexplicación en producción          | 1365 × 900 | no      | [03-reader-watch-video.webp](assets/gr2-media/03-reader-watch-video.webp)                               |
+| 4   | Cajón de navegación móvil abierto             | 390 × 844  | no      | [04-dashboard-mobile-drawer.webp](assets/gr2-media/04-dashboard-mobile-drawer.webp)                     |
+| 5   | Mi Evolución · actividad de aprendizaje       | 1365 × 900 | no      | [05-evolution-learning-activity.webp](assets/gr2-media/05-evolution-learning-activity.webp)             |
+| 6   | Lector multimedia en móvil                    | 390 × 844  | sí      | [06-reader-media-mobile.webp](assets/gr2-media/06-reader-media-mobile.webp)                             |
 
 ```
 sha256
 5ebddb818a6c3da3710fe9a6007171c3eb5db631b4d38977527823d1b0ba236f  01-reader-listen-audiobook.webp
-f00f8c5027dd1254cf936e93fb55fa52cdb2e48d27b766515ec649691f9c4a85  02-reader-listen-podcast-coming-soon.webp
-c289a4cd3aaadb3c4cc1676353734ea4ab5d4a7a7b6f879291e55012f3656962  03-reader-watch-video.webp
+7af43de8bf98b02b77e17ac43cca893e9f60d5caae41f9e2a752daa0b438c46c  02-reader-listen-podcast-coming-soon.webp
+d3305beddcba3c1257ba21a86376ddab65aa07c4c3b37983ecdab0141c4a2f10  03-reader-watch-video.webp
 1b46edf4c90e562b5f2a9345b81097408c19816e95a7ce3c381486505aa72775  04-dashboard-mobile-drawer.webp
-204c67a66ba3e108a9fa66b8597cbf1bab5c5d32c787766a06b72b7096d825aa  05-evolution-learning-activity.webp
-d729c9914708904a3bb811a63419d84241304e18f9a5360d960f94243ae5a9f7  06-reader-media-mobile.webp
+c29e13eb76376518cd4f0af602fa582ac8b92aa103ad83f9ec0dd098da1d793b  05-evolution-learning-activity.webp
+b9fdeb10e1ca8a4b4d283e94ed567a613e80f8a62ef08f5b9ac33b56c548250f  06-reader-media-mobile.webp
 ```
 
 Ruta del lector en 1, 2, 3, 4 y 6:
 `/dashboard/biblioteca/emociones-en-construccion/lector/1` (sin parámetros de
 consulta). En 5: `/dashboard/evolucion`.
+
+La captura 5 muestra los **seis** contadores de «Actividad de aprendizaje»
+—audiolibros, podcasts, videoexplicaciones, lecturas guiadas, prácticas y
+preguntas de recordar— en un solo cuadro; el script se niega a disparar si
+alguno queda fuera.
 
 La captura 6 es el lector en Escuchar a 390 × 844 px CSS, sin recortar: sin
 barra lateral de escritorio, con el botón de navegación, los tres modos
@@ -1165,19 +1208,17 @@ en cuanto se hace scroll, así que ningún cuadro de 390 × 844 contiene ambas
 cosas— pero su geometría **sí** está medida: `x=16 → derecha=374` dentro de un
 viewport de 390, con las filas de velocidad y temporizador en una sola línea.
 
-La captura 1 alimenta el reproductor con una **fixture local** (un WAV silencioso
-de 3 s servido desde localhost) porque el master del capítulo no está en el
-almacenamiento local: sin URL de proveedor, sin UID, sin token, sin URL firmada.
-Las otras cinco son el estado real del código.
+Las capturas 1 y 6 alimentan el reproductor con una **fixture local** (un WAV
+silencioso de 3 s servido desde localhost) porque el master del capítulo no está
+en el almacenamiento local: sin URL de proveedor, sin UID, sin token, sin URL
+firmada. Las otras cuatro son el estado real del código, sin fixture.
 
-**Lo que no se pudo fotografiar y por qué.** La pantalla de transcripción vive en
-la superficie de video, que sigue en `DRAFT`. El estado de multimedia se
-renderiza en el servidor, así que forzar «publicado» sólo del lado del cliente
-produce un error de hidratación —el HTML del servidor dice «en producción» y el
-cliente dice lo contrario—. No publicamos una captura con un indicador de error
-del entorno de desarrollo en cuadro; la captura 4 pasó a ser el cajón móvil, que
-es el corazón de esta puerta y es real de punta a punta. La transcripción se
-fotografía cuando exista el master.
+**Lo que no se fotografía y por qué.** La pantalla de transcripción vive en la
+superficie de video, que sigue en `DRAFT`. Publicarla sólo del lado del cliente
+para poder fotografiarla sería inventar un estado que el servidor no reconoce, y
+además vuelve a producir un desajuste de hidratación. Se fotografía cuando exista
+el master. Su lugar en el set lo toma el cajón móvil, que es el corazón de la
+puerta responsive y es real de punta a punta.
 
 ### Lo que GR-2 NO implementó
 

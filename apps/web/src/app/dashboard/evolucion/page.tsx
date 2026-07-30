@@ -33,7 +33,7 @@ export default async function EvolucionPage() {
       <>
         <div className="screen-head">
           <div className="screen-title">
-            <span className="eb">Tu transformación en el tiempo</span>
+            <span className="eb">Tu recorrido, registrado</span>
             Mi Evolución
           </div>
         </div>

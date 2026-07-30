@@ -59,8 +59,12 @@ export function LearningActivityCard({ stats }: { stats: EvolucionStats }) {
       Icon: IconPencil,
     },
     {
-      value: plural(stats.recallsRealizados, "pregunta", "preguntas"),
-      label: "de recordar que intentaste",
+      value: plural(
+        stats.recallsRealizados,
+        "intento de recuerdo",
+        "intentos de recuerdo",
+      ),
+      label: "registrados al responder una pregunta",
       Icon: IconCheck,
     },
   ];

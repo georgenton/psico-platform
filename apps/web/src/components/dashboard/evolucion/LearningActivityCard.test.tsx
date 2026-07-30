@@ -33,7 +33,12 @@ describe("LearningActivityCard — GR-2", () => {
     expect(screen.getByText("1 videoexplicación")).toBeInTheDocument();
     expect(screen.getByText("3 lecturas guiadas")).toBeInTheDocument();
     expect(screen.getByText("4 prácticas")).toBeInTheDocument();
-    expect(screen.getByText("5 preguntas")).toBeInTheDocument();
+    expect(screen.getByText("5 intentos de recuerdo")).toBeInTheDocument();
+  });
+
+  it("keeps all six counters on the card", () => {
+    const { container } = render(<LearningActivityCard stats={stats()} />);
+    expect(container.querySelectorAll(".eq-row")).toHaveLength(6);
   });
 
   it("keeps a zero visible instead of hiding the row", () => {
@@ -52,7 +57,7 @@ describe("LearningActivityCard — GR-2", () => {
 
     expect(screen.getByText("0 audiolibros")).toBeInTheDocument();
     expect(screen.getByText("0 lecturas guiadas")).toBeInTheDocument();
-    expect(screen.getByText("0 preguntas")).toBeInTheDocument();
+    expect(screen.getByText("0 intentos de recuerdo")).toBeInTheDocument();
   });
 
   it("uses the singular when the count is exactly one", () => {
@@ -73,16 +78,18 @@ describe("LearningActivityCard — GR-2", () => {
     expect(screen.getByText("1 podcast")).toBeInTheDocument();
     expect(screen.getByText("1 lectura guiada")).toBeInTheDocument();
     expect(screen.getByText("1 práctica")).toBeInTheDocument();
-    expect(screen.getByText("1 pregunta")).toBeInTheDocument();
+    expect(screen.getByText("1 intento de recuerdo")).toBeInTheDocument();
   });
 
   it("reports attempts, never scores or emotional claims", () => {
     const { container } = render(<LearningActivityCard stats={stats()} />);
     const text = container.textContent ?? "";
 
-    // Recall is an attempt count — no correctness, no percentage, no grade.
-    expect(text).toContain("intentaste");
-    expect(text).not.toMatch(/correct/i);
+    // Recall is an attempt count. The label says what was recorded and when —
+    // never whether the answer was right.
+    expect(text).toContain("intentos de recuerdo");
+    expect(text).toContain("registrados al responder una pregunta");
+    expect(text).not.toMatch(/correct|aciertos|resultado|score|porcentaje/i);
     expect(text).not.toContain("%");
     // And no interpretation of what the activity means about the person.
     expect(text).not.toMatch(/transformaci|progres|dominas|vas muy bien/i);

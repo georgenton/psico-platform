@@ -1,5 +1,6 @@
 import type {
   ChapterMediaAccessResponse,
+  ChapterMediaCommandResponse,
   ChapterMediaManifestResponse,
   CreateAnnotationRequest,
   CreateAnnotationResponse,
@@ -75,7 +76,9 @@ export const lectorApi = {
    * replay returns 200 and never writes a second row.
    */
   completeChapterMedia: (mediaKey: string) =>
-    apiClient.post<{ created: boolean; replayed: boolean }>(
+    // `{}` is the whole contract: the body is closed and empty, so any property
+    // added here would be rejected with `MEDIA_INVALID_PAYLOAD`.
+    apiClient.post<ChapterMediaCommandResponse>(
       `/lector/media/${encodeURIComponent(mediaKey)}/complete`,
       {},
     ),

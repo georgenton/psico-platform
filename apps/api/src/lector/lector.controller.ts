@@ -4,6 +4,7 @@ import {
   Get,
   Header,
   HttpCode,
+  HttpException,
   HttpStatus,
   Param,
   ParseIntPipe,
@@ -14,9 +15,13 @@ import {
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
+  ApiBody,
+  ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -25,6 +30,7 @@ import type { Response } from "express";
 import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import type {
   ChapterMediaAccessResponse,
+  ChapterMediaCommandResponse,
   ChapterMediaManifestResponse,
   LectorAudioResponse,
   LectorChapterResponse,
@@ -37,6 +43,16 @@ import type { AuthenticatedUser } from "../auth/strategies/jwt.strategy";
 import { CurrentUser } from "../shared/decorators/current-user.decorator";
 import { LectorSessionHeartbeatDto } from "./dto/heartbeat.dto";
 import { LectorService } from "./lector.service";
+import {
+  MEDIA_INVALID_PAYLOAD,
+  parseChapterMediaCompleteBody,
+} from "./media/chapter-media-command-body";
+import {
+  CHAPTER_MEDIA_ACCESS_RESPONSE,
+  CHAPTER_MEDIA_COMMAND_RESPONSE,
+  CHAPTER_MEDIA_COMPLETE_BODY,
+  CHAPTER_MEDIA_MANIFEST_RESPONSE,
+} from "./media/chapter-media.openapi";
 import { ChapterMediaService } from "./media/chapter-media.service";
 
 @ApiTags("Lector")
@@ -68,8 +84,12 @@ export class LectorController {
       "URL firmada de corta vida para un medio disponible y autorizado. " +
       "Nunca se devuelve en SSR ni se cachea.",
   })
+  @ApiOkResponse({ schema: CHAPTER_MEDIA_ACCESS_RESPONSE })
   @ApiForbiddenResponse({ type: ErrorEnvelopeDto })
   @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
+  // The video provider is unreachable — infrastructure, never an editorial or
+  // entitlement verdict.
+  @ApiServiceUnavailableResponse({ type: ErrorEnvelopeDto })
   getMediaAccess(
     @CurrentUser() user: AuthenticatedUser,
     @Param("mediaKey") mediaKey: string,
@@ -92,13 +112,27 @@ export class LectorController {
       "Registra que el reproductor llegó a su final. No significa comprensión, " +
       "atención ni efecto emocional: la actividad va a Mi Evolución.",
   })
+  @ApiBody({ required: false, schema: CHAPTER_MEDIA_COMPLETE_BODY })
+  // Both statuses carry the SAME shape: 201 the first time, 200 on a replay.
+  @ApiCreatedResponse({ schema: CHAPTER_MEDIA_COMMAND_RESPONSE })
+  @ApiOkResponse({ schema: CHAPTER_MEDIA_COMMAND_RESPONSE })
   @ApiForbiddenResponse({ type: ErrorEnvelopeDto })
   @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
   async completeMedia(
     @CurrentUser() user: AuthenticatedUser,
     @Param("mediaKey") mediaKey: string,
+    @Body() body: unknown,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<{ created: boolean; replayed: boolean }> {
+  ): Promise<ChapterMediaCommandResponse> {
+    // A field the client sends is a claim about state the server owns. Rejected
+    // before anything runs, with the code alone — the value never comes back.
+    if (!parseChapterMediaCompleteBody(body).ok) {
+      throw new HttpException(
+        { code: MEDIA_INVALID_PAYLOAD, message: MEDIA_INVALID_PAYLOAD },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const result = await this.media.complete(
       user.userId,
       user.plan as Plan,
@@ -115,6 +149,7 @@ export class LectorController {
     summary:
       "Formatos del capítulo con su disponibilidad. Solo metadata: sin URLs.",
   })
+  @ApiOkResponse({ schema: CHAPTER_MEDIA_MANIFEST_RESPONSE })
   @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
   getMediaManifest(
     @CurrentUser() user: AuthenticatedUser,

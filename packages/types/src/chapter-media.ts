@@ -113,3 +113,16 @@ export type ChapterMediaAccessResponse =
 export interface ChapterMediaCompleteRequestBody {
   // Intentionally empty: zero properties, `additionalProperties: false`.
 }
+
+/**
+ * What the command answers. Two booleans and nothing else — no timestamps, no
+ * row id, no editorial context, no provider fact.
+ *
+ * `created` and `replayed` are mutually exclusive and mirror the status:
+ * `201 { created: true, replayed: false }` the first time, and
+ * `200 { created: false, replayed: true }` on every replay.
+ */
+export interface ChapterMediaCommandResponse {
+  created: boolean;
+  replayed: boolean;
+}

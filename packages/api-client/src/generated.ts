@@ -9103,7 +9103,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @enum {string} */
+                        kind: PathsApiLectorMediaMediaKeyAccessGetResponses200ContentApplicationJsonOneOf0Kind;
+                        /** @description Clave de catálogo del medio — fija también su versión. */
+                        mediaKey: string;
+                        /** @description Un máster nuevo es una VERSIÓN nueva, nunca una edición. */
+                        mediaVersion: number;
+                        /** @description URL firmada de corta vida — es un bearer temporal. */
+                        url: string;
+                        /**
+                         * Format: date-time
+                         * @description Instante ISO-8601 en que conviene volver a pedir. No promete que la URL siga válida hasta entonces.
+                         */
+                        expiresAt: string;
+                        transcriptUrl: string | null;
+                        posterUrl: string | null;
+                    } | {
+                        /** @enum {string} */
+                        kind: PathsApiLectorMediaMediaKeyAccessGetResponses200ContentApplicationJsonOneOf1Kind;
+                        /** @description Clave de catálogo del medio — fija también su versión. */
+                        mediaKey: string;
+                        /** @description Un máster nuevo es una VERSIÓN nueva, nunca una edición. */
+                        mediaVersion: number;
+                        /** @description URL del reproductor gestionado del proveedor. La identidad del proveedor nunca viaja como campo aparte. */
+                        embedUrl: string;
+                        /**
+                         * Format: date-time
+                         * @description Instante ISO-8601 en que conviene volver a pedir. No promete que la URL siga válida hasta entonces.
+                         */
+                        expiresAt: string;
+                        transcriptUrl: string | null;
+                        posterUrl: string | null;
+                        defaultTextTrack: string | null;
+                    };
                 };
             };
             400: {
@@ -9138,6 +9171,14 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
         };
     };
     completeChapterMedia: {
@@ -9149,13 +9190,37 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
         responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Esta llamada escribió la finalización (HTTP 201). */
+                        created: boolean;
+                        /** @description Una llamada idéntica anterior ya la escribió; ahora no corrió nada (HTTP 200). */
+                        replayed: boolean;
+                    };
+                };
+            };
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @description Esta llamada escribió la finalización (HTTP 201). */
+                        created: boolean;
+                        /** @description Una llamada idéntica anterior ya la escribió; ahora no corrió nada (HTTP 200). */
+                        replayed: boolean;
+                    };
+                };
             };
             400: {
                 headers: {
@@ -9208,7 +9273,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        bookSlug: string;
+                        chapterOrder: number;
+                        items: {
+                            /** @description Clave de catálogo del medio — fija también su versión. */
+                            mediaKey: string;
+                            /** @description Un máster nuevo es una VERSIÓN nueva, nunca una edición. */
+                            mediaVersion: number;
+                            /** @enum {string} */
+                            kind: PathsApiLectorBookIdChapterOrderMediaGetResponses200ContentApplicationJsonItemsKind;
+                            title: string;
+                            description: string;
+                            /** @description Duración editorial, o null mientras no exista el máster. */
+                            durationSec: number | null;
+                            /**
+                             * @description `COMING_SOON` es honesto: el formato está anunciado y no hay asset.
+                             * @enum {string}
+                             */
+                            availability: PathsApiLectorBookIdChapterOrderMediaGetResponses200ContentApplicationJsonItemsAvailability;
+                            hasTranscript: boolean;
+                            hasCaptions: boolean;
+                            chapters: {
+                                startSec: number;
+                                label: string;
+                            }[];
+                        }[];
+                    };
                 };
             };
             400: {
@@ -15643,6 +15734,22 @@ export enum PathsApiReflexionesEntriesGetParametersQueryMood {
     ok = "ok",
     low = "low",
     hard = "hard"
+}
+export enum PathsApiLectorMediaMediaKeyAccessGetResponses200ContentApplicationJsonOneOf0Kind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST"
+}
+export enum PathsApiLectorMediaMediaKeyAccessGetResponses200ContentApplicationJsonOneOf1Kind {
+    VIDEO = "VIDEO"
+}
+export enum PathsApiLectorBookIdChapterOrderMediaGetResponses200ContentApplicationJsonItemsKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
+}
+export enum PathsApiLectorBookIdChapterOrderMediaGetResponses200ContentApplicationJsonItemsAvailability {
+    AVAILABLE = "AVAILABLE",
+    COMING_SOON = "COMING_SOON"
 }
 export enum PathsApiLearningUnitsUnitKeyOpenPostResponses200ContentApplicationJsonEventOneOf0SchemaVersion {
     Value1 = 1

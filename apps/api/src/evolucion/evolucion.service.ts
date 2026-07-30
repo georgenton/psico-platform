@@ -42,6 +42,23 @@ export interface EvolucionStats {
   conversacionesEco: number;
   /** Highlights + annotations created while reading, all time. */
   marcasLectura: number;
+
+  // GR-2 — learning activity, read from the V1 LearningEvent log. These are
+  // counts of what the person DID: they say nothing about how they felt, and
+  // they never reach the Emotional Map. Only `schemaVersion = 1` rows count,
+  // so pre-CC-7.2 legacy rows stay out.
+  /** `chapter_media_completed` with `mediaKind: "AUDIOBOOK"`. */
+  audiolibrosCompletados: number;
+  /** `chapter_media_completed` with `mediaKind: "PODCAST"`. */
+  podcastsCompletados: number;
+  /** `chapter_media_completed` with `mediaKind: "VIDEO"`. */
+  videoexplicacionesCompletadas: number;
+  /** `guide_session_completed`. */
+  lecturasGuiadasCompletadas: number;
+  /** `practice_completed`. */
+  practicasCompletadas: number;
+  /** `active_recall_attempted` — attempts, never results. */
+  recallsRealizados: number;
 }
 
 /**
@@ -174,6 +191,7 @@ export class EvolucionService {
       conversacionesEco,
       highlights,
       annotations,
+      learningEvents,
     ] = await Promise.all([
       this.prisma.diaryEntry.count({ where: { userId } }),
       this.prisma.readingSession.findMany({
@@ -190,6 +208,26 @@ export class EvolucionService {
       }),
       this.prisma.highlight.count({ where: { userId } }),
       this.prisma.annotation.count({ where: { userId } }),
+      // GR-2 — learning activity. A READ of the append-only V1 log: this
+      // service never writes a LearningEvent (the single writer is
+      // `LearningEventRepository`). One query, grouped in memory, because the
+      // three media counters live inside the closed payload rather than in a
+      // column.
+      this.prisma.learningEvent.findMany({
+        where: {
+          userId,
+          schemaVersion: 1,
+          kind: {
+            in: [
+              "CHAPTER_MEDIA_COMPLETED",
+              "GUIDE_SESSION_COMPLETED",
+              "PRACTICE_COMPLETED",
+              "ACTIVE_RECALL_ATTEMPTED",
+            ],
+          },
+        },
+        select: { kind: true, payload: true },
+      }),
     ]);
 
     const capitulosCompletados = readingSessions.filter(
@@ -202,6 +240,8 @@ export class EvolucionService {
       activeDaysRows.map((r) => r.createdAt.toISOString().slice(0, 10)),
     ).size;
 
+    const activity = countLearningActivity(learningEvents);
+
     return {
       reflexiones,
       capitulosCompletados,
@@ -211,6 +251,7 @@ export class EvolucionService {
       diasActivos30d,
       conversacionesEco,
       marcasLectura: highlights + annotations,
+      ...activity,
     };
   }
 
@@ -310,6 +351,77 @@ export class EvolucionService {
 
 function readStat(stats: EvolucionStats, key: ProgressKey): number {
   return stats[key];
+}
+
+/** The six learning-activity counters this service derives from the log. */
+type LearningActivityCounts = Pick<
+  EvolucionStats,
+  | "audiolibrosCompletados"
+  | "podcastsCompletados"
+  | "videoexplicacionesCompletadas"
+  | "lecturasGuiadasCompletadas"
+  | "practicasCompletadas"
+  | "recallsRealizados"
+>;
+
+/**
+ * GR-2 — group the V1 log into the six counters.
+ *
+ * Deliberately narrow: it counts COMPLETIONS and ATTEMPTS, and nothing else.
+ * There is no start, no pause, no second watched, no playback speed, no
+ * transcript open, and no recall RESULT — a wrong answer and a right one are
+ * the same single attempt here, because Mi Evolución records what happened, not
+ * how well it went.
+ *
+ * A replayed completion is one row by construction (the `(userId,
+ * idempotencyKey)` uniqueness), so counting rows cannot double-count.
+ *
+ * `mediaKind` lives inside the payload rather than in a column, so the three
+ * media counters are read from the stored JSON. An unrecognised kind is
+ * skipped instead of guessed.
+ */
+export function countLearningActivity(
+  rows: Array<{ kind: string; payload: unknown }>,
+): LearningActivityCounts {
+  const counts: LearningActivityCounts = {
+    audiolibrosCompletados: 0,
+    podcastsCompletados: 0,
+    videoexplicacionesCompletadas: 0,
+    lecturasGuiadasCompletadas: 0,
+    practicasCompletadas: 0,
+    recallsRealizados: 0,
+  };
+
+  for (const row of rows) {
+    switch (row.kind) {
+      case "GUIDE_SESSION_COMPLETED":
+        counts.lecturasGuiadasCompletadas += 1;
+        break;
+      case "PRACTICE_COMPLETED":
+        counts.practicasCompletadas += 1;
+        break;
+      case "ACTIVE_RECALL_ATTEMPTED":
+        counts.recallsRealizados += 1;
+        break;
+      case "CHAPTER_MEDIA_COMPLETED": {
+        const kind = readMediaKind(row.payload);
+        if (kind === "AUDIOBOOK") counts.audiolibrosCompletados += 1;
+        else if (kind === "PODCAST") counts.podcastsCompletados += 1;
+        else if (kind === "VIDEO") counts.videoexplicacionesCompletadas += 1;
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  return counts;
+}
+
+function readMediaKind(payload: unknown): string | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const kind = (payload as Record<string, unknown>).mediaKind;
+  return typeof kind === "string" ? kind : null;
 }
 
 // Re-export so callers (web client, seed scripts) can stay typed without

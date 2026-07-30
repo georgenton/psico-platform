@@ -2436,14 +2436,17 @@ enum LearningEventKind {
   RESONANCE_CONFIRMED
   // CC-7.2 · V1 vocabulary additions (ADR 0017). The pre-existing kinds above
   // stay for schema compatibility, but the V1 typed repository only accepts
-  // the seven V1 types (UNIT_OPENED, UNIT_COMPLETED, CONCEPT_EXPLORED,
+  // the eight V1 types (UNIT_OPENED, UNIT_COMPLETED, CONCEPT_EXPLORED,
   // GUIDE_SESSION_STARTED, GUIDE_SESSION_COMPLETED, ACTIVE_RECALL_ATTEMPTED,
-  // PRACTICE_COMPLETED) — BLOCK_DWELL/HIGHLIGHT_CREATED/ANNOTATION_CREATED/
-  // RESONANCE_CONFIRMED are not V1 inputs (marks/resonances have their own
-  // source-of-truth tables).
+  // PRACTICE_COMPLETED, CHAPTER_MEDIA_COMPLETED) — BLOCK_DWELL/
+  // HIGHLIGHT_CREATED/ANNOTATION_CREATED/RESONANCE_CONFIRMED are not V1 inputs
+  // (marks/resonances have their own source-of-truth tables).
   CONCEPT_EXPLORED
   ACTIVE_RECALL_ATTEMPTED
   PRACTICE_COMPLETED
+  // GR-2 — the single media event, completion granularity only. Activity goes
+  // to Mi Evolución; the Emotional Map never reads it.
+  CHAPTER_MEDIA_COMPLETED
 }
 
 // Append-only learning log — FIREWALLED from the Emotional Map. `payload` is

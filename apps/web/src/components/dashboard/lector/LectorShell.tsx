@@ -28,6 +28,9 @@ import {
   type DockTab,
 } from "./companion/ReaderCompanionDock";
 import { AudioBar } from "./AudioBar";
+import { ChapterMediaListen } from "./media/ChapterMediaListen";
+import { ChapterMediaWatch } from "./media/ChapterMediaWatch";
+import { modeToStored, storedToMode, type ReaderMode } from "./reader-mode";
 import { BlockRenderer } from "./BlockRenderer";
 import { EcoTopicCard } from "./EcoTopicCard";
 import { ChapterExercises } from "./exercises/ChapterExercises";
@@ -212,20 +215,33 @@ export function LectorShell({
   const [prefs, setPrefs] = useState<ReaderPrefs>(preferences);
   const prefsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reader mode — "libro" (default, text-only) vs "guia" (audio prominent).
-  // Persisted in localStorage so the user's choice survives reloads of the
-  // same chapter. Per design `docs/design/handoff/05-lector.md`, Modo Guía
-  // is the audio-narrated experience.
-  type ReaderMode = "libro" | "guia";
-  const [mode, setMode] = useState<ReaderMode>(() => {
-    if (typeof window === "undefined") return "libro";
-    const stored = window.localStorage.getItem("psico:lector:mode");
-    return stored === "guia" ? "guia" : "libro";
-  });
+  // Reader mode — GR-2 renames the visible options to Leer · Escuchar · Ver
+  // (docs/product/guided-reading-v1.md §3 and §13). «Lectura guiada» stays in
+  // the spec and the prototype as GR-3's authority; it is deliberately NOT a
+  // fourth button here, because a button that does nothing is worse than an
+  // absent one.
+  //
+  // The STORED values do not change: `"libro"` still means Leer and the legacy
+  // `"guia"` still means Escuchar, so nobody's saved preference is migrated
+  // (`LEGACY_READER_MODE_LOCALSTORAGE_MIGRATION=false`). Only `"ver"` is new.
+  //
+  // The initial value must be the one the SERVER renders. Reading
+  // `localStorage` inside the `useState` initialiser made the first client
+  // render disagree with the server HTML whenever a mode was already saved:
+  // React reported a text-content mismatch, threw away the server markup for
+  // the whole document, and in development put an error indicator on screen.
+  // So the stored preference is adopted in an effect, after hydration.
+  const [mode, setMode] = useState<ReaderMode>("leer");
+  useEffect(() => {
+    const stored = storedToMode(
+      window.localStorage.getItem("psico:lector:mode"),
+    );
+    if (stored !== "leer") setMode(stored);
+  }, []);
   function changeMode(next: ReaderMode) {
     setMode(next);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem("psico:lector:mode", next);
+      window.localStorage.setItem("psico:lector:mode", modeToStored(next));
     }
   }
 
@@ -661,7 +677,7 @@ export function LectorShell({
                 want a quick listen without switching the whole reading
                 experience. In Modo Guía the audio lives in the banner
                 below, so we hide the pill to avoid duplicating it. */}
-            {chapter.audioAvailable && mode === "libro" ? (
+            {chapter.audioAvailable && mode === "leer" ? (
               <AudioBar
                 apiBase={apiBase}
                 token={token}
@@ -703,112 +719,74 @@ export function LectorShell({
         </div>
       </header>
 
-      {/* Mode toggle — Modo Libro vs Modo Guía. The toggle lives right
-          below the sticky header so the user can always switch without
-          scrolling, and so the choice is visible (it's the flagship feature
-          per the design source-of-truth, docs/design/handoff/05-lector.md). */}
+      {/* Mode selector — Leer · Escuchar · Ver (GR-2). It sits right below the
+          sticky header so switching never costs a scroll, and so the choice is
+          visible: the chapter is the unit, the format is the reader's call
+          (docs/product/guided-reading-v1.md GR-001). */}
       <div
-        className="mx-auto mt-4 flex max-w-3xl items-center justify-center gap-1 rounded-full p-1"
+        className="mx-auto mt-4 flex max-w-full items-center justify-center gap-1 overflow-x-auto rounded-full p-1"
         style={{
           background: "var(--reader-chip-bg, var(--color-warm-100))",
+          // `fit-content` capped by the viewport: the pill hugs its three tabs
+          // on desktop and scrolls inside itself on a narrow phone, so it can
+          // never be what makes the page wider than the screen.
           width: "fit-content",
+          maxWidth: "calc(100% - 32px)",
+          flexWrap: "nowrap",
+          scrollbarWidth: "none",
         }}
         role="tablist"
         aria-label="Modo de lectura"
       >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === "libro"}
-          onClick={() => changeMode("libro")}
-          className="rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
-          style={
-            mode === "libro"
-              ? {
-                  background: "var(--reader-bg, var(--color-warm-50))",
-                  color: "var(--reader-text, var(--color-warm-900))",
-                  boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
-                }
-              : {
-                  background: "transparent",
-                  color: "var(--reader-muted, var(--color-warm-600))",
-                }
-          }
-        >
-          📖 Modo Libro
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === "guia"}
-          onClick={() => changeMode("guia")}
-          className="rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
-          style={
-            mode === "guia"
-              ? {
-                  background: "var(--reader-bg, var(--color-warm-50))",
-                  color: "var(--reader-text, var(--color-warm-900))",
-                  boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
-                }
-              : {
-                  background: "transparent",
-                  color: "var(--reader-muted, var(--color-warm-600))",
-                }
-          }
-        >
-          🎧 Modo Guía
-        </button>
+        {(
+          [
+            { value: "leer", label: "📖 Leer" },
+            { value: "escuchar", label: "🎧 Escuchar" },
+            { value: "ver", label: "🎬 Ver" },
+          ] as const
+        ).map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="tab"
+            aria-selected={mode === option.value}
+            onClick={() => changeMode(option.value)}
+            className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
+            style={
+              mode === option.value
+                ? {
+                    background: "var(--reader-bg, var(--color-warm-50))",
+                    color: "var(--reader-text, var(--color-warm-900))",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                  }
+                : {
+                    background: "transparent",
+                    color: "var(--reader-muted, var(--color-warm-600))",
+                  }
+            }
+          >
+            {option.label}
+          </button>
+        ))}
       </div>
 
-      {/* Modo Guía banner — audio player area or empty state when the audio
-          isn't published yet. The author's audio rollout is happening in
-          batches (ffmpeg embed + R2 upload, see docs/v1-freeze-ops-checklist.md
-          §3), so chapters can land in production before their audio does. */}
-      {mode === "guia" ? (
-        <div className="mx-auto mt-4 max-w-3xl px-4">
-          {chapter.audioAvailable ? (
-            <div
-              className="rounded-2xl border-[1.5px] bg-white p-4"
-              style={{ borderColor: "var(--color-warm-200)" }}
-            >
-              <AudioBar
-                apiBase={apiBase}
-                token={token}
-                bookId={book.id}
-                chapterOrder={chapter.order}
-              />
-            </div>
-          ) : (
-            <div
-              className="rounded-2xl border-[1.5px] p-5 text-center"
-              style={{
-                background: "var(--color-warm-50)",
-                borderColor: "var(--color-warm-200)",
-              }}
-            >
-              <p
-                className="text-[20px]"
-                style={{ color: "var(--color-warm-500)" }}
-                aria-hidden
-              >
-                🎧
-              </p>
-              <p
-                className="mt-2 text-[13.5px] font-semibold"
-                style={{ color: "var(--color-warm-800)" }}
-              >
-                Audio en producción
-              </p>
-              <p
-                className="mt-1 text-[12.5px]"
-                style={{ color: "var(--color-warm-500)" }}
-              >
-                Este capítulo aún no tiene narración disponible. Puedes cambiar
-                a Modo Libro mientras tanto.
-              </p>
-            </div>
-          )}
-        </div>
+      {mode === "escuchar" ? (
+        <ChapterMediaListen
+          apiBase={apiBase}
+          token={token}
+          bookId={book.id}
+          chapterOrder={chapter.order}
+          audioAvailable={chapter.audioAvailable}
+        />
+      ) : null}
+
+      {mode === "ver" ? (
+        <ChapterMediaWatch
+          apiBase={apiBase}
+          token={token}
+          bookId={book.id}
+          chapterOrder={chapter.order}
+        />
       ) : null}
 
       {/* Sprint B — contextual Eco topic for this chapter (dismissible). */}

@@ -38,12 +38,12 @@ interface ValidatedLearningEventBase {
   conceptId?: string | null;
   /** Guide session id, for the guide_session_* transitions. */
   guideSessionId?: string | null;
-  /** Storage anchor for block-scoped events (unused by the seven V1 types). */
+  /** Storage anchor for block-scoped events (unused by the eight V1 types). */
   blockKey?: string | null;
 }
 
 /**
- * Discriminated union over exactly the seven V1 types. Deriving it from
+ * Discriminated union over exactly the eight V1 types. Deriving it from
  * `LearningEventPayloadByType` means a type without its payload (or a payload
  * riding the wrong type) does not compile — and the non-V1 Prisma kinds
  * (BLOCK_DWELL, HIGHLIGHT_CREATED, ANNOTATION_CREATED, RESONANCE_CONFIRMED)

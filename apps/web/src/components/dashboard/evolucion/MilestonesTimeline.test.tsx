@@ -27,6 +27,19 @@ describe("MilestonesTimeline", () => {
     ).toBeInTheDocument();
   });
 
+  it("calls the section a recorrido, not a transformation", () => {
+    // The screen counts what happened; it makes no claim about who the person
+    // became. Both states carry the heading, so both are checked.
+    const empty = render(<MilestonesTimeline milestones={[]} />);
+    expect(screen.getByText("Hitos de tu recorrido")).toBeInTheDocument();
+    expect(empty.container.textContent).not.toMatch(/transformaci/i);
+    empty.unmount();
+
+    const filled = render(<MilestonesTimeline milestones={[milestone()]} />);
+    expect(screen.getByText("Hitos de tu recorrido")).toBeInTheDocument();
+    expect(filled.container.textContent).not.toMatch(/transformaci/i);
+  });
+
   it("renders unlocked milestones with month + label + tag", () => {
     render(<MilestonesTimeline milestones={[milestone()]} />);
     expect(screen.getByText("Primera reflexión")).toBeInTheDocument();

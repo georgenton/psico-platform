@@ -80,6 +80,19 @@ const INPUTS: { [K in LearningEventTypeV1]: ValidatedLearningEvent<K> } = {
     payload: { exerciseKey: "respiracion-1", unitKey: "unit-1" },
     unitId: "cu-1",
   },
+  chapter_media_completed: {
+    userId: "u-1",
+    idempotencyKey: UUID,
+    type: "chapter_media_completed",
+    payload: {
+      mediaKey: "eec-c1-audiobook-v1",
+      mediaKind: "AUDIOBOOK",
+      mediaVersion: 1,
+      unitKey: "unit-1",
+    },
+    editionId: "ed-1",
+    unitId: "cu-1",
+  },
 };
 
 /** Build the stored-row twin of a validated input (what the writer persists). */
@@ -97,17 +110,17 @@ function rowFor(input: ValidatedLearningEvent): StoredLearningEventSemantics {
 }
 
 describe("type ↔ kind vocabulary", () => {
-  it("maps each of the seven V1 types to a distinct Prisma kind", () => {
+  it("maps each of the eight V1 types to a distinct Prisma kind", () => {
     const kinds = Object.values(TYPE_TO_KIND);
-    expect(kinds).toHaveLength(7);
-    expect(new Set(kinds).size).toBe(7);
+    expect(kinds).toHaveLength(8);
+    expect(new Set(kinds).size).toBe(8);
   });
 
   it("round-trips: KIND_TO_TYPE inverts TYPE_TO_KIND exactly", () => {
     for (const [type, kind] of Object.entries(TYPE_TO_KIND)) {
       expect(KIND_TO_TYPE[kind]).toBe(type);
     }
-    expect(Object.keys(KIND_TO_TYPE)).toHaveLength(7);
+    expect(Object.keys(KIND_TO_TYPE)).toHaveLength(8);
   });
 
   it("the four non-V1 kinds have no V1 type", () => {

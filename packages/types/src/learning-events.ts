@@ -11,6 +11,8 @@
  * in this file: every string is a catalog key or an enum member.
  */
 
+import type { ChapterMediaKind } from "./chapter-media";
+
 // ─── Event vocabulary ────────────────────────────────────────────────────────
 
 export type LearningEventTypeV1 =
@@ -20,7 +22,8 @@ export type LearningEventTypeV1 =
   | "guide_session_started"
   | "guide_session_completed"
   | "active_recall_attempted"
-  | "practice_completed";
+  | "practice_completed"
+  | "chapter_media_completed";
 
 export const RECALL_RESULTS = ["correct", "incorrect", "skipped"] as const;
 export type RecallResult = (typeof RECALL_RESULTS)[number];
@@ -182,8 +185,29 @@ export interface PracticeCompletedPayload {
 }
 
 /**
+ * GR-2 — the single media event, at completion granularity.
+ *
+ * It records that the client reported the player reaching its end. It does NOT
+ * record that the person understood, paid attention, or felt anything: activity
+ * goes to Mi Evolución, never to the Emotional Map
+ * (`EXPERIENCE_CAUSAL_INFERENCE=false`).
+ *
+ * Every field is server-resolved from the route's `mediaKey`. The client cannot
+ * declare the kind, the version, the editorial context, seconds watched,
+ * percentage, playback speed or any timestamp — none of those exist here.
+ */
+export interface ChapterMediaCompletedPayload {
+  mediaKey: string;
+  mediaKind: ChapterMediaKind;
+  /** Pinned at completion time: a new master is a new version, not an edit. */
+  mediaVersion: number;
+  /** Resolved by the server from the media catalog — never client-declared. */
+  unitKey: string;
+}
+
+/**
  * Exhaustive type→payload map. The typechecker enforces exact coverage of the
- * seven V1 types: adding an event type without its payload (or vice versa)
+ * eight V1 types: adding an event type without its payload (or vice versa)
  * fails to compile, and `LearningEventRecord` below derives its discriminated
  * union from this single source.
  */
@@ -195,6 +219,7 @@ export interface LearningEventPayloadByType {
   guide_session_completed: GuideSessionCompletedPayload;
   active_recall_attempted: ActiveRecallAttemptedPayload;
   practice_completed: PracticeCompletedPayload;
+  chapter_media_completed: ChapterMediaCompletedPayload;
 }
 
 export type LearningEventPayload =

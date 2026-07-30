@@ -162,3 +162,78 @@ Book videos are **public licensed content** — `videoUrl` is a direct public
 URL (no signing, no crypto). The video never carries user-derived data, and the
 E2E boundary (ADR 0007) is untouched: nothing about a diary/Eco/reflexión is
 involved in video playback.
+
+---
+
+## §chapter-media — the GR-2 media layer
+
+Product authority: `docs/product/guided-reading-v1.md` §4/§7/§8/§9. Pending
+assets: `docs/product/chapter-01-media-package.md`.
+
+A chapter offers the same content in several representations. Three routes serve
+them, and they divide responsibility on purpose:
+
+| Route                                               | What it does               | What it must never do                    |
+| --------------------------------------------------- | -------------------------- | ---------------------------------------- |
+| `GET /api/lector/:bookIdOrSlug/:chapterOrder/media` | metadata + availability    | sign anything                            |
+| `GET /api/lector/media/:mediaKey/access`            | one short-lived signed URL | be requested during SSR, or be cached    |
+| `POST /api/lector/media/:mediaKey/complete`         | record ONE completion      | accept editorial context from the client |
+
+Both GETs answer `Cache-Control: private, no-store`.
+
+### The catalog is code
+
+`media/chapter-media.catalog.ts` is the authority: a runtime validator over a
+closed grammar plus a registry that refuses duplicates. It holds three
+definitions for chapter 1 of _Emociones en Construcción_, and it holds **no
+URL, no token and no secret** — a test asserts that.
+
+- `eec-c1-audiobook-v1` — `PUBLISHED`, `source.kind = CHAPTER_AUDIO`. It reuses
+  the `Audio` row and the signing path that `§audio` above already documents,
+  so wiring the media surface changed nobody's access. Policy `PRO_ONLY`, the
+  same rule chapter audio already enforced.
+- `eec-c1-podcast-v1`, `eec-c1-video-v1` — `DRAFT`, `source: null`. They appear
+  in the manifest as `COMING_SOON` and the reader says «En producción».
+
+`DRAFT ⇒ source === null` and `PUBLISHED ⇒ source !== null` are enforced at
+runtime, so a draft can never be one env flip away from serving an unreviewed
+master.
+
+### Signing
+
+| Source              | Signer                                | TTL                                      |
+| ------------------- | ------------------------------------- | ---------------------------------------- |
+| `CHAPTER_AUDIO`     | `LectorService.getAudio`              | 6 h (`CHAPTER_AUDIO_SIGNED_URL_TTL_SEC`) |
+| `R2`                | `StorageService.getSignedUrl`         | 1 h (`R2_MEDIA_SIGNED_URL_TTL_SEC`)      |
+| `CLOUDFLARE_STREAM` | `cloudflare-stream-access.service.ts` | ~15 min                                  |
+
+The signed URL is a temporary bearer: it appears in the access response and
+nowhere else — never in the manifest, never in a log, never persisted.
+
+### Ops: activating a format
+
+Full checklist in `docs/product/chapter-01-media-package.md` §5. In short:
+produce → review → upload → confirm `ready` → set the three
+`CLOUDFLARE_STREAM_*` vars (all or none) → add the real `videoUid` / `objectKey`
+to the catalog → `DRAFT` → `PUBLISHED` → smoke → deploy.
+
+To replace an already-published asset, bump `mediaVersion` instead of editing in
+place: the completion's idempotency key derives from `mediaKey + mediaVersion`,
+so a new version is a new activity rather than a silently-changed old one.
+
+### Completion, and what it means
+
+`POST …/complete` takes no body. The media kind, its version, the editorial unit
+and the idempotency key are all derived server-side; the client cannot send
+`watchedSeconds`, a percentage, a playback speed or a timestamp, because none of
+those exist in the contract. 201 the first time, 200 on any replay.
+
+The event means one thing: **the client reported that the player reached its
+end**. It does not mean the person understood, paid attention, or felt anything.
+
+### Privacy
+
+Activity goes to Mi Evolución and **never** to the Emotional Map
+(`EXPERIENCE_CAUSAL_INFERENCE=false`, ADR 0018). The firewall pg-spec proves it
+on real rows: the canonical map projection is byte-for-byte identical after the
+three media completions, while an explicit check-in does move it.

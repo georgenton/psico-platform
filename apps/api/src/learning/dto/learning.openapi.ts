@@ -75,7 +75,7 @@ export const RECALL_ATTEMPT_BODY: SchemaObject = {
   ],
 };
 
-// ─── the seven exact persisted payloads ─────────────────────────────────────
+// ─── the eight exact persisted payloads ─────────────────────────────────────
 
 const closed = (
   required: string[],
@@ -165,10 +165,22 @@ export const LEARNING_EVENT_PAYLOADS: Record<string, SchemaObject> = {
     exerciseKey: STR,
     unitKey: STR,
   }),
+  chapter_media_completed: closed(
+    ["mediaKey", "mediaKind", "mediaVersion", "unitKey"],
+    {
+      mediaKey: STR,
+      mediaKind: {
+        type: "string",
+        enum: ["AUDIOBOOK", "PODCAST", "VIDEO"],
+      },
+      mediaVersion: INT,
+      unitKey: STR,
+    },
+  ),
 };
 
 /**
- * The public event record: a `type`-discriminated union of seven variants,
+ * The public event record: a `type`-discriminated union of eight variants,
  * each coupling `type` to its EXACT payload. Never carries `userId`.
  */
 export const LEARNING_EVENT_RECORD: SchemaObject = {

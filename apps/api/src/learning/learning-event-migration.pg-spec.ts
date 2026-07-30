@@ -169,6 +169,10 @@ suite("CC-7.2 · migration over a PRE-CC-7.2 schema with a legacy row", () => {
       "CONCEPT_EXPLORED",
       "ACTIVE_RECALL_ATTEMPTED",
       "PRACTICE_COMPLETED",
+      // Deliberately NOT listing GR-2's CHAPTER_MEDIA_COMPLETED: this suite
+      // stops at the CC-7.2 migration, so a later value must NOT appear here.
+      // The full enum after every migration is pinned by the from-scratch path
+      // (`chapter-media-completion.pg-spec.ts`).
     ]);
   });
 

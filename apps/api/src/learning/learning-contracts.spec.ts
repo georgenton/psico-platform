@@ -168,7 +168,7 @@ describe("type-level contract", () => {
     }
   });
 
-  it("the payload map covers exactly the seven V1 types", () => {
+  it("the payload map covers exactly the eight V1 types", () => {
     // Both directions enforced by tsc: keyof map ≡ LearningEventTypeV1.
     type MapCoversTypes =
       LearningEventTypeV1 extends keyof LearningEventPayloadByType

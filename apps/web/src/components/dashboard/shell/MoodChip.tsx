@@ -110,7 +110,7 @@ export function MoodChip({
   >[0]["variant"];
 
   return (
-    <div className="mood-wrap" ref={wrapperRef}>
+    <div className="mood-wrap" ref={wrapperRef} data-gr2="mood-chip">
       <button
         type="button"
         className="mood-chip"

@@ -213,7 +213,14 @@ export function ChapterMediaWatch({
 }
 
 function Frame({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto mt-4 max-w-3xl px-4">{children}</div>;
+  return (
+    <div
+      data-gr2="media-surface"
+      className="mx-auto mt-4 w-full min-w-0 max-w-3xl px-4"
+    >
+      {children}
+    </div>
+  );
 }
 
 const STREAM_SDK_SRC = "https://embed.cloudflarestream.com/embed/sdk.latest.js";
@@ -278,7 +285,18 @@ function StreamFrame({
   }, [onEnded]);
 
   return (
-    <div style={{ position: "relative", paddingTop: "56.25%" }}>
+    // 16:9 by ratio, never by a fixed pixel width: the box takes the width it
+    // is given and the iframe is absolutely positioned inside it, so the player
+    // can never push a min-width onto the reader's column on a phone.
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        maxWidth: "100%",
+        paddingTop: "56.25%",
+        overflow: "hidden",
+      }}
+    >
       <iframe
         id="chapter-video-frame"
         src={embedUrl}

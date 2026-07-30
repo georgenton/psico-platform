@@ -56,13 +56,19 @@ export function ChapterMediaListen({
   const podcast = items?.find((item) => item.kind === "PODCAST") ?? null;
 
   return (
-    <div className="mx-auto mt-4 max-w-3xl px-4">
+    <div
+      data-gr2="media-surface"
+      className="mx-auto mt-4 w-full min-w-0 max-w-3xl px-4"
+    >
       <div
-        className="mb-3 flex items-center justify-center gap-1 rounded-full p-1"
+        className="mb-3 flex max-w-full items-center justify-center gap-1 overflow-x-auto rounded-full p-1"
         style={{
           background: "var(--reader-chip-bg, var(--color-warm-100))",
           width: "fit-content",
+          maxWidth: "100%",
           marginInline: "auto",
+          flexWrap: "nowrap",
+          scrollbarWidth: "none",
         }}
         role="tablist"
         aria-label="Formato de audio"
@@ -137,7 +143,7 @@ function MediaTab({
       role="tab"
       aria-selected={selected}
       onClick={onSelect}
-      className="rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
+      className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
       style={
         selected
           ? {

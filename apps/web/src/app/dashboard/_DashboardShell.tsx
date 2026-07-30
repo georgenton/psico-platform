@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { AmbientId, DiaryMoodId } from "@psico/types";
 
@@ -27,6 +27,7 @@ import {
   IconReflections,
   IconSearch,
 } from "@/components/dashboard/shell/icons";
+import { NavToggleIcon } from "@/components/dashboard/shell/NavToggleIcon";
 import { TourOverlay } from "./_TourOverlay";
 
 // ── Nav config ─────────────────────────────────────────────────────────────
@@ -249,15 +250,26 @@ function Sidebar({
   onNav,
   userMenuOpen,
   onToggleUserMenu,
+  panelRef,
+  inert,
 }: {
   user: SessionUser | null;
   pathname: string;
   onNav: () => void;
   userMenuOpen: boolean;
   onToggleUserMenu: () => void;
+  panelRef: React.RefObject<HTMLElement>;
+  /** True when the drawer is parked off-canvas: nothing inside is reachable. */
+  inert: boolean;
 }) {
   return (
-    <aside className="side">
+    <aside
+      className="side"
+      id="dashboard-nav"
+      ref={panelRef}
+      aria-label="Navegación principal"
+      aria-hidden={inert || undefined}
+    >
       <Link
         href="/dashboard"
         onClick={onNav}
@@ -335,6 +347,10 @@ function Sidebar({
         onClick={onToggleUserMenu}
         aria-expanded={userMenuOpen}
         className="nav-item"
+        // The only place in the shell that renders the account's address.
+        // Marked so documentation captures can redact exactly this box instead
+        // of cropping the sidebar away and hiding the layout with it.
+        data-account-block
         style={{ marginTop: 14, justifyContent: "space-between" }}
       >
         <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
@@ -395,13 +411,33 @@ function Sidebar({
 function Topbar({
   initialMood,
   initialAmbient,
+  navOpen,
+  onToggleNav,
+  toggleRef,
 }: {
   initialMood: DiaryMoodId | null;
   initialAmbient: AmbientId;
+  navOpen: boolean;
+  onToggleNav: () => void;
+  toggleRef: React.RefObject<HTMLButtonElement>;
 }) {
   return (
     <div className="topbar">
-      <label className="tb-search">
+      {/* Below the desktop breakpoint the rail is a drawer, so it needs a
+          trigger. CSS hides this button on desktop, where the rail is
+          permanent — there is only ONE navigation, in two presentations. */}
+      <button
+        type="button"
+        ref={toggleRef}
+        className="nav-toggle"
+        onClick={onToggleNav}
+        aria-expanded={navOpen}
+        aria-controls="dashboard-nav"
+        aria-label={navOpen ? "Cerrar navegación" : "Abrir navegación"}
+      >
+        <NavToggleIcon open={navOpen} />
+      </button>
+      <label className="tb-search" data-gr2="search">
         <IconSearch size={17} />
         <span>Busca un patrón, un libro, una reflexión…</span>
       </label>
@@ -450,23 +486,107 @@ export function DashboardShell({
   const pathname = usePathname();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
+  // ── Compact navigation (GR-2 responsive gate) ────────────────────────────
+  //
+  // ONE navigation, two presentations: a permanent rail on desktop and an
+  // off-canvas drawer below the breakpoint. The breakpoint lives in CSS
+  // (`dashboard-design.css`, max-width 1023px) and is mirrored here only so
+  // the drawer can be made unreachable while it is parked — a drawer you can
+  // tab into but cannot see is worse than no drawer.
+  const [compact, setCompact] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+  const panelRef = useRef<HTMLElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setCompact(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const closeNav = useCallback(() => setNavOpen(false), []);
+
+  // Navigating is the end of the drawer's job.
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
+
+  // Growing past the breakpoint hands navigation back to the permanent rail.
+  useEffect(() => {
+    if (!compact) setNavOpen(false);
+  }, [compact]);
+
+  // Escape closes it, and focus goes back to the button that opened it —
+  // otherwise the keyboard lands nowhere.
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setNavOpen(false);
+        toggleRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [navOpen]);
+
+  // `inert` (not just aria-hidden) so a parked drawer is out of the tab order.
+  // React 18 has no `inert` prop, so it is set on the node.
+  //
+  // Un-parking and moving focus have to happen in this order inside ONE effect:
+  // an inert subtree refuses focus, so focusing first and clearing inert after
+  // would silently drop the focus on the floor.
+  const parked = compact && !navOpen;
+  useEffect(() => {
+    const node = panelRef.current as (HTMLElement & { inert?: boolean }) | null;
+    if (node) node.inert = parked;
+    if (!navOpen) return;
+    node
+      ?.querySelector<HTMLElement>('a, button, [tabindex]:not([tabindex="-1"])')
+      ?.focus();
+  }, [parked, navOpen]);
+
   return (
     <DiaryKeyProvider
       cryptoSalt={cryptoSalt}
       initialWrapKey={initialDiaryWrapKey}
     >
       <AmbientThemeApplier ambient={initialAmbient} />
-      <div className="app">
+      <div className="app" data-nav-open={navOpen ? "true" : "false"}>
         <Sidebar
           user={user}
           pathname={pathname}
-          onNav={() => setUserMenuOpen(false)}
+          onNav={() => {
+            setUserMenuOpen(false);
+            setNavOpen(false);
+          }}
           userMenuOpen={userMenuOpen}
           onToggleUserMenu={() => setUserMenuOpen((v) => !v)}
+          panelRef={panelRef}
+          inert={parked}
+        />
+
+        {/* Tapping outside is the fastest way out, and it is a real button so
+            the keyboard and a screen reader can use it too. */}
+        <button
+          type="button"
+          className="nav-scrim"
+          onClick={closeNav}
+          tabIndex={navOpen ? 0 : -1}
+          aria-hidden={navOpen ? undefined : "true"}
+          aria-label="Cerrar navegación"
         />
 
         <div className="main">
-          <Topbar initialMood={initialMood} initialAmbient={initialAmbient} />
+          <Topbar
+            initialMood={initialMood}
+            initialAmbient={initialAmbient}
+            navOpen={navOpen}
+            onToggleNav={() => setNavOpen((v) => !v)}
+            toggleRef={toggleRef}
+          />
           <section className="screen">{children}</section>
         </div>
 

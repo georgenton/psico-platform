@@ -714,10 +714,16 @@ export function LectorShell({
           visible: the chapter is the unit, the format is the reader's call
           (docs/product/guided-reading-v1.md GR-001). */}
       <div
-        className="mx-auto mt-4 flex max-w-3xl items-center justify-center gap-1 rounded-full p-1"
+        className="mx-auto mt-4 flex max-w-full items-center justify-center gap-1 overflow-x-auto rounded-full p-1"
         style={{
           background: "var(--reader-chip-bg, var(--color-warm-100))",
+          // `fit-content` capped by the viewport: the pill hugs its three tabs
+          // on desktop and scrolls inside itself on a narrow phone, so it can
+          // never be what makes the page wider than the screen.
           width: "fit-content",
+          maxWidth: "calc(100% - 32px)",
+          flexWrap: "nowrap",
+          scrollbarWidth: "none",
         }}
         role="tablist"
         aria-label="Modo de lectura"
@@ -735,7 +741,7 @@ export function LectorShell({
             role="tab"
             aria-selected={mode === option.value}
             onClick={() => changeMode(option.value)}
-            className="rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
+            className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
             style={
               mode === option.value
                 ? {

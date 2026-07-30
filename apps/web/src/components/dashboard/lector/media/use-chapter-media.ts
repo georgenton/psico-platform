@@ -71,6 +71,14 @@ export function useChapterMediaManifest(input: {
 
     return () => {
       cancelled = true;
+      // The guard exists to avoid a duplicate request while one is in flight,
+      // NOT to make the fetch once-per-lifetime. Leaving it set on unmount is
+      // what breaks a re-mount (React's development double-invoke, Fast
+      // Refresh, a Suspense retry): the second mount would skip the fetch
+      // while the first mount's result was already discarded as cancelled, so
+      // the manifest would never arrive and every format would read as «en
+      // producción» no matter what the server said.
+      requested.current = false;
     };
   }, [enabled, apiBase, token, bookId, chapterOrder]);
 

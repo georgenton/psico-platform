@@ -97,13 +97,16 @@ export function AmbiencePicker({
   const active = AMBIENT_LABELS[ambient];
 
   return (
-    <div className="relative" ref={wrapperRef}>
+    <div className="amb-wrap relative" ref={wrapperRef}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-all"
+        // The visible label collapses on narrow viewports, so the accessible
+        // name is stated explicitly and never depends on it.
+        aria-label={`Ambiente: ${active.label}. Cambiar.`}
+        className="amb-trigger flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-all"
         style={{
           background: "var(--color-warm-100)",
           borderColor: "var(--color-warm-200)",
@@ -112,10 +115,10 @@ export function AmbiencePicker({
       >
         <span
           aria-hidden
-          className="h-2.5 w-2.5 rounded-full"
+          className="amb-swatch h-2.5 w-2.5 rounded-full"
           style={{ background: active.swatch }}
         />
-        <span>{active.label}</span>
+        <span className="amb-label">{active.label}</span>
       </button>
 
       {open ? (

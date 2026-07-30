@@ -73,9 +73,17 @@ export function Filters({
   return (
     <div className="flex flex-col gap-3">
       {/* Tabs */}
+      {/* Five tabs do not fit a phone. The strip scrolls inside itself instead
+          of widening the page — the same rule the reader's selectors follow. */}
       <div
-        className="inline-flex items-center gap-1 rounded-full border-[1.5px] bg-white p-1"
-        style={{ borderColor: "var(--color-warm-200)" }}
+        className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full border-[1.5px] bg-white p-1"
+        style={{
+          borderColor: "var(--color-warm-200)",
+          width: "fit-content",
+          maxWidth: "100%",
+          flexWrap: "nowrap",
+          scrollbarWidth: "none",
+        }}
       >
         {(
           [
@@ -92,7 +100,7 @@ export function Filters({
               key={tab.id}
               type="button"
               onClick={() => pushParams({ view: tab.id })}
-              className="rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors"
+              className="shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors"
               style={
                 active
                   ? {

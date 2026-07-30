@@ -148,9 +148,11 @@ suite("GR-2 · chapter media HTTP contract (real app + real PostgreSQL)", () => 
     expect(res.body.bookSlug).toBe(BOOK_SLUG);
     expect(res.body.chapterOrder).toBe(1);
 
-    const byKey = Object.fromEntries(
-      (res.body.items as { mediaKey: string }[]).map((i) => [i.mediaKey, i]),
-    );
+    const items = res.body.items as {
+      mediaKey: string;
+      availability: string;
+    }[];
+    const byKey = Object.fromEntries(items.map((i) => [i.mediaKey, i]));
     expect(Object.keys(byKey).sort()).toEqual(
       [AUDIOBOOK, EEC_C1_PODCAST.mediaKey, EEC_C1_VIDEO.mediaKey].sort(),
     );

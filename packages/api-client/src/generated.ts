@@ -12480,7 +12480,7 @@ export interface operations {
                     "application/json": {
                         /** @description Esta llamada aplicó la transición (HTTP 201). */
                         created: boolean;
-                        /** @description Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). */
+                        /** @description Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). El feedback es el mismo que devolvió el intento original — se lee del ledger, no se vuelve a calificar. */
                         replayed: boolean;
                         session: {
                             sessionId: string;
@@ -12493,6 +12493,13 @@ export interface operations {
                             totalSteps: number;
                             currentStepKey: string | null;
                         };
+                        feedback: {
+                            /**
+                             * @description Lo que se le dice a la persona. Calificado por el servidor contra la respuesta canónica del catálogo, que nunca sale.
+                             * @enum {string}
+                             */
+                            outcome: PathsApiGuideSessionsSessionIdStepsStepKeyRecallPostResponses200ContentApplicationJsonFeedbackOutcome;
+                        };
                     };
                 };
             };
@@ -12504,7 +12511,7 @@ export interface operations {
                     "application/json": {
                         /** @description Esta llamada aplicó la transición (HTTP 201). */
                         created: boolean;
-                        /** @description Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). */
+                        /** @description Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). El feedback es el mismo que devolvió el intento original — se lee del ledger, no se vuelve a calificar. */
                         replayed: boolean;
                         session: {
                             sessionId: string;
@@ -12516,6 +12523,13 @@ export interface operations {
                             stepsCompleted: number;
                             totalSteps: number;
                             currentStepKey: string | null;
+                        };
+                        feedback: {
+                            /**
+                             * @description Lo que se le dice a la persona. Calificado por el servidor contra la respuesta canónica del catálogo, que nunca sale.
+                             * @enum {string}
+                             */
+                            outcome: PathsApiGuideSessionsSessionIdStepsStepKeyRecallPostResponses201ContentApplicationJsonFeedbackOutcome;
                         };
                     };
                 };
@@ -16461,10 +16475,18 @@ export enum PathsApiGuideSessionsSessionIdStepsStepKeyRecallPostResponses200Cont
     COMPLETED = "COMPLETED",
     CANCELLED = "CANCELLED"
 }
+export enum PathsApiGuideSessionsSessionIdStepsStepKeyRecallPostResponses200ContentApplicationJsonFeedbackOutcome {
+    CORRECT = "CORRECT",
+    REVIEW = "REVIEW"
+}
 export enum PathsApiGuideSessionsSessionIdStepsStepKeyRecallPostResponses201ContentApplicationJsonSessionStatus {
     ACTIVE = "ACTIVE",
     COMPLETED = "COMPLETED",
     CANCELLED = "CANCELLED"
+}
+export enum PathsApiGuideSessionsSessionIdStepsStepKeyRecallPostResponses201ContentApplicationJsonFeedbackOutcome {
+    CORRECT = "CORRECT",
+    REVIEW = "REVIEW"
 }
 export enum PathsApiGuideSessionsSessionIdCancelPostResponses200ContentApplicationJsonSessionStatus {
     ACTIVE = "ACTIVE",

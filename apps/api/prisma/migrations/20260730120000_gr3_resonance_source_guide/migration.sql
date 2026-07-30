@@ -1,8 +1,16 @@
 -- GR-3 — a resonance can now be confirmed from inside a Guide session.
 --
--- Additive and reversible in practice: adding an enum value neither rewrites
--- rows nor invalidates the existing three. No row is written by this migration;
--- `GUIDE` only appears when a person explicitly confirms one inside a Guide.
+-- ADDITIVE_FORWARD_ONLY=true
+-- WRITES_ROWS=false
+-- ROLLBACK_SAFE_WHILE_GUIDE_ROWS=0
+--
+-- Adding an enum value neither rewrites rows nor invalidates the existing
+-- three, and this migration writes nothing: `GUIDE` only appears once a person
+-- explicitly confirms a resonance inside a Guide.
+--
+-- Forward-only, NOT reversible in general. Dropping the value is safe only
+-- while zero rows use it; once a GUIDE row exists, a client or binary that
+-- predates the value cannot decode it. There is no down migration by design.
 --
 -- Provenance is the reason for a new value rather than reusing HIGHLIGHT or
 -- EXERCISE: "Mis resonancias" tells the person WHERE each confirmation

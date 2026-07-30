@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import type {
   GuideDefinition,
+  GuideRecallOutcome,
   GuideSessionProjection,
   GuideSessionStatus,
   GuideStepDefinition,
@@ -147,6 +148,14 @@ export interface GuideCommandResult {
   guideVersion: number;
   status: GuideSessionStatus;
   projection: GuideSessionProjection;
+}
+
+/**
+ * GR-3 — the recall command's result. The extra field is the outcome the
+ * person is shown; the catalog's correct option is still never returned.
+ */
+export interface GuideRecallCommandResult extends GuideCommandResult {
+  feedback: { outcome: GuideRecallOutcome };
 }
 
 type Tx = Prisma.TransactionClient;
@@ -473,7 +482,7 @@ export class GuideLifecycleService {
    * BEFORE any ACTIVE/current-step/completeness check, so a replay is never
    * rejected by a state reached since the original command.
    */
-  private async mutate(
+  private async mutate<R extends GuideCommandResult = GuideCommandResult>(
     user: AuthenticatedUser,
     sessionId: string,
     buildSemantics: (
@@ -485,7 +494,18 @@ export class GuideLifecycleService {
       session: GuideSessionRow,
       definition: GuideDefinition,
     ) => Promise<GuideSessionRow>,
-  ): Promise<GuideCommandResult> {
+    /**
+     * GR-3 — decorate the snapshot from state this transaction can still see.
+     * It runs on BOTH paths, fresh and replay, so a command that reports more
+     * than the session reports the same thing either way: the replay does not
+     * re-derive anything, it reads the row the original attempt wrote.
+     */
+    finalize?: (
+      tx: Tx,
+      session: GuideSessionRow,
+      result: GuideCommandResult,
+    ) => Promise<R>,
+  ): Promise<R> {
     return mapGuideErrors(() =>
       this.prisma.$transaction(async (tx) => {
         await this.lock(tx, `guide:session:${user.userId}:${sessionId}`);
@@ -499,18 +519,20 @@ export class GuideLifecycleService {
 
         const seen = await this.receipts.inspectValidated(semantics, tx);
         if (seen.state === "replay") {
-          return this.snapshot(session, definition, tx, {
+          const replay = await this.snapshot(session, definition, tx, {
             created: false,
             replayed: true,
           });
+          return finalize ? finalize(tx, session, replay) : (replay as R);
         }
 
         const updated = await apply(tx, session, definition);
         await this.receipts.appendValidated({ semantics }, tx);
-        return this.snapshot(updated, definition, tx, {
+        const fresh = await this.snapshot(updated, definition, tx, {
           created: true,
           replayed: false,
         });
+        return finalize ? finalize(tx, updated, fresh) : (fresh as R);
       }),
     );
   }
@@ -671,8 +693,8 @@ export class GuideLifecycleService {
   async completeRecallStep(
     user: AuthenticatedUser,
     command: GuideStepRecallCommandInput,
-  ): Promise<GuideCommandResult> {
-    return this.mutate(
+  ): Promise<GuideRecallCommandResult> {
+    return this.mutate<GuideRecallCommandResult>(
       user,
       command.sessionId,
       (_session, definition): ValidatedGuideStepRecallSemantics => {
@@ -739,7 +761,42 @@ export class GuideLifecycleService {
         await this.applyLedgerProjection(session, definition, tx);
         return this.reread(session.id, user.userId, tx);
       },
+      async (tx, session, result) => ({
+        ...result,
+        feedback: {
+          outcome: await this.recallOutcome(session.id, command, tx),
+        },
+      }),
     );
+  }
+
+  /**
+   * The outcome the person is shown, read back from the ACCEPTED ledger row of
+   * this session and step — the same source on the fresh path and on a replay.
+   *
+   * Fail closed: no accepted row, a row of another kind, or a row whose graded
+   * result is missing are all states in which we do not know what to say, and
+   * inventing an outcome would be telling the person something the system did
+   * not measure.
+   */
+  private async recallOutcome(
+    sessionId: string,
+    command: GuideStepRecallCommandInput,
+    tx: Tx,
+  ): Promise<GuideRecallOutcome> {
+    const accepted = await this.ledger(sessionId, tx);
+    const row = accepted.find((s) => s.stepKey === command.stepKey);
+    if (!row || row.kind !== "ACTIVE_RECALL") {
+      guideFail("GUIDE_STORAGE_FAILURE");
+    }
+    const graded = (
+      row as Extract<AcceptedGuideStep, { kind: "ACTIVE_RECALL" }>
+    ).recallResult;
+    if (graded !== "CORRECT" && graded !== "INCORRECT") {
+      guideFail("GUIDE_STORAGE_FAILURE");
+    }
+    // INCORRECT is a measurement; REVIEW is what we say about it.
+    return graded === "CORRECT" ? "CORRECT" : "REVIEW";
   }
 
   // ─── CANCEL ──────────────────────────────────────────────────────────────

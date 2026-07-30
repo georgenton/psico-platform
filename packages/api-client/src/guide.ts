@@ -6,6 +6,7 @@ import type {
   GuideCommandResponse,
   StartGuideSessionRequestBody,
   SubmitGuideStepRecallRequestBody,
+  SubmitGuideStepRecallResponse,
 } from "@psico/types";
 import { apiClient } from "./client";
 
@@ -47,12 +48,18 @@ export const guideApi = {
       body,
     ),
 
+  /**
+   * The one command whose response says more than the session: it carries the
+   * outcome (`CORRECT` | `REVIEW`) the reader is shown. A replay of the same
+   * idempotency key returns the SAME outcome — the server reads it back from
+   * the accepted ledger row instead of grading twice.
+   */
   submitGuideStepRecall: (
     sessionId: string,
     stepKey: string,
     body: SubmitGuideStepRecallRequestBody,
   ) =>
-    apiClient.post<GuideCommandResponse>(
+    apiClient.post<SubmitGuideStepRecallResponse>(
       `/guide/sessions/${encodeURIComponent(sessionId)}/steps/${encodeURIComponent(stepKey)}/recall`,
       body,
     ),

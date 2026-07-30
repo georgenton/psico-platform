@@ -186,6 +186,28 @@ export interface GuideCommandResponse {
 }
 
 /**
+ * GR-3 — what the person is told after an objective recall.
+ *
+ * `REVIEW` rather than `INCORRECT` on purpose. The ledger keeps the graded
+ * fact (CORRECT/INCORRECT) because that is what was measured; the public
+ * vocabulary is an invitation to look again, not a verdict on the reader. No
+ * score, no percentage, and never the catalog's correct option.
+ */
+export type GuideRecallOutcome = "CORRECT" | "REVIEW";
+
+/**
+ * The recall command's response — the only one of the five that carries more
+ * than the session. The outcome is READ BACK from the accepted ledger row, so
+ * a replay of the same command with the same key returns the same outcome by
+ * construction rather than by a second grading.
+ */
+export interface SubmitGuideStepRecallResponse extends GuideCommandResponse {
+  feedback: {
+    outcome: GuideRecallOutcome;
+  };
+}
+
+/**
  * CC-7.R1 — the availability decision for a controlled pilot rollout.
  *
  * A single boolean, deliberately opaque: it never reveals WHY it is false (the

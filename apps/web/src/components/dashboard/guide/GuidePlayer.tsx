@@ -1,116 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { guideApi } from "@psico/api-client";
-import type { GuideCommandResponse, GuideSessionView } from "@psico/types";
-import {
-  GUIDE_KEY,
-  GUIDE_PRESENTATION,
-  GUIDE_SCOPE_NOTE,
-  GUIDE_VERSION,
-  stepPresentationFor,
-  type GuideOptionKeyWeb,
-  type GuideStepPresentation,
-} from "./guide-presentation";
-import { toGuideUiError, type GuideUiError } from "./guide-errors";
-import {
-  clearGuideRecovery,
-  newIdempotencyKey,
-  readGuideRecovery,
-  writeGuideRecovery,
-  type GuideRecoveryRecord,
-  type PendingGuideCommand,
-} from "./guide-recovery";
+import { useEffect, useRef } from "react";
+import type { GuideSessionView } from "@psico/types";
+import { GUIDE_PRESENTATION, GUIDE_SCOPE_NOTE } from "./guide-presentation";
+import { useGuideRun } from "./use-guide-run";
 
 /**
- * What a `Reintentar` would repeat. START is NOT a `PendingGuideCommand`: its
- * identity already lives in `record.startIdempotencyKey`, and modelling it as
- * one would invite a second start key for the same ambiguous attempt.
- */
-type GuideRetryState =
-  | { kind: "START"; record: GuideRecoveryRecord }
-  | {
-      kind: "COMMAND";
-      record: GuideRecoveryRecord;
-      command: PendingGuideCommand;
-    };
-
-/**
- * CC-7.5 — the Guide V1 player.
+ * CC-7.5 — the Guide V1 player, standalone route.
  *
- * The server owns the run. This component never computes what comes next: it
- * reads `status`, `currentStepKey`, `stepsCompleted` and `totalSteps` from the
- * last command response and renders the screen those describe. It does not
- * add one to a counter, it does not walk a local index, and it does not decide
- * a transition from how many buttons were clicked.
+ * All of the run — network, idempotency, recovery, resync, retry — lives in
+ * `useGuideRun`, shared with the reader panel (GR-3). This file is the
+ * standalone PRESENTATION of that run and nothing else.
  *
  * Two consequences worth naming:
  *
  *   - a `currentStepKey` this build does not know FAILS CLOSED. Falling back
  *     to "probably the first step" would be inventing progress.
- *   - the recall never says correct or incorrect. The response does not carry
- *     that verdict, and the catalog answer is not in this bundle — so there is
- *     nothing here that could tell the user how they did, by design.
+ *   - the recall verdict is the server's (`CORRECT` / `REVIEW`), read back
+ *     from its ledger. This screen never decides how the reader did, and the
+ *     catalog answer is not in this bundle to decide it with.
  */
 
 const { labels } = GUIDE_PRESENTATION;
-
-type Screen =
-  | "booting"
-  | "cover"
-  | "start-retry"
-  | "storage-unavailable"
-  | "step"
-  | "finish"
-  | "completed"
-  | "cancelled"
-  | "unknown-step"
-  | "inconsistent";
-
-interface PlayerState {
-  session: GuideSessionView | null;
-  record: GuideRecoveryRecord | null;
-  booting: boolean;
-  busy: boolean;
-  error: GuideUiError | null;
-  /** Present when an attempt's outcome is unknown and repeatable as-is. */
-  retry: GuideRetryState | null;
-  /** This browser cannot persist the recovery key, so it must not start. */
-  storageBlocked: boolean;
-}
-
-const INITIAL: PlayerState = {
-  session: null,
-  record: null,
-  booting: true,
-  busy: false,
-  error: null,
-  retry: null,
-  storageBlocked: false,
-};
-
-const STORAGE_BLOCKED: GuideUiError = {
-  kind: "terminal",
-  message: "Este navegador no puede guardar la recuperación de la guía.",
-};
-
-/** The screen is a pure function of server state — never of local counters. */
-function screenOf(state: PlayerState): Screen {
-  if (state.booting) return "booting";
-  if (state.storageBlocked) return "storage-unavailable";
-  const s = state.session;
-  if (!s) return state.retry?.kind === "START" ? "start-retry" : "cover";
-  if (s.status === "COMPLETED") return "completed";
-  if (s.status === "CANCELLED") return "cancelled";
-  if (s.currentStepKey === null) {
-    // A null cursor is not enough to offer completion: an ACTIVE session that
-    // reports fewer accepted steps than the guide has is contradictory, and
-    // completing it would be asserting something the server did not say.
-    return s.stepsCompleted === s.totalSteps ? "finish" : "inconsistent";
-  }
-  return stepPresentationFor(s.currentStepKey) ? "step" : "unknown-step";
-}
 
 export interface GuidePlayerProps {
   /**
@@ -122,499 +34,18 @@ export interface GuidePlayerProps {
 }
 
 export function GuidePlayer({ actorScope }: GuidePlayerProps) {
-  const [state, setState] = useState<PlayerState>(INITIAL);
-  const [choice, setChoice] = useState<GuideOptionKeyWeb | null>(null);
+  const run = useGuideRun(actorScope);
   const headingRef = useRef<HTMLHeadingElement>(null);
-
-  const patch = useCallback((next: Partial<PlayerState>) => {
-    setState((prev) => ({ ...prev, ...next }));
-  }, []);
-
-  /**
-   * Persist the record BEFORE anything reaches the network, and report
-   * whether it worked. A write that silently failed would leave an applied
-   * command with no key to identify it — so the caller must not proceed.
-   */
-  const remember = useCallback(
-    (record: GuideRecoveryRecord): GuideRecoveryRecord | null =>
-      writeGuideRecovery(record).ok ? record : null,
-    [],
-  );
-
-  /** Storage refused: no request leaves, and no new key is minted. */
-  const blockOnStorage = useCallback(() => {
-    patch({
-      busy: false,
-      booting: false,
-      storageBlocked: true,
-      error: STORAGE_BLOCKED,
-      retry: null,
-    });
-  }, [patch]);
-
-  /**
-   * Replay the stored START. Returns the session the server currently has for
-   * that idempotency key — this is the ONLY way the browser learns state.
-   */
-  /** Every record this component writes is stamped with the CURRENT actor. */
-  const recordFor = useCallback(
-    (
-      fields: Omit<
-        GuideRecoveryRecord,
-        "schemaVersion" | "actorScope" | "guideKey" | "guideVersion"
-      >,
-    ): GuideRecoveryRecord => ({
-      schemaVersion: 1,
-      actorScope,
-      guideKey: GUIDE_KEY,
-      guideVersion: GUIDE_VERSION,
-      ...fields,
-    }),
-    [actorScope],
-  );
-
-  const replayStart = useCallback(
-    async (record: GuideRecoveryRecord): Promise<GuideSessionView> => {
-      const res = await guideApi.createGuideSession({
-        idempotencyKey: record.startIdempotencyKey,
-        guideKey: GUIDE_KEY,
-        guideVersion: GUIDE_VERSION,
-      });
-      return res.session;
-    },
-    [],
-  );
-
-  const invoke = useCallback(
-    (command: PendingGuideCommand): Promise<GuideCommandResponse> => {
-      switch (command.commandType) {
-        case "STEP_COMPLETE":
-          return guideApi.completeGuideSessionStep(
-            command.sessionId,
-            command.stepKey,
-            { idempotencyKey: command.idempotencyKey },
-          );
-        case "STEP_RECALL":
-          return guideApi.submitGuideStepRecall(
-            command.sessionId,
-            command.stepKey,
-            {
-              idempotencyKey: command.idempotencyKey,
-              selectedOptionKey: command.selectedOptionKey,
-            },
-          );
-        case "CANCEL":
-          return guideApi.cancelGuideSession(command.sessionId, {
-            idempotencyKey: command.idempotencyKey,
-          });
-        case "SESSION_COMPLETE":
-          return guideApi.completeGuideSession(command.sessionId, {
-            idempotencyKey: command.idempotencyKey,
-          });
-      }
-    },
-    [],
-  );
-
-  /**
-   * Send a command that is already persisted. `created` and `replayed` are
-   * both success: the second means an identical earlier attempt had applied.
-   */
-  const dispatch = useCallback(
-    async (command: PendingGuideCommand, record: GuideRecoveryRecord) => {
-      patch({ busy: true, error: null, retry: null });
-      try {
-        const res = await invoke(command);
-        const settled = recordFor({
-          startIdempotencyKey: record.startIdempotencyKey,
-          sessionId: res.session.sessionId,
-        });
-        remember(settled);
-        setChoice(null);
-        patch({
-          session: res.session,
-          record: settled,
-          busy: false,
-          retry: null,
-        });
-      } catch (err) {
-        const uiError = toGuideUiError(err);
-        if (uiError.kind === "resync") {
-          // The state moved under us. Re-read it from the server with the
-          // START key — never by inventing a different command.
-          try {
-            const session = await replayStart(record);
-            const settled = recordFor({
-              startIdempotencyKey: record.startIdempotencyKey,
-              sessionId: session.sessionId,
-            });
-            remember(settled);
-            setChoice(null);
-            patch({
-              session,
-              record: settled,
-              busy: false,
-              error: uiError,
-              retry: null,
-            });
-            return;
-          } catch {
-            // The resync itself failed. Losing the pending command here would
-            // strand an attempt whose outcome nobody knows — so it and its key
-            // stay, and `Reintentar` resyncs before re-sending it.
-            const pendingRecord: GuideRecoveryRecord = {
-              ...record,
-              pendingCommand: command,
-            };
-            remember(pendingRecord);
-            patch({
-              busy: false,
-              error: uiError,
-              record: pendingRecord,
-              retry: { kind: "COMMAND", record: pendingRecord, command },
-            });
-            return;
-          }
-        }
-
-        if (uiError.kind === "retryable") {
-          // Keep the command AND its key: the retry must be the same attempt.
-          const pendingRecord: GuideRecoveryRecord = {
-            ...record,
-            pendingCommand: command,
-          };
-          remember(pendingRecord);
-          patch({
-            busy: false,
-            error: uiError,
-            record: pendingRecord,
-            retry: { kind: "COMMAND", record: pendingRecord, command },
-          });
-          return;
-        }
-
-        if (uiError.kind === "gone") {
-          clearGuideRecovery();
-          patch({
-            busy: false,
-            error: uiError,
-            retry: null,
-            session: null,
-            record: null,
-          });
-          return;
-        }
-
-        remember({ ...record, pendingCommand: undefined });
-        patch({ busy: false, error: uiError, retry: null });
-      }
-    },
-    [invoke, patch, recordFor, remember, replayStart],
-  );
-
-  /**
-   * Run (or re-run) the START for a stored record. The SAME key every time:
-   * a failure here is ambiguous — the session may or may not exist — and a
-   * fresh key would turn that ambiguity into a duplicate session.
-   */
-  const runStart = useCallback(
-    async (record: GuideRecoveryRecord) => {
-      try {
-        const session = await replayStart(record);
-        const settled = remember({
-          ...record,
-          sessionId: session.sessionId,
-        });
-        if (!settled) {
-          blockOnStorage();
-          return;
-        }
-        patch({ session, record: settled, busy: false, retry: null });
-      } catch (err) {
-        const uiError = toGuideUiError(err);
-        if (uiError.kind === "gone") {
-          clearGuideRecovery();
-          patch({
-            busy: false,
-            error: uiError,
-            session: null,
-            record: null,
-            retry: null,
-          });
-          return;
-        }
-        if (uiError.kind === "retryable") {
-          patch({
-            busy: false,
-            error: uiError,
-            record,
-            retry: { kind: "START", record },
-          });
-          return;
-        }
-        patch({ busy: false, error: uiError, record, retry: null });
-      }
-    },
-    [blockOnStorage, patch, remember, replayStart],
-  );
-
-  /**
-   * Retry a command whose outcome is unknown. It re-reads the session with
-   * the START key FIRST, because the snapshot decides whether the command is
-   * still applicable — and only then re-sends it with its ORIGINAL key.
-   */
-  const retryCommand = useCallback(
-    async (record: GuideRecoveryRecord, command: PendingGuideCommand) => {
-      patch({ busy: true, error: null, retry: null });
-      let session: GuideSessionView;
-      try {
-        session = await replayStart(record);
-      } catch (err) {
-        const uiError = toGuideUiError(err);
-        if (uiError.kind === "gone") {
-          clearGuideRecovery();
-          patch({
-            busy: false,
-            error: uiError,
-            session: null,
-            record: null,
-            retry: null,
-          });
-          return;
-        }
-        // Still ambiguous: keep the command and its key for the next attempt.
-        patch({
-          busy: false,
-          error: uiError,
-          retry: { kind: "COMMAND", record, command },
-        });
-        return;
-      }
-
-      const settled = recordFor({
-        startIdempotencyKey: record.startIdempotencyKey,
-        sessionId: session.sessionId,
-      });
-
-      if (command.sessionId !== session.sessionId) {
-        // The command belongs to another session. Drop it — never re-aim it.
-        remember(settled);
-        patch({ session, record: settled, busy: false, retry: null });
-        return;
-      }
-
-      if (!remember({ ...settled, pendingCommand: command })) {
-        blockOnStorage();
-        return;
-      }
-      patch({ session, record: settled });
-      await dispatch(command, settled);
-    },
-    [blockOnStorage, dispatch, patch, recordFor, remember, replayStart],
-  );
-
-  // ── Mount: recover, never auto-start ──────────────────────────────────────
-  // No "already booted" guard: under StrictMode React mounts, tears down and
-  // mounts again, and a ref that swallowed the second setup would leave the
-  // screen stuck on "booting" forever. Every setup runs its own recovery —
-  // START replay is idempotent, so two requests with the SAME key are strictly
-  // better than a frozen screen. `cancelled` only discards THIS setup's answer.
-  useEffect(() => {
-    const read = readGuideRecovery(actorScope);
-    if (read.state === "unavailable") {
-      blockOnStorage();
-      return;
-    }
-    if (read.state === "empty") {
-      // No prior START from this browser ⇒ the cover, and an explicit click.
-      patch({ booting: false });
-      return;
-    }
-
-    const record = read.record;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const session = await replayStart(record);
-        if (cancelled) return;
-
-        const pending = record.pendingCommand;
-        // A pending command belongs to ONE session. If the server handed back
-        // a different one, replaying it would apply someone else's attempt to
-        // this run — so it is dropped, not guessed at.
-        const bound = pending ? pending.sessionId === session.sessionId : false;
-
-        const settled = recordFor({
-          startIdempotencyKey: record.startIdempotencyKey,
-          sessionId: session.sessionId,
-          ...(pending && bound ? { pendingCommand: pending } : {}),
-        });
-        if (!remember(settled)) {
-          blockOnStorage();
-          return;
-        }
-        patch({ session, record: settled, booting: false, retry: null });
-
-        if (pending && bound) {
-          await dispatch(pending, settled);
-        }
-      } catch (err) {
-        if (cancelled) return;
-        const uiError = toGuideUiError(err);
-        if (uiError.kind === "gone") {
-          clearGuideRecovery();
-          patch({
-            booting: false,
-            session: null,
-            record: null,
-            error: uiError,
-            retry: null,
-          });
-          return;
-        }
-        if (uiError.kind === "retryable") {
-          // The record stays: retrying must replay THIS start key, and the
-          // fresh-start cover would offer to mint a different one.
-          patch({
-            booting: false,
-            record,
-            error: uiError,
-            retry: { kind: "START", record },
-          });
-          return;
-        }
-        patch({ booting: false, record, error: uiError, retry: null });
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    actorScope,
-    blockOnStorage,
-    dispatch,
-    patch,
-    recordFor,
-    remember,
-    replayStart,
-  ]);
+  const { screen, session, step, busy, choice, setChoice } = run;
 
   // Move focus to the heading after a transition so a screen reader announces
   // the new step instead of leaving the user on a button that is now gone.
-  const screen = screenOf(state);
   useEffect(() => {
-    if (state.booting || state.busy) return;
+    if (run.booting || busy) return;
     headingRef.current?.focus();
-  }, [screen, state.session?.currentStepKey, state.booting, state.busy]);
-
-  // ── Explicit start ────────────────────────────────────────────────────────
-  const start = useCallback(async () => {
-    const idempotencyKey = newIdempotencyKey();
-    if (!idempotencyKey) {
-      patch({
-        error: {
-          kind: "terminal",
-          message: "Este navegador no puede iniciar la guía.",
-        },
-      });
-      return;
-    }
-    const record = remember(recordFor({ startIdempotencyKey: idempotencyKey }));
-    // The key must be readable again before the request exists, not after.
-    if (!record) {
-      blockOnStorage();
-      return;
-    }
-
-    patch({ busy: true, error: null, retry: null, record });
-    await runStart(record);
-  }, [blockOnStorage, patch, recordFor, remember, runStart]);
-
-  const restart = useCallback(() => {
-    clearGuideRecovery();
-    setChoice(null);
-    patch({ session: null, record: null, error: null, retry: null });
-  }, [patch]);
-
-  // ── Commands ──────────────────────────────────────────────────────────────
-  const send = useCallback(
-    (build: (key: string, sessionId: string) => PendingGuideCommand) => {
-      const { session, record } = state;
-      if (!session || !record || state.busy) return;
-      const key = newIdempotencyKey();
-      if (!key) {
-        patch({
-          error: {
-            kind: "terminal",
-            message: "Este navegador no puede continuar la guía.",
-          },
-        });
-        return;
-      }
-      const command = build(key, session.sessionId);
-      // Persisted BEFORE the request: an ambiguous timeout is retried with
-      // this exact key, never with a fresh one. If it cannot be persisted the
-      // request does not happen at all.
-      const pendingRecord = remember({ ...record, pendingCommand: command });
-      if (!pendingRecord) {
-        blockOnStorage();
-        return;
-      }
-      void dispatch(command, pendingRecord);
-    },
-    [blockOnStorage, dispatch, patch, remember, state],
-  );
-
-  const completeStep = (stepKey: GuideStepPresentation["stepKey"]) =>
-    send((idempotencyKey, sessionId) => ({
-      commandType: "STEP_COMPLETE",
-      idempotencyKey,
-      sessionId,
-      stepKey,
-    }));
-
-  const submitRecall = (
-    stepKey: GuideStepPresentation["stepKey"],
-    selectedOptionKey: GuideOptionKeyWeb,
-  ) =>
-    send((idempotencyKey, sessionId) => ({
-      commandType: "STEP_RECALL",
-      idempotencyKey,
-      sessionId,
-      stepKey,
-      selectedOptionKey,
-    }));
-
-  const finish = () =>
-    send((idempotencyKey, sessionId) => ({
-      commandType: "SESSION_COMPLETE",
-      idempotencyKey,
-      sessionId,
-    }));
-
-  const cancel = () =>
-    send((idempotencyKey, sessionId) => ({
-      commandType: "CANCEL",
-      idempotencyKey,
-      sessionId,
-    }));
-
-  const retry = () => {
-    const pending = state.retry;
-    if (!pending || state.busy) return;
-    if (pending.kind === "START") {
-      patch({ busy: true, error: null, retry: null });
-      void runStart(pending.record);
-      return;
-    }
-    void retryCommand(pending.record, pending.command);
-  };
+  }, [screen, session?.currentStepKey, run.booting, busy]);
 
   // ── Render ────────────────────────────────────────────────────────────────
-  const session = state.session;
-  const step = session ? stepPresentationFor(session.currentStepKey) : null;
-
   return (
     <>
       <div className="screen-head">
@@ -630,7 +61,7 @@ export function GuidePlayer({ actorScope }: GuidePlayerProps) {
         style={{ minHeight: 0 }}
         data-testid="guide-live-region"
       >
-        {state.error ? (
+        {run.error ? (
           <p
             className="card"
             role="alert"
@@ -641,15 +72,15 @@ export function GuidePlayer({ actorScope }: GuidePlayerProps) {
               fontSize: 14,
             }}
           >
-            {state.error.message}
-            {state.retry ? (
+            {run.error.message}
+            {run.retry ? (
               <>
                 {" "}
                 <button
                   type="button"
                   className="btn ghost"
-                  onClick={retry}
-                  disabled={state.busy}
+                  onClick={run.retryPending}
+                  disabled={busy}
                   style={{ minHeight: 44, marginLeft: 8 }}
                 >
                   {labels.retry}
@@ -725,11 +156,11 @@ export function GuidePlayer({ actorScope }: GuidePlayerProps) {
             <button
               type="button"
               className="btn primary"
-              onClick={() => void start()}
-              disabled={state.busy}
+              onClick={() => void run.start()}
+              disabled={busy}
               style={{ minHeight: 44 }}
             >
-              {state.busy ? "Abriendo…" : labels.start}
+              {busy ? "Abriendo…" : labels.start}
             </button>
             <Link
               href="/dashboard/exploraciones"
@@ -785,7 +216,7 @@ export function GuidePlayer({ actorScope }: GuidePlayerProps) {
                       value={option.optionKey}
                       checked={choice === option.optionKey}
                       onChange={() => setChoice(option.optionKey)}
-                      disabled={state.busy}
+                      disabled={busy}
                     />
                     <span style={{ fontSize: 14, lineHeight: 1.5 }}>
                       {option.label}
@@ -806,17 +237,15 @@ export function GuidePlayer({ actorScope }: GuidePlayerProps) {
             <button
               type="button"
               className="btn primary"
-              disabled={
-                state.busy || (step.surface === "recall" && choice === null)
-              }
+              disabled={busy || (step.surface === "recall" && choice === null)}
               onClick={() =>
                 step.surface === "recall"
-                  ? choice && submitRecall(step.stepKey, choice)
-                  : completeStep(step.stepKey)
+                  ? choice && run.submitRecall(step.stepKey, choice)
+                  : run.completeStep(step.stepKey)
               }
               style={{ minHeight: 44 }}
             >
-              {state.busy ? "Guardando…" : step.actionLabel}
+              {busy ? "Guardando…" : step.actionLabel}
             </button>
             <button
               type="button"
@@ -827,10 +256,10 @@ export function GuidePlayer({ actorScope }: GuidePlayerProps) {
                     "¿Quieres salir de la guía? Puedes empezarla de nuevo cuando quieras.",
                   )
                 ) {
-                  cancel();
+                  run.cancel();
                 }
               }}
-              disabled={state.busy}
+              disabled={busy}
               style={{ minHeight: 44 }}
             >
               {labels.exit}
@@ -853,11 +282,11 @@ export function GuidePlayer({ actorScope }: GuidePlayerProps) {
             <button
               type="button"
               className="btn primary"
-              onClick={finish}
-              disabled={state.busy}
+              onClick={run.finish}
+              disabled={busy}
               style={{ minHeight: 44 }}
             >
-              {state.busy ? "Guardando…" : labels.finish}
+              {busy ? "Guardando…" : labels.finish}
             </button>
           </div>
         </div>
@@ -880,7 +309,7 @@ export function GuidePlayer({ actorScope }: GuidePlayerProps) {
             <button
               type="button"
               className="btn ghost"
-              onClick={restart}
+              onClick={run.restart}
               style={{ minHeight: 44 }}
             >
               Repetir guía
@@ -908,7 +337,7 @@ export function GuidePlayer({ actorScope }: GuidePlayerProps) {
             <button
               type="button"
               className="btn ghost"
-              onClick={restart}
+              onClick={run.restart}
               style={{ minHeight: 44 }}
             >
               {labels.restart}

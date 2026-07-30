@@ -15369,7 +15369,8 @@
                   "required": [
                     "created",
                     "replayed",
-                    "session"
+                    "session",
+                    "feedback"
                   ],
                   "properties": {
                     "created": {
@@ -15378,7 +15379,7 @@
                     },
                     "replayed": {
                       "type": "boolean",
-                      "description": "Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200)."
+                      "description": "Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). El feedback es el mismo que devolvió el intento original — se lee del ledger, no se vuelve a calificar."
                     },
                     "session": {
                       "type": "object",
@@ -15429,6 +15430,23 @@
                           "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
                         }
                       }
+                    },
+                    "feedback": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "outcome"
+                      ],
+                      "properties": {
+                        "outcome": {
+                          "type": "string",
+                          "enum": [
+                            "CORRECT",
+                            "REVIEW"
+                          ],
+                          "description": "Lo que se le dice a la persona. Calificado por el servidor contra la respuesta canónica del catálogo, que nunca sale."
+                        }
+                      }
                     }
                   }
                 }
@@ -15445,7 +15463,8 @@
                   "required": [
                     "created",
                     "replayed",
-                    "session"
+                    "session",
+                    "feedback"
                   ],
                   "properties": {
                     "created": {
@@ -15454,7 +15473,7 @@
                     },
                     "replayed": {
                       "type": "boolean",
-                      "description": "Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200)."
+                      "description": "Un comando idéntico anterior ya la aplicó; nada corrió ahora (HTTP 200). El feedback es el mismo que devolvió el intento original — se lee del ledger, no se vuelve a calificar."
                     },
                     "session": {
                       "type": "object",
@@ -15503,6 +15522,23 @@
                           "type": "string",
                           "nullable": true,
                           "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                        }
+                      }
+                    },
+                    "feedback": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "outcome"
+                      ],
+                      "properties": {
+                        "outcome": {
+                          "type": "string",
+                          "enum": [
+                            "CORRECT",
+                            "REVIEW"
+                          ],
+                          "description": "Lo que se le dice a la persona. Calificado por el servidor contra la respuesta canónica del catálogo, que nunca sale."
                         }
                       }
                     }

@@ -109,10 +109,12 @@ export type ChapterMediaAccessResponse =
  * The event means exactly one thing: the client reported that the player
  * reached its end. It does not mean the person understood, paid attention, or
  * felt anything (`EXPERIENCE_CAUSAL_INFERENCE=false`).
+ *
+ * `Record<string, never>` rather than an empty interface: an empty interface
+ * accepts any object, so it would document a closed body while typing an open
+ * one. This shape makes `{}` the ONLY value that compiles.
  */
-export interface ChapterMediaCompleteRequestBody {
-  // Intentionally empty: zero properties, `additionalProperties: false`.
-}
+export type ChapterMediaCompleteRequestBody = Record<string, never>;
 
 /**
  * What the command answers. Two booleans and nothing else — no timestamps, no

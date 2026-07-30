@@ -6166,10 +6166,7 @@
                         }
                       }
                     }
-                  ],
-                  "discriminator": {
-                    "propertyName": "kind"
-                  }
+                  ]
                 }
               }
             }

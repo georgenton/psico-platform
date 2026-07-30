@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import type { ChapterMediaCompleteRequestBody } from "@psico/types";
 
 /**
  * GR-2 — ratchet over the PUBLISHED chapter-media contract (`openapi.json` plus
@@ -14,7 +15,9 @@ import { describe, expect, it } from "vitest";
  *   - every response object is CLOSED (`additionalProperties: false`) with an
  *     exact `required` list, so the generated client cannot collapse it to
  *     `Record<string, never>` again;
- *   - access is a closed discriminated union on `kind`;
+ *   - access is a closed union whose branches differ structurally on
+ *     `kind` — no OpenAPI `discriminator`, which 3.0 only makes portable with
+ *     referenced schemas;
  *   - the completion documents 200 AND 201 with the SAME schema, and its
  *     request body is an empty closed object;
  *   - no provider fact, no storage key, no access policy and no actor id
@@ -123,12 +126,22 @@ describe("ratchet · chapter media OpenAPI surface", () => {
     expect([...(mark.required ?? [])].sort()).toEqual(["label", "startSec"]);
   });
 
-  it("access is a closed discriminated union on kind", () => {
+  it("access is a closed union whose branches differ structurally on kind", () => {
     const schema = responseOf(ACCESS, "get", "200");
-    expect(schema.discriminator?.propertyName).toBe("kind");
     expect(schema.oneOf).toHaveLength(2);
 
+    // No OpenAPI `discriminator`: the branches are declared inline, and in
+    // OpenAPI 3.0 a discriminator is only portable with referenced schemas.
+    // `kind` is required and literal in each branch, which is what actually
+    // tells the two apart.
+    expect(schema.discriminator).toBeUndefined();
+
     const [audio, video] = schema.oneOf as Schema[];
+    for (const branch of [audio, video]) {
+      expect(branch.required).toContain("kind");
+      expect(branch.properties?.kind?.enum).toBeDefined();
+    }
+
     expect(audio.additionalProperties).toBe(false);
     expect([...(audio.required ?? [])].sort()).toEqual([
       "expiresAt",
@@ -258,7 +271,30 @@ describe("ratchet · chapter media OpenAPI surface", () => {
       expect(seg.includes("Record<string, never>"), id).toBe(false);
     }
     expect(slice("getChapterMediaManifest")).toContain("bookSlug");
-    expect(slice("getChapterMediaAccess")).toContain("expiresAt");
+
+    // Access must survive as a TypeScript UNION, not as one merged object: a
+    // client has to be able to narrow on `kind` and reach `embedUrl` only on
+    // the video branch. The generator hoists each branch's `kind` into its own
+    // enum, so the two branches carry DIFFERENT kind types — which is exactly
+    // what makes the narrowing work.
+    const access = slice("getChapterMediaAccess");
+    expect(access).toContain("expiresAt");
+    expect(access).toMatch(/\}\s*\|\s*\{/);
+    expect(access).toContain("url: string");
+    expect(access).toContain("embedUrl");
+
+    const kinds = [...access.matchAll(/kind: (\w+);/g)].map((m) => m[1]);
+    expect(kinds).toHaveLength(2);
+    expect(kinds[0]).not.toBe(kinds[1]);
+    for (const [name, members] of [
+      [kinds[0], ['AUDIOBOOK = "AUDIOBOOK"', 'PODCAST = "PODCAST"']],
+      [kinds[1], ['VIDEO = "VIDEO"']],
+    ] as const) {
+      const start = generated.indexOf(`export enum ${name} {`);
+      expect(start, name).toBeGreaterThan(-1);
+      const body = generated.slice(start, generated.indexOf("}", start));
+      for (const member of members) expect(body, name).toContain(member);
+    }
 
     // The completion carries both statuses. Its ONLY `Record<string, never>` is
     // the deliberately empty request body.
@@ -271,5 +307,33 @@ describe("ratchet · chapter media OpenAPI surface", () => {
     expect(complete.slice(0, complete.indexOf("responses:"))).toContain(
       "Record<string, never>",
     );
+  });
+});
+
+// ─── Type-level assertions (checked by tsc, not at runtime) ─────────────────
+
+/**
+ * The shared type must be as closed as the published schema. An empty
+ * `interface` would accept any object — it would document a closed body while
+ * typing an open one — so the contract is `Record<string, never>` and these
+ * assertions are what proves it.
+ */
+describe("type-level contract · the completion body carries nothing", () => {
+  it("compiles — the assertions below are enforced by the typechecker", () => {
+    const valid: ChapterMediaCompleteRequestBody = {};
+    void valid;
+
+    // The actor comes from the token; a client claiming one is rejected here,
+    // long before the request exists.
+    // @ts-expect-error — el cliente no posee este contexto
+    const invalidUser: ChapterMediaCompleteRequestBody = { userId: "x" };
+    void invalidUser;
+
+    // The version is pinned by `mediaKey`; a client cannot assert another one.
+    // @ts-expect-error — la versión la fija el catálogo, no el reproductor
+    const invalidVersion: ChapterMediaCompleteRequestBody = { mediaVersion: 1 };
+    void invalidVersion;
+
+    expect(true).toBe(true);
   });
 });

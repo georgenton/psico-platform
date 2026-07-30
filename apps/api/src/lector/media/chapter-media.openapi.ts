@@ -163,12 +163,18 @@ const VIDEO_ACCESS: SchemaObject = {
 /**
  * GET /api/lector/media/:mediaKey/access — the ONLY place a signed URL exists.
  *
- * Discriminated on `kind` because the branches are genuinely different shapes:
- * audio is a URL for `<audio>`, video is an embed URL for the managed player.
+ * Two branches because they are genuinely different shapes: audio is a URL for
+ * `<audio>`, video is an embed URL for the managed player.
+ *
+ * La unión se discrimina estructuralmente por el campo `kind`, requerido y
+ * literal en cada rama.
+ *
+ * No se usa el objeto OpenAPI `discriminator` porque las ramas están declaradas
+ * inline; en OpenAPI 3.0 un `discriminator` solo es portable con schemas
+ * referidos.
  */
 export const CHAPTER_MEDIA_ACCESS_RESPONSE: SchemaObject = {
   oneOf: [AUDIO_ACCESS, VIDEO_ACCESS],
-  discriminator: { propertyName: "kind" },
 };
 
 /**

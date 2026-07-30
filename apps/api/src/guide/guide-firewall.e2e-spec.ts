@@ -275,6 +275,43 @@ suite("CC-7.4D · Guide full-stack emotional firewall", () => {
     );
   });
 
+  it("GR-3 — a resonance confirmed FROM the guide is the only thing that moves the map", async () => {
+    const { userId, token } = await provisionUser("gr3-resonance");
+
+    // First the whole guide, so the comparison is against a run that already
+    // happened. If the guide itself moved anything, the delta below would be
+    // ambiguous about which action caused it.
+    await walkGuide(token);
+    const afterGuide = await freshProjection(userId);
+    assertNonEmptyEmotionalBaseline(afterGuide);
+    const rowsAfterGuide = await emotionalRowCounts(userId);
+
+    // The explicit tap the panel offers AFTER the guide is over. Same endpoint
+    // a highlight uses; only the provenance differs.
+    await http()
+      .post("/api/resonances")
+      .set(auth(token))
+      .send({
+        conceptKey: "eec-cuerpo-antes-que-mente",
+        conceptLabel: "El cuerpo sabe antes que la mente",
+        bookSlug: BOOK_SLUG,
+        chapterOrder: 1,
+        source: "guide",
+      })
+      .expect(201);
+
+    // Exactly one row, and it remembers WHERE the person confirmed it.
+    const rows = await prisma.resonance.findMany({ where: { userId } });
+    expect(rows).toHaveLength(rowsAfterGuide.resonances + 1);
+    expect(rows.at(-1)?.source).toBe("GUIDE");
+
+    // The map moved — through the Resonance projection that already existed,
+    // not through anything the guide wrote.
+    const afterResonance = await freshProjection(userId);
+    expect(afterResonance).not.toEqual(afterGuide);
+    expect(await prisma.learningEvent.count({ where: { userId } })).toBe(4);
+  });
+
   it("progress comes from the ledger, never from the events", async () => {
     const { userId, token } = await provisionUser("ledger");
     const sessionId = await walkGuide(token);

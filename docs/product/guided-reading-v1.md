@@ -1344,3 +1344,109 @@ GR-P05 → GR-017    GR-P10 → GR-022
 
 Toda futura modificación del producto debe actualizar `SPEC_VERSION`,
 `LAST_UPDATED`, el Decision Registry y este Change Log.
+
+---
+
+## 15quater. GR-3 Implementation
+
+```
+GR3_STATUS=IN_REVIEW
+GR3_IMPLEMENTATION_STATUS=IN_REVIEW
+
+GR3_FOUNDATION_IMPLEMENTED=true
+GR3_READER_RUNTIME_IMPLEMENTED=true
+GR3_STANDALONE_GUIDE_PRESERVED=true
+
+GR3_ANCHOR_LOCATOR_IMPLEMENTED=true
+GR3_ANCHOR_MATCH_COUNT=1
+GR3_BLOCK_KEY_HARDCODED=false
+GR3_ROUTE_CHANGES_ON_ANCHOR=0
+
+GR3_DESKTOP_PANEL_IMPLEMENTED=true
+GR3_MOBILE_BOTTOM_SHEET_IMPLEMENTED=true
+
+GR3_SCENES_IMPLEMENTED=8
+GR3_CLIP_ASSET_STATUS=PENDING_EDITORIAL_ASSET
+GR3_CLIP_TRANSCRIPT_FALLBACK=true
+
+GR3_PRACTICE_OBSERVATION_FIELDS_STORED=0
+GR3_PRACTICE_TIMER_SERVER_EVENTS=0
+
+GR3_RECALL_FEEDBACK_IMPLEMENTED=true
+GR3_RECALL_FRESH_REPLAY_MATCH=true
+GR3_CORRECT_OPTION_EXPOSED=false
+
+GR3_RESONANCE_EXPLICIT_ONLY=true
+GR3_RESONANCE_SOURCE=guide
+GR3_RESONANCE_NOW_NOT_WRITES=0
+
+GR3_CHECKIN_REUSES_EXISTING_SURFACE=true
+GR3_EXPERIENCE_CAUSAL_INFERENCE=false
+
+GUIDED_READING_AUTOMATIC_MAP_WRITE=false
+MAP_ENTRY_REQUIRES_EXPLICIT_USER_ACTION=true
+
+NEW_GUIDE_LIFECYCLE=false
+NEW_GUIDE_TABLES=0
+NEW_GUIDE_EVENT_TYPES=0
+NEW_GUIDE_MIGRATIONS=0
+MIGRATION_FILES_ADDED=1
+SCHEMA_ENUM_VALUES_ADDED=1
+SCHEMA_TABLES_ADDED=0
+SCHEMA_COLUMNS_ADDED=0
+```
+
+### El anchor
+
+La identidad del pasaje es **editorial**, no una clave. Content Core deriva
+`blockKey` como uuidv5 del `ChapterBlock.id` heredado (CC-1), así que el mismo
+párrafo tiene una clave distinta en cada entorno donde se ingirió el capítulo.
+Un literal en el catálogo sería cierto en una base y falso en la siguiente.
+
+El catálogo (`packages/types/src/guide-anchor.ts`) guarda lo que un editor puede
+verificar leyendo el libro:
+
+```
+ANCHOR_SOURCE_HEADING=El cuerpo y la emoción
+ANCHOR_PASSAGE_LAST_SENTENCE=Nuestro cuerpo siente antes que nuestra mente entienda.
+ANCHOR_EXPECTED_MATCH_COUNT=1
+ANCHOR_BLOCK_KEY_RESOLUTION=PER_ENVIRONMENT_FROM_CONTENT_CORE
+```
+
+`resolveGuideAnchor` lo convierte en una referencia runtime contra los bloques
+que el lector recibió, y **falla cerrado** en cada paso: cero coincidencias →
+`UNRESOLVED`; más de una → `AMBIGUOUS`; un bloque sin `blockKey` o sin
+`blockVersionId` → `UNRESOLVED`. Nunca «la primera coincidencia».
+
+`guide-anchor-ingest.pg-spec.ts` lo prueba contra el manuscrito real: base
+efímera → migraciones → herramienta de ingesta sobre
+`content/emociones-en-construccion/capitulo-01.md` → backfill de Content Core →
+lectura de la unidad publicada → **una** coincidencia. La base de desarrollo
+ordinaria conserva los bloques del seed, y mutarla para que el feature pasara
+sería arreglar la evidencia en vez del código.
+
+### El feedback del recall
+
+`POST /api/guide/sessions/:id/steps/:key/recall` devuelve ahora
+`feedback.outcome`:
+
+```
+GUIDE_RECALL_PUBLIC_OUTCOMES=CORRECT|REVIEW
+GUIDE_RECALL_CORRECT_OPTION_FIELDS=0
+GUIDE_RECALL_SELECTED_OPTION_RESPONSE_FIELDS=0
+FRESH_OUTCOME=REPLAY_OUTCOME
+```
+
+`REVIEW` y no `INCORRECT`: el ledger conserva el hecho calificado, la superficie
+pública ofrece una invitación a volver a mirar. Se **lee del ledger aceptado**
+en ambos caminos, así que un replay devuelve el mismo veredicto sin volver a
+calificar. Sin ledger, sin `recallResult`, o con un step que no corresponde:
+falla cerrado.
+
+### Lo que NO cambió
+
+El lifecycle Guide (`GuideSession` · `GuideSessionStep` ·
+`GuideCommandReceipt`), sus cinco comandos, el gate de rollout, la recuperación
+y el escritor de LearningEvent son exactamente los mismos. La única migración
+del PR añade `GUIDE` al enum `ResonanceSource`, para que «Mis resonancias» pueda
+decir de dónde vino cada confirmación sin mentir.

@@ -3647,3 +3647,8 @@ export * from "./chapter-media";
 // ─── CC-7.1 — learning domain commands + server-constructed event records ─
 export * from "./learning-events";
 export * from "./guide";
+
+// GR-3 — the guided-reading anchor: an EDITORIAL locator plus the pure
+// resolver that turns it into a runtime block reference. Shared so the reader
+// and the ingest test run the same code.
+export * from "./guide-anchor";

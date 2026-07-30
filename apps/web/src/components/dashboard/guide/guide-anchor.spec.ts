@@ -135,7 +135,22 @@ describe("resolveGuideAnchor", () => {
   it("hardcodes NO block key — the identity is per environment", () => {
     // The whole reason this file exists. A uuid literal here would resolve to
     // nothing in production, or to somebody else's paragraph.
-    const source = readFileSync(join(__dirname, "guide-anchor.ts"), "utf8");
+    const source = readFileSync(
+      join(
+        __dirname,
+        "..",
+        "..",
+        "..",
+        "..",
+        "..",
+        "..",
+        "packages",
+        "types",
+        "src",
+        "guide-anchor.ts",
+      ),
+      "utf8",
+    );
     const uuidLiteral =
       /["'][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}["']/i;
     expect(uuidLiteral.test(source)).toBe(false);

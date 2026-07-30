@@ -16657,7 +16657,8 @@ export enum LearningUnitProgressItemDtoState {
 export enum ConfirmResonanceDtoSource {
     highlight = "highlight",
     eco = "eco",
-    exercise = "exercise"
+    exercise = "exercise",
+    guide = "guide"
 }
 export enum ChangeRoleDtoRole {
     USER = "USER",

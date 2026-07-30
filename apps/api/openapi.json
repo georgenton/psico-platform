@@ -21901,7 +21901,8 @@
             "enum": [
               "highlight",
               "eco",
-              "exercise"
+              "exercise",
+              "guide"
             ]
           }
         },

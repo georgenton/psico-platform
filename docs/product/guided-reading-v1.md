@@ -321,7 +321,7 @@ LEGACY_READER_MODE_VISIBLE_LABEL=Escuchar
 LEGACY_READER_MODE_LOCALSTORAGE_MIGRATION=false
 
 GR1_VISUAL_ANCHOR_PLACEHOLDER_ALLOWED=true
-GR3_RUNTIME_ANCHOR_STATUS=PENDING_EDITORIAL_BLOCK_KEY
+GR3_RUNTIME_ANCHOR_STATUS=EDITORIAL_ANCHOR_APPROVED
 
 SECOND_GUIDE_PRODUCTIVE_ALLOWED=false
 SECOND_BOOK_GUIDED_READING_ALLOWED=false
@@ -335,7 +335,7 @@ SECOND_BOOK_GUIDED_READING_ALLOWED=false
 - No se migra el valor `localStorage["psico:lector:mode"]`; el interno sigue
   siendo `guia` y la etiqueta visible pasa a «Escuchar».
 - El prototipo puede usar un anchor visual fixture.
-- GR-3 no puede integrar el anchor real mientras `ANCHOR_BLOCK_KEY=TBD`.
+- El anchor editorial está aprobado (§ anchor); GR-3 ya puede integrarlo.
 
 ---
 
@@ -420,17 +420,27 @@ la reacción corporal y la comprensión consciente.
 ```
 
 ```
-ANCHOR_EDITORIAL_STATUS=PENDING_APPROVAL
-ANCHOR_BLOCK_KEY=TBD
-ANCHOR_SOURCE_HEADING=TBD
+ANCHOR_EDITORIAL_STATUS=APPROVED
+ANCHOR_SOURCE_HEADING=El cuerpo y la emoción
+ANCHOR_PASSAGE_LAST_SENTENCE=Nuestro cuerpo siente antes que nuestra mente entienda.
+ANCHOR_BLOCK_KEY_RESOLUTION=PER_ENVIRONMENT_FROM_CONTENT_CORE
 
 ANCHOR_BLOCKS_GR1=false
-ANCHOR_BLOCKS_GR3=true
+ANCHOR_BLOCKS_GR3=false
 ```
 
-La identidad estable del bloque ya existe (§1.1). Lo que falta es la decisión
-editorial: qué bloque exacto se ancla y qué rango se enfoca. Mientras sea `TBD`,
-la **integración runtime queda bloqueada**; el prototipo visual, no.
+La identidad estable del bloque ya existe (§1.1). La decisión editorial que
+faltaba está tomada: se ancla el **tercer párrafo de «El cuerpo y la emoción»**,
+el que describe adónde va la sangre con miedo, con enojo y con tristeza y cierra
+con «Nuestro cuerpo siente antes que nuestra mente entienda». Es la tesis del
+concepto en una sola frase, y vive bajo el encabezado que ya lleva su nombre.
+
+`ANCHOR_BLOCK_KEY` no se fija como literal aquí a propósito. El `blockKey` de
+Content Core se deriva del `ChapterBlock.id` (uuid v5 determinista, CC-1), así
+que su valor es **por entorno**: escribirlo como constante lo volvería falso en
+cuanto se ingiera el capítulo en otro sitio. La identidad que sí es estable —y
+la que este documento fija— es la **editorial**: encabezado + pasaje. El runtime
+resuelve el bloque desde ahí.
 
 Comportamiento objetivo:
 
@@ -835,26 +845,26 @@ educativos de medios (**no** en el MVP), formato del podcast (**Jorge solo**),
 migración de `ReaderMode` (**no**), GR-P09 (aprobada como **GR-021**) y GR-P10
 (aprobada como **GR-022**).
 
-Quedan dos asuntos diferidos, ninguno bloquea GR-1:
+Queda un asunto diferido, y no bloquea GR-1:
 
 ```
 MEDIA_HOSTING_PROVIDER=CLOUDFLARE_STREAM_AND_R2
 
-ANCHOR_BLOCK_KEY=TBD
-ANCHOR_SOURCE_HEADING=TBD
+ANCHOR_EDITORIAL_STATUS=APPROVED
+ANCHOR_SOURCE_HEADING=El cuerpo y la emoción
 ```
 
 ```
 OPEN_BLOCKERS_FOR_GR1=0
 OPEN_DECISIONS_FOR_GR2=0
 OPEN_BLOCKERS_FOR_GR2=1
-OPEN_BLOCKERS_FOR_GR3=1
+OPEN_BLOCKERS_FOR_GR3=0
 ```
 
 El proveedor de hosting ya está decidido (GR-2). Lo que queda pendiente para
 GR-2 no es una decisión sino producción: los masters editoriales
-(`docs/product/chapter-01-media-package.md`). El anchor exacto bloquea GR-3, no
-GR-1 ni GR-2.
+(`docs/product/chapter-01-media-package.md`). El anchor editorial quedó
+aprobado el 2026-07-30 y ya no bloquea GR-3.
 
 ### Notas de la revisión visual de GR-1
 

@@ -1275,6 +1275,10 @@ enum ResonanceSource {
   HIGHLIGHT
   ECO
   EXERCISE
+  // GR-3 — confirmed from inside a Guide session. Its own value because
+  // provenance is the point: reusing HIGHLIGHT or EXERCISE would tell the
+  // person their resonance came from somewhere it did not.
+  GUIDE
 }
 
 model Resonance {

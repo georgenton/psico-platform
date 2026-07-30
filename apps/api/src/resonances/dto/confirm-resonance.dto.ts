@@ -27,6 +27,6 @@ export class ConfirmResonanceDto {
   chapterOrder!: number;
 
   /** Where the confirmation happened (provenance). */
-  @IsIn(["highlight", "eco", "exercise"])
+  @IsIn(["highlight", "eco", "exercise", "guide"])
   source!: ResonanceSource;
 }

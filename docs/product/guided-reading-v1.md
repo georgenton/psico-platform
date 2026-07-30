@@ -1149,7 +1149,38 @@ en pantalla, en los tres viewports. Después: **cero**, en todos los estados y
 todos los viewports. La preferencia no se pierde — se adopta en un efecto, tras
 la hidratación. Tres tests jsdom fijan el contrato y el arnés de navegador real
 ahora afirma, por viewport y por estado, que no hay desajuste de hidratación, ni
-error no manejado, ni indicador de desarrollo en el DOM (262 → 316 aserciones).
+error no manejado, ni indicador de desarrollo en el DOM. La suite del navegador
+real corre **316 aserciones**.
+
+### La metadata del capítulo, alineada a su autoridad
+
+```
+CHAPTER_TITLE_IN_EVIDENCE=¿Realmente sabemos qué es una emoción?
+CHAPTER_TITLE_MATCHES_TITLES_JSON=true
+CHAPTER_TITLE_MATCHES_PRODUCT_SPEC=true
+CHAPTER_TITLE_SOURCE=evidence_database_seed
+AUTHOR_METADATA_VERIFIED=false
+UNVERIFIED_AUTHOR_VISIBLE=false
+PRODUCTION_CONTENT_CHANGED=false
+```
+
+Las capturas anteriores mostraban «Introducción: Entendiendo tus Emociones». Ese
+título no lo produce ninguna autoridad del repositorio: el manifiesto de ingesta
+[`titles.json`](../../apps/api/content/emociones-en-construccion/titles.json) y
+el `seed` dicen «¿Realmente sabemos qué es una emoción?», igual que este
+documento (§ Alcance). Venía de una **fila vieja de la base local de evidencia**,
+anterior al auto-curado que el seed hace en cada despliegue desde 2026-07-13.
+Volver a sembrar la alineó. No se tocó el capítulo fuente ni contenido
+productivo.
+
+**El autor no tiene autoridad en el repositorio.** El directorio de contenido no
+lleva atribución, los markdown no tienen front matter, y los nombres que sí
+aparecen se contradicen entre sí: «Marina Quintana» como `BookAuthor` sembrado y
+—por separado— como terapeuta sembrado, «Dra. Marina Salazar» en un prototipo de
+diseño. La autoría no se infiere. La fixture de evidencia lleva el fallback sin
+autor que el propio contrato documenta (`artist: "Psico Platform"`), así que
+ninguna captura afirma quién escribió el libro. La metadata productiva queda
+intacta: el API sigue devolviendo lo que diga la fila del libro.
 
 ### Evidencia visual
 
@@ -1160,16 +1191,22 @@ MOBILE_SCREENSHOT_CROPPED=false
 STALE_SCREENSHOTS_REMAINING=0
 DEVELOPMENT_OVERLAYS_IN_SCREENSHOTS=0
 PII_IN_SCREENSHOTS=false
+CANONICAL_CHAPTER_TITLE_VISIBLE=true
+TRANSFORMATION_CLAIM_VISIBLE=false
 ```
 
-Las seis capturas salen del **mismo árbol** (`93c0375`), contra el API real en
+Las seis capturas salen del **mismo árbol** (`4751f48`), contra el API real en
 local y una cuenta sintética de desarrollo. Son de **viewport completo**: no hay
 recorte. Donde la barra lateral aparece, el bloque de cuenta va **tapado con una
 máscara opaca** — el layout completo queda a la vista y la dirección no; en
 móvil no hay máscara porque el cajón está aparcado fuera de lienzo, y el script
 lo comprueba (`accountRight = -17`) antes de disparar en vez de confiar. El
 script **se niega a escribir** una captura si encuentra `nextjs-portal` en el
-DOM, y la 3 se niega además si aparece un iframe o falta el copy de DRAFT.
+DOM, si aparece el título viejo, o si aparece cualquiera de los nombres de autor
+sin autoridad. La 3 se niega además si aparece un iframe o falta el copy de
+DRAFT; las del lector se niegan si el título canónico no está en el DOM; y la 5
+se niega si aparece la palabra «transformación» (en el lector no aplica: la prosa
+del capítulo la usa con toda legitimidad).
 
 | #   | Vista                                         | Viewport   | Fixture | Captura                                                                                                 |
 | --- | --------------------------------------------- | ---------- | ------- | ------------------------------------------------------------------------------------------------------- |
@@ -1182,22 +1219,27 @@ DOM, y la 3 se niega además si aparece un iframe o falta el copy de DRAFT.
 
 ```
 sha256
-5ebddb818a6c3da3710fe9a6007171c3eb5db631b4d38977527823d1b0ba236f  01-reader-listen-audiobook.webp
-7af43de8bf98b02b77e17ac43cca893e9f60d5caae41f9e2a752daa0b438c46c  02-reader-listen-podcast-coming-soon.webp
-d3305beddcba3c1257ba21a86376ddab65aa07c4c3b37983ecdab0141c4a2f10  03-reader-watch-video.webp
+5331d2d924014893793c017282e7ad31bbd22958ca8aaf466a0d2884361110c5  01-reader-listen-audiobook.webp
+127f9488eff815c966d8a7e2298138bf5920e7884ea3e8e2b8b5f2d4636285b3  02-reader-listen-podcast-coming-soon.webp
+753f2dfcfb0ba11b240619cf500b4d40475ba37ef32becfdb015519dfbc6c04e  03-reader-watch-video.webp
 1b46edf4c90e562b5f2a9345b81097408c19816e95a7ce3c381486505aa72775  04-dashboard-mobile-drawer.webp
-c29e13eb76376518cd4f0af602fa582ac8b92aa103ad83f9ec0dd098da1d793b  05-evolution-learning-activity.webp
-b9fdeb10e1ca8a4b4d283e94ed567a613e80f8a62ef08f5b9ac33b56c548250f  06-reader-media-mobile.webp
+f2af43efa50b8c54312cb9c57594ff15caf934ead219abd11585fefc0053bb9b  05-evolution-learning-activity.webp
+90b8342cc68bb54229a5f6e7dec85153da595560550ce96910c84ce7edcfb17f  06-reader-media-mobile.webp
 ```
+
+La 4 conserva su hash: el cajón tapa el lector, así que el cambio de título no
+entra en cuadro y el render es idéntico byte a byte. Se disparó en la misma
+corrida que las otras cinco.
 
 Ruta del lector en 1, 2, 3, 4 y 6:
 `/dashboard/biblioteca/emociones-en-construccion/lector/1` (sin parámetros de
 consulta). En 5: `/dashboard/evolucion`.
 
 La captura 5 muestra los **seis** contadores de «Actividad de aprendizaje»
-—audiolibros, podcasts, videoexplicaciones, lecturas guiadas, prácticas y
-preguntas de recordar— en un solo cuadro; el script se niega a disparar si
-alguno queda fuera.
+—audiolibros, podcasts, videoexplicaciones, lecturas guiadas, prácticas e
+intentos de recuerdo— en un solo cuadro; el script se niega a disparar si alguno
+queda fuera. En el mismo cuadro se lee «Hitos de tu recorrido», el encabezado
+corregido.
 
 La captura 6 es el lector en Escuchar a 390 × 844 px CSS, sin recortar: sin
 barra lateral de escritorio, con el botón de navegación, los tres modos
@@ -1208,10 +1250,20 @@ en cuanto se hace scroll, así que ningún cuadro de 390 × 844 contiene ambas
 cosas— pero su geometría **sí** está medida: `x=16 → derecha=374` dentro de un
 viewport de 390, con las filas de velocidad y temporizador en una sola línea.
 
+En la 6 el título sale **truncado con puntos suspensivos** («Cap. 1 · ¿Realmente
+sabemos q…»): así lo recorta el header a 390 px por diseño. Es el título
+canónico, recortado por el layout, no otro título.
+
 Las capturas 1 y 6 alimentan el reproductor con una **fixture local** (un WAV
 silencioso de 3 s servido desde localhost) porque el master del capítulo no está
 en el almacenamiento local: sin URL de proveedor, sin UID, sin token, sin URL
 firmada. Las otras cuatro son el estado real del código, sin fixture.
+
+Esa fixture está **versionada** en
+[`apps/web/e2e/fixtures/gr2-audio.json`](../../apps/web/e2e/fixtures/gr2-audio.json)
+y fijada en CI contra `titles.json`, para que el título de la evidencia no pueda
+divergir de su autoridad sin romper el build. Su línea de transcripción se
+declara a sí misma como fixture en vez de imitar prosa del libro.
 
 **Lo que no se fotografía y por qué.** La pantalla de transcripción vive en la
 superficie de video, que sigue en `DRAFT`. Publicarla sólo del lado del cliente

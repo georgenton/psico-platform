@@ -28,6 +28,9 @@ GR2_VIDEO_PROVIDER=CLOUDFLARE_STREAM
 GR2_OBJECT_STORAGE=CLOUDFLARE_R2
 GR2_MEDIA_CATALOG_STATUS=IMPLEMENTED
 GR2_EXTERNAL_ASSETS_STATUS=PENDING_EDITORIAL_ASSETS
+GR2_RESPONSIVE_RELEASE_GATE_STATUS=IN_REVIEW
+DASHBOARD_RESPONSIVE_SHELL_IMPLEMENTED=true
+READER_MEDIA_MOBILE_IMPLEMENTED=true
 
 GUIDED_READING_DECISION_PACKET_APPROVED=true
 
@@ -1060,36 +1063,121 @@ misma persona terminando el mismo medio produce **una** fila tras recarga, doble
 evento `ended`, segundo dispositivo o retry de red. Una versión nueva del master
 es una actividad nueva, no un duplicado.
 
+### Responsive del shell — puerta de release
+
+```
+GR2_RESPONSIVE_RELEASE_GATE_STATUS=IN_REVIEW
+DASHBOARD_RESPONSIVE_SHELL_IMPLEMENTED=true
+READER_MEDIA_MOBILE_IMPLEMENTED=true
+```
+
+El defecto no era desbordamiento horizontal: era **shrink-to-fit**. `.app` era
+una grilla fija `248px 1fr` sin ninguna media query, así que un teléfono de
+390 px no tenía layout móvil y el navegador caía a escalar la página. Medido en
+Chrome, `window.innerWidth` daba **687** en un viewport de 390, `.side` seguía
+visible a 390/430/768 y `.main` arrancaba en x=248 dejando ~142 px CSS al
+lector. El solape del header, los selectores cortados y la tarjeta de Eco
+«palabra por palabra» eran consecuencias de ese ~0.57 de escala, no defectos
+independientes.
+
+Por debajo de 1023 px la barra lateral pasa a ser un **cajón** fuera de lienzo:
+botón rotulado en el header, `aria-expanded`, el foco entra al panel al abrir,
+Escape lo cierra y devuelve el foco al botón, y el panel aparcado queda `inert`
+(fuera del orden de tabulación). `.main` es `width: 100%; min-width: 0` — se
+quita el piso de contenido mínimo en lugar de tapar el desborde con
+`overflow-x: hidden`.
+
+Ningún control desaparece: los disparadores de ánimo y ambiente pliegan su
+rótulo redundante (ambos ya traen `aria-label` explícito) y mantienen 40 px de
+área táctil. El selector de modo, el selector Audiolibro/Podcast y las cinco
+pestañas de Biblioteca **se desplazan dentro de sí mismos** en vez de ensanchar
+la página. El marco del video declara su relación 16:9 y `width: 100%`, así que
+el iframe no puede imponerle un `min-width` a la columna del lector.
+
+Medido en Chrome a 390 / 430 / 768 / 1024 / 1365 px:
+
+| Aserción                                   | 390 | 430 | 768 | 1024 | 1365 |
+| ------------------------------------------ | --- | --- | --- | ---- | ---- |
+| `document.scrollWidth === innerWidth`      | ✅  | ✅  | ✅  | ✅   | ✅   |
+| `innerWidth` = ancho del dispositivo       | ✅  | ✅  | ✅  | ✅   | ✅   |
+| barra lateral de escritorio oculta         | ✅  | ✅  | ✅  | —    | —    |
+| `.main` dentro del viewport, `min-width:0` | ✅  | ✅  | ✅  | ✅   | ✅   |
+| controles fuera del viewport               | 0   | 0   | 0   | 0    | 0    |
+| controles interceptados por otro elemento  | 0   | 0   | 0   | 0    | 0    |
+
+El test que produce esos números vive en
+[`apps/web/e2e/responsive.mjs`](../../apps/web/e2e/responsive.mjs) (262
+aserciones sobre cajas reales en Chrome, 3 viewports × 6 estados + el cajón).
+Está **fuera** del grafo de `pnpm test` a propósito: CI no provisiona
+navegadores. Se corre con
+`pnpm --filter @psico/web test:responsive` y credenciales por entorno.
+
+Barrido de regresión a 390 px sobre Inicio, Mi Evolución, Mapa Emocional,
+Patrones IA, Reflexiones, Exploraciones, Biblioteca y Eco: las ocho cargan
+(HTTP 200), ninguna desborda, el cajón abre y cierra en todas, y nada queda
+inaccesible detrás de él. Biblioteca necesitó el mismo tratamiento que los
+selectores del lector (sus cinco pestañas medían 443 px de contenido mínimo).
+
 ### Evidencia visual
 
 ```
-GR2_SCREENSHOTS_CREATED=5
-GR2_SCREENSHOTS_PLANNED=6
-GR2_MOBILE_CAPTURE_BLOCKED=DASHBOARD_SHELL_NOT_RESPONSIVE_AT_390
+SCREENSHOTS_CREATED=6
+ALL_SCREENSHOTS_FROM_SINGLE_SHA=true
+MOBILE_SCREENSHOT_CROPPED=false
 ```
 
-Capturas del lector productivo a 1365 × 900 (2×), contra el API real corriendo
-en local con la cuenta de prueba de un entorno de desarrollo. Recortadas a la
-columna de contenido: la barra lateral muestra el correo de la sesión y **nunca**
-entra en una captura commiteada. Sin tokens, sin IDs, sin URLs firmadas.
+Las seis capturas salen del **mismo árbol** (`189abaa`), contra el API real en
+local y una cuenta sintética de desarrollo. Son de **viewport completo**: no hay
+recorte. Donde la barra lateral aparece, el bloque de cuenta va **tapado con una
+máscara opaca** — el layout completo queda a la vista y la dirección no; en
+móvil no hay máscara porque el cajón está aparcado fuera de lienzo, y el script
+lo comprueba (`accountRight = -17`) antes de disparar en vez de confiar.
 
-| #   | Vista                                | Captura                                                                                                 |
-| --- | ------------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| 1   | Escuchar · audiolibro                | [01-reader-listen-audiobook.webp](assets/gr2-media/01-reader-listen-audiobook.webp)                     |
-| 2   | Escuchar · podcast en producción     | [02-reader-listen-podcast-coming-soon.webp](assets/gr2-media/02-reader-listen-podcast-coming-soon.webp) |
-| 3   | Ver · videoexplicación en producción | [03-reader-watch-video.webp](assets/gr2-media/03-reader-watch-video.webp)                               |
-| 4   | Escuchar · podcast con transcripción | [04-reader-transcript.webp](assets/gr2-media/04-reader-transcript.webp)                                 |
-| 5   | Mi Evolución · actividad             | [05-evolution-learning-activity.webp](assets/gr2-media/05-evolution-learning-activity.webp)             |
+| #   | Vista                                         | Viewport   | Captura                                                                                                 |
+| --- | --------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------- |
+| 1   | Escuchar · audiolibro con reproductor abierto | 1365 × 900 | [01-reader-listen-audiobook.webp](assets/gr2-media/01-reader-listen-audiobook.webp)                     |
+| 2   | Escuchar · podcast en producción              | 1365 × 900 | [02-reader-listen-podcast-coming-soon.webp](assets/gr2-media/02-reader-listen-podcast-coming-soon.webp) |
+| 3   | Ver · videoexplicación en producción          | 1365 × 900 | [03-reader-watch-video.webp](assets/gr2-media/03-reader-watch-video.webp)                               |
+| 4   | Cajón de navegación móvil abierto             | 390 × 844  | [04-dashboard-mobile-drawer.webp](assets/gr2-media/04-dashboard-mobile-drawer.webp)                     |
+| 5   | Mi Evolución · actividad de aprendizaje       | 1365 × 900 | [05-evolution-learning-activity.webp](assets/gr2-media/05-evolution-learning-activity.webp)             |
+| 6   | Lector multimedia en móvil                    | 390 × 844  | [06-reader-media-mobile.webp](assets/gr2-media/06-reader-media-mobile.webp)                             |
 
-La captura 4 usa una **fixture segura** interceptada en el navegador para
-publicar el podcast (sin token, sin UID, sin URL firmada real), porque el master
-todavía no existe. Las otras cuatro son el estado real del código.
+```
+sha256
+5ebddb818a6c3da3710fe9a6007171c3eb5db631b4d38977527823d1b0ba236f  01-reader-listen-audiobook.webp
+f00f8c5027dd1254cf936e93fb55fa52cdb2e48d27b766515ec649691f9c4a85  02-reader-listen-podcast-coming-soon.webp
+c289a4cd3aaadb3c4cc1676353734ea4ab5d4a7a7b6f879291e55012f3656962  03-reader-watch-video.webp
+1b46edf4c90e562b5f2a9345b81097408c19816e95a7ce3c381486505aa72775  04-dashboard-mobile-drawer.webp
+204c67a66ba3e108a9fa66b8597cbf1bab5c5d32c787766a06b72b7096d825aa  05-evolution-learning-activity.webp
+d729c9914708904a3bb811a63419d84241304e18f9a5360d960f94243ae5a9f7  06-reader-media-mobile.webp
+```
 
-La sexta captura —el lector multimedia en móvil— **no se produjo**. A 390 px el
-shell del dashboard no cambia a layout móvil en este entorno: la barra lateral se
-superpone al lector y el correo de la sesión quedaría en cuadro. Preferimos no
-publicar una captura engañosa ni una con datos personales; la superficie móvil
-del selector queda por verificar en su propio pase.
+Ruta del lector en 1, 2, 3, 4 y 6:
+`/dashboard/biblioteca/emociones-en-construccion/lector/1` (sin parámetros de
+consulta). En 5: `/dashboard/evolucion`.
+
+La captura 6 es el lector en Escuchar a 390 × 844 px CSS, sin recortar: sin
+barra lateral de escritorio, con el botón de navegación, los tres modos
+(Leer · Escuchar · Ver), los dos formatos (Audiolibro · Podcast) y la tarjeta de
+Eco a ancho completo. El reproductor expandido queda por debajo del pliegue en
+una pantalla de 844 px —el header del capítulo es sticky y tapa la fila de modos
+en cuanto se hace scroll, así que ningún cuadro de 390 × 844 contiene ambas
+cosas— pero su geometría **sí** está medida: `x=16 → derecha=374` dentro de un
+viewport de 390, con las filas de velocidad y temporizador en una sola línea.
+
+La captura 1 alimenta el reproductor con una **fixture local** (un WAV silencioso
+de 3 s servido desde localhost) porque el master del capítulo no está en el
+almacenamiento local: sin URL de proveedor, sin UID, sin token, sin URL firmada.
+Las otras cinco son el estado real del código.
+
+**Lo que no se pudo fotografiar y por qué.** La pantalla de transcripción vive en
+la superficie de video, que sigue en `DRAFT`. El estado de multimedia se
+renderiza en el servidor, así que forzar «publicado» sólo del lado del cliente
+produce un error de hidratación —el HTML del servidor dice «en producción» y el
+cliente dice lo contrario—. No publicamos una captura con un indicador de error
+del entorno de desarrollo en cuadro; la captura 4 pasó a ser el cajón móvil, que
+es el corazón de esta puerta y es real de punta a punta. La transcripción se
+fotografía cuando exista el master.
 
 ### Lo que GR-2 NO implementó
 

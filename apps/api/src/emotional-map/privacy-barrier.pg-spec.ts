@@ -3,6 +3,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { assertEmptyTestDatabase } from "../test/pg-precondition";
+
 import { lockUserExclusive, lockUserShared } from "./privacy-barrier";
 
 /**
@@ -69,6 +71,9 @@ suite("privacy barrier — real PostgreSQL lock semantics (PR-0.1)", () => {
     // a driver adapter, not a `datasourceUrl`. Same client, same pool semantics,
     // pointed at the throwaway database.
     pool = new Pool({ connectionString: url });
+    // The suite below builds its own two-column `User`. That only works on an
+    // empty database, so say so here rather than failing later on a write.
+    await assertEmptyTestDatabase(pool, "privacy-barrier.pg-spec");
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
     await prisma.$executeRawUnsafe(
       `CREATE TABLE IF NOT EXISTS "User" (id text PRIMARY KEY)`,

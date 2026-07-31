@@ -20,7 +20,8 @@
     "gen:vapid": "node scripts/gen-vapid.mjs",
     "seed:test": "ts-node prisma/seed-test.ts",
     "seed:test:wipe": "ts-node prisma/seed-test.ts --wipe",
-    "test:locks": "vitest run --config vitest.locks.config.ts"
+    "test:locks": "vitest run --config vitest.locks.config.ts",
+    "pg:locks": "node scripts/pg-locks-env.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

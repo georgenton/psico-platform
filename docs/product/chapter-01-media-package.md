@@ -3,63 +3,87 @@
 ```
 MEDIA_PACKAGE_STATUS=PENDING_EDITORIAL_ASSETS
 
-VIDEO_MASTER_STATUS=PENDING
-PODCAST_MASTER_STATUS=PENDING
-AUDIOBOOK_STATUS=CATALOG_PUBLISHED_ASSET_MISSING
-GUIDE_CLIP_STATUS=PENDING
+VIDEO_MASTER_STATUS=UNCONFIRMED
+PODCAST_MASTER_STATUS=UNCONFIRMED
+AUDIO_MASTER_STATUS=UNCONFIRMED
+
+AUDIOBOOK_CATALOG_STATUS=PUBLISHED
+AUDIOBOOK_RUNTIME_AVAILABILITY=UNVERIFIED
+AUDIOBOOK_SOURCE_KIND=CHAPTER_AUDIO
+AUDIOBOOK_SOURCE_FILE_LOCATED=false
+AUDIOBOOK_AUDIO_ROW_STATUS=UNKNOWN
+AUDIOBOOK_R2_OBJECT_STATUS=UNKNOWN
+
 CAPTIONS_STATUS=PENDING
 TRANSCRIPT_STATUS=PENDING
 POSTER_STATUS=PENDING
 ```
 
-Verificado contra producción el 2026-07-31 (`042afa52`):
+`PUBLISHED` significa que el catálogo code-owned tiene una definición de fuente
+reproducible. **No prueba** que exista la fila `Audio` de producción ni el objeto
+R2 que la respalda. Esa verificación no se hizo y se registra como `UNKNOWN`.
+
+### El clip de la Guide no es un asset de Chapter Media
 
 ```
-GR2_AUDIO_ASSET_STATUS=PENDING
-GR2_VIDEO_ASSET_STATUS=PENDING
-GR2_AUDIO_SOURCE_FOUND=false
-GR2_VIDEO_SOURCE_FOUND=false
-
-GUIDE_CLIP_ASSET_STATUS=PENDING
+GUIDE_CLIP_STATUS=PENDING_EDITORIAL_CLIP
+GUIDE_CLIP_RUNTIME_SOURCE=CODE_OWNED_TRANSCRIPT
 GUIDE_CLIP_TRANSCRIPT_FALLBACK=WORKING
+GUIDE_CLIP_DEPENDS_ON_AUDIOBOOK=false
+```
 
+`ReaderGuidePanel.ClipScene` es una escena autónoma de la Guide: renderiza su
+propio transcript code-owned y **no** llama a `ChapterMediaService`, a
+`LectorService.getAudio`, a R2 ni al catálogo de chapter media. El directorio de
+la Guide no tiene ninguna referencia a esas rutas.
+
+De ahí se sigue algo que este documento afirmó antes por error: ver
+`rgp-clip-pending` en el recorrido **no** demuestra nada sobre el objeto de audio
+del capítulo, y subir el audiolibro **no** hará que esa escena cambie. Son dos
+pendientes editoriales distintos que se resuelven por separado.
+
+### Búsqueda de archivos fuente
+
+```
+SOURCE_FILE_LOCATED_IN_SEARCHED_PATHS=false
 CLOUDFLARE_STREAM_CONFIG_STATE=absent
 R2_CONFIG_STATE=complete
 ```
 
-Esto **no es un defecto de GR-3**. La lectura guiada se completa de principio a
-fin con el transcript, y así se verificó. Pero la primera escena del recorrido es
-`rgp-clip-pending`: lo primero que ve un piloto es la versión degradada. Subir el
-audio del capítulo es el ítem de mayor valor pendiente.
+Rutas inspeccionadas: repositorio, `~/.psico-ops`, Escritorio, Descargas,
+Películas y Música. Cero candidatos. Eso dice dónde **no** están los archivos, no
+que no existan: el estado de producción de cada máster debe confirmarlo el
+propietario editorial.
 
 Autoridad de producto: [`guided-reading-v1.md`](guided-reading-v1.md) §4
 (estrategia multimedia), §7 (estructura del video), §8 (podcast) y §9 (datos y
 privacidad).
 
-Este documento **registra lo que falta producir**. No inventa identificadores de
-proveedor, no contiene URLs, no contiene tokens y no contiene secretos. GR-2
-implementó la fontanería —catálogo, acceso firmado, evento de finalización— con
-los dos formatos nuevos en `DRAFT`, precisamente porque los assets no existen.
+Este documento **registra lo que falta confirmar y producir**. No inventa
+identificadores de proveedor, no contiene URLs, no contiene tokens y no contiene
+secretos. GR-2 implementó la fontanería —catálogo, acceso firmado, evento de
+finalización— y dejó los dos formatos nuevos en `DRAFT`, que es lo que
+corresponde mientras no haya una fuente confirmada que referenciar.
 
 ---
 
 ## 1. Estado por asset
 
-| Asset                  | Estado                            | Quién lo produce | Bloquea                                   |
-| ---------------------- | --------------------------------- | ---------------- | ----------------------------------------- |
-| Videoexplicación       | `PENDING`                         | Jorge            | `eec-c1-video-v1` sigue `DRAFT`           |
-| Podcast                | `PENDING`                         | Jorge            | `eec-c1-podcast-v1` sigue `DRAFT`         |
-| Audiolibro             | `CATALOG_PUBLISHED_ASSET_MISSING` | Jorge / ops      | la primera escena de la Guide (clip)      |
-| Clip de Guided Reading | `PENDING`                         | Jorge            | GR-3, no GR-2                             |
-| Subtítulos             | `PENDING`                         | Jorge            | `hasCaptions` del video                   |
-| Transcripción          | `PENDING`                         | Jorge            | `hasTranscript` de cualquiera de los tres |
-| Poster                 | `PENDING`                         | Jorge            | portada del video                         |
+| Asset                  | Estado                                      | Quién lo produce | Bloquea                                   |
+| ---------------------- | ------------------------------------------- | ---------------- | ----------------------------------------- |
+| Videoexplicación       | `UNCONFIRMED`                               | Jorge            | `eec-c1-video-v1` sigue `DRAFT`           |
+| Podcast                | `UNCONFIRMED`                               | Jorge            | `eec-c1-podcast-v1` sigue `DRAFT`         |
+| Audiolibro             | catálogo `PUBLISHED`, runtime sin verificar | Jorge / ops      | nada demostrado todavía                   |
+| Clip de Guided Reading | `PENDING_EDITORIAL_CLIP`                    | Jorge            | GR-3, no GR-2 · independiente del audio   |
+| Subtítulos             | `PENDING`                                   | Jorge            | `hasCaptions` del video                   |
+| Transcripción          | `PENDING`                                   | Jorge            | `hasTranscript` de cualquiera de los tres |
+| Poster                 | `PENDING`                                   | Jorge            | portada del video                         |
 
 El audiolibro es el único formato que **podría** estar ya servible: reutiliza la
 fila `Audio` y el firmado R2 que existen desde el sprint del lector, y su
-definición está `PUBLISHED`. La verificación ya se hizo: el 2026-07-31 el
-recorrido en producción abrió en `rgp-clip-pending`, lo que prueba que el objeto
-del capítulo 1 **no** está subido. Catálogo publicado, asset ausente.
+definición está `PUBLISHED`. Nadie ha comprobado todavía si la fila y el objeto
+existen en producción, así que su disponibilidad en runtime sigue sin verificar.
+Comprobarlo es una lectura acotada a producción, pendiente de autorizar.
 
 ---
 
@@ -176,30 +200,33 @@ nada sobre cómo se siente la persona (`EXPERIENCE_CAUSAL_INFERENCE=false`).
 Derivada del catálogo real (`chapter-media.catalog.ts`), no de supuestos. Los
 tres formatos no comparten proveedor: el audiolibro se sirve por la fila `Audio`
 del capítulo (R2), el video sólo puede ser Stream-backed, y el podcast todavía no
-tiene `source`.
+tiene `source` — así que **su proveedor no está decidido**.
 
-| Campo                        | `eec-c1-audiobook-v1`     | `eec-c1-podcast-v1` | `eec-c1-video-v1`                           |
-| ---------------------------- | ------------------------- | ------------------- | ------------------------------------------- |
-| KIND                         | AUDIOBOOK                 | PODCAST             | VIDEO                                       |
-| CATALOG_VERSION              | 1                         | 1                   | 1                                           |
-| CURRENT_AVAILABILITY         | PUBLISHED                 | DRAFT               | DRAFT                                       |
-| SOURCE_FILE_FOUND            | false                     | false               | false                                       |
-| SOURCE_FORMAT                | —                         | —                   | —                                           |
-| SOURCE_SIZE_BYTES            | —                         | —                   | —                                           |
-| SOURCE_SHA256                | —                         | —                   | —                                           |
-| EXPECTED_PROVIDER            | R2 (vía `CHAPTER_AUDIO`)  | R2                  | CLOUDFLARE_STREAM                           |
-| EXPECTED_PROVIDER_OBJECT_KEY | fila `Audio` del capítulo | sin asignar         | sin asignar                                 |
-| TRANSCRIPT_PRESENT           | false                     | false               | false                                       |
-| CAPTIONS_PRESENT             | false                     | false               | false                                       |
-| POSTER_PRESENT               | false                     | false               | false                                       |
-| ENVIRONMENT_READY            | true (R2 completo)        | true (R2 completo)  | false (Stream ausente)                      |
-| UPLOAD_READY                 | false                     | false               | false                                       |
-| BLOCKER                      | máster no producido       | máster no producido | máster no producido + Stream sin configurar |
+```
+AUDIOBOOK:
+  CURRENT_AVAILABILITY=PUBLISHED_IN_CATALOG
+  RUNTIME_ACCESS=UNVERIFIED
+  MASTER_STATUS=UNCONFIRMED
+  SOURCE_FILE_LOCATED_IN_SEARCHED_PATHS=false
+  EXPECTED_PROVIDER=R2 (vía CHAPTER_AUDIO)
+  BLOCKER=production Audio row and backing object not verified
 
-Búsqueda de archivos fuente: repositorio, `~/.psico-ops`, Escritorio, Descargas,
-Películas y Música. Cero candidatos. **Los dos formatos nuevos no están
-"pendientes de subir": están pendientes de producir.** Esa distinción decide la
-siguiente acción — no hay nada que cargar todavía.
+PODCAST:
+  CURRENT_AVAILABILITY=DRAFT
+  MASTER_STATUS=UNCONFIRMED
+  SOURCE_FILE_LOCATED_IN_SEARCHED_PATHS=false
+  EXPECTED_PROVIDER=UNDECIDED_OR_R2_CAPABLE
+  BLOCKER=master and source definition not confirmed
+
+VIDEO:
+  CURRENT_AVAILABILITY=DRAFT
+  MASTER_STATUS=UNCONFIRMED
+  SOURCE_FILE_LOCATED_IN_SEARCHED_PATHS=false
+  EXPECTED_PROVIDER=CLOUDFLARE_STREAM
+  BLOCKER=master not located and Stream configuration absent
+```
+
+Ninguno de los tres tiene transcript, captions ni poster presentes.
 
 `CLOUDFLARE_STREAM_CONFIG_STATE=absent` no bloquea nada hoy, porque el video es
 `DRAFT`. Es todo-o-nada: cuando exista el máster, las tres variables se
@@ -226,8 +253,14 @@ comandos; los valores viven en el entorno del servicio.
 10. Comprobar transcript/captions si se produjeron.
 11. Completar y verificar el evento `chapter_media_completed`.
 12. Verificar que aparece en Mi Evolución como aprendizaje, no como emoción.
-13. Rollback: quitar el puntero de la fila `Audio`; el catálogo y las filas de
-    aprendizaje quedan intactos.
+13. Rollback — la fila `Audio` es **compartida con el lector legacy**, así que
+    nunca se limpia ni se borra a ciegas:
+    1. Antes de cualquier cambio, tomar un snapshot de la fila `Audio` existente
+       y de su referencia al objeto.
+    2. Si se actualizó una fila existente, restaurar su estado previo exacto.
+    3. Si no existía ninguna fila, usar un procedimiento de creación/rollback
+       revisado por separado.
+    4. Nunca vaciar ni eliminar la fila `Audio` compartida.
 
 ### VIDEO_UPLOAD_RUNBOOK
 

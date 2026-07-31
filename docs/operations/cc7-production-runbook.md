@@ -8,8 +8,8 @@ GR3_PRODUCTION_PILOT_SMOKE=PASS
 
 GUIDE_PRODUCTION_DEPLOYED=true
 GUIDE_PILOT_USERS_CONFIGURED=true
-GUIDE_ROLLOUT_MODE_AT_DEPLOY=pilot
-GUIDE_INITIAL_PRODUCTION_MODE=off
+GUIDE_RECOMMENDED_INITIAL_PRODUCTION_MODE=off
+GUIDE_ACTUAL_MODE_AT_2026_07_31_DEPLOY=pilot
 GUIDE_MODE_CHANGE_REQUIRES_RESTART=true
 ENV_OFF_FIRST_PLAN_READY=true
 ENV_OFF_FIRST_APPLIED=false
@@ -347,9 +347,10 @@ POST_DEPLOY_ERRORS=0
 Ambas migraciones son `ALTER TYPE … ADD VALUE` aditivas y se aplicaron en el
 `preDeployCommand`; no reescriben filas ni admiten `down`.
 
-**El modo ya estaba en `pilot` antes de este deploy**, así que la secuencia
-off-first descrita arriba no se ejecutó en esta ronda. Queda como el
-procedimiento para un entorno que arranque de cero, no como lo que ocurrió aquí.
+**El modo ya estaba en `pilot` antes de este deploy.** La secuencia off-first
+descrita arriba es la **recomendación** (`GUIDE_RECOMMENDED_INITIAL_PRODUCTION_MODE=off`),
+no lo que ocurrió (`GUIDE_ACTUAL_MODE_AT_2026_07_31_DEPLOY=pilot`). Se conserva
+como procedimiento para un entorno que arranque de cero.
 
 El smoke del recorrido completo está en
 [`../product/guide-v1-pilot-rollout.md`](../product/guide-v1-pilot-rollout.md);

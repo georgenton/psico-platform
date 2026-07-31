@@ -1,13 +1,13 @@
 # CC-7 — Production readiness (inventory + local rehearsal)
 
 ```
-CC7_R2_STATUS=SHIPPED
-PRODUCTION_READINESS=VERIFIED_IN_PRODUCTION
+CC7_R2_STATUS=CHANGES_APPLIED_PENDING_REVIEW
+PRODUCTION_READINESS=PARTIALLY_VERIFIED
 PRODUCTION_BLOCKERS=2
 PRODUCTION_BLOCKER_ENV_OFF_FIRST_NOT_APPLIED=true
 PRODUCTION_BLOCKER_INDEX_WINDOW_NOT_APPROVED=true
 
-MAIN_SHA=042afa523efce4639755c0a1998e1ed73bc7ab42
+MAIN_SHA=c4a4b5bf59a82c31aef60d9d4e2c6ff58620fd7e
 MERGE_BASE_SHA=ff926c7ba4a87630f207b6f85580095f6d7e8d7f
 
 RUNTIME_REHEARSAL_SHA=52d7764063ccdea650fb049edeed7592782be4c5
@@ -616,7 +616,7 @@ No value of any variable was read or printed during this preparation.
 ## 8. Verdict
 
 ```
-PRODUCTION_READINESS=VERIFIED_IN_PRODUCTION
+PRODUCTION_READINESS=PARTIALLY_VERIFIED
 PRODUCTION_BLOCKERS=2
 ```
 
@@ -669,3 +669,33 @@ four must be true before the sync PR.
 Readiness is not permission: the promotion itself is a separate, explicitly
 authorised execution — see
 [cc7-production-runbook.md](cc7-production-runbook.md).
+
+---
+
+## Apéndice — resultado final del release (añadido 2026-07-31)
+
+Este documento es un **snapshot histórico de pre-deploy**. Todo lo de arriba
+describe lo que se sabía durante el rehearsal, con sus dos bloqueos abiertos, y
+se conserva sin reescribir: un resultado favorable no cambia las condiciones bajo
+las que se tomó la decisión.
+
+```
+DOCUMENT_SCOPE=HISTORICAL_PREDEPLOY_READINESS
+ORIGINAL_VERDICT=PARTIALLY_VERIFIED
+ORIGINAL_BLOCKERS=2
+
+FINAL_RELEASE_OUTCOME=DEPLOYED_AND_VERIFIED
+FINAL_PRODUCTION_SHA=042afa523efce4639755c0a1998e1ed73bc7ab42
+FINAL_PRODUCTION_DEPLOYED_AT=2026-07-31
+FINAL_GR3_PILOT_SMOKE=PASS
+```
+
+El release ocurrió y se verificó con un recorrido completo. Eso **no** convierte
+retroactivamente el veredicto del rehearsal en `READY`, ni cierra por decreto los
+dos bloqueos que estaban abiertos cuando se escribió. Si alguien necesita saber
+qué se verificó realmente antes de desplegar, la respuesta sigue siendo la de
+arriba.
+
+La evidencia del deploy y del smoke vive en
+[`cc7-production-runbook.md`](cc7-production-runbook.md) y en
+[`../product/guide-v1-pilot-rollout.md`](../product/guide-v1-pilot-rollout.md).

@@ -39,6 +39,14 @@ import type { LectorSessionHeartbeatDto } from "./dto/heartbeat.dto";
  * after the first fetch. The audio track lives on a separate endpoint
  * (signed URL is expensive to mint and may not even be needed).
  */
+
+/**
+ * Lifetime of the chapter-audio signed URL. Exported so the chapter-media
+ * layer (GR-2) can report a truthful `expiresAt` for the audiobook instead of
+ * keeping a second copy of this number that could drift from the real one.
+ */
+export const CHAPTER_AUDIO_SIGNED_URL_TTL_SEC = 60 * 60 * 6;
+
 @Injectable()
 export class LectorService {
   constructor(
@@ -334,7 +342,10 @@ export class LectorService {
     // Legacy rows that stored a full http(s) URL are returned as-is.
     const isKey = !/^https?:\/\//i.test(audio.fileUrl);
     const url = isKey
-      ? await this.storage.getSignedUrl(audio.fileUrl, 60 * 60 * 6)
+      ? await this.storage.getSignedUrl(
+          audio.fileUrl,
+          CHAPTER_AUDIO_SIGNED_URL_TTL_SEC,
+        )
       : audio.fileUrl;
 
     // Transcript split: server-side we keep the transcript as a single

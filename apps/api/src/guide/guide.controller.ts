@@ -28,6 +28,7 @@ import type { Request, Response } from "express";
 import type {
   GuideAvailabilityResponse,
   GuideCommandResponse,
+  SubmitGuideStepRecallResponse,
 } from "@psico/types";
 import { JwtAuthGuard } from "../auth";
 import type { AuthenticatedUser } from "../auth";
@@ -36,7 +37,10 @@ import { CurrentUser } from "../shared";
 import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { GuideLifecycleService } from "./guide-lifecycle.service";
-import type { GuideCommandResult } from "./guide-lifecycle.service";
+import type {
+  GuideCommandResult,
+  GuideRecallCommandResult,
+} from "./guide-lifecycle.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { GuideRolloutService } from "./guide-rollout.service";
 import { GuideRolloutGuard } from "./guide-rollout.guard";
@@ -56,6 +60,7 @@ import {
   GUIDE_AVAILABILITY_RESPONSE,
   GUIDE_COMMAND_RESPONSE,
   GUIDE_RECALL_BODY,
+  GUIDE_RECALL_COMMAND_RESPONSE,
   IDEMPOTENT_GUIDE_BODY,
   START_GUIDE_SESSION_BODY,
 } from "./dto/guide.openapi";
@@ -149,6 +154,21 @@ export class GuideController {
     };
   }
 
+  /**
+   * GR-3 — the recall response. Same closed session shape as every other
+   * command, plus the outcome the lifecycle read back from the ledger. The
+   * chosen option is not echoed and the correct one is not in this object.
+   */
+  private toRecallResponse(
+    res: Response,
+    result: GuideRecallCommandResult,
+  ): SubmitGuideStepRecallResponse {
+    return {
+      ...this.toResponse(res, result),
+      feedback: { outcome: result.feedback.outcome },
+    };
+  }
+
   @Post("sessions")
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @UseGuards(GuideRolloutGuard)
@@ -213,22 +233,22 @@ export class GuideController {
       "elegida y nunca devuelve la respuesta correcta.",
   })
   @ApiBody({ schema: GUIDE_RECALL_BODY })
-  @ApiCreatedResponse({ schema: GUIDE_COMMAND_RESPONSE })
-  @ApiOkResponse({ schema: GUIDE_COMMAND_RESPONSE })
+  @ApiCreatedResponse({ schema: GUIDE_RECALL_COMMAND_RESPONSE })
+  @ApiOkResponse({ schema: GUIDE_RECALL_COMMAND_RESPONSE })
   async submitGuideStepRecall(
     @CurrentUser() user: AuthenticatedUser,
     @Param("sessionId") sessionId: string,
     @Param("stepKey") stepKey: string,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<GuideCommandResponse> {
+  ): Promise<SubmitGuideStepRecallResponse> {
     const command = this.unwrap(
       parseSubmitGuideStepRecallCommand({ sessionId, stepKey }, req.body),
     );
     const result = await mapGuideLifecycleErrors(() =>
       this.lifecycle.completeRecallStep(user, command),
     );
-    return this.toResponse(res, result);
+    return this.toRecallResponse(res, result);
   }
 
   @Post("sessions/:sessionId/cancel")

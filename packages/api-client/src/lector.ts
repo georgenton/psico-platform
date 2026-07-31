@@ -1,4 +1,7 @@
 import type {
+  ChapterMediaAccessResponse,
+  ChapterMediaCommandResponse,
+  ChapterMediaManifestResponse,
   CreateAnnotationRequest,
   CreateAnnotationResponse,
   CreateHighlightRequest,
@@ -40,6 +43,43 @@ export const lectorApi = {
   complete: (bookId: string, chapterOrder: number) =>
     apiClient.post<LectorCompleteResponse>(
       `/lector/${encodeURIComponent(bookId)}/${chapterOrder}/complete`,
+      {},
+    ),
+
+  // ─── GR-2 · chapter media ─────────────────────────────────────────────────
+  //
+  // Three methods, and `getAudio` above stays exactly as it was: the audiobook
+  // reuses that endpoint, so nothing that already works had to move.
+  //
+  // None of the three sends editorial context or a userId. The actor is the
+  // JWT; the kind, the version and the unit are derived server-side from
+  // `mediaKey`.
+
+  /** Formats + availability for a chapter. Never carries a signed URL. */
+  getChapterMediaManifest: (bookIdOrSlug: string, chapterOrder: number) =>
+    apiClient.get<ChapterMediaManifestResponse>(
+      `/lector/${encodeURIComponent(bookIdOrSlug)}/${chapterOrder}/media`,
+    ),
+
+  /**
+   * The short-lived playback URL. Call it after the person picks a format —
+   * never during server rendering, and never cache the result.
+   */
+  getChapterMediaAccess: (mediaKey: string) =>
+    apiClient.get<ChapterMediaAccessResponse>(
+      `/lector/media/${encodeURIComponent(mediaKey)}/access`,
+    ),
+
+  /**
+   * Report that the player reached its end. No body: everything is derived
+   * server-side. Safe to retry — the server derives the idempotency key, so a
+   * replay returns 200 and never writes a second row.
+   */
+  completeChapterMedia: (mediaKey: string) =>
+    // `{}` is the whole contract: the body is closed and empty, so any property
+    // added here would be rejected with `MEDIA_INVALID_PAYLOAD`.
+    apiClient.post<ChapterMediaCommandResponse>(
+      `/lector/media/${encodeURIComponent(mediaKey)}/complete`,
       {},
     ),
 };

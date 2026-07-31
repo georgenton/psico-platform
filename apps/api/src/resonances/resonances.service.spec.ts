@@ -96,6 +96,26 @@ describe("ResonancesService — Fase E (ARC cycle)", () => {
     expect(emotionalMap.invalidateBestEffort).toHaveBeenCalledWith("user-1");
   });
 
+  it("GR-3 — a Guide confirmation keeps its own provenance in both directions", async () => {
+    // Provenance is the point: a resonance confirmed inside a Guide must not
+    // come back to the person labelled as a highlight or a practice.
+    prisma.resonance.upsert.mockResolvedValue({ ...ROW, source: "GUIDE" });
+    const res = await service.confirm("user-1", {
+      conceptKey: ROW.conceptKey,
+      conceptLabel: ROW.conceptLabel,
+      bookSlug: ROW.bookSlug,
+      chapterOrder: 1,
+      source: "guide",
+    });
+
+    expect(prisma.resonance.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ source: "GUIDE" }),
+      }),
+    );
+    expect(res.resonance.source).toBe("guide");
+  });
+
   it("Fase H — setImportant toggles the flag scoped by userId and busts the cache", async () => {
     prisma.resonance.findUniqueOrThrow.mockResolvedValue({
       ...ROW,

@@ -31,7 +31,7 @@ export function MilestonesTimeline({
           className="card-tag"
           style={{ marginBottom: 22, display: "inline-flex" }}
         >
-          Hitos de tu transformación
+          Hitos de tu recorrido
         </span>
         <p style={{ margin: 0, color: "var(--color-warm-500)", fontSize: 14 }}>
           Cuando completes acciones (primera reflexión, primer capítulo, 7 días
@@ -55,7 +55,7 @@ export function MilestonesTimeline({
         className="card-tag"
         style={{ marginBottom: 22, display: "inline-flex" }}
       >
-        Hitos de tu transformación
+        Hitos de tu recorrido
       </span>
       <div className="tl">
         {unlocked.map((m, i) => (

@@ -1,6 +1,7 @@
 import type { LearningEventKind } from "@prisma/client";
 import { RECALL_RESULTS } from "@psico/types";
 import type {
+  ChapterMediaKind,
   LearningEventPayload,
   LearningEventPayloadByType,
   LearningEventTypeV1,
@@ -29,6 +30,7 @@ export const TYPE_TO_KIND = {
   guide_session_completed: "GUIDE_SESSION_COMPLETED",
   active_recall_attempted: "ACTIVE_RECALL_ATTEMPTED",
   practice_completed: "PRACTICE_COMPLETED",
+  chapter_media_completed: "CHAPTER_MEDIA_COMPLETED",
 } as const satisfies Record<LearningEventTypeV1, LearningEventKind>;
 
 /** Reverse lookup — undefined for the four non-V1 kinds. */
@@ -99,6 +101,13 @@ export function rebuildPayload(
         exerciseKey: event.payload.exerciseKey,
         unitKey: event.payload.unitKey,
       };
+    case "chapter_media_completed":
+      return {
+        mediaKey: event.payload.mediaKey,
+        mediaKind: event.payload.mediaKind,
+        mediaVersion: event.payload.mediaVersion,
+        unitKey: event.payload.unitKey,
+      };
   }
 }
 
@@ -106,6 +115,8 @@ export function rebuildPayload(
 
 const isStr = (v: unknown): v is string => typeof v === "string";
 const isInt = (v: unknown): v is number => Number.isInteger(v);
+const isMediaKind = (v: unknown): v is ChapterMediaKind =>
+  v === "AUDIOBOOK" || v === "PODCAST" || v === "VIDEO";
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -225,6 +236,27 @@ function parseByType(
         isStr(o.unitKey)
         ? { exerciseKey: o.exerciseKey, unitKey: o.unitKey }
         : null;
+    case "chapter_media_completed":
+      // GR-2 — `mediaKind` is a closed enum, `mediaVersion` a positive int:
+      // a stored payload outside those is malformed, never "equivalent".
+      return hasExactKeys(o, [
+        "mediaKey",
+        "mediaKind",
+        "mediaVersion",
+        "unitKey",
+      ]) &&
+        isStr(o.mediaKey) &&
+        isMediaKind(o.mediaKind) &&
+        isInt(o.mediaVersion) &&
+        o.mediaVersion >= 1 &&
+        isStr(o.unitKey)
+        ? {
+            mediaKey: o.mediaKey,
+            mediaKind: o.mediaKind,
+            mediaVersion: o.mediaVersion,
+            unitKey: o.unitKey,
+          }
+        : null;
   }
 }
 
@@ -327,6 +359,17 @@ function payloadEquals(
       const s = stored as LearningEventPayloadByType["practice_completed"];
       return (
         s.exerciseKey === input.payload.exerciseKey &&
+        s.unitKey === input.payload.unitKey
+      );
+    }
+    case "chapter_media_completed": {
+      const s = stored as LearningEventPayloadByType["chapter_media_completed"];
+      // mediaVersion is compared: the same key at a new version is a DIFFERENT
+      // completion, so reusing an idempotencyKey across versions is a conflict.
+      return (
+        s.mediaKey === input.payload.mediaKey &&
+        s.mediaKind === input.payload.mediaKind &&
+        s.mediaVersion === input.payload.mediaVersion &&
         s.unitKey === input.payload.unitKey
       );
     }

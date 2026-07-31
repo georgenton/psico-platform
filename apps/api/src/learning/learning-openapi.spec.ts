@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
  *   - every command body is CLOSED (`additionalProperties: false`);
  *   - the recall request is an EXACT two-variant `oneOf` whose closed
  *     variants make the objective/self-assessed choice a structural XOR;
- *   - the event record is a `type`-discriminated union of the seven exact
+ *   - the event record is a `type`-discriminated union of the eight exact
  *     payloads — no free-form payload, no `userId`;
  *   - the generated client preserves all of it.
  *
@@ -144,7 +144,7 @@ describe("ratchet · learning OpenAPI contract", () => {
     expect(selfAssessed.properties?.selectedOptionKey).toBeUndefined();
   });
 
-  it("EVENT_RECORD_TYPE_PAYLOAD_DISCRIMINATED — seven coupled variants, discriminated by type", () => {
+  it("EVENT_RECORD_TYPE_PAYLOAD_DISCRIMINATED — eight coupled variants, discriminated by type", () => {
     const response =
       openapi.paths["/api/learning/units/{unitKey}/open"].post.responses?.[
         "201"
@@ -152,7 +152,7 @@ describe("ratchet · learning OpenAPI contract", () => {
     expect(response).toBeDefined();
     const record = (response as Schema).properties?.event as Schema;
     expect(record.discriminator?.propertyName).toBe("type");
-    expect(record.oneOf).toHaveLength(7);
+    expect(record.oneOf).toHaveLength(8);
 
     const types = (record.oneOf as Schema[]).map(
       (v) => v.properties?.type?.enum?.[0],
@@ -165,6 +165,7 @@ describe("ratchet · learning OpenAPI contract", () => {
       "guide_session_completed",
       "active_recall_attempted",
       "practice_completed",
+      "chapter_media_completed",
     ]);
 
     for (const variant of record.oneOf as Schema[]) {

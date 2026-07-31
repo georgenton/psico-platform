@@ -114,6 +114,20 @@ export const envSchema = z
     SENTRY_DSN: z.string().url().optional(),
     SENTRY_RELEASE: z.string().optional(),
 
+    // GR-2 — Cloudflare Stream, the video provider for the chapter explainer.
+    //
+    // All three are OPTIONAL at the schema level and the boot does NOT require
+    // them: the catalog ships the video as DRAFT, so nothing asks Stream for a
+    // token yet. When ops publishes a Stream-backed definition, the access
+    // service refuses to sign without the trio — a clear runtime failure beats
+    // a boot that blocks every other feature.
+    //
+    // superRefine below rejects the half-set states: those always come from a
+    // botched env shuffle, and half a credential set signs nothing.
+    CLOUDFLARE_STREAM_ACCOUNT_ID: z.string().optional(),
+    CLOUDFLARE_STREAM_API_TOKEN: z.string().optional(),
+    CLOUDFLARE_STREAM_CUSTOMER_CODE: z.string().optional(),
+
     // CC-7.R1 — Guide pilot rollout. Optional HERE only for typing: the
     // DEPLOYED requirement (mode required, `pilot` needs an allowlist) is
     // enforced fail-closed by the Guide rollout resolver
@@ -186,6 +200,23 @@ export const envSchema = z
         path: ["VAPID_PUBLIC_KEY"],
         message:
           "VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY + VAPID_SUBJECT must be set together (or all three left unset to disable web push).",
+      });
+    }
+    // GR-2 — Cloudflare Stream trio. Same rule, same reason: all three or none.
+    const anyStream =
+      env.CLOUDFLARE_STREAM_ACCOUNT_ID ||
+      env.CLOUDFLARE_STREAM_API_TOKEN ||
+      env.CLOUDFLARE_STREAM_CUSTOMER_CODE;
+    const allStream =
+      env.CLOUDFLARE_STREAM_ACCOUNT_ID &&
+      env.CLOUDFLARE_STREAM_API_TOKEN &&
+      env.CLOUDFLARE_STREAM_CUSTOMER_CODE;
+    if (anyStream && !allStream) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["CLOUDFLARE_STREAM_ACCOUNT_ID"],
+        message:
+          "CLOUDFLARE_STREAM_ACCOUNT_ID + CLOUDFLARE_STREAM_API_TOKEN + CLOUDFLARE_STREAM_CUSTOMER_CODE must be set together (or all three left unset while no Stream media is published).",
       });
     }
   });

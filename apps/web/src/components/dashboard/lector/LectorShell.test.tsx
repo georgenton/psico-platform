@@ -1,11 +1,14 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import type {
   ContentUnitMarks,
   ContentUnitRead,
   LectorChapterResponse,
 } from "@psico/types";
 import { LectorShell } from "./LectorShell";
+import { GuideAvailabilityProvider } from "../guide/guide-availability";
+import { GuideActorScopeProvider } from "../guide/guide-actor-scope";
 
 /**
  * Smoke tests for the LectorShell orchestrator (Sprint 3 del roadmap + CC-6B).
@@ -483,5 +486,212 @@ describe("LectorShell — marks read is source-aware + fail-closed (CC-6D)", () 
       screen.getByRole("button", { name: /abrir panel del lector/i }),
     );
     expect(screen.queryByText("Nota del envelope")).not.toBeInTheDocument();
+  });
+});
+
+describe("LectorShell — reader mode is hydration-safe", () => {
+  /**
+   * Regression: the mode used to be seeded from `localStorage` inside the
+   * `useState` initialiser. The server has no `localStorage`, so it rendered
+   * Leer while the first client render rendered the saved mode — React reported
+   * a text-content mismatch, discarded the server HTML for the whole document,
+   * and in development painted an error indicator over the reader. That is what
+   * put a red «1 error» into a GR-2 evidence capture.
+   *
+   * The contract: the FIRST render always matches the server (Leer), and the
+   * saved preference is adopted afterwards, in an effect.
+   */
+  it("server-renders Leer even when another mode is stored on the client", () => {
+    // The server has no `localStorage`; if the component ever consults it while
+    // producing markup, this string would disagree with the client's first
+    // render and React would throw the server HTML away.
+    window.localStorage.setItem("psico:lector:mode", "ver");
+    const html = renderToString(
+      <LectorShell
+        apiBase="https://api.example/api"
+        token="bearer-stub"
+        bookSlug="emociones-en-construccion"
+        initial={buildInitial()}
+        unit={buildUnit()}
+        marks={null}
+        marksUnavailable={false}
+      />,
+    );
+    const leerSelected =
+      /aria-selected="true"[^>]*>[^<]*(?:<[^>]+>)*[^<]*Leer/.test(html);
+    expect(html).toContain('aria-label="Modo de lectura"');
+    expect(leerSelected || !html.includes("Ver</button>")).toBe(true);
+    // The decisive part: the stored mode must NOT appear as selected.
+    const verSelectedIndex = html.indexOf("Ver");
+    const selectedTrueBeforeVer = html.lastIndexOf(
+      'aria-selected="true"',
+      verSelectedIndex,
+    );
+    const selectedFalseBeforeVer = html.lastIndexOf(
+      'aria-selected="false"',
+      verSelectedIndex,
+    );
+    expect(selectedFalseBeforeVer).toBeGreaterThan(selectedTrueBeforeVer);
+  });
+
+  it("adopts the stored mode after mount, so the preference is not lost", async () => {
+    window.localStorage.setItem("psico:lector:mode", "ver");
+    renderShell();
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: /Ver/ })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      ),
+    );
+  });
+
+  it("stays on Leer when nothing is stored", () => {
+    window.localStorage.removeItem("psico:lector:mode");
+    renderShell();
+    expect(screen.getByRole("tab", { name: /Leer/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+});
+
+// ── GR-3 · the guided-reading surface ───────────────────────────────────────
+
+/**
+ * The reader is the gate. These tests assert what the reader refuses and what
+ * it hands over — the panel's own behaviour has its own file.
+ */
+describe("LectorShell — guided reading", () => {
+  const GUIDE_TAB = "reader-mode-guiada";
+
+  /**
+   * The reader with the pilot gate on and an actor resolved — the state a
+   * person in the pilot is actually in. Without both, the guide is off for
+   * them and the panel must not mount at all.
+   */
+  function renderWithGuide(unit: ContentUnitRead) {
+    return render(
+      <GuideAvailabilityProvider available>
+        <GuideActorScopeProvider scope={"A".repeat(43)}>
+          <LectorShell
+            apiBase="https://api.example/api"
+            token="bearer-stub"
+            bookSlug="emociones-en-construccion"
+            initial={buildInitial()}
+            unit={unit}
+            marks={null}
+          />
+        </GuideActorScopeProvider>
+      </GuideAvailabilityProvider>,
+    );
+  }
+
+  /** A unit that actually carries the approved passage. */
+  function unitWithAnchor(): ContentUnitRead {
+    const unit = buildUnit();
+    return {
+      ...unit,
+      blocks: [
+        {
+          blockKey: "bk-h",
+          legacyBlockId: "b-h",
+          blockVersionId: "bv-h",
+          kind: "HEADING",
+          order: 1,
+          content: "El cuerpo y la emoción",
+          meta: null,
+        },
+        {
+          blockKey: "bk-p",
+          legacyBlockId: "b-p",
+          blockVersionId: "bv-p",
+          kind: "PARAGRAPH",
+          order: 2,
+          content:
+            "El cuerpo se adelanta. Nuestro cuerpo siente antes que nuestra mente entienda.",
+          meta: null,
+        },
+      ],
+    };
+  }
+
+  it("with no locatable passage the guide says so and cannot start", async () => {
+    // The seeded chapter of the ordinary dev database looks exactly like this:
+    // real blocks, but not the ones this guide is about.
+    renderShell();
+    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+
+    expect(
+      await screen.findByTestId("reader-guide-unavailable"),
+    ).toHaveTextContent("Lectura guiada no disponible por ahora.");
+    expect(screen.queryByTestId("reader-guide-panel")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Empezar" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("the unavailable copy never names an internal mechanism", async () => {
+    renderShell();
+    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    const text = (await screen.findByTestId("reader-guide-unavailable"))
+      .textContent!;
+    for (const internal of [
+      "blockKey",
+      "blockVersionId",
+      "ingest",
+      "seed",
+      "Content Core",
+    ]) {
+      expect(text).not.toContain(internal);
+    }
+  });
+
+  it("only ONE tab is selected while the guide is open", () => {
+    renderWithGuide(unitWithAnchor());
+    const selected = () =>
+      screen.getAllByRole("tab").filter((t) => t.ariaSelected === "true");
+
+    expect(selected()).toHaveLength(1);
+    expect(selected()[0]).toHaveTextContent("Leer");
+
+    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    expect(selected()).toHaveLength(1);
+    expect(selected()[0]).toBe(screen.getByTestId(GUIDE_TAB));
+
+    // …and closing gives the reading mode its selection back.
+    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    expect(selected()).toHaveLength(1);
+    expect(selected()[0]).toHaveTextContent("Leer");
+  });
+
+  it("the guide tab points at the panel it controls", () => {
+    renderWithGuide(unitWithAnchor());
+    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    const tab = screen.getByTestId(GUIDE_TAB);
+    const panel = screen.getByTestId("reader-guide-panel");
+    expect(tab.getAttribute("aria-controls")).toBe(panel.id);
+  });
+
+  it("Escape closes the panel", async () => {
+    renderWithGuide(unitWithAnchor());
+    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    expect(screen.getByTestId("reader-guide-panel")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("reader-guide-panel"),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("the open drawer reserves its width instead of covering the text", () => {
+    const { container } = renderWithGuide(unitWithAnchor());
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.dataset.guideOpen).toBe("false");
+
+    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    expect(root.dataset.guideOpen).toBe("true");
+    expect(root.className).toContain("reader-guide-open");
   });
 });

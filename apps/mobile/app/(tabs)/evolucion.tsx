@@ -142,12 +142,12 @@ export default function EvolucionScreen() {
           <>
             {/* screen-head */}
             <View style={styles.head}>
-              <Text style={styles.eyebrow}>Tu transformación en el tiempo</Text>
+              <Text style={styles.eyebrow}>Tu recorrido, registrado</Text>
               <Text style={styles.title}>Mi Evolución</Text>
               <Text style={styles.sub}>
-                No es un registro de cuánto leíste, sino de cómo fuiste
-                cambiando. Cada hito es un momento en que entendiste algo nuevo
-                sobre ti.
+                Aquí puedes ver lo que has leído, practicado y completado. El
+                Mapa Emocional se alimenta solo de señales que tú decides
+                registrar.
               </Text>
             </View>
 
@@ -228,7 +228,7 @@ export default function EvolucionScreen() {
 
             {/* tl — milestones timeline */}
             <View style={styles.tlCard}>
-              <Text style={styles.tlTag}>Hitos de tu transformación</Text>
+              <Text style={styles.tlTag}>Hitos de tu recorrido</Text>
               {evolucion.milestones.length === 0 ? (
                 <Text style={styles.tlEmpty}>
                   Cuando completes acciones (primera reflexión, primer capítulo,

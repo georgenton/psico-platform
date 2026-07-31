@@ -32,7 +32,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // `e2e/` holds the release-gate helpers. Their tests run here, in the
+    // ordinary web suite, because a teardown nobody exercises is a teardown
+    // nobody has checked — and CI must fail if it regresses.
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "e2e/**/*.spec.mjs"],
     // Headless mode for CI — no UI, parallel pool.
     pool: "threads",
     // Sprint S41: coverage thresholds as a soft floor for now. We turn

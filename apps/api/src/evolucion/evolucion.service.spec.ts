@@ -22,6 +22,8 @@ function makePrisma() {
     ecoMessage: { count: vi.fn().mockResolvedValue(0) },
     highlight: { count: vi.fn().mockResolvedValue(0) },
     annotation: { count: vi.fn().mockResolvedValue(0) },
+    // GR-2 — learning activity, read from the V1 log. Default empty.
+    learningEvent: { findMany: vi.fn().mockResolvedValue([]) },
   };
 }
 
@@ -57,6 +59,87 @@ describe("EvolucionService — Sprint E2 (catalog + auto-unlock)", () => {
     expect(result.stats.reflexiones).toBe(0);
     expect(result.milestones).toHaveLength(ACHIEVEMENT_CATALOG.length);
     expect(result.milestones.every((m) => m.unlockedAt === null)).toBe(true);
+  });
+
+  it("GR-2: counts learning activity from the V1 log, and only completions", async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      currentStreakDays: 0,
+      longestStreakDays: 0,
+    });
+    prisma.diaryEntry.count.mockResolvedValue(0);
+    prisma.readingSession.findMany.mockResolvedValue([]);
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+    prisma.userAchievement.findMany.mockResolvedValue([]);
+    prisma.learningEvent.findMany.mockResolvedValue([
+      {
+        kind: "CHAPTER_MEDIA_COMPLETED",
+        payload: { mediaKind: "AUDIOBOOK", mediaKey: "a", mediaVersion: 1 },
+      },
+      {
+        kind: "CHAPTER_MEDIA_COMPLETED",
+        payload: { mediaKind: "AUDIOBOOK", mediaKey: "a2", mediaVersion: 1 },
+      },
+      {
+        kind: "CHAPTER_MEDIA_COMPLETED",
+        payload: { mediaKind: "PODCAST", mediaKey: "p", mediaVersion: 1 },
+      },
+      {
+        kind: "CHAPTER_MEDIA_COMPLETED",
+        payload: { mediaKind: "VIDEO", mediaKey: "v", mediaVersion: 1 },
+      },
+      { kind: "GUIDE_SESSION_COMPLETED", payload: { guideSessionId: "gs" } },
+      { kind: "PRACTICE_COMPLETED", payload: { exerciseKey: "e" } },
+      { kind: "ACTIVE_RECALL_ATTEMPTED", payload: { result: "incorrect" } },
+      { kind: "ACTIVE_RECALL_ATTEMPTED", payload: { result: "correct" } },
+    ]);
+
+    const service = new EvolucionService(prisma as never);
+    const result = await service.getForUser("user-1");
+
+    expect(result.stats.audiolibrosCompletados).toBe(2);
+    expect(result.stats.podcastsCompletados).toBe(1);
+    expect(result.stats.videoexplicacionesCompletadas).toBe(1);
+    expect(result.stats.lecturasGuiadasCompletadas).toBe(1);
+    expect(result.stats.practicasCompletadas).toBe(1);
+    // Attempts, not results: a wrong answer counts exactly like a right one.
+    expect(result.stats.recallsRealizados).toBe(2);
+
+    // The query is a READ, narrowed to schemaVersion 1 (legacy rows are out)
+    // and to the four completion kinds — starts have no counter to land in.
+    const where = prisma.learningEvent.findMany.mock.calls[0]?.[0]?.where;
+    expect(where.schemaVersion).toBe(1);
+    expect(where.userId).toBe("user-1");
+    expect(where.kind.in).toEqual([
+      "CHAPTER_MEDIA_COMPLETED",
+      "GUIDE_SESSION_COMPLETED",
+      "PRACTICE_COMPLETED",
+      "ACTIVE_RECALL_ATTEMPTED",
+    ]);
+    // No option or result is ever surfaced by Mi Evolución.
+    expect(JSON.stringify(result.stats)).not.toContain("correct");
+    expect(JSON.stringify(result.stats)).not.toContain("Option");
+  });
+
+  it("GR-2: an unrecognised media kind is skipped, never guessed", async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      currentStreakDays: 0,
+      longestStreakDays: 0,
+    });
+    prisma.diaryEntry.count.mockResolvedValue(0);
+    prisma.readingSession.findMany.mockResolvedValue([]);
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+    prisma.userAchievement.findMany.mockResolvedValue([]);
+    prisma.learningEvent.findMany.mockResolvedValue([
+      { kind: "CHAPTER_MEDIA_COMPLETED", payload: { mediaKind: "HOLOGRAM" } },
+      { kind: "CHAPTER_MEDIA_COMPLETED", payload: null },
+    ]);
+
+    const service = new EvolucionService(prisma as never);
+    const result = await service.getForUser("user-1");
+
+    expect(result.stats.audiolibrosCompletados).toBe(0);
+    expect(result.stats.podcastsCompletados).toBe(0);
+    expect(result.stats.videoexplicacionesCompletadas).toBe(0);
   });
 
   it("auto-unlocks an achievement and upserts a row when the stat crosses the target", async () => {

@@ -49,11 +49,18 @@ export function AudioBar({
   token,
   bookId,
   chapterOrder,
+  onEnded,
 }: {
   apiBase: string;
   token: string;
   bookId: string;
   chapterOrder: number;
+  /**
+   * GR-2 — fired when the narration reaches its end. The chapter-media layer
+   * uses it to report a completion; without it the bar behaves exactly as it
+   * did before, which is why the audiobook needed no new player.
+   */
+  onEnded?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -340,6 +347,7 @@ export function AudioBar({
                   className="w-full"
                   aria-label="Audio del capítulo"
                   onTimeUpdate={onTimeUpdate}
+                  onEnded={onEnded}
                 />
                 <div
                   className="flex items-center justify-between gap-2 text-[11.5px]"

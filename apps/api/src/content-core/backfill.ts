@@ -1,5 +1,4 @@
 import { BlockKind, type Prisma, type PrismaClient } from "@prisma/client";
-import { CHAPTER_CONCEPTS } from "@psico/types";
 import {
   blockVersionDrifts,
   contentBlockDrifts,
@@ -14,6 +13,7 @@ import {
   unitKeyFromLegacyChapterId,
 } from "./lib/block-key";
 import { contentHash } from "./lib/content-hash";
+import { ingestBookConcepts } from "./concept-ingestion";
 import { ingestUnitExercises } from "./exercise-ingestion";
 
 /**
@@ -243,31 +243,18 @@ export async function backfillContentCore(
         }
 
         // 8. Concepts from the catalog (mapped by chapter order → unit).
-        const bookConcepts = CHAPTER_CONCEPTS[book.slug];
-        if (bookConcepts) {
-          for (const [orderStr, concept] of Object.entries(bookConcepts)) {
-            const unitId = unitIdByOrder.get(Number(orderStr));
-            if (!unitId) continue; // catalog references a chapter that isn't present
-
-            const c = await tx.concept.upsert({
-              where: { conceptKey: concept.key },
-              create: { conceptKey: concept.key, label: concept.label },
-              update: { label: concept.label },
-            });
-            stats.concepts += 1;
-
-            const linkId = `cl-${concept.key}`;
-            const existingLink = await tx.conceptLink.findUnique({
-              where: { id: linkId },
-            });
-            if (!existingLink) {
-              await tx.conceptLink.create({
-                data: { id: linkId, conceptId: c.id, unitId, role: "PRIMARY" },
-              });
-            }
-            stats.conceptLinks += 1;
-          }
-        }
+        // Shared with the learning activation so an already-bootstrapped Book
+        // materializes the SAME rows the same way. Fails closed on drift or on
+        // a catalogued chapter without a unit — see `concept-ingestion.ts`.
+        const conceptStats = await ingestBookConcepts(
+          tx,
+          book.slug,
+          unitIdByOrder,
+        );
+        stats.concepts +=
+          conceptStats.conceptsCreated + conceptStats.conceptsVerified;
+        stats.conceptLinks +=
+          conceptStats.conceptLinksCreated + conceptStats.conceptLinksVerified;
 
         // 8.5 CC-7.4B.2 — editorially-approved Exercise rows (practice + recall)
         // for the first Guide V1 unit. Inside this Book's transaction so any

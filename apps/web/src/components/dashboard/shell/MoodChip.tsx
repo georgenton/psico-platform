@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useMoodCheckinOpenRequest } from "./mood-checkin-context";
 import {
   CHECKIN_SCALE,
   DIARY_MOODS,
@@ -31,6 +32,17 @@ export function MoodChip({
   const [checkinItem, setCheckinItem] = useState<CheckinItem | null>(null);
   const [thanks, setThanks] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // GR-3 — another surface (the guided-reading panel) asked for the check-in.
+  // Opening the popover is ALL that happens: no mood is preselected, nothing
+  // is submitted, and only an explicit tap on a face can write.
+  const openRequest = useMoodCheckinOpenRequest();
+  const firstRequest = useRef(openRequest);
+  useEffect(() => {
+    if (openRequest === firstRequest.current) return;
+    setOpen(true);
+    setError(null);
+  }, [openRequest]);
 
   useEffect(() => {
     if (!open) return;

@@ -10,6 +10,7 @@ import { logoutAction } from "@/actions/auth";
 import type { SessionUser } from "@/lib/api.server";
 import { DiaryKeyProvider } from "@/lib/crypto/diary-key-context";
 import { MoodChip } from "@/components/dashboard/shell/MoodChip";
+import { MoodCheckinProvider } from "@/components/dashboard/shell/mood-checkin-context";
 import { AmbiencePicker } from "@/components/dashboard/shell/AmbiencePicker";
 import { AmbientThemeApplier } from "@/components/dashboard/shell/AmbientThemeApplier";
 import {
@@ -549,49 +550,51 @@ export function DashboardShell({
   }, [parked, navOpen]);
 
   return (
-    <DiaryKeyProvider
-      cryptoSalt={cryptoSalt}
-      initialWrapKey={initialDiaryWrapKey}
-    >
-      <AmbientThemeApplier ambient={initialAmbient} />
-      <div className="app" data-nav-open={navOpen ? "true" : "false"}>
-        <Sidebar
-          user={user}
-          pathname={pathname}
-          onNav={() => {
-            setUserMenuOpen(false);
-            setNavOpen(false);
-          }}
-          userMenuOpen={userMenuOpen}
-          onToggleUserMenu={() => setUserMenuOpen((v) => !v)}
-          panelRef={panelRef}
-          inert={parked}
-        />
-
-        {/* Tapping outside is the fastest way out, and it is a real button so
-            the keyboard and a screen reader can use it too. */}
-        <button
-          type="button"
-          className="nav-scrim"
-          onClick={closeNav}
-          tabIndex={navOpen ? 0 : -1}
-          aria-hidden={navOpen ? undefined : "true"}
-          aria-label="Cerrar navegación"
-        />
-
-        <div className="main">
-          <Topbar
-            initialMood={initialMood}
-            initialAmbient={initialAmbient}
-            navOpen={navOpen}
-            onToggleNav={() => setNavOpen((v) => !v)}
-            toggleRef={toggleRef}
+    <MoodCheckinProvider>
+      <DiaryKeyProvider
+        cryptoSalt={cryptoSalt}
+        initialWrapKey={initialDiaryWrapKey}
+      >
+        <AmbientThemeApplier ambient={initialAmbient} />
+        <div className="app" data-nav-open={navOpen ? "true" : "false"}>
+          <Sidebar
+            user={user}
+            pathname={pathname}
+            onNav={() => {
+              setUserMenuOpen(false);
+              setNavOpen(false);
+            }}
+            userMenuOpen={userMenuOpen}
+            onToggleUserMenu={() => setUserMenuOpen((v) => !v)}
+            panelRef={panelRef}
+            inert={parked}
           />
-          <section className="screen">{children}</section>
-        </div>
 
-        {showTour ? <TourOverlay /> : null}
-      </div>
-    </DiaryKeyProvider>
+          {/* Tapping outside is the fastest way out, and it is a real button so
+            the keyboard and a screen reader can use it too. */}
+          <button
+            type="button"
+            className="nav-scrim"
+            onClick={closeNav}
+            tabIndex={navOpen ? 0 : -1}
+            aria-hidden={navOpen ? undefined : "true"}
+            aria-label="Cerrar navegación"
+          />
+
+          <div className="main">
+            <Topbar
+              initialMood={initialMood}
+              initialAmbient={initialAmbient}
+              navOpen={navOpen}
+              onToggleNav={() => setNavOpen((v) => !v)}
+              toggleRef={toggleRef}
+            />
+            <section className="screen">{children}</section>
+          </div>
+
+          {showTour ? <TourOverlay /> : null}
+        </div>
+      </DiaryKeyProvider>
+    </MoodCheckinProvider>
   );
 }

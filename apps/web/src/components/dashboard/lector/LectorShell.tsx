@@ -42,7 +42,11 @@ import {
   type ReaderPrefs,
 } from "./ReaderPreferencesModal";
 import { useHeartbeat } from "./use-heartbeat";
-import { ReaderGuidePanel } from "../guide/ReaderGuidePanel";
+import {
+  ReaderGuidePanel,
+  READER_GUIDE_PANEL_ID,
+} from "../guide/ReaderGuidePanel";
+import { useMoodCheckin } from "../shell/mood-checkin-context";
 import { GUIDE_READER_COPY } from "../guide/guide-reader-copy";
 import { useGuideActorScope } from "../guide/guide-actor-scope";
 import { useGuideAvailability } from "../guide/guide-availability";
@@ -273,8 +277,21 @@ export function LectorShell({
   // changes the route, and never starts a session (only the cover's button
   // does). The chapter stays mounted behind it.
   const guideActorScope = useGuideActorScope();
+  const { openMoodCheckin } = useMoodCheckin();
   const guideAvailable = useGuideAvailability();
   const [guideOpen, setGuideOpen] = useState(false);
+  const guideTabRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Close the guide and put focus back on the control that opened it. Without
+   * this, closing drops focus onto `<body>` and a keyboard reader has to tab
+   * from the top of the page to get back to where they were.
+   */
+  const closeGuide = useCallback(() => {
+    setGuideOpen(false);
+    // After the panel unmounts, or the browser has nothing to focus.
+    requestAnimationFrame(() => guideTabRef.current?.focus());
+  }, []);
   const [flashBlockId, setFlashBlockId] = useState<string | null>(null);
 
   const blockRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -311,6 +328,20 @@ export function LectorShell({
     el.focus({ preventScroll: true });
     setFlashBlockId(guideAnchor.renderBlockId);
   }, [guideAnchor]);
+
+  /**
+   * The single authority for whether the guide can RUN on this screen.
+   *
+   * The pilot gate and the actor scope say whether the surface is on for this
+   * person; the anchor says whether the thing the guide is about exists in the
+   * chapter they are looking at. All three, or nothing: a session that starts
+   * without a locatable passage would record progress through a guide whose
+   * first step cannot be shown.
+   */
+  const guideRuntimeReady =
+    guideAvailable === true &&
+    guideActorScope !== null &&
+    guideAnchor.status === "RESOLVED";
 
   // The tint is a hint, not a mark: it clears itself.
   useEffect(() => {
@@ -679,7 +710,14 @@ export function LectorShell({
   }
 
   return (
-    <div className="min-h-screen" style={containerStyle}>
+    <div
+      // GR-3 — while the guided-reading drawer is open on desktop, the reader
+      // RESERVES its width instead of being covered by it. The rule lives in
+      // the panel's own stylesheet, so it only exists while the panel does.
+      className={`min-h-screen${guideOpen ? " reader-guide-open" : ""}`}
+      data-guide-open={guideOpen ? "true" : "false"}
+      style={containerStyle}
+    >
       {/* Top bar */}
       <header
         className="sticky top-0 z-30 backdrop-blur"
@@ -803,11 +841,17 @@ export function LectorShell({
             key={option.value}
             type="button"
             role="tab"
-            aria-selected={mode === option.value}
-            onClick={() => changeMode(option.value)}
+            // While the guided-reading panel is open it is the selected
+            // surface; a mode tab still marked selected would tell assistive
+            // technology that two tabs are current at once.
+            aria-selected={!guideOpen && mode === option.value}
+            onClick={() => {
+              setGuideOpen(false);
+              changeMode(option.value);
+            }}
             className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
             style={
-              mode === option.value
+              !guideOpen && mode === option.value
                 ? {
                     background: "var(--reader-bg, var(--color-warm-50))",
                     color: "var(--reader-text, var(--color-warm-900))",
@@ -829,7 +873,9 @@ export function LectorShell({
         <button
           type="button"
           role="tab"
+          ref={guideTabRef}
           aria-selected={guideOpen}
+          aria-controls={READER_GUIDE_PANEL_ID}
           data-testid="reader-mode-guiada"
           onClick={() => setGuideOpen((v) => !v)}
           className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
@@ -852,7 +898,7 @@ export function LectorShell({
 
       {/* The pilot gate is the server's call and it is opaque: when the guide
           is not on for this reader we say so plainly and never explain why. */}
-      {guideOpen && !(guideAvailable && guideActorScope) ? (
+      {guideOpen && !guideRuntimeReady ? (
         <p
           role="status"
           data-testid="reader-guide-unavailable"
@@ -863,7 +909,7 @@ export function LectorShell({
         </p>
       ) : null}
 
-      {guideOpen && guideAvailable && guideActorScope ? (
+      {guideOpen && guideRuntimeReady && guideActorScope ? (
         <ReaderGuidePanel
           actorScope={guideActorScope}
           anchor={guideAnchor}
@@ -872,15 +918,16 @@ export function LectorShell({
           chapterOrder={chapter.order}
           apiBase={apiBase}
           token={token}
-          onClose={() => setGuideOpen(false)}
+          onClose={closeGuide}
           onGoToPassage={goToGuidePassage}
-          onContinueReading={() => setGuideOpen(false)}
+          onContinueReading={closeGuide}
           onOpenExplicitCheckin={() => {
-            // The existing check-in surface, reached as itself. The guide does
-            // not preselect an emotion, does not submit anything, and does not
-            // claim the guide caused whatever the reader records there.
-            setGuideOpen(false);
-            router.push("/dashboard");
+            // The existing check-in surface, reached as itself and IN PLACE:
+            // the chapter stays open and the route does not change. The guide
+            // does not preselect an emotion, does not submit anything, and
+            // does not claim it caused whatever the reader records there.
+            closeGuide();
+            openMoodCheckin();
           }}
         />
       ) : null}

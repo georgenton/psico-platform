@@ -7,6 +7,8 @@ import type {
   LectorChapterResponse,
 } from "@psico/types";
 import { LectorShell } from "./LectorShell";
+import { GuideAvailabilityProvider } from "../guide/guide-availability";
+import { GuideActorScopeProvider } from "../guide/guide-actor-scope";
 
 /**
  * Smoke tests for the LectorShell orchestrator (Sprint 3 del roadmap + CC-6B).
@@ -550,5 +552,146 @@ describe("LectorShell — reader mode is hydration-safe", () => {
       "aria-selected",
       "true",
     );
+  });
+});
+
+// ── GR-3 · the guided-reading surface ───────────────────────────────────────
+
+/**
+ * The reader is the gate. These tests assert what the reader refuses and what
+ * it hands over — the panel's own behaviour has its own file.
+ */
+describe("LectorShell — guided reading", () => {
+  const GUIDE_TAB = "reader-mode-guiada";
+
+  /**
+   * The reader with the pilot gate on and an actor resolved — the state a
+   * person in the pilot is actually in. Without both, the guide is off for
+   * them and the panel must not mount at all.
+   */
+  function renderWithGuide(unit: ContentUnitRead) {
+    return render(
+      <GuideAvailabilityProvider available>
+        <GuideActorScopeProvider scope={"A".repeat(43)}>
+          <LectorShell
+            apiBase="https://api.example/api"
+            token="bearer-stub"
+            bookSlug="emociones-en-construccion"
+            initial={buildInitial()}
+            unit={unit}
+            marks={null}
+          />
+        </GuideActorScopeProvider>
+      </GuideAvailabilityProvider>,
+    );
+  }
+
+  /** A unit that actually carries the approved passage. */
+  function unitWithAnchor(): ContentUnitRead {
+    const unit = buildUnit();
+    return {
+      ...unit,
+      blocks: [
+        {
+          blockKey: "bk-h",
+          legacyBlockId: "b-h",
+          blockVersionId: "bv-h",
+          kind: "HEADING",
+          order: 1,
+          content: "El cuerpo y la emoción",
+          meta: null,
+        },
+        {
+          blockKey: "bk-p",
+          legacyBlockId: "b-p",
+          blockVersionId: "bv-p",
+          kind: "PARAGRAPH",
+          order: 2,
+          content:
+            "El cuerpo se adelanta. Nuestro cuerpo siente antes que nuestra mente entienda.",
+          meta: null,
+        },
+      ],
+    };
+  }
+
+  it("with no locatable passage the guide says so and cannot start", async () => {
+    // The seeded chapter of the ordinary dev database looks exactly like this:
+    // real blocks, but not the ones this guide is about.
+    renderShell();
+    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+
+    expect(
+      await screen.findByTestId("reader-guide-unavailable"),
+    ).toHaveTextContent("Lectura guiada no disponible por ahora.");
+    expect(screen.queryByTestId("reader-guide-panel")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Empezar" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("the unavailable copy never names an internal mechanism", async () => {
+    renderShell();
+    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    const text = (await screen.findByTestId("reader-guide-unavailable"))
+      .textContent!;
+    for (const internal of [
+      "blockKey",
+      "blockVersionId",
+      "ingest",
+      "seed",
+      "Content Core",
+    ]) {
+      expect(text).not.toContain(internal);
+    }
+  });
+
+  it("only ONE tab is selected while the guide is open", () => {
+    renderWithGuide(unitWithAnchor());
+    const selected = () =>
+      screen.getAllByRole("tab").filter((t) => t.ariaSelected === "true");
+
+    expect(selected()).toHaveLength(1);
+    expect(selected()[0]).toHaveTextContent("Leer");
+
+    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    expect(selected()).toHaveLength(1);
+    expect(selected()[0]).toBe(screen.getByTestId(GUIDE_TAB));
+
+    // …and closing gives the reading mode its selection back.
+    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    expect(selected()).toHaveLength(1);
+    expect(selected()[0]).toHaveTextContent("Leer");
+  });
+
+  it("the guide tab points at the panel it controls", () => {
+    renderWithGuide(unitWithAnchor());
+    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    const tab = screen.getByTestId(GUIDE_TAB);
+    const panel = screen.getByTestId("reader-guide-panel");
+    expect(tab.getAttribute("aria-controls")).toBe(panel.id);
+  });
+
+  it("Escape closes the panel", async () => {
+    renderWithGuide(unitWithAnchor());
+    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    expect(screen.getByTestId("reader-guide-panel")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("reader-guide-panel"),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("the open drawer reserves its width instead of covering the text", () => {
+    const { container } = renderWithGuide(unitWithAnchor());
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.dataset.guideOpen).toBe("false");
+
+    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    expect(root.dataset.guideOpen).toBe("true");
+    expect(root.className).toContain("reader-guide-open");
   });
 });

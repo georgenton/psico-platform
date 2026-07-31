@@ -171,7 +171,29 @@ export function resolveScene(
   if (stored.currentStepKey !== server.currentStepKey) return fallback;
   // `completed` is a server status, not a scene the browser may assert.
   if (stored.scene === "completed") return fallback;
+  // A `feedback` scene is only meaningful WITH the verdict it is showing. A
+  // record that lost its outcome (or carries a corrupt one — the parser would
+  // have rejected that, so this is the belt to that braces) would render an
+  // empty verdict, so it falls back to the checkpoint instead.
+  if (stored.scene === "feedback" && !stored.recallOutcome) return fallback;
   return stored.scene;
+}
+
+/**
+ * The outcome to show, from the record — but only when the record still
+ * describes THIS session. A verdict from a previous run, or from a session
+ * this browser no longer holds, is not this reader's answer.
+ *
+ * Another device has no record at all: it gets `null` here and lands on the
+ * first scene of the server-owned checkpoint. Scene position does not sync;
+ * the checkpoint does.
+ */
+export function storedOutcomeFor(
+  server: { sessionId: string },
+  stored: GuideSceneRecord | null,
+): GuideRecallOutcome | null {
+  if (!stored || stored.sessionId !== server.sessionId) return null;
+  return stored.recallOutcome ?? null;
 }
 
 export const GUIDE_SCENE_STORAGE_KEY = STORAGE_KEY;

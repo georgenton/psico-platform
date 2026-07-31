@@ -64,6 +64,17 @@ export interface AnchorCandidateBlock {
   blockVersionId?: string | null;
 }
 
+/**
+ * The runtime reference, at BLOCK granularity.
+ *
+ * Deliberately no character offsets. The reader points at the paragraph — it
+ * scrolls to it, focuses it and tints the whole block — so offsets would be a
+ * field nobody reads, and one that cannot always be computed honestly: the
+ * match runs on normalized text (collapsed whitespace, NFC, case-folded) while
+ * offsets would have to describe the RAW string. When a line break sits inside
+ * the sentence those two disagree, and a contract that says "characters 0 to
+ * 57" while meaning "the whole paragraph" is worse than not saying it.
+ */
 export type GuideAnchorResolution =
   | {
       status: "RESOLVED";
@@ -71,8 +82,6 @@ export type GuideAnchorResolution =
       blockVersionId: string;
       /** The DOM id to scroll to and focus. */
       renderBlockId: string;
-      quoteStart: number;
-      quoteEnd: number;
     }
   | { status: "UNRESOLVED" | "AMBIGUOUS" };
 
@@ -97,8 +106,7 @@ function normalize(text: string): string {
  * 2. bound the search at the NEXT heading — a sentence that also appears in a
  *    later section is not this anchor;
  * 3. find exactly one paragraph containing the approved sentence;
- * 4. require the Content Core identity — a legacy block cannot be anchored;
- * 5. compute the sentence offsets inside that block.
+ * 4. require the Content Core identity — a legacy block cannot be anchored.
  */
 export function resolveGuideAnchor(
   blocks: readonly AnchorCandidateBlock[],
@@ -128,23 +136,11 @@ export function resolveGuideAnchor(
   // legacy block would tie the guide to an id that changes when it is edited.
   if (!block.blockKey || !block.blockVersionId) return UNRESOLVED;
 
-  // Offsets against the RAW content — they describe the text the reader sees,
-  // not the normalized copy used for matching. If the raw form differs enough
-  // that the sentence is not found verbatim, the highlight is dropped rather
-  // than pointed at the wrong characters.
-  const quoteStart = block.content.indexOf(locator.passageLastSentence);
-  const [start, end] =
-    quoteStart === -1
-      ? [0, block.content.length]
-      : [quoteStart, quoteStart + locator.passageLastSentence.length];
-
   return {
     status: "RESOLVED",
     blockKey: block.blockKey,
     blockVersionId: block.blockVersionId,
     renderBlockId: block.id,
-    quoteStart: start,
-    quoteEnd: end,
   };
 }
 

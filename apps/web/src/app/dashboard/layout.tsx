@@ -1,5 +1,10 @@
 import { redirect } from "next/navigation";
-import type { AmbientId, DiaryMoodId, UserMeResponse } from "@psico/types";
+import type {
+  AmbientId,
+  DiaryMoodId,
+  GuideAvailabilityResponse,
+  UserMeResponse,
+} from "@psico/types";
 import { AMBIENT_IDS, DIARY_MOOD_IDS } from "@psico/types";
 
 // Sprint B6 — visual parity with the Claude Design v2 dashboard. Imported
@@ -16,6 +21,7 @@ import {
 import { deriveGuideRecoveryActorScope } from "@/lib/guide-recovery-scope.server";
 import { getDiaryWrapKey } from "@/actions/diary-session";
 import { GuideActorScopeProvider } from "@/components/dashboard/guide/guide-actor-scope";
+import { GuideAvailabilityProvider } from "@/components/dashboard/guide/guide-availability";
 import { ApiClientBootstrap } from "./_ApiClientBootstrap";
 import { DashboardShell } from "./_DashboardShell";
 import { TimezoneSync } from "./_TimezoneSync";
@@ -104,6 +110,27 @@ export default async function DashboardLayout({
   // the Guide surface fails closed on that.
   const guideActorScope = me ? deriveGuideRecoveryActorScope(me.user.id) : null;
 
+  // CC-7.R1 — the pilot gate, resolved once here for every surface under this
+  // layout (the reader's guided-reading panel included). The server owns the
+  // decision and it is deliberately opaque: a boolean, never the reason.
+  //
+  // Fails CLOSED. If the call errors, times out or the shape is unexpected,
+  // the guide is off — showing a surface we could not confirm is enabled is
+  // worse than not showing it.
+  //
+  // Line comments, not a block: this file has a `/*` inside a `//` note
+  // ("/dashboard/*"), and the ratchet that reads it strips block comments
+  // with a regex that would then swallow everything in between.
+  let guideAvailable = false;
+  try {
+    const availability = await serverFetch<GuideAvailabilityResponse>(
+      "/guide/availability",
+    );
+    guideAvailable = availability.available === true;
+  } catch (err) {
+    if (isNextThrow(err)) throw err;
+  }
+
   return (
     <DashboardShell
       user={user}
@@ -116,7 +143,9 @@ export default async function DashboardLayout({
       <ApiClientBootstrap apiBase={API_ROOT} accessToken={accessToken} />
       <TimezoneSync needsProbe={needsTimezoneProbe} />
       <GuideActorScopeProvider scope={guideActorScope}>
-        {children}
+        <GuideAvailabilityProvider available={guideAvailable}>
+          {children}
+        </GuideAvailabilityProvider>
       </GuideActorScopeProvider>
     </DashboardShell>
   );

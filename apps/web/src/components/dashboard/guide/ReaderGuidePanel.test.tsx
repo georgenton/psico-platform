@@ -1,6 +1,6 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { GuideSessionView } from "@psico/types";
 import { ReaderGuidePanel } from "./ReaderGuidePanel";
@@ -72,8 +72,6 @@ const RESOLVED: GuideAnchorResolution = {
   blockKey: "key-1",
   blockVersionId: "ver-1",
   renderBlockId: "block-1",
-  quoteStart: 0,
-  quoteEnd: 10,
 };
 
 const CONCEPT = {
@@ -214,20 +212,27 @@ describe("ReaderGuidePanel — the anchored passage", () => {
     );
   });
 
-  it("offers no confirmation when the passage could not be located", async () => {
-    const user = userEvent.setup();
+  it("without a located passage there is no way to START — not just no confirmation", async () => {
+    // The earlier version of this test started a session and only then
+    // discovered the problem, which is the bug: a run recorded through a guide
+    // whose first step cannot be shown.
     renderPanel({ status: "UNRESOLVED" });
-    await openAndStart(user);
 
     expect(
       await screen.findByTestId("rgp-anchor-unresolved"),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Empezar" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Ir al pasaje" }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "He explorado esta idea" }),
     ).not.toBeInTheDocument();
+    // …and nothing was written.
+    expect(createGuideSession).not.toHaveBeenCalled();
+    expect(completeGuideSessionStep).not.toHaveBeenCalled();
   });
 });
 
@@ -416,5 +421,120 @@ describe("ReaderGuidePanel — after the guide", () => {
       await screen.findByRole("button", { name: "Continuar leyendo" }),
     );
     expect(h.onContinueReading).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ReaderGuidePanel — the verdict survives a reload", () => {
+  /** Re-mount the panel the way a page refresh would: same storage, new tree. */
+  function remount(anchor: GuideAnchorResolution = RESOLVED) {
+    cleanup();
+    return renderPanel(anchor);
+  }
+
+  async function answerRecall(outcome: "CORRECT" | "REVIEW") {
+    submitGuideStepRecall.mockResolvedValue({
+      created: true,
+      replayed: false,
+      session: session({ currentStepKey: null, stepsCompleted: 3 }),
+      feedback: { outcome },
+    });
+    createGuideSession.mockResolvedValue(
+      ok({
+        currentStepKey: "recordar-cuerpo-antes-que-mente",
+        stepsCompleted: 2,
+      }),
+    );
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(await screen.findByRole("button", { name: "Empezar" }));
+    await user.click(
+      await screen.findByRole("radio", { name: /antes de que la mente/i }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Registrar respuesta" }),
+    );
+    await screen.findByTestId("rgp-feedback");
+    return user;
+  }
+
+  /** After the recall the server reports a finished, unclosed session. */
+  function serverAfterRecall() {
+    createGuideSession.mockResolvedValue(
+      ok({ currentStepKey: null, stepsCompleted: 3 }),
+    );
+  }
+
+  it("fresh CORRECT → reload → still shows CORRECT", async () => {
+    await answerRecall("CORRECT");
+    serverAfterRecall();
+    remount();
+    expect(await screen.findByTestId("rgp-feedback")).toHaveTextContent(
+      "Eso es lo que dice el capítulo",
+    );
+  });
+
+  it("fresh REVIEW → reload → still shows REVIEW", async () => {
+    await answerRecall("REVIEW");
+    serverAfterRecall();
+    remount();
+    expect(await screen.findByTestId("rgp-feedback")).toHaveTextContent(
+      "Vale la pena volver al pasaje",
+    );
+  });
+
+  it("a replay of the same command reloads to the same verdict", async () => {
+    await answerRecall("REVIEW");
+    // The server answers the START replay with the same finished session.
+    serverAfterRecall();
+    remount();
+    const first = (await screen.findByTestId("rgp-feedback")).textContent;
+    remount();
+    expect((await screen.findByTestId("rgp-feedback")).textContent).toBe(first);
+  });
+
+  it("acknowledged → reload → the closing screen, not the verdict again", async () => {
+    const user = await answerRecall("CORRECT");
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+    serverAfterRecall();
+    remount();
+
+    expect(
+      await screen.findByText("Ya registraste los tres pasos"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("rgp-feedback")).not.toBeInTheDocument();
+  });
+
+  it("a record whose verdict is gone falls back instead of showing an empty one", async () => {
+    await answerRecall("REVIEW");
+    // Corrupt exactly the outcome — the scene still claims `feedback`.
+    const raw = JSON.parse(
+      window.localStorage.getItem(GUIDE_SCENE_STORAGE_KEY) ?? "{}",
+    ) as Record<string, unknown>;
+    delete raw.recallOutcome;
+    window.localStorage.setItem(GUIDE_SCENE_STORAGE_KEY, JSON.stringify(raw));
+
+    serverAfterRecall();
+    remount();
+    expect(
+      await screen.findByText("Ya registraste los tres pasos"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("rgp-feedback")).not.toBeInTheDocument();
+  });
+
+  it("another device shows no verdict — it has no record to show one from", async () => {
+    await answerRecall("CORRECT");
+    // A different browser: same server, empty storage. Note what this means
+    // in THIS architecture (CC-7.5): the Guide has no read endpoint, so a
+    // browser learns state only by replaying the START key it stored. Without
+    // that key there is nothing to resume, and the honest screen is the cover
+    // — a new run, not someone else's verdict.
+    window.localStorage.clear();
+    serverAfterRecall();
+    remount();
+
+    expect(
+      await screen.findByRole("button", { name: "Empezar" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("rgp-feedback")).not.toBeInTheDocument();
   });
 });

@@ -53,10 +53,15 @@ describe("resolveGuideAnchor", () => {
     expect(res.blockKey).toBe("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
     expect(res.blockVersionId).toBe("ver-42");
     expect(res.renderBlockId).toBe("p2");
-    // The offsets describe the sentence inside the raw text the reader sees.
-    expect(CHAPTER[4]?.content.slice(res.quoteStart, res.quoteEnd)).toBe(
-      SENTENCE,
-    );
+    // Block granularity, and nothing finer: the reader points at the whole
+    // paragraph, so the resolution says which paragraph and stops there.
+    expect(Object.keys(res).sort()).toEqual([
+      "blockKey",
+      "blockVersionId",
+      "renderBlockId",
+      "status",
+    ]);
+    expect(CHAPTER[4]?.content).toContain(SENTENCE);
   });
 
   it("is UNRESOLVED when the heading is not in this chapter", () => {

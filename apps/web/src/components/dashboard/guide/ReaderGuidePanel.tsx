@@ -1,16 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChapterConcept } from "@psico/types";
+import type { ChapterConcept, GuideRecallOutcome } from "@psico/types";
 import { GUIDE_PRESENTATION, GUIDE_SCOPE_NOTE } from "./guide-presentation";
 import { GUIDE_READER_COPY as C } from "./guide-reader-copy";
 import { useGuideRun } from "./use-guide-run";
 import type { GuideAnchorResolution } from "./guide-anchor";
 import {
   clearGuideScene,
-  firstSceneOf,
   readGuideScene,
   resolveScene,
+  storedOutcomeFor,
   writeGuideScene,
   type GuideScene,
 } from "./guide-scene";
@@ -26,7 +26,14 @@ import {
  * The run is `useGuideRun`, the same one the standalone route uses. What lives
  * here is presentation: which of the eight scenes of the CURRENT server-owned
  * checkpoint is on screen. Losing that costs a tap, never progress.
+ *
+ * It is NOT a modal: the chapter behind it stays readable and reachable. So it
+ * takes focus when it opens (there is new content to read) and hands it back
+ * when it closes, but it never traps it.
  */
+
+/** The reader's tab points at this with `aria-controls`. */
+export const READER_GUIDE_PANEL_ID = "reader-guide-panel";
 
 export interface ReaderGuidePanelProps {
   actorScope: string;
@@ -63,10 +70,28 @@ export function ReaderGuidePanel({
 
   const [scene, setSceneState] = useState<GuideScene>("cover");
   const [ackFeedback, setAckFeedback] = useState(false);
-  const [storedOutcome, setStoredOutcome] = useState<
-    "CORRECT" | "REVIEW" | null
-  >(null);
+  const [storedOutcome, setStoredOutcome] = useState<GuideRecallOutcome | null>(
+    null,
+  );
   const [announcement, setAnnouncement] = useState("");
+  const panelRef = useRef<HTMLElement>(null);
+
+  // Escape closes, from anywhere inside the panel or after it took focus.
+  // The reader keeps the shortcut they already expect from every other
+  // dismissible surface in the dashboard.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // Focus enters the panel once, when it opens. Not a trap — Tab still walks
+  // out into the chapter, which is the point of a non-modal surface.
+  useEffect(() => {
+    panelRef.current?.focus();
+  }, []);
   /**
    * «Empezar» does two things at once: it creates the session (the network
    * part, which is the server's) and it moves off the cover (the local part).
@@ -79,9 +104,10 @@ export function ReaderGuidePanel({
   /** Move to a scene and remember it — always stamped with the CURRENT
    * server state, so a stale record can be detected instead of trusted. */
   const goToScene = useCallback(
-    (next: GuideScene) => {
+    (next: GuideScene, outcome?: GuideRecallOutcome | null) => {
       setSceneState(next);
       if (!session) return;
+      const verdict = outcome ?? run.recallOutcome ?? storedOutcome;
       writeGuideScene({
         schemaVersion: 1,
         actorScope,
@@ -90,10 +116,10 @@ export function ReaderGuidePanel({
         sessionId: session.sessionId,
         currentStepKey: session.currentStepKey,
         scene: next,
-        ...(run.recallOutcome ? { recallOutcome: run.recallOutcome } : {}),
+        ...(verdict ? { recallOutcome: verdict } : {}),
       });
     },
-    [actorScope, run.recallOutcome, session],
+    [actorScope, run.recallOutcome, session, storedOutcome],
   );
 
   // Re-derive the scene whenever the SERVER's checkpoint moves. The stored
@@ -105,8 +131,21 @@ export function ReaderGuidePanel({
   useEffect(() => {
     if (!sessionId) return;
     const stored = readGuideScene(actorScope);
-    setStoredOutcome(stored?.recallOutcome ?? null);
+    setStoredOutcome(storedOutcomeFor({ sessionId }, stored));
     const resolved = resolveScene({ sessionId, currentStepKey }, stored);
+    // A reload lands here: `feedback` means the verdict was never
+    // acknowledged, `finish` means it was. Both come from the record, so the
+    // reader picks up exactly where they were instead of at the closing screen
+    // with an answer they never saw.
+    //
+    // Only a record that DESCRIBES this exact checkpoint may answer that
+    // question. When it does not — a fresh run, another device, a checkpoint
+    // just left — the answer is "not acknowledged", because a verdict that
+    // arrives a moment later must still be shown.
+    const describesNow =
+      stored?.sessionId === sessionId &&
+      stored?.currentStepKey === currentStepKey;
+    setAckFeedback(describesNow ? stored.scene !== "feedback" : false);
     if (justStarted.current) {
       justStarted.current = false;
       // A fresh start lands on the cover by definition; the reader already
@@ -130,6 +169,20 @@ export function ReaderGuidePanel({
   }, [scene, screen, run.booting, busy]);
 
   const outcome = run.recallOutcome ?? storedOutcome;
+
+  // The verdict arrives asynchronously; write it down as soon as it does, so a
+  // reload one second later still shows it.
+  // Deps are the verdict and the session, deliberately: `goToScene` changes
+  // identity on every render, and including it would rewrite the record
+  // continuously for no reason. The rule is not installed in this workspace,
+  // so this note is the explanation rather than a disable comment.
+  const freshOutcome = run.recallOutcome;
+  const goToSceneRef = useRef(goToScene);
+  goToSceneRef.current = goToScene;
+  useEffect(() => {
+    if (!freshOutcome || ackFeedback) return;
+    goToSceneRef.current("feedback", freshOutcome);
+  }, [freshOutcome, ackFeedback]);
 
   // ── Practice timer — optional, local, and written down nowhere ────────────
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
@@ -200,11 +253,47 @@ export function ReaderGuidePanel({
       ? "feedback"
       : scene;
 
+  // Defence in depth. The reader already refuses to mount this panel without a
+  // located passage; the panel refuses on its own too, because a cover with a
+  // working «Empezar» would record progress through a guide whose first step
+  // cannot be shown. No session is created, so nothing has to be undone.
+  if (anchor.status !== "RESOLVED") {
+    return (
+      <aside
+        id={READER_GUIDE_PANEL_ID}
+        aria-label={C.panelLabel}
+        data-testid="reader-guide-panel"
+        className="reader-guide-panel"
+        tabIndex={-1}
+      >
+        <style>{PANEL_CSS}</style>
+        <div className="rgp-head">
+          <span className="rgp-eyebrow">{C.cover.eyebrow}</span>
+          <button type="button" onClick={onClose} className="rgp-close">
+            {C.close}
+          </button>
+        </div>
+        <div className="rgp-body">
+          <p
+            className="rgp-text"
+            role="status"
+            data-testid="rgp-anchor-unresolved"
+          >
+            {C.unavailable}
+          </p>
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside
+      id={READER_GUIDE_PANEL_ID}
+      ref={panelRef}
       aria-label={C.panelLabel}
       data-testid="reader-guide-panel"
       className="reader-guide-panel"
+      tabIndex={-1}
     >
       <style>{PANEL_CSS}</style>
 
@@ -305,34 +394,24 @@ export function ReaderGuidePanel({
               {C.anchor.title}
             </h2>
             <p className="rgp-text">{C.anchor.body}</p>
-            {anchor.status === "RESOLVED" ? (
-              <>
-                <button
-                  type="button"
-                  className="rgp-btn ghost"
-                  onClick={goToPassage}
-                >
-                  {C.anchor.goToPassage}
-                </button>
-                <button
-                  type="button"
-                  className="rgp-btn primary"
-                  disabled={busy}
-                  onClick={() =>
-                    run.completeStep("explorar-cuerpo-antes-que-mente")
-                  }
-                >
-                  {busy ? "Guardando…" : C.anchor.confirm}
-                </button>
-                <p className="rgp-note">{C.anchor.confirmNote}</p>
-              </>
-            ) : (
-              // Fail closed: with no located passage we do not offer «he
-              // explorado esta idea» — there is no idea on screen to explore.
-              <p className="rgp-note" data-testid="rgp-anchor-unresolved">
-                {C.anchor.unresolved}
-              </p>
-            )}
+            <button
+              type="button"
+              className="rgp-btn ghost"
+              onClick={goToPassage}
+            >
+              {C.anchor.goToPassage}
+            </button>
+            <button
+              type="button"
+              className="rgp-btn primary"
+              disabled={busy}
+              onClick={() =>
+                run.completeStep("explorar-cuerpo-antes-que-mente")
+              }
+            >
+              {busy ? "Guardando…" : C.anchor.confirm}
+            </button>
+            <p className="rgp-note">{C.anchor.confirmNote}</p>
           </>
         ) : null}
 
@@ -427,7 +506,7 @@ export function ReaderGuidePanel({
                 ? C.feedback.correct.body
                 : C.feedback.review.body}
             </p>
-            {outcome === "REVIEW" && anchor.status === "RESOLVED" ? (
+            {outcome === "REVIEW" ? (
               <button
                 type="button"
                 className="rgp-btn ghost"
@@ -439,7 +518,10 @@ export function ReaderGuidePanel({
             <button
               type="button"
               className="rgp-btn primary"
-              onClick={() => setAckFeedback(true)}
+              onClick={() => {
+                setAckFeedback(true);
+                goToScene("finish", outcome);
+              }}
             >
               {C.feedback.continue}
             </button>
@@ -512,15 +594,13 @@ export function ReaderGuidePanel({
               >
                 {C.completed.continueReading}
               </button>
-              {anchor.status === "RESOLVED" ? (
-                <button
-                  type="button"
-                  className="rgp-btn ghost"
-                  onClick={goToPassage}
-                >
-                  {C.completed.returnToPassage}
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="rgp-btn ghost"
+                onClick={goToPassage}
+              >
+                {C.completed.returnToPassage}
+              </button>
               <button
                 type="button"
                 className="rgp-btn ghost"
@@ -616,10 +696,18 @@ function ClipScene({ onContinue }: { onContinue: () => void }) {
 }
 
 /**
- * Desktop: a non-modal drawer on the right, so the chapter keeps its column
- * and never collapses. Phone: a bottom sheet with the text visible behind it.
- * Both cap their own width/height — the panel is never what makes the page
- * scroll sideways.
+ * Two presentations, one breakpoint.
+ *
+ * **≥1024px** — a drawer on the right, and the reader RESERVES its width
+ * (`.reader-guide-open`) instead of letting it float on top. A drawer that
+ * covers the paragraph the guide just pointed at defeats the whole feature.
+ *
+ * **<1024px** — a bottom sheet, capped so the chapter stays visible behind it.
+ * A 380px side panel on a 768px tablet would cover half the column, so the
+ * phone presentation is the right one there too.
+ *
+ * Both cap their own size: the panel is never what makes the page scroll
+ * sideways.
  */
 const PANEL_CSS = `
 .reader-guide-panel {
@@ -630,19 +718,28 @@ const PANEL_CSS = `
   flex-direction: column;
   box-shadow: 0 -8px 30px rgba(60, 45, 90, 0.16);
 }
-@media (max-width: 767px) {
+.reader-guide-panel:focus { outline: none; }
+@media (max-width: 1023px) {
   .reader-guide-panel {
     left: 0; right: 0; bottom: 0;
-    max-height: 72vh;
+    /* Capped so the chapter is never fully hidden behind the sheet — on a
+       390×844 phone this leaves roughly a third of the screen reading. */
+    max-height: 62vh;
     border-radius: 18px 18px 0 0;
   }
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .reader-guide-panel {
     top: 0; right: 0; bottom: 0;
     width: min(380px, 100vw);
     border-left: 1px solid var(--color-warm-200, #e7e2dc);
     box-shadow: -8px 0 30px rgba(60, 45, 90, 0.12);
+  }
+  /* The reader gives up the width rather than being covered. Its column is
+     centred inside what remains, so the anchored paragraph stays fully
+     visible after «Ir al pasaje». */
+  .reader-guide-open {
+    padding-right: 380px;
   }
 }
 .rgp-head { display: flex; align-items: center; justify-content: space-between;

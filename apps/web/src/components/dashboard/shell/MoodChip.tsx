@@ -38,10 +38,24 @@ export function MoodChip({
   // is submitted, and only an explicit tap on a face can write.
   const openRequest = useMoodCheckinOpenRequest();
   const firstRequest = useRef(openRequest);
+  const popoverRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (openRequest === firstRequest.current) return;
     setOpen(true);
     setError(null);
+    // Move focus INTO the dialog. A reader who asked for the check-in from
+    // somewhere else has no way back to it otherwise — the trigger they used
+    // is on another surface, and the popover would open behind their cursor
+    // with focus still wherever they came from.
+    //
+    // The first mood button when there is one, the dialog itself otherwise.
+    // Focusing is not choosing: nothing is pressed and nothing is sent.
+    requestAnimationFrame(() => {
+      const first = popoverRef.current?.querySelector<HTMLElement>(
+        "button[aria-pressed]",
+      );
+      (first ?? popoverRef.current)?.focus();
+    });
   }, [openRequest]);
 
   useEffect(() => {
@@ -154,6 +168,10 @@ export function MoodChip({
       </button>
 
       <div
+        ref={popoverRef}
+        // Focusable as a fallback target when there is no mood button to land
+        // on (the check-in question, or the thanks state).
+        tabIndex={-1}
         className={`mood-pop${open ? " open" : ""}`}
         role="dialog"
         aria-label={

@@ -15,16 +15,24 @@
  *   node apps/web/e2e/gr3-evidence-setup.mjs --drop     # remove
  *
  * Env:
- *   EVIDENCE_ADMIN_URL   postgres superuser url (required)
- *   EVIDENCE_DB          database name (default gr3_evidence)
- *   EVIDENCE_EMAIL       synthetic account (default gr3.shots@local.test)
- *   EVIDENCE_PASSWORD    its password (required to create)
+ *   EVIDENCE_ADMIN_URL      postgres superuser url (required, LOCAL host only)
+ *   EVIDENCE_DB             database name (default gr3_evidence)
+ *   EVIDENCE_EMAIL          synthetic account (default gr3.shots@local.test)
+ *   EVIDENCE_PASSWORD       its password (required to create)
+ *   EVIDENCE_DISPOSABLE_ACK must be DROP_GR3_EVIDENCE_ONLY
+ *
+ * It DROPs a database, so every guard below is a refusal, not a warning: a
+ * non-local host, a name outside the `gr3_evidence*` whitelist, a production
+ * environment, a missing acknowledgement, or a target that is the admin
+ * connection's own database all abort before anything runs. `DATABASE_URL` is
+ * never printed.
  *
  * The account is synthetic and local-only. No real person's data is involved,
  * and no credential is committed here.
  */
 
 import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,14 +48,45 @@ const PASSWORD = process.env.EVIDENCE_PASSWORD;
 const DROP = process.argv.includes("--drop");
 const BOOK_SLUG = "emociones-en-construccion";
 
-if (!ADMIN) {
-  console.error("EVIDENCE_ADMIN_URL is required (postgres superuser url).");
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+/** Whitelist, not a sanitiser: the name is interpolated into DDL. */
+const DB_NAME = /^gr3_evidence(?:_[a-z0-9_]+)?$/;
+
+function refuse(reason) {
+  console.error(`refusing: ${reason}`);
   process.exit(1);
 }
+
+if (!ADMIN) refuse("EVIDENCE_ADMIN_URL is required (postgres superuser url)");
 if (!DROP && !PASSWORD) {
-  console.error("EVIDENCE_PASSWORD is required to create the environment.");
-  process.exit(1);
+  refuse("EVIDENCE_PASSWORD is required to create the environment");
 }
+
+// ── Guards. Every one of them can only say no. ────────────────────────────
+if (process.env.NODE_ENV === "production") refuse("NODE_ENV=production");
+if (process.env.VERCEL_ENV === "production") refuse("VERCEL_ENV=production");
+if (process.env.EVIDENCE_DISPOSABLE_ACK !== "DROP_GR3_EVIDENCE_ONLY") {
+  refuse("EVIDENCE_DISPOSABLE_ACK must be DROP_GR3_EVIDENCE_ONLY");
+}
+if (!DB_NAME.test(DB)) refuse(`EVIDENCE_DB "${DB}" is outside the whitelist`);
+
+let adminUrl;
+try {
+  adminUrl = new URL(ADMIN);
+} catch {
+  refuse("EVIDENCE_ADMIN_URL is not a valid URL");
+}
+const adminHost = adminUrl.hostname;
+if (!LOCAL_HOSTS.has(adminHost)) {
+  refuse(`EVIDENCE_ADMIN_URL host "${adminHost}" is not local`);
+}
+// Dropping the database the admin connection is using would be a different
+// (and much worse) operation than the one this script claims to perform.
+const adminDb = adminUrl.pathname.replace(/^\//, "");
+if (adminDb === DB) refuse("the target database is the admin connection's own");
+
+console.log(`databaseHost=<local:${adminHost}>`);
+console.log(`databaseName=${DB}`);
 
 function withDatabase(url, name) {
   const u = new URL(url);
@@ -60,17 +99,33 @@ const DB_URL = withDatabase(ADMIN, DB);
 async function main() {
   const { Pool } = require(join(API_DIR, "node_modules", "pg"));
   const admin = new Pool({ connectionString: ADMIN });
+  let pool;
+  let prisma;
+  try {
+    await run(admin, (p, pr) => {
+      pool = p;
+      prisma = pr;
+    });
+  } finally {
+    // Always: a leaked pool keeps the process (and the database) pinned open,
+    // and the next run's DROP would fail on an active connection.
+    await prisma?.$disconnect().catch(() => {});
+    await pool?.end().catch(() => {});
+    await admin.end().catch(() => {});
+  }
+}
+
+async function run(admin, handOff) {
+  const { Pool } = require(join(API_DIR, "node_modules", "pg"));
 
   if (DROP) {
     await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
-    await admin.end();
     console.log(`dropped ${DB}`);
     return;
   }
 
   await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
   await admin.query(`CREATE DATABASE "${DB}"`);
-  await admin.end();
   console.log(`created ${DB}`);
 
   execSync("pnpm exec prisma migrate deploy", {
@@ -84,6 +139,7 @@ async function main() {
   const bcrypt = require(join(API_DIR, "node_modules", "bcryptjs"));
   const pool = new Pool({ connectionString: DB_URL });
   const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+  handOff(pool, prisma);
 
   const book = await prisma.book.create({
     data: {
@@ -109,7 +165,15 @@ async function main() {
     },
   );
 
-  const { backfillContentCore } = require(join(API_DIR, "dist", "content-core", "backfill"));
+  // From a CLEAN checkout there is no `dist/`. Build it rather than depending
+  // on a leftover from an earlier run — evidence that only works on a warm
+  // machine is not evidence.
+  const backfillPath = join(API_DIR, "dist", "content-core", "backfill.js");
+  if (!existsSync(backfillPath)) {
+    console.log("building the API (no dist/ in this checkout)…");
+    execSync("pnpm build", { cwd: API_DIR, stdio: "inherit" });
+  }
+  const { backfillContentCore } = require(backfillPath);
   await backfillContentCore(prisma);
   console.log("content core backfilled");
 
@@ -136,9 +200,8 @@ async function main() {
   });
 
   console.log(`user ${user.email} (${user.id})`);
-  console.log(`DATABASE_URL=${DB_URL}`);
-  await prisma.$disconnect();
-  await pool.end();
+  // Never the URL: it carries the superuser credential.
+  console.log("databaseCreated=true");
 }
 
 main().catch((err) => {

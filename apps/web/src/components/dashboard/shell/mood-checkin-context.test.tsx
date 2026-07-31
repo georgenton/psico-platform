@@ -106,3 +106,28 @@ describe("MoodCheckinContext", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
+
+describe("MoodCheckinContext — focus", () => {
+  it("focus lands INSIDE the dialog, on a mood button that is not pressed", async () => {
+    const user = userEvent.setup();
+    renderShellish();
+    await user.click(
+      screen.getByRole("button", { name: "Registrar mi momento" }),
+    );
+
+    const dialog = screen.getByRole("dialog");
+    await waitFor(() => expect(dialog.className).toContain("open"));
+
+    // The assertion is on the real focus owner, not on a class.
+    await waitFor(() => {
+      const active = document.activeElement as HTMLElement | null;
+      expect(active).not.toBeNull();
+      expect(dialog.contains(active)).toBe(true);
+    });
+
+    const active = document.activeElement as HTMLElement;
+    // Focusing a face is not choosing one.
+    expect(active.getAttribute("aria-pressed")).not.toBe("true");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});

@@ -609,8 +609,10 @@ Ejemplo: checkpoint `Concepto`, escena local `Pasaje anclado`.
 | Otro dispositivo                | el servidor conserva `Concepto` pendiente; la presentación abre la primera escena del checkpoint |
 
 ```
+CROSS_DEVICE_RESUME_V1=false
 CROSS_DEVICE_SCENE_SYNC=false
-CROSS_DEVICE_CHECKPOINT_SYNC=true
+CROSS_DEVICE_CHECKPOINT_SYNC=false
+ANOTHER_DEVICE_BEHAVIOR=NEW_COVER_NEW_SESSION
 ```
 
 Nunca se reinicia toda la Guide por perder estado de presentación.

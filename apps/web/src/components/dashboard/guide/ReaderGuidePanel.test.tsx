@@ -521,20 +521,33 @@ describe("ReaderGuidePanel — the verdict survives a reload", () => {
     expect(screen.queryByTestId("rgp-feedback")).not.toBeInTheDocument();
   });
 
-  it("another device shows no verdict — it has no record to show one from", async () => {
+  it("another device: no resume, no verdict — a new cover and a new run", async () => {
     await answerRecall("CORRECT");
-    // A different browser: same server, empty storage. Note what this means
-    // in THIS architecture (CC-7.5): the Guide has no read endpoint, so a
-    // browser learns state only by replaying the START key it stored. Without
-    // that key there is nothing to resume, and the honest screen is the cover
-    // — a new run, not someone else's verdict.
+    // A different browser: same server, empty storage. V1 has no read
+    // endpoint, so a browser learns state ONLY by replaying the START key it
+    // stored locally. Without that key there is nothing to find — not the
+    // scene, not the checkpoint, not the verdict.
+    //
+    //   CROSS_DEVICE_RESUME_V1=false
+    //   ANOTHER_DEVICE_BEHAVIOR=NEW_COVER_NEW_SESSION
     window.localStorage.clear();
+    createGuideSession.mockClear();
     serverAfterRecall();
     remount();
 
+    // ANOTHER_DEVICE_START_COVER_VISIBLE=true
     expect(
       await screen.findByRole("button", { name: "Empezar" }),
     ).toBeInTheDocument();
+    // ANOTHER_DEVICE_VERDICT_VISIBLE=false
     expect(screen.queryByTestId("rgp-feedback")).not.toBeInTheDocument();
+    // ANOTHER_DEVICE_RECOVERED_SESSION=false — nothing was replayed on mount.
+    expect(createGuideSession).not.toHaveBeenCalled();
+
+    // ANOTHER_DEVICE_NEW_SESSION_REQUIRED=true — only an explicit click starts
+    // one, and it mints a fresh key rather than resuming the other browser's.
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Empezar" }));
+    await waitFor(() => expect(createGuideSession).toHaveBeenCalledTimes(1));
   });
 });

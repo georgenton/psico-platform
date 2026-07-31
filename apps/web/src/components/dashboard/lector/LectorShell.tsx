@@ -283,15 +283,25 @@ export function LectorShell({
   const guideTabRef = useRef<HTMLButtonElement>(null);
 
   /**
-   * Close the guide and put focus back on the control that opened it. Without
-   * this, closing drops focus onto `<body>` and a keyboard reader has to tab
-   * from the top of the page to get back to where they were.
+   * Close the guide, and decide where focus goes.
+   *
+   * `restoreFocus: true` is the default for a plain dismissal: without it,
+   * closing drops focus onto `<body>` and a keyboard reader has to tab from
+   * the top of the page to get back.
+   *
+   * `restoreFocus: false` is for a close that HANDS OFF to another surface —
+   * the check-in. Grabbing focus back to the Guide tab a frame after the
+   * dialog opened would yank the reader out of the thing they just asked for.
    */
-  const closeGuide = useCallback(() => {
-    setGuideOpen(false);
-    // After the panel unmounts, or the browser has nothing to focus.
-    requestAnimationFrame(() => guideTabRef.current?.focus());
-  }, []);
+  const closeGuide = useCallback(
+    ({ restoreFocus = true }: { restoreFocus?: boolean } = {}) => {
+      setGuideOpen(false);
+      if (!restoreFocus) return;
+      // After the panel unmounts, or the browser has nothing to focus.
+      requestAnimationFrame(() => guideTabRef.current?.focus());
+    },
+    [],
+  );
   const [flashBlockId, setFlashBlockId] = useState<string | null>(null);
 
   const blockRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -918,15 +928,17 @@ export function LectorShell({
           chapterOrder={chapter.order}
           apiBase={apiBase}
           token={token}
-          onClose={closeGuide}
+          onClose={() => closeGuide()}
           onGoToPassage={goToGuidePassage}
-          onContinueReading={closeGuide}
+          onContinueReading={() => closeGuide()}
           onOpenExplicitCheckin={() => {
             // The existing check-in surface, reached as itself and IN PLACE:
             // the chapter stays open and the route does not change. The guide
             // does not preselect an emotion, does not submit anything, and
             // does not claim it caused whatever the reader records there.
-            closeGuide();
+            // The check-in is the destination now, so the Guide does not take
+            // focus back — `openMoodCheckin` moves it into the dialog.
+            closeGuide({ restoreFocus: false });
             openMoodCheckin();
           }}
         />
@@ -962,7 +974,13 @@ export function LectorShell({
       </div>
 
       {/* Reading area */}
-      <main className="mx-auto max-w-3xl px-4 pb-8" style={proseStyle}>
+      <main
+        // A stable hook for the responsive gate: «the panel does not cover the
+        // text» has to name WHICH element is the text.
+        data-testid="reader-chapter-column"
+        className="mx-auto max-w-3xl px-4 pb-8"
+        style={proseStyle}
+      >
         {/* CC-6D — a content-core marks read failed. Visible + fail-closed: the
             chapter is still readable, but we never show the envelope's marks in
             its place. */}

@@ -12,7 +12,18 @@
  * every read, and anything unrecognised falls back to the FIRST scene of the
  * CURRENT checkpoint — never to the beginning of the guide.
  *
- * `CROSS_DEVICE_SCENE_SYNC=false` / `CROSS_DEVICE_CHECKPOINT_SYNC=true`.
+ * Nothing about a run syncs across browsers, and that is a property of V1, not
+ * of this file. The Guide has no read endpoint: a browser learns state ONLY by
+ * replaying the START idempotency key it stored locally. Without that key there
+ * is no session to find, so another device shows the cover and starts a new
+ * run.
+ *
+ * ```
+ * CROSS_DEVICE_RESUME_V1=false
+ * CROSS_DEVICE_SCENE_SYNC=false
+ * CROSS_DEVICE_CHECKPOINT_SYNC=false
+ * ANOTHER_DEVICE_BEHAVIOR=NEW_COVER_NEW_SESSION
+ * ```
  */
 
 import { GUIDE_KEY, GUIDE_VERSION } from "./guide-presentation";
@@ -184,9 +195,9 @@ export function resolveScene(
  * describes THIS session. A verdict from a previous run, or from a session
  * this browser no longer holds, is not this reader's answer.
  *
- * Another device has no record at all: it gets `null` here and lands on the
- * first scene of the server-owned checkpoint. Scene position does not sync;
- * the checkpoint does.
+ * Another device has no record at all — and no START key either, so it never
+ * reaches this function: it lands on the cover and starts a new run
+ * (`CROSS_DEVICE_RESUME_V1=false`).
  */
 export function storedOutcomeFor(
   server: { sessionId: string },

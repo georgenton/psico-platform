@@ -2,7 +2,10 @@
 
 ```
 BOOK_SLUG=parejas-que-perduran
-CHAPTER_ORDER=1
+CHAPTER_ORDER=2
+BOOK_CHAPTER_LABEL=Capítulo 1 del libro
+PRACTICE_SOURCE_HEADING=Ejercicio 3: El Mapa de las Miradas
+PRACTICE_SOURCE_MATCH_COUNT=1
 GUIDE_PURPOSE=DEMO
 SOURCE_QUALITY=OCR_UNFINALIZED
 EDITORIAL_AUTHORIZATION=JORGE_DEMO_REQUEST
@@ -68,9 +71,25 @@ Los enunciados y opciones concretos viven en `EXERCISE_INGESTION_CATALOG`
 (`apps/api/src/content-core/exercise-ingestion-catalog.ts`), no aquí: este
 documento registra la decisión editorial, no el contenido ejecutable.
 
+## El capítulo 1 del libro es `chapterOrder=2` en la plataforma
+
+El manifest de ingesta puso el prefacio e introducción como orden 1, así que el
+capítulo 1 del libro —«Cuando amar también sana»— quedó como **orden 2**. Lo
+confirmó el smoke en producción: orden 1 tiene 41 bloques (prefacio) y orden 2
+tiene 87.
+
+Todo el catálogo debe usar `chapterOrder: 2`. Usar 1 apuntaría al prefacio: la
+activación fallaría cerrada al no encontrar el encabezado de la práctica, o —peor—
+resolvería contra el capítulo equivocado.
+
 ## Anchor
 
-El anchor apunta al párrafo que describe el experimento. Debe resolver a
+La práctica ancla al encabezado `Ejercicio 3: El Mapa de las Miradas`, que
+aparece **exactamente una vez** entre los 27 encabezados del capítulo (verificado
+replicando la regla del parser sobre el archivo con hash validado). Es el
+ejercicio de la mirada sostenida, el mismo concepto elegido.
+
+El anchor de la Guide apunta al párrafo que describe el experimento. Debe resolver a
 **exactamente un bloque** del capítulo 1 por identidad Content Core
 (`blockKey`), nunca por posición visual ni por primera coincidencia. Si el OCR
 produjera más de una coincidencia, se amplía el contexto hasta que sea única, o

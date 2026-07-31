@@ -27,8 +27,15 @@ export interface EmptyDatabaseProbe {
   query(sql: string): Promise<{ rows: Array<{ count: string | number }> }>;
 }
 
-/** Tables the harness itself is allowed to leave behind between runs. */
-const HARNESS_TABLES = ["User"];
+/**
+ * The harness leaves one table behind: the two-column `"User"` that
+ * `privacy-barrier.pg-spec` creates. That one is fine to find on the next run.
+ * The REAL `User` is not — it is the thing whose presence makes
+ * `CREATE TABLE IF NOT EXISTS` a silent no-op. They are told apart by width,
+ * which is the property that actually matters here: anything wider than the
+ * harness's own table is somebody else's schema.
+ */
+const HARNESS_USER_MAX_COLUMNS = 3;
 
 /**
  * Fail fast unless the target database is empty of application tables.
@@ -40,13 +47,23 @@ export async function assertEmptyTestDatabase(
   probe: EmptyDatabaseProbe,
   label: string,
 ): Promise<void> {
-  const names = HARNESS_TABLES.map((t) => `'${t}'`).join(", ");
+  // Count every base table in `public`, EXCEPT a `"User"` narrow enough to be
+  // the harness's own. `_prisma_migrations`, the real `User`, and anything left
+  // over from a previous run all count.
   const { rows } = await probe.query(
     `SELECT count(*) AS count
-       FROM information_schema.tables
-      WHERE table_schema = 'public'
-        AND table_type = 'BASE TABLE'
-        AND table_name NOT IN (${names})`,
+       FROM information_schema.tables t
+      WHERE t.table_schema = 'public'
+        AND t.table_type = 'BASE TABLE'
+        AND NOT (
+          t.table_name = 'User'
+          AND (
+            SELECT count(*)
+              FROM information_schema.columns c
+             WHERE c.table_schema = 'public'
+               AND c.table_name = 'User'
+          ) <= ${HARNESS_USER_MAX_COLUMNS}
+        )`,
   );
   const found = Number(rows[0]?.count ?? 0);
   if (found === 0) return;

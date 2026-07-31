@@ -45,14 +45,25 @@ describe("assertEmptyTestDatabase", () => {
     expect(message).toContain("prisma migrate deploy");
   });
 
-  it("tolerates the harness's own leftover table", async () => {
-    // A passing run leaves its minimal `User` behind; that must not be read as
-    // a dirty database on the next run.
+  it("tolerates the harness's own narrow User, but not the real one", async () => {
+    // A passing run leaves a two-column `User` behind; that must not read as a
+    // dirty database. The real 30-column `User` must — it is exactly what makes
+    // `CREATE TABLE IF NOT EXISTS` a silent no-op.
     const probe = probeReturning(0);
     await assertEmptyTestDatabase(probe, "some.pg-spec");
     const sql = probe.query.mock.calls[0]?.[0] as string;
-    expect(sql).toContain("table_name NOT IN ('User')");
-    expect(sql).toContain("table_schema = 'public'");
+    expect(sql).toContain("t.table_name = 'User'");
+    expect(sql).toContain("information_schema.columns");
+    expect(sql).toContain("<= 3");
+    expect(sql).toContain("t.table_schema = 'public'");
+  });
+
+  it("a database holding only _prisma_migrations is still refused", async () => {
+    // The migration ledger is a base table in `public`, so it counts: a
+    // database that has been migrated is never empty, whatever else it holds.
+    await expect(
+      assertEmptyTestDatabase(probeReturning(1), "some.pg-spec"),
+    ).rejects.toThrow(/1 application table/);
   });
 
   it("counts only base tables, so views cannot trip it", async () => {

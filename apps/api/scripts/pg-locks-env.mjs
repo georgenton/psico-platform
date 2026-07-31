@@ -43,6 +43,7 @@ function refuse(reason) {
 }
 
 if (process.env.NODE_ENV === "production") refuse("NODE_ENV=production");
+if (process.env.VERCEL_ENV === "production") refuse("VERCEL_ENV=production");
 if (!DB_NAME.test(DB)) refuse(`PG_LOCKS_DB "${DB}" is outside the whitelist`);
 
 function adminUrl() {
@@ -77,7 +78,17 @@ let failed = false;
 try {
   const admin = new Pool({ connectionString: ADMIN });
   try {
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    // Refuse a name that already exists rather than dropping it. The name is
+    // pid-derived so a collision means something else is using it — and a
+    // script whose first act is DROP on a database it did not create is one
+    // typo away from being a very different script.
+    const { rows } = await admin.query(
+      "SELECT 1 FROM pg_database WHERE datname = $1",
+      [DB],
+    );
+    if (rows.length > 0) {
+      refuse(`database "${DB}" already exists — this script never reuses or drops one it did not create`);
+    }
     await admin.query(`CREATE DATABASE "${DB}"`);
     created = true;
     console.log(`databaseName=${DB} databaseCreated=true migrationsPreapplied=false`);

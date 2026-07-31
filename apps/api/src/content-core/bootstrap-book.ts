@@ -34,10 +34,16 @@ import { resolveEnvironment } from "../shared/psico-environment";
 
 export const BOOK_SLUG_TAKEN = "BOOK_SLUG_ALREADY_EXISTS";
 export const EDITION_KEY_TAKEN = "EDITION_KEY_ALREADY_EXISTS";
+export const WORK_KEY_TAKEN = "WORK_KEY_ALREADY_EXISTS";
 export const MANIFEST_INVALID = "MANIFEST_INVALID";
 export const BOOTSTRAP_FORBIDDEN = "BOOK_BOOTSTRAP_FORBIDDEN";
 export const BOOTSTRAP_EMPTY = "BOOTSTRAP_NO_CHAPTERS";
 export const BOOTSTRAP_COUNT_MISMATCH = "BOOTSTRAP_COUNT_MISMATCH";
+export const BOOTSTRAP_INPUT_INVALID = "BOOTSTRAP_INPUT_INVALID";
+export const BOOTSTRAP_CHAPTER_MISMATCH = "BOOTSTRAP_CHAPTER_MISMATCH";
+export const BOOTSTRAP_EMPTY_CHAPTER = "BOOTSTRAP_EMPTY_CHAPTER";
+export const BOOK_AUTHOR_CONFLICT = "BOOK_AUTHOR_CONFLICT";
+export const BOOK_CATEGORY_NOT_FOUND = "BOOK_CATEGORY_NOT_FOUND";
 
 export interface BookManifestChapter {
   order: number;
@@ -49,6 +55,10 @@ export interface BookManifest {
   slug: string;
   title: string;
   author: string;
+  /** Catalog identity of the author. Resolved, never overwritten. */
+  authorSlug: string;
+  /** Must already exist — categories are curated, never auto-created here. */
+  categorySlug: string;
   editionLabel: string;
   /** Free-form provenance marker, e.g. "OCR_UNFINALIZED". Documented, not schema-backed. */
   sourceQuality?: string | null;
@@ -68,11 +78,19 @@ export interface BootstrapInput {
   chapters: BootstrapChapter[];
 }
 
+export type AuthorStatus = "existing" | "will-create" | "conflict";
+
 export interface BootstrapPlan {
   slug: string;
   slug_available: boolean;
   edition_key: string;
   edition_key_available: boolean;
+  work_key: string;
+  work_key_available: boolean;
+  author_status: AuthorStatus;
+  category_available: boolean;
+  input_valid: boolean;
+  input_error: string | null;
   chapter_count: number;
   nonempty_chapter_count: number;
   total_block_count: number;
@@ -135,15 +153,95 @@ export function parseBookManifest(raw: unknown): BookManifest {
   const orders = new Set(chapters.map((c) => c.order));
   if (orders.size !== chapters.length) bad();
 
+  const authorSlug = str(m.authorSlug, 120);
+  if (!SLUG_RE.test(authorSlug)) bad();
+  const categorySlug = str(m.categorySlug, 120);
+  if (!SLUG_RE.test(categorySlug)) bad();
+
   return {
     slug,
     title: str(m.title, 300),
     author: str(m.author, 200),
+    authorSlug,
+    categorySlug,
     editionLabel: str(m.editionLabel, 200),
     sourceQuality: m.sourceQuality == null ? null : str(m.sourceQuality, 100),
     language: m.language == null ? null : str(m.language, 20),
     chapters: chapters.sort((a, b) => a.order - b.order),
   };
+}
+
+const ALLOWED_BLOCK_KINDS = new Set([
+  "PARAGRAPH",
+  "HEADING",
+  "QUOTE",
+  "EXERCISE",
+  "PAUSE",
+  "VIDEO",
+]);
+
+/**
+ * Validate the FULL input, not just the manifest. The library must not trust that
+ * its caller assembled a coherent object: `bootstrapBook` runs this BEFORE opening
+ * the transaction, so an invalid input writes exactly nothing — there is no
+ * half-written book to clean up and no rollback to rely on.
+ *
+ * Throws a sanitized machine code; never echoes manuscript text.
+ */
+export function validateBootstrapInput(input: BootstrapInput): void {
+  // Re-runs the untrusted-object checks even on a typed manifest: a caller can
+  // build one by hand, and TypeScript is not present at runtime.
+  const manifest = parseBookManifest(input.manifest);
+  const chapters = input.chapters;
+
+  if (!Array.isArray(chapters) || chapters.length === 0) {
+    throw new Error(BOOTSTRAP_EMPTY);
+  }
+
+  const orders = chapters.map((c) => c.order);
+  if (orders.some((o) => !Number.isInteger(o) || o < 1)) {
+    throw new Error(BOOTSTRAP_INPUT_INVALID);
+  }
+  if (new Set(orders).size !== orders.length) {
+    throw new Error(BOOTSTRAP_INPUT_INVALID);
+  }
+
+  // The manifest declares the book; `chapters` is what would actually be written.
+  // A mismatch means one of the two is stale, and guessing which would ship a
+  // book that is not the one the manifest describes.
+  const declared = [...manifest.chapters.map((c) => c.order)].sort(
+    (a, b) => a - b,
+  );
+  const received = [...orders].sort((a, b) => a - b);
+  if (declared.length !== received.length) {
+    throw new Error(BOOTSTRAP_CHAPTER_MISMATCH);
+  }
+  for (let i = 0; i < declared.length; i++) {
+    if (declared[i] !== received[i]) {
+      throw new Error(BOOTSTRAP_CHAPTER_MISMATCH);
+    }
+  }
+
+  for (const ch of chapters) {
+    if (typeof ch.title !== "string" || ch.title.trim().length === 0) {
+      throw new Error(BOOTSTRAP_INPUT_INVALID);
+    }
+    if (!Array.isArray(ch.blocks) || ch.blocks.length === 0) {
+      throw new Error(BOOTSTRAP_EMPTY_CHAPTER);
+    }
+    for (const b of ch.blocks) {
+      if (!ALLOWED_BLOCK_KINDS.has(b.kind)) {
+        throw new Error(BOOTSTRAP_INPUT_INVALID);
+      }
+      if (typeof b.content !== "string" || b.content.trim().length === 0) {
+        throw new Error(BOOTSTRAP_INPUT_INVALID);
+      }
+    }
+  }
+}
+
+export function workKeyFor(slug: string): string {
+  return slug;
 }
 
 export function editionKeyFor(slug: string): string {
@@ -173,18 +271,32 @@ export async function planBookBootstrap(
 ): Promise<BootstrapPlan> {
   const { manifest, chapters } = input;
   const editionKey = editionKeyFor(manifest.slug);
+  const workKey = workKeyFor(manifest.slug);
 
-  const [book, editionByKey, editionBySlug] = await Promise.all([
-    prisma.book.findUnique({
-      where: { slug: manifest.slug },
-      select: { id: true },
-    }),
-    prisma.edition.findUnique({ where: { editionKey }, select: { id: true } }),
-    prisma.edition.findUnique({
-      where: { slug: manifest.slug },
-      select: { id: true },
-    }),
-  ]);
+  const [book, editionByKey, editionBySlug, work, author, category] =
+    await Promise.all([
+      prisma.book.findUnique({
+        where: { slug: manifest.slug },
+        select: { id: true },
+      }),
+      prisma.edition.findUnique({
+        where: { editionKey },
+        select: { id: true },
+      }),
+      prisma.edition.findUnique({
+        where: { slug: manifest.slug },
+        select: { id: true },
+      }),
+      prisma.work.findUnique({ where: { workKey }, select: { id: true } }),
+      prisma.bookAuthor.findUnique({
+        where: { slug: manifest.authorSlug },
+        select: { id: true, name: true },
+      }),
+      prisma.bookCategory.findUnique({
+        where: { slug: manifest.categorySlug },
+        select: { id: true },
+      }),
+    ]);
 
   const kinds: Record<string, number> = {};
   let total = 0;
@@ -197,14 +309,39 @@ export async function planBookBootstrap(
     }
   }
 
+  let inputValid = true;
+  let inputError: string | null = null;
+  try {
+    validateBootstrapInput(input);
+  } catch (err) {
+    inputValid = false;
+    inputError = sanitizeBootstrapError(err);
+  }
+
   const slugAvailable = book === null && editionBySlug === null;
   const editionAvailable = editionByKey === null;
+  const workAvailable = work === null;
+  // An author row with the same slug but a different name is a collision, not a
+  // reuse: silently attaching this book to it would misattribute the work.
+  const authorStatus: AuthorStatus =
+    author === null
+      ? "will-create"
+      : author.name === manifest.author
+        ? "existing"
+        : "conflict";
+  const categoryAvailable = category !== null;
 
   return {
     slug: manifest.slug,
     slug_available: slugAvailable,
     edition_key: editionKey,
     edition_key_available: editionAvailable,
+    work_key: workKey,
+    work_key_available: workAvailable,
+    author_status: authorStatus,
+    category_available: categoryAvailable,
+    input_valid: inputValid,
+    input_error: inputError,
     chapter_count: chapters.length,
     nonempty_chapter_count: nonEmpty,
     total_block_count: total,
@@ -212,8 +349,10 @@ export async function planBookBootstrap(
     bootstrap_safe:
       slugAvailable &&
       editionAvailable &&
-      chapters.length > 0 &&
-      nonEmpty === chapters.length,
+      workAvailable &&
+      authorStatus !== "conflict" &&
+      categoryAvailable &&
+      inputValid,
   };
 }
 
@@ -231,12 +370,15 @@ export async function bootstrapBook(
   } = {},
 ): Promise<BootstrapStats> {
   assertBookBootstrapAllowed(opts.env ?? process.env);
+  // Everything checkable without the database is checked here, before a single
+  // row is touched — an invalid input must not depend on rollback to be harmless.
+  validateBootstrapInput(input);
 
   const { manifest } = input;
   const chapters = [...input.chapters].sort((a, b) => a.order - b.order);
-  if (chapters.length === 0) throw new Error(BOOTSTRAP_EMPTY);
 
   const editionKey = editionKeyFor(manifest.slug);
+  const workKey = workKeyFor(manifest.slug);
   const language = manifest.language ?? "es";
 
   return prisma.$transaction(
@@ -268,6 +410,35 @@ export async function bootstrapBook(
       ) {
         throw new Error(EDITION_KEY_TAKEN);
       }
+      // A bootstrap CREATES a work; it never edits one. An upsert here would let
+      // ingesting a new book quietly retitle an unrelated existing work.
+      if (
+        await tx.work.findUnique({ where: { workKey }, select: { id: true } })
+      ) {
+        throw new Error(WORK_KEY_TAKEN);
+      }
+
+      // ── 0. Catalog identity — resolved, never overwritten ───────────────────
+      // The author is created only when absent; a same-slug row under a different
+      // name is a collision, and attaching this book to it would misattribute the
+      // work to someone else. Categories are curated editorially, so a missing one
+      // is an operator error to fix, not a row to invent.
+      const existingAuthor = await tx.bookAuthor.findUnique({
+        where: { slug: manifest.authorSlug },
+      });
+      if (existingAuthor && existingAuthor.name !== manifest.author) {
+        throw new Error(BOOK_AUTHOR_CONFLICT);
+      }
+      const author =
+        existingAuthor ??
+        (await tx.bookAuthor.create({
+          data: { slug: manifest.authorSlug, name: manifest.author },
+        }));
+
+      const category = await tx.bookCategory.findUnique({
+        where: { slug: manifest.categorySlug },
+      });
+      if (!category) throw new Error(BOOK_CATEGORY_NOT_FOUND);
 
       const totalDuration = chapters.reduce(
         (n, c) => n + estimateDurationMinutes(c.blocks),
@@ -291,17 +462,17 @@ export async function bootstrapBook(
           durationMinutes: totalDuration,
           isPublished: true,
           publishedAt: new Date(),
+          authorId: author.id,
+          categoryId: category.id,
         },
       });
 
-      const work = await tx.work.upsert({
-        where: { workKey: manifest.slug },
-        create: {
-          workKey: manifest.slug,
+      const work = await tx.work.create({
+        data: {
+          workKey,
           title: manifest.title,
           authorName: manifest.author,
         },
-        update: { title: manifest.title, authorName: manifest.author },
       });
 
       const edition = await tx.edition.create({
@@ -451,10 +622,16 @@ export async function bootstrapBook(
 const PUBLIC_ERROR_CODES = [
   BOOK_SLUG_TAKEN,
   EDITION_KEY_TAKEN,
+  WORK_KEY_TAKEN,
   MANIFEST_INVALID,
   BOOTSTRAP_FORBIDDEN,
   BOOTSTRAP_EMPTY,
   BOOTSTRAP_COUNT_MISMATCH,
+  BOOTSTRAP_INPUT_INVALID,
+  BOOTSTRAP_CHAPTER_MISMATCH,
+  BOOTSTRAP_EMPTY_CHAPTER,
+  BOOK_AUTHOR_CONFLICT,
+  BOOK_CATEGORY_NOT_FOUND,
   "MISSING_MANIFEST",
   "MISSING_DATABASE_URL",
   "CHAPTER_FILE_UNREADABLE",
@@ -478,6 +655,12 @@ export function serializeBootstrapPlan(plan: BootstrapPlan): string {
     `slug_available=${plan.slug_available}`,
     `edition_key=${plan.edition_key}`,
     `edition_key_available=${plan.edition_key_available}`,
+    `work_key=${plan.work_key}`,
+    `work_key_available=${plan.work_key_available}`,
+    `author_status=${plan.author_status}`,
+    `category_available=${plan.category_available}`,
+    `input_valid=${plan.input_valid}`,
+    `input_error=${plan.input_error ?? "none"}`,
     `chapter_count=${plan.chapter_count}`,
     `nonempty_chapter_count=${plan.nonempty_chapter_count}`,
     `total_block_count=${plan.total_block_count}`,

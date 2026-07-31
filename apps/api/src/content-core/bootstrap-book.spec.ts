@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  BOOTSTRAP_CHAPTER_MISMATCH,
+  BOOTSTRAP_EMPTY_CHAPTER,
+  BOOTSTRAP_INPUT_INVALID,
   BOOTSTRAP_INTERNAL_ERROR,
   BOOK_SLUG_TAKEN,
   MANIFEST_INVALID,
@@ -8,6 +11,8 @@ import {
   planBookBootstrap,
   sanitizeBootstrapError,
   serializeBootstrapPlan,
+  validateBootstrapInput,
+  type BootstrapInput,
 } from "./bootstrap-book";
 import { parseBootstrapArgs } from "./bootstrap-cli";
 import {
@@ -19,6 +24,8 @@ const VALID = {
   slug: "libro-de-prueba",
   title: "Libro de prueba",
   author: "Equipo de pruebas",
+  authorSlug: "equipo-de-pruebas",
+  categorySlug: "vinculos",
   editionLabel: "Edición de prueba OCR",
   sourceQuality: "OCR_UNFINALIZED",
   chapters: [
@@ -124,6 +131,11 @@ describe("bootstrap · dry-run plan", () => {
     return {
       book: { findUnique: async () => hit },
       edition: { findUnique: async () => hit },
+      work: { findUnique: async () => hit },
+      // Author absent (will-create) and the curated category present: the shape
+      // an operator sees the first time a real author is introduced.
+      bookAuthor: { findUnique: async () => null },
+      bookCategory: { findUnique: async () => ({ id: "cat-vinculos" }) },
     } as never;
   }
 
@@ -138,6 +150,53 @@ describe("bootstrap · dry-run plan", () => {
     expect(plan.nonempty_chapter_count).toBe(2);
     expect(plan.total_block_count).toBe(3);
     expect(plan.block_kind_counts).toEqual({ PARAGRAPH: 2, QUOTE: 1 });
+    expect(plan.work_key_available).toBe(true);
+    expect(plan.author_status).toBe("will-create");
+    expect(plan.category_available).toBe(true);
+    expect(plan.input_valid).toBe(true);
+  });
+
+  it("refuses when the work key is already taken", async () => {
+    const plan = await planBookBootstrap(fakePrisma(true), {
+      manifest: parseBookManifest(VALID),
+      chapters,
+    });
+    expect(plan.work_key_available).toBe(false);
+    expect(plan.bootstrap_safe).toBe(false);
+  });
+
+  it("refuses when the curated category does not exist", async () => {
+    const noCategory = {
+      book: { findUnique: async () => null },
+      edition: { findUnique: async () => null },
+      work: { findUnique: async () => null },
+      bookAuthor: { findUnique: async () => null },
+      bookCategory: { findUnique: async () => null },
+    } as never;
+    const plan = await planBookBootstrap(noCategory, {
+      manifest: parseBookManifest(VALID),
+      chapters,
+    });
+    expect(plan.category_available).toBe(false);
+    expect(plan.bootstrap_safe).toBe(false);
+  });
+
+  it("flags an author slug held under a different name as a conflict", async () => {
+    const otherAuthor = {
+      book: { findUnique: async () => null },
+      edition: { findUnique: async () => null },
+      work: { findUnique: async () => null },
+      bookAuthor: {
+        findUnique: async () => ({ id: "a1", name: "Otra Persona" }),
+      },
+      bookCategory: { findUnique: async () => ({ id: "cat-vinculos" }) },
+    } as never;
+    const plan = await planBookBootstrap(otherAuthor, {
+      manifest: parseBookManifest(VALID),
+      chapters,
+    });
+    expect(plan.author_status).toBe("conflict");
+    expect(plan.bootstrap_safe).toBe(false);
   });
 
   it("fails closed when the slug already exists", async () => {
@@ -241,5 +300,75 @@ describe("test-edition parser", () => {
     expect(
       estimateDurationMinutes([{ kind: "PARAGRAPH", content: "una palabra" }]),
     ).toBe(1);
+  });
+});
+
+describe("bootstrap · direct input validation (no CLI involved)", () => {
+  const manifest = parseBookManifest(VALID);
+  const ok = [
+    {
+      order: 1,
+      title: "Uno",
+      blocks: [{ kind: "PARAGRAPH" as const, content: "Texto." }],
+    },
+    {
+      order: 2,
+      title: "Dos",
+      blocks: [{ kind: "PARAGRAPH" as const, content: "Texto." }],
+    },
+  ];
+
+  it("accepts a coherent input", () => {
+    expect(() =>
+      validateBootstrapInput({ manifest, chapters: ok }),
+    ).not.toThrow();
+  });
+
+  it("rejects chapters that do not match the manifest", () => {
+    const drifted = [ok[0], { ...ok[1], order: 5 }];
+    expect(() =>
+      validateBootstrapInput({ manifest, chapters: drifted }),
+    ).toThrow(BOOTSTRAP_CHAPTER_MISMATCH);
+  });
+
+  it("rejects a chapter with no blocks", () => {
+    const empty = [ok[0], { ...ok[1], blocks: [] }];
+    expect(() => validateBootstrapInput({ manifest, chapters: empty })).toThrow(
+      BOOTSTRAP_EMPTY_CHAPTER,
+    );
+  });
+
+  it("rejects a blank chapter title", () => {
+    const blank = [ok[0], { ...ok[1], title: "   " }];
+    expect(() => validateBootstrapInput({ manifest, chapters: blank })).toThrow(
+      BOOTSTRAP_INPUT_INVALID,
+    );
+  });
+
+  it("rejects an unknown block kind", () => {
+    const bad = [
+      ok[0],
+      { ...ok[1], blocks: [{ kind: "AUDIO", content: "x" }] },
+    ] as unknown as BootstrapInput["chapters"];
+    expect(() => validateBootstrapInput({ manifest, chapters: bad })).toThrow(
+      BOOTSTRAP_INPUT_INVALID,
+    );
+  });
+
+  it("rejects a blank block", () => {
+    const blank = [
+      ok[0],
+      { ...ok[1], blocks: [{ kind: "PARAGRAPH" as const, content: "  " }] },
+    ];
+    expect(() => validateBootstrapInput({ manifest, chapters: blank })).toThrow(
+      BOOTSTRAP_INPUT_INVALID,
+    );
+  });
+
+  it("rejects duplicate chapter orders", () => {
+    const dup = [ok[0], { ...ok[1], order: 1 }];
+    expect(() => validateBootstrapInput({ manifest, chapters: dup })).toThrow(
+      BOOTSTRAP_INPUT_INVALID,
+    );
   });
 });

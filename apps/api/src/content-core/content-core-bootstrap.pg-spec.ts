@@ -5,11 +5,17 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   BOOK_SLUG_TAKEN,
+  BOOTSTRAP_EMPTY_CHAPTER,
+  WORK_KEY_TAKEN,
   bootstrapBook,
   editionKeyFor,
   planBookBootstrap,
+  workKeyFor,
   type BootstrapInput,
 } from "./bootstrap-book";
+import { BooksService } from "../books/books.service";
+import type { PrismaService } from "../prisma/prisma.service";
+import type { ListBooksQueryDto } from "../books/dto/list-books-query.dto";
 import { ingestUnitV2 } from "./ingest-v2";
 import { readContentUnit } from "./read/content-read";
 import {
@@ -48,6 +54,8 @@ function input(slug: string, chapterCount: number): BootstrapInput {
       slug,
       title: "Libro de prueba",
       author: "Equipo de pruebas",
+      authorSlug: "equipo-de-pruebas",
+      categorySlug: "vinculos",
       editionLabel: "Edición de prueba OCR",
       sourceQuality: "OCR_UNFINALIZED",
       chapters: Array.from({ length: chapterCount }, (_, i) => ({
@@ -92,6 +100,12 @@ suite("Content Core · new-book bootstrap (real PostgreSQL)", () => {
     });
     pool = new Pool({ connectionString: url });
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+
+    // Categories are curated editorially; the bootstrap resolves one, never
+    // invents it. Seeding it here mirrors what production already has.
+    await prisma.bookCategory.create({
+      data: { slug: "vinculos", label: "Vínculos", order: 2 },
+    });
   }, 180_000);
 
   afterAll(async () => {
@@ -275,5 +289,86 @@ suite("Content Core · new-book bootstrap (real PostgreSQL)", () => {
     expect(
       await prisma.contentBlock.count({ where: { unit: { unitKey } } }),
     ).toBeGreaterThanOrEqual(3);
+  });
+
+  it("11 · an existing Work fails closed and is left untouched", async () => {
+    const slug = "libro-con-work-previo";
+    // A Work can outlive its book (an edition retired, a slug reused). Bootstrap
+    // must refuse rather than retitle someone else's work.
+    const preexisting = await prisma.work.create({
+      data: {
+        workKey: workKeyFor(slug),
+        title: "Título editorial previo",
+        authorName: "Autora Previa",
+      },
+    });
+
+    const plan = await planBookBootstrap(prisma, input(slug, 2));
+    expect(plan.work_key_available).toBe(false);
+    expect(plan.bootstrap_safe).toBe(false);
+
+    const before = {
+      books: await prisma.book.count(),
+      chapters: await prisma.chapter.count(),
+      units: await prisma.contentUnit.count(),
+    };
+
+    await expect(
+      bootstrapBook(prisma, input(slug, 2), { env: ENV }),
+    ).rejects.toThrow(WORK_KEY_TAKEN);
+
+    const after = await prisma.work.findUniqueOrThrow({
+      where: { id: preexisting.id },
+    });
+    expect(after.title).toBe("Título editorial previo");
+    expect(after.authorName).toBe("Autora Previa");
+
+    expect(await prisma.book.count()).toBe(before.books);
+    expect(await prisma.chapter.count()).toBe(before.chapters);
+    expect(await prisma.contentUnit.count()).toBe(before.units);
+    expect(await prisma.book.count({ where: { slug } })).toBe(0);
+  });
+
+  it("12 · an invalid input writes nothing — validation precedes the transaction", async () => {
+    const before = {
+      books: await prisma.book.count(),
+      works: await prisma.work.count(),
+      authors: await prisma.bookAuthor.count(),
+    };
+
+    const broken = input("libro-invalido", 2);
+    broken.chapters[1].blocks = []; // an empty chapter
+
+    await expect(bootstrapBook(prisma, broken, { env: ENV })).rejects.toThrow(
+      BOOTSTRAP_EMPTY_CHAPTER,
+    );
+
+    expect(await prisma.book.count()).toBe(before.books);
+    expect(await prisma.work.count()).toBe(before.works);
+    expect(await prisma.bookAuthor.count()).toBe(before.authors);
+  });
+
+  it("13 · the book is visible in the library with its author and category", async () => {
+    // readContentUnit proves the reader can resolve the text; this proves the
+    // catalog surface the user actually lands on works too.
+    const books = new BooksService(prisma as unknown as PrismaService);
+
+    const list = await books.list(null, {} as ListBooksQueryDto);
+    const row = list.books.find((b) => b.slug === SLUG);
+    expect(row).toBeDefined();
+    expect(row?.title).toBe("Libro de prueba");
+
+    const detail = await books.getDetail(null, SLUG);
+    expect(detail.book.title).toBe("Libro de prueba");
+    expect(detail.book.categoryLabel).toBe("Vínculos");
+    expect(detail.author?.name).toBe("Equipo de pruebas");
+    expect(detail.chaptersList).toHaveLength(3);
+
+    const stored = await prisma.book.findUniqueOrThrow({
+      where: { slug: SLUG },
+      include: { author: true, category: true },
+    });
+    expect(stored.author?.slug).toBe("equipo-de-pruebas");
+    expect(stored.category?.slug).toBe("vinculos");
   });
 });

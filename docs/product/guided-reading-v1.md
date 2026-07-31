@@ -602,11 +602,11 @@ Presentación:   conserva la escena visual dentro del checkpoint.
 
 Ejemplo: checkpoint `Concepto`, escena local `Pasaje anclado`.
 
-| Situación                       | Resultado                                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Recarga en el mismo navegador   | vuelve al pasaje anclado                                                                         |
-| Estado local ausente o corrupto | vuelve al inicio del checkpoint `Concepto`                                                       |
-| Otro dispositivo                | el servidor conserva `Concepto` pendiente; la presentación abre la primera escena del checkpoint |
+| Situación                       | Resultado                                                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Recarga en el mismo navegador   | vuelve al pasaje anclado                                                                                              |
+| Estado local ausente o corrupto | vuelve al inicio del checkpoint `Concepto`, dentro de la MISMA sesión                                                 |
+| Otro dispositivo                | no recupera la sesión, escena, checkpoint ni veredicto; muestra una nueva portada y requiere iniciar una sesión nueva |
 
 ```
 CROSS_DEVICE_RESUME_V1=false
@@ -615,7 +615,17 @@ CROSS_DEVICE_CHECKPOINT_SYNC=false
 ANOTHER_DEVICE_BEHAVIOR=NEW_COVER_NEW_SESSION
 ```
 
-Nunca se reinicia toda la Guide por perder estado de presentación.
+Por qué otro dispositivo no recupera nada: la única forma de que un navegador
+vuelva a su sesión es reproducir la clave de idempotencia con la que la inició,
+y esa clave vive sólo en ese navegador. No existe endpoint de lectura del
+lifecycle, así que un segundo dispositivo no tiene forma de descubrir que hay
+una sesión abierta. Eso es el contrato de V1, no una limitación temporal.
+
+«Nunca se reinicia toda la Guide por perder estado de presentación» describe un
+caso más estrecho: la pérdida o corrupción del registro local **dentro de un
+navegador que todavía puede recuperar su sesión con su clave START**. Ahí el
+servidor sigue mandando sobre el checkpoint y sólo se pierde la escena visual.
+No dice nada sobre otros dispositivos, que no tienen sesión que reiniciar.
 
 ---
 

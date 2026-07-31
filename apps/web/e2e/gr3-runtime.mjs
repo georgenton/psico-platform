@@ -16,7 +16,16 @@
  * committed).
  */
 
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  rmSync,
+  writeFileSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  existsSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -74,6 +83,18 @@ if (!EMAIL || !PASSWORD) {
 
 const failures = [];
 const notes = [];
+/** §10 findings, by scene. Labels only — never the offending value. */
+const piiHits = [];
+/** §9 outcome, filled during the desktop walk. */
+const checkin = {
+  routeChanged: null,
+  dialogOpen: null,
+  focusInsideDialog: null,
+  preselected: null,
+  callsBeforeSelection: null,
+  callsAfterEscape: null,
+  guideStoleFocus: null,
+};
 function check(ok, label) {
   if (!ok) failures.push(label);
   console.log(`${ok ? "  ok  " : "  FAIL"}  ${label}`);
@@ -83,6 +104,25 @@ const { chromium } = await import("playwright");
 
 /** file → viewport, for the manifest. */
 const shotViewports = new Map();
+
+/**
+ * §3 — refuse to open a browser against a dirty tree.
+ *
+ * The evidence claims «this is what the code at SHA X does». If the working
+ * tree carries uncommitted edits, the captures show something no commit
+ * contains, and the SHA in the manifest is a decoration. Checked here, and
+ * again immediately before promoting.
+ */
+const dirtyAtStart = execFileSync("git", ["status", "--porcelain"], { cwd: HERE })
+  .toString()
+  .trim();
+if (dirtyAtStart) {
+  console.error("refusing: the worktree is dirty — commit or stash before the gate");
+  console.error(dirtyAtStart);
+  console.error("WORKTREE_CLEAN_AT_GATE_START=false");
+  process.exit(1);
+}
+console.log("WORKTREE_CLEAN_AT_GATE_START=true");
 
 /** The SHA the whole run is pinned to; verified again before promoting. */
 const gitSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: HERE })
@@ -170,7 +210,83 @@ async function measureOverlap(page) {
   });
 }
 
+/**
+ * §10 — what a capture is allowed to contain.
+ *
+ * Runs before EVERY screenshot, not once: a scene that only appears late in
+ * the walk is exactly where a leak would hide. It reads what a viewer of the
+ * image could read — visible text plus the attributes that carry URLs — and
+ * refuses on anything that identifies a person, authorises a request, or
+ * exposes internal identity. The findings are reported as counts and labels;
+ * the offending value is never printed.
+ */
+async function assertNoPii(page, file) {
+  const found = await page.evaluate((email) => {
+    const text = document.body.innerText ?? "";
+    const urls = [...document.querySelectorAll("[href], [src]")]
+      .map((el) => el.getAttribute("href") ?? el.getAttribute("src") ?? "")
+      .join("\n");
+    const hay = `${text}\n${urls}`;
+    const hits = [];
+    const flag = (label, re) => {
+      if (re.test(hay)) hits.push(label);
+    };
+
+    if (email && hay.toLowerCase().includes(email.toLowerCase())) hits.push("E2E_EMAIL");
+    flag("EMAIL_ADDRESS", /[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+    flag("AUTHORIZATION", /authorization\s*[:=]/i);
+    flag("BEARER", /\bbearer\s+\S/i);
+    flag("SESSION_ID", /sessionId/i);
+    flag("USER_ID", /\buserId\b/i);
+    flag("IDEMPOTENCY_KEY", /idempotency[-_]?key/i);
+    flag("BLOCK_KEY", /blockKey|blockVersionId/i);
+    flag("DATABASE_URL", /postgres(?:ql)?:\/\//i);
+    // A signed URL is a URL carrying an expiry or a signature.
+    flag("SIGNED_URL", /[?&](?:X-Amz-Signature|Signature|sig|se|token|expires)=/i);
+    // Token-like: a JWT, or a long opaque run of hex.
+    flag("TOKEN_TEXT", /\beyJ[\w-]{10,}\.[\w-]{10,}/);
+    flag("TOKEN_TEXT", /\b[0-9a-f]{32,}\b/i);
+    // Internal anchor diagnostics must never surface to a reader.
+    flag("ANCHOR_DIAGNOSTIC", /UNRESOLVED|AMBIGUOUS|renderBlockId|RESOLVED\b/);
+    flag("SYNTHETIC_NAME", /GR3 Evidence/i);
+
+    return [...new Set(hits)];
+  }, EMAIL ?? "");
+
+  check(found.length === 0, `${file}: no PII or secrets on screen${found.length ? ` — ${found.join(", ")}` : ""}`);
+  if (found.length) piiHits.push(`${file}: ${found.join(", ")}`);
+}
+
+/**
+ * §10 — hide the account address before capturing.
+ *
+ * The dashboard chip shows the signed-in address. That is correct: it is your
+ * own screen, showing your own account, and changing it to make screenshots
+ * tidier would be altering the product to suit the evidence. What must not
+ * happen is an address travelling inside a committed image.
+ *
+ * So the redaction lives HERE, in the harness, and only for the capture: the
+ * text node carrying the address is replaced in the page right before the
+ * screenshot. No product code, no CSS in the app, no behaviour change for a
+ * real user — the running app still shows them their address.
+ */
+async function redactIdentity(page) {
+  if (!EMAIL) return;
+  await page.evaluate((email) => {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const targets = [];
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (n.textContent?.includes(email)) targets.push(n);
+    }
+    for (const node of targets) node.textContent = node.textContent.replace(email, "cuenta");
+  }, EMAIL);
+}
+
 async function shoot(page, file, viewport) {
+  await redactIdentity(page);
+  // Privacy is checked for all eight scenes whether or not we are writing
+  // files — and AFTER redaction, so it measures what the image will contain.
+  await assertNoPii(page, file);
   if (!SHOOT) return;
   mkdirSync(SHOTS_DIR, { recursive: true });
   shotViewports.set(`${file}.webp`, viewport);
@@ -217,7 +333,11 @@ try {
     let m = await measurePage(page);
     check(
       m.docScrollWidth === m.innerWidth,
-      `${vp.name}: no horizontal overflow before opening (${m.docScrollWidth} vs ${m.innerWidth})`,
+      `${vp.name}: html has no horizontal overflow before opening (${m.docScrollWidth} vs ${m.innerWidth})`,
+    );
+    check(
+      m.bodyScrollWidth <= m.innerWidth,
+      `${vp.name}: body has no horizontal overflow before opening (${m.bodyScrollWidth} vs ${m.innerWidth})`,
     );
     check(m.selectedTabs === 1, `${vp.name}: exactly one selected tab (${m.selectedTabs})`);
     if (vp.name === "desktop") await shoot(page, "01-reader-guide-selector", `${vp.w}x${vp.h}`);
@@ -240,7 +360,11 @@ try {
     m = await measurePage(page);
     check(
       m.docScrollWidth === m.innerWidth,
-      `${vp.name}: no horizontal overflow with the panel open (${m.docScrollWidth} vs ${m.innerWidth})`,
+      `${vp.name}: html has no horizontal overflow with the panel open (${m.docScrollWidth} vs ${m.innerWidth})`,
+    );
+    check(
+      m.bodyScrollWidth <= m.innerWidth,
+      `${vp.name}: body has no horizontal overflow with the panel open (${m.bodyScrollWidth} vs ${m.innerWidth})`,
     );
     check(
       m.selectedTabs === 1,
@@ -279,10 +403,22 @@ try {
 
     const startBtn = panel.getByRole("button", { name: "Empezar", exact: true });
     check(await startBtn.isVisible(), `${vp.name}: the cover offers an explicit start`);
+    // The whole box, on both axes. A button whose bottom edge is below the
+    // fold is not reachable, and measuring only `x` would call that a pass.
     const startBox = await startBtn.boundingBox();
+    const startInside =
+      !!startBox &&
+      startBox.x >= -1 &&
+      startBox.x + startBox.width <= vp.w + 1 &&
+      startBox.y >= -1 &&
+      startBox.y + startBox.height <= vp.h + 1;
     check(
-      !!startBox && startBox.x >= 0 && startBox.x + startBox.width <= vp.w + 1,
-      `${vp.name}: the primary control is inside the viewport`,
+      startInside,
+      `${vp.name}: the primary control is fully inside the viewport` +
+        (startBox
+          ? ` (x ${Math.round(startBox.x)}→${Math.round(startBox.x + startBox.width)} of ${vp.w}, ` +
+            `y ${Math.round(startBox.y)}→${Math.round(startBox.y + startBox.height)} of ${vp.h})`
+          : " (no box)"),
     );
 
     if (vp.name === "desktop") await shoot(page, "02-reader-guide-cover", `${vp.w}x${vp.h}`);
@@ -428,6 +564,62 @@ try {
         "desktop: the resonance is offered only after finishing",
       );
       await shoot(page, "07-reader-guide-completed-resonance", `${vp.w}x${vp.h}`);
+
+      // ── §9 — «Registrar mi momento» opens the ONE check-in there is ───────
+      //
+      // The claim under test is narrow and worth stating plainly: offering
+      // the check-in must not navigate, must not build a second surface, and
+      // must not report a mood on the person's behalf. Writes are counted, so
+      // "nothing was sent" is measured rather than assumed.
+      const routeBefore = new URL(page.url()).pathname;
+      let moodWrites = 0;
+      const countMoodWrite = (req) => {
+        const path = new URL(req.url()).pathname;
+        const method = req.method();
+        if (method !== "GET" && /\/mood(\/|$)/.test(path)) moodWrites += 1;
+      };
+      page.on("request", countMoodWrite);
+
+      await panel.getByRole("button", { name: "Registrar mi momento" }).click();
+      const dialog = page.getByRole("dialog");
+      await page.waitForTimeout(400);
+
+      const guideStillOpen = await panel.isVisible().catch(() => false);
+      check(!guideStillOpen, "desktop: the guide closed to hand over the check-in");
+
+      checkin.routeChanged = new URL(page.url()).pathname !== routeBefore;
+      check(!checkin.routeChanged, "desktop: opening the check-in did not change the route");
+
+      const dialogState = await dialog.evaluate((el) => ({
+        open: el.className.includes("open"),
+        focusInside: el.contains(document.activeElement),
+        // The focus owner must not be back inside the guide's tab.
+        activeInGuide: Boolean(
+          document.activeElement?.closest('[data-testid="reader-guide-panel"]'),
+        ),
+        pressed: el.querySelectorAll('[aria-pressed="true"]').length,
+      }));
+      checkin.dialogOpen = dialogState.open;
+      checkin.focusInsideDialog = dialogState.focusInside;
+      checkin.guideStoleFocus = dialogState.activeInGuide;
+      checkin.preselected = dialogState.pressed > 0;
+      check(checkin.dialogOpen, "desktop: the topbar check-in dialog is open");
+      check(checkin.focusInsideDialog, "desktop: focus landed inside the check-in dialog");
+      check(!checkin.guideStoleFocus, "desktop: the guide did not take focus back");
+      check(
+        !checkin.preselected,
+        `desktop: no mood is preselected (${dialogState.pressed} pressed)`,
+      );
+
+      checkin.callsBeforeSelection = moodWrites;
+      check(moodWrites === 0, `desktop: nothing was written before choosing (${moodWrites})`);
+
+      // Leaving without choosing must also write nothing.
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(400);
+      checkin.callsAfterEscape = moodWrites;
+      check(moodWrites === 0, `desktop: nothing was written after Escape (${moodWrites})`);
+      page.off("request", countMoodWrite);
     }
 
     const overlay = await page.locator("nextjs-portal").count();
@@ -453,11 +645,26 @@ try {
       .toString()
       .trim();
 
+    // §3 — the tree must still be clean. A SHA that certifies uncommitted
+    // edits certifies nothing, so this is checked again HERE, while the files
+    // are still only in the temp directory and promoting is still avoidable.
+    const dirtyNow = execFileSync("git", ["status", "--porcelain"], { cwd: HERE })
+      .toString()
+      .trim();
+
     check(failures.length === 0, `promotion: the run had no failures`);
+    check(piiHits.length === 0, `promotion: no capture carried PII (${piiHits.length} flagged)`);
     check(namesMatch, `promotion: exactly the 8 expected files (${produced.length})`);
     check(shaNow === gitSha, "promotion: HEAD unchanged during the run");
+    check(dirtyNow === "", "promotion: the worktree is clean, so the SHA means something");
 
-    if (failures.length === 0 && namesMatch && shaNow === gitSha) {
+    if (
+      failures.length === 0 &&
+      piiHits.length === 0 &&
+      namesMatch &&
+      shaNow === gitSha &&
+      dirtyNow === ""
+    ) {
       const manifest = {
         gitSha,
         screenshots: produced.map((file) => ({
@@ -468,22 +675,58 @@ try {
             .digest("hex"),
         })),
       };
-      // Replace the directory as a whole: no stale WebP can survive.
-      rmSync(FINAL_SHOTS_DIR, { recursive: true, force: true });
-      mkdirSync(FINAL_SHOTS_DIR, { recursive: true });
-      for (const file of produced) {
-        writeFileSync(join(FINAL_SHOTS_DIR, file), readFileSync(join(SHOTS_DIR, file)));
+
+      // §4 — build the complete set NEXT TO the destination (same filesystem,
+      // so the swap below is a rename), then swap directories in one move.
+      //
+      // The old shape — delete the final directory, then copy eight files into
+      // it — leaves a window where the committed evidence is a partial set. If
+      // the process dies at file five, the repo holds five captures that look
+      // like a full bundle. Renaming a finished directory has no such window:
+      // either the whole set is in place or the previous one still is.
+      const assetsDir = dirname(FINAL_SHOTS_DIR);
+      mkdirSync(assetsDir, { recursive: true });
+      const staging = mkdtempSync(join(assetsDir, ".gr3-staging-"));
+      const backup = `${FINAL_SHOTS_DIR}.backup-${process.pid}`;
+      let backedUp = false;
+      try {
+        for (const file of produced) {
+          writeFileSync(join(staging, file), readFileSync(join(SHOTS_DIR, file)));
+        }
+        writeFileSync(
+          join(staging, "SHA256SUMS"),
+          `${manifest.screenshots.map((s) => `${s.sha256}  ${s.file}`).join("\n")}\n`,
+        );
+        writeFileSync(
+          join(staging, "MANIFEST.json"),
+          `${JSON.stringify(manifest, null, 2)}\n`,
+        );
+
+        // The staging set must be exactly the ten expected files before it is
+        // allowed to become the evidence.
+        const staged = readdirSync(staging).sort();
+        const expected = [...EXPECTED_SCREENSHOTS, "MANIFEST.json", "SHA256SUMS"].sort();
+        if (staged.length !== expected.length || staged.some((f, i) => f !== expected[i])) {
+          throw new Error(`staging holds ${staged.length} files, expected ${expected.length}`);
+        }
+
+        if (existsSync(FINAL_SHOTS_DIR)) {
+          renameSync(FINAL_SHOTS_DIR, backup);
+          backedUp = true;
+        }
+        renameSync(staging, FINAL_SHOTS_DIR);
+        if (backedUp) rmSync(backup, { recursive: true, force: true });
+        promoted = produced.length;
+        console.log(`\npromoted ${promoted} captures + SHA256SUMS + MANIFEST.json (set swap)`);
+      } catch (err) {
+        // Put the previous evidence back. A failed promotion must leave the
+        // repo exactly as it was, not half-updated.
+        rmSync(staging, { recursive: true, force: true });
+        if (backedUp && !existsSync(FINAL_SHOTS_DIR)) renameSync(backup, FINAL_SHOTS_DIR);
+        rmSync(backup, { recursive: true, force: true });
+        failures.push(`promotion failed: ${err.message}`);
+        console.error(`\nPROMOTION_FAILED=true BACKUP_RESTORED=${backedUp}`);
       }
-      writeFileSync(
-        join(FINAL_SHOTS_DIR, "SHA256SUMS"),
-        `${manifest.screenshots.map((s) => `${s.sha256}  ${s.file}`).join("\n")}\n`,
-      );
-      writeFileSync(
-        join(FINAL_SHOTS_DIR, "MANIFEST.json"),
-        `${JSON.stringify(manifest, null, 2)}\n`,
-      );
-      promoted = produced.length;
-      console.log(`\npromoted ${promoted} captures + SHA256SUMS + MANIFEST.json`);
     } else {
       console.error("\nFINAL_SCREENSHOTS_WRITTEN=0 · SHA256SUMS_WRITTEN=false");
     }

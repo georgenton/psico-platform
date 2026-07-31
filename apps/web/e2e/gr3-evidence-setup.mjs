@@ -32,7 +32,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -165,13 +165,21 @@ async function run(admin, handOff) {
     },
   );
 
-  // From a CLEAN checkout there is no `dist/`. Build it rather than depending
-  // on a leftover from an earlier run — evidence that only works on a warm
-  // machine is not evidence.
-  const backfillPath = join(API_DIR, "dist", "content-core", "backfill.js");
+  // §5 — always build. The presence of `dist/` proves only that SOMEONE built
+  // SOMETHING here once; it says nothing about which commit produced it. A
+  // backfill compiled from a different SHA than the one under audit would make
+  // the evidence describe code that is not in the PR, and the failure mode is
+  // silent. So the artifact is removed and rebuilt every run, and the cost of
+  // a rebuild is the price of the SHA meaning what it says.
+  const distDir = join(API_DIR, "dist");
+  rmSync(distDir, { recursive: true, force: true });
+  console.log("building the API from the current checkout…");
+  execSync("pnpm build", { cwd: API_DIR, stdio: "inherit" });
+  console.log("API_BUILT_FOR_EVIDENCE_SHA=true STALE_DIST_REUSED=false");
+
+  const backfillPath = join(distDir, "content-core", "backfill.js");
   if (!existsSync(backfillPath)) {
-    console.log("building the API (no dist/ in this checkout)…");
-    execSync("pnpm build", { cwd: API_DIR, stdio: "inherit" });
+    throw new Error("the build did not produce content-core/backfill.js");
   }
   const { backfillContentCore } = require(backfillPath);
   await backfillContentCore(prisma);
@@ -181,10 +189,13 @@ async function run(admin, handOff) {
   if (!passwordHash || passwordHash.length < 20) {
     throw new Error("refusing to create an account with an empty hash");
   }
+  // A neutral display name: the topbar renders it, so it lands in the
+  // captures. Nothing about the product changes for real users — this is the
+  // name of one synthetic row in a throwaway database.
   const user = await prisma.user.create({
     data: {
       email: EMAIL,
-      name: "GR3 Evidence",
+      name: "Lectora",
       passwordHash,
       plan: "PRO",
       role: "USER",
@@ -199,7 +210,10 @@ async function run(admin, handOff) {
     },
   });
 
-  console.log(`user ${user.email} (${user.id})`);
+  // Neither the address nor the id: the log is read by whoever audits this,
+  // and an identifier printed once is an identifier that can be pasted twice.
+  if (!user.id) throw new Error("the synthetic account was not created");
+  console.log("syntheticUserCreated=true");
   // Never the URL: it carries the superuser credential.
   console.log("databaseCreated=true");
 }

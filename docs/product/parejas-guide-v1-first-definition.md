@@ -2,8 +2,9 @@
 
 ```
 BOOK_SLUG=parejas-que-perduran
-CHAPTER_ORDER=2
-BOOK_CHAPTER_LABEL=Capítulo 1 del libro
+BOOK_CHAPTER_NUMBER=1
+PLATFORM_CHAPTER_ORDER=2
+CHAPTER_ORDER=2                 # alias histórico de PLATFORM_CHAPTER_ORDER
 PRACTICE_SOURCE_HEADING=Ejercicio 3: El Mapa de las Miradas
 PRACTICE_SOURCE_MATCH_COUNT=1
 GUIDE_PURPOSE=DEMO
@@ -17,6 +18,11 @@ RECALL_KEY=pqp-c1-recall-contacto-sostenido
 GUIDE_KEY=pqp-c1-contacto-sostenido
 GUIDE_VERSION=1
 
+PAREJAS_LEARNING_CATALOG_CODE_COMPLETE=true
+PAREJAS_LEARNING_ACTIVATION_CLI_AVAILABLE=true
+PAREJAS_LEARNING_ACTIVATION_TESTED=true
+
+PAREJAS_PRODUCTION_TARGET_ROWS_CREATED=false
 PAREJAS_GUIDE_CODE_COMPLETE=false
 PAREJAS_GUIDE_TARGETS_MATERIALIZED_IN_PRODUCTION=false
 PAREJAS_GUIDE_AVAILABLE_IN_PRODUCTION=false
@@ -102,12 +108,18 @@ tres targets resuelven contra **filas de base de datos** (`Concept`,
 `ConceptLink`, `Exercise`), y `parejas-que-perduran` entró a producción por el
 bootstrap de Content Core, que deliberadamente no crea ninguna de ellas.
 
+El activador ya existe —`content:book:activate-learning`, documentado en
+[book-learning-activation.md](../operations/book-learning-activation.md)— y el
+catálogo editorial ya está en código. Lo que falta es correrlo y, después, la
+`GuideDefinition` con su anchor.
+
 Orden para activarla:
 
 ```
 deploy code
-→ dry-run del activador editorial
-→ apply del activador
+→ dry-run del activador editorial       ← el comando ya existe
+→ apply del activador                   ← crea Concept + ConceptLink + 2 Exercise
+→ GuideDefinition + anchor (código)     ← todavía no escrito
 → verificar disponibilidad de la Guide
 → smoke con la cuenta piloto
 ```

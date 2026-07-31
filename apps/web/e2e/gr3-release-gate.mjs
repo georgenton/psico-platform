@@ -27,13 +27,25 @@
  *   database     the disposable `gr3_evidence` database, created by
  *                `gr3-evidence-setup.mjs` and dropped in `finally`.
  *
- * Teardown runs even when the gate fails. A failed run must not leave a
- * database, a server or a rate-limit store behind.
+ * Teardown runs even when the gate fails, and it is VERIFIED: a signal sent is
+ * not a process stopped, and a drop attempted is not a database gone. The exit
+ * code is `PRIMARY_GATE_PASS && TEARDOWN_PASS`, so a run that leaves something
+ * behind cannot report success.
+ *
+ * `--keep-database` retains the database for debugging, and requires
+ * `EVIDENCE_DEBUG_RETAIN_ACK=KEEP_GR3_EVIDENCE_FOR_DEBUG` — refused at startup,
+ * before anything is built.
  */
 
 import { spawn, execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  assertRetainAllowed,
+  stopProcess,
+  teardownDatabase,
+  teardownReport,
+} from "./gr3-teardown.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..", "..");
@@ -48,6 +60,8 @@ const EMAIL = process.env.EVIDENCE_EMAIL ?? "gr3.shots@local.test";
 const PASSWORD = process.env.EVIDENCE_PASSWORD;
 const SHOTS = process.argv.includes("--shots");
 const KEEP = process.argv.includes("--keep-database");
+const RETAIN_ACK_ENV = process.env.EVIDENCE_DEBUG_RETAIN_ACK ?? null;
+const DB_NAME = process.env.EVIDENCE_DB ?? "gr3_evidence";
 
 function refuse(reason) {
   console.error(`refusing: ${reason}`);
@@ -57,6 +71,13 @@ if (process.env.NODE_ENV === "production") refuse("NODE_ENV=production");
 if (process.env.VERCEL_ENV === "production") refuse("VERCEL_ENV=production");
 if (!PASSWORD) refuse("EVIDENCE_PASSWORD is required");
 if (!process.env.EVIDENCE_ADMIN_URL) refuse("EVIDENCE_ADMIN_URL is required");
+// Before the database exists, not after: keeping one has to be asked for.
+try {
+  assertRetainAllowed({ keep: KEEP, ack: RETAIN_ACK_ENV });
+} catch (err) {
+  console.error(`STARTUP_REFUSED=true DATABASE_CREATED=false`);
+  refuse(err.message);
+}
 
 /**
  * The API's own env, minus everything that would reach shared infrastructure.
@@ -104,21 +125,10 @@ function run(cmd, args, opts) {
   return child;
 }
 
-async function stop(child, label) {
-  if (!child || child.exitCode !== null) return true;
-  child.kill("SIGTERM");
-  for (let i = 0; i < 50; i += 1) {
-    if (child.exitCode !== null) return true;
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  child.kill("SIGKILL");
-  console.error(`${label} needed SIGKILL`);
-  return true;
-}
-
 let api = null;
 let web = null;
-let gateFailed = false;
+let primaryPass = true;
+let exitCode = 1;
 
 try {
   // ── 1. The disposable database, built from THIS checkout ─────────────────
@@ -176,36 +186,37 @@ try {
     },
   });
 } catch (err) {
-  gateFailed = true;
-  console.error(`\ngate failed: ${err.message}`);
+  primaryPass = false;
+  // Kept, and printed, even if teardown fails too: the first failure is the
+  // one that explains the run.
+  console.error(`\nPRIMARY_GATE_FAILURE: ${err.message}`);
 } finally {
-  // ── 5. Give everything back ──────────────────────────────────────────────
-  const apiStopped = await stop(api, "the API");
-  const webStopped = await stop(web, "the web app");
+  // ── 5. Give everything back, and prove it ────────────────────────────────
+  const apiStop = await stopProcess(api);
+  const webStop = await stopProcess(web);
+  if (!apiStop.stopped) console.error(`the API did not stop: ${apiStop.how}`);
+  if (!webStop.stopped) console.error(`the web app did not stop: ${webStop.how}`);
 
-  let dropped = false;
-  if (!KEEP) {
-    try {
+  const db = await teardownDatabase({
+    keep: KEEP,
+    ack: RETAIN_ACK_ENV,
+    dbName: DB_NAME,
+    drop: () =>
       execFileSync("node", [join(HERE, "gr3-evidence-setup.mjs"), "--drop"], {
         cwd: REPO,
         stdio: "inherit",
-      });
-      dropped = true;
-    } catch {
-      console.error("the disposable database could not be dropped — drop it by hand");
-    }
+      }),
+  });
+  if (db.retained) {
+    // The name is safe to print; the connection string is not.
+    console.log(`\nretained for debugging: ${DB_NAME}`);
+    console.log(`drop it with: EVIDENCE_DISPOSABLE_ACK=DROP_GR3_EVIDENCE_ONLY node apps/web/e2e/gr3-evidence-setup.mjs --drop`);
   }
+  if (db.reason) console.error(`\n${db.reason}`);
 
-  console.log(
-    [
-      "",
-      `API_PROCESS_STOPPED=${apiStopped}`,
-      `WEB_PROCESS_STOPPED=${webStopped}`,
-      // The store lived inside the API process; stopping it removed it.
-      `RATE_LIMIT_STORE_REMOVED=${apiStopped}`,
-      `EVIDENCE_DATABASE_DROPPED_OR_EXPLICITLY_RETAINED_FOR_DEBUG=${KEEP ? "retained" : !dropped}`,
-    ].join("\n"),
-  );
+  const report = teardownReport({ api: apiStop, web: webStop, db, primary: primaryPass });
+  console.log(`\n${report.lines.join("\n")}`);
+  exitCode = report.finalPass ? 0 : 1;
 }
 
-process.exit(gateFailed ? 1 : 0);
+process.exit(exitCode);

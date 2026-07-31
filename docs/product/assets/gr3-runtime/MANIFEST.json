@@ -1,0 +1,45 @@
+{
+  "gitSha": "f83a69f68de3c4010506fada6302c5714dc94b46",
+  "screenshots": [
+    {
+      "file": "01-reader-guide-selector.webp",
+      "viewport": "1365x900",
+      "sha256": "04aa572d720a8e3a6a6dfd62add94e0ddd0ad8ff8125d20a037c2695ebeec505"
+    },
+    {
+      "file": "02-reader-guide-cover.webp",
+      "viewport": "1365x900",
+      "sha256": "78be8f8c7d617b1607c65557e37dcdf9585e3d4b1f14d0acc7d9d4b5204431f6"
+    },
+    {
+      "file": "03-reader-guide-anchor-highlight.webp",
+      "viewport": "1365x900",
+      "sha256": "6e45cf2cc615f040ac173ff8d3bbb33cfe835aee41e85f336f0af61c5879056b"
+    },
+    {
+      "file": "04-reader-guide-practice.webp",
+      "viewport": "1365x900",
+      "sha256": "cfccf5911f3386c714f93b8a90fc41a7ec2e5075293fea6b0b40fe16f376bc6c"
+    },
+    {
+      "file": "05-reader-guide-recall.webp",
+      "viewport": "1365x900",
+      "sha256": "7f1951dd20ca1f0483845e56d3480e64aadb8a427f19e20cd3bc4f35d13a65d3"
+    },
+    {
+      "file": "06-reader-guide-feedback.webp",
+      "viewport": "1365x900",
+      "sha256": "1e6bb8d864095aa28e211faae01d7bff4ed51a18f74dfb698745db2f1fe85808"
+    },
+    {
+      "file": "07-reader-guide-completed-resonance.webp",
+      "viewport": "1365x900",
+      "sha256": "3e2a83d01d3341cd137ca50cd32b64904d7c4b6eac5890ee04e2a89d1678dc4e"
+    },
+    {
+      "file": "08-reader-guide-mobile-sheet.webp",
+      "viewport": "390x844",
+      "sha256": "130a9d0d737c92caeb307c6bffa8c40caadafe66f887a3f114174e6f0f1a2121"
+    }
+  ]
+}

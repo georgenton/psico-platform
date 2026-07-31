@@ -234,9 +234,10 @@ configuran juntas. Un estado `partial` sí sería bloqueo.
 
 ## 8. Runbooks de subida (redactados, no ejecutados)
 
-Ninguno de los dos se puede ejecutar todavía: falta el máster. Se dejan escritos
-para que el día que exista, el camino no se improvise. Sin secretos en los
-comandos; los valores viven en el entorno del servicio.
+Ninguno de los dos runbooks puede ejecutarse todavía: no se localizó ni se
+confirmó un máster listo para cargar. Se dejan escritos para que el día que
+exista, el camino no se improvise. Sin secretos en los comandos; los valores
+viven en el entorno del servicio.
 
 ### AUDIO_UPLOAD_RUNBOOK
 

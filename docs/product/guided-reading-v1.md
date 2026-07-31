@@ -1410,9 +1410,10 @@ SEPARATE_MEDIA_PROGRESS_TABLE=false
 SECOND_BOOK=false
 ```
 
-Los masters editoriales no existen todavía: el podcast y el video quedan `DRAFT`
-y la interfaz dice «En producción». El paquete pendiente y el proceso para
-activarlo están en [`chapter-01-media-package.md`](chapter-01-media-package.md).
+No hay un máster editorial confirmado todavía: el podcast y el video quedan
+`DRAFT` y la interfaz dice «En producción». El paquete pendiente y el proceso
+para activarlo están en
+[`chapter-01-media-package.md`](chapter-01-media-package.md).
 
 ---
 

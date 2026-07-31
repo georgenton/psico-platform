@@ -17,9 +17,10 @@ import { CHAPTER_CONCEPTS } from "@psico/types";
  *     silent `update`. Changing what a concept MEANS is an editorial act; the
  *     key is persisted on `Resonance` rows, so rewriting its label under a live
  *     key would retro-relabel confirmations the user already made. Drift throws;
- *   - a catalogued chapter with no canonical unit no longer `continue`s. The
- *     catalog is an approved production definition: a missing unit is an
- *     inconsistency, not an optional row.
+ *   - a catalogued chapter with no canonical unit is no longer skipped
+ *     SILENTLY. What happens is now the caller's explicit policy
+ *     (`MissingUnitPolicy`), and under `skip` the count comes back in the
+ *     stats instead of vanishing.
  *
  * A book ABSENT from the catalog contributes zero rows — the only allowed no-op.
  *
@@ -57,7 +58,27 @@ export interface ConceptIngestStats {
   conceptsVerified: number;
   conceptLinksCreated: number;
   conceptLinksVerified: number;
+  /** Catalogued chapters whose unit was absent, under the `skip` policy.
+   * Always 0 under `throw`. Never silent: the caller receives the count. */
+  conceptsSkippedMissingUnit: number;
 }
+
+/**
+ * What to do when the catalog names a chapter the book has no unit for.
+ *
+ * `throw` — the caller asserts the book is fully ingested and asked for its
+ * whole catalog. A gap is an inconsistency: refuse. This is what the learning
+ * ACTIVATION uses, because an operator naming a book expects every approved
+ * target to exist afterwards.
+ *
+ * `skip` — the caller cannot know whether the book is fully ingested. This is
+ * what the BACKFILL uses: it runs over every book to build the READING surface,
+ * and a concept catalog that names a chapter not yet ingested is a
+ * forward-looking catalog, not a broken database. Blocking a book's reading
+ * surface over a teaching row would be the wrong trade. The skip is COUNTED and
+ * returned — the caller always learns it happened.
+ */
+export type MissingUnitPolicy = "throw" | "skip";
 
 /**
  * The link's identity is derived from the concept key, so a rerun finds the
@@ -114,6 +135,7 @@ export async function ingestBookConcepts(
   tx: ConceptIngestDb,
   bookSlug: string,
   unitIdByOrder: ReadonlyMap<number, string>,
+  onMissingUnit: MissingUnitPolicy = "throw",
 ): Promise<ConceptIngestStats> {
   assertConceptCatalogValid(); // pure, before any DB touch
 
@@ -122,6 +144,7 @@ export async function ingestBookConcepts(
     conceptsVerified: 0,
     conceptLinksCreated: 0,
     conceptLinksVerified: 0,
+    conceptsSkippedMissingUnit: 0,
   };
 
   const bookConcepts = CHAPTER_CONCEPTS[bookSlug];
@@ -129,9 +152,13 @@ export async function ingestBookConcepts(
 
   for (const [orderStr, concept] of Object.entries(bookConcepts)) {
     const unitId = unitIdByOrder.get(Number(orderStr));
-    // An approved definition whose unit is absent is an inconsistency — fail
-    // closed rather than quietly dropping a chapter's concept.
-    if (!unitId) throw new ConceptIngestError("CONCEPT_INGEST_UNIT_MISSING");
+    if (!unitId) {
+      if (onMissingUnit === "throw") {
+        throw new ConceptIngestError("CONCEPT_INGEST_UNIT_MISSING");
+      }
+      stats.conceptsSkippedMissingUnit += 1;
+      continue;
+    }
 
     const existing = await tx.concept.findUnique({
       where: { conceptKey: concept.key },

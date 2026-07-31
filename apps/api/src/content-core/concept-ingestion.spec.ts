@@ -106,6 +106,7 @@ describe("ingestBookConcepts", () => {
       conceptsVerified: 0,
       conceptLinksCreated: 0,
       conceptLinksVerified: 0,
+      conceptsSkippedMissingUnit: 0,
     });
   });
 
@@ -201,12 +202,38 @@ describe("ingestBookConcepts", () => {
     );
   });
 
-  it("fails closed when a catalogued chapter has no unit — never a silent skip", async () => {
+  it("fails closed by default when a catalogued chapter has no unit", async () => {
     const { db, created } = makeDb({});
     await expect(ingestBookConcepts(db, BOOK, new Map())).rejects.toThrow(
       /CONCEPT_INGEST_UNIT_MISSING/,
     );
     expect(created).toEqual([]);
+  });
+
+  it("under the skip policy, counts the gap instead of hiding it", async () => {
+    const { db, created } = makeDb({});
+    const declared = Object.keys(CHAPTER_CONCEPTS[BOOK]).length;
+    const stats = await ingestBookConcepts(db, BOOK, new Map(), "skip");
+
+    expect(stats.conceptsSkippedMissingUnit).toBe(declared);
+    expect(stats.conceptsCreated).toBe(0);
+    expect(created).toEqual([]);
+  });
+
+  it("under the skip policy, still writes the chapters that DO have a unit", async () => {
+    const { db, created } = makeDb({});
+    const partial = new Map([[1, "u-1"]]); // only the first chapter is ingested
+    const stats = await ingestBookConcepts(db, BOOK, partial, "skip");
+
+    expect(stats.conceptsCreated).toBe(1);
+    expect(stats.conceptLinksCreated).toBe(1);
+    expect(stats.conceptsSkippedMissingUnit).toBe(
+      Object.keys(CHAPTER_CONCEPTS[BOOK]).length - 1,
+    );
+    expect(created).toEqual([
+      `concept:${CHAPTER_CONCEPTS[BOOK][1].key}`,
+      `link:${conceptLinkId(CHAPTER_CONCEPTS[BOOK][1].key)}`,
+    ]);
   });
 
   it("keeps errors value-free — the message is exactly the code", async () => {

@@ -45,6 +45,8 @@ export interface BackfillStats {
   blockVersions: number;
   concepts: number;
   conceptLinks: number;
+  /** Catalogued chapters this Book has no unit for — surfaced, not swallowed. */
+  conceptsSkippedMissingUnit: number;
 }
 
 /** Test-only hook: throw after N units within a Book's transaction (to exercise
@@ -69,6 +71,7 @@ export async function backfillContentCore(
     blockVersions: 0,
     concepts: 0,
     conceptLinks: 0,
+    conceptsSkippedMissingUnit: 0,
   };
 
   const books = await prisma.book.findMany({ orderBy: { slug: "asc" } });
@@ -246,15 +249,24 @@ export async function backfillContentCore(
         // Shared with the learning activation so an already-bootstrapped Book
         // materializes the SAME rows the same way. Fails closed on drift or on
         // a catalogued chapter without a unit — see `concept-ingestion.ts`.
+        // `skip`: the backfill walks EVERY book to build the reading surface
+        // and cannot know whether a book is fully ingested yet. A catalogued
+        // chapter with no unit is a forward-looking catalog, not a broken
+        // database — refusing here would block reading over a teaching row.
+        // The skip is counted, never silent. The learning ACTIVATION, which is
+        // told a specific book and expects its whole catalog, uses `throw`.
         const conceptStats = await ingestBookConcepts(
           tx,
           book.slug,
           unitIdByOrder,
+          "skip",
         );
         stats.concepts +=
           conceptStats.conceptsCreated + conceptStats.conceptsVerified;
         stats.conceptLinks +=
           conceptStats.conceptLinksCreated + conceptStats.conceptLinksVerified;
+        stats.conceptsSkippedMissingUnit +=
+          conceptStats.conceptsSkippedMissingUnit;
 
         // 8.5 CC-7.4B.2 — editorially-approved Exercise rows (practice + recall)
         // for the first Guide V1 unit. Inside this Book's transaction so any

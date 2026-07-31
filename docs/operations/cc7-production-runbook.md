@@ -1,19 +1,27 @@
 # CC-7 — Production runbook (off-first)
 
 ```
-PRODUCTION_SYNC_STATUS=NOT_STARTED
-GUIDE_PRODUCTION_DEPLOYED=false
-GUIDE_PILOT_USERS_CONFIGURED=false
-GUIDE_INITIAL_PRODUCTION_MODE=off
+PRODUCTION_SYNC_STATUS=COMPLETED
+PRODUCTION_SHA=042afa523efce4639755c0a1998e1ed73bc7ab42
+PRODUCTION_DEPLOYED_AT=2026-07-31
+GR3_PRODUCTION_PILOT_SMOKE=PASS
+
+GUIDE_PRODUCTION_DEPLOYED=true
+GUIDE_PILOT_USERS_CONFIGURED=true
+GUIDE_RECOMMENDED_INITIAL_PRODUCTION_MODE=off
+GUIDE_ACTUAL_MODE_AT_2026_07_31_DEPLOY=pilot
 GUIDE_MODE_CHANGE_REQUIRES_RESTART=true
 ENV_OFF_FIRST_PLAN_READY=true
 ENV_OFF_FIRST_APPLIED=false
 ENVIRONMENT_CHANGED=false
-DEPLOY_EXECUTED=false
+DEPLOY_EXECUTED=true
 ```
 
-Nothing in this runbook has been executed. It is the plan to be authorised
-separately. Evidence: [cc7-production-readiness.md](cc7-production-readiness.md).
+El release descrito aquí **ya se ejecutó** el 2026-07-31 (`042afa52`) — ver
+«Cierre» al final. Lo que sigue sin ejecutarse es la postura _off-first_: el modo
+ya estaba en `pilot` cuando se desplegó, así que §1 describe el procedimiento
+para un entorno que arranque de cero, no lo que ocurrió.
+Evidencia: [cc7-production-readiness.md](cc7-production-readiness.md).
 Smoke matrices: [cc7-production-smoke.md](cc7-production-smoke.md).
 
 Every smoke count is taken **scoped to a dedicated smoke actor** (and, for
@@ -310,3 +318,41 @@ Any one of these justifies rollback:
 
 The Guide-specific triggers (gate integrity, Map delta) are satisfied by the
 kill switch. The infrastructure triggers need the code rollback.
+
+---
+
+## Cierre — GR-2 + GR-3 en producción (2026-07-31)
+
+El sync `develop → main` se ejecutó como **merge commit** (`042afa52`, dos
+padres), no como squash: era el punto del ejercicio. `develop` quedó como
+ancestro real de `main` por primera vez, así que las promociones siguientes
+parten de una base compartida en vez de re-derivar el árbol a mano.
+
+```
+MERGE_METHOD_USED=merge
+MERGE_COMMIT=042afa523efce4639755c0a1998e1ed73bc7ab42
+MERGE_PARENTS=c7295cdc(main) + 8758c777(PR head)
+DEVELOP_IS_ANCESTOR_OF_MAIN=true
+
+MIGRATIONS_APPLIED=2
+  20260729120000_gr2_chapter_media_completed
+  20260730120000_gr3_resonance_source_guide
+
+API_DEPLOYMENT_STATUS=success
+WORKER_DEPLOYMENT_STATUS=success
+WEB_DEPLOYMENT_STATUS=ready
+POST_DEPLOY_ERRORS=0
+```
+
+Ambas migraciones son `ALTER TYPE … ADD VALUE` aditivas y se aplicaron en el
+`preDeployCommand`; no reescriben filas ni admiten `down`.
+
+**El modo ya estaba en `pilot` antes de este deploy.** La secuencia off-first
+descrita arriba es la **recomendación** (`GUIDE_RECOMMENDED_INITIAL_PRODUCTION_MODE=off`),
+no lo que ocurrió (`GUIDE_ACTUAL_MODE_AT_2026_07_31_DEPLOY=pilot`). Se conserva
+como procedimiento para un entorno que arranque de cero.
+
+El smoke del recorrido completo está en
+[`../product/guide-v1-pilot-rollout.md`](../product/guide-v1-pilot-rollout.md);
+el contrato de controles, en
+[`../product/guided-reading-v1.md`](../product/guided-reading-v1.md) §8.6.

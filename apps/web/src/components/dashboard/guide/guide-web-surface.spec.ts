@@ -103,12 +103,32 @@ describe("ratchet · guide web surface", () => {
     for (const file of GUIDE_FILES) {
       const source = stripComments(readFileSync(file, "utf8"));
       for (const key of forbidden) {
+        // GR-3 — the panel confirms a RESONANCE, which is a different contract
+        // on a different endpoint: `POST /resonances` takes the concept key as
+        // its payload, by design and with the reader's explicit tap. The ban is
+        // about what a GUIDE command may carry, so it is checked on that call
+        // path below rather than on the whole file.
+        if (file.endsWith("ReaderGuidePanel.tsx") && key === "conceptKey") {
+          continue;
+        }
         expect(
           source.includes(key),
           `${relative(GUIDE_DIR, file)} → ${key}`,
         ).toBe(false);
       }
     }
+
+    // …and the exemption is narrow: the panel's only network call is the
+    // resonance, and it never reaches a Guide route.
+    const panel = stripComments(
+      readFileSync(join(GUIDE_DIR, "ReaderGuidePanel.tsx"), "utf8"),
+    );
+    expect(panel).not.toMatch(/guideApi\./);
+    expect(panel).not.toMatch(/\/guide\//);
+    const fetches = [
+      ...panel.matchAll(/fetch\(`\$\{apiBase\}(\/[a-z-]+)/g),
+    ].map((m) => m[1]);
+    expect(fetches).toEqual(["/resonances"]);
   });
 
   it("never writes progress: no client-side counter feeds a transition", () => {
@@ -123,9 +143,13 @@ describe("ratchet · guide web surface", () => {
     }
   });
 
-  it("the only guideApi calls are the five commands", () => {
-    const player = readFileSync(join(GUIDE_DIR, "GuidePlayer.tsx"), "utf8");
-    const calls = [...player.matchAll(/guideApi\.([a-zA-Z]+)\(/g)].map(
+  it("the only guideApi calls are the five commands, from ONE file", () => {
+    // GR-3 — the run moved into `use-guide-run`, shared by the standalone
+    // route and the reader panel. Asserting that it is the SOLE caller is the
+    // point: two copies of this logic would eventually disagree about whether
+    // a command had applied, which is exactly what idempotency prevents.
+    const runner = readFileSync(join(GUIDE_DIR, "use-guide-run.ts"), "utf8");
+    const calls = [...runner.matchAll(/guideApi\.([a-zA-Z]+)\(/g)].map(
       (m) => m[1]!,
     );
     expect([...new Set(calls)].sort()).toEqual([
@@ -136,8 +160,18 @@ describe("ratchet · guide web surface", () => {
       "submitGuideStepRecall",
     ]);
     // No read endpoint exists — the UI must not invent one.
-    expect(player).not.toMatch(/guideApi\.get/);
-    expect(player).not.toMatch(/setInterval|setTimeout\s*\(\s*.*poll/i);
+    expect(runner).not.toMatch(/guideApi\.get/);
+    expect(runner).not.toMatch(/setInterval|setTimeout\s*\(\s*.*poll/i);
+
+    // Nobody else on the surface talks to the Guide API directly.
+    for (const file of GUIDE_FILES) {
+      if (file.endsWith("use-guide-run.ts")) continue;
+      const source = stripComments(readFileSync(file, "utf8"));
+      expect(
+        /guideApi\.[a-zA-Z]+\(/.test(source),
+        `${relative(GUIDE_DIR, file)} calls guideApi directly`,
+      ).toBe(false);
+    }
   });
 
   it("shows no correctness verdict anywhere on the surface", () => {

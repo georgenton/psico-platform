@@ -61,8 +61,14 @@ export function chapterConcept(
 
 // ─── Resonance wire types ────────────────────────────────────────────────────
 
-/** Where the confirmation happened (provenance, shown on the map). */
-export type ResonanceSource = "highlight" | "eco" | "exercise";
+/**
+ * Where the confirmation happened (provenance, shown on the map).
+ *
+ * `guide` (GR-3) is its own value rather than a reuse of `highlight` or
+ * `exercise`: "Mis resonancias" states where each confirmation came from, and
+ * borrowing a value would make that line untrue.
+ */
+export type ResonanceSource = "highlight" | "eco" | "exercise" | "guide";
 
 export interface ResonanceSummary {
   id: string;

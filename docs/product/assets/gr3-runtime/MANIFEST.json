@@ -1,0 +1,45 @@
+{
+  "gitSha": "a8bb0880d14546eb2ce78efccb9811a15cd3758e",
+  "screenshots": [
+    {
+      "file": "01-reader-guide-selector.webp",
+      "viewport": "1365x900",
+      "sha256": "b279e3c58826f6d86b3662dfe8a367a37928bf97d8c9e06041b9b64e9f450dc7"
+    },
+    {
+      "file": "02-reader-guide-cover.webp",
+      "viewport": "1365x900",
+      "sha256": "727d4a9c8e94a0b5dbdd6aa6ff88696b5d56c0f696c3edf391674090d3300007"
+    },
+    {
+      "file": "03-reader-guide-anchor-highlight.webp",
+      "viewport": "1365x900",
+      "sha256": "13561da90b14b1d6ec8c091dd7ca8a46522b9bd791920757a5e69d9e89a47a1b"
+    },
+    {
+      "file": "04-reader-guide-practice.webp",
+      "viewport": "1365x900",
+      "sha256": "efdae72cc056bfcff2e59798fb6bed8984b21f500b72cb601c4551c41e332490"
+    },
+    {
+      "file": "05-reader-guide-recall.webp",
+      "viewport": "1365x900",
+      "sha256": "6c59e0c032bcdb2f5fccdabada9c815b4f16ee86b1df95da1e4393c593486d84"
+    },
+    {
+      "file": "06-reader-guide-feedback.webp",
+      "viewport": "1365x900",
+      "sha256": "fa96e8baa2b992b0f595ea4119c445edb9beaac5d62f97f172f7d1bbbd360cac"
+    },
+    {
+      "file": "07-reader-guide-completed-resonance.webp",
+      "viewport": "1365x900",
+      "sha256": "4aa74bae6d734183c2470b50ad952d84f653e8deb730d97be81f1f3be6767093"
+    },
+    {
+      "file": "08-reader-guide-mobile-sheet.webp",
+      "viewport": "390x844",
+      "sha256": "6e626b29fc801fc48e9a31070ac8e10e464ac482a46808e1531c8040e598aa18"
+    }
+  ]
+}

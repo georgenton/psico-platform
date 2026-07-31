@@ -18,6 +18,11 @@ interface Props {
   annotationCount: number;
   /** Receives a ref to the block element so the heartbeat hook can observe its intersection. */
   registerRef: (blockId: string, el: HTMLElement | null) => void;
+  /**
+   * GR-3 — this block was just pointed at from the guided-reading panel. It is
+   * a passing hint, NOT a mark: nothing is persisted, and it fades on its own.
+   */
+  flash?: boolean;
 }
 
 /**
@@ -53,6 +58,7 @@ export function BlockRenderer({
   onAnnotateClick,
   annotationCount,
   registerRef,
+  flash,
 }: Props) {
   // Video capsule (VIDEO kind, or a legacy 🎬 EXERCISE mock). Rendered by a
   // dedicated player; no highlight/annotation overlay applies.
@@ -71,6 +77,17 @@ export function BlockRenderer({
     "data-block-id": block.id,
     "data-block-kind": block.kind,
     ref: (el: HTMLElement | null) => registerRef(block.id, el),
+    ...(flash
+      ? {
+          "data-guide-flash": "true",
+          style: {
+            background: "var(--color-lavender-50, #f4f1fa)",
+            boxShadow: "0 0 0 6px var(--color-lavender-50, #f4f1fa)",
+            borderRadius: 6,
+            transition: "background 400ms ease, box-shadow 400ms ease",
+          } as React.CSSProperties,
+        }
+      : {}),
   };
 
   // Annotation indicator — small button in the gutter for blocks that have

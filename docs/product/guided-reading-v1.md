@@ -1,10 +1,10 @@
 # Guided Reading V1 — Blueprint canónico
 
 ```
-GUIDED_READING_SPEC_VERSION=0.8
+GUIDED_READING_SPEC_VERSION=1.0
 
 GUIDED_READING_BLUEPRINT_STATUS=APPROVED
-GUIDED_READING_IMPLEMENTATION_STATUS=NOT_STARTED
+GUIDED_READING_IMPLEMENTATION_STATUS=IN_REVIEW
 GUIDED_READING_VISUAL_PROTOTYPE_STATUS=APPROVED
 
 STORYBOARD_STATUS=APPROVED
@@ -21,8 +21,8 @@ GR1_FINAL_VISUAL_APPROVAL_BY_JORGE=true
 GR1_FINAL_VISUAL_APPROVAL_DATE=2026-07-29
 GR1_STATUS=CLOSED
 
-GR2_STATUS=IN_REVIEW
-GR2_IMPLEMENTATION_STATUS=IN_REVIEW
+GR2_STATUS=CLOSED
+GR2_IMPLEMENTATION_STATUS=CLOSED
 GR2_MEDIA_STACK_APPROVED=true
 GR2_VIDEO_PROVIDER=CLOUDFLARE_STREAM
 GR2_OBJECT_STORAGE=CLOUDFLARE_R2
@@ -34,7 +34,7 @@ READER_MEDIA_MOBILE_IMPLEMENTED=true
 
 GUIDED_READING_DECISION_PACKET_APPROVED=true
 
-LAST_UPDATED=2026-07-29
+LAST_UPDATED=2026-07-31
 
 PRODUCTION_RUNTIME_CHANGED=false
 PILOT_CONFIGURATION_CHANGED=false
@@ -65,10 +65,13 @@ Jorge aprobó el paquete de decisiones el 2026-07-29. Este documento es la
 **autoridad de producto** —experiencia, presentación multimedia y límites de
 datos— y entra en vigor al mergearse a `develop`.
 
-La aprobación autoriza el prototipo visual GR-1.
+La aprobación autoriza el prototipo visual GR-1. La integración runtime GR-3
+quedó autorizada después, con el anchor editorial ya decidido:
 
-No autoriza todavía la integración runtime GR-3, porque el `anchorBlockKey`
-editorial definitivo continúa pendiente.
+```
+GR3_IMPLEMENTATION_AUTHORIZED_BY_JORGE=true
+GR3_RUNTIME_ANCHOR_STATUS=IMPLEMENTED_RELEASE_GATE_PASSED
+```
 
 Los ADR y contratos existentes **siguen siendo autoridad** sobre lifecycle,
 persistencia, idempotencia, entitlement, receipts, locks y rollout. Cuando este
@@ -321,7 +324,7 @@ LEGACY_READER_MODE_VISIBLE_LABEL=Escuchar
 LEGACY_READER_MODE_LOCALSTORAGE_MIGRATION=false
 
 GR1_VISUAL_ANCHOR_PLACEHOLDER_ALLOWED=true
-GR3_RUNTIME_ANCHOR_STATUS=PENDING_EDITORIAL_BLOCK_KEY
+GR3_RUNTIME_ANCHOR_STATUS=IMPLEMENTED_PENDING_RELEASE_GATE
 
 SECOND_GUIDE_PRODUCTIVE_ALLOWED=false
 SECOND_BOOK_GUIDED_READING_ALLOWED=false
@@ -335,7 +338,7 @@ SECOND_BOOK_GUIDED_READING_ALLOWED=false
 - No se migra el valor `localStorage["psico:lector:mode"]`; el interno sigue
   siendo `guia` y la etiqueta visible pasa a «Escuchar».
 - El prototipo puede usar un anchor visual fixture.
-- GR-3 no puede integrar el anchor real mientras `ANCHOR_BLOCK_KEY=TBD`.
+- El anchor editorial está aprobado (§ anchor); GR-3 ya puede integrarlo.
 
 ---
 
@@ -420,17 +423,27 @@ la reacción corporal y la comprensión consciente.
 ```
 
 ```
-ANCHOR_EDITORIAL_STATUS=PENDING_APPROVAL
-ANCHOR_BLOCK_KEY=TBD
-ANCHOR_SOURCE_HEADING=TBD
+ANCHOR_EDITORIAL_STATUS=APPROVED
+ANCHOR_SOURCE_HEADING=El cuerpo y la emoción
+ANCHOR_PASSAGE_LAST_SENTENCE=Nuestro cuerpo siente antes que nuestra mente entienda.
+ANCHOR_BLOCK_KEY_RESOLUTION=PER_ENVIRONMENT_FROM_CONTENT_CORE
 
 ANCHOR_BLOCKS_GR1=false
-ANCHOR_BLOCKS_GR3=true
+ANCHOR_BLOCKS_GR3=false
 ```
 
-La identidad estable del bloque ya existe (§1.1). Lo que falta es la decisión
-editorial: qué bloque exacto se ancla y qué rango se enfoca. Mientras sea `TBD`,
-la **integración runtime queda bloqueada**; el prototipo visual, no.
+La identidad estable del bloque ya existe (§1.1). La decisión editorial que
+faltaba está tomada: se ancla el **tercer párrafo de «El cuerpo y la emoción»**,
+el que describe adónde va la sangre con miedo, con enojo y con tristeza y cierra
+con «Nuestro cuerpo siente antes que nuestra mente entienda». Es la tesis del
+concepto en una sola frase, y vive bajo el encabezado que ya lleva su nombre.
+
+`ANCHOR_BLOCK_KEY` no se fija como literal aquí a propósito. El `blockKey` de
+Content Core se deriva del `ChapterBlock.id` (uuid v5 determinista, CC-1), así
+que su valor es **por entorno**: escribirlo como constante lo volvería falso en
+cuanto se ingiera el capítulo en otro sitio. La identidad que sí es estable —y
+la que este documento fija— es la **editorial**: encabezado + pasaje. El runtime
+resuelve el bloque desde ahí.
 
 Comportamiento objetivo:
 
@@ -589,18 +602,30 @@ Presentación:   conserva la escena visual dentro del checkpoint.
 
 Ejemplo: checkpoint `Concepto`, escena local `Pasaje anclado`.
 
-| Situación                       | Resultado                                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Recarga en el mismo navegador   | vuelve al pasaje anclado                                                                         |
-| Estado local ausente o corrupto | vuelve al inicio del checkpoint `Concepto`                                                       |
-| Otro dispositivo                | el servidor conserva `Concepto` pendiente; la presentación abre la primera escena del checkpoint |
+| Situación                       | Resultado                                                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Recarga en el mismo navegador   | vuelve al pasaje anclado                                                                                              |
+| Estado local ausente o corrupto | vuelve al inicio del checkpoint `Concepto`, dentro de la MISMA sesión                                                 |
+| Otro dispositivo                | no recupera la sesión, escena, checkpoint ni veredicto; muestra una nueva portada y requiere iniciar una sesión nueva |
 
 ```
+CROSS_DEVICE_RESUME_V1=false
 CROSS_DEVICE_SCENE_SYNC=false
-CROSS_DEVICE_CHECKPOINT_SYNC=true
+CROSS_DEVICE_CHECKPOINT_SYNC=false
+ANOTHER_DEVICE_BEHAVIOR=NEW_COVER_NEW_SESSION
 ```
 
-Nunca se reinicia toda la Guide por perder estado de presentación.
+Por qué otro dispositivo no recupera nada: la única forma de que un navegador
+vuelva a su sesión es reproducir la clave de idempotencia con la que la inició,
+y esa clave vive sólo en ese navegador. No existe endpoint de lectura del
+lifecycle, así que un segundo dispositivo no tiene forma de descubrir que hay
+una sesión abierta. Eso es el contrato de V1, no una limitación temporal.
+
+«Nunca se reinicia toda la Guide por perder estado de presentación» describe un
+caso más estrecho: la pérdida o corrupción del registro local **dentro de un
+navegador que todavía puede recuperar su sesión con su clave START**. Ahí el
+servidor sigue mandando sobre el checkpoint y sólo se pierde la escena visual.
+No dice nada sobre otros dispositivos, que no tienen sesión que reiniciar.
 
 ---
 
@@ -718,7 +743,7 @@ No se copian marcas, assets, capturas ni textos protegidos.
 NO CMS
 NO nuevo Guide lifecycle
 NO nuevas tablas
-NO migración
+NO nuevas migraciones del lifecycle Guide
 NO VIDEO_STEP en el primer MVP
 NO analítica segundo a segundo
 NO porcentaje de video obligatorio
@@ -730,6 +755,16 @@ NO segunda Guide productiva
 NO nuevo scoring del Mapa
 ```
 
+Una excepción, aprobada explícitamente y acotada: la procedencia de una
+resonancia confirmada dentro de una Guide. No toca el lifecycle Guide — añade
+un valor al enum `ResonanceSource` para que «Mis resonancias» pueda decir de
+dónde vino cada confirmación sin mentir.
+
+```
+RESONANCE_SOURCE_GUIDE_MIGRATION=APPROVED
+RESONANCE_SOURCE_GUIDE_MIGRATION_FILES=1
+```
+
 ---
 
 ## 12. Roadmap
@@ -738,11 +773,23 @@ NO nuevo scoring del Mapa
 GR0_STATUS=CLOSED
 GR1_STATUS=CLOSED
 
-GR2_STATUS=IN_REVIEW
-GR2_IMPLEMENTATION_STATUS=IN_REVIEW
+GR2_STATUS=CLOSED
+GR2_IMPLEMENTATION_STATUS=CLOSED
 GR2_BLOCKER=PENDING_EDITORIAL_ASSETS
 
-GR3_STATUS=BLOCKED_RUNTIME_ANCHOR
+GR3_STATUS=COMPLETE_PENDING_MERGE
+GR3_IMPLEMENTATION_STATUS=COMPLETE_PENDING_MERGE
+GR3_EDITORIAL_ANCHOR_STATUS=APPROVED
+GR3_RUNTIME_ANCHOR_STATUS=IMPLEMENTED_PENDING_RELEASE_GATE
+
+OPEN_DECISION_BLOCKERS_FOR_GR3=0
+RUNTIME_PRECONDITIONS_FOR_GR3=1
+RUNTIME_PRECONDITION=CANONICAL_CHAPTER_CONTENT_INGESTED
+
+GR3_SCREENSHOTS_STATUS=COMPLETE
+GR3_RESPONSIVE_BROWSER_GATE_STATUS=PASS
+GR3_FINAL_RUNTIME_REVIEW=APPROVED
+
 GR4_STATUS=BLOCKED_BY_GR3
 GR5_STATUS=BLOCKED_BY_GR4
 GR6_STATUS=BLOCKED_BY_GR5
@@ -835,26 +882,26 @@ educativos de medios (**no** en el MVP), formato del podcast (**Jorge solo**),
 migración de `ReaderMode` (**no**), GR-P09 (aprobada como **GR-021**) y GR-P10
 (aprobada como **GR-022**).
 
-Quedan dos asuntos diferidos, ninguno bloquea GR-1:
+Queda un asunto diferido, y no bloquea GR-1:
 
 ```
 MEDIA_HOSTING_PROVIDER=CLOUDFLARE_STREAM_AND_R2
 
-ANCHOR_BLOCK_KEY=TBD
-ANCHOR_SOURCE_HEADING=TBD
+ANCHOR_EDITORIAL_STATUS=APPROVED
+ANCHOR_SOURCE_HEADING=El cuerpo y la emoción
 ```
 
 ```
 OPEN_BLOCKERS_FOR_GR1=0
 OPEN_DECISIONS_FOR_GR2=0
 OPEN_BLOCKERS_FOR_GR2=1
-OPEN_BLOCKERS_FOR_GR3=1
+OPEN_BLOCKERS_FOR_GR3=0
 ```
 
 El proveedor de hosting ya está decidido (GR-2). Lo que queda pendiente para
 GR-2 no es una decisión sino producción: los masters editoriales
-(`docs/product/chapter-01-media-package.md`). El anchor exacto bloquea GR-3, no
-GR-1 ni GR-2.
+(`docs/product/chapter-01-media-package.md`). El anchor editorial quedó
+aprobado el 2026-07-30 y ya no bloquea GR-3.
 
 ### Notas de la revisión visual de GR-1
 
@@ -987,8 +1034,8 @@ Core, multimedia real, escritura de `Resonance` ni del Mapa Emocional.
 ## 15ter. GR-2 Implementation
 
 ```
-GR2_STATUS=IN_REVIEW
-GR2_IMPLEMENTATION_STATUS=IN_REVIEW
+GR2_STATUS=CLOSED
+GR2_IMPLEMENTATION_STATUS=CLOSED
 
 GR2_MEDIA_CATALOG_STATUS=IMPLEMENTED
 PRODUCTION_MEDIA_DEFINITIONS=3
@@ -1303,16 +1350,129 @@ GR-P04 → GR-016    GR-P09 → GR-021
 GR-P05 → GR-017    GR-P10 → GR-022
 ```
 
-| Fecha      | Versión | Cambio                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 2026-07-29 | 0.1     | Initial blueprint from Jorge's product direction: multimodal chapter + integrated Guided Reading.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 2026-07-29 | 0.2     | Corrected Content Core facts, scoped Map rule, candidate authority status, editorial anchor, recall authority and scene/checkpoint continuity proposals.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| 2026-07-29 | 0.3     | Jorge approved the Guided Reading decision packet. Promoted GR-P01…GR-P10 to GR-013…GR-022. Approved MVP constraints for media analytics, podcast format, local scene and playback state, ReaderMode compatibility, deferred hosting and the visual prototype anchor.                                                                                                                                                                                                                                                                                                                                                                      |
-| 2026-07-29 | 0.4     | Created the isolated Guided Reading visual prototype for product review. No runtime integration, API calls, persistence or production exposure.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| 2026-07-29 | 0.5     | Corrected prototype interaction and layout after Jorge's visual review, and set the activity policy: media and Guided Reading activity go to Mi Evolucion with a single completion event; the Emotional Map only receives explicit user actions.                                                                                                                                                                                                                                                                                                                                                                                           |
-| 2026-07-29 | 0.6     | Final visual close of GR-1: resonance and the optional check-in became independent blocks (the check-in is no longer an answer to the resonance question), the mobile sheet hides the mode selector and keeps chapter text visible behind it, and the sheet moved to dynamic viewport units with two sizes.                                                                                                                                                                                                                                                                                                                                |
-| 2026-07-29 | 0.7     | Jorge granted final visual approval for GR-1. Approved: desktop reader + side panel; mobile reader + bottom sheet; selector and four modalities; anchor post-click state; inline practice; recall and feedback; completion; and the separation of educational activity, resonance and the optional check-in. GR-1 closed. No runtime, API, database, production or Map integration was added.                                                                                                                                                                                                                                              |
-| 2026-07-29 | 0.8     | GR-2 implemented the real chapter media layer: a code-owned catalog (audiobook PUBLISHED over the existing chapter audio; podcast and video DRAFT until their masters exist), private Cloudflare Stream access, R2 signing reused through the shared storage service, ONE new educational event (`chapter_media_completed`, completion granularity, server-derived idempotency), the Leer · Escuchar · Ver selector with the legacy `"guia"` value preserved, and the «Actividad de aprendizaje» card in Mi Evolución. One additive migration, no new table or column. Media activity goes to Mi Evolución and never to the Emotional Map. |
+| Fecha      | Versión | Cambio                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-29 | 0.1     | Initial blueprint from Jorge's product direction: multimodal chapter + integrated Guided Reading.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 2026-07-29 | 0.2     | Corrected Content Core facts, scoped Map rule, candidate authority status, editorial anchor, recall authority and scene/checkpoint continuity proposals.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 2026-07-29 | 0.3     | Jorge approved the Guided Reading decision packet. Promoted GR-P01…GR-P10 to GR-013…GR-022. Approved MVP constraints for media analytics, podcast format, local scene and playback state, ReaderMode compatibility, deferred hosting and the visual prototype anchor.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 2026-07-29 | 0.4     | Created the isolated Guided Reading visual prototype for product review. No runtime integration, API calls, persistence or production exposure.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 2026-07-29 | 0.5     | Corrected prototype interaction and layout after Jorge's visual review, and set the activity policy: media and Guided Reading activity go to Mi Evolucion with a single completion event; the Emotional Map only receives explicit user actions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 2026-07-29 | 0.6     | Final visual close of GR-1: resonance and the optional check-in became independent blocks (the check-in is no longer an answer to the resonance question), the mobile sheet hides the mode selector and keeps chapter text visible behind it, and the sheet moved to dynamic viewport units with two sizes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 2026-07-29 | 0.7     | Jorge granted final visual approval for GR-1. Approved: desktop reader + side panel; mobile reader + bottom sheet; selector and four modalities; anchor post-click state; inline practice; recall and feedback; completion; and the separation of educational activity, resonance and the optional check-in. GR-1 closed. No runtime, API, database, production or Map integration was added.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 2026-07-31 | 1.0     | GR-3 closed for merge. The release gate became reproducible and is now one command: it builds a disposable database from the checkout under audit, starts the API with the exact allowed origin and an in-memory rate-limit store (nothing shared is touched), drives Chrome, and gives everything back. Teardown is VERIFIED rather than assumed — a signal sent is not a process stopped, a drop attempted is not a database gone — and the exit code is `PRIMARY_GATE_PASS && TEARDOWN_PASS`, with failing paths covered by unit tests. Eight captures, promoted as a directory swap so a partial bundle cannot exist, each screened for PII (address, tokens, signed URLs, internal identity) before it is written. The check-in is verified in the real browser: the guide closes, the route does not change, the topbar dialog opens with focus inside it, nothing is preselected and nothing is written before choosing or after Escape. The cross-device row was corrected: another device does NOT resume — it gets a new cover and a new session, because the only way back into a session is the idempotency key that never leaves the browser that started it. Not merged, not deployed, no production change. |
+| 2026-07-30 | 0.9     | GR-3 integrated guided reading INTO the reader: the guide opens as a panel over the chapter instead of a route that leaves it. The anchor is editorial (heading + sentence) and resolved at runtime against the blocks the reader was served — Content Core derives `blockKey` per environment, so a literal would be false outside the database it came from. Block granularity: no character offsets. The run has ONE implementation (`useGuideRun`) shared with the standalone route. The recall command now answers `feedback.outcome` (`CORRECT` / `REVIEW`, read back from the accepted ledger so a replay agrees). Scene position is local, disposable and validated against server state; the verdict and its acknowledgement survive a reload. The check-in opens the existing topbar surface in place. One additive migration: `ResonanceSource.GUIDE`.                                                                                                                                                                                                                                                                                                                                                          |
+| 2026-07-29 | 0.8     | GR-2 implemented the real chapter media layer: a code-owned catalog (audiobook PUBLISHED over the existing chapter audio; podcast and video DRAFT until their masters exist), private Cloudflare Stream access, R2 signing reused through the shared storage service, ONE new educational event (`chapter_media_completed`, completion granularity, server-derived idempotency), the Leer · Escuchar · Ver selector with the legacy `"guia"` value preserved, and the «Actividad de aprendizaje» card in Mi Evolución. One additive migration, no new table or column. Media activity goes to Mi Evolución and never to the Emotional Map.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Toda futura modificación del producto debe actualizar `SPEC_VERSION`,
 `LAST_UPDATED`, el Decision Registry y este Change Log.
+
+---
+
+## 15quater. GR-3 Implementation
+
+```
+GR3_STATUS=COMPLETE_PENDING_MERGE
+GR3_IMPLEMENTATION_STATUS=COMPLETE_PENDING_MERGE
+GR3_FINAL_RUNTIME_REVIEW=APPROVED
+GR3_SCREENSHOTS_STATUS=COMPLETE
+GR3_RESPONSIVE_BROWSER_GATE_STATUS=PASS
+GR3_CHECKIN_BROWSER_GATE_PASS=true
+GR3_RELEASE_GATE_TEARDOWN_VERIFIED=true
+
+GR3_FOUNDATION_IMPLEMENTED=true
+GR3_READER_RUNTIME_IMPLEMENTED=true
+GR3_STANDALONE_GUIDE_PRESERVED=true
+
+GR3_ANCHOR_LOCATOR_IMPLEMENTED=true
+GR3_ANCHOR_MATCH_COUNT=1
+GR3_BLOCK_KEY_HARDCODED=false
+GR3_ROUTE_CHANGES_ON_ANCHOR=0
+
+GR3_DESKTOP_PANEL_IMPLEMENTED=true
+GR3_MOBILE_BOTTOM_SHEET_IMPLEMENTED=true
+
+GR3_SCENES_IMPLEMENTED=8
+GR3_CLIP_ASSET_STATUS=PENDING_EDITORIAL_ASSET
+GR3_CLIP_TRANSCRIPT_FALLBACK=true
+
+GR3_PRACTICE_OBSERVATION_FIELDS_STORED=0
+GR3_PRACTICE_TIMER_SERVER_EVENTS=0
+
+GR3_RECALL_FEEDBACK_IMPLEMENTED=true
+GR3_RECALL_FRESH_REPLAY_MATCH=true
+GR3_CORRECT_OPTION_EXPOSED=false
+
+GR3_RESONANCE_EXPLICIT_ONLY=true
+GR3_RESONANCE_SOURCE=guide
+GR3_RESONANCE_NOW_NOT_WRITES=0
+
+GR3_CHECKIN_REUSES_EXISTING_SURFACE=true
+GR3_EXPERIENCE_CAUSAL_INFERENCE=false
+
+GUIDED_READING_AUTOMATIC_MAP_WRITE=false
+MAP_ENTRY_REQUIRES_EXPLICIT_USER_ACTION=true
+
+NEW_GUIDE_LIFECYCLE=false
+NEW_GUIDE_TABLES=0
+NEW_GUIDE_EVENT_TYPES=0
+NEW_GUIDE_MIGRATIONS=0
+MIGRATION_FILES_ADDED=1
+SCHEMA_ENUM_VALUES_ADDED=1
+SCHEMA_TABLES_ADDED=0
+SCHEMA_COLUMNS_ADDED=0
+```
+
+### El anchor
+
+La identidad del pasaje es **editorial**, no una clave. Content Core deriva
+`blockKey` como uuidv5 del `ChapterBlock.id` heredado (CC-1), así que el mismo
+párrafo tiene una clave distinta en cada entorno donde se ingirió el capítulo.
+Un literal en el catálogo sería cierto en una base y falso en la siguiente.
+
+El catálogo (`packages/types/src/guide-anchor.ts`) guarda lo que un editor puede
+verificar leyendo el libro:
+
+```
+ANCHOR_SOURCE_HEADING=El cuerpo y la emoción
+ANCHOR_PASSAGE_LAST_SENTENCE=Nuestro cuerpo siente antes que nuestra mente entienda.
+ANCHOR_EXPECTED_MATCH_COUNT=1
+ANCHOR_BLOCK_KEY_RESOLUTION=PER_ENVIRONMENT_FROM_CONTENT_CORE
+```
+
+`resolveGuideAnchor` lo convierte en una referencia runtime contra los bloques
+que el lector recibió, y **falla cerrado** en cada paso: cero coincidencias →
+`UNRESOLVED`; más de una → `AMBIGUOUS`; un bloque sin `blockKey` o sin
+`blockVersionId` → `UNRESOLVED`. Nunca «la primera coincidencia».
+
+`guide-anchor-ingest.pg-spec.ts` lo prueba contra el manuscrito real: base
+efímera → migraciones → herramienta de ingesta sobre
+`content/emociones-en-construccion/capitulo-01.md` → backfill de Content Core →
+lectura de la unidad publicada → **una** coincidencia. La base de desarrollo
+ordinaria conserva los bloques del seed, y mutarla para que el feature pasara
+sería arreglar la evidencia en vez del código.
+
+### El feedback del recall
+
+`POST /api/guide/sessions/:id/steps/:key/recall` devuelve ahora
+`feedback.outcome`:
+
+```
+GUIDE_RECALL_PUBLIC_OUTCOMES=CORRECT|REVIEW
+GUIDE_RECALL_CORRECT_OPTION_FIELDS=0
+GUIDE_RECALL_SELECTED_OPTION_RESPONSE_FIELDS=0
+FRESH_OUTCOME=REPLAY_OUTCOME
+```
+
+`REVIEW` y no `INCORRECT`: el ledger conserva el hecho calificado, la superficie
+pública ofrece una invitación a volver a mirar. Se **lee del ledger aceptado**
+en ambos caminos, así que un replay devuelve el mismo veredicto sin volver a
+calificar. Sin ledger, sin `recallResult`, o con un step que no corresponde:
+falla cerrado.
+
+### Lo que NO cambió
+
+El lifecycle Guide (`GuideSession` · `GuideSessionStep` ·
+`GuideCommandReceipt`), sus cinco comandos, el gate de rollout, la recuperación
+y el escritor de LearningEvent son exactamente los mismos. La única migración
+del PR añade `GUIDE` al enum `ResonanceSource`, para que «Mis resonancias» pueda
+decir de dónde vino cada confirmación sin mentir.

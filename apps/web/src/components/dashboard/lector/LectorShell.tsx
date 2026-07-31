@@ -42,6 +42,19 @@ import {
   type ReaderPrefs,
 } from "./ReaderPreferencesModal";
 import { useHeartbeat } from "./use-heartbeat";
+import {
+  ReaderGuidePanel,
+  READER_GUIDE_PANEL_ID,
+} from "../guide/ReaderGuidePanel";
+import { useMoodCheckin } from "../shell/mood-checkin-context";
+import { GUIDE_READER_COPY } from "../guide/guide-reader-copy";
+import { useGuideActorScope } from "../guide/guide-actor-scope";
+import { useGuideAvailability } from "../guide/guide-availability";
+import {
+  anchorAppliesTo,
+  resolveGuideAnchor,
+  type GuideAnchorResolution,
+} from "../guide/guide-anchor";
 
 interface Props {
   apiBase: string;
@@ -259,11 +272,93 @@ export function LectorShell({
   );
 
   // Refs to block DOM elements (for IntersectionObserver + selection hit-test).
+  // ── GR-3 · guided reading ────────────────────────────────────────────────
+  // A surface, not a mode: opening it never touches `ReaderMode`, never
+  // changes the route, and never starts a session (only the cover's button
+  // does). The chapter stays mounted behind it.
+  const guideActorScope = useGuideActorScope();
+  const { openMoodCheckin } = useMoodCheckin();
+  const guideAvailable = useGuideAvailability();
+  const [guideOpen, setGuideOpen] = useState(false);
+  const guideTabRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Close the guide, and decide where focus goes.
+   *
+   * `restoreFocus: true` is the default for a plain dismissal: without it,
+   * closing drops focus onto `<body>` and a keyboard reader has to tab from
+   * the top of the page to get back.
+   *
+   * `restoreFocus: false` is for a close that HANDS OFF to another surface —
+   * the check-in. Grabbing focus back to the Guide tab a frame after the
+   * dialog opened would yank the reader out of the thing they just asked for.
+   */
+  const closeGuide = useCallback(
+    ({ restoreFocus = true }: { restoreFocus?: boolean } = {}) => {
+      setGuideOpen(false);
+      if (!restoreFocus) return;
+      // After the panel unmounts, or the browser has nothing to focus.
+      requestAnimationFrame(() => guideTabRef.current?.focus());
+    },
+    [],
+  );
+  const [flashBlockId, setFlashBlockId] = useState<string | null>(null);
+
   const blockRefs = useRef<Map<string, HTMLElement>>(new Map());
   const registerRef = useCallback((id: string, el: HTMLElement | null) => {
     if (el) blockRefs.current.set(id, el);
     else blockRefs.current.delete(id);
   }, []);
+
+  /**
+   * Where the guide's approved passage is in THIS chapter. Resolved from the
+   * blocks the reader was actually served — never from a stored key, because
+   * Content Core derives block identity per environment (CC-1).
+   */
+  const guideAnchor: GuideAnchorResolution = useMemo(
+    () =>
+      anchorAppliesTo(bookSlug, chapter.order)
+        ? resolveGuideAnchor(blocks)
+        : { status: "UNRESOLVED" },
+    [blocks, bookSlug, chapter.order],
+  );
+
+  /**
+   * Scroll the anchored paragraph into view and focus it. Deliberately does
+   * NOT create a highlight, does not touch progress, does not close the panel
+   * and does not change the route — it moves the page, and nothing else. The
+   * tint is visual only and fades on its own.
+   */
+  const goToGuidePassage = useCallback(() => {
+    if (guideAnchor.status !== "RESOLVED") return;
+    const el = blockRefs.current.get(guideAnchor.renderBlockId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.setAttribute("tabindex", "-1");
+    el.focus({ preventScroll: true });
+    setFlashBlockId(guideAnchor.renderBlockId);
+  }, [guideAnchor]);
+
+  /**
+   * The single authority for whether the guide can RUN on this screen.
+   *
+   * The pilot gate and the actor scope say whether the surface is on for this
+   * person; the anchor says whether the thing the guide is about exists in the
+   * chapter they are looking at. All three, or nothing: a session that starts
+   * without a locatable passage would record progress through a guide whose
+   * first step cannot be shown.
+   */
+  const guideRuntimeReady =
+    guideAvailable === true &&
+    guideActorScope !== null &&
+    guideAnchor.status === "RESOLVED";
+
+  // The tint is a hint, not a mark: it clears itself.
+  useEffect(() => {
+    if (!flashBlockId) return;
+    const t = setTimeout(() => setFlashBlockId(null), 2600);
+    return () => clearTimeout(t);
+  }, [flashBlockId]);
 
   // ── IntersectionObserver: track currently visible block ────────────────
 
@@ -625,7 +720,14 @@ export function LectorShell({
   }
 
   return (
-    <div className="min-h-screen" style={containerStyle}>
+    <div
+      // GR-3 — while the guided-reading drawer is open on desktop, the reader
+      // RESERVES its width instead of being covered by it. The rule lives in
+      // the panel's own stylesheet, so it only exists while the panel does.
+      className={`min-h-screen${guideOpen ? " reader-guide-open" : ""}`}
+      data-guide-open={guideOpen ? "true" : "false"}
+      style={containerStyle}
+    >
       {/* Top bar */}
       <header
         className="sticky top-0 z-30 backdrop-blur"
@@ -749,11 +851,17 @@ export function LectorShell({
             key={option.value}
             type="button"
             role="tab"
-            aria-selected={mode === option.value}
-            onClick={() => changeMode(option.value)}
+            // While the guided-reading panel is open it is the selected
+            // surface; a mode tab still marked selected would tell assistive
+            // technology that two tabs are current at once.
+            aria-selected={!guideOpen && mode === option.value}
+            onClick={() => {
+              setGuideOpen(false);
+              changeMode(option.value);
+            }}
             className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
             style={
-              mode === option.value
+              !guideOpen && mode === option.value
                 ? {
                     background: "var(--reader-bg, var(--color-warm-50))",
                     color: "var(--reader-text, var(--color-warm-900))",
@@ -768,7 +876,73 @@ export function LectorShell({
             {option.label}
           </button>
         ))}
+        {/* GR-3 — the fourth modality. It is a SURFACE: picking it opens the
+            panel over the chapter and leaves `ReaderMode` (and therefore the
+            stored preference) exactly where it was. `aria-selected` tracks
+            whether the panel is open, which is what the reader sees. */}
+        <button
+          type="button"
+          role="tab"
+          ref={guideTabRef}
+          aria-selected={guideOpen}
+          aria-controls={READER_GUIDE_PANEL_ID}
+          data-testid="reader-mode-guiada"
+          onClick={() => setGuideOpen((v) => !v)}
+          className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
+          style={
+            guideOpen
+              ? {
+                  background: "var(--reader-bg, var(--color-warm-50))",
+                  color: "var(--reader-text, var(--color-warm-900))",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                }
+              : {
+                  background: "transparent",
+                  color: "var(--reader-muted, var(--color-warm-600))",
+                }
+          }
+        >
+          {GUIDE_READER_COPY.modeLabel}
+        </button>
       </div>
+
+      {/* The pilot gate is the server's call and it is opaque: when the guide
+          is not on for this reader we say so plainly and never explain why. */}
+      {guideOpen && !guideRuntimeReady ? (
+        <p
+          role="status"
+          data-testid="reader-guide-unavailable"
+          className="mx-auto mt-3 max-w-3xl px-4 text-[13px]"
+          style={{ color: "var(--reader-muted, var(--color-warm-600))" }}
+        >
+          {GUIDE_READER_COPY.unavailable}
+        </p>
+      ) : null}
+
+      {guideOpen && guideRuntimeReady && guideActorScope ? (
+        <ReaderGuidePanel
+          actorScope={guideActorScope}
+          anchor={guideAnchor}
+          concept={chapterConcept(bookSlug, chapter.order, chapter.title)}
+          bookSlug={bookSlug}
+          chapterOrder={chapter.order}
+          apiBase={apiBase}
+          token={token}
+          onClose={() => closeGuide()}
+          onGoToPassage={goToGuidePassage}
+          onContinueReading={() => closeGuide()}
+          onOpenExplicitCheckin={() => {
+            // The existing check-in surface, reached as itself and IN PLACE:
+            // the chapter stays open and the route does not change. The guide
+            // does not preselect an emotion, does not submit anything, and
+            // does not claim it caused whatever the reader records there.
+            // The check-in is the destination now, so the Guide does not take
+            // focus back — `openMoodCheckin` moves it into the dialog.
+            closeGuide({ restoreFocus: false });
+            openMoodCheckin();
+          }}
+        />
+      ) : null}
 
       {mode === "escuchar" ? (
         <ChapterMediaListen
@@ -800,7 +974,13 @@ export function LectorShell({
       </div>
 
       {/* Reading area */}
-      <main className="mx-auto max-w-3xl px-4 pb-8" style={proseStyle}>
+      <main
+        // A stable hook for the responsive gate: «the panel does not cover the
+        // text» has to name WHICH element is the text.
+        data-testid="reader-chapter-column"
+        className="mx-auto max-w-3xl px-4 pb-8"
+        style={proseStyle}
+      >
         {/* CC-6D — a content-core marks read failed. Visible + fail-closed: the
             chapter is still readable, but we never show the envelope's marks in
             its place. */}
@@ -839,6 +1019,7 @@ export function LectorShell({
               setDockOpen(true);
             }}
             registerRef={registerRef}
+            flash={flashBlockId === b.id}
           />
         ))}
 

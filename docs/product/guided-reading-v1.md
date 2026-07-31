@@ -73,6 +73,24 @@ GR3_IMPLEMENTATION_AUTHORIZED_BY_JORGE=true
 GR3_RUNTIME_ANCHOR_STATUS=IMPLEMENTED_AND_RELEASE_GATED
 ```
 
+GR-3 está desplegado en producción y verificado con un recorrido real:
+
+```
+GR3_STATUS=COMPLETE
+GR3_RUNTIME_STATUS=DEPLOYED
+GR3_PRODUCTION_PILOT_SMOKE=PASS
+
+PRODUCTION_SHA=042afa523efce4639755c0a1998e1ed73bc7ab42
+PRODUCTION_DEPLOYED_AT=2026-07-31
+
+GUIDE_ROLLOUT_MODE=pilot
+PILOT_USER_COUNT=1
+GENERAL_ROLLOUT_STATUS=NOT_AUTHORIZED
+```
+
+Estar desplegado no es estar abierto: la Guide sigue detrás del gate `pilot` con
+una allowlist de una cuenta. Ampliarla es una decisión aparte.
+
 Los ADR y contratos existentes **siguen siendo autoridad** sobre lifecycle,
 persistencia, idempotencia, entitlement, receipts, locks y rollout. Cuando este
 documento y un ADR se contradigan sobre esos temas, gana el ADR.
@@ -626,6 +644,55 @@ caso más estrecho: la pérdida o corrupción del registro local **dentro de un
 navegador que todavía puede recuperar su sesión con su clave START**. Ahí el
 servidor sigue mandando sobre el checkpoint y sólo se pierde la escena visual.
 No dice nada sobre otros dispositivos, que no tienen sesión que reiniciar.
+
+---
+
+## 8.6 Contrato del recorrido, verificado en producción
+
+La secuencia de abajo no es un diseño: es la que se ejecutó contra producción el
+2026-07-31 y quedó registrada en el ledger. Sirve como referencia para cualquier
+smoke posterior, que debe dirigirla explícitamente en vez de descubrir controles.
+
+```
+Empezar
+→ Continuar                 (escena de clip)
+→ Ir al pasaje              (solo hace scroll — NO avanza)
+→ He explorado esta idea    (avanza desde el anchor)
+→ Terminé la práctica
+→ Registrar respuesta       (con una opción seleccionada)
+→ reload
+→ Empezar / recuperar
+→ Continuar
+→ Terminar
+→ Esto me resonó            (dentro del estado completado)
+```
+
+```
+IR_AL_PASAJE_BEHAVIOR=SCROLL_ONLY
+ANCHOR_FLASH_SELECTOR=[data-guide-flash="true"]
+COMPLETED_STATE_SELECTOR=[data-testid="rgp-completed"]
+RESONANCE_MUST_BE_CONFIRMED_INSIDE_COMPLETED_STATE=true
+```
+
+Dos trampas que un harness ingenuo encuentra, y que cuestan corridas de más:
+`Ir al pasaje` desplaza el lector hacia el pasaje anclado pero deja la escena
+donde está —tratarlo como control de avance produce un bucle—, y
+`rgp-completed` **no es terminal**: la oferta de resonancia vive dentro de esa
+pantalla, y reabrir la Guide después muestra otra vez la portada.
+
+El ledger produce **cuatro** eventos en un recorrido completo, uno por comando
+aceptado, no uno por sesión:
+
+```
+EXPLORE=1
+PRACTICE=1
+RECALL=1
+COMPLETION=1
+```
+
+La recarga re-emite `POST /api/guide/sessions` y el servidor responde **200** con
+la misma sesión. Un `201` en ese punto significaría una sesión nueva, es decir un
+fallo de recuperación.
 
 ---
 
@@ -1343,9 +1410,10 @@ SEPARATE_MEDIA_PROGRESS_TABLE=false
 SECOND_BOOK=false
 ```
 
-Los masters editoriales no existen todavía: el podcast y el video quedan `DRAFT`
-y la interfaz dice «En producción». El paquete pendiente y el proceso para
-activarlo están en [`chapter-01-media-package.md`](chapter-01-media-package.md).
+No hay un máster editorial confirmado todavía: el podcast y el video quedan
+`DRAFT` y la interfaz dice «En producción». El paquete pendiente y el proceso
+para activarlo están en
+[`chapter-01-media-package.md`](chapter-01-media-package.md).
 
 ---
 

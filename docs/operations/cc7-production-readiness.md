@@ -669,3 +669,33 @@ four must be true before the sync PR.
 Readiness is not permission: the promotion itself is a separate, explicitly
 authorised execution — see
 [cc7-production-runbook.md](cc7-production-runbook.md).
+
+---
+
+## Apéndice — resultado final del release (añadido 2026-07-31)
+
+Este documento es un **snapshot histórico de pre-deploy**. Todo lo de arriba
+describe lo que se sabía durante el rehearsal, con sus dos bloqueos abiertos, y
+se conserva sin reescribir: un resultado favorable no cambia las condiciones bajo
+las que se tomó la decisión.
+
+```
+DOCUMENT_SCOPE=HISTORICAL_PREDEPLOY_READINESS
+ORIGINAL_VERDICT=PARTIALLY_VERIFIED
+ORIGINAL_BLOCKERS=2
+
+FINAL_RELEASE_OUTCOME=DEPLOYED_AND_VERIFIED
+FINAL_PRODUCTION_SHA=042afa523efce4639755c0a1998e1ed73bc7ab42
+FINAL_PRODUCTION_DEPLOYED_AT=2026-07-31
+FINAL_GR3_PILOT_SMOKE=PASS
+```
+
+El release ocurrió y se verificó con un recorrido completo. Eso **no** convierte
+retroactivamente el veredicto del rehearsal en `READY`, ni cierra por decreto los
+dos bloqueos que estaban abiertos cuando se escribió. Si alguien necesita saber
+qué se verificó realmente antes de desplegar, la respuesta sigue siendo la de
+arriba.
+
+La evidencia del deploy y del smoke vive en
+[`cc7-production-runbook.md`](cc7-production-runbook.md) y en
+[`../product/guide-v1-pilot-rollout.md`](../product/guide-v1-pilot-rollout.md).

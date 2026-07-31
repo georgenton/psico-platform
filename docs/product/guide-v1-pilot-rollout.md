@@ -1,7 +1,14 @@
 # Guide V1 — rollout piloto server-owned (CC-7.R1)
 
 ```
-PILOT_ROLLOUT_STATUS=IN_REVIEW
+PILOT_ROLLOUT_STATUS=ACTIVE_IN_PRODUCTION
+
+PRODUCTION_SHA=042afa523efce4639755c0a1998e1ed73bc7ab42
+PRODUCTION_DEPLOYED_AT=2026-07-31
+GUIDE_ROLLOUT_MODE=pilot
+PILOT_USER_COUNT=1
+GENERAL_ROLLOUT_STATUS=NOT_AUTHORIZED
+GR3_PRODUCTION_PILOT_SMOKE=PASS
 
 GUIDE_ROLLOUT_MODES=off|pilot|on
 GUIDE_ROLLOUT_DECISION_OWNER=server
@@ -35,8 +42,8 @@ GUIDE_WEB_ROLLOUT_MODE_REFERENCES=0
 GUIDE_WEB_PILOT_ALLOWLIST_REFERENCES=0
 
 GUIDE_INITIAL_PRODUCTION_MODE_RECOMMENDED=off
-GUIDE_PILOT_USERS_CONFIGURED=false
-GUIDE_PRODUCTION_DEPLOYED=false
+GUIDE_PILOT_USERS_CONFIGURED=true
+GUIDE_PRODUCTION_DEPLOYED=true
 GUIDE_MODE_CHANGE_REQUIRES_RESTART=true
 ```
 
@@ -192,3 +199,36 @@ piloto, panel de admin, y **Guide en mobile** (reservado a CC-7.6). Esta ronda n
 toca schema, migraciones, el lifecycle, la definición de la guía, el catálogo,
 la máquina de estados, el scoring, ARC, el Mapa, el model-registry, `CACHE_EPOCH`
 ni `main.ts`.
+
+## Evidencia del smoke en producción (2026-07-31)
+
+Un recorrido completo con la cuenta piloto dedicada, en un navegador real contra
+producción. Métricas agregadas; ningún identificador, credencial ni texto
+editorial se registra aquí.
+
+```
+SESSION_START_201_COUNT=1
+SESSION_RESUME_200_COUNT=1
+UNIQUE_GUIDE_SESSION_IDS=1
+
+GUIDE_SESSIONS_DELTA=1
+COMPLETED_GUIDE_SESSIONS_DELTA=1
+GUIDE_LEARNING_EVENTS_DELTA=4
+GUIDE_RESONANCES_DELTA=1
+
+ANCHOR_HIGHLIGHT_VISIBLE=true
+SESSION_RESUMED=true
+RESONANCE_CONFIRMED=true
+GUIDE_ACTIVITY_VISIBLE=true
+MOBILE_SMOKE_PASS=true
+
+HTTP_5XX_COUNT=0
+DUPLICATE_COMMANDS=0
+CONSOLE_FATAL_ERRORS=0
+HYDRATION_ERRORS=0
+```
+
+El recorrido exacto y sus dos trampas de automatización están en
+[`guided-reading-v1.md`](guided-reading-v1.md) §8.6. La recarga a mitad del
+recorrido devolvió `200` sobre la misma sesión, que es la prueba de que la
+recuperación funciona y de que no se creó una segunda sesión.

@@ -1,5 +1,5 @@
 {
-  "gitSha": "1f613b16da4ae9839b00ccbbf8cb4b144c32d456",
+  "gitSha": "a8bb0880d14546eb2ce78efccb9811a15cd3758e",
   "screenshots": [
     {
       "file": "01-reader-guide-selector.webp",
@@ -9,7 +9,7 @@
     {
       "file": "02-reader-guide-cover.webp",
       "viewport": "1365x900",
-      "sha256": "eb70a9fb03c2b6eea149293b0b72c73ecea964bd6a0f964332a219d9f83e982b"
+      "sha256": "727d4a9c8e94a0b5dbdd6aa6ff88696b5d56c0f696c3edf391674090d3300007"
     },
     {
       "file": "03-reader-guide-anchor-highlight.webp",

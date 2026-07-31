@@ -105,6 +105,10 @@ Este índice agrupa las bitácoras **por programa/tema** (más útil que la cron
 | [sprint-v2-fase-f-ui-v2.md](sprint-v2-fase-f-ui-v2.md)                         | F — UI V2 (L2 radar autoinforme + L3 Narrator)    |
 | [sprint-v2-fase-g-legacy-retirement.md](sprint-v2-fase-g-legacy-retirement.md) | G — el V2 es el producto (retiro legacy)          |
 | [sprint-v2-fase-h-eco-contextual.md](sprint-v2-fase-h-eco-contextual.md)       | H — Eco contextual + ARC-P1 (Propósito)           |
+| [pr-0.2-emotional-map-public.md](pr-0.2-emotional-map-public.md)               | PR-0.2 — disponibilidad pública del mapa          |
+| [pr-2b-mood-nullable.md](pr-2b-mood-nullable.md)                               | PR-2B — ánimo nullable + atestación               |
+| [pr-2b-production-deployment.md](pr-2b-production-deployment.md)               | PR-2B — despliegue a producción                   |
+| [sprint-mapa-radar-hexagono.md](sprint-mapa-radar-hexagono.md)                 | Radar hexagonal honesto (web + mobile)            |
 
 ## 8 · Patrones (Pro analytics)
 
@@ -238,6 +242,7 @@ Este índice agrupa las bitácoras **por programa/tema** (más útil que la cron
 | [sprint-sentry.md](sprint-sentry.md)                           | Observability (Sentry) en los 4 surfaces               |
 | [deploy-2026-06-01-incident.md](deploy-2026-06-01-incident.md) | Incidente Railway (migration corruption) + recovery    |
 | [deploy-2026-07-13-seed-fix.md](deploy-2026-07-13-seed-fix.md) | Auditoría env Railway/Vercel + fix seed idempotente    |
+| [sprint-modo-guia-tts-audio.md](sprint-modo-guia-tts-audio.md) | Modo Guía — audio TTS del capítulo                     |
 
 ---
 

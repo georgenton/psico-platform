@@ -567,6 +567,12 @@ nullable `conceptId` FK (integrity) and keeps its provenance snapshot columns
 Ingest never deletes a block. It mints a revision, **copies the manifest forward**,
 and rewrites only the changed unit. Matching is **conservative** (no fuzzy 0.8):
 
+> **Ingest updates a unit; it never creates the first revision** (a first ingest
+> fails with `INGEST_REQUIRES_BASE_REVISION`). Creating a book that does not exist
+> yet — including OCR test editions, and how they are later replaced by the final
+> master without losing reader marks — is
+> [`docs/operations/book-test-edition-ingest.md`](../operations/book-test-edition-ingest.md).
+
 ```
 ingest(edition, unitKey, newBlocks[]):
   prevRev  := edition.publishedRevision                 # or ∅ on first ingest

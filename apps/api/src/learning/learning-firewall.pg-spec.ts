@@ -31,7 +31,7 @@ import type { ValidatedLearningEvent } from "./validated-learning-event";
  * CC-7.2 — the DYNAMIC firewall, DB-level, in two independent parts
  * (ADR 0017 §8, ADR 0018 transition plan):
  *
- *   Part 1 (educational): persisting the seven V1 learning events PLUS every
+ *   Part 1 (educational): persisting the eight V1 learning events PLUS every
  *   real educational surface (ReadingSession, UserProgress, Highlight,
  *   Annotation) leaves the CANONICAL MAP PROJECTION byte-for-byte identical —
  *   no exception of any kind. The negative control (a legitimate check-in
@@ -168,7 +168,7 @@ suite("CC-7.2 · dynamic emotional firewall (real PostgreSQL)", () => {
     expect(dim(before, "calma").confidence).toBeGreaterThan(0);
     expect(dim(before, "claridad").confidence).toBeGreaterThan(0);
 
-    // 1) The seven V1 learning events, persisted through the single writer.
+    // 1) The eight V1 learning events, persisted through the single writer.
     //    These are the RAW records with their typed payloads, appended
     //    directly — CC-7.4C's lifecycle (which is what actually emits the
     //    guide_session_* events in production) is exercised end-to-end over
@@ -228,6 +228,43 @@ suite("CC-7.2 · dynamic emotional firewall (real PostgreSQL)", () => {
         idempotencyKey: key(7),
         type: "practice_completed",
         payload: { exerciseKey: "respiracion-1", unitKey: "unit-1" },
+      },
+      // GR-2 — the media completion. Finishing an audiobook, a podcast or a
+      // video explainer is activity: it belongs in Mi Evolución and must leave
+      // this projection byte-for-byte identical. All three kinds are covered
+      // because the payload's `mediaKind` is the only thing that differs.
+      {
+        userId: U1,
+        idempotencyKey: key(8),
+        type: "chapter_media_completed",
+        payload: {
+          mediaKey: "eec-c1-audiobook-v1",
+          mediaKind: "AUDIOBOOK",
+          mediaVersion: 1,
+          unitKey: "unit-1",
+        },
+      },
+      {
+        userId: U1,
+        idempotencyKey: key(9),
+        type: "chapter_media_completed",
+        payload: {
+          mediaKey: "eec-c1-podcast-v1",
+          mediaKind: "PODCAST",
+          mediaVersion: 1,
+          unitKey: "unit-1",
+        },
+      },
+      {
+        userId: U1,
+        idempotencyKey: key(10),
+        type: "chapter_media_completed",
+        payload: {
+          mediaKey: "eec-c1-video-v1",
+          mediaKind: "VIDEO",
+          mediaVersion: 1,
+          unitKey: "unit-1",
+        },
       },
     ];
     for (const event of batch) {

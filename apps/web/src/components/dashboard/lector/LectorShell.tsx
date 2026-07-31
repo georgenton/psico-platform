@@ -28,6 +28,9 @@ import {
   type DockTab,
 } from "./companion/ReaderCompanionDock";
 import { AudioBar } from "./AudioBar";
+import { ChapterMediaListen } from "./media/ChapterMediaListen";
+import { ChapterMediaWatch } from "./media/ChapterMediaWatch";
+import { modeToStored, storedToMode, type ReaderMode } from "./reader-mode";
 import { BlockRenderer } from "./BlockRenderer";
 import { EcoTopicCard } from "./EcoTopicCard";
 import { ChapterExercises } from "./exercises/ChapterExercises";
@@ -39,6 +42,19 @@ import {
   type ReaderPrefs,
 } from "./ReaderPreferencesModal";
 import { useHeartbeat } from "./use-heartbeat";
+import {
+  ReaderGuidePanel,
+  READER_GUIDE_PANEL_ID,
+} from "../guide/ReaderGuidePanel";
+import { useMoodCheckin } from "../shell/mood-checkin-context";
+import { GUIDE_READER_COPY } from "../guide/guide-reader-copy";
+import { useGuideActorScope } from "../guide/guide-actor-scope";
+import { useGuideAvailability } from "../guide/guide-availability";
+import {
+  anchorAppliesTo,
+  resolveGuideAnchor,
+  type GuideAnchorResolution,
+} from "../guide/guide-anchor";
 
 interface Props {
   apiBase: string;
@@ -212,20 +228,33 @@ export function LectorShell({
   const [prefs, setPrefs] = useState<ReaderPrefs>(preferences);
   const prefsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reader mode — "libro" (default, text-only) vs "guia" (audio prominent).
-  // Persisted in localStorage so the user's choice survives reloads of the
-  // same chapter. Per design `docs/design/handoff/05-lector.md`, Modo Guía
-  // is the audio-narrated experience.
-  type ReaderMode = "libro" | "guia";
-  const [mode, setMode] = useState<ReaderMode>(() => {
-    if (typeof window === "undefined") return "libro";
-    const stored = window.localStorage.getItem("psico:lector:mode");
-    return stored === "guia" ? "guia" : "libro";
-  });
+  // Reader mode — GR-2 renames the visible options to Leer · Escuchar · Ver
+  // (docs/product/guided-reading-v1.md §3 and §13). «Lectura guiada» stays in
+  // the spec and the prototype as GR-3's authority; it is deliberately NOT a
+  // fourth button here, because a button that does nothing is worse than an
+  // absent one.
+  //
+  // The STORED values do not change: `"libro"` still means Leer and the legacy
+  // `"guia"` still means Escuchar, so nobody's saved preference is migrated
+  // (`LEGACY_READER_MODE_LOCALSTORAGE_MIGRATION=false`). Only `"ver"` is new.
+  //
+  // The initial value must be the one the SERVER renders. Reading
+  // `localStorage` inside the `useState` initialiser made the first client
+  // render disagree with the server HTML whenever a mode was already saved:
+  // React reported a text-content mismatch, threw away the server markup for
+  // the whole document, and in development put an error indicator on screen.
+  // So the stored preference is adopted in an effect, after hydration.
+  const [mode, setMode] = useState<ReaderMode>("leer");
+  useEffect(() => {
+    const stored = storedToMode(
+      window.localStorage.getItem("psico:lector:mode"),
+    );
+    if (stored !== "leer") setMode(stored);
+  }, []);
   function changeMode(next: ReaderMode) {
     setMode(next);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem("psico:lector:mode", next);
+      window.localStorage.setItem("psico:lector:mode", modeToStored(next));
     }
   }
 
@@ -243,11 +272,93 @@ export function LectorShell({
   );
 
   // Refs to block DOM elements (for IntersectionObserver + selection hit-test).
+  // ── GR-3 · guided reading ────────────────────────────────────────────────
+  // A surface, not a mode: opening it never touches `ReaderMode`, never
+  // changes the route, and never starts a session (only the cover's button
+  // does). The chapter stays mounted behind it.
+  const guideActorScope = useGuideActorScope();
+  const { openMoodCheckin } = useMoodCheckin();
+  const guideAvailable = useGuideAvailability();
+  const [guideOpen, setGuideOpen] = useState(false);
+  const guideTabRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Close the guide, and decide where focus goes.
+   *
+   * `restoreFocus: true` is the default for a plain dismissal: without it,
+   * closing drops focus onto `<body>` and a keyboard reader has to tab from
+   * the top of the page to get back.
+   *
+   * `restoreFocus: false` is for a close that HANDS OFF to another surface —
+   * the check-in. Grabbing focus back to the Guide tab a frame after the
+   * dialog opened would yank the reader out of the thing they just asked for.
+   */
+  const closeGuide = useCallback(
+    ({ restoreFocus = true }: { restoreFocus?: boolean } = {}) => {
+      setGuideOpen(false);
+      if (!restoreFocus) return;
+      // After the panel unmounts, or the browser has nothing to focus.
+      requestAnimationFrame(() => guideTabRef.current?.focus());
+    },
+    [],
+  );
+  const [flashBlockId, setFlashBlockId] = useState<string | null>(null);
+
   const blockRefs = useRef<Map<string, HTMLElement>>(new Map());
   const registerRef = useCallback((id: string, el: HTMLElement | null) => {
     if (el) blockRefs.current.set(id, el);
     else blockRefs.current.delete(id);
   }, []);
+
+  /**
+   * Where the guide's approved passage is in THIS chapter. Resolved from the
+   * blocks the reader was actually served — never from a stored key, because
+   * Content Core derives block identity per environment (CC-1).
+   */
+  const guideAnchor: GuideAnchorResolution = useMemo(
+    () =>
+      anchorAppliesTo(bookSlug, chapter.order)
+        ? resolveGuideAnchor(blocks)
+        : { status: "UNRESOLVED" },
+    [blocks, bookSlug, chapter.order],
+  );
+
+  /**
+   * Scroll the anchored paragraph into view and focus it. Deliberately does
+   * NOT create a highlight, does not touch progress, does not close the panel
+   * and does not change the route — it moves the page, and nothing else. The
+   * tint is visual only and fades on its own.
+   */
+  const goToGuidePassage = useCallback(() => {
+    if (guideAnchor.status !== "RESOLVED") return;
+    const el = blockRefs.current.get(guideAnchor.renderBlockId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.setAttribute("tabindex", "-1");
+    el.focus({ preventScroll: true });
+    setFlashBlockId(guideAnchor.renderBlockId);
+  }, [guideAnchor]);
+
+  /**
+   * The single authority for whether the guide can RUN on this screen.
+   *
+   * The pilot gate and the actor scope say whether the surface is on for this
+   * person; the anchor says whether the thing the guide is about exists in the
+   * chapter they are looking at. All three, or nothing: a session that starts
+   * without a locatable passage would record progress through a guide whose
+   * first step cannot be shown.
+   */
+  const guideRuntimeReady =
+    guideAvailable === true &&
+    guideActorScope !== null &&
+    guideAnchor.status === "RESOLVED";
+
+  // The tint is a hint, not a mark: it clears itself.
+  useEffect(() => {
+    if (!flashBlockId) return;
+    const t = setTimeout(() => setFlashBlockId(null), 2600);
+    return () => clearTimeout(t);
+  }, [flashBlockId]);
 
   // ── IntersectionObserver: track currently visible block ────────────────
 
@@ -609,7 +720,14 @@ export function LectorShell({
   }
 
   return (
-    <div className="min-h-screen" style={containerStyle}>
+    <div
+      // GR-3 — while the guided-reading drawer is open on desktop, the reader
+      // RESERVES its width instead of being covered by it. The rule lives in
+      // the panel's own stylesheet, so it only exists while the panel does.
+      className={`min-h-screen${guideOpen ? " reader-guide-open" : ""}`}
+      data-guide-open={guideOpen ? "true" : "false"}
+      style={containerStyle}
+    >
       {/* Top bar */}
       <header
         className="sticky top-0 z-30 backdrop-blur"
@@ -661,7 +779,7 @@ export function LectorShell({
                 want a quick listen without switching the whole reading
                 experience. In Modo Guía the audio lives in the banner
                 below, so we hide the pill to avoid duplicating it. */}
-            {chapter.audioAvailable && mode === "libro" ? (
+            {chapter.audioAvailable && mode === "leer" ? (
               <AudioBar
                 apiBase={apiBase}
                 token={token}
@@ -703,27 +821,76 @@ export function LectorShell({
         </div>
       </header>
 
-      {/* Mode toggle — Modo Libro vs Modo Guía. The toggle lives right
-          below the sticky header so the user can always switch without
-          scrolling, and so the choice is visible (it's the flagship feature
-          per the design source-of-truth, docs/design/handoff/05-lector.md). */}
+      {/* Mode selector — Leer · Escuchar · Ver (GR-2). It sits right below the
+          sticky header so switching never costs a scroll, and so the choice is
+          visible: the chapter is the unit, the format is the reader's call
+          (docs/product/guided-reading-v1.md GR-001). */}
       <div
-        className="mx-auto mt-4 flex max-w-3xl items-center justify-center gap-1 rounded-full p-1"
+        className="mx-auto mt-4 flex max-w-full items-center justify-center gap-1 overflow-x-auto rounded-full p-1"
         style={{
           background: "var(--reader-chip-bg, var(--color-warm-100))",
+          // `fit-content` capped by the viewport: the pill hugs its three tabs
+          // on desktop and scrolls inside itself on a narrow phone, so it can
+          // never be what makes the page wider than the screen.
           width: "fit-content",
+          maxWidth: "calc(100% - 32px)",
+          flexWrap: "nowrap",
+          scrollbarWidth: "none",
         }}
         role="tablist"
         aria-label="Modo de lectura"
       >
+        {(
+          [
+            { value: "leer", label: "📖 Leer" },
+            { value: "escuchar", label: "🎧 Escuchar" },
+            { value: "ver", label: "🎬 Ver" },
+          ] as const
+        ).map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="tab"
+            // While the guided-reading panel is open it is the selected
+            // surface; a mode tab still marked selected would tell assistive
+            // technology that two tabs are current at once.
+            aria-selected={!guideOpen && mode === option.value}
+            onClick={() => {
+              setGuideOpen(false);
+              changeMode(option.value);
+            }}
+            className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
+            style={
+              !guideOpen && mode === option.value
+                ? {
+                    background: "var(--reader-bg, var(--color-warm-50))",
+                    color: "var(--reader-text, var(--color-warm-900))",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                  }
+                : {
+                    background: "transparent",
+                    color: "var(--reader-muted, var(--color-warm-600))",
+                  }
+            }
+          >
+            {option.label}
+          </button>
+        ))}
+        {/* GR-3 — the fourth modality. It is a SURFACE: picking it opens the
+            panel over the chapter and leaves `ReaderMode` (and therefore the
+            stored preference) exactly where it was. `aria-selected` tracks
+            whether the panel is open, which is what the reader sees. */}
         <button
           type="button"
           role="tab"
-          aria-selected={mode === "libro"}
-          onClick={() => changeMode("libro")}
-          className="rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
+          ref={guideTabRef}
+          aria-selected={guideOpen}
+          aria-controls={READER_GUIDE_PANEL_ID}
+          data-testid="reader-mode-guiada"
+          onClick={() => setGuideOpen((v) => !v)}
+          className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
           style={
-            mode === "libro"
+            guideOpen
               ? {
                   background: "var(--reader-bg, var(--color-warm-50))",
                   color: "var(--reader-text, var(--color-warm-900))",
@@ -735,80 +902,65 @@ export function LectorShell({
                 }
           }
         >
-          📖 Modo Libro
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === "guia"}
-          onClick={() => changeMode("guia")}
-          className="rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
-          style={
-            mode === "guia"
-              ? {
-                  background: "var(--reader-bg, var(--color-warm-50))",
-                  color: "var(--reader-text, var(--color-warm-900))",
-                  boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
-                }
-              : {
-                  background: "transparent",
-                  color: "var(--reader-muted, var(--color-warm-600))",
-                }
-          }
-        >
-          🎧 Modo Guía
+          {GUIDE_READER_COPY.modeLabel}
         </button>
       </div>
 
-      {/* Modo Guía banner — audio player area or empty state when the audio
-          isn't published yet. The author's audio rollout is happening in
-          batches (ffmpeg embed + R2 upload, see docs/v1-freeze-ops-checklist.md
-          §3), so chapters can land in production before their audio does. */}
-      {mode === "guia" ? (
-        <div className="mx-auto mt-4 max-w-3xl px-4">
-          {chapter.audioAvailable ? (
-            <div
-              className="rounded-2xl border-[1.5px] bg-white p-4"
-              style={{ borderColor: "var(--color-warm-200)" }}
-            >
-              <AudioBar
-                apiBase={apiBase}
-                token={token}
-                bookId={book.id}
-                chapterOrder={chapter.order}
-              />
-            </div>
-          ) : (
-            <div
-              className="rounded-2xl border-[1.5px] p-5 text-center"
-              style={{
-                background: "var(--color-warm-50)",
-                borderColor: "var(--color-warm-200)",
-              }}
-            >
-              <p
-                className="text-[20px]"
-                style={{ color: "var(--color-warm-500)" }}
-                aria-hidden
-              >
-                🎧
-              </p>
-              <p
-                className="mt-2 text-[13.5px] font-semibold"
-                style={{ color: "var(--color-warm-800)" }}
-              >
-                Audio en producción
-              </p>
-              <p
-                className="mt-1 text-[12.5px]"
-                style={{ color: "var(--color-warm-500)" }}
-              >
-                Este capítulo aún no tiene narración disponible. Puedes cambiar
-                a Modo Libro mientras tanto.
-              </p>
-            </div>
-          )}
-        </div>
+      {/* The pilot gate is the server's call and it is opaque: when the guide
+          is not on for this reader we say so plainly and never explain why. */}
+      {guideOpen && !guideRuntimeReady ? (
+        <p
+          role="status"
+          data-testid="reader-guide-unavailable"
+          className="mx-auto mt-3 max-w-3xl px-4 text-[13px]"
+          style={{ color: "var(--reader-muted, var(--color-warm-600))" }}
+        >
+          {GUIDE_READER_COPY.unavailable}
+        </p>
+      ) : null}
+
+      {guideOpen && guideRuntimeReady && guideActorScope ? (
+        <ReaderGuidePanel
+          actorScope={guideActorScope}
+          anchor={guideAnchor}
+          concept={chapterConcept(bookSlug, chapter.order, chapter.title)}
+          bookSlug={bookSlug}
+          chapterOrder={chapter.order}
+          apiBase={apiBase}
+          token={token}
+          onClose={() => closeGuide()}
+          onGoToPassage={goToGuidePassage}
+          onContinueReading={() => closeGuide()}
+          onOpenExplicitCheckin={() => {
+            // The existing check-in surface, reached as itself and IN PLACE:
+            // the chapter stays open and the route does not change. The guide
+            // does not preselect an emotion, does not submit anything, and
+            // does not claim it caused whatever the reader records there.
+            // The check-in is the destination now, so the Guide does not take
+            // focus back — `openMoodCheckin` moves it into the dialog.
+            closeGuide({ restoreFocus: false });
+            openMoodCheckin();
+          }}
+        />
+      ) : null}
+
+      {mode === "escuchar" ? (
+        <ChapterMediaListen
+          apiBase={apiBase}
+          token={token}
+          bookId={book.id}
+          chapterOrder={chapter.order}
+          audioAvailable={chapter.audioAvailable}
+        />
+      ) : null}
+
+      {mode === "ver" ? (
+        <ChapterMediaWatch
+          apiBase={apiBase}
+          token={token}
+          bookId={book.id}
+          chapterOrder={chapter.order}
+        />
       ) : null}
 
       {/* Sprint B — contextual Eco topic for this chapter (dismissible). */}
@@ -822,7 +974,13 @@ export function LectorShell({
       </div>
 
       {/* Reading area */}
-      <main className="mx-auto max-w-3xl px-4 pb-8" style={proseStyle}>
+      <main
+        // A stable hook for the responsive gate: «the panel does not cover the
+        // text» has to name WHICH element is the text.
+        data-testid="reader-chapter-column"
+        className="mx-auto max-w-3xl px-4 pb-8"
+        style={proseStyle}
+      >
         {/* CC-6D — a content-core marks read failed. Visible + fail-closed: the
             chapter is still readable, but we never show the envelope's marks in
             its place. */}
@@ -861,6 +1019,7 @@ export function LectorShell({
               setDockOpen(true);
             }}
             registerRef={registerRef}
+            flash={flashBlockId === b.id}
           />
         ))}
 

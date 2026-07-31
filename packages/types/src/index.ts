@@ -1520,6 +1520,22 @@ export interface EvolucionStats {
   conversacionesEco: number;
   /** Highlights + annotations created while reading, all time. */
   marcasLectura: number;
+
+  // GR-2 — learning activity, derived from the V1 LearningEvent log. Counts of
+  // what the person DID. They never reach the Emotional Map, and they say
+  // nothing about comprehension: an attempt is an attempt, not a score.
+  /** Audiobooks whose player reached its end. */
+  audiolibrosCompletados: number;
+  /** Podcasts whose player reached its end. */
+  podcastsCompletados: number;
+  /** Video explainers whose player reached its end. */
+  videoexplicacionesCompletadas: number;
+  /** Guided readings completed. */
+  lecturasGuiadasCompletadas: number;
+  /** Inline practices completed. */
+  practicasCompletadas: number;
+  /** Recall attempts — attempts only, never results. */
+  recallsRealizados: number;
 }
 
 export interface EvolucionMilestone {
@@ -3625,6 +3641,14 @@ export * from "./chapter-exercises";
 // ─── Fase E (V2) — ARC cycle: chapter concepts + resonance wire types ─────
 export * from "./chapter-concepts";
 
+// ─── GR-2 — chapter media (audiobook · podcast · video explainer) ─────────
+export * from "./chapter-media";
+
 // ─── CC-7.1 — learning domain commands + server-constructed event records ─
 export * from "./learning-events";
 export * from "./guide";
+
+// GR-3 — the guided-reading anchor: an EDITORIAL locator plus the pure
+// resolver that turns it into a runtime block reference. Shared so the reader
+// and the ingest test run the same code.
+export * from "./guide-anchor";

@@ -17,11 +17,13 @@ const SOURCE_TO_WIRE: Record<string, ResonanceSource> = {
   HIGHLIGHT: "highlight",
   ECO: "eco",
   EXERCISE: "exercise",
+  GUIDE: "guide",
 };
 const SOURCE_TO_DB = {
   highlight: "HIGHLIGHT",
   eco: "ECO",
   exercise: "EXERCISE",
+  guide: "GUIDE",
 } as const;
 
 /**

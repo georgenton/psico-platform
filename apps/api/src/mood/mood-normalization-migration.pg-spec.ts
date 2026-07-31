@@ -2,6 +2,8 @@ import { execSync } from "node:child_process";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { assertEmptyTestDatabase } from "../test/pg-precondition";
+
 /**
  * PR-2A · the REAL migration, exercised end-to-end.
  *
@@ -50,6 +52,13 @@ suite("PR-2A · real migration (prisma migrate deploy)", () => {
   beforeAll(async () => {
     // Fresh isolated schema.
     const admin = new Pool({ connectionString: base });
+    // `migrate deploy` below runs into `pr2a_migrate`. If `vector` already
+    // exists in `public`, CREATE EXTENSION IF NOT EXISTS is a no-op and the
+    // `vector(1024)` column cannot resolve under this schema's search_path.
+    await assertEmptyTestDatabase(
+      admin,
+      "mood-normalization-migration.pg-spec",
+    );
     await admin.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
     await admin.query(`CREATE SCHEMA "${SCHEMA}"`);
     await admin.end();

@@ -35,7 +35,8 @@ export function EcoTopicCard({
 
   return (
     <aside
-      className="mx-auto mb-6 max-w-3xl rounded-2xl border-[1.5px] px-4 py-3"
+      data-gr2="eco-card"
+      className="mx-auto mb-6 w-full min-w-0 max-w-3xl rounded-2xl border-[1.5px] px-4 py-3"
       style={{
         background: "var(--color-sage-50)",
         borderColor: "var(--color-sage-200)",

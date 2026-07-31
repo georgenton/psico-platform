@@ -361,7 +361,10 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
   // ── Recall ───────────────────────────────────────────────────────────────
 
   it("recall accepts both a correct and an incorrect option", async () => {
-    for (const option of [CORRECT_OPTION, WRONG_OPTION]) {
+    for (const [option, outcome] of [
+      [CORRECT_OPTION, "CORRECT"],
+      [WRONG_OPTION, "REVIEW"],
+    ] as const) {
       await prisma.guideSessionStep.deleteMany();
       await prisma.guideCommandReceipt.deleteMany();
       await prisma.guideSession.deleteMany();
@@ -377,12 +380,45 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
         .expect(201);
 
       expect(res.body.session.stepsCompleted).toBe(3);
+      // GR-3 — the person is told how it went. `REVIEW`, never `INCORRECT`:
+      // the ledger keeps the graded fact, the wire carries the invitation.
+      expect(res.body.feedback).toEqual({ outcome });
       // The correct answer never reaches the client.
       const serialized = JSON.stringify(res.body);
       expect(serialized).not.toContain("correctOptionKey");
       expect(serialized).not.toContain(CORRECT_OPTION);
       expect(serialized).not.toContain("evaluationSource");
+      expect(serialized).not.toContain("INCORRECT");
+      // Not even the chosen option is echoed back.
+      expect(res.body.feedback).not.toHaveProperty("selectedOptionKey");
     }
+  });
+
+  it("GR-3 — replaying a recall returns the SAME outcome, and grades nothing twice", async () => {
+    const sessionId = await start();
+    await completeStep(sessionId, STEP_CONCEPT).expect(201);
+    await completeStep(sessionId, STEP_PRACTICE).expect(201);
+
+    const key = nextKey();
+    const fresh = await http()
+      .post(`/api/guide/sessions/${sessionId}/steps/${STEP_RECALL}/recall`)
+      .set(auth(tokenA))
+      .send({ idempotencyKey: key, selectedOptionKey: WRONG_OPTION })
+      .expect(201);
+    const after = await counts();
+
+    // The same command, byte for byte. 200 and nothing runs — the outcome is
+    // READ BACK from the accepted row, not re-derived from the option.
+    const replay = await http()
+      .post(`/api/guide/sessions/${sessionId}/steps/${STEP_RECALL}/recall`)
+      .set(auth(tokenA))
+      .send({ idempotencyKey: key, selectedOptionKey: WRONG_OPTION })
+      .expect(200);
+
+    expect(fresh.body.feedback.outcome).toBe("REVIEW");
+    expect(replay.body.feedback).toEqual(fresh.body.feedback);
+    expect(replay.body.replayed).toBe(true);
+    expect(await counts()).toEqual(after);
   });
 
   it("an option outside the item's set is a 422 with zero writes", async () => {

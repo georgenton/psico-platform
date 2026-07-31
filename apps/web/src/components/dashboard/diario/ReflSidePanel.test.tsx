@@ -13,6 +13,12 @@ function buildStats(overrides: Partial<EvolucionStats> = {}): EvolucionStats {
     diasActivos30d: 18,
     conversacionesEco: 0,
     marcasLectura: 0,
+    audiolibrosCompletados: 2,
+    podcastsCompletados: 0,
+    videoexplicacionesCompletadas: 1,
+    lecturasGuiadasCompletadas: 3,
+    practicasCompletadas: 4,
+    recallsRealizados: 5,
     ...overrides,
   };
 }

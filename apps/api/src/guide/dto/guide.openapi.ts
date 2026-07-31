@@ -142,3 +142,46 @@ export const GUIDE_COMMAND_RESPONSE: SchemaObject = {
     session: GUIDE_SESSION_VIEW,
   },
 };
+
+/**
+ * GR-3 — the recall command's response. The ONE command that says more than
+ * the session: the outcome the reader is shown.
+ *
+ * Two values, closed. `REVIEW` and not `INCORRECT`: the ledger keeps the
+ * graded fact, the wire carries an invitation to look again. There is no
+ * score, no percentage, no `selectedOptionKey` echo and — above all — never
+ * the catalog's correct option.
+ */
+export const GUIDE_RECALL_COMMAND_RESPONSE: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["created", "replayed", "session", "feedback"],
+  properties: {
+    created: {
+      type: "boolean",
+      description: "Esta llamada aplicó la transición (HTTP 201).",
+    },
+    replayed: {
+      type: "boolean",
+      description:
+        "Un comando idéntico anterior ya la aplicó; nada corrió ahora " +
+        "(HTTP 200). El feedback es el mismo que devolvió el intento " +
+        "original — se lee del ledger, no se vuelve a calificar.",
+    },
+    session: GUIDE_SESSION_VIEW,
+    feedback: {
+      type: "object",
+      additionalProperties: false,
+      required: ["outcome"],
+      properties: {
+        outcome: {
+          type: "string",
+          enum: ["CORRECT", "REVIEW"],
+          description:
+            "Lo que se le dice a la persona. Calificado por el servidor " +
+            "contra la respuesta canónica del catálogo, que nunca sale.",
+        },
+      },
+    },
+  },
+};

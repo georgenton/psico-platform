@@ -1,0 +1,30 @@
+{
+  "_readme": [
+    "GR-2 evidence fixture — the audio response used by captures 01 and 06.",
+    "The chapter master is not in local storage, so the capture harness serves a",
+    "silent WAV and stubs this response. Everything here is declared fixture data.",
+    "",
+    "Two fields are pinned by gr2-evidence-fixture.test.ts and must not drift:",
+    "  metadata.title  — must carry the canonical chapter title, which is owned by",
+    "                    apps/api/content/emociones-en-construccion/titles.json.",
+    "  metadata.artist — the repository holds no authorship authority for this",
+    "                    book, so the fixture carries the contract's documented",
+    "                    no-author fallback instead of an unverified person's name."
+  ],
+  "urlPath": "/gr2-fixture-audio.wav",
+  "durationSec": 1140,
+  "transcript": [
+    {
+      "start": 0,
+      "end": 24,
+      "text": "Fragmento de transcripción de ejemplo (fixture local).",
+      "blockId": null
+    }
+  ],
+  "metadata": {
+    "title": "Cap. 1 · ¿Realmente sabemos qué es una emoción?",
+    "subtitle": "Emociones en Construcción",
+    "artist": "Psico Platform",
+    "artworkUrl": "cover-lavender"
+  }
+}

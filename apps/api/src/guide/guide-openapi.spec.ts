@@ -174,21 +174,62 @@ describe("ratchet · guide OpenAPI surface", () => {
       "totalSteps",
     ];
     for (const path of EXPECTED_PATHS) {
+      // GR-3 — recall is the ONE command that says more than the session: it
+      // also carries the outcome the reader is shown. Everything else stays
+      // exactly at the three-field shape.
+      const expectedTop = path.endsWith("/recall")
+        ? ["created", "feedback", "replayed", "session"]
+        : ["created", "replayed", "session"];
       for (const status of ["200", "201"]) {
         const schema = responseOf(path, status);
         expect(schema, `${path} ${status}`).toBeDefined();
         expect(schema.additionalProperties, `${path} ${status}`).toBe(false);
-        expect([...(schema.required ?? [])].sort()).toEqual([
-          "created",
-          "replayed",
-          "session",
-        ]);
+        expect(
+          [...(schema.required ?? [])].sort(),
+          `${path} ${status}`,
+        ).toEqual(expectedTop);
+        expect(
+          Object.keys(schema.properties ?? {}).sort(),
+          `${path} ${status}`,
+        ).toEqual(expectedTop);
         const session = schema.properties?.session as Schema;
         expect(session.additionalProperties).toBe(false);
         expect([...(session.required ?? [])].sort()).toEqual(SESSION_FIELDS);
         expect(Object.keys(session.properties ?? {}).sort()).toEqual(
           SESSION_FIELDS,
         );
+      }
+    }
+  });
+
+  it("GR-3 — the recall feedback is closed, two-valued, and never says INCORRECT", () => {
+    const recall = "/api/guide/sessions/{sessionId}/steps/{stepKey}/recall";
+    for (const status of ["200", "201"]) {
+      const feedback = responseOf(recall, status).properties
+        ?.feedback as Schema;
+      expect(feedback, status).toBeDefined();
+      expect(feedback.additionalProperties, status).toBe(false);
+      expect([...(feedback.required ?? [])], status).toEqual(["outcome"]);
+      expect(Object.keys(feedback.properties ?? {}), status).toEqual([
+        "outcome",
+      ]);
+      const outcome = feedback.properties?.outcome as Schema & {
+        enum?: string[];
+      };
+      // Exactly two values. `INCORRECT` is the ledger's word for the graded
+      // fact; the public vocabulary is an invitation to look again.
+      expect([...(outcome.enum ?? [])].sort(), status).toEqual([
+        "CORRECT",
+        "REVIEW",
+      ]);
+    }
+    // No other command grew a feedback object.
+    for (const path of EXPECTED_PATHS.filter((p) => !p.endsWith("/recall"))) {
+      for (const status of ["200", "201"]) {
+        expect(
+          JSON.stringify(responseOf(path, status)).includes('"feedback"'),
+          `${path} ${status}`,
+        ).toBe(false);
       }
     }
   });

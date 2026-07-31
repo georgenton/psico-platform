@@ -101,8 +101,9 @@ describe("ratchet · guide public surface", () => {
     for (const verb of ["@Patch(", "@Put(", "@Delete("]) {
       expect(source.includes(verb), verb).toBe(false);
     }
-    // The handlers: the five commands + the availability gate (plus the two
-    // private helpers).
+    // The handlers: the five commands + the availability gate (plus the three
+    // private helpers — GR-3 added `toRecallResponse`, which decorates the
+    // shared shape with the recall outcome and adds no route).
     expect(
       Object.getOwnPropertyNames(GuideController.prototype)
         .filter((n) => n !== "constructor")
@@ -114,6 +115,7 @@ describe("ratchet · guide public surface", () => {
       "createGuideSession",
       "getGuideAvailability",
       "submitGuideStepRecall",
+      "toRecallResponse",
       "toResponse",
       "unwrap",
     ]);

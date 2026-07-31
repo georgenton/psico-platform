@@ -62,3 +62,7 @@ coverage/
 
 # Changesets — .md files must be tracked so `pnpm changeset version` can consume them
 !.changeset/*.md
+
+# Local Vercel project linkage
+.vercel/
+apps/web/.vercel/

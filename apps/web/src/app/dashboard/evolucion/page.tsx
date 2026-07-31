@@ -5,6 +5,7 @@ import { serverFetch } from "@/lib/api.server";
 import { ExportButton } from "@/components/dashboard/shell/ExportButton";
 import { EvolucionEmotionalSection } from "@/components/dashboard/evolucion/EmotionalSection";
 import { EvoQuarter } from "@/components/dashboard/evolucion/EvoQuarter";
+import { LearningActivityCard } from "@/components/dashboard/evolucion/LearningActivityCard";
 import { MilestonesTimeline } from "@/components/dashboard/evolucion/MilestonesTimeline";
 
 export const metadata: Metadata = { title: "Mi Evolución" };
@@ -32,7 +33,7 @@ export default async function EvolucionPage() {
       <>
         <div className="screen-head">
           <div className="screen-title">
-            <span className="eb">Tu transformación en el tiempo</span>
+            <span className="eb">Tu recorrido, registrado</span>
             Mi Evolución
           </div>
         </div>
@@ -55,14 +56,19 @@ export default async function EvolucionPage() {
     <>
       <div className="screen-head">
         <div className="screen-title">
-          <span className="eb">Tu transformación en el tiempo</span>
+          <span className="eb">Tu recorrido, registrado</span>
           Mi Evolución
         </div>
         <ExportButton />
       </div>
+      {/*
+        GR-2 — factual copy. This page records what the person DID; it does not
+        claim that doing it changed them. The Emotional Map stays a separate
+        surface fed only by what someone chooses to express.
+      */}
       <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
-        No es un registro de cuánto leíste, sino de cómo fuiste cambiando. Cada
-        hito es un momento en que entendiste algo nuevo sobre ti.
+        Aquí puedes ver lo que has leído, practicado y completado. El Mapa
+        Emocional se alimenta solo de señales que tú decides registrar.
       </p>
 
       <div className="evo-top">
@@ -73,6 +79,8 @@ export default async function EvolucionPage() {
         />
         <EvoQuarter stats={evolucion.stats} />
       </div>
+
+      <LearningActivityCard stats={evolucion.stats} />
 
       <MilestonesTimeline milestones={evolucion.milestones} />
     </>

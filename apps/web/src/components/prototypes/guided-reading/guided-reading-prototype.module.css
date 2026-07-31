@@ -1,0 +1,1015 @@
+/*
+ * Guided Reading V1 — estilos locales del prototipo visual (GR-1).
+ *
+ * Usa exclusivamente los tokens ya definidos en `src/app/globals.css`
+ * (color, tipografía, espaciado, radios, sombras). No introduce una paleta
+ * nueva ni copia identidad visual de ninguna referencia externa.
+ *
+ * Se necesita un archivo de estilos porque el prototipo es responsive: el
+ * panel lateral de escritorio y el bottom sheet móvil son el mismo DOM con
+ * media queries distintas, y eso no se puede expresar con estilos inline.
+ */
+
+.page {
+  min-height: 100vh;
+  background: var(--bg-page);
+  color: var(--fg-body);
+  font-family: var(--font-sans);
+}
+
+/* ── Cabecera del capítulo ────────────────────────────────────────────── */
+
+.topbar {
+  border-bottom: 1px solid var(--bg-divider);
+  background: var(--surface-glass-bg);
+  backdrop-filter: var(--surface-glass-blur);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.topbarInner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-md) var(--space-lg);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-tertiary);
+}
+
+.bookTitle {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-heading);
+}
+
+.chapterTitle {
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ── Layout ───────────────────────────────────────────────────────────── */
+
+.layout {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-xl) var(--space-lg) var(--space-3xl);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-xl);
+  align-items: start;
+}
+
+.readerCol {
+  min-width: 0;
+}
+
+/* ── Selector de modalidad ────────────────────────────────────────────── */
+
+.modeCard {
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-divider);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card-sm);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+
+.modeQuestion {
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-heading);
+}
+
+.modeGrid {
+  display: grid;
+  /* Columnas fijas: 4 → 2 → 1. `auto-fit` podía dejar una tarjeta sola en una
+     segunda fila; 2x2 nunca lo hace. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+@media (max-width: 900px) {
+  .modeGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .modeGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Tira compacta: `Leer · Escuchar · Ver · Guía` en una sola línea. */
+.modeStrip {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: var(--space-lg);
+  padding: 5px;
+  border: 1px solid var(--bg-divider);
+  border-radius: var(--radius-full);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card-sm);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.modeStrip::-webkit-scrollbar {
+  display: none;
+}
+
+.modeStripItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.modeStripItem:hover {
+  background: var(--bg-subtle);
+}
+
+.modeStripItemOn {
+  background: var(--bg-brand-soft);
+  color: var(--color-lavender-700);
+  font-weight: var(--weight-semibold);
+}
+
+.modeButton {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  text-align: left;
+  min-height: 76px;
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--bg-divider);
+  background: var(--bg-page);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--easing-default),
+    border-color var(--duration-fast) var(--easing-default);
+}
+
+.modeButton:hover {
+  background: var(--bg-subtle);
+}
+
+.modeButtonActive {
+  border-color: var(--color-lavender-300);
+  background: var(--bg-brand-tint);
+}
+
+.modeIcon {
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+
+.modeLabel {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-heading);
+}
+
+.modeHint {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+/* ── Lector ───────────────────────────────────────────────────────────── */
+
+.reader {
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-divider);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card-sm);
+  padding: var(--space-xl);
+}
+
+.readerToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+  padding-bottom: var(--space-md);
+  margin-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--bg-divider);
+}
+
+.chip {
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--bg-divider);
+  background: var(--bg-surface);
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: var(--bg-subtle);
+}
+
+.chipOn {
+  border-color: var(--color-lavender-300);
+  background: var(--bg-brand-soft);
+  color: var(--color-lavender-700);
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.demoNote {
+  margin: 0 0 var(--space-lg);
+  font-size: var(--text-xs);
+  color: var(--fg-tertiary);
+  font-family: var(--font-mono);
+}
+
+.blockHeading {
+  margin: var(--space-xl) 0 var(--space-md);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-snug);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-strong);
+}
+
+.blockHeading:first-child {
+  margin-top: 0;
+}
+
+.blockParagraph {
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-lg);
+  line-height: var(--leading-relaxed);
+  color: var(--fg-body);
+}
+
+.blockQuote {
+  margin: var(--space-lg) 0;
+  padding: var(--space-md) var(--space-lg);
+  border-left: 3px solid var(--color-lavender-300);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--bg-brand-tint);
+  font-size: var(--text-lg);
+  line-height: var(--leading-relaxed);
+  color: var(--fg-strong);
+}
+
+.marked {
+  background: linear-gradient(
+    transparent 62%,
+    var(--color-sage-100) 62%,
+    var(--color-sage-100) 96%,
+    transparent 96%
+  );
+}
+
+.anchorTarget {
+  scroll-margin-top: 96px;
+  outline: none;
+}
+
+.anchorFlash {
+  animation: anchorFlash 1800ms var(--easing-default);
+}
+
+@keyframes anchorFlash {
+  0% {
+    box-shadow: 0 0 0 6px var(--color-lavender-200);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.readerFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-xl);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--bg-divider);
+}
+
+/* ── Medios (Escuchar / Ver) ──────────────────────────────────────────── */
+
+.mediaCard {
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-divider);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card-sm);
+  padding: var(--space-xl);
+}
+
+.mediaTabs {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.mediaTitle {
+  margin: 0 0 4px;
+  font-size: var(--text-2xl);
+  line-height: var(--leading-snug);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-strong);
+}
+
+.mediaSubtitle {
+  margin: 0 0 var(--space-lg);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.playerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+
+.playButton {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-full);
+  border: 0;
+  background: var(--gradient-cover-lavender);
+  color: var(--fg-on-brand);
+  font-size: var(--text-lg);
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+}
+
+.timeline {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--bg-divider);
+  overflow: hidden;
+}
+
+.timelineFill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-lavender-400);
+}
+
+.timeLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.rowWrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.listReset {
+  list-style: none;
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.listRow {
+  display: flex;
+  gap: var(--space-md);
+  align-items: baseline;
+  font-size: var(--text-sm);
+  color: var(--fg-body);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--bg-divider);
+}
+
+.listRow:last-child {
+  border-bottom: 0;
+}
+
+.sectionLabel {
+  margin: var(--space-xl) 0 var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-tertiary);
+}
+
+.videoHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+@media (min-width: 860px) {
+  .videoHead {
+    grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  }
+}
+
+.videoMeta {
+  min-width: 0;
+}
+
+.subtitleLine {
+  position: absolute;
+  left: var(--space-md);
+  right: var(--space-md);
+  bottom: calc(var(--space-md) + 20px);
+  text-align: center;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: #fff;
+  background: rgb(0 0 0 / 0.42);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+}
+
+.posterAudio {
+  background: var(--gradient-cover-sage);
+}
+
+.poster {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  /* Acotado para que el título, la duración y los controles queden en el
+     primer viewport junto al poster. */
+  max-width: 100%;
+  min-width: 0;
+  border-radius: var(--radius-lg);
+  background: var(--gradient-cover-mixed);
+  box-shadow: var(--shadow-cover);
+  margin-bottom: var(--space-lg);
+}
+
+.posterCaption {
+  position: absolute;
+  left: var(--space-md);
+  bottom: var(--space-md);
+  font-size: var(--text-xs);
+  color: var(--fg-on-brand);
+  opacity: 0.9;
+}
+
+.transcriptBox {
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--fg-body);
+}
+
+.transcriptBox p {
+  margin: 0 0 var(--space-sm);
+}
+
+.transcriptBox p:last-child {
+  margin-bottom: 0;
+}
+
+/* ── Panel de Lectura guiada ──────────────────────────────────────────── */
+
+.panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-divider);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sheetHandle {
+  display: none;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--bg-divider);
+  background: var(--bg-brand-tint);
+}
+
+.panelHeaderTitle {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-lavender-700);
+}
+
+.iconButton {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-md);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--bg-subtle);
+}
+
+.panelBody {
+  padding: var(--space-lg);
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+.panelFooter {
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--bg-divider);
+  background: var(--bg-surface);
+  display: grid;
+  gap: var(--space-sm);
+}
+
+/* ── Progreso ─────────────────────────────────────────────────────────── */
+
+.progress {
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--bg-divider);
+}
+
+.checkpoints {
+  display: flex;
+  gap: var(--space-sm);
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.checkpoint {
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--fg-tertiary);
+}
+
+.checkpointBar {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--bg-divider);
+}
+
+.checkpointActive {
+  color: var(--color-lavender-700);
+  font-weight: var(--weight-semibold);
+}
+
+.checkpointActive .checkpointBar {
+  background: var(--color-lavender-400);
+}
+
+.checkpointDone {
+  color: var(--color-sage-700);
+}
+
+.checkpointDone .checkpointBar {
+  background: var(--color-sage-400);
+}
+
+.partLabel {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+/* ── Escenas ──────────────────────────────────────────────────────────── */
+
+.sceneEyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-lavender-600);
+  margin: 0 0 var(--space-sm);
+}
+
+.sceneTitle {
+  overflow-wrap: anywhere;
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-snug);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-strong);
+}
+
+.sceneText {
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-base);
+  line-height: var(--leading-relaxed);
+  color: var(--fg-body);
+}
+
+.metaList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 var(--space-lg);
+  padding: 0;
+  list-style: none;
+}
+
+.metaItem {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-full);
+  padding: 4px 10px;
+}
+
+.primaryButton {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px var(--space-lg);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--bg-action);
+  color: var(--fg-on-brand);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--easing-default);
+}
+
+.primaryButton:hover {
+  background: var(--bg-action-hover);
+}
+
+.secondaryButton {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px var(--space-lg);
+  border: 1px solid var(--bg-divider);
+  border-radius: var(--radius-full);
+  background: var(--bg-surface);
+  color: var(--fg-heading);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.secondaryButton:hover {
+  background: var(--bg-subtle);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.primaryButton:disabled:hover {
+  background: var(--bg-action);
+}
+
+.clipCanvas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-lg);
+  background: var(--gradient-cover-lavender);
+  color: var(--fg-on-brand);
+  box-shadow: var(--shadow-cover);
+  margin-bottom: var(--space-md);
+}
+
+.clipCanvasAudio {
+  background: var(--gradient-cover-sage);
+  flex-direction: column;
+  gap: 6px;
+}
+
+.clipCanvasCaption {
+  font-size: var(--text-xs);
+  opacity: 0.9;
+}
+
+.locatedNote {
+  margin: var(--space-md) 0 0;
+  padding: 10px var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--bg-action-soft);
+  color: var(--color-sage-700);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.evolutionNote {
+  margin: var(--space-md) 0 0;
+  padding: 10px var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+}
+
+.optionList {
+  display: grid;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-md);
+}
+
+.option {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+  text-align: left;
+  min-height: 44px;
+  padding: var(--space-md);
+  border: 1px solid var(--bg-divider);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  color: var(--fg-body);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  cursor: pointer;
+}
+
+.option:hover {
+  background: var(--bg-subtle);
+}
+
+.optionSelected {
+  border-color: var(--color-lavender-400);
+  background: var(--bg-brand-tint);
+  color: var(--fg-strong);
+}
+
+.optionBullet {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-lavender-300);
+}
+
+.optionSelected .optionBullet {
+  background: var(--color-lavender-500);
+  border-color: var(--color-lavender-500);
+}
+
+.timerBox {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: var(--space-lg);
+  margin-bottom: var(--space-md);
+  border-radius: var(--radius-lg);
+  background: var(--bg-brand-tint);
+}
+
+.timerValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-4xl);
+  font-weight: var(--weight-semibold);
+  color: var(--color-lavender-700);
+  font-variant-numeric: tabular-nums;
+}
+
+.privacyNote {
+  margin: var(--space-md) 0 0;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.feedbackCard {
+  padding: var(--space-lg);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-md);
+}
+
+.feedbackCorrect {
+  background: var(--bg-action-soft);
+  border: 1px solid var(--color-sage-200);
+}
+
+.feedbackReview {
+  background: var(--bg-brand-soft);
+  border: 1px solid var(--color-lavender-200);
+}
+
+.feedbackBadge {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.16em;
+  color: var(--fg-muted);
+}
+
+.checklist {
+  list-style: none;
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.checklistItem {
+  display: flex;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-body);
+}
+
+.checkMark {
+  color: var(--color-sage-600);
+  font-weight: var(--weight-bold);
+}
+
+.closingBlock {
+  /* El cierre tiene dos bloques de decisión: se mantienen compactos para que
+     ambos quepan en la misma pantalla. */
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--bg-divider);
+  background: var(--bg-page);
+}
+
+.resonanceRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.resonanceRow > * {
+  /* Tres acciones distintas con etiquetas largas: se reparten cuando caben y
+     se apilan cuando no. */
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+/* ── Escritorio: panel lateral ────────────────────────────────────────── */
+
+@media (min-width: 1024px) {
+  .layoutWithPanel {
+    grid-template-columns: minmax(0, 1fr) 420px;
+  }
+
+  .panel {
+    position: sticky;
+    top: 88px;
+    max-height: calc(100vh - 112px);
+  }
+}
+
+/* ── Móvil: bottom sheet ──────────────────────────────────────────────── */
+
+@media (max-width: 1023px) {
+  .layoutWithPanel {
+    padding-bottom: 60vh;
+  }
+
+  /*
+   * Con el sheet abierto, el espacio visible es poco: el selector de modalidad
+   * se retira para que lo que quede detrás sea el texto del capítulo. Cerrar
+   * el sheet lo devuelve.
+   */
+  .layoutWithPanel .modeCard {
+    display: none;
+  }
+
+  .panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    width: 100%;
+    max-width: 100vw;
+    /* `dvh` sigue la barra del navegador móvil; `vh` la ignora y el CTA
+       quedaba debajo del borde real de la pantalla. */
+    max-height: 72dvh;
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+    border-bottom: 0;
+    box-shadow: 0 -8px 32px rgb(42 36 32 / 0.16);
+  }
+
+  .sheetHandle {
+    display: block;
+    width: 44px;
+    height: 4px;
+    margin: 10px auto 0;
+    border-radius: var(--radius-full);
+    background: var(--bg-divider);
+  }
+
+  .panelBody {
+    padding: var(--space-md) var(--space-lg) var(--space-lg);
+  }
+
+  /* El CTA fijo respeta la barra inferior del sistema. */
+  .panelFooter {
+    padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .resonanceRow {
+    flex-direction: column;
+  }
+
+  .resonanceRow > * {
+    flex: 1 1 auto;
+  }
+
+  /* Dos tamaños de sheet y ninguno más. */
+  .sheetStandard {
+    max-height: 72dvh;
+  }
+
+  .sheetExpanded {
+    /* Crece lo justo: por encima de esto el texto del capítulo desaparece
+       detrás del sheet, y el cuerpo del panel ya tiene scroll propio. */
+    max-height: 76dvh;
+  }
+
+  /*
+   * Con la Guide abierta el selector se retira: el espacio que queda arriba es
+   * poco y le pertenece al texto del capítulo. Al cerrar la Guide vuelve.
+   */
+  .hiddenOnMobile {
+    display: none;
+  }
+
+  /*
+   * …y el lector empieza en su primer bloque de texto: la barra de controles y
+   * la nota de demostración no compiten por esa franja visible.
+   */
+  .layoutWithPanel {
+    padding-top: var(--space-md);
+  }
+
+  .layoutWithPanel .readerToolbar,
+  .layoutWithPanel .demoNote {
+    display: none;
+  }
+
+  .layoutWithPanel .reader {
+    padding: var(--space-lg);
+  }
+
+  /*
+   * La cabecera conserva el contexto del capítulo —libro, parte y capítulo— y
+   * suelta la etiqueta de prototipo, que no es contexto de lectura.
+   */
+  [data-panel-open="true"] .eyebrow {
+    display: none;
+  }
+
+}

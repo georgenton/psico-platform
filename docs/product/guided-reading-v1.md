@@ -1,7 +1,7 @@
 # Guided Reading V1 — Blueprint canónico
 
 ```
-GUIDED_READING_SPEC_VERSION=1.0
+GUIDED_READING_SPEC_VERSION=1.0.1
 
 GUIDED_READING_BLUEPRINT_STATUS=APPROVED
 GUIDED_READING_IMPLEMENTATION_STATUS=IN_REVIEW
@@ -70,7 +70,7 @@ quedó autorizada después, con el anchor editorial ya decidido:
 
 ```
 GR3_IMPLEMENTATION_AUTHORIZED_BY_JORGE=true
-GR3_RUNTIME_ANCHOR_STATUS=IMPLEMENTED_RELEASE_GATE_PASSED
+GR3_RUNTIME_ANCHOR_STATUS=IMPLEMENTED_AND_RELEASE_GATED
 ```
 
 Los ADR y contratos existentes **siguen siendo autoridad** sobre lifecycle,
@@ -324,7 +324,7 @@ LEGACY_READER_MODE_VISIBLE_LABEL=Escuchar
 LEGACY_READER_MODE_LOCALSTORAGE_MIGRATION=false
 
 GR1_VISUAL_ANCHOR_PLACEHOLDER_ALLOWED=true
-GR3_RUNTIME_ANCHOR_STATUS=IMPLEMENTED_PENDING_RELEASE_GATE
+GR3_RUNTIME_ANCHOR_STATUS=IMPLEMENTED_AND_RELEASE_GATED
 
 SECOND_GUIDE_PRODUCTIVE_ALLOWED=false
 SECOND_BOOK_GUIDED_READING_ALLOWED=false
@@ -777,10 +777,19 @@ GR2_STATUS=CLOSED
 GR2_IMPLEMENTATION_STATUS=CLOSED
 GR2_BLOCKER=PENDING_EDITORIAL_ASSETS
 
-GR3_STATUS=COMPLETE_PENDING_MERGE
-GR3_IMPLEMENTATION_STATUS=COMPLETE_PENDING_MERGE
+GR3_STATUS=COMPLETE
+GR3_IMPLEMENTATION_STATUS=COMPLETE
+GR3_MERGE_STATUS=MERGED_TO_DEVELOP
+GR3_MERGED_PR=604
+GR3_MERGE_COMMIT=ad569b4b38a44b91bcacd1876205d9eed0d7811b
+GR3_MERGED_AT=2026-07-31T15:40:46Z
+
+GR3_MAIN_SYNC_STATUS=PENDING
+GR3_PRODUCTION_STATUS=NOT_DEPLOYED
+GR3_ROLLOUT_STATUS=UNCHANGED
+
 GR3_EDITORIAL_ANCHOR_STATUS=APPROVED
-GR3_RUNTIME_ANCHOR_STATUS=IMPLEMENTED_PENDING_RELEASE_GATE
+GR3_RUNTIME_ANCHOR_STATUS=IMPLEMENTED_AND_RELEASE_GATED
 
 OPEN_DECISION_BLOCKERS_FOR_GR3=0
 RUNTIME_PRECONDITIONS_FOR_GR3=1
@@ -790,8 +799,10 @@ GR3_SCREENSHOTS_STATUS=COMPLETE
 GR3_RESPONSIVE_BROWSER_GATE_STATUS=PASS
 GR3_FINAL_RUNTIME_REVIEW=APPROVED
 
-GR4_STATUS=BLOCKED_BY_GR3
-GR5_STATUS=BLOCKED_BY_GR4
+GR4_STATUS=CLOSED
+GR4_COMPLETION_SOURCE=GR3_RELEASE_GATE
+
+GR5_STATUS=PENDING_MAIN_SYNC_AND_PILOT_ROLLOUT
 GR6_STATUS=BLOCKED_BY_GR5
 ```
 
@@ -1359,9 +1370,10 @@ GR-P05 → GR-017    GR-P10 → GR-022
 | 2026-07-29 | 0.5     | Corrected prototype interaction and layout after Jorge's visual review, and set the activity policy: media and Guided Reading activity go to Mi Evolucion with a single completion event; the Emotional Map only receives explicit user actions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | 2026-07-29 | 0.6     | Final visual close of GR-1: resonance and the optional check-in became independent blocks (the check-in is no longer an answer to the resonance question), the mobile sheet hides the mode selector and keeps chapter text visible behind it, and the sheet moved to dynamic viewport units with two sizes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | 2026-07-29 | 0.7     | Jorge granted final visual approval for GR-1. Approved: desktop reader + side panel; mobile reader + bottom sheet; selector and four modalities; anchor post-click state; inline practice; recall and feedback; completion; and the separation of educational activity, resonance and the optional check-in. GR-1 closed. No runtime, API, database, production or Map integration was added.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| 2026-07-31 | 1.0     | GR-3 closed for merge. The release gate became reproducible and is now one command: it builds a disposable database from the checkout under audit, starts the API with the exact allowed origin and an in-memory rate-limit store (nothing shared is touched), drives Chrome, and gives everything back. Teardown is VERIFIED rather than assumed — a signal sent is not a process stopped, a drop attempted is not a database gone — and the exit code is `PRIMARY_GATE_PASS && TEARDOWN_PASS`, with failing paths covered by unit tests. Eight captures, promoted as a directory swap so a partial bundle cannot exist, each screened for PII (address, tokens, signed URLs, internal identity) before it is written. The check-in is verified in the real browser: the guide closes, the route does not change, the topbar dialog opens with focus inside it, nothing is preselected and nothing is written before choosing or after Escape. The cross-device row was corrected: another device does NOT resume — it gets a new cover and a new session, because the only way back into a session is the idempotency key that never leaves the browser that started it. Not merged, not deployed, no production change. |
-| 2026-07-30 | 0.9     | GR-3 integrated guided reading INTO the reader: the guide opens as a panel over the chapter instead of a route that leaves it. The anchor is editorial (heading + sentence) and resolved at runtime against the blocks the reader was served — Content Core derives `blockKey` per environment, so a literal would be false outside the database it came from. Block granularity: no character offsets. The run has ONE implementation (`useGuideRun`) shared with the standalone route. The recall command now answers `feedback.outcome` (`CORRECT` / `REVIEW`, read back from the accepted ledger so a replay agrees). Scene position is local, disposable and validated against server state; the verdict and its acknowledgement survive a reload. The check-in opens the existing topbar surface in place. One additive migration: `ResonanceSource.GUIDE`.                                                                                                                                                                                                                                                                                                                                                          |
 | 2026-07-29 | 0.8     | GR-2 implemented the real chapter media layer: a code-owned catalog (audiobook PUBLISHED over the existing chapter audio; podcast and video DRAFT until their masters exist), private Cloudflare Stream access, R2 signing reused through the shared storage service, ONE new educational event (`chapter_media_completed`, completion granularity, server-derived idempotency), the Leer · Escuchar · Ver selector with the legacy `"guia"` value preserved, and the «Actividad de aprendizaje» card in Mi Evolución. One additive migration, no new table or column. Media activity goes to Mi Evolución and never to the Emotional Map.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 2026-07-30 | 0.9     | GR-3 integrated guided reading INTO the reader: the guide opens as a panel over the chapter instead of a route that leaves it. The anchor is editorial (heading + sentence) and resolved at runtime against the blocks the reader was served — Content Core derives `blockKey` per environment, so a literal would be false outside the database it came from. Block granularity: no character offsets. The run has ONE implementation (`useGuideRun`) shared with the standalone route. The recall command now answers `feedback.outcome` (`CORRECT` / `REVIEW`, read back from the accepted ledger so a replay agrees). Scene position is local, disposable and validated against server state; the verdict and its acknowledgement survive a reload. The check-in opens the existing topbar surface in place. One additive migration: `ResonanceSource.GUIDE`.                                                                                                                                                                                                                                                                                                                                                          |
+| 2026-07-31 | 1.0     | GR-3 closed for merge. The release gate became reproducible and is now one command: it builds a disposable database from the checkout under audit, starts the API with the exact allowed origin and an in-memory rate-limit store (nothing shared is touched), drives Chrome, and gives everything back. Teardown is VERIFIED rather than assumed — a signal sent is not a process stopped, a drop attempted is not a database gone — and the exit code is `PRIMARY_GATE_PASS && TEARDOWN_PASS`, with failing paths covered by unit tests. Eight captures, promoted as a directory swap so a partial bundle cannot exist, each screened for PII (address, tokens, signed URLs, internal identity) before it is written. The check-in is verified in the real browser: the guide closes, the route does not change, the topbar dialog opens with focus inside it, nothing is preselected and nothing is written before choosing or after Escape. The cross-device row was corrected: another device does NOT resume — it gets a new cover and a new session, because the only way back into a session is the idempotency key that never leaves the browser that started it. Not merged, not deployed, no production change. |
+| 2026-07-31 | 1.0.1   | GR-3 squash-merged into `develop` as PR #604 → `ad569b4b38a44b91bcacd1876205d9eed0d7811b`. Nothing else changed: production still runs the previous build, `main` has not been synced, and `GUIDE_ROLLOUT_MODE` was not touched — guided reading is in the trunk, not in front of anyone. The feature branch is retained for now so the SHAs the evidence bundle names stay reachable.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 Toda futura modificación del producto debe actualizar `SPEC_VERSION`,
 `LAST_UPDATED`, el Decision Registry y este Change Log.
@@ -1371,8 +1383,12 @@ Toda futura modificación del producto debe actualizar `SPEC_VERSION`,
 ## 15quater. GR-3 Implementation
 
 ```
-GR3_STATUS=COMPLETE_PENDING_MERGE
-GR3_IMPLEMENTATION_STATUS=COMPLETE_PENDING_MERGE
+GR3_STATUS=COMPLETE
+GR3_IMPLEMENTATION_STATUS=COMPLETE
+GR3_MERGE_STATUS=MERGED_TO_DEVELOP
+GR3_MAIN_SYNC_STATUS=PENDING
+GR3_PRODUCTION_STATUS=NOT_DEPLOYED
+GR3_ROLLOUT_STATUS=UNCHANGED
 GR3_FINAL_RUNTIME_REVIEW=APPROVED
 GR3_SCREENSHOTS_STATUS=COMPLETE
 GR3_RESPONSIVE_BROWSER_GATE_STATUS=PASS

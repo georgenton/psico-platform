@@ -1,6 +1,6 @@
 import { guidePinKey, type GuidePin } from "./guide-pin";
 import {
-  isGuideOptionKey,
+  isGuideOptionKeyForStep,
   isGuideStepKey,
   type GuidePresentation,
 } from "./guide-presentation";
@@ -191,7 +191,18 @@ export function parsePendingGuideCommand(
       if (commandTypeForStep(value.stepKey, presentation) !== "STEP_RECALL") {
         return null;
       }
-      if (!isGuideOptionKey(value.selectedOptionKey, presentation)) return null;
+      // The option must belong to THIS recall, not merely to some recall of
+      // this guide: a two-recall guide would otherwise replay an answer under
+      // a question the reader was never shown.
+      if (
+        !isGuideOptionKeyForStep(
+          value.stepKey,
+          value.selectedOptionKey,
+          presentation,
+        )
+      ) {
+        return null;
+      }
       return {
         commandType: "STEP_RECALL",
         idempotencyKey,

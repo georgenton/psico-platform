@@ -51,6 +51,7 @@ import {
   READER_GUIDE_MODE_LABEL,
   READER_GUIDE_UNAVAILABLE,
 } from "../guide/guide-reader-copy";
+import { guideComponentKey } from "../guide/guide-pin";
 import { resolveGuideWebBundle } from "../guide/guide-web-bundle";
 import { useGuideActorScope } from "../guide/guide-actor-scope";
 import { useGuideAvailability } from "../guide/guide-availability";
@@ -942,8 +943,18 @@ export function LectorShell({
         </p>
       ) : null}
 
+      {/* GR-4 — PIN_CHANGE_REQUIRES_COMPONENT_REMOUNT=true.
+          The `key` is the pin, always. A guide run holds a session, a scene, a
+          recall verdict and a timer that mean nothing under another pin; giving
+          the same component a different bundle would reinterpret all of them
+          instead of discarding them. Clearing that in an effect is not the
+          same — the stale state would render for one frame first.
+          Today the pin is constant, so the key never changes. When Session C
+          resolves it from `GET /api/guide/discovery/...`, this line is already
+          correct and nothing else has to move. */}
       {guideOpen && guideRuntimeReady && guideActorScope && guideBundle ? (
         <ReaderGuidePanel
+          key={guideComponentKey(guideBundle.pin)}
           actorScope={guideActorScope}
           bundle={guideBundle}
           anchor={guideAnchor}

@@ -53,6 +53,13 @@ import { describe, expect, it } from "vitest";
  *   STARTSWITH_STEP_SCENE_INFERENCE=0
  *   CLIENT_CORRECT_OPTION_KEY_LITERAL=0
  *   FALLBACK_TO_EEC=0
+ *
+ * GR-4 (B.1) closed two edges that only bite with more than one guide or more
+ * than one recall:
+ *
+ *   OPTION_VALIDATION_IS_STEP_SCOPED=true
+ *   CROSS_RECALL_OPTION_ACCEPTED=false
+ *   READER_GUIDE_PANEL_PIN_KEY_REQUIRED=true
  */
 
 const GUIDE_DIR = __dirname;
@@ -559,6 +566,57 @@ describe("ratchet · guide web surface", () => {
           source.includes(forbidden),
           `${relative(GUIDE_DIR, file)} → ${forbidden}`,
         ).toBe(false);
+      }
+    }
+  });
+
+  it("OPTION_VALIDATION_IS_STEP_SCOPED — commands validate the exact pair", () => {
+    // The guide-wide check still exists (it is a useful cheap precondition),
+    // but nothing that LEADS TO A COMMAND may rely on it alone: a guide with
+    // two recalls would accept the other one's option, and the browser would
+    // have minted a key and written a record before the server said no.
+    for (const name of ["guide-recovery.ts", "use-guide-run.ts"]) {
+      const source = stripComments(readFileSync(join(GUIDE_DIR, name), "utf8"));
+      expect(source, name).toContain("isGuideOptionKeyForStep(");
+      // The coarse helper must not be the one guarding a command path.
+      expect(
+        /isGuideOptionKey\s*\(/.test(
+          source.replace(/isGuideOptionKeyForStep/g, ""),
+        ),
+        `${name} uses the guide-wide option check on a command path`,
+      ).toBe(false);
+    }
+  });
+
+  it("submitRecall rejects BEFORE minting a key or writing a record", () => {
+    const hook = stripComments(
+      readFileSync(join(GUIDE_DIR, "use-guide-run.ts"), "utf8"),
+    );
+    const body = hook.slice(hook.indexOf("const submitRecall"));
+    const guardAt = body.indexOf("isGuideOptionKeyForStep");
+    const sendAt = body.indexOf("send(");
+    expect(guardAt).toBeGreaterThan(-1);
+    expect(sendAt).toBeGreaterThan(-1);
+    // Order is the property: `send` is what mints the idempotency key and
+    // persists the pending command, so the guard has to come first.
+    expect(guardAt).toBeLessThan(sendAt);
+  });
+
+  it("READER_GUIDE_PANEL_PIN_KEY_REQUIRED — every mount carries the pin key", () => {
+    const files = [
+      ...GUIDE_FILES,
+      join(WEB_SRC, "components", "dashboard", "lector", "LectorShell.tsx"),
+    ];
+    for (const file of files) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      const mounts = source.split("<ReaderGuidePanel").slice(1);
+      for (const mount of mounts) {
+        // The props block up to the first `>` must open with the key.
+        const props = mount.slice(0, mount.indexOf(">"));
+        expect(
+          /key=\{guideComponentKey\(/.test(props),
+          `${relative(GUIDE_DIR, file)} mounts ReaderGuidePanel without the pin key`,
+        ).toBe(true);
       }
     }
   });

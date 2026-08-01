@@ -8,6 +8,7 @@ import type {
   GuideSessionView,
 } from "@psico/types";
 import {
+  isGuideOptionKeyForStep,
   stepPresentationFor,
   type GuidePresentation,
   type GuideStepPresentation,
@@ -709,16 +710,29 @@ export function useGuideRun({
     [send],
   );
 
+  /**
+   * The ONE place a recall answer becomes a command.
+   *
+   * The `(stepKey, optionKey)` pair is checked against the pinned presentation
+   * BEFORE anything else happens — before a key is minted, before a record is
+   * written, before a request leaves. That order matters: minting the key first
+   * would leave a recovery record describing an attempt the server was always
+   * going to reject, and the retry path would faithfully re-send it.
+   */
   const submitRecall = useCallback(
-    (stepKey: GuideStepPresentation["stepKey"], selectedOptionKey: string) =>
+    (stepKey: GuideStepPresentation["stepKey"], selectedOptionKey: string) => {
+      if (!isGuideOptionKeyForStep(stepKey, selectedOptionKey, presentation)) {
+        return;
+      }
       send((idempotencyKey, sessionId) => ({
         commandType: "STEP_RECALL",
         idempotencyKey,
         sessionId,
         stepKey,
         selectedOptionKey,
-      })),
-    [send],
+      }));
+    },
+    [presentation, send],
   );
 
   const finish = useCallback(

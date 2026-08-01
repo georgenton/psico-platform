@@ -339,23 +339,17 @@ export class GuidePresentationRegistry {
 
       for (const step of p.steps) {
         if (stepKeys.has(step.stepKey)) {
-          throw new GuidePresentationError(
-            "GUIDE_PRESENTATION_DUPLICATE_STEP",
-          );
+          throw new GuidePresentationError("GUIDE_PRESENTATION_DUPLICATE_STEP");
         }
         stepKeys.add(step.stepKey);
 
         if (!sceneMatchesSurface(step)) {
-          throw new GuidePresentationError(
-            "GUIDE_PRESENTATION_SCENE_MISMATCH",
-          );
+          throw new GuidePresentationError("GUIDE_PRESENTATION_SCENE_MISMATCH");
         }
 
         if (step.surface === "recall") {
           if (step.options.length === 0) {
-            throw new GuidePresentationError(
-              "GUIDE_PRESENTATION_EMPTY_RECALL",
-            );
+            throw new GuidePresentationError("GUIDE_PRESENTATION_EMPTY_RECALL");
           }
           for (const option of step.options) {
             if (optionKeys.has(option.optionKey)) {
@@ -415,15 +409,51 @@ export function isGuideStepKey(
   );
 }
 
-/** Whether the pinned presentation knows this option key. */
+/**
+ * Whether the pinned presentation knows this option key ANYWHERE.
+ *
+ * Deliberately coarse, and therefore not enough on its own. Use
+ * `isGuideOptionKeyForStep` for anything that leads to a command: a guide with
+ * two recalls would accept the second one's option under the first, and the
+ * server would reject it after the browser had already minted an idempotency
+ * key and written a recovery record for an attempt that was never valid.
+ */
 export function isGuideOptionKey(
   value: unknown,
   presentation: GuidePresentation,
 ): value is string {
   if (typeof value !== "string") return false;
   return presentation.steps.some(
-    (s) => s.surface === "recall" && s.options.some((o) => o.optionKey === value),
+    (s) =>
+      s.surface === "recall" && s.options.some((o) => o.optionKey === value),
   );
+}
+
+/**
+ * Whether `optionKey` belongs to the recall step named by `stepKey` — the
+ * EXACT pair a `STEP_RECALL` command carries.
+ *
+ * Fails closed on every other reading: an unknown step, a confirm step, and an
+ * option that lives in a DIFFERENT recall of the same guide. That last case is
+ * the one `isGuideOptionKey` cannot see, and it is not hypothetical — the
+ * moment a guide has two recall steps, "the option exists somewhere in this
+ * guide" stops meaning "the reader could have chosen it here".
+ *
+ * There is no fallback to another recall. A command whose pair does not line
+ * up is not a command the server would accept, so it is not one we send.
+ */
+export function isGuideOptionKeyForStep(
+  stepKey: string,
+  optionKey: unknown,
+  // A type predicate rather than a bare `boolean`: it is the same value at
+  // runtime, and it lets the recovery parser rebuild `selectedOptionKey` as a
+  // `string` without a second, redundant `typeof` check that could drift.
+  presentation: GuidePresentation,
+): optionKey is string {
+  if (typeof optionKey !== "string") return false;
+  const step = presentation.steps.find((s) => s.stepKey === stepKey);
+  if (!step || step.surface !== "recall") return false;
+  return step.options.some((o) => o.optionKey === optionKey);
 }
 
 /**

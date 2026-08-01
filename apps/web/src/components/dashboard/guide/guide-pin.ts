@@ -60,3 +60,30 @@ export function guidePinKey(pin: unknown): string | null {
 export function samePin(a: GuidePin, b: GuidePin): boolean {
   return a.guideKey === b.guideKey && a.guideVersion === b.guideVersion;
 }
+
+/**
+ * The React `key` a guide runtime MUST be mounted with.
+ *
+ * ```
+ * PIN_CHANGE_REQUIRES_COMPONENT_REMOUNT=true
+ * ```
+ *
+ * A guide run holds a lot of state that is only meaningful for ONE pin: the
+ * server session, the local scene, the recall verdict, the practice timer, the
+ * pending command. Handing the same component a different bundle would keep
+ * every one of those and reinterpret them under the new guide — the reader
+ * would see the previous run's progress bar, its verdict and its timer while
+ * the panel narrated a different chapter.
+ *
+ * Clearing that in an effect is NOT equivalent: an effect runs after the
+ * commit, so the stale state renders for a frame first. Changing the `key`
+ * makes React unmount and remount, which is the only way the old state never
+ * reaches the screen at all.
+ *
+ * Falls back to `"guide-unpinned"` for a malformed pin — a distinct, stable
+ * key, so an invalid pin also gets its own mount rather than inheriting the
+ * previous guide's tree.
+ */
+export function guideComponentKey(pin: unknown): string {
+  return guidePinKey(pin) ?? "guide-unpinned";
+}

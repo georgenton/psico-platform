@@ -2,13 +2,20 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  GUIDE_KEY,
-  GUIDE_PRESENTATION,
-  GUIDE_VERSION,
   isGuideOptionKey,
   isGuideStepKey,
   stepPresentationFor,
 } from "./guide-presentation";
+import { EEC_PIN, EEC_PRESENTATION } from "./guide-test-fixtures";
+
+/**
+ * GR-4 kept these EEC assertions verbatim: the published experience must not
+ * move because the catalog became a registry. What changed is only HOW the
+ * presentation is reached — an exact pin instead of a singleton.
+ */
+const GUIDE_PRESENTATION = EEC_PRESENTATION;
+const GUIDE_KEY = EEC_PIN.guideKey;
+const GUIDE_VERSION = EEC_PIN.guideVersion;
 
 /**
  * CC-7.5 — the presentation catalog is COPY, and these tests pin that it
@@ -41,7 +48,7 @@ describe("guide presentation", () => {
   it("declares the three steps, in order, with the exact keys", () => {
     // GUIDE_WEB_STEP_COUNT=3 · GUIDE_WEB_STEP_KEYS_EXACT=true
     expect(GUIDE_PRESENTATION.steps).toHaveLength(3);
-    expect(GUIDE_PRESENTATION.steps.map((s) => s.stepKey)).toEqual([
+    expect(GUIDE_PRESENTATION.steps.map((s: { stepKey: string }) => s.stepKey)).toEqual([
       "explorar-cuerpo-antes-que-mente",
       "practicar-escucharte-por-dentro",
       "recordar-cuerpo-antes-que-mente",
@@ -49,7 +56,7 @@ describe("guide presentation", () => {
   });
 
   it("carries the approved recall question and its three options", () => {
-    const recall = GUIDE_PRESENTATION.steps.find((s) => s.surface === "recall");
+    const recall = GUIDE_PRESENTATION.steps.find((s: { surface: string }) => s.surface === "recall");
     expect(recall).toBeDefined();
     if (!recall || recall.surface !== "recall") throw new Error("no recall");
 
@@ -58,7 +65,7 @@ describe("guide presentation", () => {
         "entre la reacción del cuerpo y la comprensión consciente de una " +
         "emoción?",
     );
-    expect(recall.options.map((o) => o.optionKey)).toEqual([
+    expect(recall.options.map((o: { optionKey: string }) => o.optionKey)).toEqual([
       "opcion-cuerpo-primero",
       "opcion-mente-primero",
       "opcion-simultanea",
@@ -102,18 +109,18 @@ describe("guide presentation", () => {
   });
 
   it("recognises only its own step and option keys", () => {
-    expect(isGuideStepKey("explorar-cuerpo-antes-que-mente")).toBe(true);
-    expect(isGuideStepKey("un-paso-inventado")).toBe(false);
-    expect(isGuideStepKey(42)).toBe(false);
-    expect(isGuideOptionKey("opcion-simultanea")).toBe(true);
-    expect(isGuideOptionKey("opcion-inventada")).toBe(false);
+    expect(isGuideStepKey("explorar-cuerpo-antes-que-mente", GUIDE_PRESENTATION)).toBe(true);
+    expect(isGuideStepKey("un-paso-inventado", GUIDE_PRESENTATION)).toBe(false);
+    expect(isGuideStepKey(42, GUIDE_PRESENTATION)).toBe(false);
+    expect(isGuideOptionKey("opcion-simultanea", GUIDE_PRESENTATION)).toBe(true);
+    expect(isGuideOptionKey("opcion-inventada", GUIDE_PRESENTATION)).toBe(false);
   });
 
   it("returns null for a step this build does not know", () => {
-    expect(stepPresentationFor(null)).toBeNull();
-    expect(stepPresentationFor("paso-del-futuro")).toBeNull();
+    expect(stepPresentationFor(null, GUIDE_PRESENTATION)).toBeNull();
+    expect(stepPresentationFor("paso-del-futuro", GUIDE_PRESENTATION)).toBeNull();
     expect(
-      stepPresentationFor("practicar-escucharte-por-dentro")?.surface,
+      stepPresentationFor("practicar-escucharte-por-dentro", GUIDE_PRESENTATION)?.surface,
     ).toBe("confirm");
   });
 });

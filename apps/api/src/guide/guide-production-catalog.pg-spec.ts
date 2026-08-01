@@ -186,8 +186,15 @@ suite("CC-7.4B.3 · first production GuideDefinition (real PostgreSQL)", () => {
   });
 
   // ── Registry ─────────────────────────────────────────────────────────────
-  it("publishes exactly one definition, resolvable only by exact version", () => {
-    expect(productionGuideRegistry.size).toBe(1);
+  it("publishes each definition once, resolvable only by exact version", () => {
+    // GR-4 added the Parejas definition, so the count is no longer 1. It is
+    // still asserted rather than ignored: a definition that appears without a
+    // deliberate edit here is exactly what this line exists to catch. The
+    // property that matters — no fallback of any kind — is unchanged below.
+    expect(productionGuideRegistry.size).toBe(
+      PRODUCTION_GUIDE_DEFINITIONS.length,
+    );
+    expect(PRODUCTION_GUIDE_DEFINITIONS.length).toBe(2);
     expect(productionGuideRegistry.latestStartableVersion(GUIDE_KEY)).toBe(1);
     expect(productionGuideRegistry.getExact(GUIDE_KEY, 1)).toEqual(
       PRODUCTION_GUIDE_DEFINITIONS[0],

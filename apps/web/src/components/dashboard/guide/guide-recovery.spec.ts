@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  GUIDE_STORAGE_KEY,
+  guideStorageKey,
   clearGuideRecovery,
   guideRecoveryState,
   newIdempotencyKey,
@@ -10,6 +10,16 @@ import {
   writeGuideRecovery,
   type GuideRecoveryRecord,
 } from "./guide-recovery";
+import { EEC_PIN, EEC_PRESENTATION } from "./guide-test-fixtures";
+
+/**
+ * GR-4 kept these EEC assertions verbatim. What changed is that every entry
+ * point now names the PIN it operates on, so a record can no longer be read,
+ * written or cleared without saying which guide it belongs to.
+ */
+const PIN = EEC_PIN;
+const PRESENTATION = EEC_PRESENTATION;
+const GUIDE_STORAGE_KEY = guideStorageKey(PIN) as string;
 
 /**
  * CC-7.5 — the recovery record is the only thing this browser remembers, and
@@ -45,34 +55,58 @@ describe("storage key", () => {
 
 describe("parseGuideRecoveryRecord", () => {
   it("accepts the exact shape and rebuilds it field by field", () => {
-    const parsed = parseGuideRecoveryRecord({ ...validRecord }, SCOPE_A);
+    const parsed = parseGuideRecoveryRecord(
+      { ...validRecord },
+      SCOPE_A,
+      PIN,
+      PRESENTATION,
+    );
     expect(parsed).toEqual(validRecord);
   });
 
   it("rejects anything that is not a plain object", () => {
     for (const bad of [null, undefined, 7, "x", [], new Date()]) {
-      expect(parseGuideRecoveryRecord(bad, SCOPE_A)).toBeNull();
+      expect(
+        parseGuideRecoveryRecord(bad, SCOPE_A, PIN, PRESENTATION),
+      ).toBeNull();
     }
   });
 
   it("rejects an extra key", () => {
     expect(
-      parseGuideRecoveryRecord({ ...validRecord, userId: "someone" }, SCOPE_A),
+      parseGuideRecoveryRecord(
+        { ...validRecord, userId: "someone" },
+        SCOPE_A,
+        PIN,
+        PRESENTATION,
+      ),
     ).toBeNull();
   });
 
   it("rejects a wrong schema version, guide or version", () => {
     expect(
-      parseGuideRecoveryRecord({ ...validRecord, schemaVersion: 2 }, SCOPE_A),
+      parseGuideRecoveryRecord(
+        { ...validRecord, schemaVersion: 2 },
+        SCOPE_A,
+        PIN,
+        PRESENTATION,
+      ),
     ).toBeNull();
     expect(
       parseGuideRecoveryRecord(
         { ...validRecord, guideKey: "otra-guia" },
         SCOPE_A,
+        PIN,
+        PRESENTATION,
       ),
     ).toBeNull();
     expect(
-      parseGuideRecoveryRecord({ ...validRecord, guideVersion: 2 }, SCOPE_A),
+      parseGuideRecoveryRecord(
+        { ...validRecord, guideVersion: 2 },
+        SCOPE_A,
+        PIN,
+        PRESENTATION,
+      ),
     ).toBeNull();
   });
 
@@ -82,6 +116,8 @@ describe("parseGuideRecoveryRecord", () => {
         parseGuideRecoveryRecord(
           { ...validRecord, startIdempotencyKey: bad },
           SCOPE_A,
+          PIN,
+          PRESENTATION,
         ),
       ).toBeNull();
     }
@@ -92,13 +128,25 @@ describe("parseGuideRecoveryRecord", () => {
       parseGuideRecoveryRecord(
         { ...validRecord, sessionId: "with space" },
         SCOPE_A,
+        PIN,
+        PRESENTATION,
       ),
     ).toBeNull();
     expect(
-      parseGuideRecoveryRecord({ ...validRecord, sessionId: "" }, SCOPE_A),
+      parseGuideRecoveryRecord(
+        { ...validRecord, sessionId: "" },
+        SCOPE_A,
+        PIN,
+        PRESENTATION,
+      ),
     ).toBeNull();
     expect(
-      parseGuideRecoveryRecord({ ...validRecord, sessionId: SESSION }, SCOPE_A),
+      parseGuideRecoveryRecord(
+        { ...validRecord, sessionId: SESSION },
+        SCOPE_A,
+        PIN,
+        PRESENTATION,
+      ),
     ).toEqual({ ...validRecord, sessionId: SESSION });
   });
 
@@ -109,6 +157,8 @@ describe("parseGuideRecoveryRecord", () => {
       parseGuideRecoveryRecord(
         { ...validRecord, actorScope: SCOPE_B },
         SCOPE_A,
+        PIN,
+        PRESENTATION,
       ),
     ).toBeNull();
   });
@@ -116,7 +166,9 @@ describe("parseGuideRecoveryRecord", () => {
   it("rejects a missing or malformed scope, and a legacy record", () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropping the scope IS the case
     const { actorScope: _dropped, ...legacy } = validRecord;
-    expect(parseGuideRecoveryRecord(legacy, SCOPE_A)).toBeNull();
+    expect(
+      parseGuideRecoveryRecord(legacy, SCOPE_A, PIN, PRESENTATION),
+    ).toBeNull();
     for (const bad of [
       "",
       "too-short",
@@ -125,11 +177,18 @@ describe("parseGuideRecoveryRecord", () => {
       "A/B",
     ]) {
       expect(
-        parseGuideRecoveryRecord({ ...validRecord, actorScope: bad }, SCOPE_A),
+        parseGuideRecoveryRecord(
+          { ...validRecord, actorScope: bad },
+          SCOPE_A,
+          PIN,
+          PRESENTATION,
+        ),
       ).toBeNull();
     }
     // A caller with no usable scope gets nothing either.
-    expect(parseGuideRecoveryRecord({ ...validRecord }, "")).toBeNull();
+    expect(
+      parseGuideRecoveryRecord({ ...validRecord }, "", PIN, PRESENTATION),
+    ).toBeNull();
   });
 
   it("rejects any record carrying raw identity", () => {
@@ -144,6 +203,8 @@ describe("parseGuideRecoveryRecord", () => {
         parseGuideRecoveryRecord(
           { ...validRecord, [field]: "whatever" },
           SCOPE_A,
+          PIN,
+          PRESENTATION,
         ),
         field,
       ).toBeNull();
@@ -157,6 +218,8 @@ describe("parseGuideRecoveryRecord", () => {
         pendingCommand: { commandType: "NOPE" },
       },
       SCOPE_A,
+      PIN,
+      PRESENTATION,
     );
     expect(parsed).toEqual(validRecord);
     expect(parsed?.pendingCommand).toBeUndefined();
@@ -168,11 +231,14 @@ describe("parsePendingGuideCommand", () => {
 
   it("round-trips each of the four command types", () => {
     expect(
-      parsePendingGuideCommand({
-        ...base,
-        commandType: "STEP_COMPLETE",
-        stepKey: "explorar-cuerpo-antes-que-mente",
-      }),
+      parsePendingGuideCommand(
+        {
+          ...base,
+          commandType: "STEP_COMPLETE",
+          stepKey: "explorar-cuerpo-antes-que-mente",
+        },
+        PRESENTATION,
+      ),
     ).toEqual({
       ...base,
       commandType: "STEP_COMPLETE",
@@ -180,12 +246,15 @@ describe("parsePendingGuideCommand", () => {
     });
 
     expect(
-      parsePendingGuideCommand({
-        ...base,
-        commandType: "STEP_RECALL",
-        stepKey: "recordar-cuerpo-antes-que-mente",
-        selectedOptionKey: "opcion-mente-primero",
-      }),
+      parsePendingGuideCommand(
+        {
+          ...base,
+          commandType: "STEP_RECALL",
+          stepKey: "recordar-cuerpo-antes-que-mente",
+          selectedOptionKey: "opcion-mente-primero",
+        },
+        PRESENTATION,
+      ),
     ).toEqual({
       ...base,
       commandType: "STEP_RECALL",
@@ -194,32 +263,44 @@ describe("parsePendingGuideCommand", () => {
     });
 
     expect(
-      parsePendingGuideCommand({ ...base, commandType: "CANCEL" }),
+      parsePendingGuideCommand(
+        { ...base, commandType: "CANCEL" },
+        PRESENTATION,
+      ),
     ).toEqual({ ...base, commandType: "CANCEL" });
     expect(
-      parsePendingGuideCommand({ ...base, commandType: "SESSION_COMPLETE" }),
+      parsePendingGuideCommand(
+        { ...base, commandType: "SESSION_COMPLETE" },
+        PRESENTATION,
+      ),
     ).toEqual({ ...base, commandType: "SESSION_COMPLETE" });
   });
 
   it("preserves the recall option EXACTLY — never a normalized guess", () => {
-    const parsed = parsePendingGuideCommand({
-      ...base,
-      commandType: "STEP_RECALL",
-      stepKey: "recordar-cuerpo-antes-que-mente",
-      selectedOptionKey: "opcion-simultanea",
-    });
+    const parsed = parsePendingGuideCommand(
+      {
+        ...base,
+        commandType: "STEP_RECALL",
+        stepKey: "recordar-cuerpo-antes-que-mente",
+        selectedOptionKey: "opcion-simultanea",
+      },
+      PRESENTATION,
+    );
     expect(parsed).not.toBeNull();
     if (!parsed || parsed.commandType !== "STEP_RECALL") throw new Error("x");
     expect(parsed.selectedOptionKey).toBe("opcion-simultanea");
   });
 
   it("never reconstructs a verdict field", () => {
-    const parsed = parsePendingGuideCommand({
-      ...base,
-      commandType: "STEP_RECALL",
-      stepKey: "recordar-cuerpo-antes-que-mente",
-      selectedOptionKey: "opcion-cuerpo-primero",
-    });
+    const parsed = parsePendingGuideCommand(
+      {
+        ...base,
+        commandType: "STEP_RECALL",
+        stepKey: "recordar-cuerpo-antes-que-mente",
+        selectedOptionKey: "opcion-cuerpo-primero",
+      },
+      PRESENTATION,
+    );
     const serialized = JSON.stringify(parsed);
     expect(serialized).not.toContain("correctOptionKey");
     expect(serialized).not.toContain("result");
@@ -229,22 +310,31 @@ describe("parsePendingGuideCommand", () => {
 
   it("rejects an unknown command, step or option", () => {
     expect(
-      parsePendingGuideCommand({ ...base, commandType: "STEP_SKIP" }),
+      parsePendingGuideCommand(
+        { ...base, commandType: "STEP_SKIP" },
+        PRESENTATION,
+      ),
     ).toBeNull();
     expect(
-      parsePendingGuideCommand({
-        ...base,
-        commandType: "STEP_COMPLETE",
-        stepKey: "paso-inventado",
-      }),
+      parsePendingGuideCommand(
+        {
+          ...base,
+          commandType: "STEP_COMPLETE",
+          stepKey: "paso-inventado",
+        },
+        PRESENTATION,
+      ),
     ).toBeNull();
     expect(
-      parsePendingGuideCommand({
-        ...base,
-        commandType: "STEP_RECALL",
-        stepKey: "recordar-cuerpo-antes-que-mente",
-        selectedOptionKey: "opcion-inventada",
-      }),
+      parsePendingGuideCommand(
+        {
+          ...base,
+          commandType: "STEP_RECALL",
+          stepKey: "recordar-cuerpo-antes-que-mente",
+          selectedOptionKey: "opcion-inventada",
+        },
+        PRESENTATION,
+      ),
     ).toBeNull();
   });
 
@@ -253,51 +343,67 @@ describe("parsePendingGuideCommand", () => {
     // a confirm step only through STEP_COMPLETE. A stored pairing that could
     // never be accepted is not one we hold on to.
     expect(
-      parsePendingGuideCommand({
-        ...base,
-        commandType: "STEP_COMPLETE",
-        stepKey: "recordar-cuerpo-antes-que-mente",
-      }),
+      parsePendingGuideCommand(
+        {
+          ...base,
+          commandType: "STEP_COMPLETE",
+          stepKey: "recordar-cuerpo-antes-que-mente",
+        },
+        PRESENTATION,
+      ),
     ).toBeNull();
     expect(
-      parsePendingGuideCommand({
-        ...base,
-        commandType: "STEP_RECALL",
-        stepKey: "explorar-cuerpo-antes-que-mente",
-        selectedOptionKey: "opcion-cuerpo-primero",
-      }),
+      parsePendingGuideCommand(
+        {
+          ...base,
+          commandType: "STEP_RECALL",
+          stepKey: "explorar-cuerpo-antes-que-mente",
+          selectedOptionKey: "opcion-cuerpo-primero",
+        },
+        PRESENTATION,
+      ),
     ).toBeNull();
     expect(
-      parsePendingGuideCommand({
-        ...base,
-        commandType: "STEP_RECALL",
-        stepKey: "practicar-escucharte-por-dentro",
-        selectedOptionKey: "opcion-cuerpo-primero",
-      }),
+      parsePendingGuideCommand(
+        {
+          ...base,
+          commandType: "STEP_RECALL",
+          stepKey: "practicar-escucharte-por-dentro",
+          selectedOptionKey: "opcion-cuerpo-primero",
+        },
+        PRESENTATION,
+      ),
     ).toBeNull();
   });
 
   it("rejects an extra field even on a valid command", () => {
     expect(
-      parsePendingGuideCommand({
-        ...base,
-        commandType: "CANCEL",
-        result: "correct",
-      }),
+      parsePendingGuideCommand(
+        {
+          ...base,
+          commandType: "CANCEL",
+          result: "correct",
+        },
+        PRESENTATION,
+      ),
     ).toBeNull();
   });
 });
 
 describe("readGuideRecovery", () => {
   it("reports 'empty' when nothing is stored", () => {
-    expect(readGuideRecovery(SCOPE_A)).toEqual({ state: "empty" });
-    expect(guideRecoveryState(SCOPE_A)).toBe("empty");
+    expect(readGuideRecovery(SCOPE_A, PIN, PRESENTATION)).toEqual({
+      state: "empty",
+    });
+    expect(guideRecoveryState(SCOPE_A, PIN, PRESENTATION)).toBe("empty");
   });
 
   it("drops and clears a corrupt blob without throwing", () => {
     window.localStorage.setItem(GUIDE_STORAGE_KEY, "{not json");
-    expect(() => readGuideRecovery(SCOPE_A)).not.toThrow();
-    expect(readGuideRecovery(SCOPE_A)).toEqual({ state: "empty" });
+    expect(() => readGuideRecovery(SCOPE_A, PIN, PRESENTATION)).not.toThrow();
+    expect(readGuideRecovery(SCOPE_A, PIN, PRESENTATION)).toEqual({
+      state: "empty",
+    });
     expect(window.localStorage.getItem(GUIDE_STORAGE_KEY)).toBeNull();
   });
 
@@ -306,21 +412,27 @@ describe("readGuideRecovery", () => {
       GUIDE_STORAGE_KEY,
       JSON.stringify({ ...validRecord, userId: "someone" }),
     );
-    expect(readGuideRecovery(SCOPE_A)).toEqual({ state: "empty" });
+    expect(readGuideRecovery(SCOPE_A, PIN, PRESENTATION)).toEqual({
+      state: "empty",
+    });
     expect(window.localStorage.getItem(GUIDE_STORAGE_KEY)).toBeNull();
   });
 
   it("round-trips a written record", () => {
-    expect(writeGuideRecovery({ ...validRecord, sessionId: SESSION })).toEqual({
+    expect(
+      writeGuideRecovery({ ...validRecord, sessionId: SESSION }, PIN),
+    ).toEqual({
       ok: true,
     });
-    expect(readGuideRecovery(SCOPE_A)).toEqual({
+    expect(readGuideRecovery(SCOPE_A, PIN, PRESENTATION)).toEqual({
       state: "valid",
       record: { ...validRecord, sessionId: SESSION },
     });
-    expect(guideRecoveryState(SCOPE_A)).toBe("valid");
-    clearGuideRecovery();
-    expect(readGuideRecovery(SCOPE_A)).toEqual({ state: "empty" });
+    expect(guideRecoveryState(SCOPE_A, PIN, PRESENTATION)).toBe("valid");
+    clearGuideRecovery(PIN);
+    expect(readGuideRecovery(SCOPE_A, PIN, PRESENTATION)).toEqual({
+      state: "empty",
+    });
   });
 
   it("reports 'unavailable' — NOT 'empty' — when reading throws", () => {
@@ -332,8 +444,10 @@ describe("readGuideRecovery", () => {
       .mockImplementation(() => {
         throw new Error("denied");
       });
-    expect(readGuideRecovery(SCOPE_A)).toEqual({ state: "unavailable" });
-    expect(guideRecoveryState(SCOPE_A)).toBe("unavailable");
+    expect(readGuideRecovery(SCOPE_A, PIN, PRESENTATION)).toEqual({
+      state: "unavailable",
+    });
+    expect(guideRecoveryState(SCOPE_A, PIN, PRESENTATION)).toBe("unavailable");
     spy.mockRestore();
   });
 });
@@ -345,7 +459,7 @@ describe("writeGuideRecovery", () => {
       .mockImplementation(() => {
         throw new Error("quota");
       });
-    expect(writeGuideRecovery(validRecord)).toEqual({ ok: false });
+    expect(writeGuideRecovery(validRecord, PIN)).toEqual({ ok: false });
     spy.mockRestore();
   });
 });

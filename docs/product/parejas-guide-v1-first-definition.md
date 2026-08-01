@@ -22,10 +22,20 @@ PAREJAS_LEARNING_CATALOG_CODE_COMPLETE=true
 PAREJAS_LEARNING_ACTIVATION_CLI_AVAILABLE=true
 PAREJAS_LEARNING_ACTIVATION_TESTED=true
 
-PAREJAS_PRODUCTION_TARGET_ROWS_CREATED=false
-PAREJAS_GUIDE_CODE_COMPLETE=false
-PAREJAS_GUIDE_TARGETS_MATERIALIZED_IN_PRODUCTION=false
+PAREJAS_PRODUCTION_TARGET_ROWS_CREATED=true
+PAREJAS_GUIDE_TARGETS_MATERIALIZED_IN_PRODUCTION=true
+
+PAREJAS_CONCEPT_ROWS=1
+PAREJAS_CONCEPT_LINK_ROWS=1
+PAREJAS_EXERCISE_ROWS=2
+
+PAREJAS_GUIDE_CODE_COMPLETE=true
 PAREJAS_GUIDE_AVAILABLE_IN_PRODUCTION=false
+DEPLOY_REQUIRED=true
+
+PQP_ANCHOR_HEADING_MATCH_COUNT=1
+PQP_ANCHOR_PASSAGE_MATCH_COUNT=1
+PQP_ANCHOR_STATUS=RESOLVED
 ```
 
 ## Por qué este concepto
@@ -101,32 +111,81 @@ El anchor de la Guide apunta al párrafo que describe el experimento. Debe resol
 produjera más de una coincidencia, se amplía el contexto hasta que sea única, o
 la activación falla cerrada.
 
-## Estado real
+### El anchor elegido (GR-4)
 
-El código del catálogo y de la Guide puede existir sin que la Guide funcione: los
-tres targets resuelven contra **filas de base de datos** (`Concept`,
-`ConceptLink`, `Exercise`), y `parejas-que-perduran` entró a producción por el
-bootstrap de Content Core, que deliberadamente no crea ninguna de ellas.
+Vive en `packages/types/src/guide-anchor.ts` como `PAREJAS_READER_ANCHOR`, y el
+lector lo busca por pin exacto a través de `guideAnchorRegistry.getExact(pin)`.
 
-El activador ya existe —`content:book:activate-learning`, documentado en
-[book-learning-activation.md](../operations/book-learning-activation.md)— y el
-catálogo editorial ya está en código. Lo que falta es correrlo y, después, la
-`GuideDefinition` con su anchor.
+- **Pasaje**: el párrafo del experimento — parejas en conflicto, diez minutos de
+  contacto en silencio, sin disculpas y sin soluciones. Su última oración es la
+  huella única.
+- **`sourceHeading`**: el encabezado que acota ese pasaje en la edición
+  ingerida. **No** es `Ejercicio 3: El Mapa de las Miradas`: ese es el
+  encabezado fuente de la _práctica_, y su sección contiene los pasos numerados,
+  no el concepto. Anclar ahí llevaría al lector a «1. Siéntense frente a
+  frente…» mientras el panel habla de por qué el contacto sostenido cambia el
+  estado de una pareja.
 
-Orden para activarla:
+**Advertencia honesta sobre la edición OCR.** El capítulo tiene exactamente tres
+encabezados que un editor reconocería como tales: dos títulos de «Ejercicio N» y
+un título de testimonio que el OCR imprimió **dos veces**. Ninguno acota el
+pasaje conceptual, así que el que sí lo acota es una línea mal reconocida por el
+OCR — única, verbatim y verificable contra el paquete con hash validado, pero
+irreconocible en el libro impreso. Se documenta en vez de disimularse: la
+alternativa (anclar a un paso de la práctica, o ensanchar el resolver hasta que
+adivine) es peor.
+
+Cuando llegue la edición maestra y se re-ingeste el capítulo, **este locator
+debe revalidarse**. La sonda contra PostgreSQL real es lo que lo dirá en voz
+alta, en lugar de que la guía apunte en silencio al párrafo equivocado.
+
+Medido contra una ingesta real del paquete autorizado:
 
 ```
-deploy code
-→ dry-run del activador editorial       ← el comando ya existe
-→ apply del activador                   ← crea Concept + ConceptLink + 2 Exercise
-→ GuideDefinition + anchor (código)     ← todavía no escrito
+PQP_ANCHOR_HEADING_MATCH_COUNT=1
+PQP_ANCHOR_PASSAGE_MATCH_COUNT=1
+PQP_ANCHOR_STATUS=RESOLVED
+```
+
+## Estado real
+
+Los tres targets resuelven contra **filas de base de datos** (`Concept`,
+`ConceptLink`, `Exercise`). En **producción esas filas ya existen**: el
+learning activation apply se ejecutó y se verificó allí.
+
+```
+PAREJAS_CONCEPT_ROWS=1
+PAREJAS_CONCEPT_LINK_ROWS=1
+PAREJAS_EXERCISE_ROWS=2
+```
+
+> El learning activation apply ya fue ejecutado y verificado en producción.
+> No debe repetirse como parte de este despliegue.
+> La disponibilidad requiere únicamente desplegar el código de #614 y completar
+> el smoke con la cuenta piloto.
+
+Lo que falta en producción es **código**, no datos: la `GuideDefinition`, el
+anchor y el discovery del lector viven en `develop` y todavía no están
+desplegados (`DEPLOY_REQUIRED=true`). Hasta que ese deploy ocurra, la Guide de
+Parejas **no está disponible en producción** y el lector no la ve — que es el
+comportamiento correcto: la superficie falla cerrada en lugar de ofrecer una
+guía rota.
+
+Orden restante para producción:
+
+```
+deploy del código de #614
 → verificar disponibilidad de la Guide
 → smoke con la cuenta piloto
 ```
 
-Hasta que el apply del activador se ejecute, la Guide de Parejas **no está
-disponible en producción** y el lector no la ve — que es el comportamiento
-correcto: la superficie falla cerrada en lugar de ofrecer una guía rota.
+### Otros entornos
+
+Un entorno distinto de producción (local, preview, una base efímera) **sí**
+necesita materializar sus propios targets antes de que la Guide aparezca:
+`content:book:activate-learning --book-slug=parejas-que-perduran`, documentado
+en [book-learning-activation.md](../operations/book-learning-activation.md).
+Eso es una tarea de ese entorno, no de este despliegue.
 
 ## Autorización
 

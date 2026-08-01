@@ -1,10 +1,9 @@
 /**
  * GR-3 — where inside a checkpoint the reader is standing.
  *
- * The server owns the RUN: three checkpoints (Concepto · Práctica · Recordar),
- * derived from the accepted-step ledger. This file owns something much smaller
- * and strictly local: which of the eight screens of the current checkpoint is
- * on screen right now.
+ * The server owns the RUN: three checkpoints, derived from the accepted-step
+ * ledger. This file owns something much smaller and strictly local: which of
+ * the eight screens of the current checkpoint is on screen right now.
  *
  * That distinction is the whole design. Losing this record costs the reader a
  * tap; it can never cost them progress, because progress is not here. So it
@@ -24,9 +23,17 @@
  * CROSS_DEVICE_CHECKPOINT_SYNC=false
  * ANOTHER_DEVICE_BEHAVIOR=NEW_COVER_NEW_SESSION
  * ```
+ *
+ * GR-4 — one slot PER PIN, and the first scene of a checkpoint is now READ
+ * from the pinned presentation instead of inferred from the step key. The old
+ * `stepKey.startsWith("practicar")` made a Spanish word part of the contract:
+ * a guide whose steps were named differently would have opened on the wrong
+ * screen silently. Now an unknown step is `null` — a fail-closed signal the
+ * caller renders as "we could not show the current step", never as the cover.
  */
 
-import { GUIDE_KEY, GUIDE_VERSION } from "./guide-presentation";
+import { guidePinKey, type GuidePin } from "./guide-pin";
+import type { GuidePresentation } from "./guide-presentation";
 import type { GuideRecallOutcome } from "@psico/types";
 
 /** The eight presentation scenes. Only the server's three are domain. */
@@ -60,8 +67,8 @@ const SCENES: readonly GuideScene[] = [
 export interface GuideSceneRecord {
   schemaVersion: 1;
   actorScope: string;
-  guideKey: typeof GUIDE_KEY;
-  guideVersion: typeof GUIDE_VERSION;
+  guideKey: string;
+  guideVersion: number;
   sessionId: string;
   currentStepKey: string | null;
   scene: GuideScene;
@@ -79,7 +86,12 @@ const RECORD_KEYS = [
   "recallOutcome",
 ] as const;
 
-const STORAGE_KEY = `psico.guide.scene.${GUIDE_KEY}.v1`;
+/** `psico.guide.scene.<guideKey>.v<guideVersion>` — one slot per exact guide. */
+export function sceneStorageKey(pin: GuidePin): string | null {
+  const key = guidePinKey(pin);
+  if (key === null) return null;
+  return `psico.guide.scene.${pin.guideKey}.v${pin.guideVersion}`;
+}
 
 function isScene(value: unknown): value is GuideScene {
   return typeof value === "string" && SCENES.includes(value as GuideScene);
@@ -89,6 +101,7 @@ function isScene(value: unknown): value is GuideScene {
 export function parseGuideSceneRecord(
   raw: unknown,
   actorScope: string,
+  pin: GuidePin,
 ): GuideSceneRecord | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     return null;
@@ -101,9 +114,10 @@ export function parseGuideSceneRecord(
   // The actor is the authority. A record written by another account must not
   // vouch for itself just because it is in this browser's storage.
   if (rec.actorScope !== actorScope) return null;
-  if (rec.guideKey !== GUIDE_KEY || rec.guideVersion !== GUIDE_VERSION) {
-    return null;
-  }
+  // …and neither must a record written for another guide.
+  if (guidePinKey(pin) === null) return null;
+  if (rec.guideKey !== pin.guideKey) return null;
+  if (rec.guideVersion !== pin.guideVersion) return null;
   if (typeof rec.sessionId !== "string" || rec.sessionId.length === 0) {
     return null;
   }
@@ -121,8 +135,8 @@ export function parseGuideSceneRecord(
   return {
     schemaVersion: 1,
     actorScope,
-    guideKey: GUIDE_KEY,
-    guideVersion: GUIDE_VERSION,
+    guideKey: pin.guideKey,
+    guideVersion: pin.guideVersion,
     sessionId: rec.sessionId,
     currentStepKey: rec.currentStepKey,
     scene: rec.scene,
@@ -130,11 +144,16 @@ export function parseGuideSceneRecord(
   };
 }
 
-export function readGuideScene(actorScope: string): GuideSceneRecord | null {
+export function readGuideScene(
+  actorScope: string,
+  pin: GuidePin,
+): GuideSceneRecord | null {
+  const storageKey = sceneStorageKey(pin);
+  if (storageKey === null) return null;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(storageKey);
     if (raw === null) return null;
-    return parseGuideSceneRecord(JSON.parse(raw), actorScope);
+    return parseGuideSceneRecord(JSON.parse(raw), actorScope, pin);
   } catch {
     // Storage blocked, or a corrupt string. Neither is worth an error: the
     // reader just starts this checkpoint at its first scene.
@@ -142,41 +161,63 @@ export function readGuideScene(actorScope: string): GuideSceneRecord | null {
   }
 }
 
-export function writeGuideScene(record: GuideSceneRecord): void {
+export function writeGuideScene(record: GuideSceneRecord, pin: GuidePin): void {
+  const storageKey = sceneStorageKey(pin);
+  if (storageKey === null) return;
+  if (record.guideKey !== pin.guideKey) return;
+  if (record.guideVersion !== pin.guideVersion) return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
+    window.localStorage.setItem(storageKey, JSON.stringify(record));
   } catch {
     // Best effort by construction — nothing here is progress.
   }
 }
 
-export function clearGuideScene(): void {
+export function clearGuideScene(pin: GuidePin): void {
+  const storageKey = sceneStorageKey(pin);
+  if (storageKey === null) return;
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(storageKey);
   } catch {
     /* nothing to clear if we cannot reach storage */
   }
 }
 
-/** The first scene of a checkpoint — the fallback whenever the record fails. */
-export function firstSceneOf(currentStepKey: string | null): GuideScene {
+/**
+ * The first scene of a checkpoint, READ from the pinned presentation.
+ *
+ *   - `null` step key → `finish` (the server says every step is accepted);
+ *   - a known step  → its declared `initialReaderScene`;
+ *   - an unknown step → `null`, the UNKNOWN_STEP signal.
+ *
+ * That last case used to become `cover`. It cannot any more: showing the cover
+ * for a step this build cannot render would offer «Empezar» on a guide whose
+ * current checkpoint has no screen.
+ */
+export function firstSceneOf(
+  currentStepKey: string | null,
+  presentation: GuidePresentation,
+): GuideScene | null {
   if (currentStepKey === null) return "finish";
-  if (currentStepKey.startsWith("explorar")) return "cover";
-  if (currentStepKey.startsWith("practicar")) return "practice";
-  if (currentStepKey.startsWith("recordar")) return "recall";
-  return "cover";
+  const step = presentation.steps.find((s) => s.stepKey === currentStepKey);
+  return step ? step.initialReaderScene : null;
 }
 
 /**
  * The scene to render, given what the SERVER says and what this browser
  * remembers. The server always wins: a record pinned to another session, or to
  * a checkpoint the reader has already left, is discarded.
+ *
+ * `null` propagates: when the checkpoint itself is unknown there is no scene
+ * to fall back to.
  */
 export function resolveScene(
   server: { sessionId: string; currentStepKey: string | null },
   stored: GuideSceneRecord | null,
-): GuideScene {
-  const fallback = firstSceneOf(server.currentStepKey);
+  presentation: GuidePresentation,
+): GuideScene | null {
+  const fallback = firstSceneOf(server.currentStepKey, presentation);
+  if (fallback === null) return null;
   if (!stored) return fallback;
   if (stored.sessionId !== server.sessionId) return fallback;
   if (stored.currentStepKey !== server.currentStepKey) return fallback;
@@ -206,5 +247,3 @@ export function storedOutcomeFor(
   if (!stored || stored.sessionId !== server.sessionId) return null;
   return stored.recallOutcome ?? null;
 }
-
-export const GUIDE_SCENE_STORAGE_KEY = STORAGE_KEY;

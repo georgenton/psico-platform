@@ -35,10 +35,19 @@ interface Schema {
   nullable?: boolean;
 }
 
+interface Parameter {
+  name?: string;
+  in?: string;
+  required?: boolean;
+  schema?: Schema & { minimum?: number; pattern?: string };
+}
+
 interface Operation {
   operationId?: string;
+  parameters?: Parameter[];
   requestBody?: { content?: Record<string, { schema?: Schema }> };
   responses?: Record<string, { content?: Record<string, { schema?: Schema }> }>;
+  security?: unknown[];
 }
 
 interface PathItem {
@@ -55,6 +64,7 @@ const GUIDE_PATHS = Object.keys(openapi.paths)
   .sort();
 
 const AVAILABILITY_PATH = "/api/guide/availability";
+const DISCOVERY_PATH = "/api/guide/discovery/{bookSlug}/{chapterOrder}";
 
 /** The five COMMAND paths (POST) — the availability GET is deliberately not here. */
 const EXPECTED_PATHS = [
@@ -65,8 +75,15 @@ const EXPECTED_PATHS = [
   "/api/guide/sessions/{sessionId}/steps/{stepKey}/recall",
 ];
 
-/** The full published Guide surface — the five commands plus the pilot gate. */
-const ALL_GUIDE_PATHS = [...EXPECTED_PATHS, AVAILABILITY_PATH].sort();
+/**
+ * The full published Guide surface — the five commands plus the two read
+ * routes: the pilot gate and GR-4 contextual discovery.
+ */
+const ALL_GUIDE_PATHS = [
+  ...EXPECTED_PATHS,
+  AVAILABILITY_PATH,
+  DISCOVERY_PATH,
+].sort();
 
 const EXPECTED_OPERATION_IDS = [
   "cancelGuideSession",
@@ -85,7 +102,7 @@ const responseOf = (path: string, status: string): Schema =>
     ?.schema as Schema;
 
 describe("ratchet · guide OpenAPI surface", () => {
-  it("publishes exactly six paths — five commands and the availability gate", () => {
+  it("publishes exactly seven paths — five commands and two read routes", () => {
     expect(GUIDE_PATHS).toEqual(ALL_GUIDE_PATHS);
     const ids = EXPECTED_PATHS.map((p) => openapi.paths[p]?.post?.operationId)
       .filter((id): id is string => typeof id === "string")
@@ -114,14 +131,91 @@ describe("ratchet · guide OpenAPI surface", () => {
     expect(schema?.properties?.available?.type).toBe("boolean");
   });
 
-  it("has no generic event / progress / discovery endpoint", () => {
+  it("has no generic event / progress / catalog endpoint", () => {
     for (const path of Object.keys(openapi.paths)) {
       expect(path).not.toBe("/api/guide/events");
       expect(path).not.toBe("/api/guide/complete");
       expect(path).not.toBe("/api/guide/progress");
       expect(path).not.toBe("/api/guide/definitions");
+      // GR-4 discovery answers ONE pinned context; it is not a listing.
+      expect(path).not.toBe("/api/guide/discovery");
       expect(path).not.toBe("/api/learning-events");
     }
+  });
+
+  // ── GR-4 · contextual discovery ────────────────────────────────────────────
+  describe("contextual discovery", () => {
+    const get = () => openapi.paths[DISCOVERY_PATH]?.get;
+
+    it("is a GET-only, JWT-secured read route with its own operationId", () => {
+      expect(Object.keys(openapi.paths[DISCOVERY_PATH] ?? {})).toEqual(["get"]);
+      expect(get()?.operationId).toBe("getGuideDiscovery");
+      expect(get()?.requestBody).toBeUndefined();
+      expect(get()?.security).toEqual([{ bearer: [] }]);
+    });
+
+    it("documents both path parameters with the shape the route accepts", () => {
+      const params = get()?.parameters ?? [];
+      expect(params.map((p) => p.name)).toEqual(["bookSlug", "chapterOrder"]);
+      for (const p of params) {
+        expect(p.in, p.name).toBe("path");
+        expect(p.required, p.name).toBe(true);
+      }
+      const [slug, order] = params;
+      // Canonical kebab-case, not "any string".
+      expect(slug?.schema?.type).toBe("string");
+      expect(slug?.schema?.pattern).toBe("^[a-z0-9]+(?:-[a-z0-9]+)*$");
+      // A positive integer — "chapter zero" is not a place a reader can stand.
+      expect(order?.schema?.type).toBe("integer");
+      expect(order?.schema?.minimum).toBe(1);
+    });
+
+    it("answers a CLOSED two-arm union, both arms sealed", () => {
+      const schema = get()?.responses?.["200"]?.content?.["application/json"]
+        ?.schema as Schema & { oneOf?: Schema[] };
+      const arms = schema?.oneOf ?? [];
+      expect(arms).toHaveLength(2);
+      for (const arm of arms) {
+        expect(arm.additionalProperties).toBe(false);
+      }
+      const [unavailable, available] = arms;
+      expect([...(unavailable?.required ?? [])]).toEqual(["available"]);
+      expect(Object.keys(unavailable?.properties ?? {})).toEqual(["available"]);
+      expect([...(available?.required ?? [])].sort()).toEqual([
+        "available",
+        "guideKey",
+        "guideVersion",
+      ]);
+    });
+
+    it("documents 400, 401 and 500 — and never a 503", () => {
+      const statuses = Object.keys(get()?.responses ?? {});
+      for (const s of ["200", "400", "401", "500"]) {
+        expect(statuses, s).toContain(s);
+      }
+      // Rollout-off is a 200 `available:false`, never a denial: publishing a
+      // 503 here would describe a behaviour this route does not have.
+      expect(statuses).not.toContain("503");
+    });
+
+    it("names no target, no editorial id and no actor", () => {
+      const serialized = JSON.stringify(openapi.paths[DISCOVERY_PATH]);
+      for (const term of [
+        "conceptKey",
+        "exerciseKey",
+        "itemKey",
+        "correctOptionKey",
+        "editionId",
+        "editionKey",
+        "unitId",
+        "unitKey",
+        "revisionId",
+        "bookId",
+        "userId",
+      ]) {
+        expect(serialized.includes(`"${term}"`), term).toBe(false);
+      }
+    });
   });
 
   it("every request body is CLOSED with an exact required list", () => {
@@ -278,7 +372,7 @@ describe("ratchet · guide OpenAPI surface", () => {
     }
   });
 
-  it("the generated client preserves the five commands and the availability gate", () => {
+  it("the generated client preserves every published Guide path", () => {
     const generated = readFileSync(
       join(
         process.cwd(),
@@ -294,7 +388,11 @@ describe("ratchet · guide OpenAPI surface", () => {
     for (const path of ALL_GUIDE_PATHS) {
       expect(generated, path).toContain(path);
     }
-    for (const id of [...EXPECTED_OPERATION_IDS, "getGuideAvailability"]) {
+    for (const id of [
+      ...EXPECTED_OPERATION_IDS,
+      "getGuideAvailability",
+      "getGuideDiscovery",
+    ]) {
       expect(generated, id).toContain(id);
     }
     expect(generated).not.toContain("correctOptionKey");

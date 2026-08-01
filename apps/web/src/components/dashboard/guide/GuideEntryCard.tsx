@@ -2,8 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { GUIDE_PRESENTATION } from "./guide-presentation";
 import { guideRecoveryState } from "./guide-recovery";
+import { resolveGuideWebBundle } from "./guide-web-bundle";
+
+/**
+ * GR-4 — the guide this Exploraciones card advertises, stated explicitly.
+ *
+ * Exploraciones lists PUBLISHED standalone guides, and there is exactly one.
+ * Naming its pin here keeps the card from inheriting "whichever guide the
+ * registry happens to hold first" the day a second one is registered.
+ */
+const CARD_PIN = {
+  guideKey: "eec-c1-cuerpo-antes-que-mente",
+  guideVersion: 1,
+} as const;
 
 /**
  * CC-7.5 — the Guide entry point inside Exploraciones.
@@ -34,19 +46,26 @@ export function GuideEntryCard({ actorScope }: GuideEntryCardProps) {
   const [storage, setStorage] = useState<"empty" | "valid" | "unavailable">(
     "empty",
   );
+  const bundle = resolveGuideWebBundle(CARD_PIN);
 
   useEffect(() => {
     // No scope (identity unresolved) reads as `empty`, exactly like a record
     // belonging to another account — the CTA says "Empezar" because promising
     // to continue a run we cannot attribute would be a lie.
-    if (!actorScope) {
+    if (!actorScope || !bundle) {
       setStorage("empty");
       return;
     }
-    setStorage(guideRecoveryState(actorScope));
-  }, [actorScope]);
+    setStorage(guideRecoveryState(actorScope, bundle.pin, bundle.presentation));
+  }, [actorScope, bundle]);
 
   const canResume = storage === "valid";
+
+  // No bundle, no card. A guide this build cannot render is a guide the
+  // catalog must not advertise.
+  if (!bundle) return null;
+  const { presentation } = bundle;
+  const href = presentation.href;
 
   return (
     <div
@@ -62,7 +81,7 @@ export function GuideEntryCard({ actorScope }: GuideEntryCardProps) {
       }}
     >
       <div style={{ minWidth: 240, flex: "1 1 320px" }}>
-        <span className="card-tag sage">{GUIDE_PRESENTATION.tag}</span>
+        <span className="card-tag sage">{presentation.tag}</span>
         <h3
           style={{
             font: "700 19px/1.25 var(--font-sans)",
@@ -70,7 +89,7 @@ export function GuideEntryCard({ actorScope }: GuideEntryCardProps) {
             margin: "10px 0 8px",
           }}
         >
-          {GUIDE_PRESENTATION.title}
+          {presentation.title}
         </h3>
         <p
           style={{
@@ -81,17 +100,15 @@ export function GuideEntryCard({ actorScope }: GuideEntryCardProps) {
             maxWidth: 480,
           }}
         >
-          {GUIDE_PRESENTATION.summary}
+          {presentation.summary}
         </p>
       </div>
       <Link
-        href={GUIDE_PRESENTATION.href}
+        href={href ?? "/dashboard/exploraciones"}
         className="btn primary"
         style={{ minHeight: 44, textDecoration: "none" }}
       >
-        {canResume
-          ? GUIDE_PRESENTATION.labels.resume
-          : GUIDE_PRESENTATION.labels.start}
+        {canResume ? presentation.labels.resume : presentation.labels.start}
       </Link>
       {storage === "unavailable" ? (
         // Saying "Empezar" without this would promise something this browser

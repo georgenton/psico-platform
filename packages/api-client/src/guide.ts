@@ -3,12 +3,28 @@ import type {
   CompleteGuideSessionRequestBody,
   CompleteGuideSessionStepRequestBody,
   GuideAvailabilityResponse,
+  GuideDiscoveryResponse,
   GuideCommandResponse,
   StartGuideSessionRequestBody,
   SubmitGuideStepRecallRequestBody,
   SubmitGuideStepRecallResponse,
 } from "@psico/types";
 import { apiClient } from "./client";
+
+/** The one code a locally-rejected discovery input reports. */
+export const GUIDE_DISCOVERY_PARAMS_INVALID = "GUIDE_DISCOVERY_PARAMS_INVALID";
+
+/**
+ * The SAME canonical grammar the server applies to the path segment: trim,
+ * lowercase, kebab-case of alphanumeric words. `null` means "not a slug".
+ */
+const DISCOVERY_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function normalizeDiscoverySlug(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const slug = value.trim().toLowerCase();
+  return DISCOVERY_SLUG_RE.test(slug) ? slug : null;
+}
 
 /**
  * guideApi — CC-7.4D, the five Guide V1 commands (ADR 0019).
@@ -34,6 +50,33 @@ export const guideApi = {
    */
   getGuideAvailability: () =>
     apiClient.get<GuideAvailabilityResponse>("/guide/availability"),
+
+  /**
+   * GR-4 — "standing in this chapter, is there a guided reading for me?".
+   *
+   * The SERVER owns which guide a context implies; the client only says where
+   * the reader is. Read-only: it creates no session, step or receipt.
+   *
+   * Malformed input never reaches the network. A caller that computed a bad
+   * chapter order deserves to find out locally rather than to read a `false`
+   * that would look identical to "no guide here" — those are different facts.
+   *
+   * The grammar is the SERVER's, restated: trim, lowercase, canonical
+   * kebab-case, positive integer order. Restating it is what keeps a request
+   * the server would reject from ever being sent; the server remains the
+   * authority, and a client that drifted would be caught by it.
+   */
+  getGuideDiscovery: (bookSlug: string, chapterOrder: number) => {
+    const slug = normalizeDiscoverySlug(bookSlug);
+    if (slug === null || !Number.isInteger(chapterOrder) || chapterOrder <= 0) {
+      // The rejected value is NOT echoed: an invalid slug is untrusted input
+      // and carrying it into an error message is how it ends up in a log.
+      return Promise.reject(new Error(GUIDE_DISCOVERY_PARAMS_INVALID));
+    }
+    return apiClient.get<GuideDiscoveryResponse>(
+      `/guide/discovery/${encodeURIComponent(slug)}/${chapterOrder}`,
+    );
+  },
 
   createGuideSession: (body: StartGuideSessionRequestBody) =>
     apiClient.post<GuideCommandResponse>("/guide/sessions", body),

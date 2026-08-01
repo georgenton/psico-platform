@@ -48,6 +48,7 @@ import {
 } from "../guide/ReaderGuidePanel";
 import { useMoodCheckin } from "../shell/mood-checkin-context";
 import {
+  READER_GUIDE_LOADING,
   READER_GUIDE_MODE_LABEL,
   READER_GUIDE_UNAVAILABLE,
 } from "../guide/guide-reader-copy";
@@ -55,8 +56,10 @@ import { guideComponentKey } from "../guide/guide-pin";
 import { resolveGuideWebBundle } from "../guide/guide-web-bundle";
 import { useGuideActorScope } from "../guide/guide-actor-scope";
 import { useGuideAvailability } from "../guide/guide-availability";
+import { useGuideDiscovery } from "../guide/use-guide-discovery";
 import {
   anchorAppliesTo,
+  guideAnchorRegistry,
   resolveGuideAnchor,
   type GuideAnchorResolution,
 } from "../guide/guide-anchor";
@@ -316,17 +319,52 @@ export function LectorShell({
   }, []);
 
   /**
-   * Where the guide's approved passage is in THIS chapter. Resolved from the
-   * blocks the reader was actually served — never from a stored key, because
-   * Content Core derives block identity per environment (CC-1).
+   * GR-4 — WHICH guide this chapter implies. The server's answer, not ours.
+   *
+   * Asked only when the pilot gate is on for this actor: a reader outside the
+   * pilot has no guide to discover, and the request would be spent to be told
+   * so. Everything downstream hangs off this one value.
    */
-  const guideAnchor: GuideAnchorResolution = useMemo(
-    () =>
-      anchorAppliesTo(bookSlug, chapter.order)
-        ? resolveGuideAnchor(blocks)
-        : { status: "UNRESOLVED" },
-    [blocks, bookSlug, chapter.order],
+  const discovery = useGuideDiscovery({
+    enabled: guideAvailable === true,
+    bookSlug,
+    chapterOrder: chapter.order,
+  });
+
+  const discoveredPin = discovery.status === "available" ? discovery.pin : null;
+
+  /**
+   * The web-side definition of the discovered guide: its presentation and its
+   * reader copy, both filed under the EXACT pin.
+   *
+   * `null` when the server names a guide this build does not ship (a catalog
+   * ahead of a deploy). That is a refusal, not a fallback: showing the guide we
+   * DO have would narrate the wrong chapter with real progress behind it.
+   */
+  const guideBundle = useMemo(
+    () => (discoveredPin ? resolveGuideWebBundle(discoveredPin) : null),
+    [discoveredPin],
   );
+
+  /**
+   * Where THIS guide's approved passage is in THIS chapter.
+   *
+   * The locator comes from the registry keyed by the discovered pin — so the
+   * Parejas guide can never be handed the Emociones passage — and it is
+   * resolved against the blocks the reader was actually served, never from a
+   * stored key, because Content Core derives block identity per environment
+   * (CC-1). `anchorAppliesTo` is the last guard: an anchor whose own book and
+   * chapter are not the screen we are on does not apply here.
+   */
+  const guideAnchor: GuideAnchorResolution = useMemo(() => {
+    if (!discoveredPin) return { status: "UNRESOLVED" };
+    const locator = guideAnchorRegistry.getExact(discoveredPin);
+    if (!locator) return { status: "UNRESOLVED" };
+    if (!anchorAppliesTo(bookSlug, chapter.order, locator)) {
+      return { status: "UNRESOLVED" };
+    }
+    return resolveGuideAnchor(blocks, locator);
+  }, [blocks, bookSlug, chapter.order, discoveredPin]);
 
   /**
    * Scroll the anchored paragraph into view and focus it. Deliberately does
@@ -347,33 +385,25 @@ export function LectorShell({
   /**
    * The single authority for whether the guide can RUN on this screen.
    *
-   * The pilot gate and the actor scope say whether the surface is on for this
-   * person; the anchor says whether the thing the guide is about exists in the
-   * chapter they are looking at. All three, or nothing: a session that starts
-   * without a locatable passage would record progress through a guide whose
-   * first step cannot be shown.
-   */
-  /**
-   * GR-4 — the guide this reader offers, stated explicitly.
+   * Six conditions, all of them, or nothing:
    *
-   * Session C replaces this literal with the server's answer to
-   * `GET /api/guide/discovery/:bookSlug/:chapterOrder`. Until then the reader
-   * publishes exactly the guide it published before, and it says so here
-   * rather than inheriting it from a singleton: when discovery lands, this is
-   * the ONE line that changes, and nothing downstream has to.
+   *   1. the pilot gate is on for this actor;
+   *   2. the actor scope exists (a session needs an owner);
+   *   3. discovery ANSWERED — `available`, not `loading`, `unavailable` or
+   *      `error`. `loading` matters as much as the rest: showing a guide while
+   *      the question is in flight means showing the wrong one;
+   *   4. a pin came back;
+   *   5. this build ships that pin's presentation and copy;
+   *   6. the pin's passage is locatable in the chapter on screen.
+   *
+   * Anything less and the reader offers no guide at all. It never falls back
+   * to another book's guide to fill the gap.
    */
-  const guideBundle = useMemo(
-    () =>
-      resolveGuideWebBundle({
-        guideKey: "eec-c1-cuerpo-antes-que-mente",
-        guideVersion: 1,
-      }),
-    [],
-  );
-
   const guideRuntimeReady =
     guideAvailable === true &&
     guideActorScope !== null &&
+    discovery.status === "available" &&
+    discoveredPin !== null &&
     guideBundle !== null &&
     guideAnchor.status === "RESOLVED";
 
@@ -930,9 +960,27 @@ export function LectorShell({
         </button>
       </div>
 
+      {/* GR-4 — while discovery is in flight the reader is told THAT, not that
+          there is no guide. Both states render text and nothing guide-shaped:
+          no cover, no «Empezar», and above all no other book's guide standing
+          in until the answer arrives. */}
+      {guideOpen && !guideRuntimeReady && discovery.status === "loading" ? (
+        <p
+          role="status"
+          data-testid="reader-guide-loading"
+          className="mx-auto mt-3 max-w-3xl px-4 text-[13px]"
+          style={{ color: "var(--reader-muted, var(--color-warm-600))" }}
+        >
+          {READER_GUIDE_LOADING}
+        </p>
+      ) : null}
+
       {/* The pilot gate is the server's call and it is opaque: when the guide
-          is not on for this reader we say so plainly and never explain why. */}
-      {guideOpen && !guideRuntimeReady ? (
+          is not on for this reader we say so plainly and never explain why.
+          The same calm sentence covers `unavailable` and `error` — the reader
+          does not need our diagnosis, and the difference is the server's to
+          know. */}
+      {guideOpen && !guideRuntimeReady && discovery.status !== "loading" ? (
         <p
           role="status"
           data-testid="reader-guide-unavailable"
@@ -949,9 +997,9 @@ export function LectorShell({
           the same component a different bundle would reinterpret all of them
           instead of discarding them. Clearing that in an effect is not the
           same — the stale state would render for one frame first.
-          Today the pin is constant, so the key never changes. When Session C
-          resolves it from `GET /api/guide/discovery/...`, this line is already
-          correct and nothing else has to move. */}
+          The pin now comes from `GET /api/guide/discovery/:slug/:order`, so it
+          really does change when the reader walks from an Emociones chapter to
+          a Parejas one — which is exactly the case this key exists for. */}
       {guideOpen && guideRuntimeReady && guideActorScope && guideBundle ? (
         <ReaderGuidePanel
           key={guideComponentKey(guideBundle.pin)}

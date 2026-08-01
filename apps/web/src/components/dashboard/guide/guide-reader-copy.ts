@@ -106,7 +106,18 @@ export interface GuideReaderCopy {
 export const READER_GUIDE_MODE_LABEL = "🌱 Lectura guiada";
 
 /** Shown when the reader picks the modality but no guide can run for them. */
-export const READER_GUIDE_UNAVAILABLE = "Lectura guiada no disponible por ahora.";
+export const READER_GUIDE_UNAVAILABLE =
+  "Lectura guiada no disponible por ahora.";
+
+/**
+ * GR-4 — shown while the server is still deciding WHICH guide this chapter
+ * implies.
+ *
+ * Distinct from `READER_GUIDE_UNAVAILABLE` on purpose: "no disponible" is an
+ * answer, and saying it during a fetch that is about to say yes would be a
+ * small lie the reader might act on by closing the panel.
+ */
+export const READER_GUIDE_LOADING = "Buscando la guía de este capítulo…";
 
 /** Words that are the product's, not a chapter's — identical in every guide. */
 const SHARED = {

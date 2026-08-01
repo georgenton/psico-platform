@@ -23,7 +23,11 @@ PAREJAS_LEARNING_ACTIVATION_CLI_AVAILABLE=true
 PAREJAS_LEARNING_ACTIVATION_TESTED=true
 
 PAREJAS_PRODUCTION_TARGET_ROWS_CREATED=false
-PAREJAS_GUIDE_CODE_COMPLETE=false
+PAREJAS_GUIDE_CODE_COMPLETE=true
+
+PQP_ANCHOR_HEADING_MATCH_COUNT=1
+PQP_ANCHOR_PASSAGE_MATCH_COUNT=1
+PQP_ANCHOR_STATUS=RESOLVED
 PAREJAS_GUIDE_TARGETS_MATERIALIZED_IN_PRODUCTION=false
 PAREJAS_GUIDE_AVAILABLE_IN_PRODUCTION=false
 ```
@@ -145,9 +149,10 @@ tres targets resuelven contra **filas de base de datos** (`Concept`,
 bootstrap de Content Core, que deliberadamente no crea ninguna de ellas.
 
 El activador ya existe —`content:book:activate-learning`, documentado en
-[book-learning-activation.md](../operations/book-learning-activation.md)— y el
-catálogo editorial ya está en código. Lo que falta es correrlo y, después, la
-`GuideDefinition` con su anchor.
+[book-learning-activation.md](../operations/book-learning-activation.md)—, el
+catálogo editorial ya está en código y, desde GR-4, también la `GuideDefinition`
+y su anchor. Lo único que falta es **correr el apply del activador** en el
+entorno donde se quiera ver la guía.
 
 Orden para activarla:
 
@@ -155,7 +160,7 @@ Orden para activarla:
 deploy code
 → dry-run del activador editorial       ← el comando ya existe
 → apply del activador                   ← crea Concept + ConceptLink + 2 Exercise
-→ GuideDefinition + anchor (código)     ← todavía no escrito
+→ GuideDefinition + anchor (código)     ← YA ESCRITO (GR-4)
 → verificar disponibilidad de la Guide
 → smoke con la cuenta piloto
 ```

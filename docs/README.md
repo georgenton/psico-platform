@@ -56,12 +56,14 @@ los snapshots y el consentimiento del análisis local, en `emotional-map-v2.md`.
 
 ## Libros y Content Core
 
-| Tema                                                                                               | Autoridad canónica                                                                                   |
-| -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Modelo Work / Edition / Revision, identidad estable, ingest no destructivo, preservación de marcas | [`architecture/content-core.md`](architecture/content-core.md)                                       |
-| Por qué la identidad se ancla al id legacy                                                         | [`adr/0016-content-core-work-edition-revision.md`](adr/0016-content-core-work-edition-revision.md)   |
-| **Libro nuevo: bootstrap, ediciones de prueba OCR, reemplazo por el máster, rollback, producción** | [`operations/book-test-edition-ingest.md`](operations/book-test-edition-ingest.md)                   |
-| Slugs en URLs y almacenamiento en R2                                                               | [`adr/0003-content-module-slug-urls-r2-storage.md`](adr/0003-content-module-slug-urls-r2-storage.md) |
+| Tema                                                                                               | Autoridad canónica                                                                                 |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Modelo Work / Edition / Revision, identidad estable, ingest no destructivo, preservación de marcas | [`architecture/content-core.md`](architecture/content-core.md)                                     |
+| Por qué la identidad se ancla al id legacy                                                         | [`adr/0016-content-core-work-edition-revision.md`](adr/0016-content-core-work-edition-revision.md) |
+| **Libro nuevo: bootstrap, ediciones de prueba OCR, reemplazo por el máster, rollback, producción** | [`operations/book-test-edition-ingest.md`](operations/book-test-edition-ingest.md)                 |
+
+[book-learning-activation.md](operations/book-learning-activation.md) — materializar Concept/ConceptLink/Exercise de un libro ya publicado.
+| Slugs en URLs y almacenamiento en R2 | [`adr/0003-content-module-slug-urls-r2-storage.md`](adr/0003-content-module-slug-urls-r2-storage.md) |
 
 ## Actividades y aprendizaje
 

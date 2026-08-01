@@ -3,6 +3,7 @@ import { blockKeyFromLegacyId } from "./lib/block-key";
 import {
   EXERCISE_INGESTION_CATALOG,
   type ObjectiveRecallDefinition,
+  type PracticeExerciseDefinition,
   type UnitExerciseDefinitions,
 } from "./exercise-ingestion-catalog";
 
@@ -53,6 +54,11 @@ export type ExerciseIngestDb = Pick<
   Prisma.TransactionClient,
   "exercise" | "chapterBlock" | "contentBlock"
 >;
+
+/** Structural JSON equality — EXPORTED so the activation planner compares
+ * stored content exactly the way the apply does. Divergent equality between the
+ * two would let a plan say VERIFY where the apply throws DRIFT. */
+export { jsonEqual as compareStoredJson };
 
 /** Structural JSON equality — order-independent for objects, positional for
  * arrays. Enough for the closed Exercise.content shapes (no Dates/Maps). */
@@ -113,6 +119,26 @@ export function assertPairValid(
   if (!uniqueKeys || !correctInOptions) {
     throw new ExerciseIngestError("EXERCISE_INGEST_CATALOG_INVALID");
   }
+}
+
+/**
+ * Pure, whole-book catalog validation. The ingestion validates pair by pair as
+ * it goes; the planner needs the same verdict BEFORE touching the database, so
+ * an invalid catalog can never reach a transaction.
+ */
+export function assertBookExerciseCatalogValid(bookSlug: string): void {
+  for (const pair of EXERCISE_INGESTION_CATALOG[bookSlug] ?? []) {
+    assertPairValid(bookSlug, pair);
+  }
+}
+
+/** The exact `Exercise.content` the ingestion stores for a practice. Shared so
+ * the planner compares against the same bytes the apply would write. */
+export function practiceContentFor(
+  def: PracticeExerciseDefinition,
+  sourceBlockKey: string,
+): Record<string, unknown> {
+  return { practiceKind: def.practiceKind, sourceBlockKey };
 }
 
 interface ExerciseRow {
@@ -177,21 +203,30 @@ async function upsertExerciseClosed(
  * A `PARAGRAPH`/`QUOTE`/`EXERCISE` block with the same text is NOT a valid
  * source — the kind is part of the where-clause.
  */
-async function resolvePracticeSourceBlockKey(
+export interface PracticeSourceInspection {
+  /** HEADING blocks in the chapter whose content equals the approved heading. */
+  matchCount: number;
+  /** The canonical blockKey, or null when it cannot be resolved safely. */
+  sourceBlockKey: string | null;
+}
+
+/**
+ * NON-THROWING inspection of the practice's editorial source. The planner needs
+ * to REPORT what it found; the ingestion needs to REFUSE. Both read through
+ * this one function so a plan can never disagree with an apply.
+ */
+export async function inspectPracticeSource(
   tx: ExerciseIngestDb,
   chapterId: string,
   unitId: string,
   sourceHeading: string,
-): Promise<string> {
+): Promise<PracticeSourceInspection> {
   const blocks = await tx.chapterBlock.findMany({
     where: { chapterId, kind: "HEADING", content: sourceHeading },
     select: { id: true },
   });
-  if (blocks.length === 0) {
-    throw new ExerciseIngestError("EXERCISE_INGEST_SOURCE_MISSING");
-  }
-  if (blocks.length > 1) {
-    throw new ExerciseIngestError("EXERCISE_INGEST_SOURCE_AMBIGUOUS");
+  if (blocks.length !== 1) {
+    return { matchCount: blocks.length, sourceBlockKey: null };
   }
 
   const legacyBlockId = blocks[0].id;
@@ -207,12 +242,35 @@ async function resolvePracticeSourceBlockKey(
     canonical.legacyBlockId !== legacyBlockId ||
     canonical.unitId !== unitId
   ) {
-    throw new ExerciseIngestError("EXERCISE_INGEST_SOURCE_MISSING");
+    return { matchCount: 1, sourceBlockKey: null };
   }
-  return sourceBlockKey;
+  return { matchCount: 1, sourceBlockKey };
 }
 
-function recallContent(
+async function resolvePracticeSourceBlockKey(
+  tx: ExerciseIngestDb,
+  chapterId: string,
+  unitId: string,
+  sourceHeading: string,
+): Promise<string> {
+  const found = await inspectPracticeSource(
+    tx,
+    chapterId,
+    unitId,
+    sourceHeading,
+  );
+  if (found.matchCount > 1) {
+    throw new ExerciseIngestError("EXERCISE_INGEST_SOURCE_AMBIGUOUS");
+  }
+  if (!found.sourceBlockKey) {
+    throw new ExerciseIngestError("EXERCISE_INGEST_SOURCE_MISSING");
+  }
+  return found.sourceBlockKey;
+}
+
+/** The exact `Exercise.content` the ingestion stores for a recall. Shared so
+ * the planner compares against the same bytes the apply would write. */
+export function recallContentFor(
   def: ObjectiveRecallDefinition,
 ): Record<string, unknown> {
   // Reconstruct explicitly so no stray key can reach storage.
@@ -264,7 +322,7 @@ export async function ingestUnitExercises(
       order: practice.order,
       title: practice.title,
       type: "REFLECTION",
-      content: { practiceKind: practice.practiceKind, sourceBlockKey },
+      content: practiceContentFor(practice, sourceBlockKey),
     });
 
     await upsertExerciseClosed(tx, {
@@ -273,7 +331,7 @@ export async function ingestUnitExercises(
       order: recall.order,
       title: recall.title,
       type: "QUIZ",
-      content: recallContent(recall),
+      content: recallContentFor(recall),
     });
   }
 }

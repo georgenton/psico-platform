@@ -787,3 +787,20 @@ only by the person — never by a score.
 4. **Resonance identity** — keep the provenance snapshot columns for display **and**
    add `conceptId` as the integrity anchor. `Resonance` remains qualitative and
    **never moves an axis**.
+
+## Activar el aprendizaje de un libro ya existente
+
+El bootstrap crea la superficie de lectura y se detiene ahí: publicar un libro y
+enseñar desde él son actos editoriales distintos. Los objetivos de una Guide
+—`Concept`, `ConceptLink` y dos `Exercise`— se materializan aparte, con
+`content:book:activate-learning`, que es atómico, idempotente y aditivo.
+
+La ingesta de conceptos (`concept-ingestion.ts`) se comparte entre el backfill y
+esa activación, con una política explícita para el único caso en que discrepan:
+un capítulo catalogado sin unidad. El activador falla cerrado (le nombraste un
+libro y esperas su catálogo completo); el backfill lo salta y devuelve la cuenta
+en `BackfillStats.conceptsSkippedMissingUnit`, porque recorre todos los libros y
+no puede saber si uno está ingerido por completo.
+
+Detalle operativo en
+[docs/operations/book-learning-activation.md](../operations/book-learning-activation.md).

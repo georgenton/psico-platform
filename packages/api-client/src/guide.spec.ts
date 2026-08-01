@@ -101,6 +101,55 @@ describe("guideApi", () => {
     );
   });
 
+  // ── GR-4 · contextual discovery ──────────────────────────────────────────
+  describe("getGuideDiscovery", () => {
+    it("normalizes a canonical slug before it reaches the wire", async () => {
+      await guideApi.getGuideDiscovery(" Parejas-Que-Perduran ", 2);
+      expect(get).toHaveBeenCalledWith(
+        "/guide/discovery/parejas-que-perduran/2",
+      );
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it("sends the Emociones context untouched when already canonical", async () => {
+      await guideApi.getGuideDiscovery("emociones-en-construccion", 1);
+      expect(get).toHaveBeenCalledWith(
+        "/guide/discovery/emociones-en-construccion/1",
+      );
+    });
+
+    it.each([
+      ["a slug with spaces", "con espacios", 1],
+      ["a trailing hyphen", "trailing-", 1],
+      ["a leading hyphen", "-leading", 1],
+      ["a double hyphen", "doble--guion", 1],
+      ["underscores", "libro_raro", 1],
+      ["an empty slug", "   ", 1],
+      ["a non-string slug", 42 as unknown as string, 1],
+      ["order zero", "un-libro", 0],
+      ["a negative order", "un-libro", -1],
+      ["a fractional order", "un-libro", 1.5],
+      ["a NaN order", "un-libro", Number.NaN],
+    ])(
+      "rejects %s locally and issues NO request",
+      async (_why, slug, order) => {
+        await expect(guideApi.getGuideDiscovery(slug, order)).rejects.toThrow(
+          "GUIDE_DISCOVERY_PARAMS_INVALID",
+        );
+        // INVALID_DISCOVERY_INPUT_NETWORK_REQUESTS=0 — the point of validating
+        // locally is that the network never sees it.
+        expect(get).not.toHaveBeenCalled();
+        expect(post).not.toHaveBeenCalled();
+      },
+    );
+
+    it("does not echo the rejected value in the error", async () => {
+      await expect(
+        guideApi.getGuideDiscovery("con espacios", 1),
+      ).rejects.toThrow(/^GUIDE_DISCOVERY_PARAMS_INVALID$/);
+    });
+  });
+
   it("never sends a userId or editorial context", async () => {
     await guideApi.createGuideSession({
       idempotencyKey: KEY,

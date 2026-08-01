@@ -20,8 +20,10 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiServiceUnavailableResponse,
   ApiTags,
+  ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
@@ -94,6 +96,10 @@ import {
 @ApiTags("Guide")
 @ApiBearerAuth("bearer")
 @ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+// Every route here is behind `JwtAuthGuard`, so 401 is reachable on all of
+// them; documenting it on only the newest one would have the contract say two
+// different things about identical behaviour.
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
 @ApiForbiddenResponse({ type: ErrorEnvelopeDto })
 @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
 @ApiConflictResponse({ type: ErrorEnvelopeDto })
@@ -149,6 +155,10 @@ export class GuideController {
    * A syntactically impossible parameter is a 400 — "chapter zero" is not a
    * place a reader can stand, and answering `false` there would be a different
    * claim than the one the caller made.
+   *
+   * An INFRASTRUCTURE failure is neither: it goes through the same lifecycle
+   * mapper as the five commands and comes back as a sanitized 500, so the
+   * client retries instead of caching a negative it was never told.
    */
   @Get("discovery/:bookSlug/:chapterOrder")
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
@@ -158,6 +168,23 @@ export class GuideController {
     summary:
       "Si hay una guía para el contexto de lectura pedido. No revela el " +
       "motivo de un negativo, ni objetivos, ni identificadores internos.",
+  })
+  // Declared explicitly: the generator infers only `type: string` from the
+  // `@Param`s, which would document a contract this route does not accept —
+  // the order is a positive integer and the slug is canonical kebab-case.
+  @ApiParam({
+    name: "bookSlug",
+    required: true,
+    schema: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    description: "Slug canónico del libro (kebab-case, minúsculas).",
+  })
+  @ApiParam({
+    name: "chapterOrder",
+    required: true,
+    schema: { type: "integer", minimum: 1 },
+    description:
+      "Orden del capítulo EN LA PLATAFORMA, que no siempre coincide con la " +
+      "numeración impresa del libro.",
   })
   @ApiOkResponse({ schema: GUIDE_DISCOVERY_RESPONSE })
   async getGuideDiscovery(
@@ -176,7 +203,7 @@ export class GuideController {
     }
     // The actor is passed THROUGH, never restated here: the public surface
     // must not contain an actor field the client could imagine supplying.
-    return this.discovery.discover(user, params);
+    return mapGuideLifecycleErrors(() => this.discovery.discover(user, params));
   }
 
   /** Parser verdict → typed command, or the mapped 400. */

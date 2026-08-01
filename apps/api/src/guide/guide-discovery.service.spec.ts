@@ -1,4 +1,10 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { GuideLifecycleError } from "./guide-errors";
 import {
   GuideDiscoveryParamsError,
   parseGuideDiscoveryParams,
@@ -10,6 +16,11 @@ import { GuideDiscoveryService } from "./guide-discovery.service";
  * Real relations (targets, units, revisions, entitlement) are exercised against
  * PostgreSQL in the pg-spec; here we pin who gets asked, in what order, and
  * that every negative looks identical from outside.
+ *
+ * The sharpest thing pinned here is the line between a VERDICT and a FAILURE.
+ * "The catalog says there is no guide" and "the database could not tell us"
+ * are different facts; collapsing the second into `available:false` would have
+ * the client cache a negative nobody ever asserted.
  */
 
 const EEC_CTX = { bookSlug: "emociones-en-construccion", chapterOrder: 1 };
@@ -66,11 +77,19 @@ describe("GuideDiscoveryService", () => {
     chapter?: unknown;
     unit?: unknown;
     revisionUnit?: unknown;
-    accessThrows?: boolean;
+    /** The exact error `assertCanReadUnit` raises, so the test names a TYPE. */
+    accessThrows?: unknown;
     txThrows?: Error;
+    /** A model call that blows up mid-transaction (a driver failure). */
+    bookThrows?: Error;
   }) {
     const tx = {
-      book: { findUnique: vi.fn(async () => opts.book ?? null) },
+      book: {
+        findUnique: vi.fn(async () => {
+          if (opts.bookThrows) throw opts.bookThrows;
+          return opts.book ?? null;
+        }),
+      },
       chapter: { findFirst: vi.fn(async () => opts.chapter ?? null) },
       contentUnit: { findUnique: vi.fn(async () => opts.unit ?? null) },
       revisionUnit: {
@@ -104,7 +123,7 @@ describe("GuideDiscoveryService", () => {
     };
     const access = {
       assertCanReadUnit: vi.fn(async () => {
-        if (opts.accessThrows) throw new Error("CONTENT_ACCESS_DENIED");
+        if (opts.accessThrows !== undefined) throw opts.accessThrows;
       }),
     };
     const svc = new GuideDiscoveryService(
@@ -193,8 +212,12 @@ describe("GuideDiscoveryService", () => {
 
   it.each([
     [
-      "targets cannot be resolved",
-      { resolved: new Error("GUIDE_CONTEXT_UNRESOLVED") },
+      "the targets cannot be resolved",
+      { resolved: new GuideLifecycleError("GUIDE_CONTEXT_UNRESOLVED") },
+    ],
+    [
+      "the targets disagree with each other",
+      { resolved: new GuideLifecycleError("GUIDE_CONTEXT_MISMATCH") },
     ],
     [
       "the targets belong to another book",
@@ -217,7 +240,14 @@ describe("GuideDiscoveryService", () => {
     ["the unit is missing", { unit: null }],
     ["the unit disagrees with the targets", { unit: { id: "otra-unidad" } }],
     ["the unit is outside the published revision", { revisionUnit: null }],
-    ["entitlement is denied", { accessThrows: true }],
+    [
+      "the plan does not entitle the unit",
+      { accessThrows: new ForbiddenException("PRO_REQUIRED") },
+    ],
+    [
+      "the edition or unit is not there",
+      { accessThrows: new NotFoundException("UNIT_NOT_FOUND") },
+    ],
   ])("returns an opaque false when %s", async (_why, override) => {
     const { svc } = makeDeps({ ...coherentParejas(), ...override });
     const res = await svc.discover(USER, PQP_CTX);
@@ -227,10 +257,66 @@ describe("GuideDiscoveryService", () => {
     expect(res).not.toHaveProperty("guideVersion");
   });
 
-  it("does NOT hide an infrastructure failure as unavailable", async () => {
-    const boom = new Error("connection terminated unexpectedly");
-    const { svc } = makeDeps({ ...coherentParejas(), txThrows: boom });
-    await expect(svc.discover(USER, PQP_CTX)).rejects.toThrow(boom);
+  // ── Verdict vs failure ────────────────────────────────────────────────────
+  // INFRASTRUCTURE_IS_NOT_AVAILABLE_FALSE. Each of these would otherwise be
+  // indistinguishable from "there is no guide here", which is the one lie this
+  // endpoint must not tell.
+  it.each([
+    [
+      "the transaction itself fails",
+      { txThrows: new Error("connection terminated unexpectedly") },
+    ],
+    [
+      "the context resolver reports a storage failure",
+      { resolved: new GuideLifecycleError("GUIDE_STORAGE_FAILURE") },
+    ],
+    [
+      "the context resolver throws something unrecognised",
+      { resolved: new TypeError("cannot read properties of undefined") },
+    ],
+    [
+      "a model call blows up mid-transaction",
+      {
+        bookThrows: new Error("Invalid `prisma.book.findUnique()` invocation"),
+      },
+    ],
+    [
+      "the entitlement check throws a driver error",
+      { accessThrows: new Error("pool timeout") },
+    ],
+    [
+      "the entitlement check throws a bad-request",
+      { accessThrows: new BadRequestException("ANCHOR_MISSING_TARGET") },
+    ],
+  ])("propagates rather than answering false when %s", async (_why, over) => {
+    const { svc } = makeDeps({ ...coherentParejas(), ...over });
+    await expect(svc.discover(USER, PQP_CTX)).rejects.toThrow();
+  });
+
+  it("keeps the propagated storage failure value-free", async () => {
+    const { svc } = makeDeps({
+      ...coherentParejas(),
+      resolved: new GuideLifecycleError("GUIDE_STORAGE_FAILURE"),
+    });
+    try {
+      await svc.discover(USER, PQP_CTX);
+    } catch (e) {
+      const err = e as GuideLifecycleError;
+      expect(err).toBeInstanceOf(GuideLifecycleError);
+      // message === code: no slug, no order, no id, no driver text.
+      expect(err.message).toBe("GUIDE_STORAGE_FAILURE");
+      for (const value of [
+        "parejas-que-perduran",
+        "pqp-c1-contacto-sostenido",
+        "unit-1",
+        "ed-1",
+        "rev-1",
+        USER.userId,
+      ]) {
+        expect(err.message).not.toContain(value);
+      }
+    }
+    expect.assertions(8);
   });
 
   it("checks entitlement inside the same transaction it read under", async () => {

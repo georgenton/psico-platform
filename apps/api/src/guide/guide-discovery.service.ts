@@ -1,4 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import type { GuideDiscoveryResponse } from "@psico/types";
 import type { AuthenticatedUser } from "../auth";
 import { PrismaService } from "../prisma";
@@ -6,8 +10,37 @@ import { ContentAccessService } from "../content-core/access/content-access.serv
 import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
 import { productionGuideRegistry } from "./guide-catalog";
 import { productionGuideDiscoveryCatalog } from "./guide-discovery-catalog";
+import { GuideLifecycleError } from "./guide-errors";
 import { GuideRolloutService } from "./guide-rollout.service";
 import { GuideTargetContextService } from "./guide-target-context.service";
+
+/**
+ * The EDITORIAL verdicts of the context resolver: the catalog looked and
+ * answered "no". Everything else it can raise — `GUIDE_STORAGE_FAILURE`, a
+ * driver error, a bug — is INFRASTRUCTURE and must never be dressed up as
+ * "there is no guide here".
+ */
+const EDITORIAL_CONTEXT_CODES = new Set([
+  "GUIDE_CONTEXT_UNRESOLVED",
+  "GUIDE_CONTEXT_MISMATCH",
+]);
+
+/** Did the catalog decide, or did the infrastructure fail to answer? */
+function isEditorialContextVerdict(err: unknown): boolean {
+  return (
+    err instanceof GuideLifecycleError && EDITORIAL_CONTEXT_CODES.has(err.code)
+  );
+}
+
+/**
+ * The two negative verdicts the content-access policy expresses: the plan does
+ * not entitle this unit (403) or the edition/unit is not there (404). A
+ * `BadRequestException`, a Prisma error or a plain `Error` is NOT a denial —
+ * it is a failure to decide, and it propagates.
+ */
+function isAccessDenial(err: unknown): boolean {
+  return err instanceof ForbiddenException || err instanceof NotFoundException;
+}
 
 /**
  * GR-4 — "standing in this chapter, is there a guided reading for me?"
@@ -65,9 +98,12 @@ export class GuideDiscoveryService {
       let resolved;
       try {
         resolved = await this.targetContext.resolve(definition, tx);
-      } catch {
-        // Targets absent or divergent — opaque to the caller.
-        return { available: false };
+      } catch (err) {
+        // Targets absent or divergent — an editorial verdict, opaque to the
+        // caller. A storage failure is NOT that: the catalog never got to
+        // answer, so saying "no guide here" would be a claim we cannot make.
+        if (isEditorialContextVerdict(err)) return { available: false };
+        throw err;
       }
 
       // The guide's own editorial context must be the book that was asked
@@ -124,8 +160,11 @@ export class GuideDiscoveryService {
           },
           tx,
         );
-      } catch {
-        return { available: false };
+      } catch (err) {
+        // A denial (403) and a missing edition/unit (404) are decisions. A
+        // driver error is not — it propagates rather than becoming a "no".
+        if (isAccessDenial(err)) return { available: false };
+        throw err;
       }
 
       return {

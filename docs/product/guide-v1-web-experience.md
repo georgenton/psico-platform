@@ -90,9 +90,45 @@ Bajo **Exploraciones**, como producto propio:
 /dashboard/exploraciones/eec-c1-cuerpo-antes-que-mente     ← el reproductor
 ```
 
-La ruta es **estática**, no `[guideKey]`: V1 publica una sola guía y la API no
-tiene discovery, así que un segmento dinámico prometería un catálogo que no
-existe y aceptaría claves que nada puede resolver.
+La ruta es **estática**, no `[guideKey]`: esta superficie publica una sola guía,
+así que un segmento dinámico prometería un catálogo que no existe y aceptaría
+claves que nada puede resolver. Nombrar el pin ahí es explícito, no un
+singleton heredado.
+
+### GR-4 — el lector es la superficie multi-libro
+
+Dentro del lector la pregunta es distinta: **cuál** guía implica el capítulo
+abierto. Eso lo decide el servidor y solo el servidor:
+
+```
+GET /api/guide/discovery/:bookSlug/:chapterOrder
+  → { available: false }
+  → { available: true, guideKey, guideVersion }
+```
+
+`useGuideDiscovery` tiene cinco estados —`idle` · `loading` · `unavailable` ·
+`available(pin)` · `error`— y **cuatro de ellos no muestran guía**. `loading`
+importa tanto como el resto: enseñar una guía mientras la pregunta está en
+vuelo es enseñar la equivocada. Una respuesta tardía de un capítulo que el
+lector ya dejó se descarta.
+
+Con el pin en la mano, tres registros lo resuelven **por pin exacto**
+(`getExact`), nunca por «la última versión» ni «la primera registrada»:
+
+| Registro                    | Qué aporta                              |
+| --------------------------- | --------------------------------------- |
+| `guidePresentationRegistry` | pasos, opciones, escena inicial         |
+| `guideReaderCopyRegistry`   | textos del panel                        |
+| `guideAnchorRegistry`       | el pasaje editorial (heading + oración) |
+
+`guideRuntimeReady` exige las seis condiciones: rollout, actor, discovery
+respondida, pin, bundle en este build y anchor resuelto. Cualquier hueco ⇒ el
+lector no ofrece guía, y **jamás** cae a la guía de otro libro.
+
+El almacenamiento local (recovery del START, escena) está namespaced por pin, y
+el panel se monta con `key={guideComponentKey(pin)}`: un run guarda sesión,
+escena, veredicto y temporizador que no significan nada bajo otra guía, y
+limpiarlos en un efecto los mostraría igual durante un frame.
 
 ### Guía ≠ Journey
 

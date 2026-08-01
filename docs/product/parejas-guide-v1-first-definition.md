@@ -101,6 +101,42 @@ El anchor de la Guide apunta al párrafo que describe el experimento. Debe resol
 produjera más de una coincidencia, se amplía el contexto hasta que sea única, o
 la activación falla cerrada.
 
+### El anchor elegido (GR-4)
+
+Vive en `packages/types/src/guide-anchor.ts` como `PAREJAS_READER_ANCHOR`, y el
+lector lo busca por pin exacto a través de `guideAnchorRegistry.getExact(pin)`.
+
+- **Pasaje**: el párrafo del experimento — parejas en conflicto, diez minutos de
+  contacto en silencio, sin disculpas y sin soluciones. Su última oración es la
+  huella única.
+- **`sourceHeading`**: el encabezado que acota ese pasaje en la edición
+  ingerida. **No** es `Ejercicio 3: El Mapa de las Miradas`: ese es el
+  encabezado fuente de la _práctica_, y su sección contiene los pasos numerados,
+  no el concepto. Anclar ahí llevaría al lector a «1. Siéntense frente a
+  frente…» mientras el panel habla de por qué el contacto sostenido cambia el
+  estado de una pareja.
+
+**Advertencia honesta sobre la edición OCR.** El capítulo tiene exactamente tres
+encabezados que un editor reconocería como tales: dos títulos de «Ejercicio N» y
+un título de testimonio que el OCR imprimió **dos veces**. Ninguno acota el
+pasaje conceptual, así que el que sí lo acota es una línea mal reconocida por el
+OCR — única, verbatim y verificable contra el paquete con hash validado, pero
+irreconocible en el libro impreso. Se documenta en vez de disimularse: la
+alternativa (anclar a un paso de la práctica, o ensanchar el resolver hasta que
+adivine) es peor.
+
+Cuando llegue la edición maestra y se re-ingeste el capítulo, **este locator
+debe revalidarse**. La sonda contra PostgreSQL real es lo que lo dirá en voz
+alta, en lugar de que la guía apunte en silencio al párrafo equivocado.
+
+Medido contra una ingesta real del paquete autorizado:
+
+```
+PQP_ANCHOR_HEADING_MATCH_COUNT=1
+PQP_ANCHOR_PASSAGE_MATCH_COUNT=1
+PQP_ANCHOR_STATUS=RESOLVED
+```
+
 ## Estado real
 
 El código del catálogo y de la Guide puede existir sin que la Guide funcione: los

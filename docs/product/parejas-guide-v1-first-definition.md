@@ -22,14 +22,20 @@ PAREJAS_LEARNING_CATALOG_CODE_COMPLETE=true
 PAREJAS_LEARNING_ACTIVATION_CLI_AVAILABLE=true
 PAREJAS_LEARNING_ACTIVATION_TESTED=true
 
-PAREJAS_PRODUCTION_TARGET_ROWS_CREATED=false
+PAREJAS_PRODUCTION_TARGET_ROWS_CREATED=true
+PAREJAS_GUIDE_TARGETS_MATERIALIZED_IN_PRODUCTION=true
+
+PAREJAS_CONCEPT_ROWS=1
+PAREJAS_CONCEPT_LINK_ROWS=1
+PAREJAS_EXERCISE_ROWS=2
+
 PAREJAS_GUIDE_CODE_COMPLETE=true
+PAREJAS_GUIDE_AVAILABLE_IN_PRODUCTION=false
+DEPLOY_REQUIRED=true
 
 PQP_ANCHOR_HEADING_MATCH_COUNT=1
 PQP_ANCHOR_PASSAGE_MATCH_COUNT=1
 PQP_ANCHOR_STATUS=RESOLVED
-PAREJAS_GUIDE_TARGETS_MATERIALIZED_IN_PRODUCTION=false
-PAREJAS_GUIDE_AVAILABLE_IN_PRODUCTION=false
 ```
 
 ## Por qué este concepto
@@ -143,31 +149,43 @@ PQP_ANCHOR_STATUS=RESOLVED
 
 ## Estado real
 
-El código del catálogo y de la Guide puede existir sin que la Guide funcione: los
-tres targets resuelven contra **filas de base de datos** (`Concept`,
-`ConceptLink`, `Exercise`), y `parejas-que-perduran` entró a producción por el
-bootstrap de Content Core, que deliberadamente no crea ninguna de ellas.
-
-El activador ya existe —`content:book:activate-learning`, documentado en
-[book-learning-activation.md](../operations/book-learning-activation.md)—, el
-catálogo editorial ya está en código y, desde GR-4, también la `GuideDefinition`
-y su anchor. Lo único que falta es **correr el apply del activador** en el
-entorno donde se quiera ver la guía.
-
-Orden para activarla:
+Los tres targets resuelven contra **filas de base de datos** (`Concept`,
+`ConceptLink`, `Exercise`). En **producción esas filas ya existen**: el
+learning activation apply se ejecutó y se verificó allí.
 
 ```
-deploy code
-→ dry-run del activador editorial       ← el comando ya existe
-→ apply del activador                   ← crea Concept + ConceptLink + 2 Exercise
-→ GuideDefinition + anchor (código)     ← YA ESCRITO (GR-4)
+PAREJAS_CONCEPT_ROWS=1
+PAREJAS_CONCEPT_LINK_ROWS=1
+PAREJAS_EXERCISE_ROWS=2
+```
+
+> El learning activation apply ya fue ejecutado y verificado en producción.
+> No debe repetirse como parte de este despliegue.
+> La disponibilidad requiere únicamente desplegar el código de #614 y completar
+> el smoke con la cuenta piloto.
+
+Lo que falta en producción es **código**, no datos: la `GuideDefinition`, el
+anchor y el discovery del lector viven en `develop` y todavía no están
+desplegados (`DEPLOY_REQUIRED=true`). Hasta que ese deploy ocurra, la Guide de
+Parejas **no está disponible en producción** y el lector no la ve — que es el
+comportamiento correcto: la superficie falla cerrada en lugar de ofrecer una
+guía rota.
+
+Orden restante para producción:
+
+```
+deploy del código de #614
 → verificar disponibilidad de la Guide
 → smoke con la cuenta piloto
 ```
 
-Hasta que el apply del activador se ejecute, la Guide de Parejas **no está
-disponible en producción** y el lector no la ve — que es el comportamiento
-correcto: la superficie falla cerrada en lugar de ofrecer una guía rota.
+### Otros entornos
+
+Un entorno distinto de producción (local, preview, una base efímera) **sí**
+necesita materializar sus propios targets antes de que la Guide aparezca:
+`content:book:activate-learning --book-slug=parejas-que-perduran`, documentado
+en [book-learning-activation.md](../operations/book-learning-activation.md).
+Eso es una tarea de ese entorno, no de este despliegue.
 
 ## Autorización
 

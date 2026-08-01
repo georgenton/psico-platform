@@ -3,6 +3,7 @@ import type {
   CompleteGuideSessionRequestBody,
   CompleteGuideSessionStepRequestBody,
   GuideAvailabilityResponse,
+  GuideDiscoveryResponse,
   GuideCommandResponse,
   StartGuideSessionRequestBody,
   SubmitGuideStepRecallRequestBody,
@@ -34,6 +35,29 @@ export const guideApi = {
    */
   getGuideAvailability: () =>
     apiClient.get<GuideAvailabilityResponse>("/guide/availability"),
+
+  /**
+   * GR-4 — "standing in this chapter, is there a guided reading for me?".
+   *
+   * The SERVER owns which guide a context implies; the client only says where
+   * the reader is. Read-only: it creates no session, step or receipt.
+   *
+   * Malformed input never reaches the network. A caller that computed a bad
+   * chapter order deserves to find out locally rather than to read a `false`
+   * that would look identical to "no guide here" — those are different facts.
+   */
+  getGuideDiscovery: (bookSlug: string, chapterOrder: number) => {
+    const slug = typeof bookSlug === "string" ? bookSlug.trim() : "";
+    if (slug.length === 0) {
+      return Promise.reject(new Error("GUIDE_DISCOVERY_PARAMS_INVALID"));
+    }
+    if (!Number.isInteger(chapterOrder) || chapterOrder <= 0) {
+      return Promise.reject(new Error("GUIDE_DISCOVERY_PARAMS_INVALID"));
+    }
+    return apiClient.get<GuideDiscoveryResponse>(
+      `/guide/discovery/${encodeURIComponent(slug)}/${chapterOrder}`,
+    );
+  },
 
   createGuideSession: (body: StartGuideSessionRequestBody) =>
     apiClient.post<GuideCommandResponse>("/guide/sessions", body),

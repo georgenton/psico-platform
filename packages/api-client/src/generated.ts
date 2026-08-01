@@ -2078,6 +2078,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guide/discovery/{bookSlug}/{chapterOrder}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Si hay una guía para el contexto de lectura pedido. No revela el motivo de un negativo, ni objetivos, ni identificadores internos. */
+        get: operations["getGuideDiscovery"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guide/sessions": {
         parameters: {
             query?: never;
@@ -12149,6 +12166,104 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    getGuideDiscovery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Slug canónico del libro (kebab-case, minúsculas). */
+                bookSlug: string;
+                /** @description Orden del capítulo EN LA PLATAFORMA, que no siempre coincide con la numeración impresa del libro. */
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        available: false;
+                    } | {
+                        /** @enum {boolean} */
+                        available: true;
+                        /** @description Clave exacta de la guía ofrecida para este contexto. */
+                        guideKey: string;
+                        /** @description Versión exacta; el par clave@versión es inmutable. */
+                        guideVersion: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12263,6 +12378,14 @@ export interface operations {
                 };
             };
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12391,6 +12514,14 @@ export interface operations {
                 };
             };
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12542,6 +12673,14 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12669,6 +12808,14 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12789,6 +12936,14 @@ export interface operations {
                 };
             };
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

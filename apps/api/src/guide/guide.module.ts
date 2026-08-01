@@ -6,6 +6,7 @@ import { isDeployedEnvironment } from "../shared/psico-environment";
 import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 import { LearningEventRepository } from "../learning/learning-event.repository";
 import { GuideCommandReceiptRepository } from "./guide-command-receipt.repository";
+import { GuideDiscoveryService } from "./guide-discovery.service";
 import { GuideLifecycleService } from "./guide-lifecycle.service";
 import {
   GUIDE_ROLLOUT_CONFIG,
@@ -40,6 +41,9 @@ import { GuideController } from "./guide.controller";
     LearningCatalogResolver,
     GuideTargetContextService,
     GuideLifecycleService,
+    // GR-4 — read-only contextual discovery. Shares the SAME collaborators the
+    // lifecycle uses, so "is it offered" and "start it" cannot disagree.
+    GuideDiscoveryService,
     // CC-7.R1 — the rollout config resolved ONCE at boot. The deployed flag
     // comes from the neutral environment resolver, so `pilot` requires an
     // allowlist and a missing mode fails a deployed box closed.

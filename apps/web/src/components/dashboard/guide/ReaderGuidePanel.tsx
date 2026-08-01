@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChapterConcept, GuideRecallOutcome } from "@psico/types";
-import { GUIDE_PRESENTATION, GUIDE_SCOPE_NOTE } from "./guide-presentation";
-import { GUIDE_READER_COPY as C } from "./guide-reader-copy";
+import { GUIDE_SCOPE_NOTE } from "./guide-presentation";
+import type { GuideReaderCopy } from "./guide-reader-copy";
+import type { GuideWebBundle } from "./guide-web-bundle";
 import { useGuideRun } from "./use-guide-run";
 import type { GuideAnchorResolution } from "./guide-anchor";
 import {
@@ -37,6 +38,12 @@ export const READER_GUIDE_PANEL_ID = "reader-guide-panel";
 
 export interface ReaderGuidePanelProps {
   actorScope: string;
+  /**
+   * GR-4 — the EXACT guide this panel renders, resolved by the caller from
+   * the server's pin. The panel holds no default and no book-slug branch: it
+   * renders the bundle it is handed, or nothing.
+   */
+  bundle: GuideWebBundle;
   /** Where the approved passage is in THIS chapter, or why it is not. */
   anchor: GuideAnchorResolution;
   concept: ChapterConcept;
@@ -53,6 +60,7 @@ export interface ReaderGuidePanelProps {
 
 export function ReaderGuidePanel({
   actorScope,
+  bundle,
   anchor,
   concept,
   bookSlug,
@@ -64,9 +72,24 @@ export function ReaderGuidePanel({
   onContinueReading,
   onOpenExplicitCheckin,
 }: ReaderGuidePanelProps) {
-  const run = useGuideRun(actorScope);
+  const { presentation, pin } = bundle;
+  const C: GuideReaderCopy = bundle.copy;
+  const run = useGuideRun({ actorScope, pin, presentation });
   const headingRef = useRef<HTMLHeadingElement>(null);
   const { session, screen, busy } = run;
+
+  /**
+   * The step the SERVER says is current, resolved in the PINNED presentation.
+   *
+   * Every command this panel sends names this key. The previous build had the
+   * step keys written into the JSX, which meant the anchor button always sent
+   * `explorar-cuerpo-antes-que-mente` — correct for exactly one guide and
+   * silently wrong for any other.
+   */
+  const currentStep = run.step;
+  const confirmStepKey =
+    currentStep?.surface === "confirm" ? currentStep.stepKey : null;
+  const recallStep = currentStep?.surface === "recall" ? currentStep : null;
 
   const [scene, setSceneState] = useState<GuideScene>("cover");
   const [ackFeedback, setAckFeedback] = useState(false);
@@ -108,18 +131,21 @@ export function ReaderGuidePanel({
       setSceneState(next);
       if (!session) return;
       const verdict = outcome ?? run.recallOutcome ?? storedOutcome;
-      writeGuideScene({
-        schemaVersion: 1,
-        actorScope,
-        guideKey: GUIDE_PRESENTATION.guideKey,
-        guideVersion: GUIDE_PRESENTATION.guideVersion,
-        sessionId: session.sessionId,
-        currentStepKey: session.currentStepKey,
-        scene: next,
-        ...(verdict ? { recallOutcome: verdict } : {}),
-      });
+      writeGuideScene(
+        {
+          schemaVersion: 1,
+          actorScope,
+          guideKey: pin.guideKey,
+          guideVersion: pin.guideVersion,
+          sessionId: session.sessionId,
+          currentStepKey: session.currentStepKey,
+          scene: next,
+          ...(verdict ? { recallOutcome: verdict } : {}),
+        },
+        pin,
+      );
     },
-    [actorScope, run.recallOutcome, session, storedOutcome],
+    [actorScope, pin, run.recallOutcome, session, storedOutcome],
   );
 
   // Re-derive the scene whenever the SERVER's checkpoint moves. The stored
@@ -130,9 +156,18 @@ export function ReaderGuidePanel({
   const currentStepKey = session?.currentStepKey ?? null;
   useEffect(() => {
     if (!sessionId) return;
-    const stored = readGuideScene(actorScope);
+    const stored = readGuideScene(actorScope, pin);
     setStoredOutcome(storedOutcomeFor({ sessionId }, stored));
-    const resolved = resolveScene({ sessionId, currentStepKey }, stored);
+    const resolved = resolveScene(
+      { sessionId, currentStepKey },
+      stored,
+      presentation,
+    );
+    // `null` means the pinned presentation does not know this checkpoint. The
+    // run already reports `unknown-step`, which is the screen that shows; there
+    // is no local scene to move to, so we leave the state where it is rather
+    // than inventing a cover.
+    if (resolved === null) return;
     // A reload lands here: `feedback` means the verdict was never
     // acknowledged, `finish` means it was. Both come from the record, so the
     // reader picks up exactly where they were instead of at the closing screen
@@ -159,7 +194,7 @@ export function ReaderGuidePanel({
       }
     }
     setSceneState(resolved);
-  }, [actorScope, sessionId, currentStepKey]);
+  }, [actorScope, pin, presentation, sessionId, currentStepKey]);
 
   // Focus the heading after a scene change so a screen reader announces the
   // new screen instead of a button that no longer exists.
@@ -229,7 +264,7 @@ export function ReaderGuidePanel({
     // Clears only this browser's recovery + presentation. Nothing that was
     // recorded is touched: past sessions and their events stay exactly as
     // they were, because they happened.
-    clearGuideScene();
+    clearGuideScene(pin);
     setAckFeedback(false);
     setStoredOutcome(null);
     setResonance("idle");
@@ -322,7 +357,7 @@ export function ReaderGuidePanel({
                 disabled={busy}
                 className="rgp-btn ghost"
               >
-                {GUIDE_PRESENTATION.labels.retry}
+                {presentation.labels.retry}
               </button>
             ) : null}
           </span>
@@ -385,7 +420,7 @@ export function ReaderGuidePanel({
         ) : null}
 
         {effective === "clip" ? (
-          <ClipScene onContinue={() => goToScene("anchor")} />
+          <ClipScene copy={C} onContinue={() => goToScene("anchor")} />
         ) : null}
 
         {effective === "anchor" ? (
@@ -404,10 +439,8 @@ export function ReaderGuidePanel({
             <button
               type="button"
               className="rgp-btn primary"
-              disabled={busy}
-              onClick={() =>
-                run.completeStep("explorar-cuerpo-antes-que-mente")
-              }
+              disabled={busy || confirmStepKey === null}
+              onClick={() => confirmStepKey && run.completeStep(confirmStepKey)}
             >
               {busy ? "Guardando…" : C.anchor.confirm}
             </button>
@@ -429,7 +462,7 @@ export function ReaderGuidePanel({
               <button
                 type="button"
                 className="rgp-btn ghost"
-                onClick={() => setSecondsLeft(45)}
+                onClick={() => setSecondsLeft(C.practice.timerSeconds)}
               >
                 {C.practice.timerStart}
               </button>
@@ -446,10 +479,8 @@ export function ReaderGuidePanel({
             <button
               type="button"
               className="rgp-btn primary"
-              disabled={busy}
-              onClick={() =>
-                run.completeStep("practicar-escucharte-por-dentro")
-              }
+              disabled={busy || confirmStepKey === null}
+              onClick={() => confirmStepKey && run.completeStep(confirmStepKey)}
             >
               {busy ? "Guardando…" : C.practice.confirm}
             </button>
@@ -457,15 +488,15 @@ export function ReaderGuidePanel({
           </>
         ) : null}
 
-        {effective === "recall" && run.step?.surface === "recall" ? (
+        {effective === "recall" && recallStep ? (
           <>
             <h2 ref={headingRef} tabIndex={-1} className="rgp-title">
               {C.recall.title}
             </h2>
             <fieldset className="rgp-fieldset">
-              <legend className="rgp-legend">{run.step.question}</legend>
-              <div role="radiogroup" aria-label={run.step.question}>
-                {run.step.options.map((option) => (
+              <legend className="rgp-legend">{recallStep.question}</legend>
+              <div role="radiogroup" aria-label={recallStep.question}>
+                {recallStep.options.map((option) => (
                   <label key={option.optionKey} className="rgp-option">
                     <input
                       type="radio"
@@ -485,8 +516,7 @@ export function ReaderGuidePanel({
               className="rgp-btn primary"
               disabled={busy || run.choice === null}
               onClick={() =>
-                run.choice &&
-                run.submitRecall("recordar-cuerpo-antes-que-mente", run.choice)
+                run.choice && run.submitRecall(recallStep.stepKey, run.choice)
               }
             >
               {busy ? "Guardando…" : C.recall.submit}
@@ -622,7 +652,7 @@ export function ReaderGuidePanel({
               className="rgp-btn ghost"
               onClick={repeatGuide}
             >
-              {GUIDE_PRESENTATION.labels.restart}
+              {presentation.labels.restart}
             </button>
           </>
         ) : null}
@@ -657,7 +687,13 @@ export function ReaderGuidePanel({
 }
 
 /** The clip scene. No player, because there is no asset — see the copy. */
-function ClipScene({ onContinue }: { onContinue: () => void }) {
+function ClipScene({
+  copy: C,
+  onContinue,
+}: {
+  copy: GuideReaderCopy;
+  onContinue: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {

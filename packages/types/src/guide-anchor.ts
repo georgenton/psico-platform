@@ -52,6 +52,125 @@ export const GUIDE_READER_ANCHOR: GuideReaderAnchorLocator = {
   expectedMatchCount: 1,
 };
 
+/**
+ * The anchor of the Parejas guide — `docs/product/parejas-guide-v1-first-definition.md`.
+ *
+ * The passage is the paragraph that describes the experiment the guide is
+ * about: couples in conflict, ten minutes of silent contact, no apologies and
+ * no solutions. That is the CONCEPT, not the practice. The chapter's own
+ * activity («Ejercicio 3: El Mapa de las Miradas») is the source of the
+ * practice step and is deliberately NOT this anchor: its section contains the
+ * numbered instructions and nothing conceptual, so pointing here would scroll
+ * the reader to «1. Siéntense frente a frente…» while the panel talked about
+ * why sustained contact changes a couple's state.
+ *
+ * ⚠️  `sourceHeading` is honest about an uncomfortable fact. The edition in
+ * production is `OCR_UNFINALIZED` (see the package's own `source-accounting.txt`:
+ * ~270 of 1150 blocks land as HEADING because OCR leaves short unpunctuated
+ * lines). This chapter has exactly three headings a human would call editorial:
+ * two «Ejercicio N» activity titles and one testimony title that OCR printed
+ * TWICE. None of them bounds the conceptual passage, so the heading that does
+ * is a mangled line — unique, verbatim, and verifiable against the hash-checked
+ * package, but not something an editor would recognise from the printed book.
+ *
+ * It is written down rather than worked around because the alternative is
+ * worse: silently anchoring to a practice step, or widening the resolver until
+ * it guesses. When the master (non-OCR) edition replaces this one the chapter
+ * is re-ingested, and this locator MUST be re-validated — the anchor spec and
+ * the pg probe are what will say so, loudly, instead of the guide quietly
+ * pointing at the wrong paragraph.
+ *
+ * Measured against a real PostgreSQL ingestion of the authorised package:
+ * `HEADING_MATCH_COUNT=1 · PASSAGE_MATCH_COUNT=1 · STATUS=RESOLVED`.
+ */
+export const PAREJAS_READER_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c1-contacto-sostenido",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  // The book's chapter 1 is PLATFORM order 2 — the ingest manifest gave order 1
+  // to the preface. Keying this by 1 would search the preface and fail closed.
+  chapterOrder: 2,
+  sourceHeading:
+    "Suran no solo las o pende xn - Escribió el Poeta Rumi: A lo demás», y a Veces",
+  passageLastSentence:
+    "La hormona no requería consenso, solo presencia (Scheele et al., 2016).",
+  expectedMatchCount: 1,
+};
+
+/** The shape a registry lookup is keyed by: one immutable guide definition. */
+export interface GuideAnchorPin {
+  guideKey: string;
+  guideVersion: number;
+}
+
+/**
+ * GR-4 — one anchor per pin, looked up exactly.
+ *
+ * The registry exists so a second book cannot be served the first book's
+ * passage. Three absences are the whole point:
+ *
+ *   - no "latest version": a pin this build does not know is `null`, never the
+ *     nearest one. A version bump is an editorial change, and answering a v2
+ *     request with the v1 passage would scroll the reader somewhere the new
+ *     definition never approved;
+ *   - no fallback to the first registered anchor. An unknown guide has no
+ *     passage, and the reader must refuse to run rather than borrow one;
+ *   - no `blockKey`. Content Core derives it per environment (CC-1), so a
+ *     literal here would be true in one database and a lie in the next.
+ *
+ * Registration is validated at construction: a malformed pin, a duplicate pin,
+ * an empty heading or sentence is a programming error worth crashing on at
+ * import time, not a `null` discovered by a reader mid-chapter.
+ */
+export class GuideAnchorRegistry {
+  private readonly byPin = new Map<string, GuideReaderAnchorLocator>();
+
+  constructor(anchors: readonly GuideReaderAnchorLocator[]) {
+    for (const a of anchors) {
+      const key = anchorPinKey(a);
+      if (!key) {
+        throw new Error(
+          `GuideAnchorRegistry: malformed pin for "${a.guideKey}"`,
+        );
+      }
+      if (this.byPin.has(key)) {
+        throw new Error(`GuideAnchorRegistry: duplicate anchor for ${key}`);
+      }
+      if (!a.sourceHeading.trim() || !a.passageLastSentence.trim()) {
+        throw new Error(`GuideAnchorRegistry: empty locator field in ${key}`);
+      }
+      if (!a.bookSlug.trim() || !Number.isInteger(a.chapterOrder)) {
+        throw new Error(`GuideAnchorRegistry: invalid context in ${key}`);
+      }
+      this.byPin.set(key, a);
+    }
+  }
+
+  /** The anchor for EXACTLY this pin, or `null`. Never a nearby one. */
+  getExact(pin: GuideAnchorPin): GuideReaderAnchorLocator | null {
+    const key = anchorPinKey(pin);
+    if (!key) return null;
+    return this.byPin.get(key) ?? null;
+  }
+}
+
+/** Same grammar the web's pin module enforces: kebab-case key, positive int. */
+const ANCHOR_KEY_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function anchorPinKey(pin: GuideAnchorPin): string | null {
+  if (typeof pin?.guideKey !== "string" || !ANCHOR_KEY_RE.test(pin.guideKey)) {
+    return null;
+  }
+  if (!Number.isInteger(pin.guideVersion) || pin.guideVersion <= 0) return null;
+  return `${pin.guideKey}@${pin.guideVersion}`;
+}
+
+/** The anchors this build ships. Adding a guide means adding a line here. */
+export const guideAnchorRegistry = new GuideAnchorRegistry([
+  GUIDE_READER_ANCHOR,
+  PAREJAS_READER_ANCHOR,
+]);
+
 /** The shape the resolver needs from a reader block. Structural on purpose:
  * it accepts the reader's projected block without importing its whole type. */
 export interface AnchorCandidateBlock {

@@ -18,8 +18,10 @@ import { GuideController } from "./guide.controller";
  *   GUIDE_CORRECT_OPTION_PUBLIC_REFERENCES=0
  *
  * CC-7.R1 added ONE read route — the opaque `GET /availability` pilot gate.
- * Everything else about the surface is unchanged: five commands, one
- * controller, no generic event/progress/discovery route.
+ * GR-4 added a SECOND: contextual discovery, which answers whether a reading
+ * context has a guided reading. Both are read-only and neither creates a row.
+ * Everything else is unchanged: five commands, one controller, no generic
+ * event or progress route.
  *
  * The public boundary is: the parser's accepted keys, the DTO/OpenAPI schemas,
  * the controller and the API client. Grading internals may legitimately name
@@ -96,8 +98,11 @@ describe("ratchet · guide public surface", () => {
     // Exactly ONE read route — the CC-7.R1 availability gate — and no mutation
     // verb beyond the five POST commands.
     const gets = source.match(/@Get\(/g) ?? [];
-    expect(gets).toHaveLength(1);
+    expect(gets).toHaveLength(2);
     expect(source).toContain('@Get("availability")');
+    // GR-4 added the SECOND read route: contextual discovery. It is read-only
+    // and answers a closed union; it is not a sixth command.
+    expect(source).toContain('@Get("discovery/:bookSlug/:chapterOrder")');
     for (const verb of ["@Patch(", "@Put(", "@Delete("]) {
       expect(source.includes(verb), verb).toBe(false);
     }
@@ -114,6 +119,7 @@ describe("ratchet · guide public surface", () => {
       "completeGuideSessionStep",
       "createGuideSession",
       "getGuideAvailability",
+      "getGuideDiscovery",
       "submitGuideStepRecall",
       "toRecallResponse",
       "toResponse",

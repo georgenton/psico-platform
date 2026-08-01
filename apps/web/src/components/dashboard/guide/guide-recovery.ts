@@ -1,11 +1,8 @@
+import { guidePinKey, type GuidePin } from "./guide-pin";
 import {
-  GUIDE_KEY,
-  GUIDE_PRESENTATION,
-  GUIDE_VERSION,
-  isGuideOptionKey,
+  isGuideOptionKeyForStep,
   isGuideStepKey,
-  type GuideOptionKeyWeb,
-  type GuideStepKeyWeb,
+  type GuidePresentation,
 } from "./guide-presentation";
 
 /**
@@ -27,9 +24,22 @@ import {
  * job is to stop one account's record from being replayed by another — a start
  * key belongs to `(userId, idempotencyKey)` on the server, so replaying it as
  * someone else would start a guide they never asked for.
+ *
+ * GR-4 — one storage slot PER PIN. A start key belongs to a
+ * `guideKey@guideVersion` as much as it belongs to an actor: replaying one
+ * guide's key while reading another would open a session for a chapter the
+ * reader is not in, and the server would happily return it because the key is
+ * genuinely theirs. The record states its pin and the parser demands it match
+ * the requested one, so a shared key is impossible by construction rather than
+ * by remembering to check.
  */
 
-const STORAGE_KEY = `psico.guide.${GUIDE_KEY}.v1`;
+/** `psico.guide.<guideKey>.v<guideVersion>` — one slot per exact guide. */
+export function guideStorageKey(pin: GuidePin): string | null {
+  const key = guidePinKey(pin);
+  if (key === null) return null;
+  return `psico.guide.${pin.guideKey}.v${pin.guideVersion}`;
+}
 
 /** A command whose outcome this browser does not know yet. */
 export type PendingGuideCommand =
@@ -37,14 +47,14 @@ export type PendingGuideCommand =
       commandType: "STEP_COMPLETE";
       idempotencyKey: string;
       sessionId: string;
-      stepKey: GuideStepKeyWeb;
+      stepKey: string;
     }
   | {
       commandType: "STEP_RECALL";
       idempotencyKey: string;
       sessionId: string;
-      stepKey: GuideStepKeyWeb;
-      selectedOptionKey: GuideOptionKeyWeb;
+      stepKey: string;
+      selectedOptionKey: string;
     }
   | {
       commandType: "CANCEL";
@@ -61,8 +71,8 @@ export interface GuideRecoveryRecord {
   schemaVersion: 1;
   /** Opaque server-derived partition — never a userId, never a credential. */
   actorScope: string;
-  guideKey: typeof GUIDE_KEY;
-  guideVersion: typeof GUIDE_VERSION;
+  guideKey: string;
+  guideVersion: number;
   startIdempotencyKey: string;
   sessionId?: string;
   pendingCommand?: PendingGuideCommand;
@@ -123,26 +133,29 @@ function hasOnlyKeys(
 }
 
 /**
- * Which command a step accepts, read from the presentation catalog's surface.
+ * Which command a step accepts, read from the PINNED presentation's surface.
  * A confirm step is completed by `STEP_COMPLETE`; the recall step is completed
  * ONLY by its dedicated command. Pairing them the other way round is not a
  * command the server would accept, so it is not a command we replay.
  */
 function commandTypeForStep(
-  stepKey: GuideStepKeyWeb,
+  stepKey: string,
+  presentation: GuidePresentation,
 ): "STEP_COMPLETE" | "STEP_RECALL" | null {
-  const step = GUIDE_PRESENTATION.steps.find((s) => s.stepKey === stepKey);
+  const step = presentation.steps.find((s) => s.stepKey === stepKey);
   if (!step) return null;
   return step.surface === "recall" ? "STEP_RECALL" : "STEP_COMPLETE";
 }
 
 /**
- * Rebuild a pending command field by field. A command whose step or option is
- * not in this build's catalog is rejected: retrying a key we cannot describe
- * would be guessing at someone's answer.
+ * Rebuild a pending command field by field, against the PINNED presentation.
+ * A command whose step or option is not in that exact catalog is rejected:
+ * retrying a key we cannot describe would be guessing at someone's answer, and
+ * a step borrowed from another guide is exactly that.
  */
 export function parsePendingGuideCommand(
   value: unknown,
+  presentation: GuidePresentation,
 ): PendingGuideCommand | null {
   if (!isPlainObject(value)) return null;
   const { commandType, idempotencyKey, sessionId } = value;
@@ -152,10 +165,12 @@ export function parsePendingGuideCommand(
     case "STEP_COMPLETE": {
       const allowed = ["commandType", "idempotencyKey", "sessionId", "stepKey"];
       if (!hasOnlyKeys(value, allowed)) return null;
-      if (!isGuideStepKey(value.stepKey)) return null;
+      if (!isGuideStepKey(value.stepKey, presentation)) return null;
       // A confirm command aimed at the recall step is not a command the
       // server accepts, so it is not one we hold on to.
-      if (commandTypeForStep(value.stepKey) !== "STEP_COMPLETE") return null;
+      if (commandTypeForStep(value.stepKey, presentation) !== "STEP_COMPLETE") {
+        return null;
+      }
       return {
         commandType: "STEP_COMPLETE",
         idempotencyKey,
@@ -172,9 +187,22 @@ export function parsePendingGuideCommand(
         "selectedOptionKey",
       ];
       if (!hasOnlyKeys(value, allowed)) return null;
-      if (!isGuideStepKey(value.stepKey)) return null;
-      if (commandTypeForStep(value.stepKey) !== "STEP_RECALL") return null;
-      if (!isGuideOptionKey(value.selectedOptionKey)) return null;
+      if (!isGuideStepKey(value.stepKey, presentation)) return null;
+      if (commandTypeForStep(value.stepKey, presentation) !== "STEP_RECALL") {
+        return null;
+      }
+      // The option must belong to THIS recall, not merely to some recall of
+      // this guide: a two-recall guide would otherwise replay an answer under
+      // a question the reader was never shown.
+      if (
+        !isGuideOptionKeyForStep(
+          value.stepKey,
+          value.selectedOptionKey,
+          presentation,
+        )
+      ) {
+        return null;
+      }
       return {
         commandType: "STEP_RECALL",
         idempotencyKey,
@@ -196,13 +224,15 @@ export function parsePendingGuideCommand(
 
 /**
  * Parse a stored record. Pure, total and closed: any deviation — a corrupt
- * blob, a foreign guide, an older schema, an extra key, a malformed UUID —
- * returns `null`, and the caller treats that as "no recovery" rather than as
- * an error to show.
+ * blob, a foreign guide, another actor, an older schema, an extra key, a
+ * malformed UUID — returns `null`, and the caller treats that as "no recovery"
+ * rather than as an error to show.
  */
 export function parseGuideRecoveryRecord(
   value: unknown,
   expectedActorScope: string,
+  pin: GuidePin,
+  presentation: GuidePresentation,
 ): GuideRecoveryRecord | null {
   if (!isPlainObject(value)) return null;
   if (!hasOnlyKeys(value, RECORD_KEYS)) return null;
@@ -213,15 +243,18 @@ export function parseGuideRecoveryRecord(
   if (!isActorScope(expectedActorScope)) return null;
   if (!isActorScope(value.actorScope)) return null;
   if (value.actorScope !== expectedActorScope) return null;
-  if (value.guideKey !== GUIDE_KEY) return null;
-  if (value.guideVersion !== GUIDE_VERSION) return null;
+  // The pin is the second authority. A record that names another guide — or
+  // another version of this one — is not this run's start key.
+  if (guidePinKey(pin) === null) return null;
+  if (value.guideKey !== pin.guideKey) return null;
+  if (value.guideVersion !== pin.guideVersion) return null;
   if (!isUuid(value.startIdempotencyKey)) return null;
 
   const record: GuideRecoveryRecord = {
     schemaVersion: 1,
     actorScope: expectedActorScope,
-    guideKey: GUIDE_KEY,
-    guideVersion: GUIDE_VERSION,
+    guideKey: pin.guideKey,
+    guideVersion: pin.guideVersion,
     startIdempotencyKey: value.startIdempotencyKey,
   };
 
@@ -231,7 +264,10 @@ export function parseGuideRecoveryRecord(
   }
 
   if (value.pendingCommand !== undefined) {
-    const pending = parsePendingGuideCommand(value.pendingCommand);
+    const pending = parsePendingGuideCommand(
+      value.pendingCommand,
+      presentation,
+    );
     // A record with an unreadable pending command still has a usable START
     // key — drop the command, keep the recovery.
     if (pending) record.pendingCommand = pending;
@@ -250,13 +286,20 @@ export type GuideRecoveryReadResult =
   | { state: "valid"; record: GuideRecoveryRecord }
   | { state: "unavailable" };
 
-/** Read + validate. Never throws, even if `localStorage` is unavailable. */
+/** Read + validate for ONE pin. Never throws, even if storage is blocked. */
 export function readGuideRecovery(
   expectedActorScope: string,
+  pin: GuidePin,
+  presentation: GuidePresentation,
 ): GuideRecoveryReadResult {
+  const storageKey = guideStorageKey(pin);
+  // A malformed pin has no slot at all. Reporting "unavailable" rather than
+  // "empty" keeps the caller from starting a run it could never recover.
+  if (storageKey === null) return { state: "unavailable" };
+
   let raw: string | null = null;
   try {
-    raw = window.localStorage.getItem(STORAGE_KEY);
+    raw = window.localStorage.getItem(storageKey);
   } catch {
     return { state: "unavailable" };
   }
@@ -266,15 +309,21 @@ export function readGuideRecovery(
   try {
     parsed = JSON.parse(raw);
   } catch {
-    clearGuideRecovery();
+    clearGuideRecovery(pin);
     return { state: "empty" };
   }
 
-  const record = parseGuideRecoveryRecord(parsed, expectedActorScope);
+  const record = parseGuideRecoveryRecord(
+    parsed,
+    expectedActorScope,
+    pin,
+    presentation,
+  );
   if (!record) {
-    // Includes the cross-account case: another actor's record is dropped, not
-    // handed back, so the next screen is a fresh cover with no START in it.
-    clearGuideRecovery();
+    // Includes the cross-account and cross-guide cases: a foreign record is
+    // dropped, not handed back, so the next screen is a fresh cover with no
+    // START in it.
+    clearGuideRecovery(pin);
     return { state: "empty" };
   }
   return { state: "valid", record };
@@ -289,18 +338,27 @@ export type GuideStorageWriteResult = { ok: true } | { ok: false };
 
 export function writeGuideRecovery(
   record: GuideRecoveryRecord,
+  pin: GuidePin,
 ): GuideStorageWriteResult {
+  const storageKey = guideStorageKey(pin);
+  if (storageKey === null) return { ok: false };
+  // A record is only ever written to ITS OWN slot. Writing one guide's record
+  // under another's key is the corruption this whole module exists to avoid.
+  if (record.guideKey !== pin.guideKey) return { ok: false };
+  if (record.guideVersion !== pin.guideVersion) return { ok: false };
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
+    window.localStorage.setItem(storageKey, JSON.stringify(record));
     return { ok: true };
   } catch {
     return { ok: false };
   }
 }
 
-export function clearGuideRecovery(): void {
+export function clearGuideRecovery(pin: GuidePin): void {
+  const storageKey = guideStorageKey(pin);
+  if (storageKey === null) return;
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(storageKey);
   } catch {
     // Nothing to do — the caller's next write will report the failure.
   }
@@ -309,9 +367,11 @@ export function clearGuideRecovery(): void {
 /** For surfaces that only need to know whether a run can be resumed. */
 export function guideRecoveryState(
   expectedActorScope: string,
+  pin: GuidePin,
+  presentation: GuidePresentation,
 ): GuideRecoveryReadResult["state"] {
   if (typeof window === "undefined") return "empty";
-  return readGuideRecovery(expectedActorScope).state;
+  return readGuideRecovery(expectedActorScope, pin, presentation).state;
 }
 
 /**
@@ -325,6 +385,3 @@ export function newIdempotencyKey(): string | null {
   const key = c.randomUUID();
   return isUuid(key) ? key : null;
 }
-
-/** Exposed so tests can assert the exact storage key. */
-export const GUIDE_STORAGE_KEY = STORAGE_KEY;

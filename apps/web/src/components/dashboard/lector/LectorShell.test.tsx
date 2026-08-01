@@ -9,6 +9,7 @@ import type {
 import { LectorShell } from "./LectorShell";
 import { GuideAvailabilityProvider } from "../guide/guide-availability";
 import { GuideActorScopeProvider } from "../guide/guide-actor-scope";
+import type * as ApiClientModule from "@psico/api-client";
 
 /**
  * Smoke tests for the LectorShell orchestrator (Sprint 3 del roadmap + CC-6B).
@@ -25,6 +26,32 @@ import { GuideActorScopeProvider } from "../guide/guide-actor-scope";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
 }));
+
+/**
+ * GR-4 — the reader now ASKS the server which guide this chapter implies.
+ * These tests are about the reader's gating, so discovery answers with the
+ * Emociones pin (the book they render) and the interesting variations live in
+ * `LectorShell.discovery.test.tsx`.
+ */
+const getGuideDiscovery = vi.fn(
+  async (_bookSlug: string, _chapterOrder: number) => ({
+    available: true as const,
+    guideKey: "eec-c1-cuerpo-antes-que-mente",
+    guideVersion: 1,
+  }),
+);
+
+vi.mock("@psico/api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof ApiClientModule>();
+  return {
+    ...actual,
+    guideApi: {
+      ...actual.guideApi,
+      getGuideDiscovery: (bookSlug: string, chapterOrder: number) =>
+        getGuideDiscovery(bookSlug, chapterOrder),
+    },
+  };
+});
 
 vi.mock("./AudioBar", () => ({
   AudioBar: () => null,
@@ -664,18 +691,18 @@ describe("LectorShell — guided reading", () => {
     expect(selected()[0]).toHaveTextContent("Leer");
   });
 
-  it("the guide tab points at the panel it controls", () => {
+  it("the guide tab points at the panel it controls", async () => {
     renderWithGuide(unitWithAnchor());
     fireEvent.click(screen.getByTestId(GUIDE_TAB));
     const tab = screen.getByTestId(GUIDE_TAB);
-    const panel = screen.getByTestId("reader-guide-panel");
+    const panel = await screen.findByTestId("reader-guide-panel");
     expect(tab.getAttribute("aria-controls")).toBe(panel.id);
   });
 
   it("Escape closes the panel", async () => {
     renderWithGuide(unitWithAnchor());
     fireEvent.click(screen.getByTestId(GUIDE_TAB));
-    expect(screen.getByTestId("reader-guide-panel")).toBeInTheDocument();
+    expect(await screen.findByTestId("reader-guide-panel")).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() =>

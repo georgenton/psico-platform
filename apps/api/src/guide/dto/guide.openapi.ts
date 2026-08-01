@@ -123,6 +123,43 @@ export const GUIDE_AVAILABILITY_RESPONSE: SchemaObject = {
   properties: { available: { type: "boolean" } },
 };
 
+/**
+ * GR-4 — GET /api/guide/discovery/:bookSlug/:chapterOrder.
+ *
+ * A CLOSED union. The unavailable arm carries no pin at all, so a negative
+ * answer can never be mined for a guide key; the available arm carries the
+ * exact pin and nothing else — no requested context, no internal ids, no
+ * target keys, no rollout reason.
+ */
+export const GUIDE_DISCOVERY_UNAVAILABLE: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["available"],
+  properties: { available: { type: "boolean", enum: [false] } },
+};
+
+export const GUIDE_DISCOVERY_AVAILABLE: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["available", "guideKey", "guideVersion"],
+  properties: {
+    available: { type: "boolean", enum: [true] },
+    guideKey: {
+      type: "string",
+      description: "Clave exacta de la guía ofrecida para este contexto.",
+    },
+    guideVersion: {
+      type: "integer",
+      minimum: 1,
+      description: "Versión exacta; el par clave@versión es inmutable.",
+    },
+  },
+};
+
+export const GUIDE_DISCOVERY_RESPONSE: SchemaObject = {
+  oneOf: [GUIDE_DISCOVERY_UNAVAILABLE, GUIDE_DISCOVERY_AVAILABLE],
+};
+
 /** The response of all five commands. */
 export const GUIDE_COMMAND_RESPONSE: SchemaObject = {
   type: "object",

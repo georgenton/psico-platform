@@ -220,6 +220,37 @@ export interface GuideAvailabilityResponse {
 }
 
 /**
+ * GR-4 — an exact guided-reading pin. `guideKey@guideVersion` is immutable:
+ * a session pins its version at start and always resolves against that pair.
+ */
+export interface GuidePin {
+  guideKey: string;
+  guideVersion: number;
+}
+
+/**
+ * GR-4 — the answer to "standing in this chapter, is there a guided reading
+ * for me?".
+ *
+ * A CLOSED union on purpose. The unavailable arm carries NO pin, so a client
+ * cannot read a guide key out of a negative answer and start something the
+ * server did not offer; the available arm carries the pin and nothing else.
+ *
+ * Deliberately absent from both arms: the requested context (bookSlug /
+ * chapterOrder), any internal id (editionId, unitId, revisionId), the guide's
+ * target keys, the rollout mode and the reason a negative answer was negative.
+ * The negative is OPAQUE by design — telling a reader WHY would turn this into
+ * a way to enumerate the catalog or to learn they sit outside a pilot.
+ */
+export type GuideDiscoveryResponse =
+  | { available: false }
+  | {
+      available: true;
+      guideKey: string;
+      guideVersion: number;
+    };
+
+/**
  * CC-7.R1 — the rollout gate's only public code. A 503 that says "not on for
  * you right now" and nothing more; it is NOT one of the eight lifecycle codes
  * and never widens them.

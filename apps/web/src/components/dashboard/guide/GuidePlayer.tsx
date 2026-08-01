@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import type { GuideSessionView } from "@psico/types";
-import { GUIDE_PRESENTATION, GUIDE_SCOPE_NOTE } from "./guide-presentation";
+import { GUIDE_SCOPE_NOTE } from "./guide-presentation";
+import type { GuideWebBundle } from "./guide-web-bundle";
 import { useGuideRun } from "./use-guide-run";
 
 /**
@@ -22,8 +23,6 @@ import { useGuideRun } from "./use-guide-run";
  *     catalog answer is not in this bundle to decide it with.
  */
 
-const { labels } = GUIDE_PRESENTATION;
-
 export interface GuidePlayerProps {
   /**
    * Opaque partition derived server-side from the authenticated user. The
@@ -31,10 +30,22 @@ export interface GuidePlayerProps {
    * because a record written by another account would then vouch for itself.
    */
   actorScope: string;
+  /**
+   * GR-4 — the EXACT guide to play, resolved by the caller. The player holds
+   * no default: without a bundle there is no guide, and with one there is
+   * exactly the guide the caller named.
+   */
+  bundle: GuideWebBundle;
 }
 
-export function GuidePlayer({ actorScope }: GuidePlayerProps) {
-  const run = useGuideRun(actorScope);
+export function GuidePlayer({ actorScope, bundle }: GuidePlayerProps) {
+  const { presentation } = bundle;
+  const { labels } = presentation;
+  const run = useGuideRun({
+    actorScope,
+    pin: bundle.pin,
+    presentation,
+  });
   const headingRef = useRef<HTMLHeadingElement>(null);
   const { screen, session, step, busy, choice, setChoice } = run;
 
@@ -50,8 +61,8 @@ export function GuidePlayer({ actorScope }: GuidePlayerProps) {
     <>
       <div className="screen-head">
         <div className="screen-title">
-          <span className="eb">{GUIDE_PRESENTATION.tag}</span>
-          {GUIDE_PRESENTATION.title}
+          <span className="eb">{presentation.tag}</span>
+          {presentation.title}
         </div>
       </div>
 
@@ -144,11 +155,11 @@ export function GuidePlayer({ actorScope }: GuidePlayerProps) {
       {screen === "cover" ? (
         <div className="card" style={{ padding: 26 }}>
           <h2 ref={headingRef} tabIndex={-1} style={headingStyle}>
-            {GUIDE_PRESENTATION.title}
+            {presentation.title}
           </h2>
-          <p style={bodyStyle}>{GUIDE_PRESENTATION.summary}</p>
+          <p style={bodyStyle}>{presentation.summary}</p>
           <ol style={{ ...bodyStyle, paddingLeft: 20 }}>
-            {GUIDE_PRESENTATION.steps.map((s) => (
+            {presentation.steps.map((s) => (
               <li key={s.stepKey}>{s.shortLabel}</li>
             ))}
           </ol>

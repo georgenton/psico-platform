@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Header,
@@ -19,8 +20,10 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiServiceUnavailableResponse,
   ApiTags,
+  ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
@@ -28,6 +31,7 @@ import type { Request, Response } from "express";
 import type {
   GuideAvailabilityResponse,
   GuideCommandResponse,
+  GuideDiscoveryResponse,
   SubmitGuideStepRecallResponse,
 } from "@psico/types";
 import { JwtAuthGuard } from "../auth";
@@ -43,6 +47,12 @@ import type {
 } from "./guide-lifecycle.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { GuideRolloutService } from "./guide-rollout.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { GuideDiscoveryService } from "./guide-discovery.service";
+import {
+  GUIDE_DISCOVERY_PARAMS_INVALID,
+  parseGuideDiscoveryParams,
+} from "./guide-discovery-params";
 import { GuideRolloutGuard } from "./guide-rollout.guard";
 import {
   parseCancelGuideSessionCommand,
@@ -58,6 +68,7 @@ import {
 } from "./guide-http-errors";
 import {
   GUIDE_AVAILABILITY_RESPONSE,
+  GUIDE_DISCOVERY_RESPONSE,
   GUIDE_COMMAND_RESPONSE,
   GUIDE_RECALL_BODY,
   GUIDE_RECALL_COMMAND_RESPONSE,
@@ -85,6 +96,10 @@ import {
 @ApiTags("Guide")
 @ApiBearerAuth("bearer")
 @ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+// Every route here is behind `JwtAuthGuard`, so 401 is reachable on all of
+// them; documenting it on only the newest one would have the contract say two
+// different things about identical behaviour.
+@ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
 @ApiForbiddenResponse({ type: ErrorEnvelopeDto })
 @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
 @ApiConflictResponse({ type: ErrorEnvelopeDto })
@@ -96,6 +111,7 @@ export class GuideController {
   constructor(
     private readonly lifecycle: GuideLifecycleService,
     private readonly rollout: GuideRolloutService,
+    private readonly discovery: GuideDiscoveryService,
   ) {}
 
   /**
@@ -121,6 +137,73 @@ export class GuideController {
     @CurrentUser() user: AuthenticatedUser,
   ): GuideAvailabilityResponse {
     return { available: this.rollout.isAvailable(user.userId) };
+  }
+
+  /**
+   * GR-4 — "standing in this chapter, is there a guided reading for me?".
+   *
+   * READ-ONLY: it creates no session, step, receipt, learning event or
+   * resonance. Asking must never be the act that starts something.
+   *
+   * NOT behind the rollout guard, deliberately — the guard answers 503, and
+   * this endpoint has to be able to say `available:false` honestly. The
+   * negative is opaque: rollout off, no catalog entry, missing or divergent
+   * targets, a chapter that disagrees with them, or a plan that cannot read the
+   * unit all look identical from outside, so the surface cannot be used to
+   * enumerate the catalog or to learn one sits outside the pilot.
+   *
+   * A syntactically impossible parameter is a 400 — "chapter zero" is not a
+   * place a reader can stand, and answering `false` there would be a different
+   * claim than the one the caller made.
+   *
+   * An INFRASTRUCTURE failure is neither: it goes through the same lifecycle
+   * mapper as the five commands and comes back as a sanitized 500, so the
+   * client retries instead of caching a negative it was never told.
+   */
+  @Get("discovery/:bookSlug/:chapterOrder")
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "getGuideDiscovery",
+    summary:
+      "Si hay una guía para el contexto de lectura pedido. No revela el " +
+      "motivo de un negativo, ni objetivos, ni identificadores internos.",
+  })
+  // Declared explicitly: the generator infers only `type: string` from the
+  // `@Param`s, which would document a contract this route does not accept —
+  // the order is a positive integer and the slug is canonical kebab-case.
+  @ApiParam({
+    name: "bookSlug",
+    required: true,
+    schema: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    description: "Slug canónico del libro (kebab-case, minúsculas).",
+  })
+  @ApiParam({
+    name: "chapterOrder",
+    required: true,
+    schema: { type: "integer", minimum: 1 },
+    description:
+      "Orden del capítulo EN LA PLATAFORMA, que no siempre coincide con la " +
+      "numeración impresa del libro.",
+  })
+  @ApiOkResponse({ schema: GUIDE_DISCOVERY_RESPONSE })
+  async getGuideDiscovery(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("bookSlug") bookSlug: string,
+    @Param("chapterOrder") chapterOrder: string,
+  ): Promise<GuideDiscoveryResponse> {
+    let params;
+    try {
+      params = parseGuideDiscoveryParams(bookSlug, chapterOrder);
+    } catch {
+      throw new BadRequestException({
+        code: GUIDE_DISCOVERY_PARAMS_INVALID,
+        message: GUIDE_DISCOVERY_PARAMS_INVALID,
+      });
+    }
+    // The actor is passed THROUGH, never restated here: the public surface
+    // must not contain an actor field the client could imagine supplying.
+    return mapGuideLifecycleErrors(() => this.discovery.discover(user, params));
   }
 
   /** Parser verdict → typed command, or the mapped 400. */

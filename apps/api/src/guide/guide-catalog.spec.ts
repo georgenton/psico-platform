@@ -247,9 +247,9 @@ describe("guide catalog · registry", () => {
 });
 
 describe("ratchet · guide catalog contract", () => {
-  it("GUIDE_PRODUCTION_REGISTRY_ENTRIES=1 — exactly the approved definition", () => {
-    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(1);
-    expect(productionGuideRegistry.size).toBe(1);
+  it("GUIDE_PRODUCTION_REGISTRY_ENTRIES=2 — exactly the approved definitions", () => {
+    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(2);
+    expect(productionGuideRegistry.size).toBe(2);
     // The EXACT approved content (CC-7.4B.3) — any drift is a new version.
     expect(PRODUCTION_GUIDE_DEFINITIONS[0]).toEqual({
       guideKey: "eec-c1-cuerpo-antes-que-mente",
@@ -281,6 +281,54 @@ describe("ratchet · guide catalog contract", () => {
         },
       ],
     });
+
+    // The SECOND approved definition — Parejas que perduran, chapter 1
+    // (platform chapterOrder 2). Same immutability rule.
+    expect(PRODUCTION_GUIDE_DEFINITIONS[1]).toEqual({
+      guideKey: "pqp-c1-contacto-sostenido",
+      guideVersion: 1,
+      steps: [
+        {
+          stepKey: "explorar-contacto-sostenido",
+          order: 1,
+          required: true,
+          kind: "CONCEPT_EXPLORATION",
+          completionPolicy: "explicit_confirmation",
+          conceptKey: "pqp-c1-contacto-sostenido",
+        },
+        {
+          stepKey: "practicar-diez-minutos-de-contacto",
+          order: 2,
+          required: true,
+          kind: "CATALOG_PRACTICE",
+          completionPolicy: "catalog_practice_confirmation",
+          exerciseKey: "pqp-c1-practice-diez-minutos-de-contacto",
+        },
+        {
+          stepKey: "recordar-contacto-sostenido",
+          order: 3,
+          required: true,
+          kind: "ACTIVE_RECALL",
+          completionPolicy: "objective_recall",
+          itemKey: "pqp-c1-recall-contacto-sostenido",
+        },
+      ],
+    });
+
+    // Both pins resolve exactly; an unknown pin fails closed.
+    expect(
+      productionGuideRegistry.getExact("eec-c1-cuerpo-antes-que-mente", 1)
+        .guideKey,
+    ).toBe("eec-c1-cuerpo-antes-que-mente");
+    expect(
+      productionGuideRegistry.getExact("pqp-c1-contacto-sostenido", 1).guideKey,
+    ).toBe("pqp-c1-contacto-sostenido");
+    expect(() =>
+      productionGuideRegistry.getExact("pqp-c1-contacto-sostenido", 2),
+    ).toThrow(/GUIDE_CATALOG_UNKNOWN_DEFINITION/);
+    expect(() => productionGuideRegistry.getExact("no-existe", 1)).toThrow(
+      /GUIDE_CATALOG_UNKNOWN_DEFINITION/,
+    );
     // Exact lookup only — no fallback for a version that was never published.
     expect(
       productionGuideRegistry.latestStartableVersion(

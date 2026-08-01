@@ -126,4 +126,55 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
       },
     },
   ],
+  // Demo Guide for Parejas que perduran (David Jaramillo, used with the
+  // author's authorization). The book's chapter 1 is PLATFORM order 2 — the
+  // ingest manifest gave order 1 to the preface and introduction, so an entry
+  // keyed by 1 would look for the practice heading inside the preface and fail
+  // closed. See docs/product/parejas-guide-v1-first-definition.md.
+  "parejas-que-perduran": [
+    {
+      practice: {
+        exerciseKey: "pqp-c1-practice-diez-minutos-de-contacto",
+        bookSlug: "parejas-que-perduran",
+        chapterOrder: 2,
+        order: 1,
+        type: "REFLECTION",
+        // The author's own name for the exercise, not one we coined.
+        title: "Ejercicio 3: El Mapa de las Miradas",
+        sourceHeading: "Ejercicio 3: El Mapa de las Miradas",
+        practiceKind: "guided_reflection",
+      },
+      recall: {
+        exerciseKey: "pqp-c1-recall-contacto-sostenido",
+        bookSlug: "parejas-que-perduran",
+        chapterOrder: 2,
+        order: 2,
+        type: "QUIZ",
+        title:
+          "Según el capítulo, ¿qué se les pidió hacer a las parejas durante los diez minutos del ejercicio de contacto?",
+        content: {
+          recallMode: "objective",
+          conceptKey: "pqp-c1-contacto-sostenido",
+          options: [
+            {
+              key: "pqp-opcion-manos-y-mirada",
+              label:
+                "Sentarse frente a frente, tomarse de las manos y sostener la mirada en silencio, sin disculpas y sin buscar soluciones.",
+            },
+            {
+              key: "pqp-opcion-conversar-acuerdos",
+              label:
+                "Conversar sobre el conflicto hasta llegar a un acuerdo explícito antes de que terminara el tiempo.",
+            },
+            {
+              key: "pqp-opcion-turnos-disculpas",
+              label:
+                "Turnarse para pedir disculpas por lo ocurrido y proponer cada uno una solución concreta.",
+            },
+          ],
+          correctOptionKey: "pqp-opcion-manos-y-mirada",
+        },
+      },
+    },
+  ],
 };

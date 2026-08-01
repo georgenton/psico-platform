@@ -39,6 +39,15 @@ export const CHAPTER_CONCEPTS: Record<string, BookConcepts> = {
       label: "Cuando tu mente adelanta la emoción",
     },
   },
+  // The book's chapter 1 is PLATFORM order 2: the ingest manifest gave order 1
+  // to the preface and introduction. Keying this by 1 would attach the concept
+  // to the preface. See docs/product/parejas-guide-v1-first-definition.md.
+  "parejas-que-perduran": {
+    2: {
+      key: "pqp-c1-contacto-sostenido",
+      label: "El contacto sostenido en silencio",
+    },
+  },
 };
 
 /**

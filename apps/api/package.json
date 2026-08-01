@@ -22,7 +22,8 @@
     "seed:test:wipe": "ts-node prisma/seed-test.ts --wipe",
     "test:locks": "vitest run --config vitest.locks.config.ts",
     "pg:locks": "node scripts/pg-locks-env.mjs",
-    "content:book:bootstrap": "ts-node src/content-core/bootstrap-cli.ts"
+    "content:book:bootstrap": "ts-node src/content-core/bootstrap-cli.ts",
+    "content:book:activate-learning": "ts-node src/content-core/learning-activation-cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

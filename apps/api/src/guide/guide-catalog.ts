@@ -331,12 +331,65 @@ export const EEC_C1_BODY_BEFORE_MIND_GUIDE = validateGuideDefinition({
 });
 
 /**
+ * The SECOND approved guided reading: chapter 1 of "Parejas que perduran"
+ * (David Jaramillo, used with the author's authorization). See
+ * docs/product/parejas-guide-v1-first-definition.md.
+ *
+ * Its three targets were materialized in production by the learning activation
+ * (`content:book:activate-learning`), not by a backfill: the book entered
+ * through the Content Core bootstrap, which deliberately creates the reading
+ * surface and stops before any teaching row.
+ *
+ *   1. CONCEPT_EXPLORATION → `pqp-c1-contacto-sostenido` (self-report);
+ *   2. CATALOG_PRACTICE    → `pqp-c1-practice-diez-minutos-de-contacto`
+ *      (self-report — doing the exercise is not server-verifiable);
+ *   3. ACTIVE_RECALL       → `pqp-c1-recall-contacto-sostenido`
+ *      (server-graded against the QUIZ's internal `correctOptionKey`).
+ *
+ * The editorial chapter 1 lives at PLATFORM chapterOrder 2 — the ingest
+ * manifest gave order 1 to the preface. That fact belongs to the discovery
+ * catalog, NOT here: a GuideDefinition never carries editorial context
+ * (GUIDE_CONTEXT_POLICY=SERVER_DERIVED_FROM_TARGETS).
+ */
+export const PQP_C1_SUSTAINED_CONTACT_GUIDE = validateGuideDefinition({
+  guideKey: "pqp-c1-contacto-sostenido",
+  guideVersion: 1,
+  steps: [
+    {
+      stepKey: "explorar-contacto-sostenido",
+      order: 1,
+      required: true,
+      kind: "CONCEPT_EXPLORATION",
+      completionPolicy: "explicit_confirmation",
+      conceptKey: "pqp-c1-contacto-sostenido",
+    },
+    {
+      stepKey: "practicar-diez-minutos-de-contacto",
+      order: 2,
+      required: true,
+      kind: "CATALOG_PRACTICE",
+      completionPolicy: "catalog_practice_confirmation",
+      exerciseKey: "pqp-c1-practice-diez-minutos-de-contacto",
+    },
+    {
+      stepKey: "recordar-contacto-sostenido",
+      order: 3,
+      required: true,
+      kind: "ACTIVE_RECALL",
+      completionPolicy: "objective_recall",
+      itemKey: "pqp-c1-recall-contacto-sostenido",
+    },
+  ],
+});
+
+/**
  * The PRODUCTION registry — exactly the approved definitions. Adding one is a
  * deliberate, reviewed change (editorial approval + real, resolvable targets);
  * content is never invented here.
  */
 export const PRODUCTION_GUIDE_DEFINITIONS: readonly GuideDefinition[] = [
   EEC_C1_BODY_BEFORE_MIND_GUIDE,
+  PQP_C1_SUSTAINED_CONTACT_GUIDE,
 ];
 
 export const productionGuideRegistry = new GuideCatalogRegistry(

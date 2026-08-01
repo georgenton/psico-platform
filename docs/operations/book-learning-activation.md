@@ -81,23 +81,45 @@ mode=dry-run
 book_exists=true
 edition_exists=true
 published_revision_exists=true
+catalog_valid=true
 catalog_concept_count=1
 catalog_exercise_count=2
-chapter_order=2
-chapter_exists=true
-unit_exists=true
+catalog_chapter_orders=2
+chapter_missing_count=0
+unit_missing_count=0
+unit_not_in_revision_count=0
+source_pair_count=1
+source_exact_match_pair_count=1
+source_missing_pair_count=0
+source_ambiguous_pair_count=0
 source_heading_match_count=1
-concept_action=CREATE
-concept_link_action=CREATE
-practice_action=CREATE
-recall_action=CREATE
+concept_create_count=1
+concept_verify_count=0
+concept_conflict_count=0
+concept_link_create_count=1
+concept_link_verify_count=0
+concept_link_conflict_count=0
+practice_create_count=1
+practice_verify_count=0
+practice_conflict_count=0
+recall_create_count=1
+recall_verify_count=0
+recall_conflict_count=0
 activation_safe=true
 writes=0
 ```
 
-`CONFLICT` en cualquier acción significa que ya existe una fila con esa
-identidad y otra semántica. **No lo fuerces**: el apply se niega igual. Averigua
-qué cambió antes de tocar nada.
+Cualquier `*_conflict_count` distinto de cero significa que ya existe una fila
+con esa identidad y **otra semántica**. **No lo fuerces**: el apply se niega
+igual. Averigua qué cambió antes de tocar nada.
+
+Los conteos son por objetivo, no una acción única: un libro con varios conceptos
+o varios pares tendría un conflicto tapado por el último valor que se escribiera
+encima.
+
+`source_heading_match_count` es informativo. La autoridad son los conteos **por
+par**: un par con 0 coincidencias y otro con 2 suman igual que dos pares
+correctos, y esa suma leería como segura.
 
 ## Apply
 
@@ -111,6 +133,13 @@ pnpm --filter @psico/api content:book:activate-learning -- \
 La bandera **no se persiste** como variable del servicio: se pasa para esa sola
 invocación. En local no hace falta; en producción o staging el apply sin ella
 falla con `ACTIVATION_FORBIDDEN`.
+
+La postura de entorno sale del **resolver canónico**, no de una copia local. Una
+caja de Railway que no declara `PSICO_ENV`, o que declara `development` o
+`test`, se rechaza en vez de tratarse como local — precisamente la falla que ese
+resolver existe para prevenir. Y el guard corre **antes** de leer
+`DATABASE_URL` y antes de abrir cualquier conexión: a un apply no autorizado lo
+frena el proceso, no la base.
 
 Salida:
 
@@ -126,6 +155,32 @@ stats_exercisesVerified=0
 
 Una segunda corrida es segura y devuelve lo inverso: `0` creados, todo
 verificado. La identidad sale de las claves del catálogo, nunca de un CUID.
+
+## El plan y el apply ven lo mismo
+
+El planner **lee** por los mismos helpers por los que la ingesta **escribe**:
+misma comparación de JSON, misma resolución del bloque fuente, mismo constructor
+de contenido. Eso hace que `PLAN_VERIFY ⇔ APPLY_WOULD_VERIFY` y
+`PLAN_CONFLICT ⇔ APPLY_WOULD_THROW_DRIFT`. Un plan que dice «seguro» mientras el
+apply revienta es peor que no tener plan.
+
+La comparación cubre la semántica completa, no solo la identidad: para la
+práctica, `practiceKind` y el `sourceBlockKey` anclado; para el recall,
+`recallMode`, `conceptKey`, cada opción y la respuesta correcta.
+
+Aun así, **el plan es informativo**. El apply vuelve a resolver todo su contexto
+—edición, revisión publicada, capítulos, unidades— _dentro_ de la transacción.
+Actuar sobre un mapa construido antes de abrirla es exactamente cómo una
+activación «segura» termina escribiendo contra contenido que ya se movió.
+
+## Alcance: solo los capítulos catalogados
+
+El activador resuelve únicamente los `chapterOrder` que nombran los dos
+catálogos. Un capítulo legacy que nadie catalogó no es asunto suyo: no puede
+ayudar ni estorbar. Planner y apply usan **el mismo conjunto** — un alcance
+distinto entre ambos es justo cómo un plan dice seguro y el apply falla.
+
+Un capítulo **catalogado** fuera de la revisión publicada sí bloquea.
 
 ## Garantías
 

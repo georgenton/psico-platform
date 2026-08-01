@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { guideApi } from "@psico/api-client";
 import type {
   GuideCommandResponse,
@@ -8,12 +8,11 @@ import type {
   GuideSessionView,
 } from "@psico/types";
 import {
-  GUIDE_KEY,
-  GUIDE_VERSION,
   stepPresentationFor,
-  type GuideOptionKeyWeb,
+  type GuidePresentation,
   type GuideStepPresentation,
 } from "./guide-presentation";
+import { samePin, type GuidePin } from "./guide-pin";
 import { toGuideUiError, type GuideUiError } from "./guide-errors";
 import {
   clearGuideRecovery,
@@ -80,6 +79,11 @@ interface PlayerState {
   storageBlocked: boolean;
   /** GR-3 — what the server said about the last recall of this session. */
   recallOutcome: GuideRecallOutcome | null;
+  /**
+   * GR-4 — the server handed back a session for a DIFFERENT
+   * `guideKey@guideVersion`. Terminal by design: see `PIN_MISMATCH`.
+   */
+  pinMismatch: boolean;
 }
 
 const INITIAL: PlayerState = {
@@ -91,6 +95,7 @@ const INITIAL: PlayerState = {
   retry: null,
   storageBlocked: false,
   recallOutcome: null,
+  pinMismatch: false,
 };
 
 const STORAGE_BLOCKED: GuideUiError = {
@@ -98,9 +103,28 @@ const STORAGE_BLOCKED: GuideUiError = {
   message: "Este navegador no puede guardar la recuperación de la guía.",
 };
 
+/**
+ * GR-4 — a session that belongs to another pinned guide.
+ *
+ * Not retryable and not recoverable: re-aiming the run at whatever came back
+ * would silently move the reader into a different chapter's guide, and
+ * re-sending the command would apply it there. So nothing is persisted,
+ * nothing is re-sent, and the run ends in a state the UI reports plainly.
+ */
+const PIN_MISMATCH: GuideUiError = {
+  kind: "terminal",
+  message: "No pudimos mostrar el estado actual.",
+};
+
 /** The screen is a pure function of server state — never of local counters. */
-function screenOf(state: PlayerState): GuideScreen {
+function screenOf(
+  state: PlayerState,
+  presentation: GuidePresentation,
+): GuideScreen {
   if (state.booting) return "booting";
+  // A foreign session outranks everything else: there is no screen of THIS
+  // guide that could honestly describe it.
+  if (state.pinMismatch) return "inconsistent";
   if (state.storageBlocked) return "storage-unavailable";
   const s = state.session;
   if (!s) return state.retry?.kind === "START" ? "start-retry" : "cover";
@@ -112,7 +136,9 @@ function screenOf(state: PlayerState): GuideScreen {
     // completing it would be asserting something the server did not say.
     return s.stepsCompleted === s.totalSteps ? "finish" : "inconsistent";
   }
-  return stepPresentationFor(s.currentStepKey) ? "step" : "unknown-step";
+  return stepPresentationFor(s.currentStepKey, presentation)
+    ? "step"
+    : "unknown-step";
 }
 
 export interface GuideRun {
@@ -125,13 +151,13 @@ export interface GuideRun {
   booting: boolean;
   /** The last recall verdict of this session, or null before one exists. */
   recallOutcome: GuideRecallOutcome | null;
-  choice: GuideOptionKeyWeb | null;
-  setChoice: (option: GuideOptionKeyWeb | null) => void;
+  choice: string | null;
+  setChoice: (option: string | null) => void;
   start: () => Promise<void>;
   completeStep: (stepKey: GuideStepPresentation["stepKey"]) => void;
   submitRecall: (
     stepKey: GuideStepPresentation["stepKey"],
-    selectedOptionKey: GuideOptionKeyWeb,
+    selectedOptionKey: string,
   ) => void;
   finish: () => void;
   cancel: () => void;
@@ -139,9 +165,34 @@ export interface GuideRun {
   restart: () => void;
 }
 
-export function useGuideRun(actorScope: string): GuideRun {
+export interface UseGuideRunInput {
+  /**
+   * Opaque partition derived server-side from the authenticated user. The
+   * AUTHORITY on who this browser is right now — never read back from storage,
+   * because a record written by another account would then vouch for itself.
+   */
+  actorScope: string;
+  /** The EXACT guide this run is for. Supplied by the caller, never guessed. */
+  pin: GuidePin;
+  /** Its presentation, already resolved for that same pin. */
+  presentation: GuidePresentation;
+}
+
+export function useGuideRun({
+  actorScope,
+  pin,
+  presentation,
+}: UseGuideRunInput): GuideRun {
   const [state, setState] = useState<PlayerState>(INITIAL);
-  const [choice, setChoice] = useState<GuideOptionKeyWeb | null>(null);
+  const [choice, setChoice] = useState<string | null>(null);
+  // The pin travels as one value through every callback below. Depending on
+  // the object identity would re-run the mount effect on every render, so the
+  // two primitives are the dependency and this is rebuilt from them.
+  const { guideKey, guideVersion } = pin;
+  const runPin = useMemo<GuidePin>(
+    () => ({ guideKey, guideVersion }),
+    [guideKey, guideVersion],
+  );
 
   const patch = useCallback((next: Partial<PlayerState>) => {
     setState((prev) => ({ ...prev, ...next }));
@@ -154,8 +205,8 @@ export function useGuideRun(actorScope: string): GuideRun {
    */
   const remember = useCallback(
     (record: GuideRecoveryRecord): GuideRecoveryRecord | null =>
-      writeGuideRecovery(record).ok ? record : null,
-    [],
+      writeGuideRecovery(record, runPin).ok ? record : null,
+    [runPin],
   );
 
   /** Storage refused: no request leaves, and no new key is minted. */
@@ -179,11 +230,35 @@ export function useGuideRun(actorScope: string): GuideRun {
     ): GuideRecoveryRecord => ({
       schemaVersion: 1,
       actorScope,
-      guideKey: GUIDE_KEY,
-      guideVersion: GUIDE_VERSION,
+      guideKey: runPin.guideKey,
+      guideVersion: runPin.guideVersion,
       ...fields,
     }),
-    [actorScope],
+    [actorScope, runPin],
+  );
+
+  /**
+   * Every session this hook accepts must be for THIS pin. The server derives
+   * the run from the start key, and a start key that resolved to another guide
+   * means the local record and the server disagree about what is running —
+   * which is not something a retry can fix.
+   */
+  const rejectForeignSession = useCallback(
+    (session: GuideSessionView): boolean => {
+      if (samePin(session, runPin)) return false;
+      patch({
+        pinMismatch: true,
+        booting: false,
+        busy: false,
+        session: null,
+        record: null,
+        retry: null,
+        recallOutcome: null,
+        error: PIN_MISMATCH,
+      });
+      return true;
+    },
+    [patch, runPin],
   );
 
   /**
@@ -194,12 +269,12 @@ export function useGuideRun(actorScope: string): GuideRun {
     async (record: GuideRecoveryRecord): Promise<GuideSessionView> => {
       const res = await guideApi.createGuideSession({
         idempotencyKey: record.startIdempotencyKey,
-        guideKey: GUIDE_KEY,
-        guideVersion: GUIDE_VERSION,
+        guideKey: runPin.guideKey,
+        guideVersion: runPin.guideVersion,
       });
       return res.session;
     },
-    [],
+    [runPin],
   );
 
   const invoke = useCallback(
@@ -246,6 +321,7 @@ export function useGuideRun(actorScope: string): GuideRun {
       patch({ busy: true, error: null, retry: null });
       try {
         const res = await invoke(command);
+        if (rejectForeignSession(res.session)) return;
         const settled = recordFor({
           startIdempotencyKey: record.startIdempotencyKey,
           sessionId: res.session.sessionId,
@@ -268,6 +344,7 @@ export function useGuideRun(actorScope: string): GuideRun {
           // START key — never by inventing a different command.
           try {
             const session = await replayStart(record);
+            if (rejectForeignSession(session)) return;
             const settled = recordFor({
               startIdempotencyKey: record.startIdempotencyKey,
               sessionId: session.sessionId,
@@ -318,7 +395,7 @@ export function useGuideRun(actorScope: string): GuideRun {
         }
 
         if (uiError.kind === "gone") {
-          clearGuideRecovery();
+          clearGuideRecovery(runPin);
           patch({
             busy: false,
             error: uiError,
@@ -334,7 +411,15 @@ export function useGuideRun(actorScope: string): GuideRun {
         patch({ busy: false, error: uiError, retry: null });
       }
     },
-    [invoke, patch, recordFor, remember, replayStart],
+    [
+      invoke,
+      patch,
+      recordFor,
+      rejectForeignSession,
+      remember,
+      replayStart,
+      runPin,
+    ],
   );
 
   /**
@@ -346,6 +431,7 @@ export function useGuideRun(actorScope: string): GuideRun {
     async (record: GuideRecoveryRecord) => {
       try {
         const session = await replayStart(record);
+        if (rejectForeignSession(session)) return;
         const settled = remember({
           ...record,
           sessionId: session.sessionId,
@@ -358,7 +444,7 @@ export function useGuideRun(actorScope: string): GuideRun {
       } catch (err) {
         const uiError = toGuideUiError(err);
         if (uiError.kind === "gone") {
-          clearGuideRecovery();
+          clearGuideRecovery(runPin);
           patch({
             busy: false,
             error: uiError,
@@ -380,7 +466,14 @@ export function useGuideRun(actorScope: string): GuideRun {
         patch({ busy: false, error: uiError, record, retry: null });
       }
     },
-    [blockOnStorage, patch, remember, replayStart],
+    [
+      blockOnStorage,
+      patch,
+      rejectForeignSession,
+      remember,
+      replayStart,
+      runPin,
+    ],
   );
 
   /**
@@ -394,10 +487,11 @@ export function useGuideRun(actorScope: string): GuideRun {
       let session: GuideSessionView;
       try {
         session = await replayStart(record);
+        if (rejectForeignSession(session)) return;
       } catch (err) {
         const uiError = toGuideUiError(err);
         if (uiError.kind === "gone") {
-          clearGuideRecovery();
+          clearGuideRecovery(runPin);
           patch({
             busy: false,
             error: uiError,
@@ -435,7 +529,15 @@ export function useGuideRun(actorScope: string): GuideRun {
       patch({ session, record: settled });
       await dispatch(command, settled);
     },
-    [blockOnStorage, dispatch, patch, recordFor, remember, replayStart],
+    [
+      blockOnStorage,
+      dispatch,
+      patch,
+      recordFor,
+      rejectForeignSession,
+      remember,
+      replayStart,
+    ],
   );
 
   // ── Mount: recover, never auto-start ──────────────────────────────────────
@@ -445,7 +547,7 @@ export function useGuideRun(actorScope: string): GuideRun {
   // START replay is idempotent, so two requests with the SAME key are strictly
   // better than a frozen screen. `cancelled` only discards THIS setup's answer.
   useEffect(() => {
-    const read = readGuideRecovery(actorScope);
+    const read = readGuideRecovery(actorScope, runPin, presentation);
     if (read.state === "unavailable") {
       blockOnStorage();
       return;
@@ -462,6 +564,7 @@ export function useGuideRun(actorScope: string): GuideRun {
       try {
         const session = await replayStart(record);
         if (cancelled) return;
+        if (rejectForeignSession(session)) return;
 
         const pending = record.pendingCommand;
         // A pending command belongs to ONE session. If the server handed back
@@ -487,7 +590,7 @@ export function useGuideRun(actorScope: string): GuideRun {
         if (cancelled) return;
         const uiError = toGuideUiError(err);
         if (uiError.kind === "gone") {
-          clearGuideRecovery();
+          clearGuideRecovery(runPin);
           patch({
             booting: false,
             session: null,
@@ -520,9 +623,12 @@ export function useGuideRun(actorScope: string): GuideRun {
     blockOnStorage,
     dispatch,
     patch,
+    presentation,
     recordFor,
+    rejectForeignSession,
     remember,
     replayStart,
+    runPin,
   ]);
 
   // ── Explicit start ────────────────────────────────────────────────────────
@@ -549,7 +655,9 @@ export function useGuideRun(actorScope: string): GuideRun {
   }, [blockOnStorage, patch, recordFor, remember, runStart]);
 
   const restart = useCallback(() => {
-    clearGuideRecovery();
+    // Clears ONLY this pin's slot. Another guide's recovery is not this run's
+    // to discard, and a reader mid-way through it would lose their place.
+    clearGuideRecovery(runPin);
     setChoice(null);
     patch({
       session: null,
@@ -557,8 +665,9 @@ export function useGuideRun(actorScope: string): GuideRun {
       error: null,
       retry: null,
       recallOutcome: null,
+      pinMismatch: false,
     });
-  }, [patch]);
+  }, [patch, runPin]);
 
   // ── Commands ──────────────────────────────────────────────────────────────
   const send = useCallback(
@@ -601,10 +710,7 @@ export function useGuideRun(actorScope: string): GuideRun {
   );
 
   const submitRecall = useCallback(
-    (
-      stepKey: GuideStepPresentation["stepKey"],
-      selectedOptionKey: GuideOptionKeyWeb,
-    ) =>
+    (stepKey: GuideStepPresentation["stepKey"], selectedOptionKey: string) =>
       send((idempotencyKey, sessionId) => ({
         commandType: "STEP_RECALL",
         idempotencyKey,
@@ -648,9 +754,11 @@ export function useGuideRun(actorScope: string): GuideRun {
 
   const session = state.session;
   return {
-    screen: screenOf(state),
+    screen: screenOf(state, presentation),
     session,
-    step: session ? stepPresentationFor(session.currentStepKey) : null,
+    step: session
+      ? stepPresentationFor(session.currentStepKey, presentation)
+      : null,
     error: state.error,
     retry: state.retry,
     busy: state.busy,

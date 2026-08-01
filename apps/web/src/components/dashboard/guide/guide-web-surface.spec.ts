@@ -41,6 +41,18 @@ import { describe, expect, it } from "vitest";
  *   GUIDE_WEB_AVAILABILITY_FAILS_CLOSED=true
  *   GUIDE_WEB_ROLLOUT_MODE_REFERENCES=0
  *   GUIDE_WEB_PILOT_ALLOWLIST_REFERENCES=0
+ *
+ * GR-4 added the multi-guide ratchets. The web now knows two guides, and the
+ * failure mode that introduces is subtle: a runtime that quietly reaches for
+ * "the" guide would keep working — on Emociones — and be silently wrong on
+ * every other one.
+ *
+ *   GLOBAL_GUIDE_KEY_SINGLETON_IMPORTS=0
+ *   GLOBAL_GUIDE_PRESENTATION_SINGLETON_IMPORTS=0
+ *   GLOBAL_GUIDE_READER_COPY_SINGLETON_IMPORTS=0
+ *   STARTSWITH_STEP_SCENE_INFERENCE=0
+ *   CLIENT_CORRECT_OPTION_KEY_LITERAL=0
+ *   FALLBACK_TO_EEC=0
  */
 
 const GUIDE_DIR = __dirname;
@@ -420,6 +432,135 @@ describe("ratchet · guide web surface", () => {
     expect(errors).toContain(
       "Esta guía no está disponible por ahora. Tu avance sigue guardado.",
     );
+  });
+
+  // ── GR-4 · multi-guide ────────────────────────────────────────────────────
+
+  /**
+   * The files that must be guide-AGNOSTIC. Each one is reached with a pin the
+   * caller supplies; naming a guide inside any of them would reintroduce the
+   * singleton under a different spelling.
+   */
+  const GENERIC_RUNTIME = [
+    "use-guide-run.ts",
+    "guide-recovery.ts",
+    "guide-scene.ts",
+    "guide-web-bundle.ts",
+    "guide-pin.ts",
+    "GuidePlayer.tsx",
+    "ReaderGuidePanel.tsx",
+  ];
+
+  /**
+   * Where naming Emociones explicitly is CORRECT, not a leak:
+   *
+   *   - its own definition and copy (a catalog must name its entries);
+   *   - the standalone route/card, which publish that exact guide and say so;
+   *   - `LectorShell`, which pins it until GR-4 discovery lands (Session C
+   *     replaces that literal with the server's answer);
+   *   - test fixtures.
+   */
+  const EEC_LITERAL_ALLOWED = [
+    join(GUIDE_DIR, "guide-presentation.ts"),
+    join(GUIDE_DIR, "guide-reader-copy.ts"),
+    join(GUIDE_DIR, "GuidePlayerMount.tsx"),
+    join(GUIDE_DIR, "GuideEntryCard.tsx"),
+    join(GUIDE_DIR, "guide-test-fixtures.ts"),
+    join(WEB_SRC, "components", "dashboard", "lector", "LectorShell.tsx"),
+  ];
+
+  it("no runtime file imports a global guide singleton", () => {
+    // The singletons are GONE, so the check is that nothing reaches for them
+    // again under the old names.
+    for (const file of [
+      ...GUIDE_FILES,
+      join(WEB_SRC, "components", "dashboard", "lector", "LectorShell.tsx"),
+    ]) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      for (const singleton of [
+        "GUIDE_PRESENTATION",
+        "GUIDE_READER_COPY",
+        "GUIDE_KEY",
+        "GUIDE_VERSION",
+        "GUIDE_STORAGE_KEY",
+        "GUIDE_SCENE_STORAGE_KEY",
+      ]) {
+        expect(
+          new RegExp(`\\b${singleton}\\b`).test(source),
+          `${relative(GUIDE_DIR, file)} → ${singleton}`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("the generic runtime never names a specific guide", () => {
+    for (const name of GENERIC_RUNTIME) {
+      const source = stripComments(readFileSync(join(GUIDE_DIR, name), "utf8"));
+      for (const literal of [
+        "eec-c1-cuerpo-antes-que-mente",
+        "pqp-c1-contacto-sostenido",
+        "explorar-cuerpo-antes-que-mente",
+        "practicar-escucharte-por-dentro",
+        "recordar-cuerpo-antes-que-mente",
+        "explorar-contacto-sostenido",
+        "practicar-diez-minutos-de-contacto",
+        "recordar-contacto-sostenido",
+      ]) {
+        expect(source.includes(literal), `${name} → ${literal}`).toBe(false);
+      }
+    }
+  });
+
+  it("FALLBACK_TO_EEC=0 — no file falls back to a guide it was not given", () => {
+    const allowed = new Set(EEC_LITERAL_ALLOWED);
+    const files = [
+      ...GUIDE_FILES,
+      join(WEB_SRC, "components", "dashboard", "lector", "LectorShell.tsx"),
+    ];
+    for (const file of files) {
+      if (allowed.has(file)) continue;
+      const source = stripComments(readFileSync(file, "utf8"));
+      expect(
+        source.includes("eec-c1-cuerpo-antes-que-mente"),
+        `${relative(GUIDE_DIR, file)} names Emociones outside the allow-list`,
+      ).toBe(false);
+    }
+    // …and nowhere is a resolved bundle or pin defaulted with `??` / `||`.
+    for (const file of files) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      expect(
+        /(\?\?|\|\|)\s*(EEC_|resolveGuideWebBundle|guidePresentationRegistry)/.test(
+          source,
+        ),
+        `${relative(GUIDE_DIR, file)} defaults to a guide`,
+      ).toBe(false);
+    }
+  });
+
+  it("STARTSWITH_STEP_SCENE_INFERENCE=0 — the scene is declared, not guessed", () => {
+    const scene = stripComments(
+      readFileSync(join(GUIDE_DIR, "guide-scene.ts"), "utf8"),
+    );
+    expect(scene).not.toMatch(/startsWith\(/);
+    // It reads the declared field instead.
+    expect(scene).toContain("initialReaderScene");
+  });
+
+  it("CLIENT_CORRECT_OPTION_KEY_LITERAL=0 across the whole guide surface", () => {
+    for (const file of GUIDE_FILES) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      for (const forbidden of [
+        "correctOptionKey",
+        "answerIndex",
+        "evaluationSource",
+        "isCorrect",
+      ]) {
+        expect(
+          source.includes(forbidden),
+          `${relative(GUIDE_DIR, file)} → ${forbidden}`,
+        ).toBe(false);
+      }
+    }
   });
 
   it("serverFetch does not rotate the token pair during a render", () => {

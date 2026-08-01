@@ -4,7 +4,9 @@ import { StrictMode, useEffect } from "react";
 import { apiClient, guideApi } from "@psico/api-client";
 
 import { GuideApiClientBoundary } from "./GuideApiClientBoundary";
-import { GUIDE_KEY, GUIDE_VERSION } from "./guide-presentation";
+import { EEC_PIN } from "./guide-test-fixtures";
+
+const { guideKey: GUIDE_KEY, guideVersion: GUIDE_VERSION } = EEC_PIN;
 
 /**
  * PR #596 — end-to-end proof through the REAL `@psico/api-client` singleton.

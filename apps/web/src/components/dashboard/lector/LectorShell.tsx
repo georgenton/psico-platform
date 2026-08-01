@@ -47,7 +47,11 @@ import {
   READER_GUIDE_PANEL_ID,
 } from "../guide/ReaderGuidePanel";
 import { useMoodCheckin } from "../shell/mood-checkin-context";
-import { GUIDE_READER_COPY } from "../guide/guide-reader-copy";
+import {
+  READER_GUIDE_MODE_LABEL,
+  READER_GUIDE_UNAVAILABLE,
+} from "../guide/guide-reader-copy";
+import { resolveGuideWebBundle } from "../guide/guide-web-bundle";
 import { useGuideActorScope } from "../guide/guide-actor-scope";
 import { useGuideAvailability } from "../guide/guide-availability";
 import {
@@ -348,9 +352,28 @@ export function LectorShell({
    * without a locatable passage would record progress through a guide whose
    * first step cannot be shown.
    */
+  /**
+   * GR-4 — the guide this reader offers, stated explicitly.
+   *
+   * Session C replaces this literal with the server's answer to
+   * `GET /api/guide/discovery/:bookSlug/:chapterOrder`. Until then the reader
+   * publishes exactly the guide it published before, and it says so here
+   * rather than inheriting it from a singleton: when discovery lands, this is
+   * the ONE line that changes, and nothing downstream has to.
+   */
+  const guideBundle = useMemo(
+    () =>
+      resolveGuideWebBundle({
+        guideKey: "eec-c1-cuerpo-antes-que-mente",
+        guideVersion: 1,
+      }),
+    [],
+  );
+
   const guideRuntimeReady =
     guideAvailable === true &&
     guideActorScope !== null &&
+    guideBundle !== null &&
     guideAnchor.status === "RESOLVED";
 
   // The tint is a hint, not a mark: it clears itself.
@@ -902,7 +925,7 @@ export function LectorShell({
                 }
           }
         >
-          {GUIDE_READER_COPY.modeLabel}
+          {READER_GUIDE_MODE_LABEL}
         </button>
       </div>
 
@@ -915,13 +938,14 @@ export function LectorShell({
           className="mx-auto mt-3 max-w-3xl px-4 text-[13px]"
           style={{ color: "var(--reader-muted, var(--color-warm-600))" }}
         >
-          {GUIDE_READER_COPY.unavailable}
+          {READER_GUIDE_UNAVAILABLE}
         </p>
       ) : null}
 
-      {guideOpen && guideRuntimeReady && guideActorScope ? (
+      {guideOpen && guideRuntimeReady && guideActorScope && guideBundle ? (
         <ReaderGuidePanel
           actorScope={guideActorScope}
+          bundle={guideBundle}
           anchor={guideAnchor}
           concept={chapterConcept(bookSlug, chapter.order, chapter.title)}
           bookSlug={bookSlug}

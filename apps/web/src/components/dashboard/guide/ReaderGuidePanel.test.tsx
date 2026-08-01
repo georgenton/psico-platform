@@ -4,7 +4,11 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { GuideSessionView } from "@psico/types";
 import { ReaderGuidePanel } from "./ReaderGuidePanel";
-import { GUIDE_SCENE_STORAGE_KEY } from "./guide-scene";
+import { sceneStorageKey } from "./guide-scene";
+import { EEC_BUNDLE, EEC_PIN } from "./guide-test-fixtures";
+
+/** The guide these regressions pin: the one the reader published before GR-4. */
+const GUIDE_SCENE_STORAGE_KEY = sceneStorageKey(EEC_PIN) as string;
 import type { GuideAnchorResolution } from "./guide-anchor";
 import type * as ApiClientModule from "@psico/api-client";
 
@@ -96,6 +100,7 @@ function renderPanel(anchor: GuideAnchorResolution = RESOLVED): Handlers {
   render(
     <ReaderGuidePanel
       actorScope={SCOPE}
+      bundle={EEC_BUNDLE}
       anchor={anchor}
       concept={CONCEPT}
       bookSlug="emociones-en-construccion"

@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { GuideEntryCard } from "./GuideEntryCard";
-import { GUIDE_STORAGE_KEY } from "./guide-recovery";
+import { guideStorageKey } from "./guide-recovery";
+import { EEC_PIN } from "./guide-test-fixtures";
+
+const GUIDE_STORAGE_KEY = guideStorageKey(EEC_PIN) as string;
 
 const SCOPE_A = "A".repeat(43);
 const SCOPE_B = "B".repeat(43);

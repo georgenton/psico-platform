@@ -4,7 +4,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { GuideSessionView } from "@psico/types";
 import { GuidePlayer } from "./GuidePlayer";
-import { GUIDE_STORAGE_KEY, type GuideRecoveryRecord } from "./guide-recovery";
+import { guideStorageKey, type GuideRecoveryRecord } from "./guide-recovery";
+import { EEC_BUNDLE, EEC_PIN } from "./guide-test-fixtures";
+
+/** The one published standalone guide — the regression target of this file. */
+const GUIDE_STORAGE_KEY = guideStorageKey(EEC_PIN) as string;
 import type * as ApiClientModule from "@psico/api-client";
 
 /**
@@ -111,7 +115,7 @@ beforeEach(() => {
 
 describe("GuidePlayer · explicit start", () => {
   it("shows the cover and sends NOTHING before a click", async () => {
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
     expect(
       await screen.findByRole("button", { name: "Empezar guía" }),
     ).toBeInTheDocument();
@@ -121,7 +125,7 @@ describe("GuidePlayer · explicit start", () => {
   it("starts only on click, with a fresh UUID and the pinned version", async () => {
     createGuideSession.mockResolvedValue(ok());
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click(
       await screen.findByRole("button", { name: "Empezar guía" }),
@@ -150,7 +154,7 @@ describe("GuidePlayer · explicit start", () => {
       }),
     );
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     const cta = await screen.findByRole("button", { name: "Empezar guía" });
     await user.click(cta);
@@ -175,7 +179,7 @@ describe("GuidePlayer · the server decides the step", () => {
         currentStepKey: "recordar-cuerpo-antes-que-mente",
       }),
     );
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     expect(
       await screen.findByRole("heading", {
@@ -195,7 +199,7 @@ describe("GuidePlayer · the server decides the step", () => {
         currentStepKey: "practicar-escucharte-por-dentro",
       }),
     );
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     const bar = await screen.findByRole("progressbar");
     expect(bar).toHaveAttribute("aria-valuenow", "1");
@@ -208,7 +212,7 @@ describe("GuidePlayer · the server decides the step", () => {
     createGuideSession.mockResolvedValue(
       replayed({ currentStepKey: "paso-del-futuro" }),
     );
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     expect(
       await screen.findByText("No pudimos mostrar el paso actual."),
@@ -232,7 +236,7 @@ describe("GuidePlayer · commands", () => {
       }),
     );
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click(
       await screen.findByRole("button", { name: "He explorado esta idea" }),
@@ -260,7 +264,7 @@ describe("GuidePlayer · commands", () => {
       }),
     );
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click(
       await screen.findByRole("button", { name: "Ya hice esta práctica" }),
@@ -284,7 +288,7 @@ describe("GuidePlayer · commands", () => {
       ok({ stepsCompleted: 3, currentStepKey: null }),
     );
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     const group = await screen.findByRole("radiogroup");
     expect(group).toBeInTheDocument();
@@ -330,7 +334,7 @@ describe("GuidePlayer · commands", () => {
       ok({ status: "COMPLETED", stepsCompleted: 3, currentStepKey: null }),
     );
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     const finish = await screen.findByRole("button", {
       name: "Finalizar guía",
@@ -352,7 +356,7 @@ describe("GuidePlayer · commands", () => {
     );
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click(
       await screen.findByRole("button", { name: "Salir de la guía" }),
@@ -372,7 +376,7 @@ describe("GuidePlayer · commands", () => {
     createGuideSession.mockResolvedValue(replayed());
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click(
       await screen.findByRole("button", { name: "Salir de la guía" }),
@@ -386,7 +390,7 @@ describe("GuidePlayer · recovery and ambiguous writes", () => {
   it("replays the STORED start key on mount instead of creating a session", async () => {
     storeRecord();
     createGuideSession.mockResolvedValue(replayed({ stepsCompleted: 1 }));
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await waitFor(() => expect(createGuideSession).toHaveBeenCalledTimes(1));
     expect(createGuideSession.mock.calls[0]![0]!.idempotencyKey).toBe(
@@ -399,7 +403,7 @@ describe("GuidePlayer · recovery and ambiguous writes", () => {
     createGuideSession.mockRejectedValue(
       await apiError(404, "GUIDE_SESSION_NOT_FOUND"),
     );
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     expect(
       await screen.findByText("No pudimos recuperar esta sesión."),
@@ -415,7 +419,7 @@ describe("GuidePlayer · recovery and ambiguous writes", () => {
     createGuideSession.mockResolvedValue(replayed());
     completeGuideSessionStep.mockRejectedValue(new TypeError("network"));
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click(
       await screen.findByRole("button", { name: "He explorado esta idea" }),
@@ -444,7 +448,7 @@ describe("GuidePlayer · recovery and ambiguous writes", () => {
       }),
     );
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click(
       await screen.findByRole("button", { name: "He explorado esta idea" }),
@@ -486,7 +490,7 @@ describe("GuidePlayer · recovery and ambiguous writes", () => {
         session: session({ stepsCompleted: 3, currentStepKey: null }),
       },
     );
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await waitFor(() => expect(submitGuideStepRecall).toHaveBeenCalledTimes(1));
     const [, , body] = submitGuideStepRecall.mock.calls[0]!;
@@ -514,7 +518,7 @@ describe("GuidePlayer · recovery and ambiguous writes", () => {
       await apiError(409, "GUIDE_STEP_NOT_CURRENT"),
     );
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click(
       await screen.findByRole("button", { name: "He explorado esta idea" }),
@@ -544,7 +548,7 @@ describe("GuidePlayer · terminal states and privacy", () => {
       }),
     );
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click(
       await screen.findByRole("button", { name: "Repetir guía" }),
@@ -561,7 +565,7 @@ describe("GuidePlayer · terminal states and privacy", () => {
   it("maps a 401 to the session-expired copy, never the raw error", async () => {
     storeRecord();
     createGuideSession.mockRejectedValue(await apiError(401, "Unauthorized"));
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     expect(
       await screen.findByText(
@@ -576,7 +580,7 @@ describe("GuidePlayer · terminal states and privacy", () => {
     createGuideSession.mockRejectedValue(
       await apiError(403, "GUIDE_FORBIDDEN"),
     );
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     expect(
       await screen.findByText(
@@ -594,7 +598,9 @@ describe("GuidePlayer · terminal states and privacy", () => {
         currentStepKey: "recordar-cuerpo-antes-que-mente",
       }),
     );
-    const { container } = render(<GuidePlayer actorScope={SCOPE_A} />);
+    const { container } = render(
+      <GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />,
+    );
     await screen.findByRole("radiogroup");
 
     const visible = container.textContent ?? "";
@@ -604,7 +610,7 @@ describe("GuidePlayer · terminal states and privacy", () => {
   });
 
   it("always states what the guide does and does not record", async () => {
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
     expect(
       await screen.findByText(
         "Esta guía registra avance educativo. No interpreta cómo te sientes ni modifica automáticamente tu Mapa Emocional.",
@@ -633,7 +639,7 @@ describe("GuidePlayer · StrictMode", () => {
 
     render(
       <React.StrictMode>
-        <GuidePlayer actorScope={SCOPE_A} />
+        <GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />
       </React.StrictMode>,
     );
 
@@ -656,7 +662,7 @@ describe("GuidePlayer · ambiguous START", () => {
     createGuideSession.mockRejectedValueOnce(new TypeError("network"));
     createGuideSession.mockResolvedValueOnce(ok());
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click(
       await screen.findByRole("button", { name: "Empezar guía" }),
@@ -676,7 +682,7 @@ describe("GuidePlayer · ambiguous START", () => {
     createGuideSession.mockRejectedValueOnce(new TypeError("network"));
     createGuideSession.mockResolvedValueOnce(replayed({ stepsCompleted: 1 }));
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     // The fresh-start CTA would mint a different key — it must not be offered.
     expect(
@@ -706,7 +712,7 @@ describe("GuidePlayer · storage must confirm before the network", () => {
   it("does not START when the key cannot be persisted", async () => {
     const spy = blockWrites();
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click(
       await screen.findByRole("button", { name: "Empezar guía" }),
@@ -742,7 +748,9 @@ describe("GuidePlayer · storage must confirm before the network", () => {
       storeRecord();
       createGuideSession.mockResolvedValue(replayed(over));
       const user = userEvent.setup();
-      const view = render(<GuidePlayer actorScope={SCOPE_A} />);
+      const view = render(
+        <GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />,
+      );
       const cta = await screen.findByRole("button", { name: label });
 
       const spy = blockWrites();
@@ -759,7 +767,7 @@ describe("GuidePlayer · storage must confirm before the network", () => {
     createGuideSession.mockResolvedValue(replayed());
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     const cta = await screen.findByRole("button", { name: "Salir de la guía" });
     const spy = blockWrites();
@@ -779,7 +787,7 @@ describe("GuidePlayer · storage must confirm before the network", () => {
       }),
     );
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click((await screen.findAllByRole("radio"))[0]!);
     const spy = blockWrites();
@@ -797,7 +805,7 @@ describe("GuidePlayer · storage must confirm before the network", () => {
       .mockImplementation(() => {
         throw new Error("denied");
       });
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     expect(await screen.findByText(STORAGE_COPY)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Empezar guía" })).toBeNull();
@@ -823,7 +831,7 @@ describe("GuidePlayer · a pending command belongs to one session", () => {
         currentStepKey: "practicar-escucharte-por-dentro",
       }),
     );
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     // The recovered snapshot renders…
     expect(
@@ -854,7 +862,7 @@ describe("GuidePlayer · a failed resync keeps the pending", () => {
         }),
       );
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click(
       await screen.findByRole("button", { name: "He explorado esta idea" }),
@@ -888,7 +896,7 @@ describe("GuidePlayer · a contradictory snapshot is not completed", () => {
     createGuideSession.mockResolvedValue(
       replayed({ status: "ACTIVE", currentStepKey: null, stepsCompleted: 1 }),
     );
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     expect(
       await screen.findByText("No pudimos mostrar el estado actual."),
@@ -906,7 +914,7 @@ describe("GuidePlayer · a contradictory snapshot is not completed", () => {
     createGuideSession.mockResolvedValue(
       replayed({ status: "ACTIVE", currentStepKey: null, stepsCompleted: 3 }),
     );
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     expect(
       await screen.findByRole("button", { name: "Finalizar guía" }),
@@ -934,7 +942,7 @@ describe("GuidePlayer · the recovery record is bound to an account", () => {
       },
     });
 
-    render(<GuidePlayer actorScope={SCOPE_B} />);
+    render(<GuidePlayer actorScope={SCOPE_B} bundle={EEC_BUNDLE} />);
 
     // GUIDE_CROSS_ACCOUNT_AUTO_START_CALLS=0 — no START, so no session of B's
     // can be autocancelled by A's leftover key.
@@ -959,7 +967,7 @@ describe("GuidePlayer · the recovery record is bound to an account", () => {
       }),
     );
 
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     expect(
       await screen.findByRole("button", { name: "Ya hice esta práctica" }),
@@ -972,7 +980,7 @@ describe("GuidePlayer · the recovery record is bound to an account", () => {
   it("stamps every record it writes with the CURRENT actor", async () => {
     createGuideSession.mockResolvedValue(ok());
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click(
       await screen.findByRole("button", { name: "Empezar guía" }),
@@ -990,7 +998,9 @@ describe("GuidePlayer · the recovery record is bound to an account", () => {
   it("never renders the scope, and never stores raw identity", async () => {
     storeRecord();
     createGuideSession.mockResolvedValue(replayed());
-    const { container } = render(<GuidePlayer actorScope={SCOPE_A} />);
+    const { container } = render(
+      <GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />,
+    );
     await screen.findByRole("button", { name: "He explorado esta idea" });
 
     expect(container.textContent ?? "").not.toContain(SCOPE_A);
@@ -1034,7 +1044,7 @@ describe("GuidePlayer · GUIDE_UNAVAILABLE is retryable, not terminal", () => {
       }),
     );
     const user = userEvent.setup();
-    render(<GuidePlayer actorScope={SCOPE_A} />);
+    render(<GuidePlayer actorScope={SCOPE_A} bundle={EEC_BUNDLE} />);
 
     await user.click(
       await screen.findByRole("button", { name: "He explorado esta idea" }),

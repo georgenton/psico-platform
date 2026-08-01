@@ -20,7 +20,7 @@ vi.mock("./guide-recovery", () => ({
 import { GuideEntryCardMount } from "./GuideEntryCardMount";
 import { GuideActorScopeProvider } from "./guide-actor-scope";
 import { GuideAvailabilityProvider } from "./guide-availability";
-import { GUIDE_PRESENTATION } from "./guide-presentation";
+import { EEC_PRESENTATION as GUIDE_PRESENTATION } from "./guide-test-fixtures";
 
 const SCOPE = "E".repeat(43);
 

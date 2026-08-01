@@ -1,19 +1,25 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PrismaClient } from "@prisma/client";
 import {
   ACTIVATION_FORBIDDEN,
   ACTIVATION_INPUT_INVALID,
   ACTIVATION_INTERNAL_ERROR,
   assertLearningActivationAllowed,
+  catalogChapterOrders,
   sanitizeActivationError,
   serializeActivationPlan,
   type LearningActivationPlan,
 } from "./learning-activation";
-import { parseActivationArgs } from "./learning-activation-cli";
+import {
+  parseActivationArgs,
+  runActivationCli,
+  type ActivationCliDeps,
+} from "./learning-activation-cli";
 
 /**
- * Pure coverage: argument parsing, the allow-flag posture, error sanitization
- * and the metrics-only serialization. Database behaviour (atomicity, idempotent
- * replay, drift rollback) lives in the PostgreSQL spec.
+ * Pure coverage: argument parsing, the CANONICAL environment posture, the
+ * guard-before-connect ordering, error sanitization and metrics-only output.
+ * Database behaviour lives in the PostgreSQL spec.
  */
 
 describe("parseActivationArgs", () => {
@@ -52,44 +58,191 @@ describe("parseActivationArgs", () => {
   });
 });
 
-describe("assertLearningActivationAllowed", () => {
-  it("allows a local run without any flag", () => {
-    expect(() =>
-      assertLearningActivationAllowed({ NODE_ENV: "development" }),
-    ).not.toThrow();
+// ─────────────────────────────────────────────────────────────────────────────
+describe("assertLearningActivationAllowed — canonical environment posture", () => {
+  const saved = { ...process.env };
+
+  beforeEach(() => {
+    delete process.env.PSICO_ENV;
+    delete process.env.RAILWAY_ENVIRONMENT;
+    delete process.env.RAILWAY_PROJECT_ID;
+    delete process.env.RAILWAY_SERVICE_ID;
+  });
+  afterEach(() => {
+    process.env = { ...saved };
   });
 
-  it.each([
-    ["PSICO_ENV", { PSICO_ENV: "production" }],
-    ["RAILWAY_ENVIRONMENT_NAME", { RAILWAY_ENVIRONMENT_NAME: "production" }],
-    ["NODE_ENV", { NODE_ENV: "production" }],
-    ["staging", { PSICO_ENV: "staging" }],
-  ])("refuses a deployed run via %s without the allow flag", (_src, env) => {
-    expect(() => assertLearningActivationAllowed(env)).toThrow(
+  /** What the canonical resolver treats as "this box is deployed". */
+  function onRailway(): void {
+    process.env.RAILWAY_ENVIRONMENT = "production";
+  }
+
+  it("allows a local run without any flag", () => {
+    expect(() => assertLearningActivationAllowed({})).not.toThrow();
+  });
+
+  it("allows a local run that declares PSICO_ENV=test", () => {
+    process.env.PSICO_ENV = "test";
+    expect(() => assertLearningActivationAllowed({})).not.toThrow();
+  });
+
+  it("refuses a Railway box that does not declare PSICO_ENV", () => {
+    onRailway();
+    expect(() => assertLearningActivationAllowed({})).toThrow(
       ACTIVATION_FORBIDDEN,
     );
   });
 
-  it("allows a deployed run when the flag is exactly 'on'", () => {
-    expect(() =>
-      assertLearningActivationAllowed({
-        PSICO_ENV: "production",
-        ALLOW_BOOK_LEARNING_ACTIVATION: "on",
-      }),
-    ).not.toThrow();
-  });
+  it.each(["development", "test"])(
+    "refuses a Railway box claiming PSICO_ENV=%s — it cannot opt out",
+    (value) => {
+      onRailway();
+      process.env.PSICO_ENV = value;
+      expect(() =>
+        // Even WITH the allow flag: the box is misconfigured, not authorized.
+        assertLearningActivationAllowed({
+          ALLOW_BOOK_LEARNING_ACTIVATION: "on",
+        }),
+      ).toThrow(ACTIVATION_FORBIDDEN);
+    },
+  );
+
+  it.each(["production", "staging"])(
+    "refuses PSICO_ENV=%s without the allow flag",
+    (value) => {
+      onRailway();
+      process.env.PSICO_ENV = value;
+      expect(() => assertLearningActivationAllowed({})).toThrow(
+        ACTIVATION_FORBIDDEN,
+      );
+    },
+  );
+
+  it.each(["production", "staging"])(
+    "allows PSICO_ENV=%s when the flag is exactly 'on'",
+    (value) => {
+      onRailway();
+      process.env.PSICO_ENV = value;
+      expect(() =>
+        assertLearningActivationAllowed({
+          ALLOW_BOOK_LEARNING_ACTIVATION: "on",
+        }),
+      ).not.toThrow();
+    },
+  );
 
   it.each(["ON", "true", "1", "yes", ""])(
     "refuses the near-miss allow value %p",
     (value) => {
+      onRailway();
+      process.env.PSICO_ENV = "production";
       expect(() =>
         assertLearningActivationAllowed({
-          PSICO_ENV: "production",
           ALLOW_BOOK_LEARNING_ACTIVATION: value,
         }),
       ).toThrow(ACTIVATION_FORBIDDEN);
     },
   );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe("runActivationCli — authorization precedes any connection", () => {
+  const saved = { ...process.env };
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  function deps(env: NodeJS.ProcessEnv = {}) {
+    const connect = vi.fn(() => ({
+      prisma: {} as PrismaClient,
+      close: vi.fn(async () => undefined),
+    }));
+    const plan = vi.fn(async () => ({ activation_safe: true }) as never);
+    const apply = vi.fn(async () => ({ conceptsCreated: 1 }) as never);
+    const log = vi.fn();
+    return {
+      d: { env, connect, plan, apply, log } as unknown as ActivationCliDeps,
+      connect,
+      plan,
+      apply,
+      log,
+    };
+  }
+
+  it("refuses an unauthorized apply without opening a connection", async () => {
+    process.env.RAILWAY_ENVIRONMENT = "production";
+    process.env.PSICO_ENV = "production";
+    const { d, connect, plan, apply } = deps({}); // no allow flag
+
+    await expect(
+      runActivationCli(["--book-slug=x", "--apply"], d),
+    ).rejects.toThrow(ACTIVATION_FORBIDDEN);
+
+    expect(connect).not.toHaveBeenCalled();
+    expect(plan).not.toHaveBeenCalled();
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it("lets a dry-run connect without the allow flag", async () => {
+    process.env.RAILWAY_ENVIRONMENT = "production";
+    process.env.PSICO_ENV = "production";
+    const { d, connect, plan, apply, log } = deps({});
+
+    const r = await runActivationCli(["--book-slug=x"], d);
+
+    expect(r).toEqual({ mode: "dry-run", exitCode: 0 });
+    expect(connect).toHaveBeenCalledTimes(1);
+    expect(plan).toHaveBeenCalledTimes(1);
+    expect(apply).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith("mode=dry-run");
+  });
+
+  it("refuses an authorized apply when the plan is unsafe", async () => {
+    const { d, plan, apply, log } = deps({});
+    (
+      plan as unknown as { mockResolvedValue: (v: unknown) => void }
+    ).mockResolvedValue({ activation_safe: false });
+
+    const r = await runActivationCli(["--book-slug=x", "--apply"], d);
+
+    expect(r).toEqual({ mode: "apply-refused", exitCode: 1 });
+    expect(apply).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith("mode=apply-refused");
+  });
+
+  it("applies when authorized and the plan is safe", async () => {
+    const { d, apply, log } = deps({});
+    const r = await runActivationCli(["--book-slug=x", "--apply"], d);
+
+    expect(r).toEqual({ mode: "apply", exitCode: 0 });
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith("mode=apply");
+  });
+
+  it("closes the connection even when the plan throws", async () => {
+    const { d, connect, plan } = deps({});
+    (
+      plan as unknown as { mockRejectedValue: (v: unknown) => void }
+    ).mockRejectedValue(new Error("boom"));
+
+    await expect(runActivationCli(["--book-slug=x"], d)).rejects.toThrow();
+    const handle = connect.mock.results[0].value as { close: () => void };
+    expect(handle.close).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe("catalogChapterOrders", () => {
+  it("returns the union the two catalogs declare, sorted", () => {
+    expect(catalogChapterOrders("parejas-que-perduran")).toEqual([2]);
+    expect(catalogChapterOrders("emociones-en-construccion")).toEqual([
+      1, 2, 3,
+    ]);
+  });
+
+  it("is empty for a book nobody catalogued", () => {
+    expect(catalogChapterOrders("libro-inexistente")).toEqual([]);
+  });
 });
 
 describe("sanitizeActivationError", () => {
@@ -103,8 +256,10 @@ describe("sanitizeActivationError", () => {
     for (const code of [
       "CONCEPT_INGEST_DRIFT_DETECTED",
       "CONCEPT_INGEST_UNIT_MISSING",
+      "CONCEPT_INGEST_CATALOG_INVALID",
       "EXERCISE_INGEST_SOURCE_AMBIGUOUS",
       "EXERCISE_INGEST_SOURCE_MISSING",
+      "EXERCISE_INGEST_CATALOG_INVALID",
     ]) {
       expect(sanitizeActivationError(new Error(code))).toBe(code);
     }
@@ -127,28 +282,42 @@ describe("serializeActivationPlan", () => {
     book_exists: true,
     edition_exists: true,
     published_revision_exists: true,
+    catalog_valid: true,
     catalog_concept_count: 1,
     catalog_exercise_count: 2,
-    chapter_order: 2,
-    chapter_exists: true,
-    unit_exists: true,
+    catalog_chapter_orders: "2",
+    chapter_missing_count: 0,
+    unit_missing_count: 0,
+    unit_not_in_revision_count: 0,
+    source_pair_count: 1,
+    source_exact_match_pair_count: 1,
+    source_missing_pair_count: 0,
+    source_ambiguous_pair_count: 0,
     source_heading_match_count: 1,
-    concept_action: "CREATE",
-    concept_link_action: "CREATE",
-    practice_action: "CREATE",
-    recall_action: "CREATE",
+    concept_create_count: 1,
+    concept_verify_count: 0,
+    concept_conflict_count: 0,
+    concept_link_create_count: 1,
+    concept_link_verify_count: 0,
+    concept_link_conflict_count: 0,
+    practice_create_count: 1,
+    practice_verify_count: 0,
+    practice_conflict_count: 0,
+    recall_create_count: 1,
+    recall_verify_count: 0,
+    recall_conflict_count: 0,
     activation_safe: true,
     writes: 0,
   };
 
   it("emits key=value metrics only", () => {
     const out = serializeActivationPlan(plan);
-    expect(out).toContain("chapter_order=2");
-    expect(out).toContain("source_heading_match_count=1");
+    expect(out).toContain("catalog_chapter_orders=2");
+    expect(out).toContain("source_exact_match_pair_count=1");
     expect(out).toContain("activation_safe=true");
     expect(out).toContain("writes=0");
     for (const line of out.split("\n")) {
-      expect(line).toMatch(/^[a-z_]+=[A-Za-z0-9_-]+$/);
+      expect(line).toMatch(/^[a-z_]+=[A-Za-z0-9_|-]+$/);
     }
   });
 

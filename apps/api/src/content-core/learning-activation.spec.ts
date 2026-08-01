@@ -6,6 +6,8 @@ import {
   ACTIVATION_INTERNAL_ERROR,
   assertLearningActivationAllowed,
   catalogChapterOrders,
+  classifyConceptLink,
+  type StoredConceptLink,
   sanitizeActivationError,
   serializeActivationPlan,
   type LearningActivationPlan,
@@ -242,6 +244,54 @@ describe("catalogChapterOrders", () => {
 
   it("is empty for a book nobody catalogued", () => {
     expect(catalogChapterOrders("libro-inexistente")).toEqual([]);
+  });
+});
+
+describe("classifyConceptLink", () => {
+  const UNIT = "unit-1";
+  const CONCEPT = { id: "concept-1" };
+  const sound: StoredConceptLink = {
+    conceptId: CONCEPT.id,
+    unitId: UNIT,
+    contentBlockId: null,
+    role: "PRIMARY",
+  };
+
+  it("creates when no link exists", () => {
+    expect(classifyConceptLink(null, CONCEPT, UNIT)).toBe("create");
+    expect(classifyConceptLink(null, null, UNIT)).toBe("create");
+  });
+
+  it("verifies an exact match", () => {
+    expect(classifyConceptLink(sound, CONCEPT, UNIT)).toBe("verify");
+  });
+
+  it("conflicts when the deterministic link id is taken by a FOREIGN concept", () => {
+    // The concept the catalog declares does not exist yet, but its derived link
+    // id is already occupied — necessarily by some other concept. A link cannot
+    // be verified against a concept that does not exist.
+    expect(
+      classifyConceptLink({ ...sound, conceptId: "otro-concepto" }, null, UNIT),
+    ).toBe("conflict");
+  });
+
+  it("conflicts when the link points at another concept that DOES exist", () => {
+    expect(
+      classifyConceptLink({ ...sound, conceptId: "otro" }, CONCEPT, UNIT),
+    ).toBe("conflict");
+  });
+
+  it.each([
+    ["another unit", { ...sound, unitId: "unit-999" }],
+    ["a null unit", { ...sound, unitId: null }],
+    ["a block binding", { ...sound, contentBlockId: "block-1" }],
+    ["another role", { ...sound, role: "RELATED" }],
+  ])("conflicts on %s", (_why, link) => {
+    expect(classifyConceptLink(link, CONCEPT, UNIT)).toBe("conflict");
+  });
+
+  it("conflicts when the expected unit could not be resolved", () => {
+    expect(classifyConceptLink(sound, CONCEPT, undefined)).toBe("conflict");
   });
 });
 

@@ -354,6 +354,46 @@ function bump(c: TargetCounts, kind: keyof TargetCounts): void {
   c[kind] += 1;
 }
 
+/** The stored shape of a deterministic ConceptLink, as the planner reads it. */
+export interface StoredConceptLink {
+  conceptId: string;
+  unitId: string | null;
+  contentBlockId: string | null;
+  role: string;
+}
+
+/**
+ * Classify the deterministic `ConceptLink` for one catalogued concept.
+ *
+ * Pure and named on purpose: this is the rule that decides whether an apply
+ * would write, no-op or throw, and it deserves to be testable on its own.
+ *
+ * The subtle case is an ABSENT expected concept whose deterministic link id is
+ * already taken. The link id derives from the catalog key, so an existing row
+ * under that id necessarily points at some OTHER concept — it cannot be
+ * verified against a concept that does not exist yet, and the apply would throw
+ * drift when it found it. Reporting VERIFY there would be a plan promising an
+ * apply that cannot happen.
+ */
+export function classifyConceptLink(
+  link: StoredConceptLink | null,
+  existingConcept: { id: string } | null,
+  expectedUnitId: string | undefined,
+): keyof TargetCounts {
+  if (!link) return "create";
+  if (
+    !existingConcept ||
+    link.conceptId !== existingConcept.id ||
+    !expectedUnitId ||
+    link.unitId !== expectedUnitId ||
+    link.contentBlockId !== null ||
+    link.role !== "PRIMARY"
+  ) {
+    return "conflict";
+  }
+  return "verify";
+}
+
 /**
  * READ-ONLY inspection of what an activation would do. Performs no writes and
  * opens no transaction — it is not a rehearsal-and-rollback, which would take
@@ -444,16 +484,7 @@ export async function planBookLearningActivation(
         role: true,
       },
     });
-    if (!link) bump(linkC, "create");
-    else if (
-      !unitId ||
-      link.unitId !== unitId ||
-      link.contentBlockId !== null ||
-      link.role !== "PRIMARY" ||
-      (existing !== null && link.conceptId !== existing.id)
-    ) {
-      bump(linkC, "conflict");
-    } else bump(linkC, "verify");
+    bump(linkC, classifyConceptLink(link, existing, unitId));
   }
 
   // ── Practice + recall, compared on the FULL stored semantics ──────────────

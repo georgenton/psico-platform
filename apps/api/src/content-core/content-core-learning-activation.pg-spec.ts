@@ -834,4 +834,74 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
     );
     expect(await learningCensus(prisma)).toEqual(before);
   });
+  it("33 · a deterministic link occupied by a FOREIGN concept is a conflict", async () => {
+    // The catalog's concept does NOT exist, but its derived link id is already
+    // taken by an unrelated concept. The link id comes from the catalog key, so
+    // this row can only point somewhere else — it cannot be verified against a
+    // concept that does not exist yet, and the apply would throw drift.
+    const chapter = await prisma.chapter.findFirstOrThrow({
+      where: { order: CHAPTER_ORDER },
+      select: { id: true },
+    });
+    const unit = await prisma.contentUnit.findFirstOrThrow({
+      where: { unitKey: unitKeyFromLegacyChapterId(chapter.id) },
+      select: { id: true },
+    });
+    const foreign = await prisma.concept.create({
+      data: { conceptKey: "concepto-ajeno", label: "Concepto ajeno" },
+    });
+    await prisma.conceptLink.create({
+      data: {
+        id: conceptLinkId(CONCEPT.key), // cl-pqp-c1-contacto-sostenido
+        conceptId: foreign.id,
+        unitId: unit.id, // correct unit
+        role: "PRIMARY", // correct role, contentBlockId null
+      },
+    });
+
+    // The catalog's own concept is absent — that is the whole point.
+    expect(
+      await prisma.concept.findUnique({ where: { conceptKey: CONCEPT.key } }),
+    ).toBeNull();
+
+    const plan = await planBookLearningActivation(prisma, SLUG);
+    expect(plan.concept_create_count).toBe(1);
+    expect(plan.concept_link_conflict_count).toBe(1);
+    expect(plan.concept_link_verify_count).toBe(0);
+    expect(plan.activation_safe).toBe(false);
+
+    const before = await learningCensus(prisma);
+    const foreignBefore = JSON.stringify({
+      concept: await prisma.concept.findUnique({ where: { id: foreign.id } }),
+      link: await prisma.conceptLink.findUnique({
+        where: { id: conceptLinkId(CONCEPT.key) },
+      }),
+    });
+
+    // Parity: the apply throws exactly where the plan said CONFLICT.
+    await expect(activateBookLearningCatalog(prisma, SLUG)).rejects.toThrow(
+      /CONCEPT_INGEST_DRIFT_DETECTED/,
+    );
+
+    // Zero delta, no partial activation.
+    expect(await learningCensus(prisma)).toEqual(before);
+    for (const key of [PAIR.practice.exerciseKey, PAIR.recall.exerciseKey]) {
+      expect(
+        await prisma.exercise.findUnique({ where: { id: key } }),
+      ).toBeNull();
+    }
+    expect(
+      await prisma.concept.findUnique({ where: { conceptKey: CONCEPT.key } }),
+    ).toBeNull();
+
+    // The pre-existing foreign rows are byte-stable.
+    expect(
+      JSON.stringify({
+        concept: await prisma.concept.findUnique({ where: { id: foreign.id } }),
+        link: await prisma.conceptLink.findUnique({
+          where: { id: conceptLinkId(CONCEPT.key) },
+        }),
+      }),
+    ).toBe(foreignBefore);
+  });
 });

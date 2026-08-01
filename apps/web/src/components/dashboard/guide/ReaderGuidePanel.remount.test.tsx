@@ -127,11 +127,15 @@ describe("ReaderGuidePanel · pin change forces a remount", () => {
 
     // The old run is genuinely on screen first — otherwise the assertions
     // below would pass against a panel that never rendered anything.
+    //
+    // Both preconditions are AWAITED. The progress bar appears as soon as the
+    // session lands, but the practice scene is set by an effect that runs
+    // after it, so a synchronous `getByRole` here raced with that effect.
     expect(await screen.findByTestId("rgp-progress")).toHaveTextContent(
       "1 de 3 pasos registrados",
     );
     expect(
-      screen.getByRole("button", { name: "Usar 45 segundos" }),
+      await screen.findByRole("button", { name: "Usar 45 segundos" }),
     ).toBeInTheDocument();
 
     // …now the reader moves to a chapter with a different guide.
@@ -150,7 +154,9 @@ describe("ReaderGuidePanel · pin change forces a remount", () => {
     expect(
       await screen.findByText("El contacto sostenido en silencio"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Empezar" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Empezar" }),
+    ).toBeInTheDocument();
   });
 
   it("drops the old recall verdict", async () => {
@@ -188,6 +194,9 @@ describe("ReaderGuidePanel · pin change forces a remount", () => {
     });
     const view = render(<Panel bundle={EEC_BUNDLE} keyed />);
     await screen.findByTestId("rgp-progress");
+    // Wait for the scene effect too, so the mount has fully settled before we
+    // snapshot the call count.
+    await screen.findByRole("button", { name: "Usar 45 segundos" });
 
     const callsBefore = start.mock.calls.length;
     view.rerender(<Panel bundle={PQP_BUNDLE} keyed />);
@@ -210,6 +219,7 @@ describe("ReaderGuidePanel · pin change forces a remount", () => {
     });
     const view = render(<Panel bundle={EEC_BUNDLE} keyed={false} />);
     await screen.findByTestId("rgp-progress");
+    await screen.findByRole("button", { name: "Usar 45 segundos" });
 
     view.rerender(<Panel bundle={PQP_BUNDLE} keyed={false} />);
 

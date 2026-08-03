@@ -1,0 +1,23 @@
+{
+  "source": "Claude Design export. The entry HTML was downloaded manually by Jorge; the two stylesheets it <link>s and @imports were read from the same Claude Design project (Psico Platform Design System, projectId 019e08a5-fedf-77ed-8bcc-e4bcf7210128) because the manual download did not include them.",
+  "repositoryBranch": "design/book-experience-v2",
+  "entryFile": "Book Experience V2.html",
+  "status": "DESIGN_REFERENCE — not production code",
+  "files": [
+    {
+      "path": "Book Experience V2.html",
+      "sizeBytes": 94583,
+      "sha256": "7805b000e44af0bc2cf3be418208ebfdf98f2e10d3e055f4af6ecdacebefd797"
+    },
+    {
+      "path": "book-v2/style.css",
+      "sizeBytes": 35201,
+      "sha256": "f541ed5a9130da65c3dbfe608fc492b9412e681c3d7aeeb966331cfe10424847"
+    },
+    {
+      "path": "colors_and_type.css",
+      "sizeBytes": 11118,
+      "sha256": "d4125ee55e8df30384dbc50ac39219c910304c7de099d85eb9681bb91a5bafc1"
+    }
+  ]
+}

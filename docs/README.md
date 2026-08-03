@@ -54,6 +54,18 @@ V2 = DISEÑO FUTURO       (no implementado, no autorizado)
 | [`product/book-experience-v2-product-spec.md`](product/book-experience-v2-product-spec.md)   | Modelo, doce tipos de paso, Signal Model V1                                |
 | [`product/book-experience-v2-design.md`](product/book-experience-v2-design.md)               | Discovery: qué existe hoy y qué supuestos romper                           |
 
+Prototipo visual traído de Claude Design, y su auditoría:
+
+```
+PROTOTYPE=DESIGN_REFERENCE
+IMPLEMENTATION_STATUS=NOT_STARTED
+```
+
+| Artefacto                                                                                                                  | Qué es                                                                                |
+| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [`design/assets/book-experience-v2/Book Experience V2.html`](design/assets/book-experience-v2/Book%20Experience%20V2.html) | Prototipo navegable — 11 pantallas. **Referencia de diseño, no código de producción** |
+| [`design/book-experience-v2-prototype-review.md`](design/book-experience-v2-prototype-review.md)                           | Auditoría del prototipo contra los cuatro documentos V2: hallazgos y verticales       |
+
 Para describir la producción actual manda V1
 ([`product/book-experience-standard-v1.md`](product/book-experience-standard-v1.md)
 y [`product/guided-reading-v1.md`](product/guided-reading-v1.md)); para diseñar

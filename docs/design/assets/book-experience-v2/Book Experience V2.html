@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Book Experience V2 — prototipo visual</title>
+<link rel="stylesheet" href="book-v2/style.css" />
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true"><defs>
+<g id="i-base" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"></g>
+</defs>
+<symbol id="ic-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.5 5 8.4 4.4 4.5 4.4V18c3.9 0 6 .6 7.5 2.1"/><path d="M12 6.5C13.5 5 15.6 4.4 19.5 4.4V18c-3.9 0-6 .6-7.5 2.1"/><path d="M12 6.5v13.6"/></symbol>
+<symbol id="ic-listen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><path d="M4 14.5a2.5 2.5 0 0 1 5 0v2a2.5 2.5 0 0 1-5 0z"/><path d="M15 14.5a2.5 2.5 0 0 1 5 0v2a2.5 2.5 0 0 1-5 0z"/></symbol>
+<symbol id="ic-video" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="M16 10.5l4.2-2.4a.6.6 0 0 1 .9.5v6.8a.6.6 0 0 1-.9.5L16 13.5z"/></symbol>
+<symbol id="ic-seedling" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20v-7"/><path d="M12 13C12 9.7 9.6 7 6 7c0 3.3 2.4 6 6 6z"/><path d="M12 13c0-3 2.2-5.5 5.5-5.5 0 3-2.2 5.5-5.5 5.5z"/></symbol>
+<symbol id="ic-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5 10-11"/></symbol>
+<symbol id="ic-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5L8 12l6.5 6.5"/></symbol>
+<symbol id="ic-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 5.5L16 12l-6.5 6.5"/></symbol>
+<symbol id="ic-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.6a.7.7 0 0 1 1.06-.6l9.1 5.4a.7.7 0 0 1 0 1.2l-9.1 5.4A.7.7 0 0 1 8 16.4z"/></symbol>
+<symbol id="ic-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="7.5" y="5.5" width="3.5" height="13" rx="1.2"/><rect x="13" y="5.5" width="3.5" height="13" rx="1.2"/></symbol>
+<symbol id="ic-back15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9a8.5 8.5 0 1 1-.6 5"/><path d="M4 4.5V9h4.5"/></symbol>
+<symbol id="ic-fwd15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 9A8.5 8.5 0 1 0 20.6 14"/><path d="M20 4.5V9h-4.5"/></symbol>
+<symbol id="ic-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><path d="M12 7.8v.2"/></symbol>
+<symbol id="ic-star" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8z"/></symbol>
+<symbol id="ic-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.2V12l3.2 2"/></symbol>
+<symbol id="ic-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4.8" y="10.5" width="14.4" height="9.5" rx="2.4"/><path d="M8.2 10.5V7.8a3.8 3.8 0 0 1 7.6 0v2.7"/></symbol>
+<symbol id="ic-sparkle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l1.7 4.6 4.6 1.7-4.6 1.7L12 16.1l-1.7-4.6-4.6-1.7 4.6-1.7z"/><path d="M18.5 16.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></symbol>
+<symbol id="ic-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 19.5h4l10-10a2.1 2.1 0 0 0-3-3l-10 10z"/><path d="M4.5 19.5v-4"/></symbol>
+<symbol id="ic-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.8l8.2 14.2H3.8z"/><path d="M12 10v3.6"/><path d="M12 16.4v.2"/></symbol>
+<symbol id="ic-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 12S6.4 6 12 6s9.2 6 9.2 6-3.6 6-9.2 6-9.2-6-9.2-6z"/><circle cx="12" cy="12" r="2.6"/></symbol>
+<symbol id="ic-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5l11 11"/><path d="M17.5 6.5l-11 11"/></symbol>
+<symbol id="ic-note" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.8h14v14.4H5z" rx="2"/><path d="M8.2 9h7.6"/><path d="M8.2 12.5h7.6"/><path d="M8.2 16h4.6"/></symbol>
+<symbol id="ic-mood" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.6 14.2a4.2 4.2 0 0 0 6.8 0"/><path d="M9.2 9.6v.2"/><path d="M14.8 9.6v.2"/></symbol>
+<symbol id="ic-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l16 16"/><path d="M9.9 5.2A9.6 9.6 0 0 1 12 5c5.6 0 9.2 6 9.2 6a17 17 0 0 1-2.9 3.5"/><path d="M6.4 7.5A16.6 16.6 0 0 0 2.8 11s3.6 6 9.2 6a9.5 9.5 0 0 0 3.4-.6"/></symbol>
+</svg>
+
+<!-- ══ Chrome del prototipo ══════════════════════════════════════════ -->
+<header class="chrome">
+  <div class="chrome-row">
+    <div class="ch-brand"><span class="mk"><svg width="15" height="15"><use href="#ic-seedling"/></svg></span><div><b>Book Experience V2</b><span>PROTOTIPO VISUAL · NO IMPLEMENTADO</span></div></div>
+    <nav class="tabs" id="tabs"></nav>
+  </div>
+  <div class="chrome-row">
+    <span class="ch-label">Ancho</span>
+    <div class="seg" id="bpseg">
+      <button data-bp="desktop" class="on">Desktop <small>1365</small></button>
+      <button data-bp="tablet">Tablet <small>1024</small></button>
+      <button data-bp="mobile">Mobile <small>390</small></button>
+    </div>
+    <span class="ch-label" id="statelabel">Estado</span>
+    <div class="seg" id="stateseg"></div>
+    <span class="ch-spacer"></span>
+    <div class="seg" id="noteseg"><button data-notes="on" class="on">Notas de interacción</button></div>
+  </div>
+</header>
+
+<div class="stage">
+  <div class="frame-wrap" id="framewrap">
+    <div class="frame" data-bp="desktop" id="frame"><span class="bp-tag" id="bptag">DESKTOP · 1365 × 900</span>
+
+<!-- ══ 1 · CHAPTER HOME ══════════════════════════════════════════════ -->
+<section class="screen on" id="s1" data-title="Chapter Home">
+  <div class="state on" data-state="Con datos" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="appbar"><button class="back"><svg width="18" height="18"><use href="#ic-left"/></svg>Emociones en Construcción</button><div class="ab-right"><button class="icon-btn" title="Notas"><svg width="17" height="17"><use href="#ic-note"/></svg></button></div></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <p class="eyebrow">Capítulo 1 · Parte I — Deconstruyendo lo que sabíamos</p>
+      <h1 class="h-chapter">El cuerpo sabe antes que la mente</h1>
+      <p class="h-part">Marina Quintana · 20 min de lectura · vas por la mitad</p>
+      <div style="margin-top:30px">
+        <h2 class="sec-h">Cómo recorrerlo <span class="count">4 ramas</span></h2>
+        <div class="route">
+          <button class="route-row is-read"><span class="rg"><svg width="19" height="19"><use href="#ic-book"/></svg></span><span><span class="rn">Leer</span><span class="rd">20 min</span></span><span class="rr"><span class="chip chip--progress">Vas por la mitad</span><svg class="arrow" width="18" height="18"><use href="#ic-right"/></svg></span></button>
+          <button class="route-row is-listen"><span class="rg"><svg width="19" height="19"><use href="#ic-listen"/></svg></span><span><span class="rn">Escuchar</span><span class="rd">18 min · audiolibro</span></span><span class="rr"><span class="chip chip--available">Disponible</span><svg class="arrow" width="18" height="18"><use href="#ic-right"/></svg></span></button>
+          <button class="route-row is-soon" disabled><span class="rg"><svg width="19" height="19"><use href="#ic-video"/></svg></span><span><span class="rn">Ver</span><span class="rd">—</span></span><span class="rr"><span class="chip chip--soon">Próximamente</span></span></button>
+          <button class="route-row is-exp"><span class="rg"><svg width="19" height="19"><use href="#ic-seedling"/></svg></span><span><span class="rn">Experiencias</span><span class="rd">2 de 4 recorridas</span></span><span class="rr"><span class="chip chip--progress">En curso</span><svg class="arrow" width="18" height="18"><use href="#ic-right"/></svg></span></button>
+        </div>
+        <p class="note-line" style="margin-top:12px">Las ramas que aún no se conocen no se listan. «—» cuando no hay dato de duración: nunca se estima.</p>
+      </div>
+      <div style="margin-top:28px" class="btn-row"><button class="btn btn--primary"><svg width="18" height="18"><use href="#ic-book"/></svg>Seguir leyendo</button><button class="btn btn--ghost">Volver al libro</button></div>
+    </div></div></div>
+  </div>
+
+  <div class="state" data-state="Vacío" style="flex-direction:column;flex:1;min-height:0">
+    <div class="appbar"><button class="back"><svg width="18" height="18"><use href="#ic-left"/></svg>Parejas que perduran</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <p class="eyebrow">Capítulo 4 · Parte II</p>
+      <h1 class="h-chapter">Lo que se dice sin decirse</h1>
+      <p class="h-part">David Jaramillo · 31 min de lectura</p>
+      <div style="margin-top:26px" class="btn-row"><button class="btn btn--primary"><svg width="18" height="18"><use href="#ic-book"/></svg>Empezar a leer</button></div>
+      <div class="hr"></div>
+      <div class="ocr-note"><svg width="17" height="17"><use href="#ic-hide"/></svg><p class="ot"><b>No hay cabecera de recorrido.</b> Sin medios ni experiencias, un capítulo no tiene recorrido que anunciar: se entra directo a leer. No se muestra «aún no hay contenido adicional» — la ausencia es el estado, no un mensaje.</p></div>
+    </div></div></div>
+  </div>
+
+  <div class="state" data-state="Cargando" style="flex-direction:column;flex:1;min-height:0">
+    <div class="appbar"><button class="back"><svg width="18" height="18"><use href="#ic-left"/></svg>Emociones en Construcción</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <p class="eyebrow">Capítulo 1 · Parte I</p>
+      <h1 class="h-chapter">El cuerpo sabe antes que la mente</h1>
+      <p class="h-part">Marina Quintana · 20 min de lectura</p>
+      <div style="margin-top:30px">
+        <h2 class="sec-h">Cómo recorrerlo</h2>
+        <div class="route">
+          <button class="route-row is-read"><span class="rg"><svg width="19" height="19"><use href="#ic-book"/></svg></span><span><span class="rn">Leer</span><span class="rd">20 min</span></span><span class="rr"><span class="chip chip--progress">Vas por la mitad</span><svg class="arrow" width="18" height="18"><use href="#ic-right"/></svg></span></button>
+        </div>
+        <div class="ocr-note" style="margin-top:14px"><svg width="17" height="17"><use href="#ic-hide"/></svg><p class="ot"><b>Sin esqueletos.</b> «Leer» está siempre, porque el texto llega con la página. El resto de ramas aparece cuando el manifest confirma que existen — no antes, y nunca como fila fantasma en gris.</p></div>
+      </div>
+      <div style="margin-top:26px" class="btn-row"><button class="btn btn--primary"><svg width="18" height="18"><use href="#ic-book"/></svg>Seguir leyendo</button></div>
+    </div></div></div>
+  </div>
+
+  <div class="state" data-state="Completado" style="flex-direction:column;flex:1;min-height:0">
+    <div class="appbar"><button class="back"><svg width="18" height="18"><use href="#ic-left"/></svg>Emociones en Construcción</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <p class="eyebrow">Capítulo 1 · Parte I</p>
+      <div style="display:flex;align-items:flex-start;gap:14px;margin-top:12px"><h1 class="h-chapter" style="margin:0;flex:1">El cuerpo sabe antes que la mente</h1><span class="chip chip--done" style="margin-top:6px"><svg width="13" height="13"><use href="#ic-check"/></svg>Recorrido</span></div>
+      <p class="h-part">Marina Quintana · 20 min de lectura</p>
+      <div style="margin-top:30px">
+        <h2 class="sec-h">Cómo recorrerlo</h2>
+        <div class="route">
+          <button class="route-row is-read"><span class="rg"><svg width="19" height="19"><use href="#ic-book"/></svg></span><span><span class="rn">Leer</span><span class="rd">20 min</span></span><span class="rr"><span class="chip chip--done"><svg width="13" height="13"><use href="#ic-check"/></svg>Leído</span><svg class="arrow" width="18" height="18"><use href="#ic-right"/></svg></span></button>
+          <button class="route-row is-listen"><span class="rg"><svg width="19" height="19"><use href="#ic-listen"/></svg></span><span><span class="rn">Escuchar</span><span class="rd">18 min · audiolibro</span></span><span class="rr"><span class="chip chip--done"><svg width="13" height="13"><use href="#ic-check"/></svg>Escuchado</span><svg class="arrow" width="18" height="18"><use href="#ic-right"/></svg></span></button>
+          <button class="route-row is-exp"><span class="rg"><svg width="19" height="19"><use href="#ic-seedling"/></svg></span><span><span class="rn">Experiencias</span><span class="rd">4 de 4 recorridas</span></span><span class="rr"><span class="chip chip--done"><svg width="13" height="13"><use href="#ic-check"/></svg>Recorridas</span><svg class="arrow" width="18" height="18"><use href="#ic-right"/></svg></span></button>
+        </div>
+      </div>
+      <div style="margin-top:26px" class="btn-row"><button class="btn btn--primary"><svg width="18" height="18"><use href="#ic-book"/></svg>Volver a leer</button><button class="btn btn--ghost">Siguiente capítulo</button></div>
+      <p class="note-line" style="margin-top:14px">Completar nunca bloquea: todas las ramas siguen abiertas. Ninguna rama completa a otra.</p>
+    </div></div></div>
+  </div>
+</section>
+
+<!-- ══ 2 · READER ════════════════════════════════════════════════════ -->
+<section class="screen" id="s2" data-title="Reader">
+  <div class="state on" data-state="Con datos" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="modebar">
+      <button class="mode on"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer</button>
+      <button class="mode"><svg width="16" height="16"><use href="#ic-listen"/></svg>Escuchar</button>
+      <button class="mode is-soon" disabled><svg width="16" height="16"><use href="#ic-video"/></svg>Ver <span class="mchip">Próx.</span></button>
+      <button class="mode"><svg width="16" height="16"><use href="#ic-seedling"/></svg>Experiencias <span class="mchip">2/4</span></button>
+    </div>
+    <div class="readbar"><span class="track"><i></i></span><span class="pct">48 %</span><button class="icon-btn desktop-only" style="width:34px;height:34px" title="Panel compañero"><svg width="16" height="16"><use href="#ic-sparkle"/></svg></button></div>
+    <div class="reader-body">
+      <div class="reader-main">
+        <div class="prose">
+          <h2>El cuerpo se adelanta</h2>
+          <p>Antes de que exista una palabra para lo que sentimos, ya hay una respuesta en los hombros, en la mandíbula, en la forma en que respiramos. La interpretación llega después, y llega tarde.</p>
+          <p>Durante años aprendimos a preguntarle a la cabeza qué estaba pasando. <span class="hl">La pregunta más honesta empieza más abajo</span>, en un territorio que no usa el lenguaje pero que lleva el registro completo.</p>
+          <div class="inline-exp"><span class="ig"><svg width="18" height="18"><use href="#ic-seedling"/></svg></span><span><span class="it">El cuerpo sabe antes que la mente</span><span class="im">4 pasos · ~6 min · puedes salir cuando quieras</span></span><button class="btn btn--primary btn--sm">Empezar</button></div>
+          <p>Nombrar una emoción no es capturarla. Es apenas una aproximación: una etiqueta puesta sobre algo que sigue moviéndose mientras la escribimos.</p>
+          <p>Por eso conviene desconfiar de las descripciones demasiado limpias. Lo que se ordena rápido, casi siempre se ordenó antes de ser mirado.</p>
+        </div>
+        <div style="max-width:60ch;margin:36px auto 0"><button class="btn btn--ghost btn-block"><svg width="17" height="17"><use href="#ic-check"/></svg>Marcar capítulo como leído</button></div>
+      </div>
+      <aside class="drawer desktop-only">
+        <div class="drawer-tabs"><button class="on">Eco</button><button>Notas</button><button>Reflexión</button></div>
+        <div class="drawer-body">
+          <div class="msg msg--eco">Estás en la sección donde el capítulo separa sentir de nombrar. ¿Quieres que lo desarmemos con un ejemplo, o prefieres seguir leyendo?</div>
+          <div class="msg msg--me">Con un ejemplo.</div>
+          <div class="msg msg--eco">Piensa en la última vez que dijiste «estoy bien» sin pensarlo. ¿Qué estaba haciendo tu cuerpo en ese momento?</div>
+        </div>
+        <div class="composer"><span class="fake-input">Escribe a Eco…</span><button class="icon-btn" style="width:38px"><svg width="17" height="17"><use href="#ic-right"/></svg></button></div>
+      </aside>
+    </div>
+    <div class="sheet mobile-only" style="max-height:46%"><span class="grab"></span>
+      <div class="drawer-tabs"><button class="on">Eco</button><button>Notas</button><button>Reflexión</button></div>
+      <div class="drawer-body"><div class="msg msg--eco">Estás en la sección donde el capítulo separa sentir de nombrar. ¿Lo desarmamos con un ejemplo?</div><div class="msg msg--me">Sí.</div></div>
+      <div class="composer"><span class="fake-input">Escribe a Eco…</span><button class="icon-btn" style="width:38px"><svg width="17" height="17"><use href="#ic-right"/></svg></button></div>
+    </div>
+  </div>
+
+  <div class="state" data-state="Completado" style="flex-direction:column;flex:1;min-height:0">
+    <div class="modebar">
+      <button class="mode on"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer <span class="mchip">✓</span></button>
+      <button class="mode"><svg width="16" height="16"><use href="#ic-listen"/></svg>Escuchar</button>
+      <button class="mode"><svg width="16" height="16"><use href="#ic-seedling"/></svg>Experiencias <span class="mchip">2/4</span></button>
+    </div>
+    <div class="readbar"><span class="track"><i style="width:100%;background:var(--color-sage-400)"></i></span><span class="pct" style="color:var(--color-sage-600)">100 %</span></div>
+    <div class="reader-main">
+      <div class="prose">
+        <h2>Cerrar sin concluir</h2>
+        <p>Al final del capítulo no hay una respuesta, y esa ausencia es deliberada. Lo que se lleva quien leyó no es una definición nueva, sino una sospecha sobre las viejas.</p>
+        <p>El resto del libro trabaja desde ahí.</p>
+      </div>
+      <div style="max-width:60ch;margin:32px auto 0"><button class="btn btn--soft btn-block" disabled><svg width="17" height="17"><use href="#ic-check"/></svg>Leído</button><p class="note-line" style="margin-top:12px;text-align:center">Releer no revierte el estado. La marca es tuya y sigue siendo editable desde el menú del capítulo.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 3 · AUDIOBOOK ═════════════════════════════════════════════════ -->
+<section class="screen" id="s3" data-title="Escuchar">
+  <div class="state on" data-state="En curso" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="modebar"><button class="mode"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer</button><button class="mode on"><svg width="16" height="16"><use href="#ic-listen"/></svg>Escuchar</button><button class="mode"><svg width="16" height="16"><use href="#ic-seedling"/></svg>Experiencias</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <div class="seg" style="background:var(--color-warm-100);margin-bottom:22px"><button class="on" style="color:var(--color-lavender-700);background:#fff">Audiolibro</button><button style="color:var(--fg-tertiary)">Podcast</button></div>
+      <div class="player">
+        <span class="cover"><svg width="30" height="30"><use href="#ic-listen"/></svg><span class="mockmark">MAQUETA</span></span>
+        <div class="pinfo">
+          <p class="pt">Cap. 1 · El cuerpo sabe antes que la mente</p>
+          <p class="pm">Emociones en Construcción · narrado por Marina Quintana</p>
+          <div class="scrub"><span class="t">08:42</span><span class="track"><i></i><b></b></span><span class="t">18:03</span></div>
+          <div class="pcontrols">
+            <button class="pbtn"><svg width="19" height="19"><use href="#ic-back15"/></svg></button>
+            <button class="pbtn main"><svg width="20" height="20"><use href="#ic-pause"/></svg></button>
+            <button class="pbtn"><svg width="19" height="19"><use href="#ic-fwd15"/></svg></button>
+            <button class="pmeta-btn">1.0×</button>
+            <button class="pmeta-btn"><svg width="14" height="14" style="display:inline-block;vertical-align:-2px"><use href="#ic-clock"/></svg> Temporizador</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:26px"><h2 class="sec-h">Segmentos <span class="count">3 · dinámicos</span></h2>
+        <div class="tracklist">
+          <button class="track-item"><span class="tn"><svg width="13" height="13"><use href="#ic-check"/></svg></span><span class="tt">Apertura</span><span class="td">4:10</span></button>
+          <button class="track-item on"><span class="tn">2</span><span class="tt">Desarrollo</span><span class="td">9:32</span></button>
+          <button class="track-item"><span class="tn">3</span><span class="tt">Cierre</span><span class="td">4:21</span></button>
+        </div>
+      </div>
+      <div style="margin-top:22px"><details class="disc"><summary><svg width="16" height="16"><use href="#ic-note"/></svg>Mostrar transcripción<span style="margin-left:auto" class="chip chip--neutral">Acompaña, no sustituye</span></summary><div class="disc-body"><p>La transcripción existe como apoyo del audio. Un capítulo con transcripción y sin máster no tiene audiolibro, y su rama no se ofrece.</p></div></details></div>
+      <div style="margin-top:20px" class="btn-row"><button class="btn btn--ghost btn--sm"><svg width="16" height="16"><use href="#ic-book"/></svg>Volver al texto</button></div>
+    </div></div></div>
+  </div>
+
+  <div class="state" data-state="Próximamente" style="flex-direction:column;flex:1;min-height:0">
+    <div class="modebar"><button class="mode"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer</button><button class="mode on"><svg width="16" height="16"><use href="#ic-listen"/></svg>Escuchar</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <div class="seg" style="background:var(--color-warm-100);margin-bottom:22px"><button class="on" style="color:var(--color-lavender-700);background:#fff">Audiolibro</button><button style="color:var(--fg-tertiary);opacity:.5" disabled>Podcast · Próximamente</button></div>
+      <div class="reserved" style="min-height:190px"><svg width="26" height="26"><use href="#ic-listen"/></svg><p class="rt">El podcast de este capítulo está anunciado</p><p class="rs">Sin máster reproducible no hay botón de reproducción. Cuando exista, el subformato se habilita solo.</p></div>
+      <p class="note-line" style="margin-top:16px">Deshabilitado y dicho — solo cuando editorialmente se anunció. Lo que no se sabe se oculta; «próximamente» es una promesa editorial explícita.</p>
+    </div></div></div>
+  </div>
+
+  <div class="state" data-state="Cargando" style="flex-direction:column;flex:1;min-height:0">
+    <div class="modebar"><button class="mode"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer</button><button class="mode on"><svg width="16" height="16"><use href="#ic-listen"/></svg>Escuchar</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <div class="player">
+        <span class="cover"><svg width="30" height="30"><use href="#ic-listen"/></svg><span class="mockmark">MAQUETA</span></span>
+        <div class="pinfo"><p class="pt">Cap. 1 · El cuerpo sabe antes que la mente</p><p class="pm">Emociones en Construcción</p>
+          <div class="scrub"><span class="skel" style="height:5px;flex:1"></span></div>
+          <div class="pcontrols"><span class="chip chip--neutral"><svg width="13" height="13"><use href="#ic-clock"/></svg>Preparando el audio…</span></div>
+        </div>
+      </div>
+      <p class="note-line" style="margin-top:16px">La URL firmada se pide <b>al elegir el formato</b>, no al abrir la pestaña. Mientras llega no hay controles falsos: no existe un play que no reproduce.</p>
+    </div></div></div>
+  </div>
+
+  <div class="state" data-state="Error" style="flex-direction:column;flex:1;min-height:0">
+    <div class="modebar"><button class="mode"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer</button><button class="mode on"><svg width="16" height="16"><use href="#ic-listen"/></svg>Escuchar</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <div class="errbox"><span class="eg"><svg width="19" height="19"><use href="#ic-alert"/></svg></span><div><p class="et">No pudimos preparar el audio</p><p class="es">Puede ser la conexión. El texto del capítulo sigue disponible mientras tanto.</p><div class="btn-row" style="margin-top:14px"><button class="btn btn--soft btn--sm">Reintentar</button><button class="btn btn--ghost btn--sm">Ir al texto</button></div></div></div>
+      <p class="note-line" style="margin-top:16px">Honesto y corto, sin culpar a la persona. Nunca «error 500», nunca un reintento infinito que deje la pantalla en suspenso.</p>
+    </div></div></div>
+  </div>
+</section>
+
+<!-- ══ 4 · PODCAST ═══════════════════════════════════════════════════ -->
+<section class="screen" id="s4" data-title="Podcast">
+  <div class="state on" data-state="Con datos" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="modebar"><button class="mode"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer</button><button class="mode on"><svg width="16" height="16"><use href="#ic-listen"/></svg>Escuchar</button><button class="mode"><svg width="16" height="16"><use href="#ic-seedling"/></svg>Experiencias</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <div class="seg" style="background:var(--color-warm-100);margin-bottom:8px"><button style="color:var(--fg-tertiary)">Audiolibro</button><button class="on" style="color:var(--color-lavender-700);background:#fff">Podcast</button></div>
+      <p class="note-line" style="margin-bottom:22px">Podcast es un <b>subformato dentro de Escuchar</b>, no una pestaña de primer nivel. La conversación sobre el capítulo — no su narración.</p>
+      <div class="player">
+        <span class="cover sage"><svg width="30" height="30"><use href="#ic-listen"/></svg><span class="mockmark">MAQUETA</span></span>
+        <div class="pinfo"><p class="pt">Cuando el cuerpo habla primero</p><p class="pm">Episodio 1 · con Marina Quintana</p>
+          <div class="scrub"><span class="t">03:12</span><span class="track"><i style="width:13%"></i><b style="left:13%"></b></span><span class="t">24:50</span></div>
+          <div class="pcontrols"><button class="pbtn"><svg width="19" height="19"><use href="#ic-back15"/></svg></button><button class="pbtn main"><svg width="20" height="20"><use href="#ic-play"/></svg></button><button class="pbtn"><svg width="19" height="19"><use href="#ic-fwd15"/></svg></button><button class="pmeta-btn">1.0×</button></div>
+        </div>
+      </div>
+      <div style="margin-top:26px"><h2 class="sec-h">Episodios <span class="count">0..N — la lista crece</span></h2>
+        <div class="tracklist">
+          <button class="track-item on"><span class="tn">1</span><span class="tt">Cuando el cuerpo habla primero</span><span class="td">24:50</span></button>
+          <button class="track-item"><span class="tn"><svg width="13" height="13"><use href="#ic-check"/></svg></span><span class="tt">Preguntas de quienes leyeron el capítulo</span><span class="td">17:04</span></button>
+        </div>
+      </div>
+      <div style="margin-top:22px"><details class="disc" open><summary><svg width="16" height="16"><use href="#ic-note"/></svg>Notas del episodio</summary><div class="disc-body"><p>Qué se conversa, en qué minuto, y con qué parte del capítulo se relaciona. Escrito por el equipo editorial.</p><div class="btn-row"><button class="btn btn--ghost btn--sm"><svg width="16" height="16"><use href="#ic-book"/></svg>Ir al capítulo</button></div></div></details></div>
+    </div></div></div>
+  </div>
+
+  <div class="state" data-state="Vacío" style="flex-direction:column;flex:1;min-height:0">
+    <div class="modebar"><button class="mode"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer</button><button class="mode on"><svg width="16" height="16"><use href="#ic-listen"/></svg>Escuchar</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <div class="seg" style="background:var(--color-warm-100);margin-bottom:22px"><button class="on" style="color:var(--color-lavender-700);background:#fff">Audiolibro</button></div>
+      <div class="ocr-note"><svg width="17" height="17"><use href="#ic-hide"/></svg><p class="ot"><b>Sin episodios, el subformato no aparece.</b> El selector queda con un solo botón — y si tampoco hubiera audiolibro, la rama «Escuchar» entera no se ofrece. Nunca se abre un subformato vacío.</p></div>
+      <div class="player" style="margin-top:20px"><span class="cover"><svg width="30" height="30"><use href="#ic-listen"/></svg><span class="mockmark">MAQUETA</span></span><div class="pinfo"><p class="pt">Cap. 1 · El cuerpo sabe antes que la mente</p><p class="pm">Emociones en Construcción</p><div class="scrub"><span class="t">00:00</span><span class="track"><i style="width:0"></i><b style="left:0"></b></span><span class="t">18:03</span></div><div class="pcontrols"><button class="pbtn main"><svg width="20" height="20"><use href="#ic-play"/></svg></button></div></div></div>
+    </div></div></div>
+  </div>
+</section>
+
+<!-- ══ 5 · VIDEO ═════════════════════════════════════════════════════ -->
+<section class="screen" id="s5" data-title="Ver">
+  <div class="state on" data-state="Con datos" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="modebar"><button class="mode"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer</button><button class="mode"><svg width="16" height="16"><use href="#ic-listen"/></svg>Escuchar</button><button class="mode on"><svg width="16" height="16"><use href="#ic-video"/></svg>Ver</button><button class="mode"><svg width="16" height="16"><use href="#ic-seedling"/></svg>Experiencias</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap-wide">
+      <div class="cover ratio16" style="width:100%;height:auto;border-radius:var(--radius-xl)"><button class="pbtn main" style="width:64px;height:64px"><svg width="24" height="24"><use href="#ic-play"/></svg></button><span class="mockmark">REPRODUCTOR DE MAQUETA — SIN MEDIO REAL</span></div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap"><p class="pt" style="font:600 17px/1.3 var(--font-sans);color:var(--fg-heading);flex:1;min-width:200px">La idea central del capítulo</p><span class="chip chip--neutral">6:12</span><span class="chip chip--neutral">Subtítulos ES</span></div>
+      <div style="margin-top:26px"><h2 class="sec-h">Playlist <span class="count">1..N — nunca tres fijos</span></h2>
+        <div class="tracklist">
+          <button class="track-item on"><span class="thumb"><svg width="18" height="18"><use href="#ic-video"/></svg><span class="mockmark">MAQUETA</span></span><span class="tt">La idea central del capítulo</span><span class="td">6:12</span></button>
+          <button class="track-item"><span class="thumb"><svg width="18" height="18"><use href="#ic-video"/></svg><span class="mockmark">MAQUETA</span></span><span class="tt">Un ejemplo cotidiano</span><span class="td">4:03</span><span class="chip chip--done"><svg width="13" height="13"><use href="#ic-check"/></svg></span></button>
+        </div>
+      </div>
+      <div style="margin-top:22px"><details class="disc"><summary><svg width="16" height="16"><use href="#ic-note"/></svg>Subtítulos y transcripción</summary><div class="disc-body"><p>Existen cuando existe el máster. No se inventan poster, duración ni subtítulos para llenar la maqueta.</p></div></details></div>
+      <div style="margin-top:20px" class="btn-row"><button class="btn btn--ghost btn--sm"><svg width="16" height="16"><use href="#ic-book"/></svg>Volver al capítulo</button></div>
+      <p class="note-line" style="margin-top:14px">El <b>video del capítulo</b> es esta superficie. El <b>video inline</b> vive dentro del texto y se nombra distinto: son dos cosas y no comparten estado.</p>
+    </div></div></div>
+  </div>
+
+  <div class="state" data-state="Cargando" style="flex-direction:column;flex:1;min-height:0">
+    <div class="modebar"><button class="mode"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer</button><button class="mode on"><svg width="16" height="16"><use href="#ic-video"/></svg>Ver</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap-wide">
+      <div class="reserved ratio16"><div><svg width="26" height="26" style="margin:0 auto"><use href="#ic-video"/></svg><p class="rt">Preparando el video…</p><p class="rs">Marco con proporción reservada. Sin botón de play falso: el embed se pide al elegir el video.</p></div></div>
+      <div style="margin-top:22px" class="tracklist"><span class="skel" style="height:56px"></span><span class="skel" style="height:56px;opacity:.6"></span></div>
+      <p class="note-line" style="margin-top:14px">Los esqueletos solo aparecen para contenido <b>ya confirmado</b>. Nunca se insinúa una playlist cuya existencia no se conoce.</p>
+    </div></div></div>
+  </div>
+
+  <div class="state" data-state="Oculto" style="flex-direction:column;flex:1;min-height:0">
+    <div class="modebar"><button class="mode on"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer</button><button class="mode"><svg width="16" height="16"><use href="#ic-listen"/></svg>Escuchar</button><button class="mode"><svg width="16" height="16"><use href="#ic-seedling"/></svg>Experiencias</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <div class="ocr-note"><svg width="17" height="17"><use href="#ic-hide"/></svg><p class="ot"><b>Sin video producido, la pestaña «Ver» no está en la barra.</b> Esta pantalla no existe para ese capítulo: no hay estado vacío que diseñar, hay una ausencia. <br><br>Compara la barra de modos de arriba con la del estado «Con datos»: es la única diferencia visible, y es intencional.</p></div>
+      <div class="prose" style="margin-top:26px"><h2>El cuerpo se adelanta</h2><p>La persona entra a leer y nunca supo que existía una rama de video, porque para este capítulo no existe.</p></div>
+    </div></div></div>
+  </div>
+</section>
+
+<!-- ══ 6 · EXPERIENCIAS ══════════════════════════════════════════════ -->
+<section class="screen" id="s6" data-title="Experiencias">
+  <div class="state on" data-state="4 experiencias" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="modebar"><button class="mode"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer</button><button class="mode"><svg width="16" height="16"><use href="#ic-listen"/></svg>Escuchar</button><button class="mode on"><svg width="16" height="16"><use href="#ic-seedling"/></svg>Experiencias</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <div class="journey-head"><span class="jt">Experiencias del capítulo</span><span class="jm">4 experiencias · ~18 min en total (estimado)</span></div>
+      <p class="note-line" style="margin-bottom:22px">2 de 4 recorridas. Ninguna es obligatoria y ninguna caduca.</p>
+      <div class="exp-list">
+        <div class="exp is-done"><span class="eord"><svg width="15" height="15"><use href="#ic-check"/></svg></span><div class="ebody"><p class="et">El cuerpo sabe antes que la mente</p><p class="em">4 pasos · ~6 min <span class="chip chip--done">Recorrida</span></p></div><div class="eact"><button class="btn btn--ghost btn--sm">Repetir</button></div></div>
+        <div class="exp is-progress"><span class="eord">2</span><div class="ebody"><p class="et">Escucharte por dentro</p><p class="em">3 pasos · ~5 min <span class="dots" style="display:inline-flex"><i class="done"></i><i class="now"></i><i></i></span></p></div><div class="eact"><button class="btn btn--lav btn--sm">Continuar</button></div></div>
+        <div class="exp"><span class="eord">3</span><div class="ebody"><p class="et">Respirar antes de seguir</p><p class="em">2 pasos · ~4 min · incluye audio</p></div><div class="eact"><button class="btn btn--soft btn--sm">Empezar</button></div></div>
+        <div class="exp is-locked"><span class="eord"><svg width="14" height="14"><use href="#ic-lock"/></svg></span><div class="ebody"><p class="et">Síntesis</p><p class="em">1 paso · ~2 min · disponible al recorrer 1–3</p></div><div class="eact"><span class="chip chip--locked">Se abre después</span></div></div>
+      </div>
+      <p class="note-line" style="margin-top:16px">El candado de la síntesis es la <b>única</b> dependencia admitida. Encadenar experiencias entre sí convertiría un acompañamiento en un curso.</p>
+    </div></div></div>
+  </div>
+
+  <div class="state" data-state="1 experiencia" style="flex-direction:column;flex:1;min-height:0">
+    <div class="modebar"><button class="mode"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer</button><button class="mode on"><svg width="16" height="16"><use href="#ic-seedling"/></svg>Experiencias</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <div class="journey-head"><span class="jt">Experiencias del capítulo</span><span class="jm">1 experiencia · ~6 min (estimado)</span></div>
+      <div class="exp-list" style="margin-top:18px"><div class="exp"><span class="eord">1</span><div class="ebody"><p class="et">El contacto sostenido en silencio</p><p class="em">3 pasos · ~5 min</p></div><div class="eact"><button class="btn btn--soft btn--sm">Empezar</button></div></div></div>
+      <p class="note-line" style="margin-top:16px">Una sola experiencia no debe verse como una lista rota: la card ocupa el ancho completo y no se acompaña de huecos ni de «próximamente» inventados.</p>
+    </div></div></div>
+  </div>
+
+  <div class="state" data-state="10 experiencias" style="flex-direction:column;flex:1;min-height:0">
+    <div class="modebar"><button class="mode"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer</button><button class="mode on"><svg width="16" height="16"><use href="#ic-seedling"/></svg>Experiencias</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <div class="journey-head"><span class="jt">Experiencias del capítulo</span><span class="jm">10 experiencias · ~46 min en total (estimado)</span></div>
+      <p class="note-line" style="margin-bottom:20px">3 de 10 recorridas — recorrido, no deuda. Sin «te faltan 7».</p>
+      <div class="exp-list">
+        <div class="exp is-done"><span class="eord"><svg width="15" height="15"><use href="#ic-check"/></svg></span><div class="ebody"><p class="et">Nombrar sin cerrar</p><p class="em">3 pasos · ~5 min</p></div><div class="eact"><button class="btn btn--ghost btn--sm">Repetir</button></div></div>
+        <div class="exp is-done"><span class="eord"><svg width="15" height="15"><use href="#ic-check"/></svg></span><div class="ebody"><p class="et">El primer registro del día</p><p class="em">2 pasos · ~4 min</p></div><div class="eact"><button class="btn btn--ghost btn--sm">Repetir</button></div></div>
+        <div class="exp is-progress"><span class="eord">3</span><div class="ebody"><p class="et">Escucharte por dentro</p><p class="em">3 pasos · ~5 min</p></div><div class="eact"><button class="btn btn--lav btn--sm">Continuar</button></div></div>
+        <div class="exp"><span class="eord">4</span><div class="ebody"><p class="et">Respirar antes de seguir</p><p class="em">2 pasos · ~4 min</p></div><div class="eact"><button class="btn btn--soft btn--sm">Empezar</button></div></div>
+        <div class="exp"><span class="eord">5</span><div class="ebody"><p class="et">Lo que el cuerpo repite</p><p class="em">4 pasos · ~6 min</p></div><div class="eact"><button class="btn btn--soft btn--sm">Empezar</button></div></div>
+        <div class="exp"><span class="eord">6</span><div class="ebody"><p class="et">Una conversación difícil</p><p class="em">5 pasos · ~7 min</p></div><div class="eact"><button class="btn btn--soft btn--sm">Empezar</button></div></div>
+        <div class="exp"><span class="eord">7</span><div class="ebody"><p class="et">Antes de responder</p><p class="em">2 pasos · ~3 min</p></div><div class="eact"><button class="btn btn--soft btn--sm">Empezar</button></div></div>
+        <div class="exp"><span class="eord">8</span><div class="ebody"><p class="et">El registro de la semana</p><p class="em">3 pasos · ~5 min</p></div><div class="eact"><button class="btn btn--soft btn--sm">Empezar</button></div></div>
+        <div class="exp"><span class="eord">9</span><div class="ebody"><p class="et">Volver a lo que subrayaste</p><p class="em">2 pasos · ~4 min</p></div><div class="eact"><button class="btn btn--soft btn--sm">Empezar</button></div></div>
+        <div class="exp is-locked"><span class="eord"><svg width="14" height="14"><use href="#ic-lock"/></svg></span><div class="ebody"><p class="et">Síntesis</p><p class="em">1 paso · ~3 min · disponible al recorrer 1–9</p></div><div class="eact"><span class="chip chip--locked">Se abre después</span></div></div>
+      </div>
+    </div></div></div>
+  </div>
+
+  <div class="state" data-state="0 · pestaña ausente" style="flex-direction:column;flex:1;min-height:0">
+    <div class="modebar"><button class="mode on"><svg width="16" height="16"><use href="#ic-book"/></svg>Leer</button><button class="mode"><svg width="16" height="16"><use href="#ic-listen"/></svg>Escuchar</button></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <div class="ocr-note"><svg width="17" height="17"><use href="#ic-hide"/></svg><p class="ot"><b>Cero experiencias ⇒ la pestaña no existe.</b> No hay «aún no hay experiencias disponibles», ni una lista vacía amable. Es el caso más frecuente hoy y es un estado perfectamente válido.</p></div>
+      <div class="prose" style="margin-top:26px"><h2>El cuerpo se adelanta</h2><p>La persona lee. El capítulo no promete nada que no tenga.</p></div>
+    </div></div></div>
+  </div>
+</section>
+
+<!-- ══ 7 · EXPERIENCE PLAYER ═════════════════════════════════════════ -->
+<section class="screen" id="s7" data-title="Experience Player">
+  <div class="state on" data-state="CONTENT · pasaje" style="display:flex;flex:1;min-height:0">
+    <div class="xp">
+      <div class="xp-top"><button class="icon-btn" style="width:34px;height:34px"><svg width="16" height="16"><use href="#ic-left"/></svg></button><span class="xt">El cuerpo sabe antes que la mente</span><span class="dots"><i class="done"></i><i class="now"></i><i></i><i></i></span></div>
+      <div class="xp-body"><div class="xp-inner">
+        <span class="step-kind">Pasaje del capítulo</span>
+        <p class="step-passage">«Antes de que exista una palabra para lo que sentimos, ya hay una respuesta en los hombros, en la mandíbula, en la forma en que respiramos.»</p>
+        <p class="step-p">Este fragmento es el que abre la idea. Lo vas a recorrer en tres movimientos: leerlo, entenderlo y recordarlo con tus palabras.</p>
+        <div class="xp-actions"><button class="btn btn--lav">Continuar</button><button class="btn btn--ghost btn--sm"><svg width="16" height="16"><use href="#ic-book"/></svg>Ver en el capítulo</button></div>
+      </div></div>
+      <div class="xp-foot"><button class="exit">Salir</button><span class="save-note">Tu avance queda guardado</span></div>
+    </div>
+  </div>
+
+  <div class="state" data-state="MEDIA · audio" style="flex:1;min-height:0">
+    <div class="xp">
+      <div class="xp-top"><button class="icon-btn" style="width:34px;height:34px"><svg width="16" height="16"><use href="#ic-left"/></svg></button><span class="xt">Respirar antes de seguir</span><span class="dots"><i class="now"></i><i></i></span></div>
+      <div class="xp-body"><div class="xp-inner">
+        <span class="step-kind">Audio guiado</span>
+        <h2 class="step-h">Tres minutos, sin hacer nada más</h2>
+        <div class="player" style="margin-top:22px"><span class="cover sage" style="width:76px;height:76px"><svg width="24" height="24"><use href="#ic-listen"/></svg><span class="mockmark">MAQUETA</span></span><div class="pinfo"><div class="scrub" style="margin-top:0"><span class="t">00:34</span><span class="track"><i style="width:19%"></i><b style="left:19%"></b></span><span class="t">03:00</span></div><div class="pcontrols"><button class="pbtn main"><svg width="20" height="20"><use href="#ic-pause"/></svg></button><button class="pmeta-btn">1.0×</button></div></div></div>
+        <p class="note-line" style="margin-top:18px">Un paso MEDIA termina al acabar el medio. No hay «Continuar» que lo salte por accidente — pero «Salir» sigue disponible.</p>
+      </div></div>
+      <div class="xp-foot"><button class="exit">Salir</button><span class="save-note">Tu avance queda guardado</span></div>
+    </div>
+  </div>
+
+  <div class="state" data-state="INTERACTION · práctica" style="flex:1;min-height:0">
+    <div class="xp">
+      <div class="xp-top"><button class="icon-btn" style="width:34px;height:34px"><svg width="16" height="16"><use href="#ic-left"/></svg></button><span class="xt">Escucharte por dentro</span><span class="dots"><i class="now"></i><i></i><i></i></span></div>
+      <div class="xp-body"><div class="xp-inner">
+        <span class="step-kind sage">Práctica</span>
+        <h2 class="step-h">Recorre tu cuerpo de arriba abajo</h2>
+        <p class="step-p">Durante los próximos dos minutos, cierra los ojos y baja la atención lentamente. Nota dónde hay tensión. No la cambies: solo nótala.</p>
+        <span class="timer"><svg width="17" height="17"><use href="#ic-clock"/></svg>2:00</span>
+        <div class="xp-actions"><button class="btn btn--primary">Ya lo hice</button><button class="btn btn--ghost btn--sm">Saltar este paso</button></div>
+      </div></div>
+      <div class="xp-foot"><button class="exit">Salir</button><span class="save-note">Tu avance queda guardado</span></div>
+    </div>
+  </div>
+
+  <div class="state" data-state="INTERACTION · reflexión" style="flex:1;min-height:0">
+    <div class="xp">
+      <div class="xp-top"><button class="icon-btn" style="width:34px;height:34px"><svg width="16" height="16"><use href="#ic-left"/></svg></button><span class="xt">Escucharte por dentro</span><span class="dots"><i class="done"></i><i class="now"></i><i></i></span></div>
+      <div class="xp-body"><div class="xp-inner">
+        <span class="step-kind sage">Reflexión</span>
+        <h2 class="step-h">¿Qué notaste que no esperabas?</h2>
+        <div class="fake-textarea">Escribe lo que quieras. Nadie más lo lee.</div>
+        <p class="privacy-line"><svg width="15" height="15"><use href="#ic-lock"/></svg>Cifrado de extremo a extremo · ni Eco ni la plataforma pueden leer este texto</p>
+        <div class="xp-actions"><button class="btn btn--primary">Guardar y continuar</button><button class="btn btn--ghost btn--sm">Continuar sin escribir</button></div>
+      </div></div>
+      <div class="xp-foot"><button class="exit">Salir</button><span class="save-note">Tu avance queda guardado</span></div>
+    </div>
+  </div>
+
+  <div class="state" data-state="INTERACTION · recall" style="flex:1;min-height:0">
+    <div class="xp">
+      <div class="xp-top"><button class="icon-btn" style="width:34px;height:34px"><svg width="16" height="16"><use href="#ic-left"/></svg></button><span class="xt">El cuerpo sabe antes que la mente</span><span class="dots"><i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i></span></div>
+      <div class="xp-body"><div class="xp-inner">
+        <span class="step-kind">Recordar</span>
+        <h2 class="step-h">¿Cuál de estas frases se acerca más a la idea del capítulo?</h2>
+        <div class="opt-list">
+          <button class="opt"><span class="odot"></span>El cuerpo confirma lo que la mente ya decidió.</button>
+          <button class="opt"><span class="odot"></span>La respuesta corporal llega antes que la interpretación.</button>
+          <button class="opt"><span class="odot"></span>Nombrar una emoción la hace desaparecer.</button>
+        </div>
+        <p class="note-line" style="margin-top:18px">Sin puntaje, sin «acertaste 2 de 3». El feedback es inmediato, ocurre en el paso, y ahí se acaba.</p>
+      </div></div>
+      <div class="xp-foot"><button class="exit">Salir</button><span class="save-note">Tu avance queda guardado</span></div>
+    </div>
+  </div>
+
+  <div class="state" data-state="CLOSURE · resonancia" style="flex:1;min-height:0">
+    <div class="xp">
+      <div class="xp-top"><button class="icon-btn" style="width:34px;height:34px"><svg width="16" height="16"><use href="#ic-left"/></svg></button><span class="xt">Escucharte por dentro</span><span class="dots"><i class="done"></i><i class="done"></i><i class="now"></i></span></div>
+      <div class="xp-body"><div class="xp-inner">
+        <span class="step-kind sage">Cierre</span>
+        <div class="reso" style="margin-top:18px"><p class="rq">¿Te resonó «El cuerpo sabe antes que la mente»?</p><p class="rh">Si dices que sí, aparece en tu mapa con esta procedencia y esta fecha, y puedes quitarla cuando quieras. Si dices que ahora no, no se guarda nada.</p><div class="rbtns"><button class="btn btn--primary">Sí, me resonó</button><button class="btn btn--ghost">Ahora no</button></div></div>
+        <p class="note-line" style="margin-top:16px">Las dos salidas pesan visualmente lo mismo. «Ahora no» no es el botón secundario de un embudo.</p>
+      </div></div>
+      <div class="xp-foot"><button class="exit">Salir</button><span class="save-note">Tu avance queda guardado</span></div>
+    </div>
+  </div>
+
+  <div class="state" data-state="Cargando · media" style="flex:1;min-height:0">
+    <div class="xp">
+      <div class="xp-top"><button class="icon-btn" style="width:34px;height:34px"><svg width="16" height="16"><use href="#ic-left"/></svg></button><span class="xt">Respirar antes de seguir</span><span class="dots"><i class="now"></i><i></i></span></div>
+      <div class="xp-body"><div class="xp-inner">
+        <span class="step-kind">Audio guiado</span>
+        <h2 class="step-h">Tres minutos, sin hacer nada más</h2>
+        <div class="reserved" style="margin-top:22px;min-height:150px"><div><svg width="24" height="24" style="margin:0 auto"><use href="#ic-listen"/></svg><p class="rt">Preparando el audio…</p><p class="rs">El marco está reservado mientras se firma la URL. No aparece un control que todavía no funciona.</p></div></div>
+      </div></div>
+      <div class="xp-foot"><button class="exit">Salir</button><span class="save-note">Tu avance queda guardado</span></div>
+    </div>
+  </div>
+
+  <div class="state" data-state="Otro dispositivo" style="flex:1;min-height:0">
+    <div class="xp">
+      <div class="xp-top"><button class="icon-btn" style="width:34px;height:34px"><svg width="16" height="16"><use href="#ic-left"/></svg></button><span class="xt">Escucharte por dentro</span><span class="dots"><i></i><i></i><i></i></span></div>
+      <div class="xp-body"><div class="xp-inner">
+        <div class="errbox"><span class="eg"><svg width="19" height="19"><use href="#ic-info"/></svg></span><div><p class="et">Esta experiencia empieza de nuevo aquí</p><p class="es">La abriste antes en otro dispositivo. Por ahora el avance no viaja entre dispositivos, así que empezarías desde el primer paso. Son 3 pasos, ~5 min.</p><div class="btn-row" style="margin-top:16px"><button class="btn btn--lav btn--sm">Empezar de nuevo</button><button class="btn btn--ghost btn--sm">Volver al índice</button></div></div></div>
+        <p class="note-line" style="margin-top:16px">Se dice <b>antes</b> de invertir diez minutos, no después de perderlos.</p>
+      </div></div>
+      <div class="xp-foot"><button class="exit">Salir</button><span class="save-note">Tu avance queda guardado</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 8 · COMPLETION SUMMARY ════════════════════════════════════════ -->
+<section class="screen" id="s8" data-title="Cierre">
+  <div class="state on" data-state="Con oferta" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="xp" style="flex:1;min-height:0">
+      <div class="xp-top"><span class="xt">Terminaste: Escucharte por dentro</span><span class="chip chip--done"><svg width="13" height="13"><use href="#ic-check"/></svg>Recorrida</span></div>
+      <div class="scroller"><div class="pad"><div class="wrap">
+        <span class="done-mark"><svg width="26" height="26"><use href="#ic-check"/></svg></span>
+        <h2 class="sec-h" style="justify-content:center;margin:22px 0 14px">Lo que recorriste</h2>
+        <div class="acts">
+          <div class="act"><span class="ag"><svg width="17" height="17"><use href="#ic-seedling"/></svg></span><span class="at">Una práctica de escucha corporal</span><span class="privacy"><svg width="13" height="13"><use href="#ic-check"/></svg>Confirmado por ti</span></div>
+          <div class="act"><span class="ag"><svg width="17" height="17"><use href="#ic-edit"/></svg></span><span class="at">Una reflexión escrita</span><span class="privacy"><svg width="13" height="13"><use href="#ic-lock"/></svg>Solo tuya</span></div>
+        </div>
+        <div class="reso"><p class="rq">¿Te resonó «El cuerpo sabe antes que la mente»?</p><p class="rh">Es la única señal que puede salir de aquí a tu mapa — y sale porque tú la confirmas.</p><div class="rbtns"><button class="btn btn--primary">Sí, me resonó</button><button class="btn btn--ghost">Ahora no</button></div></div>
+        <div class="btn-row" style="margin-top:24px"><button class="btn btn--ghost"><svg width="17" height="17"><use href="#ic-book"/></svg>Volver al capítulo</button><button class="btn btn--soft">Siguiente experiencia</button></div>
+      </div></div></div>
+    </div>
+  </div>
+
+  <div class="state" data-state="Sin oferta" style="flex-direction:column;flex:1;min-height:0">
+    <div class="xp" style="flex:1;min-height:0">
+      <div class="xp-top"><span class="xt">Terminaste: El cuerpo sabe antes que la mente</span><span class="chip chip--done"><svg width="13" height="13"><use href="#ic-check"/></svg>Recorrida</span></div>
+      <div class="scroller"><div class="pad"><div class="wrap">
+        <span class="done-mark"><svg width="26" height="26"><use href="#ic-check"/></svg></span>
+        <h2 class="sec-h" style="justify-content:center;margin:22px 0 14px">Lo que recorriste</h2>
+        <div class="acts">
+          <div class="act"><span class="ag"><svg width="17" height="17"><use href="#ic-book"/></svg></span><span class="at">Un pasaje del capítulo</span></div>
+          <div class="act"><span class="ag"><svg width="17" height="17"><use href="#ic-sparkle"/></svg></span><span class="at">Una idea desarrollada con un ejemplo</span></div>
+          <div class="act"><span class="ag"><svg width="17" height="17"><use href="#ic-check"/></svg></span><span class="at">Un recordatorio con tus palabras</span></div>
+        </div>
+        <p class="note-line" style="margin-top:18px">Sin paso <b>RESONANCE</b> no aparece la tarjeta de oferta. La pantalla sigue siendo válida y no se rellena con nada.</p>
+        <div class="btn-row" style="margin-top:24px"><button class="btn btn--ghost"><svg width="17" height="17"><use href="#ic-book"/></svg>Volver al capítulo</button><button class="btn btn--soft">Siguiente experiencia</button></div>
+      </div></div></div>
+    </div>
+  </div>
+
+  <div class="state" data-state="Resonancia confirmada" style="flex-direction:column;flex:1;min-height:0">
+    <div class="xp" style="flex:1;min-height:0">
+      <div class="xp-top"><span class="xt">Terminaste: Escucharte por dentro</span><span class="chip chip--done"><svg width="13" height="13"><use href="#ic-check"/></svg>Recorrida</span></div>
+      <div class="scroller"><div class="pad"><div class="wrap">
+        <span class="done-mark"><svg width="26" height="26"><use href="#ic-check"/></svg></span>
+        <h2 class="sec-h" style="justify-content:center;margin:22px 0 14px">Lo que recorriste</h2>
+        <div class="acts"><div class="act"><span class="ag"><svg width="17" height="17"><use href="#ic-seedling"/></svg></span><span class="at">Una práctica de escucha corporal</span></div><div class="act"><span class="ag"><svg width="17" height="17"><use href="#ic-edit"/></svg></span><span class="at">Una reflexión escrita</span><span class="privacy"><svg width="13" height="13"><use href="#ic-lock"/></svg>Solo tuya</span></div></div>
+        <div class="res-card" style="margin-top:24px;border-color:var(--color-sage-200);background:var(--color-sage-50)"><span class="rstar"><svg width="18" height="18"><use href="#ic-star"/></svg></span><div><p class="rt">El cuerpo sabe antes que la mente</p><p class="rprov">Confirmado por ti · Cap. 1 · 3 ago</p><span class="rorigin"><svg width="12" height="12"><use href="#ic-seedling"/></svg>Desde una experiencia guiada</span></div><button class="rrm">Quitar</button></div>
+        <p class="note-line" style="margin-top:14px">La confirmación es optimista y revierte sola si falla. «Quitar» está a un toque, no escondido en un menú.</p>
+        <div class="btn-row" style="margin-top:22px"><button class="btn btn--ghost"><svg width="17" height="17"><use href="#ic-book"/></svg>Volver al capítulo</button><button class="btn btn--soft">Ver mi mapa</button></div>
+      </div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 9 · MAPA EMOCIONAL ════════════════════════════════════════════ -->
+<section class="screen" id="s9" data-title="Tu mapa">
+  <div class="state on" data-state="Con datos" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="appbar"><div><p class="ab-title">Tu mapa</p><p class="ab-sub">SOLO LO QUE TÚ DECLARASTE</p></div><div class="ab-right"><button class="icon-btn"><svg width="17" height="17"><use href="#ic-info"/></svg></button></div></div>
+    <div class="scroller"><div class="pad"><div class="wrap-wide">
+      <div class="mood-line"><span class="mdot"><svg width="18" height="18"><use href="#ic-mood"/></svg></span><p class="mt">Hoy te registraste como <b>bien</b> · 8:04</p><button class="medit">Cambiar</button></div>
+      <div class="map-grid" style="margin-top:20px">
+        <div class="radar-card">
+          <h2 class="sec-h">Cómo me describí <span class="count">autoinformado</span></h2>
+          <svg viewBox="0 0 260 240" role="img" aria-label="Radar de autoinforme con cuatro ejes con señal y dos reuniendo datos">
+            <polygon class="rg-ring" points="130,30 216.6,80 216.6,180 130,230 43.4,180 43.4,80"/>
+            <polygon class="rg-ring" points="130,80 173.3,105 173.3,155 130,180 86.7,155 86.7,105"/>
+            <line class="rg-axis" x1="130" y1="130" x2="130" y2="30"/><line class="rg-axis" x1="130" y1="130" x2="216.6" y2="80"/><line class="rg-axis empty" x1="130" y1="130" x2="216.6" y2="180"/><line class="rg-axis" x1="130" y1="130" x2="130" y2="230"/><line class="rg-axis" x1="130" y1="130" x2="43.4" y2="180"/><line class="rg-axis empty" x1="130" y1="130" x2="43.4" y2="80"/>
+            <polygon class="rg-poly" points="130,42 206,86 130,130 130,208 68,163 130,130"/>
+            <circle class="rg-node" cx="130" cy="42" r="4"/><circle class="rg-node" cx="206" cy="86" r="4"/><circle class="rg-node" cx="130" cy="208" r="4"/><circle class="rg-node" cx="68" cy="163" r="4"/>
+            <text class="rg-label" x="130" y="20" text-anchor="middle">Claridad</text><text class="rg-label" x="228" y="76" text-anchor="start">Calma</text><text class="rg-label empty" x="228" y="186" text-anchor="start">Propósito</text><text class="rg-label" x="130" y="244" text-anchor="middle">Conexión</text><text class="rg-label" x="32" y="186" text-anchor="end">Energía</text><text class="rg-label empty" x="32" y="76" text-anchor="end">Descanso</text>
+          </svg>
+          <p class="note-line" style="text-align:center;margin-top:8px">Los ejes punteados no valen cero: todavía no tienen señal.</p>
+        </div>
+        <div>
+          <div class="card2" style="padding:8px 18px">
+            <div class="axis-list">
+              <div class="axis"><span class="an">Claridad</span><span class="av">88</span><span class="src">Tu check-in de hoy</span><button class="info"><svg width="16" height="16"><use href="#ic-info"/></svg></button></div>
+              <div class="axis"><span class="an">Calma</span><span class="av">72 ±8</span><span class="src">Tus registros de ánimo</span><button class="info"><svg width="16" height="16"><use href="#ic-info"/></svg></button></div>
+              <div class="axis"><span class="an">Conexión</span><span class="av">50</span><span class="src">Tus resonancias</span><button class="info"><svg width="16" height="16"><use href="#ic-info"/></svg></button></div>
+              <div class="axis"><span class="an">Energía</span><span class="av">61</span><span class="src">Tu check-in de ayer</span><button class="info"><svg width="16" height="16"><use href="#ic-info"/></svg></button></div>
+              <div class="axis"><span class="an">Propósito</span><span class="av none">—</span><span class="src">Reuniendo datos</span><button class="info"><svg width="16" height="16"><use href="#ic-info"/></svg></button></div>
+              <div class="axis"><span class="an">Descanso</span><span class="av none">—</span><span class="src">Reuniendo datos</span><button class="info"><svg width="16" height="16"><use href="#ic-info"/></svg></button></div>
+            </div>
+          </div>
+          <p class="note-line" style="margin-top:12px">Base limitada. Ningún eje se alimenta de actividad: ni del tiempo de lectura, ni de cuántas experiencias recorriste.</p>
+        </div>
+      </div>
+      <div style="margin-top:26px">
+        <h2 class="sec-h">Mis resonancias <span class="count">3 · con procedencia</span></h2>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <div class="res-card"><span class="rstar"><svg width="18" height="18"><use href="#ic-star"/></svg></span><div><p class="rt">El cuerpo sabe antes que la mente</p><p class="rprov">Confirmado por ti · Emociones en Construcción, Cap. 1 · 3 ago</p><span class="rorigin"><svg width="12" height="12"><use href="#ic-seedling"/></svg>Desde una experiencia guiada</span></div><button class="rrm">Quitar</button></div>
+          <div class="res-card"><span class="rstar" style="color:var(--color-lavender-500)"><svg width="18" height="18"><use href="#ic-star"/></svg></span><div><p class="rt">Lo que se ordena rápido se ordenó antes de ser mirado</p><p class="rprov">Confirmado por ti · Cap. 1 · 1 ago</p><span class="rorigin lav"><svg width="12" height="12"><use href="#ic-edit"/></svg>Desde un subrayado</span></div><button class="rrm">Quitar</button></div>
+          <div class="res-card"><span class="rstar" style="color:var(--color-lavender-500)"><svg width="18" height="18"><use href="#ic-star"/></svg></span><div><p class="rt">Nombrar no es capturar</p><p class="rprov">Confirmado por ti · Cap. 1 · 28 jul</p><span class="rorigin lav"><svg width="12" height="12"><use href="#ic-sparkle"/></svg>Desde una conversación con Eco</span></div><button class="rrm">Quitar</button></div>
+        </div>
+        <p class="note-line" style="margin-top:14px">Lo que V2 añade: el origen «desde una experiencia guiada», junto a subrayado, Eco y ejercicio. Una resonancia y un subrayado <b>no se ven igual</b>: una es una declaración, el otro es una marca.</p>
+      </div>
+      <div class="hr"></div>
+      <p class="note-line">Tu recorrido por los libros vive en <b>Mi Evolución</b>. Aquí no hay porcentaje global, ni «comprensión emocional», ni ejes alimentados por actividad.</p>
+    </div></div></div>
+  </div>
+
+  <div class="state" data-state="Sin señal" style="flex-direction:column;flex:1;min-height:0">
+    <div class="appbar"><div><p class="ab-title">Tu mapa</p><p class="ab-sub">SOLO LO QUE TÚ DECLARASTE</p></div></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <div class="empty">
+        <span class="eg"><svg width="26" height="26"><use href="#ic-mood"/></svg></span>
+        <h3>Tu mapa se llena con lo que tú digas</h3>
+        <p>Todavía no hay señales. No hay nada que interpretar y no vamos a inventarlo: sin datos no es lo mismo que cero.</p>
+        <div class="btn-row" style="justify-content:center"><button class="btn btn--primary btn--sm">Registrar cómo estoy</button><button class="btn btn--ghost btn--sm">Cómo se llena</button></div>
+      </div>
+      <div class="radar-card" style="opacity:.75">
+        <svg viewBox="0 0 260 240" role="img" aria-label="Radar sin señal: todos los ejes punteados">
+          <polygon class="rg-ring" points="130,30 216.6,80 216.6,180 130,230 43.4,180 43.4,80"/>
+          <line class="rg-axis empty" x1="130" y1="130" x2="130" y2="30"/><line class="rg-axis empty" x1="130" y1="130" x2="216.6" y2="80"/><line class="rg-axis empty" x1="130" y1="130" x2="216.6" y2="180"/><line class="rg-axis empty" x1="130" y1="130" x2="130" y2="230"/><line class="rg-axis empty" x1="130" y1="130" x2="43.4" y2="180"/><line class="rg-axis empty" x1="130" y1="130" x2="43.4" y2="80"/>
+          <text class="rg-label empty" x="130" y="20" text-anchor="middle">Claridad</text><text class="rg-label empty" x="228" y="76" text-anchor="start">Calma</text><text class="rg-label empty" x="228" y="186" text-anchor="start">Propósito</text><text class="rg-label empty" x="130" y="244" text-anchor="middle">Conexión</text><text class="rg-label empty" x="32" y="186" text-anchor="end">Energía</text><text class="rg-label empty" x="32" y="76" text-anchor="end">Descanso</text>
+        </svg>
+        <p class="note-line" style="text-align:center;margin-top:8px">Seis ejes punteados. Ni un polígono en el origen, ni un 0 %.</p>
+      </div>
+    </div></div></div>
+  </div>
+
+  <div class="state" data-state="Cargando" style="flex-direction:column;flex:1;min-height:0">
+    <div class="appbar"><div><p class="ab-title">Tu mapa</p><p class="ab-sub">SOLO LO QUE TÚ DECLARASTE</p></div></div>
+    <div class="scroller"><div class="pad"><div class="wrap">
+      <div class="mood-line"><span class="mdot"><svg width="18" height="18"><use href="#ic-mood"/></svg></span><p class="mt">Hoy te registraste como <b>bien</b> · 8:04</p></div>
+      <div class="radar-card" style="margin-top:20px;display:grid;place-items:center;min-height:250px"><div style="text-align:center"><span class="skel" style="width:180px;height:180px;border-radius:50%;display:block"></span><p class="note-line" style="margin-top:14px">Trayendo tus registros…</p></div></div>
+      <p class="note-line" style="margin-top:14px">Mientras el mapa llega <b>no se dibuja un radar a cero</b>. El ánimo de hoy sí se muestra: ese dato ya estaba.</p>
+    </div></div></div>
+  </div>
+</section>
+
+<!-- ══ 10 · CASOS EDITORIALES ════════════════════════════════════════ -->
+<section class="screen" id="s10" data-title="Casos">
+  <div class="state on" data-state="Emociones vs Parejas" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="scroller"><div class="gal">
+      <div class="case-cols">
+        <div class="case-col">
+          <h3>Emociones en Construcción · c1</h3>
+          <p class="csub">20 MIN · 4 EXPERIENCIAS · ~18 MIN (EST.) · CHAPTERORDER 1</p>
+          <div class="route">
+            <button class="route-row is-read"><span class="rg"><svg width="19" height="19"><use href="#ic-book"/></svg></span><span><span class="rn">Leer</span><span class="rd">20 min</span></span><span class="rr"><span class="chip chip--progress">En curso</span></span></button>
+            <button class="route-row is-listen"><span class="rg"><svg width="19" height="19"><use href="#ic-listen"/></svg></span><span><span class="rn">Escuchar</span><span class="rd">18 min</span></span><span class="rr"><span class="chip chip--available">Disponible</span></span></button>
+            <button class="route-row is-soon" disabled><span class="rg"><svg width="19" height="19"><use href="#ic-video"/></svg></span><span><span class="rn">Ver</span><span class="rd">—</span></span><span class="rr"><span class="chip chip--soon">Próximamente</span></span></button>
+            <button class="route-row is-exp"><span class="rg"><svg width="19" height="19"><use href="#ic-seedling"/></svg></span><span><span class="rn">Experiencias</span><span class="rd">2 de 4</span></span><span class="rr"><span class="chip chip--progress">En curso</span></span></button>
+          </div>
+          <div class="exp-list" style="margin-top:16px">
+            <div class="exp"><span class="eord">1</span><div class="ebody"><p class="et">El cuerpo sabe antes que la mente</p><p class="em">4 pasos · INTRO → PASSAGE → CONCEPT → RECALL</p></div></div>
+            <div class="exp"><span class="eord">2</span><div class="ebody"><p class="et">Escucharte por dentro</p><p class="em">3 pasos · PRACTICE → REFLECTION → RESONANCE</p></div></div>
+            <div class="exp"><span class="eord">3</span><div class="ebody"><p class="et">Respirar antes de seguir</p><p class="em">2 pasos · AUDIO → QUESTION</p></div></div>
+            <div class="exp"><span class="eord">4</span><div class="ebody"><p class="et">Síntesis</p><p class="em">1 paso · SUMMARY</p></div></div>
+          </div>
+          <p class="note-line" style="margin-top:14px">CONTENT 4 · MEDIA 1 · INTERACTION 4 · CLOSURE 2. Ninguna pasa de seis minutos.</p>
+        </div>
+        <div class="case-col">
+          <h3>Parejas que perduran · c1</h3>
+          <p class="csub">43 MIN · 2 EXPERIENCIAS · ~11 MIN (EST.) · CHAPTERORDER 2</p>
+          <div class="ocr-note" style="margin-bottom:14px"><svg width="17" height="17"><use href="#ic-alert"/></svg><p class="ot"><b>Edición provisional.</b> El texto viene de una digitalización sin revisar. Puede haber erratas; se corrige al llegar el máster editorial.</p></div>
+          <div class="route">
+            <button class="route-row is-read"><span class="rg"><svg width="19" height="19"><use href="#ic-book"/></svg></span><span><span class="rn">Leer</span><span class="rd">43 min</span></span><span class="rr"><span class="chip chip--neutral">Sin empezar</span></span></button>
+            <button class="route-row is-exp"><span class="rg"><svg width="19" height="19"><use href="#ic-seedling"/></svg></span><span><span class="rn">Experiencias</span><span class="rd">0 de 2</span></span><span class="rr"><span class="chip chip--available">Disponible</span></span></button>
+          </div>
+          <p class="note-line" style="margin:12px 0 0">Sin audio ni video: esas ramas no se dibujan. Dos filas, no cuatro con huecos.</p>
+          <div class="exp-list" style="margin-top:16px">
+            <div class="exp"><span class="eord">1</span><div class="ebody"><p class="et">El contacto sostenido en silencio</p><p class="em">3 pasos · PASSAGE → CONCEPT → RECALL</p></div></div>
+            <div class="exp"><span class="eord">2</span><div class="ebody"><p class="et">Diez minutos de contacto</p><p class="em">3 pasos · PRACTICE → REFLECTION → RESONANCE</p></div></div>
+          </div>
+          <p class="note-line" style="margin-top:14px">CONTENT 3 · MEDIA 0 · INTERACTION 4 · CLOSURE 1. Excepción editorial declarada: 43 min de texto con solo dos experiencias — la densidad se elige por materia, no por longitud.</p>
+        </div>
+      </div>
+      <div class="gal-sec">
+        <h2 class="gal-h">Qué demuestra este par</h2>
+        <div class="gal-cards">
+          <div class="spec"><div class="sh">Número variable</div><div class="sb"><p class="note-line">4 frente a 2 en capítulos comparables. Ningún layout asume una cantidad.</p></div></div>
+          <div class="spec"><div class="sh">Longitud variable</div><div class="sb"><p class="note-line">Experiencias de 1, 2, 3 y 4 pasos con la misma anatomía de Player.</p></div></div>
+          <div class="spec"><div class="sh">Pasos heterogéneos</div><div class="sb"><p class="note-line">Emociones tiene un paso MEDIA; Parejas no tiene ninguno. La lista no cambia de forma.</p></div></div>
+          <div class="spec"><div class="sh">Densidad ≠ longitud</div><div class="sb"><p class="note-line">43 min → 2 experiencias. 20 min → 4. La recomendación 3–5 no es un contrato.</p></div></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ══ 11 · SISTEMA ══════════════════════════════════════════════════ -->
+<section class="screen" id="s11" data-title="Sistema">
+  <div class="state on" data-state="Componentes y estados" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="scroller"><div class="gal">
+      <div class="gal-sec"><h2 class="gal-h">Chips de estado — una rama dice la verdad de un vistazo</h2>
+        <div class="gal-row">
+          <span class="chip chip--done"><svg width="13" height="13"><use href="#ic-check"/></svg>Leído</span>
+          <span class="chip chip--available">Disponible</span>
+          <span class="chip chip--progress">En curso</span>
+          <span class="chip chip--soon">Próximamente</span>
+          <span class="chip chip--locked"><svg width="13" height="13"><use href="#ic-lock"/></svg>Se abre después</span>
+          <span class="chip chip--error">Error recuperable</span>
+          <span class="chip chip--neutral">Sin empezar</span>
+          <span class="chip chip--mock">Maqueta</span>
+        </div>
+        <p class="note-line" style="margin-top:12px"><b>Ausente</b> no tiene chip: es la falta de la fila entera. <code>UNKNOWN = HIDDEN</code>, y <code>UNKNOWN ≠ COMING_SOON</code>.</p>
+      </div>
+      <div class="gal-sec"><h2 class="gal-h">Indicador de posición — dónde va, no cuánto vale</h2>
+        <div class="gal-row" style="gap:28px">
+          <span class="dots"><i class="now"></i><i></i><i></i></span>
+          <span class="dots"><i class="done"></i><i class="now"></i><i></i></span>
+          <span class="dots"><i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i></span>
+          <span class="dots"><i class="done"></i><i class="done"></i></span>
+        </div>
+        <p class="note-line" style="margin-top:12px">Nunca una barra con porcentaje. Un recorrido de 2 pasos y uno de 8 usan el mismo componente.</p>
+      </div>
+      <div class="gal-sec"><h2 class="gal-h">Señales — tres tratamientos que no pueden confundirse</h2>
+        <div class="gal-cards">
+          <div class="spec"><div class="sh">Explícita · la persona lo declaró</div><div class="sb"><div class="res-card" style="padding:14px"><span class="rstar"><svg width="16" height="16"><use href="#ic-star"/></svg></span><div><p class="rt" style="font-size:13.5px">Nombrar no es capturar</p><p class="rprov" style="margin-top:6px">Confirmado por ti · 28 jul</p></div></div><p class="note-line" style="margin-top:10px">Procedencia, fecha y «Quitar» a un toque.</p></div></div>
+          <div class="spec"><div class="sh">Interacción · estado del recorrido</div><div class="sb"><div class="gal-row"><span class="chip chip--done"><svg width="13" height="13"><use href="#ic-check"/></svg>Práctica hecha</span><span class="chip chip--done"><svg width="13" height="13"><use href="#ic-check"/></svg>Video terminado</span></div><p class="note-line" style="margin-top:10px">Siempre un ✓, nunca un número.</p></div></div>
+          <div class="spec"><div class="sh">Comportamiento · no se muestra</div><div class="sb"><div class="ocr-note"><svg width="17" height="17"><use href="#ic-hide"/></svg><p class="ot">Tiempo de lectura, repeticiones, navegación. Ni como número ni como interpretación. <code>BEHAVIOR_IS_NOT_EMOTION</code>.</p></div></div></div>
+        </div>
+      </div>
+      <div class="gal-sec"><h2 class="gal-h">Medios — honestidad antes que relleno</h2>
+        <div class="gal-cards">
+          <div class="spec"><div class="sh">Disponible</div><div class="sb"><div class="cover" style="width:100%;height:120px"><svg width="26" height="26"><use href="#ic-listen"/></svg><span class="mockmark">MAQUETA</span></div><p class="note-line" style="margin-top:10px">Todo medio de maqueta se marca como tal.</p></div></div>
+          <div class="spec"><div class="sh">Sin máster</div><div class="sb"><div class="reserved" style="height:120px;padding:14px"><div><svg width="22" height="22" style="margin:0 auto"><use href="#ic-video"/></svg><p class="rs">Marco reservado, sin botón de play</p></div></div></div></div>
+          <div class="spec"><div class="sh">Cargando</div><div class="sb"><span class="skel" style="height:120px;display:block"></span><p class="note-line" style="margin-top:10px">Solo para contenido ya confirmado.</p></div></div>
+        </div>
+      </div>
+      <div class="gal-sec"><h2 class="gal-h">Lenguaje — prohibido y correcto</h2>
+        <div class="gal-cards">
+          <div class="spec"><div class="sh" style="color:var(--color-error-text);background:var(--color-error-bg)">No aparece en ninguna superficie</div><div class="sb"><p class="note-line" style="line-height:2">«medido» · «confianza 82 %» · «comprensión emocional N %» · «nivel de calma» · «tu puntaje» · «pareces cansado» · «notamos que…» · «te falta 1 para completar»</p></div></div>
+          <div class="spec"><div class="sh" style="color:var(--color-sage-700);background:var(--color-sage-100)">Lo correcto para lo mismo</div><div class="sb"><p class="note-line" style="line-height:2">«Confirmado por ti» · «Reuniendo datos» · «Autoinformado» · «Base limitada» · «Lo que recorriste» · «2 de 4 recorridas»</p></div></div>
+        </div>
+      </div>
+      <div class="gal-sec"><h2 class="gal-h">Comportamiento por ancho</h2>
+        <div class="gal-cards">
+          <div class="spec"><div class="sh">Desktop · 1365</div><div class="sb"><p class="note-line">Panel compañero como <b>drawer lateral</b>; el texto reserva su ancho y no se mueve al abrirlo.</p></div></div>
+          <div class="spec"><div class="sh">Tablet · 1024</div><div class="sb"><p class="note-line">El drawer se estrecha; el selector de modos sigue en línea. Sin scroll horizontal.</p></div></div>
+          <div class="spec"><div class="sh">Mobile · 390</div><div class="sb"><p class="note-line">Panel como <b>bottom sheet</b>; el texto sigue visible detrás. Con el panel abierto, el selector de modos se oculta. Áreas táctiles ≥ 44 px.</p></div></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ Notas de interacción ══════════════════════════════════════════ -->
+<div class="notes" id="notes">
+  <div class="note-block" data-for="s1"><h4>Chapter Home · qué pasa y qué no</h4><div class="note-grid">
+    <div class="note"><p class="nt"><span class="np">1</span>Al pulsar una rama</p><p class="nb">Se abre esa rama en el mismo contexto de capítulo. <b>No</b> se cierra ni se reinicia la lectura.</p></div>
+    <div class="note"><p class="nt"><span class="np">2</span>Al pulsar «Próximamente»</p><p class="nb">Nada. La fila está deshabilitada y no abre tooltip ni modal de espera.</p></div>
+    <div class="note deny"><p class="nt"><span class="np">✕</span>Lo que no ocurre</p><p class="nb">Ningún cálculo al vuelo del progreso, ninguna barra global del capítulo, ningún modal que obligue a elegir modo antes de leer.</p></div>
+    <div class="note"><p class="nt"><span class="np">U1</span>Decisión pendiente</p><p class="nb">Chapter Home como <b>panel plegable</b> del lector en vez de pantalla: evita un salto antes de leer. Recomendado en el discovery.</p></div>
+  </div></div>
+  <div class="note-block" data-for="s2"><h4>Reader · qué pasa y qué no</h4><div class="note-grid">
+    <div class="note"><p class="nt"><span class="np">1</span>Al subrayar</p><p class="nb">Aparece una acción contextual que <b>ofrece</b> anclar. «Ahora no» no persiste nada — el ciclo ARC anota solo cuando se confirma.</p></div>
+    <div class="note"><p class="nt"><span class="np">2</span>Tarjeta de experiencia en el texto</p><p class="nb">Va en el punto del capítulo que motiva la idea. Máximo una por sección, nunca dos seguidas, nunca un modal.</p></div>
+    <div class="note"><p class="nt"><span class="np">3</span>Panel compañero</p><p class="nb">Drawer en desktop, bottom sheet en mobile. Con el sheet abierto se oculta el selector de modos y el texto sigue visible detrás.</p></div>
+    <div class="note deny"><p class="nt"><span class="np">✕</span>Lo que no ocurre</p><p class="nb">Nada interrumpe la lectura: sin interstitials, sin banners fijos, sin autoscroll. El modo Libro nunca se convierte en tarjetas.</p></div>
+  </div></div>
+  <div class="note-block" data-for="s3"><h4>Escuchar · qué pasa y qué no</h4><div class="note-grid">
+    <div class="note"><p class="nt"><span class="np">1</span>Al elegir el formato</p><p class="nb">Ahí se pide la URL firmada — no al abrir la pestaña. Mientras llega: «Preparando…», sin controles.</p></div>
+    <div class="note"><p class="nt"><span class="np">2</span>Al terminar</p><p class="nb">✓ en el subformato. La reproducción sigue disponible y <b>no</b> marca el texto como leído.</p></div>
+    <div class="note deny"><p class="nt"><span class="np">✕</span>Lo que no ocurre</p><p class="nb">La transcripción no sustituye al audio. Con transcripción y sin máster, no hay audiolibro y la rama no se ofrece.</p></div>
+  </div></div>
+  <div class="note-block" data-for="s4"><h4>Podcast · qué pasa y qué no</h4><div class="note-grid">
+    <div class="note"><p class="nt"><span class="np">1</span>Dónde vive</p><p class="nb">Subformato dentro de Escuchar. <code>PODCAST_FIRST_CLASS_READER_MODE=false</code>: no es pestaña de primer nivel.</p></div>
+    <div class="note"><p class="nt"><span class="np">2</span>Cantidad de episodios</p><p class="nb">0..N. Con uno, la lista no aparece: se muestra el episodio. Con varios, lista con progreso por episodio.</p></div>
+    <div class="note deny"><p class="nt"><span class="np">✕</span>Lo que no ocurre</p><p class="nb">Sin episodio, el subformato no se abre: se oculta o se anuncia, nunca una pantalla vacía.</p></div>
+  </div></div>
+  <div class="note-block" data-for="s5"><h4>Ver · qué pasa y qué no</h4><div class="note-grid">
+    <div class="note"><p class="nt"><span class="np">1</span>Al elegir un video</p><p class="nb">Ahí se pide el embed. Antes: marco con proporción reservada, sin botón de play falso.</p></div>
+    <div class="note"><p class="nt"><span class="np">2</span>Playlist</p><p class="nb">1..N elementos. ✓ por elemento; ✓ en la rama cuando todos terminaron.</p></div>
+    <div class="note deny"><p class="nt"><span class="np">✕</span>Lo que no ocurre</p><p class="nb">No se inventan poster, subtítulos ni duración. El video del capítulo no comparte estado con el video inline del texto.</p></div>
+  </div></div>
+  <div class="note-block" data-for="s6"><h4>Experiencias · qué pasa y qué no</h4><div class="note-grid">
+    <div class="note"><p class="nt"><span class="np">1</span>Empezar / Continuar / Repetir</p><p class="nb">Tres acciones según estado. «Repetir» siempre disponible: completar nunca bloquea.</p></div>
+    <div class="note"><p class="nt"><span class="np">2</span>La síntesis bloqueada</p><p class="nb">Única dependencia admitida, y se dice por qué: «disponible al recorrer 1–3». No hay orden obligatorio entre las demás.</p></div>
+    <div class="note deny"><p class="nt"><span class="np">✕</span>Lo que no ocurre</p><p class="nb">Sin «te faltan 2», sin racha, sin insignias, sin barra de progreso del conjunto. Diez experiencias no son una bandeja de tareas.</p></div>
+  </div></div>
+  <div class="note-block" data-for="s7"><h4>Experience Player · qué pasa y qué no</h4><div class="note-grid">
+    <div class="note"><p class="nt"><span class="np">1</span>Doce tipos, una anatomía</p><p class="nb">Cambia lo que ocupa el centro (texto · reproductor · composer · pregunta) y la acción principal. El marco, la posición y la salida son idénticos.</p></div>
+    <div class="note"><p class="nt"><span class="np">2</span>Salir</p><p class="nb">Siempre visible, <b>sin confirmación</b>. «Tu avance queda guardado» es un compromiso, no un consuelo.</p></div>
+    <div class="note"><p class="nt"><span class="np">3</span>Volver atrás</p><p class="nb">Posible en pasos que no registran nada. Un RECALL ya respondido no se rehace en la misma sesión.</p></div>
+    <div class="note deny"><p class="nt"><span class="np">✕</span>Lo que no ocurre</p><p class="nb">Sin autoavance entre pasos. Una pantalla no implica un checkpoint persistido: <code>VISUAL_SCREEN_IS_NOT_AUTOMATICALLY_A_PERSISTED_STEP</code>.</p></div>
+  </div></div>
+  <div class="note-block" data-for="s8"><h4>Cierre · qué pasa y qué no</h4><div class="note-grid">
+    <div class="note"><p class="nt"><span class="np">1</span>«Sí, me resonó»</p><p class="nb">Confirmación optimista con reversión si falla. Pasa a «Confirmado por ti» con «Quitar» visible y viaja al Mapa con procedencia.</p></div>
+    <div class="note"><p class="nt"><span class="np">2</span>«Ahora no»</p><p class="nb"><b>No persiste nada.</b> Mismo peso visual que el sí: no es la salida secundaria de un embudo.</p></div>
+    <div class="note deny"><p class="nt"><span class="np">✕</span>Lo que no ocurre</p><p class="nb">Sin «acertaste 2 de 3», sin «llevas 5 esta semana», sin «pareces más consciente», sin comparación con nadie ni consigo misma.</p></div>
+    <div class="note"><p class="nt"><span class="np">U4</span>Decisión pendiente</p><p class="nb">El cierre como <b>estado del Player</b> y no pantalla aparte: un salto menos. Recomendado en el discovery.</p></div>
+  </div></div>
+  <div class="note-block" data-for="s9"><h4>Tu mapa · qué pasa y qué no</h4><div class="note-grid">
+    <div class="note"><p class="nt"><span class="np">1</span>Al pulsar ⓘ de un eje</p><p class="nb">Explica qué lo alimenta y con cuántos registros. Nunca una interpretación de la persona.</p></div>
+    <div class="note"><p class="nt"><span class="np">2</span>Al pulsar «Quitar»</p><p class="nb">La resonancia desaparece del mapa en cascada. Está a un toque, no dentro de un menú.</p></div>
+    <div class="note"><p class="nt"><span class="np">3</span>Lo que V2 añade</p><p class="nb">El origen «desde una experiencia guiada», junto a subrayado, Eco y ejercicio. Nada más cambia.</p></div>
+    <div class="note deny"><p class="nt"><span class="np">✕</span>Lo que no ocurre</p><p class="nb">Sin porcentaje global, sin ejes alimentados por actividad, sin radar a cero mientras carga. Sin datos ≠ cero.</p></div>
+  </div></div>
+  <div class="note-block" data-for="s10"><h4>Casos editoriales · lo que hay que leer aquí</h4><div class="note-grid">
+    <div class="note"><p class="nt"><span class="np">1</span>Ninguna cantidad es fija</p><p class="nb">4 y 2 experiencias, 4 y 2 ramas. El mismo layout sostiene ambos sin huecos ni relleno.</p></div>
+    <div class="note"><p class="nt"><span class="np">2</span>Aviso OCR</p><p class="nb">Discreto y arriba, una sola vez por capítulo. Informa; no bloquea la lectura ni pide confirmación.</p></div>
+    <div class="note deny"><p class="nt"><span class="np">✕</span>Lo que estas maquetas no afirman</p><p class="nb">Que los másters existan hoy. <code>MEDIA_CATALOG_DEFINITION ≠ MEDIA_ASSET_EXISTENCE ≠ RUNTIME_PLAYABILITY</code>. Todo medio va marcado como maqueta.</p></div>
+  </div></div>
+  <div class="note-block" data-for="s11"><h4>Sistema · cómo se usa</h4><div class="note-grid">
+    <div class="note"><p class="nt"><span class="np">1</span>Un chip por estado</p><p class="nb">La rama, el subformato y la experiencia comparten vocabulario. Un estado nuevo entra al sistema o no entra.</p></div>
+    <div class="note"><p class="nt"><span class="np">2</span>Tokens</p><p class="nb">Warm / sage / lavender y Geist, sin colores nuevos. Rojo solo en error real.</p></div>
+    <div class="note deny"><p class="nt"><span class="np">✕</span>Fuera del sistema</p><p class="nb">Insignias, medallas, confetti, rachas, ranking y cualquier gráfico de tiempo o atención.</p></div>
+  </div></div>
+</div>
+
+<script>
+(function(){
+  var frame=document.getElementById('frame'),tabs=document.getElementById('tabs'),
+      stateseg=document.getElementById('stateseg'),notes=document.getElementById('notes'),
+      bptag=document.getElementById('bptag'),wrap=document.getElementById('framewrap'),
+      screens=[].slice.call(document.querySelectorAll('.screen')),cur=screens[0],
+      dims={desktop:[1365,900],tablet:[1024,768],mobile:[390,844]},bp='desktop',notesOn=true;
+
+  screens.forEach(function(s,i){
+    var b=document.createElement('button');
+    b.innerHTML='<span class="num">'+(i+1)+'</span>'+s.dataset.title;
+    if(i===0)b.className='on';
+    b.onclick=function(){select(s,b)};
+    tabs.appendChild(b);
+  });
+
+  function buildStates(s){
+    stateseg.innerHTML='';
+    var sts=[].slice.call(s.querySelectorAll(':scope > .state'));
+    sts.forEach(function(st,i){
+      var b=document.createElement('button');
+      b.textContent=st.dataset.state;
+      if(st.classList.contains('on'))b.className='on';
+      b.onclick=function(){
+        sts.forEach(function(x){x.classList.remove('on');x.style.display='none'});
+        [].slice.call(stateseg.children).forEach(function(x){x.classList.remove('on')});
+        st.classList.add('on');st.style.display='flex';b.classList.add('on');
+      };
+      stateseg.appendChild(b);
+    });
+    stateseg.style.display=sts.length>1?'':'none';
+    document.getElementById('statelabel').style.display=sts.length>1?'':'none';
+    sts.forEach(function(st){st.style.display=st.classList.contains('on')?'flex':'none'});
+  }
+
+  function select(s,b){
+    screens.forEach(function(x){x.classList.remove('on')});
+    [].slice.call(tabs.children).forEach(function(x){x.classList.remove('on')});
+    s.classList.add('on');b.classList.add('on');cur=s;
+    buildStates(s);syncNotes();
+    var sc=s.querySelector('.scroller');if(sc)sc.scrollTop=0;
+  }
+
+  function syncNotes(){
+    [].slice.call(notes.children).forEach(function(n){
+      n.classList.toggle('on',notesOn&&n.dataset.for===cur.id);
+    });
+  }
+
+  document.getElementById('bpseg').onclick=function(e){
+    var b=e.target.closest('button');if(!b)return;
+    [].slice.call(this.children).forEach(function(x){x.classList.remove('on')});
+    b.classList.add('on');bp=b.dataset.bp;frame.dataset.bp=bp;
+    bptag.textContent=bp.toUpperCase()+' · '+dims[bp][0]+' × '+dims[bp][1];
+    fit();
+  };
+  document.getElementById('noteseg').onclick=function(e){
+    var b=e.target.closest('button');if(!b)return;
+    notesOn=!notesOn;b.classList.toggle('on',notesOn);syncNotes();
+  };
+
+  function fit(){
+    var avail=window.innerWidth-72,w=dims[bp][0],s=Math.min(1,avail/w);
+    wrap.style.transform='scale('+s+')';
+    wrap.style.height=(dims[bp][1]*s+40)+'px';
+    wrap.style.width=w+'px';
+  }
+  window.addEventListener('resize',fit);
+  buildStates(cur);syncNotes();fit();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+{
+  "capturedFrom": {
+    "entryFile": "Book Experience V2.html",
+    "prototypeSourceSha256": "7805b000e44af0bc2cf3be418208ebfdf98f2e10d3e055f4af6ecdacebefd797"
+  },
+  "method": "headless Chrome via CDP; clip = the prototype's device frame only (no browser chrome, no DevTools); format webp q92; deviceScaleFactor 2",
+  "screenshots": [
+    {
+      "file": "01-chapter-home-desktop.webp",
+      "screen": "Chapter Home",
+      "state": "Con datos",
+      "viewport": "1365x900",
+      "sizeBytes": 71106,
+      "sha256": "903d023b66abaa91477387eec5f10d17d5d5778ec6b5a3e346c71f302988eacd"
+    },
+    {
+      "file": "02-reader-desktop.webp",
+      "screen": "Reader",
+      "state": "Con datos",
+      "viewport": "1365x900",
+      "sizeBytes": 194224,
+      "sha256": "7a2feb9914dc5bf75bb6005fa8d41ec0c91a3606da9bf4379891586e99f11e21"
+    },
+    {
+      "file": "03-audiobook-desktop.webp",
+      "screen": "Escuchar",
+      "state": "En curso",
+      "viewport": "1365x900",
+      "sizeBytes": 62726,
+      "sha256": "a7e79df7e3f7e959b948c63457cdada2e7b24694209bb9e8ca5bd177b9553f62"
+    },
+    {
+      "file": "04-podcast-desktop.webp",
+      "screen": "Podcast",
+      "state": "Con datos",
+      "viewport": "1365x900",
+      "sizeBytes": 81080,
+      "sha256": "d05ad25d43177dd03fe2b989fcd8ae7c4880a5993bfdb6770b39cfce1d5b39c4"
+    },
+    {
+      "file": "05-video-desktop.webp",
+      "screen": "Ver",
+      "state": "Con datos",
+      "viewport": "1365x900",
+      "sizeBytes": 51528,
+      "sha256": "af27c83cb41b1bc928017f64be1d071e8835f3c2674d08cbab4229f2294a22aa"
+    },
+    {
+      "file": "06-guided-list-desktop.webp",
+      "screen": "Experiencias",
+      "state": "4 experiencias",
+      "viewport": "1365x900",
+      "sizeBytes": 76862,
+      "sha256": "96a17020194afe95649990ab547ee5de79313d6dd76aca4a8a8ca5600c35a8bf"
+    },
+    {
+      "file": "07-experience-player-desktop.webp",
+      "screen": "Experience Player",
+      "state": "CONTENT · pasaje",
+      "viewport": "1365x900",
+      "sizeBytes": 75032,
+      "sha256": "ba7f2f7c2c6e7436529330304a8b3b6a2f05ef9a25a04c07e9275bf3e1d036ab"
+    },
+    {
+      "file": "08-completion-summary-desktop.webp",
+      "screen": "Cierre",
+      "state": "Con oferta",
+      "viewport": "1365x900",
+      "sizeBytes": 63382,
+      "sha256": "23c46ab8ecdd52943a1c3832aa370814a76401dc676caae70fae140a15b66df1"
+    },
+    {
+      "file": "09-emotional-map-desktop.webp",
+      "screen": "Tu mapa",
+      "state": "Con datos",
+      "viewport": "1365x900",
+      "sizeBytes": 102556,
+      "sha256": "296423113889d366989df2fa16f44d7327d13f7642710502e1450631aed4711b"
+    },
+    {
+      "file": "10-chapter-home-mobile.webp",
+      "screen": "Chapter Home",
+      "state": "Con datos",
+      "viewport": "390x844",
+      "sizeBytes": 62254,
+      "sha256": "b106163f29037f404071f0beda9dfe11103ed46bfcb6f87e0d090e1efec8aade"
+    },
+    {
+      "file": "11-experience-player-mobile.webp",
+      "screen": "Experience Player",
+      "state": "CONTENT · pasaje",
+      "viewport": "390x844",
+      "sizeBytes": 68320,
+      "sha256": "458c1d04bb5007b9a7f65a129c25e65feab3b8b2a11c2ddf020bb92ffb320440"
+    },
+    {
+      "file": "12-emotional-map-mobile.webp",
+      "screen": "Tu mapa",
+      "state": "Con datos",
+      "viewport": "390x844",
+      "sizeBytes": 45418,
+      "sha256": "98fdfa1cf3e4d3732446c099a8e10cf3caee963f066c1f71d264d67be8d3ec56"
+    }
+  ]
+}

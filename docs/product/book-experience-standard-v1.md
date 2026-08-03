@@ -1,7 +1,7 @@
 # Book Experience Standard V1
 
 ```
-BOOK_EXPERIENCE_STANDARD_VERSION=1.0
+BOOK_EXPERIENCE_STANDARD_VERSION=1.1
 STATUS=APPROVED_FOR_IMPLEMENTATION
 AUTHORIZED_BY_JORGE=true
 LAST_UPDATED=2026-08-03
@@ -79,13 +79,28 @@ Tres estados, y solo tres.
   porque eso presentaría una definición rota como si fuera una decisión
   editorial.
 
-> **Nota de implementación honesta.** El manifest actual
+> **Nota de implementación honesta.** El manifest
 > (`ChapterMediaSummary.availability`) colapsa dos estados del servidor en uno:
 > `COMING_SOON` significa tanto «borrador anunciado» como «publicado sin
-> fuente». El view model web expresa los dos por separado y el adaptador del
-> manifest documenta lo que hoy puede y no puede distinguir. Para la persona el
+> activo». El view model web expresa los dos por separado y el adaptador del
+> manifest documenta lo que puede y no puede distinguir. Para la persona el
 > resultado es idéntico —no reproduce, no navega—; la diferencia importa cuando
 > haya que diagnosticar por qué.
+>
+> Lo que **sí** distingue el servidor es si el activo existe. Un audiolibro con
+> `source: CHAPTER_AUDIO` apunta a la tabla de audio del capítulo, no a un
+> objeto que este catálogo posea, así que `getManifest` resuelve el capítulo y
+> mira si hay al menos una fila `Audio`:
+>
+> ```
+> CHAPTER_AUDIO_WITH_ROW=AVAILABLE
+> CHAPTER_AUDIO_WITHOUT_ROW=COMING_SOON
+> DRAFT_VIDEO=COMING_SOON
+> MANIFEST_SIGNS_URLS=false
+> ```
+>
+> Es una comprobación de existencia, no una firma ni una petición al proveedor:
+> el manifest sigue sin llevar ninguna URL.
 
 ---
 
@@ -152,11 +167,22 @@ PLAYABLE_PODCAST_EPISODE_COUNT>=1
 El podcast **no debe ser una copia del audiolibro**. El audiolibro narra el
 capítulo; el podcast lo conversa.
 
-> **Alcance actual.** El estándar y el view model ya gobiernan el podcast, y el
-> prototipo lo muestra. El lector todavía **no** tiene una superficie de podcast
-> a la que navegar, así que no se añade una pestaña: una pestaña que lleva a
-> ninguna parte es exactamente el problema que este documento corrige. La
-> superficie es trabajo posterior.
+> **Alcance actual.**
+>
+> ```
+> PODCAST_STANDARD_DOCUMENTED=true
+> PODCAST_FIRST_CLASS_READER_MODE=false
+> PODCAST_INTERNAL_SURFACE_GATED=true
+> ```
+>
+> El podcast **no** es una pestaña de primer nivel del lector: una pestaña que
+> lleva a ninguna parte es exactamente el problema que este documento corrige.
+> Donde sí vive es dentro de Escuchar, como subformato junto a Audiolibro, y
+> ahí está gobernado por el mismo view model: si el episodio no existe, la
+> opción aparece deshabilitada con «Próximamente», no se selecciona al
+> pulsarla, no monta panel y **no pide URL firmada**. Cuando ninguno de los dos
+> subformatos es reproducible, se elige el primero que sí lo sea; si no hay
+> ninguno, la superficie falla cerrada.
 
 ---
 
@@ -313,19 +339,48 @@ del servidor (GR-4).
   controles que parezcan reproducir y no monta la superficie de medios — así
   que **no hay llamada de reproducción**. Aparece deshabilitado con
   «Próximamente» solo cuando el catálogo lo anuncia; si no, se oculta.
+- El lector distingue lo que la persona **pidió** de lo que la superficie
+  **puede darle**. Se renderiza siempre lo segundo, así que no existe ni un
+  frame —tampoco durante la petición del manifest— con un modo vacío en
+  pantalla:
+
+  ```
+  MEDIA_SURFACE_MOUNTS_ONLY_WHEN_PLAYABLE=true
+  DISABLED_MODE_NEVER_MOUNTS_MEDIA=true
+  STORED_PREFERENCE_RESET_WHEN_MODE_GONE=true
+  MANIFEST_IS_SCOPED_TO_ITS_CHAPTER=true
+  ```
+
 - Un modo deshabilitado que estuviera **guardado como preferencia** vuelve a
-  Libro, pero solo una vez que el manifest respondió: una petición en vuelo no
-  es motivo para descartar la elección de alguien.
-- **Experiencia guiada**: conserva íntegro su runtime. Solo cambia la etiqueta
-  visible y se añade el badge de alcance.
+  Libro, y la preferencia guardada se limpia — pero solo una vez que el
+  manifest respondió: una petición en vuelo no es motivo para descartar la
+  elección de alguien.
+- El manifest se guarda **junto a la pregunta que responde**, así que la
+  respuesta de un capítulo nunca decide las pestañas del siguiente.
+- **Experiencia guiada**: conserva íntegro su runtime
+  (`GUIDE_LIFECYCLE_CHANGED=false`). La pestaña se muestra **solo** cuando el
+  estándar declara el modo visible, que para una guía significa PUBLISHED:
+  discovery respondida, pin válido, bundle y anchor resueltos. Mientras eso
+  esté pendiente —y en cada capítulo que sencillamente no tiene guía— no hay
+  pestaña, porque una pestaña es una oferta. Si el contexto deja de ofrecerla
+  con el panel abierto, el panel se cierra: no inicia ni cancela ninguna
+  sesión.
 
 ---
 
 ## 12. Change Log
 
-| Fecha      | Versión | Cambio                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ---------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-03 | 1.0     | Estándar inicial aprobado por Jorge tras la demostración con David Jaramillo. Define los cinco modos y su contenido primario, los tres estados de superficie, el gating real por activo reproducible, la clasificación de la Guide actual como microguía y el roadmap de una experiencia guiada con varias microguías. Sin CMS, sin migración, sin schema, sin endpoints. El prototipo visual vive en `/prototipos/book-experience` y no es accesible en producción. |
+| Fecha      | Versión | Cambio                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-03 | 1.1     | Gating real y evidencia visual. El manifest deja de declarar `AVAILABLE` un audiolibro `CHAPTER_AUDIO` sin fila `Audio`. El lector separa modo pedido de modo efectivo, no monta medios mientras el manifest está en vuelo y limpia la preferencia guardada cuando el modo no existe. Los subformatos de Escuchar (Audiolibro · Podcast) quedan gateados por el mismo view model. La pestaña de experiencia guiada solo aparece cuando la guía está lista. La portada de cada guía declara su alcance («1 idea del capítulo»). Tres capturas del prototipo con manifiesto y sumas. |
+| 2026-08-03 | 1.0     | Estándar inicial aprobado por Jorge tras la demostración con David Jaramillo. Define los cinco modos y su contenido primario, los tres estados de superficie, el gating real por activo reproducible, la clasificación de la Guide actual como microguía y el roadmap de una experiencia guiada con varias microguías. Sin CMS, sin migración, sin schema, sin endpoints. El prototipo visual vive en `/prototipos/book-experience` y no es accesible en producción.                                                                                                               |
+
+### Evidencia visual
+
+`docs/product/assets/book-experience-standard-v1/` — tres capturas del
+prototipo interno, tomadas de un solo commit, con `MANIFEST.json` y
+`SHA256SUMS`. Cada una es una URL: el prototipo acepta `?mode=<modo>` para que
+la captura sea reproducible sin instrucciones de clic.
 
 Toda modificación futura debe actualizar `BOOK_EXPERIENCE_STANDARD_VERSION`,
 `LAST_UPDATED` y este Change Log.

@@ -15,6 +15,13 @@ import {
   useChapterMediaManifest,
   type MediaFetchError,
 } from "./use-chapter-media";
+import {
+  disabledNotice,
+  isModeEnabled,
+  isModeVisible,
+  mediaModeFromManifest,
+  type BookExperienceModeView,
+} from "../book-experience";
 
 /**
  * GR-2 — Escuchar: two formats behind one entry point.
@@ -27,6 +34,12 @@ import {
  *     in R2 rather than in the chapter's `Audio` row.
  *
  * A format with no master says «En producción». Nothing here fakes audio.
+ *
+ * Book Experience Standard V1 pushes that one step earlier: the two subformat
+ * tabs are gated by the SAME view model the reader's mode strip uses, so a
+ * format with nothing playable is disabled before it is picked, mounts no
+ * panel, and therefore asks for no signed URL. Choosing a format is an offer;
+ * we only make offers we can keep.
  */
 export function ChapterMediaListen({
   apiBase,
@@ -42,7 +55,7 @@ export function ChapterMediaListen({
   /** From the chapter payload: whether the `Audio` row exists at all. */
   audioAvailable: boolean;
 }) {
-  const [tab, setTab] = useState<"audiobook" | "podcast">("audiobook");
+  const [requestedTab, setRequestedTab] = useState<SubformatKey>("audiobook");
   const { items, error } = useChapterMediaManifest({
     apiBase,
     token,
@@ -54,6 +67,18 @@ export function ChapterMediaListen({
 
   const audiobook = items?.find((item) => item.kind === "AUDIOBOOK") ?? null;
   const podcast = items?.find((item) => item.kind === "PODCAST") ?? null;
+
+  const views: Record<SubformatKey, BookExperienceModeView> = {
+    audiobook: mediaModeFromManifest("AUDIOBOOK", items),
+    podcast: mediaModeFromManifest("PODCAST", items),
+  };
+
+  // What is shown is the request only while the request is playable; otherwise
+  // the first subformat that is. Deriving it means an unplayable format cannot
+  // be on screen even for the render in which it was picked.
+  const firstEnabled =
+    SUBFORMATS.find((s) => isModeEnabled(views[s.key]))?.key ?? null;
+  const tab = isModeEnabled(views[requestedTab]) ? requestedTab : firstEnabled;
 
   return (
     <div
@@ -73,16 +98,16 @@ export function ChapterMediaListen({
         role="tablist"
         aria-label="Formato de audio"
       >
-        <MediaTab
-          label="Audiolibro"
-          selected={tab === "audiobook"}
-          onSelect={() => setTab("audiobook")}
-        />
-        <MediaTab
-          label="Podcast"
-          selected={tab === "podcast"}
-          onSelect={() => setTab("podcast")}
-        />
+        {SUBFORMATS.filter((s) => isModeVisible(views[s.key])).map((s) => (
+          <MediaTab
+            key={s.key}
+            label={s.label}
+            notice={disabledNotice(views[s.key])}
+            enabled={isModeEnabled(views[s.key])}
+            selected={tab === s.key}
+            onSelect={() => setRequestedTab(s.key)}
+          />
+        ))}
       </div>
 
       {tab === "audiobook" ? (
@@ -113,7 +138,7 @@ export function ChapterMediaListen({
             hint="Este capítulo aún no tiene narración disponible. Puedes cambiar a Leer mientras tanto."
           />
         )
-      ) : (
+      ) : tab === "podcast" ? (
         <PodcastPanel
           item={podcast}
           manifestError={error}
@@ -123,17 +148,36 @@ export function ChapterMediaListen({
           retryKey={failedKey}
           onRetry={(mediaKey) => void report(mediaKey)}
         />
+      ) : (
+        // Nothing here can play. Fail closed rather than mount a panel that
+        // would ask for a signed URL it will not get.
+        <ComingSoonNotice
+          icon="🎧"
+          title="Audio en producción"
+          hint="Este capítulo aún no tiene narración disponible. Puedes cambiar a Leer mientras tanto."
+        />
       )}
     </div>
   );
 }
 
+type SubformatKey = "audiobook" | "podcast";
+
+const SUBFORMATS: readonly { key: SubformatKey; label: string }[] = [
+  { key: "audiobook", label: "Audiolibro" },
+  { key: "podcast", label: "Podcast" },
+];
+
 function MediaTab({
   label,
+  notice,
+  enabled,
   selected,
   onSelect,
 }: {
   label: string;
+  notice: string | null;
+  enabled: boolean;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -141,8 +185,15 @@ function MediaTab({
     <button
       type="button"
       role="tab"
+      data-testid={`media-subformat-${label.toLowerCase()}`}
+      data-mode-state={enabled ? "PUBLISHED" : "COMING_SOON"}
       aria-selected={selected}
-      onClick={onSelect}
+      aria-disabled={enabled ? undefined : true}
+      onClick={() => {
+        // A disabled option is inert: no selection, no panel, no request.
+        if (!enabled) return;
+        onSelect();
+      }}
       className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
       style={
         selected
@@ -158,6 +209,11 @@ function MediaTab({
       }
     >
       {label}
+      {notice ? (
+        <span className="ml-1.5 text-[11px] font-medium opacity-90">
+          · {notice}
+        </span>
+      ) : null}
     </button>
   );
 }

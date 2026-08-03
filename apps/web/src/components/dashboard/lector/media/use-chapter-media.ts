@@ -41,9 +41,25 @@ export function useChapterMediaManifest(input: {
   enabled: boolean;
 }) {
   const { apiBase, token, bookId, chapterOrder, enabled } = input;
-  const [items, setItems] = useState<ChapterMediaSummary[] | null>(null);
-  const [error, setError] = useState<MediaFetchError | null>(null);
   const requested = useRef(false);
+  const [answer, setAnswer] = useState<{
+    key: string;
+    items: ChapterMediaSummary[] | null;
+    error: MediaFetchError | null;
+  } | null>(null);
+
+  // The answer is stored WITH the question it answers.
+  //
+  // Holding `items` on its own lets the previous chapter's manifest outlive the
+  // chapter it described: for at least one render the reader would gate the new
+  // chapter's tabs on the old chapter's answer, enabling a format that does not
+  // exist here or hiding one that does. Deriving what we expose from a key
+  // comparison makes that state unrepresentable rather than merely cleaned up
+  // afterwards, and it needs no reset effect to be correct.
+  const key = `${apiBase} ${token} ${bookId} ${chapterOrder}`;
+  const current = answer !== null && answer.key === key ? answer : null;
+  const items = current?.items ?? null;
+  const error = current?.error ?? null;
 
   useEffect(() => {
     if (!enabled || requested.current) return;
@@ -58,14 +74,14 @@ export function useChapterMediaManifest(input: {
         );
         if (cancelled) return;
         if (!res.ok) {
-          setError(classify(res.status));
+          setAnswer({ key, items: null, error: classify(res.status) });
           return;
         }
         const body = (await res.json()) as ChapterMediaManifestResponse;
         if (cancelled) return;
-        setItems(body.items);
+        setAnswer({ key, items: body.items, error: null });
       } catch {
-        if (!cancelled) setError("other");
+        if (!cancelled) setAnswer({ key, items: null, error: "other" });
       }
     })();
 
@@ -80,7 +96,7 @@ export function useChapterMediaManifest(input: {
       // producción» no matter what the server said.
       requested.current = false;
     };
-  }, [enabled, apiBase, token, bookId, chapterOrder]);
+  }, [enabled, apiBase, token, bookId, chapterOrder, key]);
 
   return { items, error };
 }

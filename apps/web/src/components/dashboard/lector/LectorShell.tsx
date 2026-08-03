@@ -48,10 +48,6 @@ import {
 } from "../guide/ReaderGuidePanel";
 import { useMoodCheckin } from "../shell/mood-checkin-context";
 import {
-  READER_GUIDE_LOADING,
-  READER_GUIDE_UNAVAILABLE,
-} from "../guide/guide-reader-copy";
-import {
   bookMode,
   disabledNotice,
   guidedMode,
@@ -261,19 +257,19 @@ export function LectorShell({
   // React reported a text-content mismatch, threw away the server markup for
   // the whole document, and in development put an error indicator on screen.
   // So the stored preference is adopted in an effect, after hydration.
-  const [mode, setMode] = useState<ReaderMode>("leer");
+  const [requestedMode, setRequestedMode] = useState<ReaderMode>("leer");
   useEffect(() => {
     const stored = storedToMode(
       window.localStorage.getItem("psico:lector:mode"),
     );
-    if (stored !== "leer") setMode(stored);
+    if (stored !== "leer") setRequestedMode(stored);
   }, []);
-  function changeMode(next: ReaderMode) {
-    setMode(next);
+  const changeMode = useCallback((next: ReaderMode) => {
+    setRequestedMode(next);
     if (typeof window !== "undefined") {
       window.localStorage.setItem("psico:lector:mode", modeToStored(next));
     }
-  }
+  }, []);
 
   // Text selection state for the popover.
   const [selection, setSelection] = useState<{
@@ -454,24 +450,61 @@ export function LectorShell({
   );
 
   /**
-   * A mode the standard disabled must not stay selected.
+   * What the reader ASKED for and what the chapter can actually give them.
    *
-   * `ReaderMode` is restored from `localStorage`, so somebody who last read
-   * this book in Escuchar comes back into a tab that may no longer have an
-   * asset — on a different chapter, or after an editorial change. Falling back
-   * to Leer is the fail-closed answer: the book is the one mode that is always
-   * there.
+   * Two different questions, and collapsing them into one state was the bug.
+   * `requestedMode` is restored from `localStorage`, so it can name a format
+   * this chapter does not have — or one whose manifest has not arrived yet.
+   * Rendering from it directly mounted the media surface over an empty mode
+   * and made the tab look selected while nothing could play.
+   *
+   * `effectiveMode` is what the UI renders: the request, but only while the
+   * standard says that mode is open. Everything else falls back to Leer, the
+   * one mode that is always there. Deriving it means there is no window — not
+   * even one frame, not even during the manifest request — in which a mode
+   * with nothing behind it is on screen.
+   */
+  const effectiveMode: ReaderMode = isModeEnabled(modeViews[requestedMode])
+    ? requestedMode
+    : "leer";
+
+  /**
+   * If the guided mode stops being offered, the panel cannot stay open.
+   *
+   * The reader can be inside the panel when the context changes underneath
+   * them: a new chapter, a discovery answer that says this passage has no
+   * guide, a pin that no longer resolves. Leaving the panel mounted would show
+   * a cover for a guide the server has not confirmed.
+   *
+   * Closing is all this does. It starts nothing and cancels nothing: a Guide
+   * session is created only by the cover's own button and ended only by the
+   * reader, and an unmount is not a decision about their progress
+   * (GUIDE_LIFECYCLE_CHANGED=false).
    */
   useEffect(() => {
-    if (mode === "leer") return;
+    if (!guideOpen) return;
+    if (isModeVisible(guidedView)) return;
+    setGuideOpen(false);
+  }, [guideOpen, guidedView]);
+
+  /**
+   * A mode the standard disabled must not stay REMEMBERED either.
+   *
+   * The fallback above already protects the render. This clears the stored
+   * preference so the next chapter, and the next visit, do not keep asking for
+   * a format that is gone — and it persists through `changeMode` so the reset
+   * is not silently undone by the value still sitting in `localStorage`.
+   */
+  useEffect(() => {
+    if (requestedMode === "leer") return;
     // Only once the manifest has actually ANSWERED. Resetting on a null
     // manifest would destroy a saved preference for a chapter that does have
     // the format — the tab is correctly disabled while we wait, but the
     // reader's choice is not ours to discard over a request in flight.
     if (mediaItems === null) return;
-    if (isModeEnabled(modeViews[mode])) return;
-    setMode("leer");
-  }, [mode, modeViews, mediaItems]);
+    if (isModeEnabled(modeViews[requestedMode])) return;
+    changeMode("leer");
+  }, [requestedMode, modeViews, mediaItems, changeMode]);
 
   // The tint is a hint, not a mark: it clears itself.
   useEffect(() => {
@@ -899,7 +932,7 @@ export function LectorShell({
                 want a quick listen without switching the whole reading
                 experience. In Modo Guía the audio lives in the banner
                 below, so we hide the pill to avoid duplicating it. */}
-            {chapter.audioAvailable && mode === "leer" ? (
+            {chapter.audioAvailable && effectiveMode === "leer" ? (
               <AudioBar
                 apiBase={apiBase}
                 token={token}
@@ -969,7 +1002,7 @@ export function LectorShell({
             const view: BookExperienceModeView = modeViews[value];
             const enabled = isModeEnabled(view);
             const notice = disabledNotice(view);
-            const selected = !guideOpen && mode === value;
+            const selected = !guideOpen && effectiveMode === value;
             return (
               <button
                 key={value}
@@ -1028,65 +1061,50 @@ export function LectorShell({
         {/* GR-3 — the fourth modality. It is a SURFACE: picking it opens the
             panel over the chapter and leaves `ReaderMode` (and therefore the
             stored preference) exactly where it was. `aria-selected` tracks
-            whether the panel is open, which is what the reader sees. */}
-        <button
-          type="button"
-          role="tab"
-          ref={guideTabRef}
-          aria-selected={guideOpen}
-          aria-controls={READER_GUIDE_PANEL_ID}
-          data-testid="reader-mode-guiada"
-          data-mode-state={guidedView.state}
-          onClick={() => setGuideOpen((v) => !v)}
-          className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
-          style={
-            guideOpen
-              ? {
-                  background: "var(--reader-bg, var(--color-warm-50))",
-                  color: "var(--reader-text, var(--color-warm-900))",
-                  boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
-                }
-              : {
-                  background: "transparent",
-                  color: "var(--reader-muted, var(--color-warm-600))",
-                }
-          }
-        >
-          {guidedView.label}
-        </button>
+            whether the panel is open, which is what the reader sees.
+
+            It is rendered only once the standard makes it visible, which for a
+            guide means PUBLISHED: discovery answered, pin parsed, bundle and
+            anchor resolved. While any of that is pending — and on every chapter
+            that simply has no guide — there is no tab, because a tab is an
+            offer and we cannot yet make one. */}
+        {isModeVisible(guidedView) ? (
+          <button
+            type="button"
+            role="tab"
+            ref={guideTabRef}
+            aria-selected={guideOpen}
+            aria-controls={READER_GUIDE_PANEL_ID}
+            data-testid="reader-mode-guiada"
+            data-mode-state={guidedView.state}
+            onClick={() => setGuideOpen((v) => !v)}
+            className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
+            style={
+              guideOpen
+                ? {
+                    background: "var(--reader-bg, var(--color-warm-50))",
+                    color: "var(--reader-text, var(--color-warm-900))",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                  }
+                : {
+                    background: "transparent",
+                    color: "var(--reader-muted, var(--color-warm-600))",
+                  }
+            }
+          >
+            {guidedView.label}
+          </button>
+        ) : null}
       </div>
 
-      {/* GR-4 — while discovery is in flight the reader is told THAT, not that
-          there is no guide. Both states render text and nothing guide-shaped:
-          no cover, no «Empezar», and above all no other book's guide standing
-          in until the answer arrives. */}
-      {guideOpen && !guideRuntimeReady && discovery.status === "loading" ? (
-        <p
-          role="status"
-          data-testid="reader-guide-loading"
-          className="mx-auto mt-3 max-w-3xl px-4 text-[13px]"
-          style={{ color: "var(--reader-muted, var(--color-warm-600))" }}
-        >
-          {READER_GUIDE_LOADING}
-        </p>
-      ) : null}
-
-      {/* The pilot gate is the server's call and it is opaque: when the guide
-          is not on for this reader we say so plainly and never explain why.
-          The same calm sentence covers `unavailable` and `error` — the reader
-          does not need our diagnosis, and the difference is the server's to
-          know. */}
-      {guideOpen && !guideRuntimeReady && discovery.status !== "loading" ? (
-        <p
-          role="status"
-          data-testid="reader-guide-unavailable"
-          className="mx-auto mt-3 max-w-3xl px-4 text-[13px]"
-          style={{ color: "var(--reader-muted, var(--color-warm-600))" }}
-        >
-          {READER_GUIDE_UNAVAILABLE}
-        </p>
-      ) : null}
-
+      {/* GR-4 — the two «not yet» panels that used to live here are gone, and
+          their absence is the point. The tab above is now rendered only when
+          the standard makes the guided mode visible, which for a guide means
+          discovery answered, pin parsed, bundle and anchor resolved. There is
+          therefore no way to open this surface while the answer is pending or
+          missing, so a «buscando…» or «no disponible» panel could never be
+          reached — and unreachable reassurance is worse than none: it reads
+          like a state the product has when it does not. */}
       {/* GR-4 — PIN_CHANGE_REQUIRES_COMPONENT_REMOUNT=true.
           The `key` is the pin, always. A guide run holds a session, a scene, a
           recall verdict and a timer that mean nothing under another pin; giving
@@ -1123,7 +1141,7 @@ export function LectorShell({
         />
       ) : null}
 
-      {mode === "escuchar" ? (
+      {effectiveMode === "escuchar" ? (
         <ChapterMediaListen
           apiBase={apiBase}
           token={token}
@@ -1133,7 +1151,7 @@ export function LectorShell({
         />
       ) : null}
 
-      {mode === "ver" ? (
+      {effectiveMode === "ver" ? (
         <ChapterMediaWatch
           apiBase={apiBase}
           token={token}

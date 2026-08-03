@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * Book Experience Standard V1 — prototipo visual interno.
@@ -327,6 +327,23 @@ const VIEWS: Record<ModeKey, () => React.JSX.Element> = {
 
 export function BookExperiencePrototype() {
   const [mode, setMode] = useState<ModeKey>("book");
+
+  /**
+   * `?mode=video` opens straight on that view.
+   *
+   * The reason is documentation, not convenience: the screenshots in
+   * `docs/product/assets/book-experience-standard-v1/` have to be reproducible
+   * at a given commit by anybody, and «click the third tab» is not a
+   * reproducible instruction. The query string makes each capture a URL.
+   *
+   * It is read after mount rather than during render so the first client render
+   * still matches the server's markup.
+   */
+  useEffect(() => {
+    const asked = new URLSearchParams(window.location.search).get("mode");
+    if (MODES.some((m) => m.key === asked)) setMode(asked as ModeKey);
+  }, []);
+
   const View = VIEWS[mode];
 
   return (

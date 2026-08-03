@@ -99,7 +99,7 @@ export class ChapterMediaService {
   ): Promise<ChapterMediaManifestResponse> {
     const book = await this.prisma.book.findFirst({
       where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
-      select: { slug: true },
+      select: { id: true, slug: true },
     });
     if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
 
@@ -111,9 +111,27 @@ export class ChapterMediaService {
       bookSlug: book.slug,
     });
 
-    const items = this.registry
-      .forChapter(book.slug, chapterOrder)
-      .map(toSummary);
+    const definitions = this.registry.forChapter(book.slug, chapterOrder);
+
+    // A `CHAPTER_AUDIO` source is a POINTER into the reader's own audio table,
+    // not an object this catalog owns. The catalog can declare the audiobook
+    // published; only the database knows whether the master was ever ingested.
+    // Reading that one fact is the difference between «Escuchar» opening a
+    // player and «Escuchar» opening an empty surface.
+    //
+    // The query runs only when a definition actually depends on it, and it is
+    // an existence check — the manifest still signs nothing and still asks no
+    // remote provider anything.
+    const runtime: ChapterMediaRuntimeFacts = {
+      chapterAudioPresent: definitions.some(dependsOnChapterAudio)
+        ? (await this.prisma.audio.findFirst({
+            where: { chapter: { bookId: book.id, order: chapterOrder } },
+            select: { id: true },
+          })) !== null
+        : false,
+    };
+
+    const items = definitions.map((def) => toSummary(def, runtime));
 
     return { bookSlug: book.slug, chapterOrder, items };
   }
@@ -334,12 +352,50 @@ function expiresIn(seconds: number): string {
 }
 
 /**
+ * The runtime facts the catalog cannot know on its own.
+ *
+ * Deliberately not the definition and not the source: everything provider-
+ * shaped stays server-side. This carries one boolean per manifest request.
+ */
+export interface ChapterMediaRuntimeFacts {
+  /** The requested chapter has at least one `Audio` row. */
+  chapterAudioPresent: boolean;
+}
+
+/** Whether this definition's playability depends on the chapter audio table. */
+function dependsOnChapterAudio(def: ChapterMediaDefinition): boolean {
+  return def.status === "PUBLISHED" && def.source?.kind === "CHAPTER_AUDIO";
+}
+
+/**
+ * Does something actually play?
+ *
+ * `status === "PUBLISHED"` is an editorial claim and `source !== null` says the
+ * catalog knows WHERE the asset would live. Neither says the asset exists. For
+ * an R2 object or a Stream video the source IS the asset — the key or the uid
+ * only enters the catalog once the master is uploaded. For `CHAPTER_AUDIO` it
+ * is a foreign key into a table that may well be empty, so the row decides.
+ */
+function isPlayable(
+  def: ChapterMediaDefinition,
+  runtime: ChapterMediaRuntimeFacts,
+): boolean {
+  if (def.status !== "PUBLISHED") return false;
+  if (def.source === null) return false;
+  if (def.source.kind === "CHAPTER_AUDIO") return runtime.chapterAudioPresent;
+  return true;
+}
+
+/**
  * The public projection. Every provider-shaped field of the definition —
  * `source`, `accessPolicy`, `posterObjectKey`, `transcriptObjectKey`,
  * `bookSlug`, `chapterOrder` — is dropped or reduced to a boolean here. That is
  * the whole reason this function exists instead of a spread.
  */
-export function toSummary(def: ChapterMediaDefinition): ChapterMediaSummary {
+export function toSummary(
+  def: ChapterMediaDefinition,
+  runtime: ChapterMediaRuntimeFacts,
+): ChapterMediaSummary {
   return {
     mediaKey: def.mediaKey,
     mediaVersion: def.mediaVersion,
@@ -347,10 +403,7 @@ export function toSummary(def: ChapterMediaDefinition): ChapterMediaSummary {
     title: def.title,
     description: def.description,
     durationSec: def.durationSec,
-    availability:
-      def.status === "PUBLISHED" && def.source !== null
-        ? "AVAILABLE"
-        : "COMING_SOON",
+    availability: isPlayable(def, runtime) ? "AVAILABLE" : "COMING_SOON",
     hasTranscript: def.transcriptObjectKey !== null,
     hasCaptions: def.source?.kind === "CLOUDFLARE_STREAM",
     chapters: def.chapters.map((mark) => ({

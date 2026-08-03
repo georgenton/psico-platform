@@ -1,5 +1,12 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  renderHook,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import type {
   ContentUnitMarks,
@@ -7,6 +14,7 @@ import type {
   LectorChapterResponse,
 } from "@psico/types";
 import { LectorShell } from "./LectorShell";
+import { useChapterMediaManifest } from "./media/use-chapter-media";
 import { GuideAvailabilityProvider } from "../guide/guide-availability";
 import { GuideActorScopeProvider } from "../guide/guide-actor-scope";
 import type * as ApiClientModule from "@psico/api-client";
@@ -641,6 +649,164 @@ describe("LectorShell — reader mode is hydration-safe", () => {
   });
 });
 
+// ── Book Experience Standard V1 · the mode the reader gets ─────────────────
+
+/**
+ * `requestedMode` vs `effectiveMode`.
+ *
+ * The reader can ASK for a mode the chapter cannot give: a stored preference
+ * from another chapter, or one whose manifest has not arrived. What must never
+ * happen is that the ask alone mounts the media surface — that is how «Escuchar»
+ * came to open a screen with no audio in it.
+ */
+describe("LectorShell — modes are gated by what can actually play", () => {
+  function manifestWith(items: unknown[]) {
+    return async (input: RequestInfo | URL) => {
+      if (String(input).includes("/media")) {
+        return new Response(
+          JSON.stringify({
+            bookSlug: "emociones-en-construccion",
+            chapterOrder: 1,
+            items,
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 200 });
+    };
+  }
+
+  const comingSoon = {
+    mediaKey: "a1",
+    mediaVersion: 1,
+    kind: "AUDIOBOOK",
+    title: "Audiolibro",
+    description: "d",
+    durationSec: null,
+    availability: "COMING_SOON",
+    hasTranscript: true,
+    hasCaptions: false,
+    chapters: [],
+  };
+
+  it("MEDIA_SURFACE_MOUNTS_ONLY_WHEN_PLAYABLE=true — nothing mounts while the manifest is in flight", async () => {
+    window.localStorage.setItem("psico:lector:mode", "guia");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input: RequestInfo | URL) =>
+        String(input).includes("/media")
+          ? // Never settles: the reader must behave for the whole wait, not
+            // just after the answer.
+            new Promise<Response>(() => {})
+          : new Response("{}", { status: 200 }),
+      );
+
+    renderShell();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Leer is what is on screen, and the audio surface is nowhere.
+    expect(screen.getByRole("tab", { name: /Leer/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      screen.queryByTestId("reader-mode-escuchar"),
+    ).not.toBeInTheDocument();
+    expect(
+      fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/access")),
+    ).toHaveLength(0);
+    // …and the preference itself is untouched: a request in flight is not a
+    // reason to discard somebody's choice.
+    expect(window.localStorage.getItem("psico:lector:mode")).toBe("guia");
+  });
+
+  it("DISABLED_MODE_NEVER_MOUNTS_MEDIA=true — a coming-soon tab changes nothing when pressed", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(manifestWith([comingSoon]));
+
+    renderShell();
+    const tab = await screen.findByTestId("reader-mode-escuchar");
+    expect(tab).toHaveAttribute("data-mode-state", "COMING_SOON");
+    expect(tab).toHaveAttribute("aria-disabled", "true");
+
+    fireEvent.click(tab);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("tab", { name: /Leer/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(tab).toHaveAttribute("aria-selected", "false");
+    expect(
+      fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/access")),
+    ).toHaveLength(0);
+  });
+
+  it("STORED_PREFERENCE_RESET_WHEN_MODE_GONE=true — a saved mode this chapter lacks goes back to Leer", async () => {
+    // «guia» is the legacy stored value for Escuchar.
+    window.localStorage.setItem("psico:lector:mode", "guia");
+    vi.spyOn(globalThis, "fetch").mockImplementation(manifestWith([]));
+
+    renderShell();
+
+    await waitFor(() =>
+      expect(window.localStorage.getItem("psico:lector:mode")).toBe("libro"),
+    );
+    expect(screen.getByRole("tab", { name: /Leer/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      screen.queryByTestId("reader-mode-escuchar"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("MANIFEST_IS_SCOPED_TO_ITS_CHAPTER=true — the previous chapter's answer never gates the next one", async () => {
+    let served = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      served += 1;
+      return new Response(
+        JSON.stringify({
+          bookSlug: "emociones-en-construccion",
+          chapterOrder: 1,
+          items: [{ ...comingSoon, availability: "AVAILABLE" }],
+        }),
+        { status: 200 },
+      );
+    });
+
+    const { result, rerender } = renderHook(
+      ({ chapterOrder }) =>
+        useChapterMediaManifest({
+          apiBase: "https://api.example/api",
+          token: "t",
+          bookId: "book-1",
+          chapterOrder,
+          enabled: true,
+        }),
+      { initialProps: { chapterOrder: 1 } },
+    );
+
+    await waitFor(() => expect(result.current.items).not.toBeNull());
+    const before = served;
+
+    rerender({ chapterOrder: 2 });
+    // The instant the question changes, the old answer stops being exposed —
+    // not after the new request lands.
+    expect(result.current.items).toBeNull();
+    expect(result.current.error).toBeNull();
+
+    await waitFor(() => expect(served).toBeGreaterThan(before));
+    await waitFor(() => expect(result.current.items).not.toBeNull());
+  });
+});
+
 // ── GR-3 · the guided-reading surface ───────────────────────────────────────
 
 /**
@@ -701,38 +867,52 @@ describe("LectorShell — guided reading", () => {
     };
   }
 
-  it("with no locatable passage the guide says so and cannot start", async () => {
-    // The seeded chapter of the ordinary dev database looks exactly like this:
-    // real blocks, but not the ones this guide is about.
-    renderShell();
-    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+  /** Wait for the offer, then take it. Its existence is the readiness check. */
+  async function openGuide() {
+    fireEvent.click(await screen.findByTestId(GUIDE_TAB));
+  }
 
-    expect(
-      await screen.findByTestId("reader-guide-unavailable"),
-    ).toHaveTextContent("Lectura guiada no disponible por ahora.");
+  it("with no locatable passage there is no guided tab to press", async () => {
+    // The seeded chapter of the ordinary dev database looks exactly like this:
+    // real blocks, but not the ones this guide is about. Under the Book
+    // Experience Standard the mode is simply not offered — there is no button
+    // whose whole job is to open a panel that apologises.
+    // `renderShell` has no pilot gate around it, so the reader does not even
+    // ask — and with no answer there is nothing to offer.
+    renderShell();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getGuideDiscovery).not.toHaveBeenCalled();
+    expect(screen.queryByTestId(GUIDE_TAB)).not.toBeInTheDocument();
     expect(screen.queryByTestId("reader-guide-panel")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Empezar" }),
     ).not.toBeInTheDocument();
   });
 
-  it("the unavailable copy never names an internal mechanism", async () => {
+  it("says nothing about the internals of why a guide is missing", async () => {
     renderShell();
-    fireEvent.click(screen.getByTestId(GUIDE_TAB));
-    const text = (await screen.findByTestId("reader-guide-unavailable"))
-      .textContent!;
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const text = document.body.textContent!;
     for (const internal of [
       "blockKey",
       "blockVersionId",
       "ingest",
-      "seed",
       "Content Core",
+      "anchor",
     ]) {
       expect(text).not.toContain(internal);
     }
   });
 
-  it("only ONE tab is selected while the guide is open", () => {
+  it("only ONE tab is selected while the guide is open", async () => {
     renderWithGuide(unitWithAnchor());
     const selected = () =>
       screen.getAllByRole("tab").filter((t) => t.ariaSelected === "true");
@@ -740,7 +920,7 @@ describe("LectorShell — guided reading", () => {
     expect(selected()).toHaveLength(1);
     expect(selected()[0]).toHaveTextContent("Leer");
 
-    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    await openGuide();
     expect(selected()).toHaveLength(1);
     expect(selected()[0]).toBe(screen.getByTestId(GUIDE_TAB));
 
@@ -752,7 +932,7 @@ describe("LectorShell — guided reading", () => {
 
   it("the guide tab points at the panel it controls", async () => {
     renderWithGuide(unitWithAnchor());
-    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    await openGuide();
     const tab = screen.getByTestId(GUIDE_TAB);
     const panel = await screen.findByTestId("reader-guide-panel");
     expect(tab.getAttribute("aria-controls")).toBe(panel.id);
@@ -760,7 +940,7 @@ describe("LectorShell — guided reading", () => {
 
   it("Escape closes the panel", async () => {
     renderWithGuide(unitWithAnchor());
-    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    await openGuide();
     expect(await screen.findByTestId("reader-guide-panel")).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: "Escape" });
@@ -771,12 +951,12 @@ describe("LectorShell — guided reading", () => {
     );
   });
 
-  it("the open drawer reserves its width instead of covering the text", () => {
+  it("the open drawer reserves its width instead of covering the text", async () => {
     const { container } = renderWithGuide(unitWithAnchor());
     const root = container.firstElementChild as HTMLElement;
     expect(root.dataset.guideOpen).toBe("false");
 
-    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    await openGuide();
     expect(root.dataset.guideOpen).toBe("true");
     expect(root.className).toContain("reader-guide-open");
   });

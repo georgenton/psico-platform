@@ -1,0 +1,137 @@
+{
+  "capturedFrom": {
+    "entryFile": "index.html",
+    "prototypeSourceSha256": "da4213654d3df8ddaff473f1a48af0525a34a34242868408cb8575474154709d"
+  },
+  "method": "headless Chrome via CDP; clip = the prototype's device frame only (no browser chrome, no DevTools); webp q92; deviceScaleFactor 2",
+  "screenshots": [
+    {
+      "file": "01-chapter-home-desktop.webp",
+      "screen": "Chapter Home",
+      "state": "Con datos",
+      "viewport": "1365x900",
+      "sizeBytes": 71392,
+      "sha256": "00d2d17c6a9d4bb8b32b52cacd200ef281a2cfd2efec8d2389d716af7d35ca23"
+    },
+    {
+      "file": "02-reader-desktop.webp",
+      "screen": "Reader",
+      "state": "Con datos",
+      "viewport": "1365x900",
+      "sizeBytes": 192372,
+      "sha256": "8881cbcaeafbf15c3d788183da35f30af8314378748aeac18e0c092e4fd45131"
+    },
+    {
+      "file": "03-audiobook-desktop.webp",
+      "screen": "Escuchar",
+      "state": "En curso",
+      "viewport": "1365x900",
+      "sizeBytes": 62800,
+      "sha256": "001e8ffc6758a22fb6dd6d067e55293df18c12d496bb3d0e1cd1b6738492f626"
+    },
+    {
+      "file": "04-podcast-desktop.webp",
+      "screen": "Podcast",
+      "state": "Con datos",
+      "viewport": "1365x900",
+      "sizeBytes": 81098,
+      "sha256": "f36801f389153121051afed0c49c5c848bf90ef4dcb739ec71dd47e393aab0c3"
+    },
+    {
+      "file": "05-video-desktop.webp",
+      "screen": "Ver",
+      "state": "Con datos",
+      "viewport": "1365x900",
+      "sizeBytes": 51546,
+      "sha256": "c1a3f6099d5aa949e6b4173fdebd3c46364ffbfff45b9ca763488f23eaae8da3"
+    },
+    {
+      "file": "06-guided-list-desktop.webp",
+      "screen": "Experiencias",
+      "state": "10 experiencias",
+      "viewport": "1365x900",
+      "sizeBytes": 80610,
+      "sha256": "626418e798fcdf4cc83cfae53d0d2e4bea1a9b44dcbed22aa9287ce81880c135"
+    },
+    {
+      "file": "07-experience-player-desktop.webp",
+      "screen": "Experience Player",
+      "state": "Pasaje",
+      "viewport": "1365x900",
+      "sizeBytes": 75118,
+      "sha256": "d642f198b67ff84814c18152e87fc6865ce4da83d1ebe849a5bf859285a612a3"
+    },
+    {
+      "file": "08-completion-summary-desktop.webp",
+      "screen": "Cierre",
+      "state": "Con oferta",
+      "viewport": "1365x900",
+      "sizeBytes": 63286,
+      "sha256": "312d39ea6ebf51fbc63c89a25766bfb19aa332171f9f1ae24fd626d18b3b363b"
+    },
+    {
+      "file": "09-emotional-map-desktop.webp",
+      "screen": "Tu mapa",
+      "state": "Con datos",
+      "viewport": "1365x900",
+      "sizeBytes": 126158,
+      "sha256": "967c08e51bad4ce2a3ae1b9efcbd2070ed9df314b38ae40e7de278250c21c9bc"
+    },
+    {
+      "file": "10-state-system-desktop.webp",
+      "screen": "Matriz de estados",
+      "state": "Ocho estados reutilizables",
+      "viewport": "1365x900",
+      "sizeBytes": 231270,
+      "sha256": "627b44079580fcc9840f2e763c70b884c57798697d1efb608ee69e80775b758f"
+    },
+    {
+      "file": "11-eco-safety-handoff-desktop.webp",
+      "screen": "Eco · apoyo",
+      "state": "Desktop · drawer",
+      "viewport": "1365x900",
+      "sizeBytes": 101168,
+      "sha256": "183beb667e1f6bb75fbd08840e6f4c02deebd743815c20fb969aa6ba9db3d6f6"
+    },
+    {
+      "file": "12-companion-panel-mobile.webp",
+      "screen": "Panel mobile",
+      "state": "Eco · con contexto",
+      "viewport": "390x844",
+      "sizeBytes": 50066,
+      "sha256": "3c41a14585bddd9817f9a5a441af398bcdedcc3e75249559672e82a7867653ee"
+    },
+    {
+      "file": "13-experience-player-mobile.webp",
+      "screen": "Experience Player",
+      "state": "Pasaje",
+      "viewport": "390x844",
+      "sizeBytes": 68234,
+      "sha256": "69155a70cc2bab1a2b073d5d8987785be564b551441c52b0ce84377828c13bce"
+    },
+    {
+      "file": "14-emotional-map-mobile.webp",
+      "screen": "Tu mapa",
+      "state": "Con datos",
+      "viewport": "390x844",
+      "sizeBytes": 56550,
+      "sha256": "a7a3aeef6707ce95ea02c9a9a405f555bea7ea87e8b1f01852f3fc3b0d954426"
+    },
+    {
+      "file": "15-emotional-map-no-signal-desktop.webp",
+      "screen": "Tu mapa",
+      "state": "Sin señal",
+      "viewport": "1365x900",
+      "sizeBytes": 50686,
+      "sha256": "7a18c818ca0de791152123247426cd3b6d3140d75a83670147baedd8523b079d"
+    },
+    {
+      "file": "16-eco-safety-handoff-mobile.webp",
+      "screen": "Eco · apoyo",
+      "state": "Mobile · sheet",
+      "viewport": "390x844",
+      "sizeBytes": 67284,
+      "sha256": "75ac785ddca2fac0952975f1d3ee2ff4ac5ff83285ed510337cfb928f6d548ba"
+    }
+  ]
+}

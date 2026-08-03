@@ -1,0 +1,35 @@
+{
+  "source": "Claude Design R2 export supplied manually by Jorge",
+  "sourceLocalPath": "/Users/jorgequizamanchuro/Downloads/Psico Platform Design System (5)/book-experience-v2-r2",
+  "repositoryBranch": "design/book-experience-v2",
+  "entryFile": "index.html",
+  "status": "DESIGN_REFERENCE — not production code",
+  "fileCount": 5,
+  "files": [
+    {
+      "path": "README.md",
+      "sizeBytes": 8952,
+      "sha256": "921140e374ef50e0cea0de62e81290bd3fedd9e3e49bc59f18acc338be4ceb96"
+    },
+    {
+      "path": "book-experience-v2-r2-standalone.html",
+      "sizeBytes": 453888,
+      "sha256": "c0fb99872564ef8f553df82b77b948113a5df1213a0c4e9b5722d231e4829048"
+    },
+    {
+      "path": "colors_and_type.css",
+      "sizeBytes": 11118,
+      "sha256": "d4125ee55e8df30384dbc50ac39219c910304c7de099d85eb9681bb91a5bafc1"
+    },
+    {
+      "path": "index.html",
+      "sizeBytes": 143824,
+      "sha256": "da4213654d3df8ddaff473f1a48af0525a34a34242868408cb8575474154709d"
+    },
+    {
+      "path": "style.css",
+      "sizeBytes": 44429,
+      "sha256": "5a864aa795f37eb2ee13057daff2035c2dfc75f186c455cd122f91b6e49c3e5e"
+    }
+  ]
+}

@@ -61,10 +61,12 @@ PROTOTYPE=DESIGN_REFERENCE
 IMPLEMENTATION_STATUS=NOT_STARTED
 ```
 
-| Artefacto                                                                                                                  | Qué es                                                                                |
-| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| [`design/assets/book-experience-v2/Book Experience V2.html`](design/assets/book-experience-v2/Book%20Experience%20V2.html) | Prototipo navegable — 11 pantallas. **Referencia de diseño, no código de producción** |
-| [`design/book-experience-v2-prototype-review.md`](design/book-experience-v2-prototype-review.md)                           | Auditoría del prototipo contra los cuatro documentos V2: hallazgos y verticales       |
+| Artefacto                                                                                                                  | Qué es                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [`design/assets/book-experience-v2/revision-2/index.html`](design/assets/book-experience-v2/revision-2/index.html)         | **R2 — prototipo vigente**. 15 pantallas. Referencia de diseño, no código de producción |
+| [`design/book-experience-v2-r2-review.md`](design/book-experience-v2-r2-review.md)                                         | Auditoría de R2: cierra el P0 y los tres P1 de R1 · `IMPLEMENTATION_GATE=PASS`          |
+| [`design/assets/book-experience-v2/Book Experience V2.html`](design/assets/book-experience-v2/Book%20Experience%20V2.html) | R1 — prototipo del que se partió, conservado para trazabilidad                          |
+| [`design/book-experience-v2-prototype-review.md`](design/book-experience-v2-prototype-review.md)                           | Auditoría de R1: el P0 y los tres P1 que R2 cerró                                       |
 
 Para describir la producción actual manda V1
 ([`product/book-experience-standard-v1.md`](product/book-experience-standard-v1.md)

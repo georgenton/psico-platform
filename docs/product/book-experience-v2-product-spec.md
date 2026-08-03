@@ -20,17 +20,24 @@ definiciones cerradas: modelo, catálogo de pasos, modelo de señales, frontera 
 el Mapa Emocional, pantallas y ejemplos reales.
 
 **No implementa nada.** No define tablas, no define endpoints, no cambia
-producción. Donde una definición contradiga al
-[Book Experience Standard V1](book-experience-standard-v1.md) (v1.1), manda V1
-hasta que esta especificación se apruebe.
+producción.
 
 **Relación entre los tres documentos:**
 
-| Documento                        | Qué es                                      | Vigencia                |
-| -------------------------------- | ------------------------------------------- | ----------------------- |
-| `book-experience-standard-v1.md` | Autoridad de presentación **hoy**           | Vigente, implementado   |
-| `book-experience-v2-design.md`   | Discovery: qué existe, qué supuestos romper | Insumo, no autoridad    |
-| **este documento**               | Especificación de producto V2               | Pendiente de aprobación |
+| Documento                        | Qué es                                      | Vigencia                                                                                                         |
+| -------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `book-experience-standard-v1.md` | Autoridad de presentación **hoy**           | Vigente, implementado — gobierna el runtime productivo                                                           |
+| `book-experience-v2-design.md`   | Discovery: qué existe, qué supuestos romper | Insumo, no autoridad                                                                                             |
+| **este documento**               | Especificación de producto V2               | **Aprobada para prototipado visual** · no es autoridad del runtime productivo · **implementación no autorizada** |
+
+**Precedencia:**
+
+```
+V1 describe la producción actual.
+V2 gobierna el prototipo visual futuro.
+V1 deja de gobernar producción SOLO después de que una implementación V2
+sea aprobada, fusionada y desplegada.
+```
 
 > **Autoridad, precedencia y vocabulario:** la sección canónica vive en
 > [`../design/book-experience-v2-design-brief.md` §0](../design/book-experience-v2-design-brief.md).

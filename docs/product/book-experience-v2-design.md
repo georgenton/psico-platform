@@ -17,9 +17,10 @@ Este documento **no implementa nada**. No define tablas, no define endpoints y
 no cambia producción. Describe a dónde va la experiencia de lectura y qué habría
 que decidir antes de escribir la primera línea de código.
 
-Autoridad vigente sobre presentación: **[Book Experience Standard V1](book-experience-standard-v1.md)**
-(v1.1). Todo lo de aquí es su continuación, no su reemplazo — donde V2 contradiga
-a V1, manda V1 hasta que Jorge apruebe este documento.
+**[Book Experience Standard V1](book-experience-standard-v1.md)** (v1.1)
+continúa describiendo el runtime productivo actual. V2, cuya dirección de
+producto está **aprobada**, gobierna el prototipo visual objetivo: no autoriza
+implementación ni reemplaza el runtime actual.
 
 > **Autoridad, precedencia y vocabulario:** la sección canónica vive en
 > [`../design/book-experience-v2-design-brief.md` §0](../design/book-experience-v2-design-brief.md).

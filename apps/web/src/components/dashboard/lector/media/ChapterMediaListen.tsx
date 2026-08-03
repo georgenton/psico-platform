@@ -12,7 +12,6 @@ import {
 import {
   useChapterMediaAccess,
   useChapterMediaCompletion,
-  useChapterMediaManifest,
   type MediaFetchError,
 } from "./use-chapter-media";
 import {
@@ -47,6 +46,8 @@ export function ChapterMediaListen({
   bookId,
   chapterOrder,
   audioAvailable,
+  items,
+  manifestError,
 }: {
   apiBase: string;
   token: string;
@@ -54,15 +55,20 @@ export function ChapterMediaListen({
   chapterOrder: number;
   /** From the chapter payload: whether the `Audio` row exists at all. */
   audioAvailable: boolean;
+  /**
+   * The chapter media manifest, resolved by the reader.
+   *
+   * It is a prop rather than another `useChapterMediaManifest` call because the
+   * reader has already asked — it needs the answer to decide whether this tab
+   * may be opened at all. Asking again duplicated the request AND opened a
+   * window where the surface knew less than the tab that led here, which is
+   * what made «Audio en producción» flash over a chapter with audio.
+   */
+  items: readonly ChapterMediaSummary[] | null;
+  manifestError: MediaFetchError | null;
 }) {
   const [requestedTab, setRequestedTab] = useState<SubformatKey>("audiobook");
-  const { items, error } = useChapterMediaManifest({
-    apiBase,
-    token,
-    bookId,
-    chapterOrder,
-    enabled: true,
-  });
+  const error = manifestError;
   const { report, failedKey } = useChapterMediaCompletion({ apiBase, token });
 
   const audiobook = items?.find((item) => item.kind === "AUDIOBOOK") ?? null;

@@ -161,6 +161,37 @@ export function mediaModeFromManifest(
 }
 
 /**
+ * Escuchar is not «the audiobook». It is the audio FAMILY.
+ *
+ * Audiolibro and Podcast are published independently — the narration and the
+ * conversation are different work — but the reader offers them behind one tab,
+ * so gating that tab on the audiobook alone would hide a produced podcast
+ * behind a missing narration. The tab is open when EITHER can play.
+ *
+ * `mediaMode` still decides the shape, so «published with nothing behind it»
+ * and «announced, not produced» keep meaning what they mean everywhere else.
+ */
+export function audioFamilyMode(
+  items: readonly ChapterMediaSummary[] | null,
+): BookExperienceModeView {
+  const family =
+    items === null
+      ? []
+      : items.filter((i) => i.kind === "AUDIOBOOK" || i.kind === "PODCAST");
+  const playable = family.filter((i) => i.availability === "AVAILABLE").length;
+
+  return mediaMode({
+    // AUDIOBOOK carries the family's label («🎧 Escuchar»). The kind is the
+    // tab's identity, not a claim that the audiobook is what plays.
+    kind: "AUDIOBOOK",
+    declaredPublished: playable >= 1,
+    playableItemCount: playable,
+    // Appearing in the manifest at all is an editorial act, for either format.
+    announced: family.length > 0,
+  });
+}
+
+/**
  * The guided experience.
  *
  * Its readiness is the reader's existing six-condition gate — rollout, actor,

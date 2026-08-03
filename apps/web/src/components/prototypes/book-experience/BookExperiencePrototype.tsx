@@ -251,8 +251,8 @@ function GuidedView() {
         <span style={{ fontSize: 12, color: MUTED }}>1 idea del capítulo</span>
       </div>
       <p style={{ marginTop: 12, fontSize: 13, color: MUTED, lineHeight: 1.7 }}>
-        Así se ve hoy la Guide V1: una microguía. El recorrido de abajo es a
-        dónde va un capítulo extenso.
+        Así funciona hoy una guía breve: una idea del capítulo. El recorrido de
+        abajo es a dónde va un capítulo extenso.
       </p>
 
       <Section title="Recorrido del capítulo">
@@ -285,9 +285,9 @@ function GuidedView() {
                 <span aria-hidden>·</span>
                 <span>práctica</span>
                 <span aria-hidden>·</span>
-                <span>recall</span>
+                <span>pregunta para recordar</span>
                 <span aria-hidden>·</span>
-                <span>estado</span>
+                <span>progreso</span>
               </div>
             </li>
           ))}
@@ -357,9 +357,14 @@ export function BookExperiencePrototype() {
     >
       <header>
         <Badge>Prototipo</Badge>
+        {/* The heading is what a reader would call this. The spec name stays,
+            one line down, for whoever needs to find the document. */}
         <h1 style={{ fontSize: 24, fontWeight: 700, marginTop: 10 }}>
-          Book Experience Standard V1
+          Experiencia del libro
         </h1>
+        <p style={{ marginTop: 4, fontSize: 12.5, color: MUTED }}>
+          Book Experience Standard V1
+        </p>
         <p
           data-testid="prototype-disclaimer"
           style={{ marginTop: 8, fontSize: 13, color: MUTED, lineHeight: 1.7 }}

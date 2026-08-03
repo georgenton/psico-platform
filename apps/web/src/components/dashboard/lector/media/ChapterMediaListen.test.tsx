@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MockInstance } from "vitest";
+import type { ChapterMediaSummary } from "@psico/types";
 import {
   act,
   fireEvent,
@@ -18,16 +19,17 @@ import { ChapterMediaListen } from "./ChapterMediaListen";
  * thing that asks for a signed URL, so an ungated tab means a person can press
  * a format that does not exist and we will go and ask the server to sign it.
  *
- * Every test below therefore checks the same three things about a disabled
- * option — it does not become selected, it mounts no panel, and it produces no
- * `/access` call.
+ * Every test below checks the same three things about a disabled option — it
+ * does not become selected, it mounts no panel, and it produces no `/access`
+ * call — and every one passes the manifest in as a prop, because this surface
+ * no longer fetches one of its own.
  */
 
 vi.mock("../AudioBar", () => ({
   AudioBar: () => <div data-testid="audio-bar" />,
 }));
 
-const AUDIOBOOK = {
+const AUDIOBOOK: ChapterMediaSummary = {
   mediaKey: "a1",
   mediaVersion: 1,
   kind: "AUDIOBOOK",
@@ -40,7 +42,7 @@ const AUDIOBOOK = {
   chapters: [],
 };
 
-const PODCAST = {
+const PODCAST: ChapterMediaSummary = {
   ...AUDIOBOOK,
   mediaKey: "p1",
   kind: "PODCAST",
@@ -50,12 +52,14 @@ const PODCAST = {
 
 let fetchSpy: MockInstance<typeof fetch>;
 
-/** Serve one manifest; record every other call so `/access` is visible. */
-function serve(items: unknown[]) {
+/**
+ * The ONLY call this surface may make is `/access`. Anything else is either a
+ * bug or a second manifest, so everything else answers 404 loudly.
+ */
+function spyOnFetch() {
   fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (async (input: any) => {
-      // `/access` is itself under `/media/...`, so it has to be matched first.
       if (String(input).includes("/access")) {
         return new Response(
           JSON.stringify({
@@ -70,28 +74,21 @@ function serve(items: unknown[]) {
           { status: 200 },
         );
       }
-      if (String(input).includes("/media")) {
-        return new Response(
-          JSON.stringify({
-            bookSlug: "emociones-en-construccion",
-            chapterOrder: 1,
-            items,
-          }),
-          { status: 200 },
-        );
-      }
-      // Nothing else should be requested at all; make that loud if it is.
       return new Response("{}", { status: 404 });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any,
   );
 }
 
-function accessCalls() {
-  return fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/access"));
-}
+const accessCalls = () =>
+  fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/access"));
 
-function renderListen() {
+const manifestCalls = () =>
+  fetchSpy.mock.calls.filter(
+    (c) => String(c[0]).includes("/media") && !String(c[0]).includes("/access"),
+  );
+
+function renderListen(items: ChapterMediaSummary[] | null) {
   return render(
     <ChapterMediaListen
       apiBase="https://api.example/api"
@@ -99,22 +96,49 @@ function renderListen() {
       bookId="book-1"
       chapterOrder={1}
       audioAvailable
+      items={items}
+      manifestError={null}
     />,
   );
 }
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  spyOnFetch();
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("MANIFEST_REQUESTS_PER_READER_CHAPTER=1", () => {
+  it("asks for no manifest of its own — the reader already has it", async () => {
+    renderListen([AUDIOBOOK, PODCAST]);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(manifestCalls()).toHaveLength(0);
+  });
+
+  it("AUDIO_EMPTY_STATE_FLASH=false — a real audiobook never shows «Audio en producción»", async () => {
+    // The regression this closes: while the surface fetched its own manifest,
+    // `items` was null for a beat, every subformat read as absent, and the
+    // fail-closed notice rendered over a chapter that does have audio.
+    renderListen([AUDIOBOOK]);
+    expect(screen.getByTestId("audio-bar")).toBeInTheDocument();
+    expect(screen.queryByText("Audio en producción")).toBeNull();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId("audio-bar")).toBeInTheDocument();
+    expect(screen.queryByText("Audio en producción")).toBeNull();
+  });
+});
+
 describe("PODCAST_INTERNAL_SURFACE_GATED=true", () => {
   it("shows the podcast disabled when the episode is not produced", async () => {
-    serve([AUDIOBOOK, { ...PODCAST, availability: "COMING_SOON" }]);
-    renderListen();
+    renderListen([AUDIOBOOK, { ...PODCAST, availability: "COMING_SOON" }]);
 
     const podcast = await screen.findByTestId("media-subformat-podcast");
     expect(podcast).toHaveAttribute("data-mode-state", "COMING_SOON");
@@ -123,8 +147,7 @@ describe("PODCAST_INTERNAL_SURFACE_GATED=true", () => {
   });
 
   it("a disabled subformat changes nothing when pressed and signs nothing", async () => {
-    serve([AUDIOBOOK, { ...PODCAST, availability: "COMING_SOON" }]);
-    renderListen();
+    renderListen([AUDIOBOOK, { ...PODCAST, availability: "COMING_SOON" }]);
 
     const podcast = await screen.findByTestId("media-subformat-podcast");
     fireEvent.click(podcast);
@@ -137,25 +160,23 @@ describe("PODCAST_INTERNAL_SURFACE_GATED=true", () => {
       "aria-selected",
       "true",
     );
-    // The panel that would have asked for a URL never mounted.
     expect(screen.getByTestId("audio-bar")).toBeInTheDocument();
     expect(screen.queryByLabelText("Podcast del capítulo")).toBeNull();
     expect(accessCalls()).toHaveLength(0);
   });
 
   it("hides a subformat this chapter never announced", async () => {
-    serve([AUDIOBOOK]);
-    renderListen();
+    renderListen([AUDIOBOOK]);
 
     await screen.findByTestId("media-subformat-audiolibro");
     expect(screen.queryByTestId("media-subformat-podcast")).toBeNull();
     expect(accessCalls()).toHaveLength(0);
   });
 
-  it("selects the first playable subformat when the default one is not", async () => {
-    // A chapter that has the conversation but not the narration.
-    serve([{ ...AUDIOBOOK, availability: "COMING_SOON" }, PODCAST]);
-    renderListen();
+  it("PODCAST_ONLY_CHAPTER_REACHABLE=true — a podcast-only chapter opens on the podcast", async () => {
+    // The chapter has the conversation but not the narration. Escuchar is a
+    // family, so this is a reachable chapter and not a dead tab.
+    renderListen([{ ...AUDIOBOOK, availability: "COMING_SOON" }, PODCAST]);
 
     const podcast = await screen.findByTestId("media-subformat-podcast");
     await waitFor(() =>
@@ -165,14 +186,14 @@ describe("PODCAST_INTERNAL_SURFACE_GATED=true", () => {
       "aria-selected",
       "false",
     );
-    // …and only THEN is a signed URL requested, for the format that exists.
+    // Exactly one signing request, for the format that exists.
     await waitFor(() => expect(accessCalls()).toHaveLength(1));
     expect(String(accessCalls()[0]![0])).toContain("p1");
+    expect(manifestCalls()).toHaveLength(0);
   });
 
   it("opens the podcast only when the reader picks a playable one", async () => {
-    serve([AUDIOBOOK, PODCAST]);
-    renderListen();
+    renderListen([AUDIOBOOK, PODCAST]);
 
     await screen.findByTestId("media-subformat-audiolibro");
     expect(accessCalls()).toHaveLength(0);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChapterMediaSummary } from "@psico/types";
 import {
+  audioFamilyMode,
   bookMode,
   disabledNotice,
   guidedMode,
@@ -235,5 +236,73 @@ describe("13–14 · the guided experience", () => {
       expect(isModeEnabled(view)).toBe(false);
       expect(view.state).toBe("HIDDEN");
     }
+  });
+});
+
+/**
+ * AUDIO_FAMILY_GATING — Escuchar is the audio family, not the audiobook.
+ *
+ * The narration and the conversation are produced separately, and a chapter
+ * can genuinely have one without the other. Gating the tab on the audiobook
+ * alone would hide a finished podcast behind a narration nobody has recorded
+ * yet — the same «offer you cannot take» this standard exists to prevent, only
+ * inverted: an offer withheld rather than an offer broken.
+ */
+describe("audioFamilyMode", () => {
+  const audiobook = (availability: ChapterMediaSummary["availability"]) =>
+    summary({ kind: "AUDIOBOOK", mediaKey: "a1", availability });
+  const podcast = (availability: ChapterMediaSummary["availability"]) =>
+    summary({ kind: "PODCAST", mediaKey: "p1", availability });
+
+  it("AUDIOBOOK available + PODCAST absent → Escuchar enabled", () => {
+    const view = audioFamilyMode([audiobook("AVAILABLE")]);
+    expect(view.state).toBe("PUBLISHED");
+    expect(isModeEnabled(view)).toBe(true);
+    expect(view.label).toBe("🎧 Escuchar");
+  });
+
+  it("AUDIOBOOK absent + PODCAST available → Escuchar enabled", () => {
+    const view = audioFamilyMode([podcast("AVAILABLE")]);
+    expect(isModeEnabled(view)).toBe(true);
+    expect(view.itemCount).toBe(1);
+  });
+
+  it("AUDIOBOOK coming soon + PODCAST available → Escuchar enabled", () => {
+    const view = audioFamilyMode([
+      audiobook("COMING_SOON"),
+      podcast("AVAILABLE"),
+    ]);
+    expect(isModeEnabled(view)).toBe(true);
+    expect(view.itemCount).toBe(1);
+  });
+
+  it("AUDIOBOOK coming soon + PODCAST coming soon → Escuchar disabled · Próximamente", () => {
+    const view = audioFamilyMode([
+      audiobook("COMING_SOON"),
+      podcast("COMING_SOON"),
+    ]);
+    expect(view.state).toBe("COMING_SOON");
+    expect(isModeEnabled(view)).toBe(false);
+    expect(isModeVisible(view)).toBe(true);
+    expect(disabledNotice(view)).toBe("Próximamente");
+  });
+
+  it("both absent → Escuchar hidden", () => {
+    expect(audioFamilyMode([]).state).toBe("HIDDEN");
+    expect(isModeVisible(audioFamilyMode([]))).toBe(false);
+  });
+
+  it("a manifest that has not answered offers nothing", () => {
+    const view = audioFamilyMode(null);
+    expect(view.state).toBe("HIDDEN");
+    expect(isModeEnabled(view)).toBe(false);
+  });
+
+  it("ignores formats that are not part of the audio family", () => {
+    // A published video must not open Escuchar.
+    const view = audioFamilyMode([
+      summary({ kind: "VIDEO", mediaKey: "v1", availability: "AVAILABLE" }),
+    ]);
+    expect(view.state).toBe("HIDDEN");
   });
 });

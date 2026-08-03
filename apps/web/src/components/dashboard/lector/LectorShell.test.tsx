@@ -767,6 +767,82 @@ describe("LectorShell — modes are gated by what can actually play", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("MANIFEST_REQUESTS_PER_READER_CHAPTER=1 — opening a media mode asks nothing more", async () => {
+    // The reader already had to fetch the manifest to know whether these tabs
+    // may be shown at all. The surfaces receive that answer instead of asking
+    // again: two requests for one fact is one request too many, and it opened
+    // a window where the surface knew less than the tab that led to it.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      manifestWith([
+        { ...comingSoon, availability: "AVAILABLE" },
+        {
+          ...comingSoon,
+          mediaKey: "v1",
+          kind: "VIDEO",
+          availability: "AVAILABLE",
+        },
+      ]),
+    );
+    const manifestCalls = () =>
+      fetchSpy.mock.calls.filter(
+        (c) =>
+          String(c[0]).includes("/media") && !String(c[0]).includes("/access"),
+      );
+
+    renderShell();
+    await screen.findByTestId("reader-mode-escuchar");
+    expect(manifestCalls()).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId("reader-mode-escuchar"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(manifestCalls()).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId("reader-mode-ver"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(manifestCalls()).toHaveLength(1);
+  });
+
+  it("AUDIO_FAMILY_GATING=true — a podcast-only chapter still opens Escuchar", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      manifestWith([
+        comingSoon,
+        {
+          ...comingSoon,
+          mediaKey: "p1",
+          kind: "PODCAST",
+          availability: "AVAILABLE",
+        },
+      ]),
+    );
+
+    renderShell();
+    const escuchar = await screen.findByTestId("reader-mode-escuchar");
+    expect(escuchar).toHaveAttribute("data-mode-state", "PUBLISHED");
+    expect(escuchar).toHaveAttribute("aria-disabled", "false");
+  });
+
+  it("VIDEO_EMPTY_STATE_FLASH=false — Ver is not offered while the manifest is unknown", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async (input: RequestInfo | URL) =>
+        // Never settles: the reader must behave for the whole wait.
+        String(input).includes("/media")
+          ? new Promise<Response>(() => {})
+          : new Response("{}", { status: 200 }),
+    );
+
+    renderShell();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    // No tab, so no surface, so no empty video state to flash.
+    expect(screen.queryByTestId("reader-mode-ver")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("chapter-media-watch")).not.toBeInTheDocument();
+  });
+
   it("MANIFEST_IS_SCOPED_TO_ITS_CHAPTER=true — the previous chapter's answer never gates the next one", async () => {
     let served = 0;
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => {

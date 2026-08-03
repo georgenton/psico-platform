@@ -48,6 +48,7 @@ import {
 } from "../guide/ReaderGuidePanel";
 import { useMoodCheckin } from "../shell/mood-checkin-context";
 import {
+  audioFamilyMode,
   bookMode,
   disabledNotice,
   guidedMode,
@@ -423,7 +424,7 @@ export function LectorShell({
    * that surface — so a mode with nothing behind it makes no playback request
    * at all.
    */
-  const { items: mediaItems } = useChapterMediaManifest({
+  const { items: mediaItems, error: mediaError } = useChapterMediaManifest({
     apiBase,
     token,
     bookId: book.id,
@@ -434,7 +435,7 @@ export function LectorShell({
   const modeViews = useMemo(
     () => ({
       leer: bookMode(),
-      escuchar: mediaModeFromManifest("AUDIOBOOK", mediaItems),
+      escuchar: audioFamilyMode(mediaItems),
       ver: mediaModeFromManifest("VIDEO", mediaItems),
     }),
     [mediaItems],
@@ -1148,6 +1149,12 @@ export function LectorShell({
           bookId={book.id}
           chapterOrder={chapter.order}
           audioAvailable={chapter.audioAvailable}
+          // The manifest this reader already asked for. The surfaces do NOT ask
+          // again: one chapter, one manifest. Anything else made the tab and
+          // the surface disagree for a moment, which is how «Audio en
+          // producción» could flash over a chapter that has audio.
+          items={mediaItems}
+          manifestError={mediaError}
         />
       ) : null}
 
@@ -1155,8 +1162,8 @@ export function LectorShell({
         <ChapterMediaWatch
           apiBase={apiBase}
           token={token}
-          bookId={book.id}
-          chapterOrder={chapter.order}
+          items={mediaItems}
+          manifestError={mediaError}
         />
       ) : null}
 

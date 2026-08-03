@@ -85,6 +85,34 @@ describe("the guided roadmap", () => {
   });
 });
 
+describe("it speaks the reader's language", () => {
+  it("PROTOTYPE_H1=Experiencia del libro", () => {
+    render(<BookExperiencePrototype />);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Experiencia del libro" }),
+    ).toBeInTheDocument();
+    // The spec name is still findable, one line down, for whoever needs the
+    // document — it is just not what greets a reader.
+    expect(screen.getByText("Book Experience Standard V1")).toBeInTheDocument();
+  });
+
+  it("PROTOTYPE_RECALL_JARGON_PRESENT=false", () => {
+    const { container } = render(<BookExperiencePrototype />);
+    fireEvent.click(screen.getByTestId("prototype-mode-guided"));
+    const text = container.textContent!;
+    // «recall» and «estado» are our words for our machinery. What the reader
+    // does is answer a question and see how far they got.
+    for (const jargon of ["recall", "Guide V1", "estado"]) {
+      expect(text, `the prototype still says «${jargon}»`).not.toContain(
+        jargon,
+      );
+    }
+    expect(text).toContain("pregunta para recordar");
+    expect(text).toContain("progreso");
+    expect(text).toContain("Así funciona hoy una guía breve");
+  });
+});
+
 describe("it is inert", () => {
   it("FAKE_MEDIA_PLAYER=false — no audio, video or play control anywhere", () => {
     const { container } = render(<BookExperiencePrototype />);

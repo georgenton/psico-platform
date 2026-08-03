@@ -40,6 +40,25 @@ guiada), el contenido primario de cada uno, los tres estados de superficie
 demás — un modo sin activo reproducible no puede parecer publicado. Cuando otro
 documento la contradiga en materia de presentación multimodal, manda esa.
 
+### Book Experience V2 — visual design context
+
+```
+V1 = RUNTIME ACTUAL      (autoridad de producción)
+V2 = DISEÑO FUTURO       (no implementado, no autorizado)
+```
+
+| Documento                                                                                    | Qué aporta                                                                 |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| [`design/book-experience-v2-design-brief.md`](design/book-experience-v2-design-brief.md)     | **Punto de entrada**: autoridad, precedencia, vocabulario, nueve pantallas |
+| [`product/book-experience-v2-user-journeys.md`](product/book-experience-v2-user-journeys.md) | Perfiles, journey del capítulo, pantallas y estados                        |
+| [`product/book-experience-v2-product-spec.md`](product/book-experience-v2-product-spec.md)   | Modelo, doce tipos de paso, Signal Model V1                                |
+| [`product/book-experience-v2-design.md`](product/book-experience-v2-design.md)               | Discovery: qué existe hoy y qué supuestos romper                           |
+
+Para describir la producción actual manda V1
+([`product/book-experience-standard-v1.md`](product/book-experience-standard-v1.md)
+y [`product/guided-reading-v1.md`](product/guided-reading-v1.md)); para diseñar
+el objetivo futuro, V2. **V2 no ha reemplazado a la Guide V1.**
+
 ## Guided Reading (Modo Guía)
 
 | Tema                                                                                         | Autoridad canónica                                                                                                                                          |

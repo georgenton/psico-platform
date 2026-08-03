@@ -49,9 +49,18 @@ import {
 import { useMoodCheckin } from "../shell/mood-checkin-context";
 import {
   READER_GUIDE_LOADING,
-  READER_GUIDE_MODE_LABEL,
   READER_GUIDE_UNAVAILABLE,
 } from "../guide/guide-reader-copy";
+import {
+  bookMode,
+  disabledNotice,
+  guidedMode,
+  isModeEnabled,
+  isModeVisible,
+  mediaModeFromManifest,
+  type BookExperienceModeView,
+} from "./book-experience";
+import { useChapterMediaManifest } from "./media/use-chapter-media";
 import { guideComponentKey } from "../guide/guide-pin";
 import { resolveGuideWebBundle } from "../guide/guide-web-bundle";
 import { useGuideActorScope } from "../guide/guide-actor-scope";
@@ -406,6 +415,63 @@ export function LectorShell({
     discoveredPin !== null &&
     guideBundle !== null &&
     guideAnchor.status === "RESOLVED";
+
+  /**
+   * Book Experience Standard V1 — which formats this chapter may actually
+   * offer. Authority: `docs/product/book-experience-standard-v1.md`.
+   *
+   * The manifest is metadata only: it signs nothing and carries no URL, so
+   * asking for it up front is cheap and is what lets the selector be honest
+   * BEFORE the reader commits to a tab. The playback call (`/media/:key/access`)
+   * still happens only inside the surface, and a disabled mode never mounts
+   * that surface — so a mode with nothing behind it makes no playback request
+   * at all.
+   */
+  const { items: mediaItems } = useChapterMediaManifest({
+    apiBase,
+    token,
+    bookId: book.id,
+    chapterOrder: chapter.order,
+    enabled: true,
+  });
+
+  const modeViews = useMemo(
+    () => ({
+      leer: bookMode(),
+      escuchar: mediaModeFromManifest("AUDIOBOOK", mediaItems),
+      ver: mediaModeFromManifest("VIDEO", mediaItems),
+    }),
+    [mediaItems],
+  );
+
+  const guidedView = useMemo(
+    () =>
+      guidedMode({
+        runtimeReady: guideRuntimeReady,
+        discoveryPending: discovery.status === "loading",
+      }),
+    [guideRuntimeReady, discovery.status],
+  );
+
+  /**
+   * A mode the standard disabled must not stay selected.
+   *
+   * `ReaderMode` is restored from `localStorage`, so somebody who last read
+   * this book in Escuchar comes back into a tab that may no longer have an
+   * asset — on a different chapter, or after an editorial change. Falling back
+   * to Leer is the fail-closed answer: the book is the one mode that is always
+   * there.
+   */
+  useEffect(() => {
+    if (mode === "leer") return;
+    // Only once the manifest has actually ANSWERED. Resetting on a null
+    // manifest would destroy a saved preference for a chapter that does have
+    // the format — the tab is correctly disabled while we wait, but the
+    // reader's choice is not ours to discard over a request in flight.
+    if (mediaItems === null) return;
+    if (isModeEnabled(modeViews[mode])) return;
+    setMode("leer");
+  }, [mode, modeViews, mediaItems]);
 
   // The tint is a hint, not a mark: it clears itself.
   useEffect(() => {
@@ -894,42 +960,71 @@ export function LectorShell({
         role="tablist"
         aria-label="Modo de lectura"
       >
-        {(
-          [
-            { value: "leer", label: "📖 Leer" },
-            { value: "escuchar", label: "🎧 Escuchar" },
-            { value: "ver", label: "🎬 Ver" },
-          ] as const
-        ).map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            role="tab"
-            // While the guided-reading panel is open it is the selected
-            // surface; a mode tab still marked selected would tell assistive
-            // technology that two tabs are current at once.
-            aria-selected={!guideOpen && mode === option.value}
-            onClick={() => {
-              setGuideOpen(false);
-              changeMode(option.value);
-            }}
-            className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
-            style={
-              !guideOpen && mode === option.value
-                ? {
-                    background: "var(--reader-bg, var(--color-warm-50))",
-                    color: "var(--reader-text, var(--color-warm-900))",
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
-                  }
-                : {
-                    background: "transparent",
-                    color: "var(--reader-muted, var(--color-warm-600))",
-                  }
-            }
-          >
-            {option.label}
-          </button>
-        ))}
+        {(["leer", "escuchar", "ver"] as const)
+          // Book Experience Standard V1 §3.2 — HIDDEN means no tab at all: no
+          // route, no call, nothing to click. A format outside this chapter's
+          // editorial plan is simply absent.
+          .filter((value) => isModeVisible(modeViews[value]))
+          .map((value) => {
+            const view: BookExperienceModeView = modeViews[value];
+            const enabled = isModeEnabled(view);
+            const notice = disabledNotice(view);
+            const selected = !guideOpen && mode === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                data-testid={`reader-mode-${value}`}
+                data-mode-state={view.state}
+                // While the guided-reading panel is open it is the selected
+                // surface; a mode tab still marked selected would tell assistive
+                // technology that two tabs are current at once.
+                aria-selected={selected}
+                // The disabled reason is announced, not implied by colour —
+                // a greyer chip alone is not a message.
+                aria-disabled={!enabled}
+                aria-label={notice ? `${view.label} · ${notice}` : undefined}
+                onClick={() => {
+                  // Fail closed at the click too, not only in the styling: a
+                  // tab the standard disabled must not switch mode and must not
+                  // mount a media surface that would then request playback.
+                  if (!enabled) return;
+                  setGuideOpen(false);
+                  changeMode(value);
+                }}
+                className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
+                style={
+                  !enabled
+                    ? {
+                        background: "transparent",
+                        color: "var(--reader-muted, var(--color-warm-500))",
+                        opacity: 0.55,
+                        cursor: "not-allowed",
+                        textDecoration: "underline dotted",
+                        textUnderlineOffset: "3px",
+                      }
+                    : selected
+                      ? {
+                          background: "var(--reader-bg, var(--color-warm-50))",
+                          color: "var(--reader-text, var(--color-warm-900))",
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                        }
+                      : {
+                          background: "transparent",
+                          color: "var(--reader-muted, var(--color-warm-600))",
+                        }
+                }
+              >
+                {view.label}
+                {notice ? (
+                  <span className="ml-1.5 text-[11px] font-medium opacity-90">
+                    · {notice}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
         {/* GR-3 — the fourth modality. It is a SURFACE: picking it opens the
             panel over the chapter and leaves `ReaderMode` (and therefore the
             stored preference) exactly where it was. `aria-selected` tracks
@@ -941,6 +1036,7 @@ export function LectorShell({
           aria-selected={guideOpen}
           aria-controls={READER_GUIDE_PANEL_ID}
           data-testid="reader-mode-guiada"
+          data-mode-state={guidedView.state}
           onClick={() => setGuideOpen((v) => !v)}
           className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
           style={
@@ -956,7 +1052,7 @@ export function LectorShell({
                 }
           }
         >
-          {READER_GUIDE_MODE_LABEL}
+          {guidedView.label}
         </button>
       </div>
 

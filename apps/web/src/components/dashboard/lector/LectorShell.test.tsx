@@ -67,6 +67,9 @@ beforeEach(() => {
   }
   (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver =
     FakeIO as unknown as typeof IntersectionObserver;
+  vi.spyOn(globalThis, "fetch").mockImplementation(
+    withMediaManifest(() => new Response("{}", { status: 200 })),
+  );
   // jsdom's Range has no layout — the selection handler reads a bounding rect.
   Range.prototype.getBoundingClientRect = () =>
     ({
@@ -86,6 +89,46 @@ afterEach(() => {
     .IntersectionObserver;
   vi.restoreAllMocks();
 });
+
+/**
+ * Book Experience Standard V1 — the reader now asks for the chapter media
+ * manifest on mount, so a mode with nothing playable can be disabled BEFORE
+ * the reader picks it. These tests are about other things (hydration, the
+ * write path), so the default answer is a chapter that genuinely has both
+ * formats: without it every mode would correctly read as unavailable and the
+ * assertions below would pass for the wrong reason.
+ */
+function mediaManifestBody() {
+  const item = (kind: string, mediaKey: string) => ({
+    mediaKey,
+    mediaVersion: 1,
+    kind,
+    title: kind,
+    description: "d",
+    durationSec: null,
+    availability: "AVAILABLE",
+    hasTranscript: false,
+    hasCaptions: false,
+    chapters: [],
+  });
+  return {
+    bookSlug: "emociones-en-construccion",
+    chapterOrder: 1,
+    items: [item("AUDIOBOOK", "a1"), item("VIDEO", "v1")],
+  };
+}
+
+/** Route the media manifest; hand everything else to the test's own answer. */
+function withMediaManifest(
+  rest: (input: RequestInfo | URL) => Response | Promise<Response>,
+) {
+  return async (input: RequestInfo | URL) => {
+    if (String(input).includes("/media")) {
+      return new Response(JSON.stringify(mediaManifestBody()), { status: 200 });
+    }
+    return rest(input);
+  };
+}
 
 function buildInitial(
   overrides: Partial<LectorChapterResponse> = {},
@@ -210,12 +253,18 @@ describe("LectorShell — header + blocks (from Content Core)", () => {
   it("does NOT fetch blocks from /api/lector on mount (unit is provided)", () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response("{}", { status: 200 }));
+      .mockImplementation(
+        withMediaManifest(() => new Response("{}", { status: 200 })),
+      );
     renderShell();
-    const calledLector = fetchSpy.mock.calls.some((c) =>
-      String(c[0]).includes("/lector/"),
-    );
-    expect(calledLector).toBe(false);
+    // The media manifest lives under `/lector/:bookId/:order/media`, so the
+    // assertion names the BLOCKS route it was always about: the chapter text
+    // comes from the `unit` prop and must never be re-fetched.
+    const calledForBlocks = fetchSpy.mock.calls.some((c) => {
+      const url = String(c[0]);
+      return url.includes("/lector/") && !url.includes("/media");
+    });
+    expect(calledForBlocks).toBe(false);
   });
 });
 
@@ -234,21 +283,24 @@ describe("LectorShell — content unavailable (fail-closed, CC-6B)", () => {
 
 describe("LectorShell — write path uses blockKey + source version (CC-6B/CC-6C)", () => {
   it("POSTs a highlight anchored by the stable blockKey + the read blockVersionId, not the legacy id", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          highlight: {
-            id: "h-real",
-            blockKey: "bk-1",
-            blockId: "b-1",
-            startOffset: 0,
-            endOffset: 7,
-            color: "YELLOW",
-            note: null,
-            createdAt: new Date().toISOString(),
-          },
-        }),
-        { status: 200 },
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      withMediaManifest(
+        () =>
+          new Response(
+            JSON.stringify({
+              highlight: {
+                id: "h-real",
+                blockKey: "bk-1",
+                blockId: "b-1",
+                startOffset: 0,
+                endOffset: 7,
+                color: "YELLOW",
+                note: null,
+                createdAt: new Date().toISOString(),
+              },
+            }),
+            { status: 200 },
+          ),
       ),
     );
 
@@ -417,21 +469,24 @@ describe("LectorShell — complete CTA copy", () => {
 
 describe("LectorShell — legacy-served unit writes by blockId (CC-6D)", () => {
   it("POSTs a highlight anchored by the legacy blockId, never blockKey/blockVersionId", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          highlight: {
-            id: "h-real",
-            blockKey: "bk-1",
-            blockId: "b-1",
-            startOffset: 0,
-            endOffset: 7,
-            color: "YELLOW",
-            note: null,
-            createdAt: new Date().toISOString(),
-          },
-        }),
-        { status: 200 },
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      withMediaManifest(
+        () =>
+          new Response(
+            JSON.stringify({
+              highlight: {
+                id: "h-real",
+                blockKey: "bk-1",
+                blockId: "b-1",
+                startOffset: 0,
+                endOffset: 7,
+                color: "YELLOW",
+                note: null,
+                createdAt: new Date().toISOString(),
+              },
+            }),
+            { status: 200 },
+          ),
       ),
     );
 
@@ -549,16 +604,20 @@ describe("LectorShell — reader mode is hydration-safe", () => {
     expect(html).toContain('aria-label="Modo de lectura"');
     expect(leerSelected || !html.includes("Ver</button>")).toBe(true);
     // The decisive part: the stored mode must NOT appear as selected.
-    const verSelectedIndex = html.indexOf("Ver");
-    const selectedTrueBeforeVer = html.lastIndexOf(
-      'aria-selected="true"',
-      verSelectedIndex,
+    //
+    // Book Experience Standard V1 makes this doubly true on the server. There
+    // is no `localStorage` AND no media manifest during SSR, so Escuchar and
+    // Ver are not merely unselected — they are not offered at all. Asserting on
+    // the Ver tab's position would now assert on markup that legitimately does
+    // not exist, so the claim is stated directly: exactly one tab is selected
+    // in the mode strip, and it is Leer.
+    const modeTabs =
+      html.match(/data-testid="reader-mode-(leer|escuchar|ver)"/g) ?? [];
+    expect(modeTabs).toContain('data-testid="reader-mode-leer"');
+    expect(modeTabs).not.toContain('data-testid="reader-mode-ver"');
+    expect(html).not.toMatch(
+      /data-testid="reader-mode-ver"[^>]*aria-selected="true"/,
     );
-    const selectedFalseBeforeVer = html.lastIndexOf(
-      'aria-selected="false"',
-      verSelectedIndex,
-    );
-    expect(selectedFalseBeforeVer).toBeGreaterThan(selectedTrueBeforeVer);
   });
 
   it("adopts the stored mode after mount, so the preference is not lost", async () => {

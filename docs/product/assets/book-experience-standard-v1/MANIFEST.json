@@ -1,24 +1,24 @@
 {
-  "gitSha": "340e26507ecd1e054ee8ba4c4f87ff9779e3e690",
+  "gitSha": "f8e3751f427cc2bd0b0eb59f136d83b8adc6f10e",
   "source": "/prototipos/book-experience (prototipo interno, sin datos de nadie)",
   "screenshots": [
     {
       "file": "01-standard-overview-desktop.webp",
       "viewport": "1365x900",
       "url": "/prototipos/book-experience",
-      "sha256": "54b1f41b0920fb1b3d747f9a6c6904061db7f463fde4f26f49c98f0e5330dfe5"
+      "sha256": "5e51d371cac706071430c9dcfd8a66cbb154cb7d541f51ed3525e661a6f74dc4"
     },
     {
       "file": "02-standard-media-desktop.webp",
       "viewport": "1365x900",
       "url": "/prototipos/book-experience?mode=audiobook",
-      "sha256": "060807cac15246bd925505a74472e94f7e1c71e6be9175b0ee34d11d2bccedaa"
+      "sha256": "7696661e8d7c219d6c6f2b92a381e2db3db9f87c0a17f5c1f20198174d767a55"
     },
     {
       "file": "03-standard-guided-mobile.webp",
       "viewport": "390x844",
       "url": "/prototipos/book-experience?mode=guided",
-      "sha256": "bdea24f7fa416b8613157ea96bfe36ec518c8118a2362512e2036f67d1de7a75"
+      "sha256": "c731dfe792a91421c13069f06f06d577f840e213a1f5b6642eb7bbf080d65802"
     }
   ]
 }

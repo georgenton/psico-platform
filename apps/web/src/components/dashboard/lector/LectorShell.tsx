@@ -1330,7 +1330,27 @@ export function LectorShell({
           token={token}
           onClose={() => closeGuide()}
           onGoToPassage={goToGuidePassage}
-          onContinueReading={() => closeGuide()}
+          /**
+           * «Continuar leyendo» is not «Cerrar».
+           *
+           * Closing is a dismissal: the reader is done with the panel and gets
+           * back whatever they were doing, which may well have been listening.
+           * That is why `closeGuide` alone never touches the mode.
+           *
+           * This button says something else. The reader finished the guide and
+           * asked to go on READING — so it names Leer explicitly instead of
+           * dropping them back into the audiobook they had left. It goes
+           * through `changeMode`, the one place that persists a mode, because a
+           * choice the reader made out loud should still be theirs on the next
+           * chapter.
+           *
+           * It ends nothing: no session cancel, no recovery clear, no route
+           * change, no progress reset. It changes which surface is on screen.
+           */
+          onContinueReading={() => {
+            changeMode("leer");
+            closeGuide();
+          }}
           onOpenExplicitCheckin={() => {
             // The existing check-in surface, reached as itself and IN PLACE:
             // the chapter stays open and the route does not change. The guide

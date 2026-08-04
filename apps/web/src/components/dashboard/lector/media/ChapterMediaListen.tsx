@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type { ChapterMediaSummary } from "@psico/types";
 import { AudioBar } from "../AudioBar";
 import { ComingSoonNotice } from "./ComingSoonNotice";
@@ -48,11 +49,17 @@ export function ChapterMediaListen({
   audioAvailable,
   items,
   manifestError,
+  chapterTitle,
+  bookSlug,
 }: {
   apiBase: string;
   token: string;
   bookId: string;
   chapterOrder: number;
+  /** So the surface says WHICH chapter is about to be narrated. */
+  chapterTitle: string;
+  /** For the way out. Listening is still reading a book. */
+  bookSlug: string;
   /** From the chapter payload: whether the `Audio` row exists at all. */
   audioAvailable: boolean;
   /**
@@ -117,16 +124,39 @@ export function ChapterMediaListen({
       </div>
 
       {tab === "audiobook" ? (
-        audioAvailable ? (
+        // Fail closed on BOTH sources. `audioAvailable` is the chapter
+        // envelope's row; `views.audiobook` is what the standard decided from
+        // the manifest. A COMING_SOON or HIDDEN audiobook must not mount a
+        // player — mounting it is what would ask for a signed URL we are not
+        // entitled to.
+        audioAvailable && isModeEnabled(views.audiobook) ? (
           <div
-            className="rounded-2xl border-[1.5px] bg-white p-4"
+            className="flex flex-col gap-3 rounded-2xl border-[1.5px] bg-white p-4"
             style={{ borderColor: "var(--color-warm-200)" }}
           >
+            <div>
+              <p
+                className="text-[11px] font-semibold uppercase tracking-[0.14em]"
+                style={{ color: "var(--color-lavender-500)" }}
+              >
+                Audiolibro
+              </p>
+              <h2
+                className="mt-1 text-[17px] font-bold leading-snug"
+                style={{ color: "var(--color-warm-900)", textWrap: "pretty" }}
+              >
+                {chapterTitle}
+              </h2>
+            </div>
             <AudioBar
               apiBase={apiBase}
               token={token}
               bookId={bookId}
               chapterOrder={chapterOrder}
+              // Choosing «Escuchar» IS the ask, so the player is ready. It
+              // still never starts on its own.
+              initialOpen
+              inline
               onEnded={
                 audiobook ? () => void report(audiobook.mediaKey) : undefined
               }
@@ -136,6 +166,13 @@ export function ChapterMediaListen({
                 onRetry={() => void report(audiobook.mediaKey)}
               />
             ) : null}
+            <Link
+              href={`/dashboard/biblioteca/${bookSlug}`}
+              className="self-start text-[12.5px] font-semibold"
+              style={{ color: "var(--color-warm-500)" }}
+            >
+              ← Volver al libro
+            </Link>
           </div>
         ) : (
           <ComingSoonNotice

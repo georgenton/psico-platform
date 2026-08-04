@@ -1419,6 +1419,8 @@ export function LectorShell({
           bookId={book.id}
           chapterOrder={chapter.order}
           audioAvailable={chapter.audioAvailable}
+          chapterTitle={chapter.title}
+          bookSlug={bookSlug}
           // The manifest this reader already asked for. The surfaces do NOT ask
           // again: one chapter, one manifest. Anything else made the tab and
           // the surface disagree for a moment, which is how «Audio en

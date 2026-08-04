@@ -292,3 +292,73 @@ describe("AudioBar — sleep timer", () => {
     expect(screen.getByText(/Temporizador.*15:0/)).toBeInTheDocument();
   });
 });
+
+// ── Track A — the player as the Escuchar surface itself ───────────────────
+
+describe("AudioBar — mounted as the surface", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  const renderInline = () =>
+    render(
+      <AudioBar
+        apiBase="https://api.example/api"
+        token="bearer-stub"
+        bookId="emociones-en-construccion"
+        chapterOrder={1}
+        initialOpen
+        inline
+      />,
+    );
+
+  it("LISTEN_ENTRY_PLAYER_EXPANDED=true — opens without a click and drops the pill", async () => {
+    fetchSpy.mockResolvedValue(fetchOk(baseAudioResponse));
+    renderInline();
+
+    // No «Abrir audio» to press: on this surface the player IS the screen.
+    expect(screen.queryByRole("button", { name: /abrir audio/i })).toBeNull();
+    expect(await screen.findByTestId("audio-player-panel")).toBeInTheDocument();
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+  });
+
+  it("LISTEN_ENTRY_AUTOPLAY=false — the audio is loaded, never started", async () => {
+    fetchSpy.mockResolvedValue(fetchOk(baseAudioResponse));
+    const { container } = renderInline();
+
+    await screen.findByTestId("audio-player-panel");
+    const audio = container.querySelector("audio");
+    expect(audio).not.toBeNull();
+    // Entering a screen must not make sound. Nothing asks it to play, and the
+    // browser is told nothing that would.
+    expect(audio).not.toHaveAttribute("autoplay");
+    expect(audio!.autoplay).toBe(false);
+  });
+
+  it("AUDIO_AVAILABLE_ACCESS_REQUESTS=1 — one signed URL per entry, not one per render", async () => {
+    fetchSpy.mockResolvedValue(fetchOk(baseAudioResponse));
+    const { rerender } = renderInline();
+
+    await screen.findByTestId("audio-player-panel");
+    rerender(
+      <AudioBar
+        apiBase="https://api.example/api"
+        token="bearer-stub"
+        bookId="emociones-en-construccion"
+        chapterOrder={1}
+        initialOpen
+        inline
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});

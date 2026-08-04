@@ -423,3 +423,174 @@ describe("MEDIA_VERTICAL_2_COMPLETE=false", () => {
     expect(text).not.toMatch(/ideas? clave/i);
   });
 });
+
+// ── The retry loop ────────────────────────────────────────────────────────
+
+describe("INITIAL_OPEN never retries by itself", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  const renderInline = () =>
+    render(
+      <AudioBar
+        apiBase="https://api.example/api"
+        token="bearer-stub"
+        bookId="emociones-en-construccion"
+        chapterOrder={1}
+        initialOpen
+        inline
+      />,
+    );
+
+  /**
+   * A failing chapter must cost ONE request, not a stream of them.
+   *
+   * The auto-fetch runs from an effect that depends on `fetchAudio`, and
+   * `fetchAudio` is rebuilt whenever `loading` changes. On success `data` is
+   * set and its own guard stops it; on failure nothing is set, so the effect
+   * fires again, and again. A reader without Pro sitting on «Escuchar» would
+   * hammer the endpoint for as long as the screen stayed open.
+   *
+   * Every case below answers the FIRST call with the failure and leaves every
+   * later call pending forever. That caps the loop at two requests instead of
+   * hanging the test — and makes the count the assertion.
+   */
+  function failFirstThenHang(fail: () => Response | never) {
+    let calls = 0;
+    fetchSpy.mockImplementation((async () => {
+      calls += 1;
+      if (calls === 1) return fail();
+      // Never resolves: a second request is already the bug.
+      return new Promise<Response>(() => {});
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any);
+  }
+
+  /** Let the failure settle and give any re-run effect room to fire. */
+  async function settle() {
+    for (let i = 0; i < 5; i += 1) {
+      await act(async () => {
+        await Promise.resolve();
+      });
+    }
+  }
+
+  const CASES: {
+    label: string;
+    fail: () => Response | never;
+    expected: RegExp;
+  }[] = [
+    {
+      label: "INITIAL_OPEN_403_REQUESTS",
+      fail: () => fetchStatus(403),
+      expected: /Audio disponible en Pro/,
+    },
+    {
+      label: "INITIAL_OPEN_404_REQUESTS",
+      fail: () => fetchStatus(404),
+      expected: /aún no tiene audio/,
+    },
+    {
+      label: "INITIAL_OPEN_500_REQUESTS",
+      fail: () => fetchStatus(500),
+      expected: /No pudimos cargar el audio/,
+    },
+    {
+      label: "INITIAL_OPEN_NETWORK_ERROR_REQUESTS",
+      fail: () => {
+        throw new TypeError("Failed to fetch");
+      },
+      expected: /No pudimos cargar el audio/,
+    },
+  ];
+
+  for (const { label, fail, expected } of CASES) {
+    it(`${label}=1 — the failure is shown once and never re-requested`, async () => {
+      failFirstThenHang(fail);
+      renderInline();
+
+      expect(await screen.findByText(expected)).toBeInTheDocument();
+      await settle();
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+  }
+
+  it("ONE_AUTOMATIC_REQUEST_PER_MOUNT — re-rendering the same bar asks nothing more", async () => {
+    // Same instance, same props, after a failure — the state that used to
+    // rebuild `fetchAudio` and re-enter the effect.
+    failFirstThenHang(() => fetchStatus(500));
+    const { rerender } = renderInline();
+
+    await screen.findByText(/No pudimos cargar el audio/);
+    for (let i = 0; i < 3; i += 1) {
+      rerender(
+        <AudioBar
+          apiBase="https://api.example/api"
+          token="bearer-stub"
+          bookId="emociones-en-construccion"
+          chapterOrder={1}
+          initialOpen
+          inline
+        />,
+      );
+      await settle();
+    }
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("INITIAL_OPEN_SUCCESS_REQUESTS=1 — a working chapter asks once", async () => {
+    fetchSpy.mockResolvedValue(fetchOk(baseAudioResponse));
+    renderInline();
+
+    await screen.findByTestId("audio-player-panel");
+    await settle();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("EXPLICIT_RETRY_ADDITIONAL_REQUESTS=1 — the reader can still ask again", async () => {
+    // First call fails; the retry succeeds. Nothing in between is automatic.
+    let calls = 0;
+    fetchSpy.mockImplementation((async () => {
+      calls += 1;
+      return calls === 1 ? fetchStatus(500) : fetchOk(baseAudioResponse);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any);
+
+    renderInline();
+    await screen.findByText(/No pudimos cargar el audio/);
+    await settle();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /Reintentar/i }));
+    await screen.findByTestId("audio-player-panel");
+    await settle();
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("INITIAL_OPEN_AUTOPLAY=false — recovering from an error still does not play", async () => {
+    let calls = 0;
+    fetchSpy.mockImplementation((async () => {
+      calls += 1;
+      return calls === 1 ? fetchStatus(500) : fetchOk(baseAudioResponse);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any);
+
+    const { container } = renderInline();
+    await screen.findByText(/No pudimos cargar el audio/);
+    fireEvent.click(screen.getByRole("button", { name: /Reintentar/i }));
+    await screen.findByTestId("audio-player-panel");
+
+    const audio = container.querySelector("audio");
+    expect(audio).not.toBeNull();
+    expect(audio).not.toHaveAttribute("autoplay");
+    expect(audio!.autoplay).toBe(false);
+  });
+});

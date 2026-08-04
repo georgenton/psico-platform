@@ -8,6 +8,7 @@ import {
   isModeVisible,
 } from "./book-experience";
 import type { ReaderMode } from "./reader-mode";
+import { chapterPartEyebrow } from "./chapter-label";
 
 /**
  * ChapterExperienceHome — «Cómo recorrerlo».
@@ -174,22 +175,28 @@ export function ChapterExperienceHome({
     });
   }
 
-  const eyebrow =
-    chapter.partNumber != null && chapter.partTitle
-      ? `Capítulo ${chapter.order} · Parte ${chapter.partNumber} — ${chapter.partTitle}`
-      : `Capítulo ${chapter.order}`;
+  // No numeric prefix: `order` is a platform key, not the book's own chapter
+  // number. See `chapter-label.ts` for the audit behind that. Parts ARE real
+  // editorial metadata, so they stay.
+  const eyebrow = chapterPartEyebrow({
+    title: chapter.title,
+    partNumber: chapter.partNumber,
+    partTitle: chapter.partTitle,
+  });
 
   return (
     <section
       data-testid="chapter-experience-home"
       className="mx-auto max-w-3xl px-4 pb-16 pt-8"
     >
-      <p
-        className="text-[11px] font-semibold uppercase tracking-[0.14em]"
-        style={{ color: "var(--color-lavender-500)" }}
-      >
-        {eyebrow}
-      </p>
+      {eyebrow ? (
+        <p
+          className="text-[11px] font-semibold uppercase tracking-[0.14em]"
+          style={{ color: "var(--color-lavender-500)" }}
+        >
+          {eyebrow}
+        </p>
+      ) : null}
       <h1
         className="mt-3 text-[30px] font-bold leading-tight tracking-[-0.025em]"
         style={{ color: "var(--color-warm-900)", textWrap: "pretty" }}

@@ -50,6 +50,8 @@ export function AudioBar({
   bookId,
   chapterOrder,
   onEnded,
+  initialOpen = false,
+  inline = false,
 }: {
   apiBase: string;
   token: string;
@@ -61,8 +63,30 @@ export function AudioBar({
    * did before, which is why the audiobook needed no new player.
    */
   onEnded?: () => void;
+  /**
+   * Start expanded, and fetch the audio right away.
+   *
+   * Default `false`, so every existing caller keeps the collapsed pill. It is
+   * opt-in because expanding costs a signed-URL request, and a request is only
+   * fair when the person asked for audio. Choosing «Escuchar» IS that ask —
+   * which is why the media surface is the one caller that sets it.
+   *
+   * It never starts playback. `autoplay` is absent by construction.
+   */
+  initialOpen?: boolean;
+  /**
+   * Lay the player out in the document flow instead of hanging it under a
+   * sticky header.
+   *
+   * The overlay positioning (`absolute … top-full`) is right for the reader
+   * header, where the bar drops down over the text. Inside the Escuchar
+   * surface the player IS the content, so it has to occupy space — otherwise
+   * it hangs outside its card and leaves the surface looking empty, which is
+   * the defect this flag exists to remove.
+   */
+  inline?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<LectorAudioResponse | null>(null);
   const [error, setError] = useState<
@@ -117,6 +141,37 @@ export function AudioBar({
     if (!open) void fetchAudio();
     setOpen(!open);
   }
+
+  /**
+   * Starting expanded has to fetch too — `toggle()` is what normally asks, and
+   * nobody is going to click it. Guarded by `initialOpen` so a collapsed bar
+   * still costs nothing until the reader opens it.
+   *
+   * The ref is what keeps it to ONE request. Leaning on `fetchAudio`'s own
+   * guard is not enough: that guard reads `data || loading`, and after a
+   * failure both are falsy again. `fetchAudio` is rebuilt when `loading`
+   * changes, the effect re-runs, the guard waves it through, and a reader
+   * without Pro sitting on «Escuchar» hammers the endpoint for as long as the
+   * screen stays open. Success hid it, because `data` stops the cycle.
+   *
+   * ONE_AUTOMATIC_REQUEST_PER_MOUNT. A re-render, a new error or a finished
+   * load never produce another; the reader's «Reintentar» still does, because
+   * that is a click and not an effect.
+   *
+   * CHAPTER_PROP_CHANGE_WITHOUT_REMOUNT=OUT_OF_SCOPE. Feeding a different
+   * `chapterOrder` to an already-mounted bar would need `data` cleared too —
+   * `fetchAudio` refuses while the previous chapter's response is still held —
+   * so a key on the chapter identity would only look like support for it. Every
+   * caller today remounts the bar per chapter (the reader route is keyed by
+   * `[chapterOrder]`), so a plain one-shot says exactly what is true.
+   */
+  const autoFetchedRef = useRef(false);
+  useEffect(() => {
+    if (!initialOpen) return;
+    if (autoFetchedRef.current) return;
+    autoFetchedRef.current = true;
+    void fetchAudio();
+  }, [initialOpen, fetchAudio]);
 
   // Pause when collapsing so audio doesn't keep playing under a closed bar.
   useEffect(() => {
@@ -221,31 +276,47 @@ export function AudioBar({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={open}
-        aria-label={open ? "Cerrar audio" : "Abrir audio"}
-        className="rounded-full px-3 py-1 text-[13px] font-semibold"
-        style={{
-          background: open
-            ? "var(--color-lavender-100)"
-            : "var(--reader-chip-bg, var(--color-warm-100))",
-          color: open
-            ? "var(--color-lavender-700)"
-            : "var(--reader-text, var(--color-warm-700))",
-        }}
-      >
-        {open ? "🔇 Audio" : "🔊 Audio"}
-      </button>
+      {/* Inline is the surface's own player, so there is nothing to toggle:
+          the way out is choosing another mode. The pill belongs to the reader
+          header, where the bar is a secondary affordance over the text. */}
+      {inline ? null : (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          aria-label={open ? "Cerrar audio" : "Abrir audio"}
+          className="rounded-full px-3 py-1 text-[13px] font-semibold"
+          style={{
+            background: open
+              ? "var(--color-lavender-100)"
+              : "var(--reader-chip-bg, var(--color-warm-100))",
+            color: open
+              ? "var(--color-lavender-700)"
+              : "var(--reader-text, var(--color-warm-700))",
+          }}
+        >
+          {open ? "🔇 Audio" : "🔊 Audio"}
+        </button>
+      )}
 
       {open ? (
         <div
-          className="absolute left-0 right-0 top-full z-30 px-4 py-3"
-          style={{
-            background: "var(--reader-bg-tint, rgba(250, 250, 248, 0.98))",
-            borderBottom: "1px solid var(--reader-border, rgba(0,0,0,0.06))",
-          }}
+          data-testid="audio-player-panel"
+          className={
+            inline
+              ? "w-full"
+              : "absolute left-0 right-0 top-full z-30 px-4 py-3"
+          }
+          style={
+            inline
+              ? undefined
+              : {
+                  background:
+                    "var(--reader-bg-tint, rgba(250, 250, 248, 0.98))",
+                  borderBottom:
+                    "1px solid var(--reader-border, rgba(0,0,0,0.06))",
+                }
+          }
         >
           <div className="mx-auto max-w-3xl">
             {loading ? (

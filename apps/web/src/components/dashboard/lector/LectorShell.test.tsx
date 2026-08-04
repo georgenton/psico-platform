@@ -234,10 +234,35 @@ const renderShell = (
   );
 
 describe("LectorShell — header + blocks (from Content Core)", () => {
-  it("renders book and chapter title in the header", () => {
+  it("renders the book and the chapter TITLE — never the platform order as a chapter number", () => {
     renderShell();
     expect(screen.getByText("Emociones en Construcción")).toBeInTheDocument();
-    expect(screen.getByText(/Cap\. 1.*El primer paso/)).toBeInTheDocument();
+    expect(screen.getByText("El primer paso")).toBeInTheDocument();
+    // `Chapter.order` is an ordering key, not the book's own numbering. No
+    // layer stores an editorial label yet, so the heading claims no number at
+    // all rather than a plausible wrong one.
+    expect(screen.queryByText(/Cap\.\s*\d/)).toBeNull();
+    expect(screen.queryByText(/Capítulo\s*\d/)).toBeNull();
+  });
+
+  it("PAREJAS_READER_DOES_NOT_SHOW_PLATFORM_ORDER — the off-by-one book", () => {
+    // «Parejas que Perduran» keeps its preface at order 1, so the book's own
+    // chapter 1 arrives here as order 2. The header used to read «Cap. 2» on
+    // the page whose title page says one.
+    const { container } = renderShell({
+      chapter: {
+        id: "ch-2",
+        order: 2,
+        title: "Cuando amar también sana",
+        description: null,
+        durationMinutes: 14,
+        audioAvailable: false,
+      },
+    } as unknown as Partial<LectorChapterResponse>);
+    expect(screen.getByText("Cuando amar también sana")).toBeInTheDocument();
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/Cap\.\s*\d/);
+    expect(text).not.toMatch(/Capítulo\s*\d/);
   });
 
   it("renders every block's content from the content-core unit, in order", () => {

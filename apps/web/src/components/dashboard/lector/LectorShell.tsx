@@ -18,6 +18,7 @@ import {
   breatheEcoSeed,
   reflexionEcoSeed,
   chapterConcept,
+  chapterExercises,
   projectReaderBlocks,
   highlightWritePayload,
   annotationWritePayload,
@@ -31,9 +32,11 @@ import { AudioBar } from "./AudioBar";
 import { ChapterMediaListen } from "./media/ChapterMediaListen";
 import { ChapterMediaWatch } from "./media/ChapterMediaWatch";
 import { modeToStored, storedToMode, type ReaderMode } from "./reader-mode";
-import { BlockRenderer } from "./BlockRenderer";
-import { EcoTopicCard } from "./EcoTopicCard";
-import { ChapterExercises } from "./exercises/ChapterExercises";
+import { ChapterExperienceHome } from "./ChapterExperienceHome";
+import {
+  ReaderExperienceView,
+  READER_ACTIVITIES_ANCHOR_ID,
+} from "./ReaderExperienceView";
 import { BreathingExercise } from "./exercises/BreathingExercise";
 import { HighlightPopover } from "./HighlightPopover";
 import { ResonanceNudge } from "./ResonanceNudge";
@@ -272,6 +275,51 @@ export function LectorShell({
     }
   }, []);
 
+  /**
+   * Book Experience V2, vertical 1 — which surface of the chapter is on screen.
+   *
+   * `DIRECT_READER_ACCESS=true`: the initial value is `"reader"`, always. Opening
+   * a chapter still lands on the text, so nobody who just wants to read has to
+   * pass a menu first, and the value is a constant so it cannot disagree with the
+   * server HTML on hydration.
+   *
+   * `RETURN_TO_CHAPTER_HOME=true`: «Cómo recorrerlo» in the header opens the
+   * chapter home, and its primary action brings the reader straight back. It is
+   * local state, not a route: the URL keeps meaning «this chapter», the heartbeat
+   * keeps running, and progress is never reset by looking at the map of the
+   * chapter.
+   */
+  const [surface, setSurface] = useState<"home" | "reader">("reader");
+
+  /**
+   * Set when the reader was opened FROM the «Actividades y ejercicios» row, so
+   * the effect below knows to scroll and focus once the section has mounted.
+   * A ref, not state: it is a one-shot instruction, not something to render.
+   */
+  const pendingActivitiesFocus = useRef(false);
+
+  /**
+   * Going to the chapter home closes what belongs to reading.
+   *
+   * Purely visual: the guided panel is hidden, not ended — no session is
+   * cancelled, no recovery is dropped, no mark is touched, no progress moves
+   * and the route does not change. It is the same «put the book down for a
+   * second» gesture the reader already had, applied to every overlay at once
+   * so none of them float over a screen they were not designed for.
+   */
+  const openChapterHome = useCallback(() => {
+    setSurface("home");
+    setGuideOpen(false);
+    setDockOpen(false);
+    setPrefsOpen(false);
+    setSelection(null);
+  }, []);
+
+  /** «Seguir leyendo» and every format row land back on the reader. */
+  const openReaderSurface = useCallback(() => {
+    setSurface("reader");
+  }, []);
+
   // Text selection state for the popover.
   const [selection, setSelection] = useState<{
     blockId: string;
@@ -291,7 +339,7 @@ export function LectorShell({
   // changes the route, and never starts a session (only the cover's button
   // does). The chapter stays mounted behind it.
   const guideActorScope = useGuideActorScope();
-  const { openMoodCheckin } = useMoodCheckin();
+  const { openMoodCheckin, moodCheckinOpen } = useMoodCheckin();
   const guideAvailable = useGuideAvailability();
   const [guideOpen, setGuideOpen] = useState(false);
   const guideTabRef = useRef<HTMLButtonElement>(null);
@@ -545,7 +593,77 @@ export function LectorShell({
     return () => io.disconnect();
   }, [blocks]);
 
+  /**
+   * How many activities and exercises this chapter really shows.
+   *
+   * Two collections feed one section: the curated catalog and the chapter's own
+   * exercise list. They can name the same thing, so a naive sum would tell the
+   * reader «3» and then show two cards. Titles are compared case- and
+   * accent-insensitively, which is enough for a catalog an editor maintains by
+   * hand.
+   */
+  const activityCount = useMemo(() => {
+    const seen = new Set<string>();
+    const norm = (t: string) =>
+      t
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+    for (const ex of chapterExercises(bookSlug, chapter.order)) {
+      seen.add(norm(ex.title));
+    }
+    for (const l of lessons) seen.add(norm(l.title));
+    return seen.size;
+  }, [bookSlug, chapter.order, lessons]);
+
+  /**
+   * Finish the «Actividades y ejercicios» jump once the section is on screen.
+   *
+   * Scroll AND focus: scrolling alone moves the eyes of people who can see it
+   * and nobody else, so the heading takes focus too and a screen reader lands
+   * where the row promised.
+   */
+  useEffect(() => {
+    if (!pendingActivitiesFocus.current) return;
+    if (surface !== "reader" || effectiveMode !== "leer") return;
+    const el = document.getElementById(READER_ACTIVITIES_ANCHOR_ID);
+    if (!el) return;
+    pendingActivitiesFocus.current = false;
+    el.scrollIntoView({ block: "start" });
+    el.focus({ preventScroll: true });
+  }, [surface, effectiveMode, blocks]);
+
   // ── Heartbeat ──────────────────────────────────────────────────────────
+
+  /**
+   * What «reading time» means here, exactly:
+   *
+   *   foreground time, in the Reader Experience, with no competing
+   *   interactive surface open.
+   *
+   * It is a measure of a SITUATION, not of the person. It does not claim
+   * attention, comprehension or feeling — `BEHAVIOR_IS_NOT_EMOTION` — and
+   * `Mi Evolución` presents it as what it is.
+   *
+   * So the gate names every surface that competes for the same minutes. The
+   * chapter home, the audio surface and the video surface replace the text;
+   * the guided panel, the companion dock, the preferences sheet, the breathing
+   * overlay and the check-in dialog sit over it. Writing a note is not reading
+   * either, even though it happens with the chapter open.
+   *
+   * Two things deliberately do NOT pause it. Selecting text is how a person
+   * highlights, which is reading. And the resonance nudge is an invitation
+   * beside the text, not a modal over it.
+   */
+  const readingHeartbeatEnabled =
+    surface === "reader" &&
+    effectiveMode === "leer" &&
+    !guideOpen &&
+    !dockOpen &&
+    !prefsOpen &&
+    breatheExercise === null &&
+    !moodCheckinOpen;
 
   useHeartbeat({
     apiBase,
@@ -557,6 +675,7 @@ export function LectorShell({
       lastBlockId: lastBlockIdRef.current,
       progressPct,
     }),
+    enabled: readingHeartbeatEnabled,
   });
 
   // ── Selection → popover ───────────────────────────────────────────────
@@ -917,8 +1036,40 @@ export function LectorShell({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Book Experience V2 — the way back to «Cómo recorrerlo». It is a
+                toggle, not a gate: the reader chose to look at the chapter's
+                shape and can leave it with the same button. */}
             <button
               type="button"
+              data-testid="reader-open-chapter-home"
+              onClick={() =>
+                surface === "home" ? openReaderSurface() : openChapterHome()
+              }
+              aria-pressed={surface === "home"}
+              aria-label={
+                surface === "home" ? "Volver al lector" : "Cómo recorrerlo"
+              }
+              className="rounded-full px-4 text-[13px] font-semibold"
+              // The one control that is on BOTH surfaces, so it is the one that
+              // has to be reachable with a thumb.
+              style={{
+                minHeight: 44,
+                minWidth: 44,
+                background:
+                  surface === "home"
+                    ? "var(--color-lavender-100)"
+                    : "var(--reader-chip-bg, var(--color-warm-100))",
+                color:
+                  surface === "home"
+                    ? "var(--color-lavender-700)"
+                    : "var(--reader-text, var(--color-warm-700))",
+              }}
+            >
+              {surface === "home" ? "Volver" : "Recorrido"}
+            </button>
+            <button
+              type="button"
+              hidden={surface === "home"}
               onClick={() => setPrefsOpen(true)}
               aria-label="Preferencias de lectura"
               className="rounded-full px-3 py-1 text-[14px] font-semibold"
@@ -933,7 +1084,9 @@ export function LectorShell({
                 want a quick listen without switching the whole reading
                 experience. In Modo Guía the audio lives in the banner
                 below, so we hide the pill to avoid duplicating it. */}
-            {chapter.audioAvailable && effectiveMode === "leer" ? (
+            {surface === "reader" &&
+            chapter.audioAvailable &&
+            effectiveMode === "leer" ? (
               <AudioBar
                 apiBase={apiBase}
                 token={token}
@@ -943,6 +1096,7 @@ export function LectorShell({
             ) : null}
             <button
               type="button"
+              hidden={surface === "home"}
               onClick={() => {
                 setDockTab("notas");
                 setFocusBlockId(null);
@@ -978,8 +1132,13 @@ export function LectorShell({
       {/* Mode selector — Leer · Escuchar · Ver (GR-2). It sits right below the
           sticky header so switching never costs a scroll, and so the choice is
           visible: the chapter is the unit, the format is the reader's call
-          (docs/product/guided-reading-v1.md GR-001). */}
+          (docs/product/guided-reading-v1.md GR-001).
+
+          Hidden on the chapter home, which lists the same formats as rows with
+          their state spelled out. Two selectors for one decision would be two
+          places to disagree. */}
       <div
+        hidden={surface === "home"}
         className="mx-auto mt-4 flex max-w-full items-center justify-center gap-1 overflow-x-auto rounded-full p-1"
         style={{
           background: "var(--reader-chip-bg, var(--color-warm-100))",
@@ -1142,7 +1301,50 @@ export function LectorShell({
         />
       ) : null}
 
-      {effectiveMode === "escuchar" ? (
+      {/* Book Experience V2 — «Cómo recorrerlo». One surface, mounted instead of
+          the formats, never over them: the chapter home is a place you go, not
+          an overlay that hides where you were. */}
+      {surface === "home" ? (
+        <ChapterExperienceHome
+          book={{
+            title: book.title,
+            authorName: book.authorName,
+            slug: bookSlug,
+          }}
+          chapter={{
+            order: chapter.order,
+            title: chapter.title,
+            durationMinutes: chapter.durationMinutes,
+            partNumber: chapter.partNumber,
+            partTitle: chapter.partTitle,
+          }}
+          progressPct={progressPct}
+          modeViews={modeViews}
+          guidedView={guidedView}
+          activityCount={activityCount}
+          onContinueReading={() => {
+            changeMode("leer");
+            openReaderSurface();
+          }}
+          onPickMode={(mode) => {
+            changeMode(mode);
+            openReaderSurface();
+          }}
+          onOpenGuided={() => {
+            openReaderSurface();
+            setGuideOpen(true);
+          }}
+          onOpenActivities={() => {
+            // The section only exists in «Leer», so the row takes us there and
+            // an effect finishes the job once it has actually mounted.
+            pendingActivitiesFocus.current = true;
+            changeMode("leer");
+            openReaderSurface();
+          }}
+        />
+      ) : null}
+
+      {surface === "reader" && effectiveMode === "escuchar" ? (
         <ChapterMediaListen
           apiBase={apiBase}
           token={token}
@@ -1158,7 +1360,7 @@ export function LectorShell({
         />
       ) : null}
 
-      {effectiveMode === "ver" ? (
+      {surface === "reader" && effectiveMode === "ver" ? (
         <ChapterMediaWatch
           apiBase={apiBase}
           token={token}
@@ -1167,140 +1369,42 @@ export function LectorShell({
         />
       ) : null}
 
-      {/* Sprint B — contextual Eco topic for this chapter (dismissible). */}
-      <div className="mx-auto max-w-3xl px-4 pt-6">
-        <EcoTopicCard
+      {/* Book Experience V2 §18 — the reading composition is mounted ONLY in
+          «Leer». Before this, the chapter text, its activities, its exercises
+          list and «Marcar capítulo como leído» rendered unconditionally, so a
+          person who picked Escuchar got the player with the whole chapter under
+          it. Reading lives in one surface now, and the other formats are the
+          only thing on screen when they are chosen. */}
+      {surface === "reader" && effectiveMode === "leer" ? (
+        <ReaderExperienceView
           bookSlug={bookSlug}
           chapterOrder={chapter.order}
           chapterTitle={chapter.title}
-          onOpen={(prompt) => openEcoInDock(prompt)}
-        />
-      </div>
-
-      {/* Reading area */}
-      <main
-        // A stable hook for the responsive gate: «the panel does not cover the
-        // text» has to name WHICH element is the text.
-        data-testid="reader-chapter-column"
-        className="mx-auto max-w-3xl px-4 pb-8"
-        style={proseStyle}
-      >
-        {/* CC-6D — a content-core marks read failed. Visible + fail-closed: the
-            chapter is still readable, but we never show the envelope's marks in
-            its place. */}
-        {markSource === "content-core" && marksUnavailable && (
-          <div
-            role="status"
-            className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-          >
-            No pudimos cargar tus marcas en este momento. Tus resaltados y notas
-            están a salvo; vuelve a abrir el capítulo para reintentar.
-          </div>
-        )}
-        {/* CC-6E §5.1 — a content-core marks read failed, so we temporarily
-            block creating a new mark (a create without the current set risks a
-            duplicate/misplaced anchor). Auto-clears after a few seconds. */}
-        {markWriteNotice && (
-          <div
-            role="alert"
-            className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-          >
-            Tus marcas no están disponibles ahora. Reintenta antes de crear una
-            nueva.
-          </div>
-        )}
-        {blocks.map((b) => (
-          <BlockRenderer
-            key={b.id}
-            block={b}
-            highlights={highlightsByBlock.get(b.blockKey ?? b.id) ?? []}
-            annotationCount={annotationsByBlock.get(b.blockKey ?? b.id) ?? 0}
-            onAnnotateClick={(id) => {
-              setFocusBlockId(id);
-              setPendingBlockId(null);
-              setDockPassage(null);
-              setDockTab("notas");
-              setDockOpen(true);
-            }}
-            registerRef={registerRef}
-            flash={flashBlockId === b.id}
-          />
-        ))}
-
-        {/* Interactive activities (backlog: actividades reales) */}
-        <ChapterExercises
-          bookSlug={bookSlug}
-          chapterOrder={chapter.order}
-          onReflect={(prompt) =>
+          blocks={blocks}
+          highlightsByBlock={highlightsByBlock}
+          annotationsByBlock={annotationsByBlock}
+          lessons={lessons}
+          progressPct={progressPct}
+          proseStyle={proseStyle}
+          marksUnavailable={markSource === "content-core" && marksUnavailable}
+          markWriteNotice={markWriteNotice}
+          flashBlockId={flashBlockId}
+          registerRef={registerRef}
+          onAnnotateBlock={(id) => {
+            setFocusBlockId(id);
+            setPendingBlockId(null);
+            setDockPassage(null);
+            setDockTab("notas");
+            setDockOpen(true);
+          }}
+          onOpenEco={(prompt) => openEcoInDock(prompt)}
+          onReflectExercise={(prompt) =>
             openReflexionInDock(reflectExerciseSeed(prompt), true)
           }
           onBreathe={(ex) => setBreatheExercise(ex)}
+          onMarkComplete={markComplete}
         />
-
-        {/* Lessons list */}
-        {lessons.length > 0 && (
-          <section
-            className="mt-12 rounded-2xl p-5"
-            style={{
-              background: "var(--color-lavender-50)",
-              border: "1.5px solid var(--color-lavender-200)",
-            }}
-          >
-            <h3
-              className="mb-3 text-[12px] font-bold uppercase tracking-[0.14em]"
-              style={{ color: "var(--color-lavender-700)" }}
-            >
-              Ejercicios de este capítulo
-            </h3>
-            <ul className="flex flex-col gap-2">
-              {lessons.map((l) => (
-                <li
-                  key={l.id}
-                  className="flex items-center justify-between gap-3 text-[13px]"
-                  style={{ color: "var(--color-warm-800)" }}
-                >
-                  <span>{l.title}</span>
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.1em]"
-                    style={{
-                      background:
-                        l.status === "completed"
-                          ? "var(--color-sage-100)"
-                          : "var(--color-warm-100)",
-                      color:
-                        l.status === "completed"
-                          ? "var(--color-sage-700)"
-                          : "var(--color-warm-500)",
-                    }}
-                  >
-                    {l.status === "completed" ? "Hecho" : "Disponible"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* Complete CTA */}
-        <footer className="mt-12 flex flex-col items-center gap-3 pb-12">
-          <p
-            className="text-[12px]"
-            style={{ color: "var(--reader-muted, var(--color-warm-500))" }}
-          >
-            {progressPct >= 0.9
-              ? "Estás casi al final de este capítulo."
-              : "Sigue leyendo a tu ritmo."}
-          </p>
-          <button
-            type="button"
-            onClick={markComplete}
-            className="rounded-2xl px-6 py-3 text-[13px] font-semibold text-white"
-            style={{ background: "var(--color-sage-500)" }}
-          >
-            ✓ Marcar capítulo como leído
-          </button>
-        </footer>
-      </main>
+      ) : null}
 
       {/* Fase E — resonance offer after the first highlight */}
       {resonanceOffer ? (

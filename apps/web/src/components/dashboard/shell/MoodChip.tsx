@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useMoodCheckinOpenRequest } from "./mood-checkin-context";
+import {
+  useMoodCheckinOpenRequest,
+  useReportMoodCheckinOpen,
+} from "./mood-checkin-context";
 import {
   CHECKIN_SCALE,
   DIARY_MOODS,
@@ -37,6 +40,9 @@ export function MoodChip({
   // Opening the popover is ALL that happens: no mood is preselected, nothing
   // is submitted, and only an explicit tap on a face can write.
   const openRequest = useMoodCheckinOpenRequest();
+  // Mirror the dialog's visibility up so the reader can stop counting reading
+  // time while it is on screen. Visibility only — no mood, no score, no answer.
+  useReportMoodCheckinOpen(open);
   const firstRequest = useRef(openRequest);
   const popoverRef = useRef<HTMLDivElement>(null);
   useEffect(() => {

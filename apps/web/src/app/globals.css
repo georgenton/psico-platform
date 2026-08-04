@@ -398,3 +398,16 @@ body.amb-noche .bg-white {
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Reader · «Actividades y ejercicios» landing target ──────────────────────
+   The chapter home's activities row moves focus to this section so a screen
+   reader lands where the row promised. Focus that a person cannot see is worse
+   than focus that never moved, so the target gets a real ring: an outline plus
+   an offset halo, which reads as a shape and not only as a colour. Both draw
+   outside the box, so nothing shifts. */
+.reader-activities-anchor:focus,
+.reader-activities-anchor:focus-visible {
+  outline: 3px solid var(--color-lavender-500);
+  outline-offset: 4px;
+  box-shadow: 0 0 0 8px var(--color-lavender-100);
+}

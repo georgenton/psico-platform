@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { ComingSoonNotice } from "./ComingSoonNotice";
 import { RetryCompletion } from "./ChapterMediaListen";
+import type { ChapterMediaSummary } from "@psico/types";
 import {
   useChapterMediaAccess,
   useChapterMediaCompletion,
-  useChapterMediaManifest,
   type MediaFetchError,
 } from "./use-chapter-media";
 
@@ -30,21 +30,19 @@ import {
 export function ChapterMediaWatch({
   apiBase,
   token,
-  bookId,
-  chapterOrder,
+  items,
+  manifestError,
 }: {
   apiBase: string;
   token: string;
-  bookId: string;
-  chapterOrder: number;
+  /**
+   * The chapter media manifest, resolved by the reader — see the note in
+   * `ChapterMediaListen`. One chapter, one manifest.
+   */
+  items: readonly ChapterMediaSummary[] | null;
+  manifestError: MediaFetchError | null;
 }) {
-  const { items, error } = useChapterMediaManifest({
-    apiBase,
-    token,
-    bookId,
-    chapterOrder,
-    enabled: true,
-  });
+  const error = manifestError;
   const requestAccess = useChapterMediaAccess({ apiBase, token });
   const { report, failedKey } = useChapterMediaCompletion({ apiBase, token });
 

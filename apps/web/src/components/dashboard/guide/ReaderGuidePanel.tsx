@@ -333,7 +333,14 @@ export function ReaderGuidePanel({
       <style>{PANEL_CSS}</style>
 
       <div className="rgp-head">
-        <span className="rgp-eyebrow">{C.cover.eyebrow}</span>
+        <span className="rgp-badges">
+          <span className="rgp-eyebrow">{C.cover.eyebrow}</span>
+          {/* The scope sits beside the badge, not below the title: what the
+              guide covers is part of the offer, not a footnote to it. */}
+          <span className="rgp-scope" data-testid="rgp-scope">
+            {C.cover.scope}
+          </span>
+        </span>
         <button type="button" onClick={onClose} className="rgp-close">
           {C.close}
         </button>
@@ -780,6 +787,8 @@ const PANEL_CSS = `
 }
 .rgp-head { display: flex; align-items: center; justify-content: space-between;
   padding: 14px 18px 0; }
+.rgp-badges { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.rgp-scope { font-size: 11.5px; color: var(--color-warm-600); white-space: nowrap; }
 .rgp-eyebrow { font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
   font-weight: 700; color: var(--color-lavender-500, #8a7ab8); }
 .rgp-close { min-height: 44px; background: none; border: 0; cursor: pointer;

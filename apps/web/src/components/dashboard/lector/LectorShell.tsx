@@ -18,6 +18,7 @@ import {
   breatheEcoSeed,
   reflexionEcoSeed,
   chapterConcept,
+  chapterExercises,
   projectReaderBlocks,
   highlightWritePayload,
   annotationWritePayload,
@@ -27,13 +28,14 @@ import {
   ReaderCompanionDock,
   type DockTab,
 } from "./companion/ReaderCompanionDock";
-import { AudioBar } from "./AudioBar";
 import { ChapterMediaListen } from "./media/ChapterMediaListen";
 import { ChapterMediaWatch } from "./media/ChapterMediaWatch";
 import { modeToStored, storedToMode, type ReaderMode } from "./reader-mode";
-import { BlockRenderer } from "./BlockRenderer";
-import { EcoTopicCard } from "./EcoTopicCard";
-import { ChapterExercises } from "./exercises/ChapterExercises";
+import { ChapterExperienceHome } from "./ChapterExperienceHome";
+import {
+  ReaderExperienceView,
+  READER_ACTIVITIES_ANCHOR_ID,
+} from "./ReaderExperienceView";
 import { BreathingExercise } from "./exercises/BreathingExercise";
 import { HighlightPopover } from "./HighlightPopover";
 import { ResonanceNudge } from "./ResonanceNudge";
@@ -48,10 +50,16 @@ import {
 } from "../guide/ReaderGuidePanel";
 import { useMoodCheckin } from "../shell/mood-checkin-context";
 import {
-  READER_GUIDE_LOADING,
-  READER_GUIDE_MODE_LABEL,
-  READER_GUIDE_UNAVAILABLE,
-} from "../guide/guide-reader-copy";
+  audioFamilyMode,
+  bookMode,
+  disabledNotice,
+  guidedMode,
+  isModeEnabled,
+  isModeVisible,
+  mediaModeFromManifest,
+  type BookExperienceModeView,
+} from "./book-experience";
+import { useChapterMediaManifest } from "./media/use-chapter-media";
 import { guideComponentKey } from "../guide/guide-pin";
 import { resolveGuideWebBundle } from "../guide/guide-web-bundle";
 import { useGuideActorScope } from "../guide/guide-actor-scope";
@@ -252,19 +260,64 @@ export function LectorShell({
   // React reported a text-content mismatch, threw away the server markup for
   // the whole document, and in development put an error indicator on screen.
   // So the stored preference is adopted in an effect, after hydration.
-  const [mode, setMode] = useState<ReaderMode>("leer");
+  const [requestedMode, setRequestedMode] = useState<ReaderMode>("leer");
   useEffect(() => {
     const stored = storedToMode(
       window.localStorage.getItem("psico:lector:mode"),
     );
-    if (stored !== "leer") setMode(stored);
+    if (stored !== "leer") setRequestedMode(stored);
   }, []);
-  function changeMode(next: ReaderMode) {
-    setMode(next);
+  const changeMode = useCallback((next: ReaderMode) => {
+    setRequestedMode(next);
     if (typeof window !== "undefined") {
       window.localStorage.setItem("psico:lector:mode", modeToStored(next));
     }
-  }
+  }, []);
+
+  /**
+   * Book Experience V2, vertical 1 — which surface of the chapter is on screen.
+   *
+   * `DIRECT_READER_ACCESS=true`: the initial value is `"reader"`, always. Opening
+   * a chapter still lands on the text, so nobody who just wants to read has to
+   * pass a menu first, and the value is a constant so it cannot disagree with the
+   * server HTML on hydration.
+   *
+   * `RETURN_TO_CHAPTER_HOME=true`: «Cómo recorrerlo» in the header opens the
+   * chapter home, and its primary action brings the reader straight back. It is
+   * local state, not a route: the URL keeps meaning «this chapter», the heartbeat
+   * keeps running, and progress is never reset by looking at the map of the
+   * chapter.
+   */
+  const [surface, setSurface] = useState<"home" | "reader">("reader");
+
+  /**
+   * Set when the reader was opened FROM the «Actividades y ejercicios» row, so
+   * the effect below knows to scroll and focus once the section has mounted.
+   * A ref, not state: it is a one-shot instruction, not something to render.
+   */
+  const pendingActivitiesFocus = useRef(false);
+
+  /**
+   * Going to the chapter home closes what belongs to reading.
+   *
+   * Purely visual: the guided panel is hidden, not ended — no session is
+   * cancelled, no recovery is dropped, no mark is touched, no progress moves
+   * and the route does not change. It is the same «put the book down for a
+   * second» gesture the reader already had, applied to every overlay at once
+   * so none of them float over a screen they were not designed for.
+   */
+  const openChapterHome = useCallback(() => {
+    setSurface("home");
+    setGuideOpen(false);
+    setDockOpen(false);
+    setPrefsOpen(false);
+    setSelection(null);
+  }, []);
+
+  /** «Seguir leyendo» and every format row land back on the reader. */
+  const openReaderSurface = useCallback(() => {
+    setSurface("reader");
+  }, []);
 
   // Text selection state for the popover.
   const [selection, setSelection] = useState<{
@@ -285,7 +338,7 @@ export function LectorShell({
   // changes the route, and never starts a session (only the cover's button
   // does). The chapter stays mounted behind it.
   const guideActorScope = useGuideActorScope();
-  const { openMoodCheckin } = useMoodCheckin();
+  const { openMoodCheckin, moodCheckinOpen } = useMoodCheckin();
   const guideAvailable = useGuideAvailability();
   const [guideOpen, setGuideOpen] = useState(false);
   const guideTabRef = useRef<HTMLButtonElement>(null);
@@ -407,6 +460,124 @@ export function LectorShell({
     guideBundle !== null &&
     guideAnchor.status === "RESOLVED";
 
+  /**
+   * Book Experience Standard V1 — which formats this chapter may actually
+   * offer. Authority: `docs/product/book-experience-standard-v1.md`.
+   *
+   * The manifest is metadata only: it signs nothing and carries no URL, so
+   * asking for it up front is cheap and is what lets the selector be honest
+   * BEFORE the reader commits to a tab. The playback call (`/media/:key/access`)
+   * still happens only inside the surface, and a disabled mode never mounts
+   * that surface — so a mode with nothing behind it makes no playback request
+   * at all.
+   */
+  const { items: mediaItems, error: mediaError } = useChapterMediaManifest({
+    apiBase,
+    token,
+    bookId: book.id,
+    chapterOrder: chapter.order,
+    enabled: true,
+  });
+
+  const modeViews = useMemo(
+    () => ({
+      leer: bookMode(),
+      escuchar: audioFamilyMode(mediaItems),
+      ver: mediaModeFromManifest("VIDEO", mediaItems),
+    }),
+    [mediaItems],
+  );
+
+  const guidedView = useMemo(
+    () =>
+      guidedMode({
+        runtimeReady: guideRuntimeReady,
+        discoveryPending: discovery.status === "loading",
+      }),
+    [guideRuntimeReady, discovery.status],
+  );
+
+  /**
+   * What the reader ASKED for and what the chapter can actually give them.
+   *
+   * Two different questions, and collapsing them into one state was the bug.
+   * `requestedMode` is restored from `localStorage`, so it can name a format
+   * this chapter does not have — or one whose manifest has not arrived yet.
+   * Rendering from it directly mounted the media surface over an empty mode
+   * and made the tab look selected while nothing could play.
+   *
+   * `effectiveMode` is what the UI renders: the request, but only while the
+   * standard says that mode is open. Everything else falls back to Leer, the
+   * one mode that is always there. Deriving it means there is no window — not
+   * even one frame, not even during the manifest request — in which a mode
+   * with nothing behind it is on screen.
+   */
+  const effectiveMode: ReaderMode = isModeEnabled(modeViews[requestedMode])
+    ? requestedMode
+    : "leer";
+
+  /**
+   * Is the chapter text on screen right now?
+   *
+   * Not the same question as «is Leer the chosen mode». The guided panel is a
+   * SURFACE that narrates the chapter and sends the reader to a passage inside
+   * it, so the text has to be mounted behind it — and it has to be mounted no
+   * matter which format the reader had chosen before opening the guide.
+   * Deriving that from `effectiveMode === "leer"` alone left a reader who
+   * opened the guide from Escuchar or Ver with a panel over nothing: «Ir al
+   * pasaje» had no block to find.
+   *
+   * The mode itself is untouched. Opening the guide does not call
+   * `changeMode`, does not write `localStorage`, and does not cancel a session
+   * — so closing the panel puts the requested format back on screen by simply
+   * ceasing to override it. The media surfaces read the same authority from
+   * the other side: while the guide is open they step aside, because the guide
+   * is about the text.
+   *
+   * It is also what tells the IntersectionObserver whether there is anything
+   * to observe. See the observer effect below.
+   */
+  const readerContentMounted =
+    surface === "reader" && (effectiveMode === "leer" || guideOpen);
+
+  /**
+   * If the guided mode stops being offered, the panel cannot stay open.
+   *
+   * The reader can be inside the panel when the context changes underneath
+   * them: a new chapter, a discovery answer that says this passage has no
+   * guide, a pin that no longer resolves. Leaving the panel mounted would show
+   * a cover for a guide the server has not confirmed.
+   *
+   * Closing is all this does. It starts nothing and cancels nothing: a Guide
+   * session is created only by the cover's own button and ended only by the
+   * reader, and an unmount is not a decision about their progress
+   * (GUIDE_LIFECYCLE_CHANGED=false).
+   */
+  useEffect(() => {
+    if (!guideOpen) return;
+    if (isModeVisible(guidedView)) return;
+    setGuideOpen(false);
+  }, [guideOpen, guidedView]);
+
+  /**
+   * A mode the standard disabled must not stay REMEMBERED either.
+   *
+   * The fallback above already protects the render. This clears the stored
+   * preference so the next chapter, and the next visit, do not keep asking for
+   * a format that is gone — and it persists through `changeMode` so the reset
+   * is not silently undone by the value still sitting in `localStorage`.
+   */
+  useEffect(() => {
+    if (requestedMode === "leer") return;
+    // Only once the manifest has actually ANSWERED. Resetting on a null
+    // manifest would destroy a saved preference for a chapter that does have
+    // the format — the tab is correctly disabled while we wait, but the
+    // reader's choice is not ours to discard over a request in flight.
+    if (mediaItems === null) return;
+    if (isModeEnabled(modeViews[requestedMode])) return;
+    changeMode("leer");
+  }, [requestedMode, modeViews, mediaItems, changeMode]);
+
   // The tint is a hint, not a mark: it clears itself.
   useEffect(() => {
     if (!flashBlockId) return;
@@ -416,8 +587,28 @@ export function LectorShell({
 
   // ── IntersectionObserver: track currently visible block ────────────────
 
+  /**
+   * The observer has to be rebuilt every time the text is remounted.
+   *
+   * `blocks` alone was the wrong authority. Leaving «Leer» for the chapter
+   * home, for Escuchar, for Ver — or opening the guide from a media mode —
+   * unmounts every block element and `registerRef(id, null)` empties the map;
+   * coming back mounts brand-new elements. The array of blocks is identical
+   * through all of that, so the effect never re-ran and the observer was left
+   * holding references to nodes that are no longer in the document. Reading
+   * resumed and nothing moved: no visible block, no progress, and every
+   * heartbeat afterwards repeated the block from before the round trip.
+   *
+   * `readerContentMounted` is the fact that actually changed, so it belongs in
+   * the dependency list. The cleanup disconnects before each rebuild, which is
+   * what keeps this to a single live observer
+   * (`ACTIVE_READER_INTERSECTION_OBSERVERS<=1`) instead of one per visit.
+   */
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Nothing is rendered, so there is nothing to observe — and the previous
+    // observer is already disconnected by this effect's own cleanup.
+    if (!readerContentMounted) return;
     const io = new IntersectionObserver(
       (entries) => {
         // The block that has the most intersection ratio wins.
@@ -441,11 +632,83 @@ export function LectorShell({
       { threshold: [0, 0.25, 0.5, 0.75, 1] },
     );
 
+    // The children mounted (and registered their refs) before this parent
+    // effect runs, so the map already holds the CURRENT elements.
     for (const el of blockRefs.current.values()) io.observe(el);
     return () => io.disconnect();
-  }, [blocks]);
+  }, [blocks, readerContentMounted]);
+
+  /**
+   * How many activities and exercises this chapter really shows.
+   *
+   * Two collections feed one section: the curated catalog and the chapter's own
+   * exercise list. They can name the same thing, so a naive sum would tell the
+   * reader «3» and then show two cards. Titles are compared case- and
+   * accent-insensitively, which is enough for a catalog an editor maintains by
+   * hand.
+   */
+  const activityCount = useMemo(() => {
+    const seen = new Set<string>();
+    const norm = (t: string) =>
+      t
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+    for (const ex of chapterExercises(bookSlug, chapter.order)) {
+      seen.add(norm(ex.title));
+    }
+    for (const l of lessons) seen.add(norm(l.title));
+    return seen.size;
+  }, [bookSlug, chapter.order, lessons]);
+
+  /**
+   * Finish the «Actividades y ejercicios» jump once the section is on screen.
+   *
+   * Scroll AND focus: scrolling alone moves the eyes of people who can see it
+   * and nobody else, so the heading takes focus too and a screen reader lands
+   * where the row promised.
+   */
+  useEffect(() => {
+    if (!pendingActivitiesFocus.current) return;
+    if (surface !== "reader" || effectiveMode !== "leer") return;
+    const el = document.getElementById(READER_ACTIVITIES_ANCHOR_ID);
+    if (!el) return;
+    pendingActivitiesFocus.current = false;
+    el.scrollIntoView({ block: "start" });
+    el.focus({ preventScroll: true });
+  }, [surface, effectiveMode, blocks]);
 
   // ── Heartbeat ──────────────────────────────────────────────────────────
+
+  /**
+   * What «reading time» means here, exactly:
+   *
+   *   foreground time, in the Reader Experience, with no competing
+   *   interactive surface open.
+   *
+   * It is a measure of a SITUATION, not of the person. It does not claim
+   * attention, comprehension or feeling — `BEHAVIOR_IS_NOT_EMOTION` — and
+   * `Mi Evolución` presents it as what it is.
+   *
+   * So the gate names every surface that competes for the same minutes. The
+   * chapter home, the audio surface and the video surface replace the text;
+   * the guided panel, the companion dock, the preferences sheet, the breathing
+   * overlay and the check-in dialog sit over it. Writing a note is not reading
+   * either, even though it happens with the chapter open.
+   *
+   * Two things deliberately do NOT pause it. Selecting text is how a person
+   * highlights, which is reading. And the resonance nudge is an invitation
+   * beside the text, not a modal over it.
+   */
+  const readingHeartbeatEnabled =
+    surface === "reader" &&
+    effectiveMode === "leer" &&
+    !guideOpen &&
+    !dockOpen &&
+    !prefsOpen &&
+    breatheExercise === null &&
+    !moodCheckinOpen;
 
   useHeartbeat({
     apiBase,
@@ -457,6 +720,7 @@ export function LectorShell({
       lastBlockId: lastBlockIdRef.current,
       progressPct,
     }),
+    enabled: readingHeartbeatEnabled,
   });
 
   // ── Selection → popover ───────────────────────────────────────────────
@@ -817,8 +1081,40 @@ export function LectorShell({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Book Experience V2 — the way back to «Cómo recorrerlo». It is a
+                toggle, not a gate: the reader chose to look at the chapter's
+                shape and can leave it with the same button. */}
             <button
               type="button"
+              data-testid="reader-open-chapter-home"
+              onClick={() =>
+                surface === "home" ? openReaderSurface() : openChapterHome()
+              }
+              aria-pressed={surface === "home"}
+              aria-label={
+                surface === "home" ? "Volver al lector" : "Cómo recorrerlo"
+              }
+              className="rounded-full px-4 text-[13px] font-semibold"
+              // The one control that is on BOTH surfaces, so it is the one that
+              // has to be reachable with a thumb.
+              style={{
+                minHeight: 44,
+                minWidth: 44,
+                background:
+                  surface === "home"
+                    ? "var(--color-lavender-100)"
+                    : "var(--reader-chip-bg, var(--color-warm-100))",
+                color:
+                  surface === "home"
+                    ? "var(--color-lavender-700)"
+                    : "var(--reader-text, var(--color-warm-700))",
+              }}
+            >
+              {surface === "home" ? "Volver" : "Recorrido"}
+            </button>
+            <button
+              type="button"
+              hidden={surface === "home"}
               onClick={() => setPrefsOpen(true)}
               aria-label="Preferencias de lectura"
               className="rounded-full px-3 py-1 text-[14px] font-semibold"
@@ -829,20 +1125,21 @@ export function LectorShell({
             >
               Aa
             </button>
-            {/* Mini-pill audio entry kept in Modo Libro for users who
-                want a quick listen without switching the whole reading
-                experience. In Modo Guía the audio lives in the banner
-                below, so we hide the pill to avoid duplicating it. */}
-            {chapter.audioAvailable && mode === "leer" ? (
-              <AudioBar
-                apiBase={apiBase}
-                token={token}
-                bookId={book.id}
-                chapterOrder={chapter.order}
-              />
-            ) : null}
+            {/* The header used to carry a mini-pill that opened the FULL
+                chapter audiobook while «Leer» was on screen. It is gone, and
+                its absence is the point: Escuchar is a mode with its own
+                surface, its own subformats and its own completion, so a second
+                entry point in the reading header meant the same audiobook had
+                two homes and the mode selector was not telling the truth about
+                where audio lives.
+
+                Nothing was lost with it — playback, signed access, completion,
+                transcript, speed and the sleep timer all live inside
+                `ChapterMediaListen`, which mounts the same `AudioBar`. The
+                reader reaches them by choosing Escuchar. */}
             <button
               type="button"
+              hidden={surface === "home"}
               onClick={() => {
                 setDockTab("notas");
                 setFocusBlockId(null);
@@ -878,8 +1175,13 @@ export function LectorShell({
       {/* Mode selector — Leer · Escuchar · Ver (GR-2). It sits right below the
           sticky header so switching never costs a scroll, and so the choice is
           visible: the chapter is the unit, the format is the reader's call
-          (docs/product/guided-reading-v1.md GR-001). */}
+          (docs/product/guided-reading-v1.md GR-001).
+
+          Hidden on the chapter home, which lists the same formats as rows with
+          their state spelled out. Two selectors for one decision would be two
+          places to disagree. */}
       <div
+        hidden={surface === "home"}
         className="mx-auto mt-4 flex max-w-full items-center justify-center gap-1 overflow-x-auto rounded-full p-1"
         style={{
           background: "var(--reader-chip-bg, var(--color-warm-100))",
@@ -894,28 +1196,94 @@ export function LectorShell({
         role="tablist"
         aria-label="Modo de lectura"
       >
-        {(
-          [
-            { value: "leer", label: "📖 Leer" },
-            { value: "escuchar", label: "🎧 Escuchar" },
-            { value: "ver", label: "🎬 Ver" },
-          ] as const
-        ).map((option) => (
+        {(["leer", "escuchar", "ver"] as const)
+          // Book Experience Standard V1 §3.2 — HIDDEN means no tab at all: no
+          // route, no call, nothing to click. A format outside this chapter's
+          // editorial plan is simply absent.
+          .filter((value) => isModeVisible(modeViews[value]))
+          .map((value) => {
+            const view: BookExperienceModeView = modeViews[value];
+            const enabled = isModeEnabled(view);
+            const notice = disabledNotice(view);
+            const selected = !guideOpen && effectiveMode === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                data-testid={`reader-mode-${value}`}
+                data-mode-state={view.state}
+                // While the guided-reading panel is open it is the selected
+                // surface; a mode tab still marked selected would tell assistive
+                // technology that two tabs are current at once.
+                aria-selected={selected}
+                // The disabled reason is announced, not implied by colour —
+                // a greyer chip alone is not a message.
+                aria-disabled={!enabled}
+                aria-label={notice ? `${view.label} · ${notice}` : undefined}
+                onClick={() => {
+                  // Fail closed at the click too, not only in the styling: a
+                  // tab the standard disabled must not switch mode and must not
+                  // mount a media surface that would then request playback.
+                  if (!enabled) return;
+                  setGuideOpen(false);
+                  changeMode(value);
+                }}
+                className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
+                style={
+                  !enabled
+                    ? {
+                        background: "transparent",
+                        color: "var(--reader-muted, var(--color-warm-500))",
+                        opacity: 0.55,
+                        cursor: "not-allowed",
+                        textDecoration: "underline dotted",
+                        textUnderlineOffset: "3px",
+                      }
+                    : selected
+                      ? {
+                          background: "var(--reader-bg, var(--color-warm-50))",
+                          color: "var(--reader-text, var(--color-warm-900))",
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                        }
+                      : {
+                          background: "transparent",
+                          color: "var(--reader-muted, var(--color-warm-600))",
+                        }
+                }
+              >
+                {view.label}
+                {notice ? (
+                  <span className="ml-1.5 text-[11px] font-medium opacity-90">
+                    · {notice}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        {/* GR-3 — the fourth modality. It is a SURFACE: picking it opens the
+            panel over the chapter and leaves `ReaderMode` (and therefore the
+            stored preference) exactly where it was. `aria-selected` tracks
+            whether the panel is open, which is what the reader sees.
+
+            It is rendered only once the standard makes it visible, which for a
+            guide means PUBLISHED: discovery answered, pin parsed, bundle and
+            anchor resolved. While any of that is pending — and on every chapter
+            that simply has no guide — there is no tab, because a tab is an
+            offer and we cannot yet make one. */}
+        {isModeVisible(guidedView) ? (
           <button
-            key={option.value}
             type="button"
             role="tab"
-            // While the guided-reading panel is open it is the selected
-            // surface; a mode tab still marked selected would tell assistive
-            // technology that two tabs are current at once.
-            aria-selected={!guideOpen && mode === option.value}
-            onClick={() => {
-              setGuideOpen(false);
-              changeMode(option.value);
-            }}
+            ref={guideTabRef}
+            aria-selected={guideOpen}
+            aria-controls={READER_GUIDE_PANEL_ID}
+            data-testid="reader-mode-guiada"
+            data-mode-state={guidedView.state}
+            onClick={() => setGuideOpen((v) => !v)}
             className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
             style={
-              !guideOpen && mode === option.value
+              guideOpen
                 ? {
                     background: "var(--reader-bg, var(--color-warm-50))",
                     color: "var(--reader-text, var(--color-warm-900))",
@@ -927,70 +1295,19 @@ export function LectorShell({
                   }
             }
           >
-            {option.label}
+            {guidedView.label}
           </button>
-        ))}
-        {/* GR-3 — the fourth modality. It is a SURFACE: picking it opens the
-            panel over the chapter and leaves `ReaderMode` (and therefore the
-            stored preference) exactly where it was. `aria-selected` tracks
-            whether the panel is open, which is what the reader sees. */}
-        <button
-          type="button"
-          role="tab"
-          ref={guideTabRef}
-          aria-selected={guideOpen}
-          aria-controls={READER_GUIDE_PANEL_ID}
-          data-testid="reader-mode-guiada"
-          onClick={() => setGuideOpen((v) => !v)}
-          className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
-          style={
-            guideOpen
-              ? {
-                  background: "var(--reader-bg, var(--color-warm-50))",
-                  color: "var(--reader-text, var(--color-warm-900))",
-                  boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
-                }
-              : {
-                  background: "transparent",
-                  color: "var(--reader-muted, var(--color-warm-600))",
-                }
-          }
-        >
-          {READER_GUIDE_MODE_LABEL}
-        </button>
+        ) : null}
       </div>
 
-      {/* GR-4 — while discovery is in flight the reader is told THAT, not that
-          there is no guide. Both states render text and nothing guide-shaped:
-          no cover, no «Empezar», and above all no other book's guide standing
-          in until the answer arrives. */}
-      {guideOpen && !guideRuntimeReady && discovery.status === "loading" ? (
-        <p
-          role="status"
-          data-testid="reader-guide-loading"
-          className="mx-auto mt-3 max-w-3xl px-4 text-[13px]"
-          style={{ color: "var(--reader-muted, var(--color-warm-600))" }}
-        >
-          {READER_GUIDE_LOADING}
-        </p>
-      ) : null}
-
-      {/* The pilot gate is the server's call and it is opaque: when the guide
-          is not on for this reader we say so plainly and never explain why.
-          The same calm sentence covers `unavailable` and `error` — the reader
-          does not need our diagnosis, and the difference is the server's to
-          know. */}
-      {guideOpen && !guideRuntimeReady && discovery.status !== "loading" ? (
-        <p
-          role="status"
-          data-testid="reader-guide-unavailable"
-          className="mx-auto mt-3 max-w-3xl px-4 text-[13px]"
-          style={{ color: "var(--reader-muted, var(--color-warm-600))" }}
-        >
-          {READER_GUIDE_UNAVAILABLE}
-        </p>
-      ) : null}
-
+      {/* GR-4 — the two «not yet» panels that used to live here are gone, and
+          their absence is the point. The tab above is now rendered only when
+          the standard makes the guided mode visible, which for a guide means
+          discovery answered, pin parsed, bundle and anchor resolved. There is
+          therefore no way to open this surface while the answer is pending or
+          missing, so a «buscando…» or «no disponible» panel could never be
+          reached — and unreachable reassurance is worse than none: it reads
+          like a state the product has when it does not. */}
       {/* GR-4 — PIN_CHANGE_REQUIRES_COMPONENT_REMOUNT=true.
           The `key` is the pin, always. A guide run holds a session, a scene, a
           recall verdict and a timer that mean nothing under another pin; giving
@@ -1013,7 +1330,27 @@ export function LectorShell({
           token={token}
           onClose={() => closeGuide()}
           onGoToPassage={goToGuidePassage}
-          onContinueReading={() => closeGuide()}
+          /**
+           * «Continuar leyendo» is not «Cerrar».
+           *
+           * Closing is a dismissal: the reader is done with the panel and gets
+           * back whatever they were doing, which may well have been listening.
+           * That is why `closeGuide` alone never touches the mode.
+           *
+           * This button says something else. The reader finished the guide and
+           * asked to go on READING — so it names Leer explicitly instead of
+           * dropping them back into the audiobook they had left. It goes
+           * through `changeMode`, the one place that persists a mode, because a
+           * choice the reader made out loud should still be theirs on the next
+           * chapter.
+           *
+           * It ends nothing: no session cancel, no recovery clear, no route
+           * change, no progress reset. It changes which surface is on screen.
+           */
+          onContinueReading={() => {
+            changeMode("leer");
+            closeGuide();
+          }}
           onOpenExplicitCheckin={() => {
             // The existing check-in surface, reached as itself and IN PLACE:
             // the chapter stays open and the route does not change. The guide
@@ -1027,159 +1364,118 @@ export function LectorShell({
         />
       ) : null}
 
-      {mode === "escuchar" ? (
+      {/* Book Experience V2 — «Cómo recorrerlo». One surface, mounted instead of
+          the formats, never over them: the chapter home is a place you go, not
+          an overlay that hides where you were. */}
+      {surface === "home" ? (
+        <ChapterExperienceHome
+          book={{
+            title: book.title,
+            authorName: book.authorName,
+            slug: bookSlug,
+          }}
+          chapter={{
+            order: chapter.order,
+            title: chapter.title,
+            durationMinutes: chapter.durationMinutes,
+            partNumber: chapter.partNumber,
+            partTitle: chapter.partTitle,
+          }}
+          progressPct={progressPct}
+          modeViews={modeViews}
+          guidedView={guidedView}
+          activityCount={activityCount}
+          onContinueReading={() => {
+            changeMode("leer");
+            openReaderSurface();
+          }}
+          onPickMode={(mode) => {
+            changeMode(mode);
+            openReaderSurface();
+          }}
+          onOpenGuided={() => {
+            openReaderSurface();
+            setGuideOpen(true);
+          }}
+          onOpenActivities={() => {
+            // The section only exists in «Leer», so the row takes us there and
+            // an effect finishes the job once it has actually mounted.
+            pendingActivitiesFocus.current = true;
+            changeMode("leer");
+            openReaderSurface();
+          }}
+        />
+      ) : null}
+
+      {/* The media surfaces step aside while the guide is open — the guide is
+          about the TEXT, and two players competing for the same chapter is not
+          a state we want a reader to be in. `requestedMode` is untouched, so
+          closing the panel brings the format straight back. */}
+      {surface === "reader" && !guideOpen && effectiveMode === "escuchar" ? (
         <ChapterMediaListen
           apiBase={apiBase}
           token={token}
           bookId={book.id}
           chapterOrder={chapter.order}
           audioAvailable={chapter.audioAvailable}
+          // The manifest this reader already asked for. The surfaces do NOT ask
+          // again: one chapter, one manifest. Anything else made the tab and
+          // the surface disagree for a moment, which is how «Audio en
+          // producción» could flash over a chapter that has audio.
+          items={mediaItems}
+          manifestError={mediaError}
         />
       ) : null}
 
-      {mode === "ver" ? (
+      {surface === "reader" && !guideOpen && effectiveMode === "ver" ? (
         <ChapterMediaWatch
           apiBase={apiBase}
           token={token}
-          bookId={book.id}
-          chapterOrder={chapter.order}
+          items={mediaItems}
+          manifestError={mediaError}
         />
       ) : null}
 
-      {/* Sprint B — contextual Eco topic for this chapter (dismissible). */}
-      <div className="mx-auto max-w-3xl px-4 pt-6">
-        <EcoTopicCard
+      {/* Book Experience V2 §18 — the reading composition is mounted ONLY in
+          «Leer». Before this, the chapter text, its activities, its exercises
+          list and «Marcar capítulo como leído» rendered unconditionally, so a
+          person who picked Escuchar got the player with the whole chapter under
+          it. Reading lives in one surface now, and the other formats are the
+          only thing on screen when they are chosen.
+
+          `readerContentMounted` — not `effectiveMode === "leer"` — because the
+          guided panel needs the chapter behind it whichever format the reader
+          came from. See the derivation above. */}
+      {readerContentMounted ? (
+        <ReaderExperienceView
           bookSlug={bookSlug}
           chapterOrder={chapter.order}
           chapterTitle={chapter.title}
-          onOpen={(prompt) => openEcoInDock(prompt)}
-        />
-      </div>
-
-      {/* Reading area */}
-      <main
-        // A stable hook for the responsive gate: «the panel does not cover the
-        // text» has to name WHICH element is the text.
-        data-testid="reader-chapter-column"
-        className="mx-auto max-w-3xl px-4 pb-8"
-        style={proseStyle}
-      >
-        {/* CC-6D — a content-core marks read failed. Visible + fail-closed: the
-            chapter is still readable, but we never show the envelope's marks in
-            its place. */}
-        {markSource === "content-core" && marksUnavailable && (
-          <div
-            role="status"
-            className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-          >
-            No pudimos cargar tus marcas en este momento. Tus resaltados y notas
-            están a salvo; vuelve a abrir el capítulo para reintentar.
-          </div>
-        )}
-        {/* CC-6E §5.1 — a content-core marks read failed, so we temporarily
-            block creating a new mark (a create without the current set risks a
-            duplicate/misplaced anchor). Auto-clears after a few seconds. */}
-        {markWriteNotice && (
-          <div
-            role="alert"
-            className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-          >
-            Tus marcas no están disponibles ahora. Reintenta antes de crear una
-            nueva.
-          </div>
-        )}
-        {blocks.map((b) => (
-          <BlockRenderer
-            key={b.id}
-            block={b}
-            highlights={highlightsByBlock.get(b.blockKey ?? b.id) ?? []}
-            annotationCount={annotationsByBlock.get(b.blockKey ?? b.id) ?? 0}
-            onAnnotateClick={(id) => {
-              setFocusBlockId(id);
-              setPendingBlockId(null);
-              setDockPassage(null);
-              setDockTab("notas");
-              setDockOpen(true);
-            }}
-            registerRef={registerRef}
-            flash={flashBlockId === b.id}
-          />
-        ))}
-
-        {/* Interactive activities (backlog: actividades reales) */}
-        <ChapterExercises
-          bookSlug={bookSlug}
-          chapterOrder={chapter.order}
-          onReflect={(prompt) =>
+          blocks={blocks}
+          highlightsByBlock={highlightsByBlock}
+          annotationsByBlock={annotationsByBlock}
+          lessons={lessons}
+          progressPct={progressPct}
+          proseStyle={proseStyle}
+          marksUnavailable={markSource === "content-core" && marksUnavailable}
+          markWriteNotice={markWriteNotice}
+          flashBlockId={flashBlockId}
+          registerRef={registerRef}
+          onAnnotateBlock={(id) => {
+            setFocusBlockId(id);
+            setPendingBlockId(null);
+            setDockPassage(null);
+            setDockTab("notas");
+            setDockOpen(true);
+          }}
+          onOpenEco={(prompt) => openEcoInDock(prompt)}
+          onReflectExercise={(prompt) =>
             openReflexionInDock(reflectExerciseSeed(prompt), true)
           }
           onBreathe={(ex) => setBreatheExercise(ex)}
+          onMarkComplete={markComplete}
         />
-
-        {/* Lessons list */}
-        {lessons.length > 0 && (
-          <section
-            className="mt-12 rounded-2xl p-5"
-            style={{
-              background: "var(--color-lavender-50)",
-              border: "1.5px solid var(--color-lavender-200)",
-            }}
-          >
-            <h3
-              className="mb-3 text-[12px] font-bold uppercase tracking-[0.14em]"
-              style={{ color: "var(--color-lavender-700)" }}
-            >
-              Ejercicios de este capítulo
-            </h3>
-            <ul className="flex flex-col gap-2">
-              {lessons.map((l) => (
-                <li
-                  key={l.id}
-                  className="flex items-center justify-between gap-3 text-[13px]"
-                  style={{ color: "var(--color-warm-800)" }}
-                >
-                  <span>{l.title}</span>
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.1em]"
-                    style={{
-                      background:
-                        l.status === "completed"
-                          ? "var(--color-sage-100)"
-                          : "var(--color-warm-100)",
-                      color:
-                        l.status === "completed"
-                          ? "var(--color-sage-700)"
-                          : "var(--color-warm-500)",
-                    }}
-                  >
-                    {l.status === "completed" ? "Hecho" : "Disponible"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* Complete CTA */}
-        <footer className="mt-12 flex flex-col items-center gap-3 pb-12">
-          <p
-            className="text-[12px]"
-            style={{ color: "var(--reader-muted, var(--color-warm-500))" }}
-          >
-            {progressPct >= 0.9
-              ? "Estás casi al final de este capítulo."
-              : "Sigue leyendo a tu ritmo."}
-          </p>
-          <button
-            type="button"
-            onClick={markComplete}
-            className="rounded-2xl px-6 py-3 text-[13px] font-semibold text-white"
-            style={{ background: "var(--color-sage-500)" }}
-          >
-            ✓ Marcar capítulo como leído
-          </button>
-        </footer>
-      </main>
+      ) : null}
 
       {/* Fase E — resonance offer after the first highlight */}
       {resonanceOffer ? (

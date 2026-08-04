@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -31,12 +32,32 @@ interface MoodCheckinApi {
    * rather than a boolean so a second request re-opens after a manual close.
    */
   openRequest: number;
+  /**
+   * Is the check-in dialog on screen right now?
+   *
+   * One boolean, and deliberately only that. The reader needs it to stop
+   * counting reading time while a modal is over the text; it does NOT need to
+   * know which face was picked, what was answered, or that anything was
+   * answered at all. `MoodChip` stays the only surface and the only writer —
+   * this says «a dialog is open», nothing about the person.
+   */
+  moodCheckinOpen: boolean;
 }
 
 const MoodCheckinContext = createContext<MoodCheckinApi | null>(null);
 
+/**
+ * The reporting side, kept separate so only the chip can write it. Splitting
+ * the two contexts is what makes «MoodChip is the sole writer» structural
+ * rather than a convention.
+ */
+const MoodCheckinReporterContext = createContext<
+  ((open: boolean) => void) | null
+>(null);
+
 export function MoodCheckinProvider({ children }: { children: ReactNode }) {
   const [openRequest, setOpenRequest] = useState(0);
+  const [moodCheckinOpen, setMoodCheckinOpen] = useState(false);
   // A ref so `openMoodCheckin` is stable: consumers put it in effect deps.
   const counter = useRef(0);
 
@@ -46,13 +67,15 @@ export function MoodCheckinProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ openMoodCheckin, openRequest }),
-    [openMoodCheckin, openRequest],
+    () => ({ openMoodCheckin, openRequest, moodCheckinOpen }),
+    [openMoodCheckin, openRequest, moodCheckinOpen],
   );
 
   return (
     <MoodCheckinContext.Provider value={value}>
-      {children}
+      <MoodCheckinReporterContext.Provider value={setMoodCheckinOpen}>
+        {children}
+      </MoodCheckinReporterContext.Provider>
     </MoodCheckinContext.Provider>
   );
 }
@@ -67,8 +90,26 @@ export function useMoodCheckin(): MoodCheckinApi {
     useContext(MoodCheckinContext) ?? {
       openMoodCheckin: () => {},
       openRequest: 0,
+      moodCheckinOpen: false,
     }
   );
+}
+
+/**
+ * `MoodChip` mirrors its own open state up, once, from one effect.
+ *
+ * Reporting the state rather than patching each close site is the point: the
+ * toggle, the outside click, Escape, «solo el ánimo», a finished answer, a
+ * skip, an error and any programmatic close all end up setting the same local
+ * boolean, so mirroring that boolean covers every one of them — including the
+ * ones nobody has written yet. Unmount reports closed.
+ */
+export function useReportMoodCheckinOpen(open: boolean): void {
+  const report = useContext(MoodCheckinReporterContext);
+  useEffect(() => {
+    report?.(open);
+    return () => report?.(false);
+  }, [open, report]);
 }
 
 /** The chip's side — the only consumer that should read `openRequest`. */

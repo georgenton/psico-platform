@@ -22,6 +22,19 @@ export interface GuideReaderCopy {
 
   cover: {
     eyebrow: string;
+    /**
+     * How much of the chapter this guide actually covers.
+     *
+     * Book Experience Standard V1 §7 classifies today's guides as micro-guides:
+     * one idea, one passage, one practice. The badge says the FORM («Guía
+     * breve»); this says the SCOPE, because a reader who opens a guided mode on
+     * a long chapter reasonably expects the whole chapter, and finding out
+     * afterwards is the disappointment the standard exists to prevent.
+     *
+     * It is per pin, not shared: when a guide grows to several micro-guides its
+     * own scope line changes, and no other guide's does.
+     */
+    scope: string;
     title: string;
     duration: string;
     body: readonly string[];
@@ -147,6 +160,7 @@ const EEC_C1_COPY: GuideReaderCopy = {
 
   cover: {
     eyebrow: "Guía breve",
+    scope: "1 idea del capítulo",
     title: "El cuerpo sabe antes que la mente",
     duration: "8–10 minutos",
     body: [
@@ -262,6 +276,7 @@ const PQP_C1_COPY: GuideReaderCopy = {
 
   cover: {
     eyebrow: "Guía breve",
+    scope: "1 idea del capítulo",
     title: "El contacto sostenido en silencio",
     duration: "15–20 minutos",
     body: [

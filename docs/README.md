@@ -30,6 +30,16 @@ Privacidad: el mapa nunca lee texto. La garantía vive en
 [`adr/0007-e2e-encryption-diario-eco.md`](adr/0007-e2e-encryption-diario-eco.md);
 los snapshots y el consentimiento del análisis local, en `emotional-map-v2.md`.
 
+## Experiencia del libro
+
+**[`product/book-experience-standard-v1.md`](product/book-experience-standard-v1.md)
+es la autoridad canónica** de cómo se presenta cualquier libro en la
+plataforma: los cinco modos (Libro · Audiolibro · Podcast · Video · Experiencia
+guiada), el contenido primario de cada uno, los tres estados de superficie
+(`HIDDEN` · `COMING_SOON` · `PUBLISHED`) y la regla de la que cuelga todo lo
+demás — un modo sin activo reproducible no puede parecer publicado. Cuando otro
+documento la contradiga en materia de presentación multimodal, manda esa.
+
 ## Guided Reading (Modo Guía)
 
 | Tema                                                                                         | Autoridad canónica                                                                                                                                          |

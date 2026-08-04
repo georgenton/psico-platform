@@ -1,5 +1,12 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  renderHook,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import type {
   ContentUnitMarks,
@@ -7,6 +14,7 @@ import type {
   LectorChapterResponse,
 } from "@psico/types";
 import { LectorShell } from "./LectorShell";
+import { useChapterMediaManifest } from "./media/use-chapter-media";
 import { GuideAvailabilityProvider } from "../guide/guide-availability";
 import { GuideActorScopeProvider } from "../guide/guide-actor-scope";
 import type * as ApiClientModule from "@psico/api-client";
@@ -67,6 +75,9 @@ beforeEach(() => {
   }
   (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver =
     FakeIO as unknown as typeof IntersectionObserver;
+  vi.spyOn(globalThis, "fetch").mockImplementation(
+    withMediaManifest(() => new Response("{}", { status: 200 })),
+  );
   // jsdom's Range has no layout — the selection handler reads a bounding rect.
   Range.prototype.getBoundingClientRect = () =>
     ({
@@ -86,6 +97,46 @@ afterEach(() => {
     .IntersectionObserver;
   vi.restoreAllMocks();
 });
+
+/**
+ * Book Experience Standard V1 — the reader now asks for the chapter media
+ * manifest on mount, so a mode with nothing playable can be disabled BEFORE
+ * the reader picks it. These tests are about other things (hydration, the
+ * write path), so the default answer is a chapter that genuinely has both
+ * formats: without it every mode would correctly read as unavailable and the
+ * assertions below would pass for the wrong reason.
+ */
+function mediaManifestBody() {
+  const item = (kind: string, mediaKey: string) => ({
+    mediaKey,
+    mediaVersion: 1,
+    kind,
+    title: kind,
+    description: "d",
+    durationSec: null,
+    availability: "AVAILABLE",
+    hasTranscript: false,
+    hasCaptions: false,
+    chapters: [],
+  });
+  return {
+    bookSlug: "emociones-en-construccion",
+    chapterOrder: 1,
+    items: [item("AUDIOBOOK", "a1"), item("VIDEO", "v1")],
+  };
+}
+
+/** Route the media manifest; hand everything else to the test's own answer. */
+function withMediaManifest(
+  rest: (input: RequestInfo | URL) => Response | Promise<Response>,
+) {
+  return async (input: RequestInfo | URL) => {
+    if (String(input).includes("/media")) {
+      return new Response(JSON.stringify(mediaManifestBody()), { status: 200 });
+    }
+    return rest(input);
+  };
+}
 
 function buildInitial(
   overrides: Partial<LectorChapterResponse> = {},
@@ -210,12 +261,18 @@ describe("LectorShell — header + blocks (from Content Core)", () => {
   it("does NOT fetch blocks from /api/lector on mount (unit is provided)", () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response("{}", { status: 200 }));
+      .mockImplementation(
+        withMediaManifest(() => new Response("{}", { status: 200 })),
+      );
     renderShell();
-    const calledLector = fetchSpy.mock.calls.some((c) =>
-      String(c[0]).includes("/lector/"),
-    );
-    expect(calledLector).toBe(false);
+    // The media manifest lives under `/lector/:bookId/:order/media`, so the
+    // assertion names the BLOCKS route it was always about: the chapter text
+    // comes from the `unit` prop and must never be re-fetched.
+    const calledForBlocks = fetchSpy.mock.calls.some((c) => {
+      const url = String(c[0]);
+      return url.includes("/lector/") && !url.includes("/media");
+    });
+    expect(calledForBlocks).toBe(false);
   });
 });
 
@@ -234,21 +291,24 @@ describe("LectorShell — content unavailable (fail-closed, CC-6B)", () => {
 
 describe("LectorShell — write path uses blockKey + source version (CC-6B/CC-6C)", () => {
   it("POSTs a highlight anchored by the stable blockKey + the read blockVersionId, not the legacy id", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          highlight: {
-            id: "h-real",
-            blockKey: "bk-1",
-            blockId: "b-1",
-            startOffset: 0,
-            endOffset: 7,
-            color: "YELLOW",
-            note: null,
-            createdAt: new Date().toISOString(),
-          },
-        }),
-        { status: 200 },
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      withMediaManifest(
+        () =>
+          new Response(
+            JSON.stringify({
+              highlight: {
+                id: "h-real",
+                blockKey: "bk-1",
+                blockId: "b-1",
+                startOffset: 0,
+                endOffset: 7,
+                color: "YELLOW",
+                note: null,
+                createdAt: new Date().toISOString(),
+              },
+            }),
+            { status: 200 },
+          ),
       ),
     );
 
@@ -417,21 +477,24 @@ describe("LectorShell — complete CTA copy", () => {
 
 describe("LectorShell — legacy-served unit writes by blockId (CC-6D)", () => {
   it("POSTs a highlight anchored by the legacy blockId, never blockKey/blockVersionId", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          highlight: {
-            id: "h-real",
-            blockKey: "bk-1",
-            blockId: "b-1",
-            startOffset: 0,
-            endOffset: 7,
-            color: "YELLOW",
-            note: null,
-            createdAt: new Date().toISOString(),
-          },
-        }),
-        { status: 200 },
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      withMediaManifest(
+        () =>
+          new Response(
+            JSON.stringify({
+              highlight: {
+                id: "h-real",
+                blockKey: "bk-1",
+                blockId: "b-1",
+                startOffset: 0,
+                endOffset: 7,
+                color: "YELLOW",
+                note: null,
+                createdAt: new Date().toISOString(),
+              },
+            }),
+            { status: 200 },
+          ),
       ),
     );
 
@@ -549,16 +612,20 @@ describe("LectorShell — reader mode is hydration-safe", () => {
     expect(html).toContain('aria-label="Modo de lectura"');
     expect(leerSelected || !html.includes("Ver</button>")).toBe(true);
     // The decisive part: the stored mode must NOT appear as selected.
-    const verSelectedIndex = html.indexOf("Ver");
-    const selectedTrueBeforeVer = html.lastIndexOf(
-      'aria-selected="true"',
-      verSelectedIndex,
+    //
+    // Book Experience Standard V1 makes this doubly true on the server. There
+    // is no `localStorage` AND no media manifest during SSR, so Escuchar and
+    // Ver are not merely unselected — they are not offered at all. Asserting on
+    // the Ver tab's position would now assert on markup that legitimately does
+    // not exist, so the claim is stated directly: exactly one tab is selected
+    // in the mode strip, and it is Leer.
+    const modeTabs =
+      html.match(/data-testid="reader-mode-(leer|escuchar|ver)"/g) ?? [];
+    expect(modeTabs).toContain('data-testid="reader-mode-leer"');
+    expect(modeTabs).not.toContain('data-testid="reader-mode-ver"');
+    expect(html).not.toMatch(
+      /data-testid="reader-mode-ver"[^>]*aria-selected="true"/,
     );
-    const selectedFalseBeforeVer = html.lastIndexOf(
-      'aria-selected="false"',
-      verSelectedIndex,
-    );
-    expect(selectedFalseBeforeVer).toBeGreaterThan(selectedTrueBeforeVer);
   });
 
   it("adopts the stored mode after mount, so the preference is not lost", async () => {
@@ -579,6 +646,240 @@ describe("LectorShell — reader mode is hydration-safe", () => {
       "aria-selected",
       "true",
     );
+  });
+});
+
+// ── Book Experience Standard V1 · the mode the reader gets ─────────────────
+
+/**
+ * `requestedMode` vs `effectiveMode`.
+ *
+ * The reader can ASK for a mode the chapter cannot give: a stored preference
+ * from another chapter, or one whose manifest has not arrived. What must never
+ * happen is that the ask alone mounts the media surface — that is how «Escuchar»
+ * came to open a screen with no audio in it.
+ */
+describe("LectorShell — modes are gated by what can actually play", () => {
+  function manifestWith(items: unknown[]) {
+    return async (input: RequestInfo | URL) => {
+      if (String(input).includes("/media")) {
+        return new Response(
+          JSON.stringify({
+            bookSlug: "emociones-en-construccion",
+            chapterOrder: 1,
+            items,
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 200 });
+    };
+  }
+
+  const comingSoon = {
+    mediaKey: "a1",
+    mediaVersion: 1,
+    kind: "AUDIOBOOK",
+    title: "Audiolibro",
+    description: "d",
+    durationSec: null,
+    availability: "COMING_SOON",
+    hasTranscript: true,
+    hasCaptions: false,
+    chapters: [],
+  };
+
+  it("MEDIA_SURFACE_MOUNTS_ONLY_WHEN_PLAYABLE=true — nothing mounts while the manifest is in flight", async () => {
+    window.localStorage.setItem("psico:lector:mode", "guia");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input: RequestInfo | URL) =>
+        String(input).includes("/media")
+          ? // Never settles: the reader must behave for the whole wait, not
+            // just after the answer.
+            new Promise<Response>(() => {})
+          : new Response("{}", { status: 200 }),
+      );
+
+    renderShell();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Leer is what is on screen, and the audio surface is nowhere.
+    expect(screen.getByRole("tab", { name: /Leer/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      screen.queryByTestId("reader-mode-escuchar"),
+    ).not.toBeInTheDocument();
+    expect(
+      fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/access")),
+    ).toHaveLength(0);
+    // …and the preference itself is untouched: a request in flight is not a
+    // reason to discard somebody's choice.
+    expect(window.localStorage.getItem("psico:lector:mode")).toBe("guia");
+  });
+
+  it("DISABLED_MODE_NEVER_MOUNTS_MEDIA=true — a coming-soon tab changes nothing when pressed", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(manifestWith([comingSoon]));
+
+    renderShell();
+    const tab = await screen.findByTestId("reader-mode-escuchar");
+    expect(tab).toHaveAttribute("data-mode-state", "COMING_SOON");
+    expect(tab).toHaveAttribute("aria-disabled", "true");
+
+    fireEvent.click(tab);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("tab", { name: /Leer/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(tab).toHaveAttribute("aria-selected", "false");
+    expect(
+      fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/access")),
+    ).toHaveLength(0);
+  });
+
+  it("STORED_PREFERENCE_RESET_WHEN_MODE_GONE=true — a saved mode this chapter lacks goes back to Leer", async () => {
+    // «guia» is the legacy stored value for Escuchar.
+    window.localStorage.setItem("psico:lector:mode", "guia");
+    vi.spyOn(globalThis, "fetch").mockImplementation(manifestWith([]));
+
+    renderShell();
+
+    await waitFor(() =>
+      expect(window.localStorage.getItem("psico:lector:mode")).toBe("libro"),
+    );
+    expect(screen.getByRole("tab", { name: /Leer/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      screen.queryByTestId("reader-mode-escuchar"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("MANIFEST_REQUESTS_PER_READER_CHAPTER=1 — opening a media mode asks nothing more", async () => {
+    // The reader already had to fetch the manifest to know whether these tabs
+    // may be shown at all. The surfaces receive that answer instead of asking
+    // again: two requests for one fact is one request too many, and it opened
+    // a window where the surface knew less than the tab that led to it.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      manifestWith([
+        { ...comingSoon, availability: "AVAILABLE" },
+        {
+          ...comingSoon,
+          mediaKey: "v1",
+          kind: "VIDEO",
+          availability: "AVAILABLE",
+        },
+      ]),
+    );
+    const manifestCalls = () =>
+      fetchSpy.mock.calls.filter(
+        (c) =>
+          String(c[0]).includes("/media") && !String(c[0]).includes("/access"),
+      );
+
+    renderShell();
+    await screen.findByTestId("reader-mode-escuchar");
+    expect(manifestCalls()).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId("reader-mode-escuchar"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(manifestCalls()).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId("reader-mode-ver"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(manifestCalls()).toHaveLength(1);
+  });
+
+  it("AUDIO_FAMILY_GATING=true — a podcast-only chapter still opens Escuchar", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      manifestWith([
+        comingSoon,
+        {
+          ...comingSoon,
+          mediaKey: "p1",
+          kind: "PODCAST",
+          availability: "AVAILABLE",
+        },
+      ]),
+    );
+
+    renderShell();
+    const escuchar = await screen.findByTestId("reader-mode-escuchar");
+    expect(escuchar).toHaveAttribute("data-mode-state", "PUBLISHED");
+    expect(escuchar).toHaveAttribute("aria-disabled", "false");
+  });
+
+  it("VIDEO_EMPTY_STATE_FLASH=false — Ver is not offered while the manifest is unknown", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async (input: RequestInfo | URL) =>
+        // Never settles: the reader must behave for the whole wait.
+        String(input).includes("/media")
+          ? new Promise<Response>(() => {})
+          : new Response("{}", { status: 200 }),
+    );
+
+    renderShell();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    // No tab, so no surface, so no empty video state to flash.
+    expect(screen.queryByTestId("reader-mode-ver")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("chapter-media-watch")).not.toBeInTheDocument();
+  });
+
+  it("MANIFEST_IS_SCOPED_TO_ITS_CHAPTER=true — the previous chapter's answer never gates the next one", async () => {
+    let served = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      served += 1;
+      return new Response(
+        JSON.stringify({
+          bookSlug: "emociones-en-construccion",
+          chapterOrder: 1,
+          items: [{ ...comingSoon, availability: "AVAILABLE" }],
+        }),
+        { status: 200 },
+      );
+    });
+
+    const { result, rerender } = renderHook(
+      ({ chapterOrder }) =>
+        useChapterMediaManifest({
+          apiBase: "https://api.example/api",
+          token: "t",
+          bookId: "book-1",
+          chapterOrder,
+          enabled: true,
+        }),
+      { initialProps: { chapterOrder: 1 } },
+    );
+
+    await waitFor(() => expect(result.current.items).not.toBeNull());
+    const before = served;
+
+    rerender({ chapterOrder: 2 });
+    // The instant the question changes, the old answer stops being exposed —
+    // not after the new request lands.
+    expect(result.current.items).toBeNull();
+    expect(result.current.error).toBeNull();
+
+    await waitFor(() => expect(served).toBeGreaterThan(before));
+    await waitFor(() => expect(result.current.items).not.toBeNull());
   });
 });
 
@@ -642,38 +943,52 @@ describe("LectorShell — guided reading", () => {
     };
   }
 
-  it("with no locatable passage the guide says so and cannot start", async () => {
-    // The seeded chapter of the ordinary dev database looks exactly like this:
-    // real blocks, but not the ones this guide is about.
-    renderShell();
-    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+  /** Wait for the offer, then take it. Its existence is the readiness check. */
+  async function openGuide() {
+    fireEvent.click(await screen.findByTestId(GUIDE_TAB));
+  }
 
-    expect(
-      await screen.findByTestId("reader-guide-unavailable"),
-    ).toHaveTextContent("Lectura guiada no disponible por ahora.");
+  it("with no locatable passage there is no guided tab to press", async () => {
+    // The seeded chapter of the ordinary dev database looks exactly like this:
+    // real blocks, but not the ones this guide is about. Under the Book
+    // Experience Standard the mode is simply not offered — there is no button
+    // whose whole job is to open a panel that apologises.
+    // `renderShell` has no pilot gate around it, so the reader does not even
+    // ask — and with no answer there is nothing to offer.
+    renderShell();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getGuideDiscovery).not.toHaveBeenCalled();
+    expect(screen.queryByTestId(GUIDE_TAB)).not.toBeInTheDocument();
     expect(screen.queryByTestId("reader-guide-panel")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Empezar" }),
     ).not.toBeInTheDocument();
   });
 
-  it("the unavailable copy never names an internal mechanism", async () => {
+  it("says nothing about the internals of why a guide is missing", async () => {
     renderShell();
-    fireEvent.click(screen.getByTestId(GUIDE_TAB));
-    const text = (await screen.findByTestId("reader-guide-unavailable"))
-      .textContent!;
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const text = document.body.textContent!;
     for (const internal of [
       "blockKey",
       "blockVersionId",
       "ingest",
-      "seed",
       "Content Core",
+      "anchor",
     ]) {
       expect(text).not.toContain(internal);
     }
   });
 
-  it("only ONE tab is selected while the guide is open", () => {
+  it("only ONE tab is selected while the guide is open", async () => {
     renderWithGuide(unitWithAnchor());
     const selected = () =>
       screen.getAllByRole("tab").filter((t) => t.ariaSelected === "true");
@@ -681,7 +996,7 @@ describe("LectorShell — guided reading", () => {
     expect(selected()).toHaveLength(1);
     expect(selected()[0]).toHaveTextContent("Leer");
 
-    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    await openGuide();
     expect(selected()).toHaveLength(1);
     expect(selected()[0]).toBe(screen.getByTestId(GUIDE_TAB));
 
@@ -693,7 +1008,7 @@ describe("LectorShell — guided reading", () => {
 
   it("the guide tab points at the panel it controls", async () => {
     renderWithGuide(unitWithAnchor());
-    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    await openGuide();
     const tab = screen.getByTestId(GUIDE_TAB);
     const panel = await screen.findByTestId("reader-guide-panel");
     expect(tab.getAttribute("aria-controls")).toBe(panel.id);
@@ -701,7 +1016,7 @@ describe("LectorShell — guided reading", () => {
 
   it("Escape closes the panel", async () => {
     renderWithGuide(unitWithAnchor());
-    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    await openGuide();
     expect(await screen.findByTestId("reader-guide-panel")).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: "Escape" });
@@ -712,12 +1027,12 @@ describe("LectorShell — guided reading", () => {
     );
   });
 
-  it("the open drawer reserves its width instead of covering the text", () => {
+  it("the open drawer reserves its width instead of covering the text", async () => {
     const { container } = renderWithGuide(unitWithAnchor());
     const root = container.firstElementChild as HTMLElement;
     expect(root.dataset.guideOpen).toBe("false");
 
-    fireEvent.click(screen.getByTestId(GUIDE_TAB));
+    await openGuide();
     expect(root.dataset.guideOpen).toBe("true");
     expect(root.className).toContain("reader-guide-open");
   });

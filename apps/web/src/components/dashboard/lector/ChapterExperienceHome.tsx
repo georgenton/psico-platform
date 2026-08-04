@@ -50,7 +50,13 @@ export interface ChapterExperienceHomeProps {
   modeViews: Record<ReaderMode, BookExperienceModeView>;
   /** The guided-reading surface, from Guide discovery. Hidden until PUBLISHED. */
   guidedView: BookExperienceModeView;
-  /** Curated activities for this chapter. Zero means the row is absent. */
+  /**
+   * How many activities and exercises this chapter really shows, counted once
+   * each. Curated activities and the chapter's own exercise list are two
+   * collections that can name the same thing, so the shell dedupes before
+   * passing the number — a row that says «3» has to mean three cards.
+   * Zero means the row is absent.
+   */
   activityCount: number;
   /** «Seguir leyendo» — the primary action, always. */
   onContinueReading: () => void;
@@ -58,6 +64,8 @@ export interface ChapterExperienceHomeProps {
   onPickMode: (mode: ReaderMode) => void;
   /** Opening the guided-reading surface. Only ever called when it is visible. */
   onOpenGuided: () => void;
+  /** Opens the reader AT the activities section, not merely at the chapter. */
+  onOpenActivities: () => void;
 }
 
 interface RouteRow {
@@ -82,6 +90,22 @@ function durationLabel(minutes: number | null): string {
   return minutes == null ? "—" : `${minutes} min`;
 }
 
+/**
+ * The unit belongs to the format. «3 pistas» is a record-sleeve word: it says
+ * nothing about a video, and not much about an audiobook that is one narration
+ * split into segments. Each mode names what it actually has.
+ */
+const ITEM_NOUN: Record<"escuchar" | "ver", { one: string; many: string }> = {
+  escuchar: { one: "1 contenido de audio", many: "contenidos de audio" },
+  ver: { one: "1 video", many: "videos" },
+};
+
+function itemCountLabel(mode: "escuchar" | "ver", count: number): string {
+  if (count <= 0) return "—";
+  const noun = ITEM_NOUN[mode];
+  return count === 1 ? noun.one : `${count} ${noun.many}`;
+}
+
 export function ChapterExperienceHome({
   book,
   chapter,
@@ -92,6 +116,7 @@ export function ChapterExperienceHome({
   onContinueReading,
   onPickMode,
   onOpenGuided,
+  onOpenActivities,
 }: ChapterExperienceHomeProps) {
   const rows: RouteRow[] = [];
 
@@ -115,10 +140,7 @@ export function ChapterExperienceHome({
       // The mode labels carry an emoji for the tab strip; the route list is
       // quieter, so we take the word only.
       label: view.label.replace(/^\W+\s*/u, ""),
-      detail:
-        view.itemCount && view.itemCount > 0
-          ? `${view.itemCount} ${view.itemCount === 1 ? "pista" : "pistas"}`
-          : "—",
+      detail: itemCountLabel(mode, view.itemCount ?? 0),
       chip: notice ?? "Disponible",
       enabled,
       onPick: enabled ? () => onPickMode(mode) : null,
@@ -140,11 +162,15 @@ export function ChapterExperienceHome({
   if (activityCount > 0) {
     rows.push({
       key: "actividades",
-      label: "Actividades",
-      detail: `${activityCount} ${activityCount === 1 ? "actividad" : "actividades"}`,
-      chip: "En el capítulo",
+      label: "Actividades y ejercicios",
+      detail:
+        activityCount === 1
+          ? "1 en el capítulo"
+          : `${activityCount} en el capítulo`,
+      chip: "Disponible",
       enabled: true,
-      onPick: onContinueReading,
+      // Not «open the chapter and good luck»: this lands ON the section.
+      onPick: onOpenActivities,
     });
   }
 

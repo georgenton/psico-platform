@@ -14,6 +14,16 @@ import { ChapterExercises } from "./exercises/ChapterExercises";
 type ReaderBlock = ReturnType<typeof projectReaderBlocks>[number];
 
 /**
+ * The anchor the chapter home scrolls to.
+ *
+ * «Actividades y ejercicios» is a row on the chapter home, so picking it has to
+ * land ON the section — not at the top of a chapter with the section somewhere
+ * below the fold. One exported id keeps the two surfaces agreeing about where
+ * that is.
+ */
+export const READER_ACTIVITIES_ANCHOR_ID = "reader-activities";
+
+/**
  * ReaderExperienceView — everything that is reading, and nothing that is not.
  *
  * Book Experience V2, vertical 1. Before this component the chapter text, its
@@ -133,57 +143,69 @@ export function ReaderExperienceView({
           />
         ))}
 
-        {/* Interactive activities (backlog: actividades reales) */}
-        <ChapterExercises
-          bookSlug={bookSlug}
-          chapterOrder={chapterOrder}
-          onReflect={onReflectExercise}
-          onBreathe={onBreathe}
-        />
+        {/* Activities and exercises — one landing zone for the chapter home's
+            row, so «3 en el capítulo» points at the three things it counted.
+            `tabIndex={-1}` makes it focusable programmatically without adding a
+            tab stop for people who are simply reading past it. */}
+        <section
+          id={READER_ACTIVITIES_ANCHOR_ID}
+          data-testid="reader-activities-section"
+          tabIndex={-1}
+          aria-label="Actividades y ejercicios del capítulo"
+          style={{ scrollMarginTop: 96, outline: "none" }}
+        >
+          {/* Interactive activities (backlog: actividades reales) */}
+          <ChapterExercises
+            bookSlug={bookSlug}
+            chapterOrder={chapterOrder}
+            onReflect={onReflectExercise}
+            onBreathe={onBreathe}
+          />
 
-        {/* Lessons list */}
-        {lessons.length > 0 && (
-          <section
-            className="mt-12 rounded-2xl p-5"
-            style={{
-              background: "var(--color-lavender-50)",
-              border: "1.5px solid var(--color-lavender-200)",
-            }}
-          >
-            <h3
-              className="mb-3 text-[12px] font-bold uppercase tracking-[0.14em]"
-              style={{ color: "var(--color-lavender-700)" }}
+          {/* Lessons list */}
+          {lessons.length > 0 && (
+            <section
+              className="mt-12 rounded-2xl p-5"
+              style={{
+                background: "var(--color-lavender-50)",
+                border: "1.5px solid var(--color-lavender-200)",
+              }}
             >
-              Ejercicios de este capítulo
-            </h3>
-            <ul className="flex flex-col gap-2">
-              {lessons.map((l) => (
-                <li
-                  key={l.id}
-                  className="flex items-center justify-between gap-3 text-[13px]"
-                  style={{ color: "var(--color-warm-800)" }}
-                >
-                  <span>{l.title}</span>
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.1em]"
-                    style={{
-                      background:
-                        l.status === "completed"
-                          ? "var(--color-sage-100)"
-                          : "var(--color-warm-100)",
-                      color:
-                        l.status === "completed"
-                          ? "var(--color-sage-700)"
-                          : "var(--color-warm-500)",
-                    }}
+              <h3
+                className="mb-3 text-[12px] font-bold uppercase tracking-[0.14em]"
+                style={{ color: "var(--color-lavender-700)" }}
+              >
+                Ejercicios de este capítulo
+              </h3>
+              <ul className="flex flex-col gap-2">
+                {lessons.map((l) => (
+                  <li
+                    key={l.id}
+                    className="flex items-center justify-between gap-3 text-[13px]"
+                    style={{ color: "var(--color-warm-800)" }}
                   >
-                    {l.status === "completed" ? "Hecho" : "Disponible"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+                    <span>{l.title}</span>
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.1em]"
+                      style={{
+                        background:
+                          l.status === "completed"
+                            ? "var(--color-sage-100)"
+                            : "var(--color-warm-100)",
+                        color:
+                          l.status === "completed"
+                            ? "var(--color-sage-700)"
+                            : "var(--color-warm-500)",
+                      }}
+                    >
+                      {l.status === "completed" ? "Hecho" : "Disponible"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </section>
 
         {/* Complete CTA */}
         <footer className="mt-12 flex flex-col items-center gap-3 pb-12">

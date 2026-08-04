@@ -13,6 +13,11 @@ import { useEffect, useRef } from "react";
  * - We don't pause on idle (no mouse-move tracking). The 5 s tick is fine;
  *   the server cap keeps it honest.
  * - We DO pause on `document.hidden = true` (tab in background).
+ * - We DO pause when `enabled` is false. This is the caller saying «the
+ *   person is not reading right now» — they are on the chapter home, in the
+ *   audio surface, in the video surface, or inside the guided panel. Time
+ *   spent there is not reading time, and it must not arrive as reading time
+ *   the moment they come back either (see `lastTickRef` below).
  * - We use `keepalive: true` on the fetch so the last beat survives
  *   navigation away from the page.
  * - Errors are swallowed silently — the user is reading, the heartbeat is
@@ -36,9 +41,15 @@ interface Options {
   onProgress?: (pct: number) => void;
   /** Reader exposes current block + progress via this getter. */
   read: () => Pick<HeartbeatPayload, "lastBlockId" | "progressPct"> | null;
+  /**
+   * Is the person reading right now? Defaults to true so existing callers keep
+   * their behaviour. While false no interval runs, nothing is PATCHed, and the
+   * elapsed clock is reset on the way back in.
+   */
+  enabled?: boolean;
 }
 
-const TICK_MS = 5_000;
+export const TICK_MS = 5_000;
 
 export function useHeartbeat({
   apiBase,
@@ -47,10 +58,25 @@ export function useHeartbeat({
   chapterOrder,
   onProgress,
   read,
+  enabled = true,
 }: Options): void {
   const lastTickRef = useRef<number>(Date.now());
 
+  /**
+   * The clock restarts when reading resumes.
+   *
+   * Without this, twenty minutes in the audio surface would be sitting in
+   * `lastTickRef` and the first beat back in «Leer» would report them as
+   * reading — capped at 60 s by the server, which is still a minute of reading
+   * that never happened. Resetting on the way IN (not on the way out) is what
+   * makes the first resumed delta at most one tick.
+   */
   useEffect(() => {
+    if (enabled) lastTickRef.current = Date.now();
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
 
     async function beat() {
@@ -97,5 +123,5 @@ export function useHeartbeat({
       cancelled = true;
       clearInterval(id);
     };
-  }, [apiBase, token, bookId, chapterOrder, onProgress, read]);
+  }, [apiBase, token, bookId, chapterOrder, onProgress, read, enabled]);
 }

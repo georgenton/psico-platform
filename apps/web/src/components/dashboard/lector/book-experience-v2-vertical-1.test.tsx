@@ -36,8 +36,9 @@ import type * as ApiClientModule from "@psico/api-client";
  * the reason the reading composition now lives in its own component.
  */
 
+const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), push: mockPush }),
 }));
 
 /** Guide discovery. Per-test: an answer, or «this chapter has no guide». */
@@ -115,6 +116,7 @@ beforeEach(() => {
     FakeIO as unknown as typeof IntersectionObserver;
   Range.prototype.getBoundingClientRect = () => ({ x: 0, y: 0 }) as DOMRect;
   getGuideDiscovery.mockResolvedValue({ available: false });
+  mockPush.mockClear();
   window.localStorage.clear();
   mockNetwork([]);
 });
@@ -552,5 +554,230 @@ describe("Privacy — vertical 1 writes nothing new", () => {
     // quotes them.
     expect(text).not.toContain("Reflexión");
     expect(text).not.toContain("Nota");
+  });
+});
+
+// ── Closure pass: the four boundaries found in review ──────────────────────
+
+/** Count only the reading heartbeat, which is a PATCH to `/lector/session`. */
+const readingBeats = () =>
+  fetchSpy.mock.calls.filter(
+    (c) =>
+      String(c[0]).includes("/lector/session") &&
+      (c[1] as RequestInit | undefined)?.method === "PATCH",
+  ).length;
+
+/** Let the 5 s interval fire `n` times under fake timers. */
+async function tick(n = 3) {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(n * 5_000);
+  });
+}
+
+/**
+ * `waitFor` schedules on real timers, so under `useFakeTimers` it just hangs.
+ * This drains microtasks by advancing the fake clock by nothing, which is what
+ * the discovery → bundle → anchor chain needs to resolve.
+ */
+async function settleFake(rounds = 8) {
+  for (let i = 0; i < rounds; i++) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  }
+}
+
+describe("Reading signal — other modes are not reading time", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("READ_MODE_READING_HEARTBEATS>0 — reading still beats", async () => {
+    renderReader();
+    await tick(2);
+    expect(readingBeats()).toBeGreaterThan(0);
+  });
+
+  it("CHAPTER_HOME_READING_HEARTBEATS=0", async () => {
+    renderReader();
+    await tick(1);
+    openHome();
+    fetchSpy.mockClear();
+    await tick(4);
+    expect(readingBeats()).toBe(0);
+  });
+
+  it("LISTEN_MODE_READING_HEARTBEATS=0 — twenty minutes of audio is not reading", async () => {
+    mockNetwork([mediaItem("AUDIOBOOK", "a1")]);
+    renderReader({ audioAvailable: true });
+    await tick(1);
+    fireEvent.click(screen.getByTestId("reader-mode-escuchar"));
+    fetchSpy.mockClear();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20 * 60_000);
+    });
+    expect(readingBeats()).toBe(0);
+  });
+
+  it("VIDEO_MODE_READING_HEARTBEATS=0", async () => {
+    mockNetwork([mediaItem("VIDEO", "v1")]);
+    renderReader();
+    await tick(1);
+    fireEvent.click(screen.getByTestId("reader-mode-ver"));
+    fetchSpy.mockClear();
+    await tick(6);
+    expect(readingBeats()).toBe(0);
+  });
+
+  it("GUIDE_OPEN_READING_HEARTBEATS=0", async () => {
+    getGuideDiscovery.mockResolvedValue({
+      available: true,
+      guideKey: "eec-c1-cuerpo-antes-que-mente",
+      guideVersion: 1,
+    });
+    renderReader({ guidePilot: true });
+    await settleFake();
+    fireEvent.click(screen.getByTestId("reader-mode-guiada"));
+    fetchSpy.mockClear();
+    await tick(6);
+    expect(readingBeats()).toBe(0);
+  });
+});
+
+describe("Chapter Home — activities row and units", () => {
+  it("ACTIVITIES_ROUTE opens the reader AND lands on the section, focused, same route", async () => {
+    const scrollSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollSpy;
+    renderReader();
+    await settle();
+    openHome();
+
+    const row = screen.getByTestId("chapter-route-actividades");
+    expect(row).toHaveTextContent("Actividades y ejercicios");
+    fireEvent.click(row);
+    await settle();
+
+    // ACTIVITIES_ROUTE_OPENS_READER
+    expect(screen.getByTestId("reader-experience-view")).toBeInTheDocument();
+    const section = screen.getByTestId("reader-activities-section");
+    // ACTIVITIES_SECTION_FULLY_VISIBLE — scrolled into view, at its start.
+    expect(scrollSpy).toHaveBeenCalledWith({ block: "start" });
+    // ACTIVITIES_SECTION_FOCUSED
+    expect(document.activeElement).toBe(section);
+    // ACTIVITIES_ROUTE_CHANGED=false — no navigation was attempted.
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("the count folds curated activities and chapter exercises without double-counting", async () => {
+    // The fixture's lesson is «Nombrar sin cerrar»; the curated catalog for
+    // (emociones-en-construccion, 1) contributes its own two. Three cards, so
+    // three is what the row must say.
+    renderReader();
+    await settle();
+    openHome();
+    expect(screen.getByTestId("chapter-route-actividades")).toHaveTextContent(
+      "3 en el capítulo",
+    );
+  });
+
+  it("AUDIO_ITEM_COUNT_LABEL_CORRECT — audio is counted as audio", async () => {
+    mockNetwork([mediaItem("AUDIOBOOK", "a1")]);
+    renderReader();
+    await settle();
+    openHome();
+    expect(screen.getByTestId("chapter-route-escuchar")).toHaveTextContent(
+      "1 contenido de audio",
+    );
+  });
+
+  it("VIDEO_COUNT_USES_PISTAS=false — videos are videos", async () => {
+    mockNetwork([mediaItem("VIDEO", "v1"), mediaItem("VIDEO", "v2")]);
+    renderReader();
+    await settle();
+    openHome();
+    const row = screen.getByTestId("chapter-route-ver");
+    expect(row).toHaveTextContent("2 videos");
+    expect(row.textContent ?? "").not.toContain("pista");
+  });
+});
+
+describe("Chapter Home — reader controls and overlays", () => {
+  it("hides the reading controls: Aa, the mini player and the notes counter", async () => {
+    mockNetwork([mediaItem("AUDIOBOOK", "a1")]);
+    renderReader({ audioAvailable: true });
+    await settle();
+    expect(screen.getByLabelText("Preferencias de lectura")).toBeVisible();
+
+    openHome();
+    expect(screen.getByLabelText("Preferencias de lectura")).not.toBeVisible();
+    expect(screen.getByLabelText("Abrir panel del lector")).not.toBeVisible();
+    expect(screen.queryByTestId("audio-bar")).toBeNull();
+  });
+
+  it("the Recorrido control is reachable, named and reversible", async () => {
+    renderReader();
+    await settle();
+    const btn = screen.getByTestId("reader-open-chapter-home");
+    expect(btn).toHaveAccessibleName("Cómo recorrerlo");
+    expect(btn.style.minHeight).toBe("44px");
+    expect(btn.style.minWidth).toBe("44px");
+
+    fireEvent.click(btn);
+    expect(btn).toHaveAccessibleName("Volver al lector");
+    expect(btn).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("entering the home closes the dock and clears the selection, without ending anything", async () => {
+    renderReader();
+    await settle();
+
+    // Open the dock, then walk to the chapter home.
+    fireEvent.click(screen.getByLabelText("Abrir panel del lector"));
+    expect(
+      await screen.findByLabelText("Panel del lector: Eco, Notas y Reflexión"),
+    ).toBeInTheDocument();
+
+    openHome();
+    await settle();
+    expect(
+      screen.queryByLabelText("Panel del lector: Eco, Notas y Reflexión"),
+    ).toBeNull();
+    expect(window.getSelection()?.toString() ?? "").toBe("");
+
+    // GUIDE_SESSION_CANCELLED=false — nothing was DELETEd or abandoned.
+    const destructive = fetchSpy.mock.calls.filter((c) => {
+      const m = (c[1] as RequestInit | undefined)?.method;
+      return m === "DELETE" || String(c[0]).includes("/abandon");
+    });
+    expect(destructive).toHaveLength(0);
+    // PROGRESS_RESET=false — the bar still reads what the session said.
+    expect(
+      document.querySelector<HTMLElement>('[style*="width: 50%"]'),
+    ).not.toBeNull();
+    // ROUTE_CHANGED=false
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("closing the guided panel on the way in never ends its session", async () => {
+    getGuideDiscovery.mockResolvedValue({
+      available: true,
+      guideKey: "eec-c1-cuerpo-antes-que-mente",
+      guideVersion: 1,
+    });
+    renderReader({ guidePilot: true });
+    await settle();
+    await waitFor(() => screen.getByTestId("reader-mode-guiada"));
+    fireEvent.click(screen.getByTestId("reader-mode-guiada"));
+    await settle();
+
+    openHome();
+    await settle();
+    expect(screen.getByTestId("reader-mode-guiada")).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+    const destructive = fetchSpy.mock.calls.filter(
+      (c) => (c[1] as RequestInit | undefined)?.method === "DELETE",
+    );
+    expect(destructive).toHaveLength(0);
   });
 });

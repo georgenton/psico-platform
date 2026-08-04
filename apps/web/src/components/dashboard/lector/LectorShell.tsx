@@ -33,7 +33,10 @@ import { ChapterMediaListen } from "./media/ChapterMediaListen";
 import { ChapterMediaWatch } from "./media/ChapterMediaWatch";
 import { modeToStored, storedToMode, type ReaderMode } from "./reader-mode";
 import { ChapterExperienceHome } from "./ChapterExperienceHome";
-import { ReaderExperienceView } from "./ReaderExperienceView";
+import {
+  ReaderExperienceView,
+  READER_ACTIVITIES_ANCHOR_ID,
+} from "./ReaderExperienceView";
 import { BreathingExercise } from "./exercises/BreathingExercise";
 import { HighlightPopover } from "./HighlightPopover";
 import { ResonanceNudge } from "./ResonanceNudge";
@@ -287,6 +290,35 @@ export function LectorShell({
    * chapter.
    */
   const [surface, setSurface] = useState<"home" | "reader">("reader");
+
+  /**
+   * Set when the reader was opened FROM the «Actividades y ejercicios» row, so
+   * the effect below knows to scroll and focus once the section has mounted.
+   * A ref, not state: it is a one-shot instruction, not something to render.
+   */
+  const pendingActivitiesFocus = useRef(false);
+
+  /**
+   * Going to the chapter home closes what belongs to reading.
+   *
+   * Purely visual: the guided panel is hidden, not ended — no session is
+   * cancelled, no recovery is dropped, no mark is touched, no progress moves
+   * and the route does not change. It is the same «put the book down for a
+   * second» gesture the reader already had, applied to every overlay at once
+   * so none of them float over a screen they were not designed for.
+   */
+  const openChapterHome = useCallback(() => {
+    setSurface("home");
+    setGuideOpen(false);
+    setDockOpen(false);
+    setPrefsOpen(false);
+    setSelection(null);
+  }, []);
+
+  /** «Seguir leyendo» and every format row land back on the reader. */
+  const openReaderSurface = useCallback(() => {
+    setSurface("reader");
+  }, []);
 
   // Text selection state for the popover.
   const [selection, setSelection] = useState<{
@@ -561,7 +593,63 @@ export function LectorShell({
     return () => io.disconnect();
   }, [blocks]);
 
+  /**
+   * How many activities and exercises this chapter really shows.
+   *
+   * Two collections feed one section: the curated catalog and the chapter's own
+   * exercise list. They can name the same thing, so a naive sum would tell the
+   * reader «3» and then show two cards. Titles are compared case- and
+   * accent-insensitively, which is enough for a catalog an editor maintains by
+   * hand.
+   */
+  const activityCount = useMemo(() => {
+    const seen = new Set<string>();
+    const norm = (t: string) =>
+      t
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+    for (const ex of chapterExercises(bookSlug, chapter.order)) {
+      seen.add(norm(ex.title));
+    }
+    for (const l of lessons) seen.add(norm(l.title));
+    return seen.size;
+  }, [bookSlug, chapter.order, lessons]);
+
+  /**
+   * Finish the «Actividades y ejercicios» jump once the section is on screen.
+   *
+   * Scroll AND focus: scrolling alone moves the eyes of people who can see it
+   * and nobody else, so the heading takes focus too and a screen reader lands
+   * where the row promised.
+   */
+  useEffect(() => {
+    if (!pendingActivitiesFocus.current) return;
+    if (surface !== "reader" || effectiveMode !== "leer") return;
+    const el = document.getElementById(READER_ACTIVITIES_ANCHOR_ID);
+    if (!el) return;
+    pendingActivitiesFocus.current = false;
+    el.scrollIntoView({ block: "start" });
+    el.focus({ preventScroll: true });
+  }, [surface, effectiveMode, blocks]);
+
   // ── Heartbeat ──────────────────────────────────────────────────────────
+
+  /**
+   * The reading heartbeat is about READING, so it only runs while reading is
+   * what is on screen.
+   *
+   * Before this gate it ran everywhere: twenty minutes in the audio surface,
+   * or on the chapter home, or inside the guided panel, all landed in
+   * `PATCH /lector/session` as time spent on the chapter. That is a learning
+   * signal about a thing that did not happen, and `Mi Evolución` reads it.
+   *
+   * Listening and watching are real, and they have their own completion
+   * signals (`chapter_media_completed`). They are simply not reading minutes.
+   */
+  const readingHeartbeatEnabled =
+    surface === "reader" && effectiveMode === "leer" && !guideOpen;
 
   useHeartbeat({
     apiBase,
@@ -573,6 +661,7 @@ export function LectorShell({
       lastBlockId: lastBlockIdRef.current,
       progressPct,
     }),
+    enabled: readingHeartbeatEnabled,
   });
 
   // ── Selection → popover ───────────────────────────────────────────────
@@ -940,12 +1029,18 @@ export function LectorShell({
               type="button"
               data-testid="reader-open-chapter-home"
               onClick={() =>
-                setSurface((s) => (s === "home" ? "reader" : "home"))
+                surface === "home" ? openReaderSurface() : openChapterHome()
               }
               aria-pressed={surface === "home"}
-              aria-label="Cómo recorrerlo"
-              className="rounded-full px-3 py-1 text-[13px] font-semibold"
+              aria-label={
+                surface === "home" ? "Volver al lector" : "Cómo recorrerlo"
+              }
+              className="rounded-full px-4 text-[13px] font-semibold"
+              // The one control that is on BOTH surfaces, so it is the one that
+              // has to be reachable with a thumb.
               style={{
+                minHeight: 44,
+                minWidth: 44,
                 background:
                   surface === "home"
                     ? "var(--color-lavender-100)"
@@ -956,10 +1051,11 @@ export function LectorShell({
                     : "var(--reader-text, var(--color-warm-700))",
               }}
             >
-              Recorrido
+              {surface === "home" ? "Volver" : "Recorrido"}
             </button>
             <button
               type="button"
+              hidden={surface === "home"}
               onClick={() => setPrefsOpen(true)}
               aria-label="Preferencias de lectura"
               className="rounded-full px-3 py-1 text-[14px] font-semibold"
@@ -974,7 +1070,9 @@ export function LectorShell({
                 want a quick listen without switching the whole reading
                 experience. In Modo Guía the audio lives in the banner
                 below, so we hide the pill to avoid duplicating it. */}
-            {chapter.audioAvailable && effectiveMode === "leer" ? (
+            {surface === "reader" &&
+            chapter.audioAvailable &&
+            effectiveMode === "leer" ? (
               <AudioBar
                 apiBase={apiBase}
                 token={token}
@@ -984,6 +1082,7 @@ export function LectorShell({
             ) : null}
             <button
               type="button"
+              hidden={surface === "home"}
               onClick={() => {
                 setDockTab("notas");
                 setFocusBlockId(null);
@@ -1208,18 +1307,25 @@ export function LectorShell({
           progressPct={progressPct}
           modeViews={modeViews}
           guidedView={guidedView}
-          activityCount={chapterExercises(bookSlug, chapter.order).length}
+          activityCount={activityCount}
           onContinueReading={() => {
             changeMode("leer");
-            setSurface("reader");
+            openReaderSurface();
           }}
           onPickMode={(mode) => {
             changeMode(mode);
-            setSurface("reader");
+            openReaderSurface();
           }}
           onOpenGuided={() => {
-            setSurface("reader");
+            openReaderSurface();
             setGuideOpen(true);
+          }}
+          onOpenActivities={() => {
+            // The section only exists in «Leer», so the row takes us there and
+            // an effect finishes the job once it has actually mounted.
+            pendingActivitiesFocus.current = true;
+            changeMode("leer");
+            openReaderSurface();
           }}
         />
       ) : null}

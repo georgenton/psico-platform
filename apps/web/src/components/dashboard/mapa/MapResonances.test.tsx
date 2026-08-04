@@ -37,12 +37,15 @@ describe("MapResonances — Fase E (ARC)", () => {
     expect(screen.getByText(/Aún no confirmaste ninguna/i)).toBeInTheDocument();
   });
 
-  it("lists confirmed resonances with provenance (chapter + date)", () => {
+  it("lists confirmed resonances with provenance (who confirmed it, and when)", () => {
     render(<MapResonances initial={[resonance()]} />);
     expect(
       screen.getByText(/El cuerpo sabe antes que la mente/),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Confirmado por ti · Cap\. 1/)).toBeInTheDocument();
+    // No chapter number: `chapterOrder` is the platform order, not the book's
+    // own numbering, and the concept above already names what resonated.
+    expect(screen.getByText(/Confirmado por ti/)).toBeInTheDocument();
+    expect(screen.queryByText(/Cap\.\s*\d/)).toBeNull();
   });
 
   it("removes an entry optimistically via the server action", async () => {

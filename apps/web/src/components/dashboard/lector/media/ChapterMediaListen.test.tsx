@@ -25,8 +25,14 @@ import { ChapterMediaListen } from "./ChapterMediaListen";
  * no longer fetches one of its own.
  */
 
+/** Records the props the surface hands the player, so «expanded on entry» is
+ *  an assertion about the contract and not about pixels. */
+const audioBarProps: Record<string, unknown>[] = [];
 vi.mock("../AudioBar", () => ({
-  AudioBar: () => <div data-testid="audio-bar" />,
+  AudioBar: (props: Record<string, unknown>) => {
+    audioBarProps.push(props);
+    return <div data-testid="audio-bar" />;
+  },
 }));
 
 const AUDIOBOOK: ChapterMediaSummary = {
@@ -95,6 +101,8 @@ function renderListen(items: ChapterMediaSummary[] | null) {
       token="tok"
       bookId="book-1"
       chapterOrder={1}
+      chapterTitle="El cuerpo sabe antes que la mente"
+      bookSlug="emociones-en-construccion"
       audioAvailable
       items={items}
       manifestError={null}
@@ -203,5 +211,44 @@ describe("PODCAST_INTERNAL_SURFACE_GATED=true", () => {
     expect(
       await screen.findByLabelText("Podcast del capítulo"),
     ).toBeInTheDocument();
+  });
+});
+
+// ── Track A — Escuchar stops being an empty screen ────────────────────────
+
+describe("Escuchar — the surface is the player", () => {
+  beforeEach(() => {
+    audioBarProps.length = 0;
+  });
+
+  it("LISTEN_ENTRY_PLAYER_EXPANDED — the player opens on entry, laid out in flow", () => {
+    renderListen([AUDIOBOOK]);
+    expect(audioBarProps).toHaveLength(1);
+    expect(audioBarProps[0]!["initialOpen"]).toBe(true);
+    expect(audioBarProps[0]!["inline"]).toBe(true);
+  });
+
+  it("names the chapter and offers the way out", () => {
+    renderListen([AUDIOBOOK]);
+    expect(
+      screen.getByText("El cuerpo sabe antes que la mente"),
+    ).toBeInTheDocument();
+    // «Audiolibro» names both the selected tab and the eyebrow above the title.
+    expect(screen.getAllByText("Audiolibro").length).toBeGreaterThan(0);
+    const back = screen.getByText("← Volver al libro");
+    expect(back).toHaveAttribute(
+      "href",
+      "/dashboard/biblioteca/emociones-en-construccion",
+    );
+  });
+
+  it("AUDIO_COMING_SOON_ACCESS_REQUESTS=0 — an announced-but-unproduced audiobook mounts no player", async () => {
+    renderListen([{ ...AUDIOBOOK, availability: "COMING_SOON" }]);
+    await waitFor(() =>
+      expect(screen.getByText(/en producción/i)).toBeVisible(),
+    );
+    expect(screen.queryByTestId("audio-bar")).toBeNull();
+    expect(audioBarProps).toHaveLength(0);
+    expect(accessCalls()).toHaveLength(0);
   });
 });

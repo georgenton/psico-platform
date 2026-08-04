@@ -292,3 +292,134 @@ describe("AudioBar — sleep timer", () => {
     expect(screen.getByText(/Temporizador.*15:0/)).toBeInTheDocument();
   });
 });
+
+// ── Track A — the player as the Escuchar surface itself ───────────────────
+
+describe("AudioBar — mounted as the surface", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  const renderInline = () =>
+    render(
+      <AudioBar
+        apiBase="https://api.example/api"
+        token="bearer-stub"
+        bookId="emociones-en-construccion"
+        chapterOrder={1}
+        initialOpen
+        inline
+      />,
+    );
+
+  it("LISTEN_ENTRY_PLAYER_EXPANDED=true — opens without a click and drops the pill", async () => {
+    fetchSpy.mockResolvedValue(fetchOk(baseAudioResponse));
+    renderInline();
+
+    // No «Abrir audio» to press: on this surface the player IS the screen.
+    expect(screen.queryByRole("button", { name: /abrir audio/i })).toBeNull();
+    expect(await screen.findByTestId("audio-player-panel")).toBeInTheDocument();
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+  });
+
+  it("LISTEN_ENTRY_AUTOPLAY=false — the audio is loaded, never started", async () => {
+    fetchSpy.mockResolvedValue(fetchOk(baseAudioResponse));
+    const { container } = renderInline();
+
+    await screen.findByTestId("audio-player-panel");
+    const audio = container.querySelector("audio");
+    expect(audio).not.toBeNull();
+    // Entering a screen must not make sound. Nothing asks it to play, and the
+    // browser is told nothing that would.
+    expect(audio).not.toHaveAttribute("autoplay");
+    expect(audio!.autoplay).toBe(false);
+  });
+
+  it("AUDIO_AVAILABLE_ACCESS_REQUESTS=1 — one signed URL per entry, not one per render", async () => {
+    fetchSpy.mockResolvedValue(fetchOk(baseAudioResponse));
+    const { rerender } = renderInline();
+
+    await screen.findByTestId("audio-player-panel");
+    rerender(
+      <AudioBar
+        apiBase="https://api.example/api"
+        token="bearer-stub"
+        bookId="emociones-en-construccion"
+        chapterOrder={1}
+        initialOpen
+        inline
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── Scope declaration — what «Escuchar» is, and what it is NOT ────────────
+
+describe("MEDIA_VERTICAL_2_COMPLETE=false", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  /**
+   * The audiobook ENTRY experience is done: the player opens, it is laid out
+   * in flow, it names the chapter, and it does not autoplay.
+   *
+   * What is NOT done, and must not be reported as done:
+   *
+   *   AUDIOBOOK_TRANSCRIPT_VISIBLE=false  no transcript is rendered anywhere
+   *   AUDIOBOOK_SEGMENTS_VISIBLE=false    no chapter markers, no segment list
+   *
+   * The response DOES carry `transcript`, and the bar reads it — but only to
+   * find the reader block matching the current time and scroll to it. That is
+   * navigation of text the READER already renders, not a transcript surface.
+   * On Escuchar there is no reader text mounted, so it highlights nothing.
+   *
+   * This test fails the day someone renders segment text without building a
+   * real surface for it, which is the moment the claim would stop being true.
+   */
+  it("shows no transcript and no segment list, even when the response carries them", async () => {
+    const withSegments: LectorAudioResponse = {
+      ...baseAudioResponse,
+      transcript: [
+        { start: 0, end: 12, text: "Empezamos por el cuerpo", blockId: "b-1" },
+        { start: 12, end: 30, text: "y después la palabra", blockId: "b-2" },
+      ],
+    };
+    fetchSpy.mockResolvedValue(fetchOk(withSegments));
+
+    const { container } = render(
+      <AudioBar
+        apiBase="https://api.example/api"
+        token="bearer-stub"
+        bookId="emociones-en-construccion"
+        chapterOrder={1}
+        initialOpen
+        inline
+      />,
+    );
+
+    await screen.findByTestId("audio-player-panel");
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("Empezamos por el cuerpo");
+    expect(text).not.toContain("y después la palabra");
+    expect(text).not.toMatch(/transcripci[óo]n/i);
+    expect(text).not.toMatch(/segmento/i);
+    expect(text).not.toMatch(/ideas? clave/i);
+  });
+});

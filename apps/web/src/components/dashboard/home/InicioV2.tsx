@@ -3,6 +3,7 @@ import type { ActivityFeedItemType, HomeResponse } from "@psico/types";
 
 import { MapRadar } from "@/components/dashboard/mapa/MapRadar";
 import { EcoMomentSuggestions } from "@/components/dashboard/home/EcoMomentSuggestions";
+import { chapterHeading } from "@/components/dashboard/lector/chapter-label";
 import {
   IconArrowRight,
   IconBook,
@@ -246,11 +247,12 @@ export function InicioV2({ home }: { home: HomeResponse }) {
                 <IconBook size={24} />
               </div>
               <div className="c-meta">
-                <div className="c-eyebrow">
-                  Capítulo {continueBook.chapterN}
-                </div>
+                {/* The book above, the chapter below — and the chapter named
+                    by its title. `chapterN` is the platform order, which is
+                    not the book's own chapter number (`lector/chapter-label`). */}
+                <div className="c-eyebrow">{continueBook.title}</div>
                 <div className="c-title">
-                  {continueBook.title} — {continueBook.chapterTitle}
+                  {chapterHeading({ title: continueBook.chapterTitle })}
                 </div>
                 <div className="bar">
                   <i style={{ width: `${continuePct}%` }} />

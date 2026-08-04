@@ -32,6 +32,7 @@ import { ChapterMediaListen } from "./media/ChapterMediaListen";
 import { ChapterMediaWatch } from "./media/ChapterMediaWatch";
 import { modeToStored, storedToMode, type ReaderMode } from "./reader-mode";
 import { ChapterExperienceHome } from "./ChapterExperienceHome";
+import { chapterHeading } from "./chapter-label";
 import {
   ReaderExperienceView,
   READER_ACTIVITIES_ANCHOR_ID,
@@ -1077,7 +1078,7 @@ export function LectorShell({
               className="truncate text-[13px] font-semibold"
               style={{ color: "var(--reader-text, var(--color-warm-900))" }}
             >
-              Cap. {chapter.order} · {chapter.title}
+              {chapterHeading({ title: chapter.title })}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1418,6 +1419,8 @@ export function LectorShell({
           bookId={book.id}
           chapterOrder={chapter.order}
           audioAvailable={chapter.audioAvailable}
+          chapterTitle={chapter.title}
+          bookSlug={bookSlug}
           // The manifest this reader already asked for. The surfaces do NOT ask
           // again: one chapter, one manifest. Anything else made the tab and
           // the surface disagree for a moment, which is how «Audio en

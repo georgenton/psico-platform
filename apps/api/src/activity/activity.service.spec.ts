@@ -115,4 +115,41 @@ describe("ActivityService — Sprint D", () => {
     expect(ecoArgs.select).not.toHaveProperty("textCiphertext");
     expect(ecoArgs.select).not.toHaveProperty("textNonce");
   });
+
+  it("names the chapter by its title and keeps the order in the route", async () => {
+    // «Parejas que Perduran» keeps its preface at order 1, so its editorial
+    // chapter 1 is order 2. The subtitle used to say «Capítulo 2» about it.
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+    prisma.ecoMessage.findMany.mockResolvedValue([]);
+    prisma.voiceTranscription.findMany.mockResolvedValue([]);
+    prisma.readingSession.findMany.mockResolvedValue([
+      {
+        id: "r1",
+        lastSeenAt: new Date("2026-06-20T14:00:00Z"),
+        progressPct: 40,
+        chapter: {
+          order: 2,
+          title: "Cuando amar también sana",
+          book: {
+            id: "b-pqp",
+            slug: "parejas-que-perduran",
+            title: "Parejas que perduran",
+          },
+        },
+      },
+    ]);
+
+    const service = new ActivityService(prisma as never);
+    const { items } = await service.feed("user-1");
+    const reading = items.find((i) => i.type === "reading")!;
+
+    expect(reading.title).toBe("Parejas que perduran");
+    expect(reading.subtitle).toBe("Cuando amar también sana · 40%");
+    expect(reading.subtitle).not.toMatch(/Cap\.\s*\d/);
+    expect(reading.subtitle).not.toMatch(/Capítulo\s*\d/);
+    // ROUTE_ORDER_UNCHANGED — the href is still keyed on the platform order.
+    expect(reading.href).toBe(
+      "/dashboard/biblioteca/parejas-que-perduran/lector/2",
+    );
+  });
 });

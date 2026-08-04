@@ -226,7 +226,13 @@ export class HomeService {
       return {
         kind: "book-progress",
         headline: `Estás a la mitad de "${continueBook.title}"`,
-        body: `Un capítulo de hoy te acerca al cierre del libro. Capítulo ${continueBook.chapterN}: ${continueBook.chapterTitle}.`,
+        // Named by its title, not numbered. `chapterN` is `Chapter.order` —
+        // where the unit sits in the reading sequence, which is not the
+        // book's own chapter number: a book whose first unit is a preface
+        // is one ahead for every chapter after it. The field stays in the
+        // response (the client routes with it); it just stops being read
+        // out loud as an editorial claim.
+        body: `Un capítulo de hoy te acerca al cierre del libro. Continúa con «${continueBook.chapterTitle}».`,
         ctaHref: "/dashboard/biblioteca",
         ctaLabel: "Seguir leyendo",
       };

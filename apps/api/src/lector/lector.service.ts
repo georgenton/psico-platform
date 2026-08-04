@@ -375,8 +375,15 @@ export class LectorService {
     // Artwork resolution order: explicit coverArtUrl → fallback chain via
     // PUBLIC_URL + cover token. The cover token resolves to a gradient
     // in-app but for lock-screen we need a real PNG, so prefer coverArtUrl.
+    //
+    // The title is the chapter's own title, with no number in front of it.
+    // `chapter.order` is where the unit sits in the reading sequence; in a
+    // book whose first unit is a preface it runs one ahead of the editorial
+    // number, so prefixing it here would put a wrong chapter number on the
+    // lock screen. No layer stores an editorial label yet — when one exists,
+    // this is where it goes.
     const metadata: LectorAudioMetadata = {
-      title: `Cap. ${chapter.order} · ${chapter.title}`,
+      title: chapter.title,
       subtitle: book.title,
       artist: book.author?.name ?? "Psico Platform",
       artworkUrl: book.coverArtUrl ?? book.cover ?? "",

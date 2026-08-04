@@ -1,0 +1,24 @@
+{
+  "gitSha": "f8e3751f427cc2bd0b0eb59f136d83b8adc6f10e",
+  "source": "/prototipos/book-experience (prototipo interno, sin datos de nadie)",
+  "screenshots": [
+    {
+      "file": "01-standard-overview-desktop.webp",
+      "viewport": "1365x900",
+      "url": "/prototipos/book-experience",
+      "sha256": "5e51d371cac706071430c9dcfd8a66cbb154cb7d541f51ed3525e661a6f74dc4"
+    },
+    {
+      "file": "02-standard-media-desktop.webp",
+      "viewport": "1365x900",
+      "url": "/prototipos/book-experience?mode=audiobook",
+      "sha256": "7696661e8d7c219d6c6f2b92a381e2db3db9f87c0a17f5c1f20198174d767a55"
+    },
+    {
+      "file": "03-standard-guided-mobile.webp",
+      "viewport": "390x844",
+      "url": "/prototipos/book-experience?mode=guided",
+      "sha256": "c731dfe792a91421c13069f06f06d577f840e213a1f5b6642eb7bbf080d65802"
+    }
+  ]
+}

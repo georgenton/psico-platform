@@ -162,6 +162,18 @@ describe("ReaderGuidePanel — opening it starts nothing", () => {
   });
 });
 
+describe("ReaderGuidePanel — the cover says how much it covers", () => {
+  it("shows the scope beside the «Guía breve» badge", async () => {
+    renderPanel();
+    // Book Experience Standard V1 §7: the badge is the form, the scope is the
+    // promise. A reader must be able to see both before pressing Empezar.
+    expect(await screen.findByText("Guía breve")).toBeInTheDocument();
+    expect(screen.getByTestId("rgp-scope")).toHaveTextContent(
+      "1 idea del capítulo",
+    );
+  });
+});
+
 describe("ReaderGuidePanel — the clip has no asset, and says so", () => {
   it("shows the pending placeholder and its transcript, never a fake player", async () => {
     const user = userEvent.setup();

@@ -25,6 +25,8 @@ import { CHAPTER_AUDIO_SIGNED_URL_TTL_SEC } from "../lector.service";
 function makeService(
   overrides: {
     book?: { id: string } | null;
+    /** `null` = the chapter has no ingested audio master. */
+    chapterAudioRow?: { id: string } | null;
     audioUrl?: string;
     getAudio?: ReturnType<typeof vi.fn>;
     getSignedUrl?: ReturnType<typeof vi.fn>;
@@ -48,6 +50,15 @@ function makeService(
         ),
     },
     chapter: { findUnique: vi.fn().mockResolvedValue({ id: "chapter-1" }) },
+    audio: {
+      findFirst: vi
+        .fn()
+        .mockResolvedValue(
+          overrides.chapterAudioRow === undefined
+            ? { id: "audio-1" }
+            : overrides.chapterAudioRow,
+        ),
+    },
     $transaction: vi.fn(),
   };
   const storage = {
@@ -117,7 +128,7 @@ describe("toSummary — the public projection", () => {
       chapters: [{ startSec: 0, label: "Inicio" }],
     });
 
-    const summary = toSummary(def);
+    const summary = toSummary(def, { chapterAudioPresent: false });
 
     expect(summary).toEqual({
       mediaKey: "fixture-video-v1",
@@ -142,8 +153,40 @@ describe("toSummary — the public projection", () => {
   it("marks a source-less definition as COMING_SOON", () => {
     const podcast =
       productionChapterMediaRegistry.getExact("eec-c1-podcast-v1");
-    expect(toSummary(podcast).availability).toBe("COMING_SOON");
-    expect(toSummary(podcast).hasCaptions).toBe(false);
+    const summary = toSummary(podcast, { chapterAudioPresent: true });
+    expect(summary.availability).toBe("COMING_SOON");
+    expect(summary.hasCaptions).toBe(false);
+  });
+
+  it("CHAPTER_AUDIO_WITH_ROW=AVAILABLE", () => {
+    const audiobook = productionChapterMediaRegistry.getExact(
+      "eec-c1-audiobook-v1",
+    );
+    expect(
+      toSummary(audiobook, { chapterAudioPresent: true }).availability,
+    ).toBe("AVAILABLE");
+  });
+
+  it("CHAPTER_AUDIO_WITHOUT_ROW=COMING_SOON", () => {
+    // The catalog still says PUBLISHED and still names a source. Without the
+    // ingested master there is nothing to play, and saying AVAILABLE here is
+    // exactly the promise the author demo caught us making.
+    const audiobook = productionChapterMediaRegistry.getExact(
+      "eec-c1-audiobook-v1",
+    );
+    expect(
+      toSummary(audiobook, { chapterAudioPresent: false }).availability,
+    ).toBe("COMING_SOON");
+  });
+
+  it("DRAFT_VIDEO=COMING_SOON", () => {
+    const video = productionChapterMediaRegistry.getExact("eec-c1-video-v1");
+    expect(video.status).toBe("DRAFT");
+    for (const chapterAudioPresent of [true, false]) {
+      expect(toSummary(video, { chapterAudioPresent }).availability).toBe(
+        "COMING_SOON",
+      );
+    }
   });
 });
 
@@ -168,6 +211,76 @@ describe("getManifest", () => {
     // The manifest signs nothing at all.
     expect(storage.getSignedUrl).not.toHaveBeenCalled();
     expect(JSON.stringify(manifest)).not.toContain("://");
+  });
+
+  it("MANIFEST_SIGNS_URLS=false — the runtime check is a row lookup, not a fetch", async () => {
+    const { service, storage, lector, stream } = makeService();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const manifest = await service.getManifest(
+      "user-1",
+      "PRO",
+      "emociones-en-construccion",
+      1,
+    );
+
+    expect(storage.getSignedUrl).not.toHaveBeenCalled();
+    expect(lector.getAudio).not.toHaveBeenCalled();
+    expect(stream.createAccess).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(JSON.stringify(manifest)).not.toContain("://");
+    fetchSpy.mockRestore();
+  });
+
+  it("marks the audiobook AVAILABLE when the chapter has an audio row", async () => {
+    const { service, prisma } = makeService();
+
+    const manifest = await service.getManifest(
+      "user-1",
+      "PRO",
+      "emociones-en-construccion",
+      1,
+    );
+
+    expect(
+      manifest.items.find((i) => i.kind === "AUDIOBOOK")!.availability,
+    ).toBe("AVAILABLE");
+    expect(prisma.audio.findFirst).toHaveBeenCalledWith({
+      where: { chapter: { bookId: "book-1", order: 1 } },
+      select: { id: true },
+    });
+  });
+
+  it("marks the audiobook COMING_SOON when the master was never ingested", async () => {
+    const { service } = makeService({ chapterAudioRow: null });
+
+    const manifest = await service.getManifest(
+      "user-1",
+      "PRO",
+      "emociones-en-construccion",
+      1,
+    );
+
+    expect(
+      manifest.items.find((i) => i.kind === "AUDIOBOOK")!.availability,
+    ).toBe("COMING_SOON");
+    // And the client is told nothing about WHY — no source, no provider.
+    expect(JSON.stringify(manifest)).not.toContain("CHAPTER_AUDIO");
+  });
+
+  it("does not query the audio table for a chapter with no chapter-audio format", async () => {
+    const { service, prisma } = makeService();
+
+    // Chapter 9 has no definitions at all, so nothing depends on the row.
+    const manifest = await service.getManifest(
+      "user-1",
+      "PRO",
+      "emociones-en-construccion",
+      9,
+    );
+
+    expect(manifest.items).toEqual([]);
+    expect(prisma.audio.findFirst).not.toHaveBeenCalled();
   });
 
   it("404s an unknown book", async () => {

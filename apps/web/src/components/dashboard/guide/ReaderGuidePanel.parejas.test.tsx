@@ -116,6 +116,14 @@ describe("ReaderGuidePanel · Parejas bundle", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("declares the Parejas scope beside its own badge", async () => {
+    renderPanel();
+    expect(await screen.findByText("Guía breve")).toBeInTheDocument();
+    expect(screen.getByTestId("rgp-scope")).toHaveTextContent(
+      "1 idea del capítulo",
+    );
+  });
+
   it("starts the run with the PAREJAS pin", async () => {
     start.mockResolvedValue({ session: session() });
     renderPanel();

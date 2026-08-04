@@ -281,3 +281,20 @@ viven en el entorno del servicio.
 13. Rollback: devolver la definición a `DRAFT` con `source: null`. Las marcas
     editoriales del capítulo se conservan: son decisión de guion, no del
     proveedor.
+
+## Definición, activo y reproducibilidad no son lo mismo
+
+Tres cosas distintas que este documento mantenía juntas, y que el
+[Book Experience Standard V1](book-experience-standard-v1.md) obliga a separar:
+
+```
+MEDIA_DEFINITION_STATUS      # qué dice el catálogo (DRAFT | PUBLISHED)
+MEDIA_ASSET_STATUS           # si el máster existe de verdad
+MEDIA_RUNTIME_PLAYABILITY    # si una persona puede reproducirlo ahora
+```
+
+**Un `PUBLISHED` en el catálogo no significa que el activo exista.** La
+definición es una decisión editorial; el activo es un archivo; la
+reproducibilidad es la conjunción de ambos más la política de acceso. El
+lector deshabilita el modo cuando falta cualquiera de los dos últimos, y lo
+hace ANTES de que la persona elija la pestaña.

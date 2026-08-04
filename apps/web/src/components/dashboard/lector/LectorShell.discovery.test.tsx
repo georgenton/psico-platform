@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type {
   ContentUnitRead,
   GuideReaderAnchorLocator,
@@ -28,6 +34,12 @@ import type * as ApiClientModule from "@psico/api-client";
  * flight, and when it fails. Neither may show a guide, and neither may show
  * the OTHER book's guide as a stand-in.
  *
+ * Book Experience Standard V1 tightened what «nothing» means. The guided tab
+ * is now rendered only once the standard makes the mode visible, which for a
+ * guide means PUBLISHED: discovery answered, pin parsed, bundle and anchor
+ * resolved. So the assertion for every negative context is the ABSENCE of the
+ * tab — there is no longer a button that opens a panel to explain itself.
+ *
  * No chapter prose is copied. The fixtures are built from the locators, so
  * this file cannot drift from the catalog.
  */
@@ -39,6 +51,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("./AudioBar", () => ({ AudioBar: () => null }));
 
 const getGuideDiscovery = vi.fn();
+const createGuideSession = vi.fn();
 
 vi.mock("@psico/api-client", async (importOriginal) => {
   const actual = await importOriginal<typeof ApiClientModule>();
@@ -47,7 +60,7 @@ vi.mock("@psico/api-client", async (importOriginal) => {
     guideApi: {
       ...actual.guideApi,
       getGuideDiscovery: (...a: unknown[]) => getGuideDiscovery(...a),
-      createGuideSession: vi.fn(),
+      createGuideSession: (...a: unknown[]) => createGuideSession(...a),
     },
   };
 });
@@ -183,14 +196,34 @@ function renderReader({
   );
 }
 
-/** Open the guide surface and wait for whatever discovery settles on. */
+/**
+ * Wait for the offer to appear, then take it.
+ *
+ * `findByTestId` is the assertion as much as the setup: the tab exists only
+ * when the guide is genuinely ready, so waiting for it IS waiting for the six
+ * conditions to hold.
+ */
 async function openGuide() {
-  fireEvent.click(screen.getByTestId(GUIDE_TAB));
-  await waitFor(() =>
-    expect(
-      screen.queryByTestId("reader-guide-loading"),
-    ).not.toBeInTheDocument(),
-  );
+  fireEvent.click(await screen.findByTestId(GUIDE_TAB));
+}
+
+/**
+ * Let discovery answer, then assert the reader still offers no guided tab.
+ *
+ * Waiting for the call first is what makes the absence meaningful: without it
+ * the assertion would pass simply because nothing had happened yet.
+ */
+async function expectNoGuidedTab() {
+  await waitFor(() => expect(getGuideDiscovery).toHaveBeenCalled());
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  expect(screen.queryByTestId(GUIDE_TAB)).not.toBeInTheDocument();
+  expect(screen.queryByTestId("reader-guide-panel")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Empezar" }),
+  ).not.toBeInTheDocument();
 }
 
 describe("LectorShell · the five reading contexts", () => {
@@ -246,12 +279,7 @@ describe("LectorShell · the five reading contexts", () => {
       order: 1,
       unit: unitWithoutAnchor(1),
     });
-    await openGuide();
-
-    expect(
-      await screen.findByTestId("reader-guide-unavailable"),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("reader-guide-panel")).not.toBeInTheDocument();
+    await expectNoGuidedTab();
   });
 
   it("Parejas ch.3 → nothing", async () => {
@@ -261,12 +289,7 @@ describe("LectorShell · the five reading contexts", () => {
       order: 3,
       unit: unitWithoutAnchor(3),
     });
-    await openGuide();
-
-    expect(
-      await screen.findByTestId("reader-guide-unavailable"),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("reader-guide-panel")).not.toBeInTheDocument();
+    await expectNoGuidedTab();
   });
 
   it("Emociones ch.2 → nothing", async () => {
@@ -276,12 +299,7 @@ describe("LectorShell · the five reading contexts", () => {
       order: 2,
       unit: unitWithoutAnchor(2),
     });
-    await openGuide();
-
-    expect(
-      await screen.findByTestId("reader-guide-unavailable"),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("reader-guide-panel")).not.toBeInTheDocument();
+    await expectNoGuidedTab();
   });
 });
 
@@ -298,11 +316,10 @@ describe("LectorShell · discovery states that must not become a guide", () => {
       order: 2,
       unit: unitFor(PAREJAS_READER_ANCHOR),
     });
-    fireEvent.click(screen.getByTestId(GUIDE_TAB));
-
-    expect(await screen.findByTestId("reader-guide-loading")).toHaveTextContent(
-      "Buscando la guía de este capítulo…",
-    );
+    // While the request is in flight there is no offer at all: no tab, no
+    // panel, and above all no other book's cover standing in for the answer.
+    await waitFor(() => expect(getGuideDiscovery).toHaveBeenCalled());
+    expect(screen.queryByTestId(GUIDE_TAB)).not.toBeInTheDocument();
     expect(screen.queryByTestId("reader-guide-panel")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Empezar" }),
@@ -312,12 +329,12 @@ describe("LectorShell · discovery states that must not become a guide", () => {
         name: "El cuerpo sabe antes que la mente",
       }),
     ).not.toBeInTheDocument();
-    // Not "unavailable" either — that would be an answer we do not have yet.
-    expect(
-      screen.queryByTestId("reader-guide-unavailable"),
-    ).not.toBeInTheDocument();
 
-    settle({ available: true, ...PQP_PIN });
+    // …and once the server answers, the offer appears and can be taken.
+    await act(async () => {
+      settle({ available: true, ...PQP_PIN });
+    });
+    await openGuide();
     expect(await screen.findByTestId("reader-guide-panel")).toBeInTheDocument();
   });
 
@@ -328,12 +345,7 @@ describe("LectorShell · discovery states that must not become a guide", () => {
       order: 2,
       unit: unitFor(PAREJAS_READER_ANCHOR),
     });
-    await openGuide();
-
-    expect(
-      await screen.findByTestId("reader-guide-unavailable"),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("reader-guide-panel")).not.toBeInTheDocument();
+    await expectNoGuidedTab();
     expect(
       screen.queryByRole("heading", {
         name: "El cuerpo sabe antes que la mente",
@@ -352,12 +364,7 @@ describe("LectorShell · discovery states that must not become a guide", () => {
       order: 2,
       unit: unitFor(PAREJAS_READER_ANCHOR),
     });
-    await openGuide();
-
-    expect(
-      await screen.findByTestId("reader-guide-unavailable"),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("reader-guide-panel")).not.toBeInTheDocument();
+    await expectNoGuidedTab();
   });
 
   it("the right pin on the WRONG chapter shows no guide", async () => {
@@ -369,12 +376,7 @@ describe("LectorShell · discovery states that must not become a guide", () => {
       order: 1,
       unit: unitFor(GUIDE_READER_ANCHOR),
     });
-    await openGuide();
-
-    expect(
-      await screen.findByTestId("reader-guide-unavailable"),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("reader-guide-panel")).not.toBeInTheDocument();
+    await expectNoGuidedTab();
   });
 
   it("asks nothing at all when the pilot gate is off", async () => {
@@ -393,11 +395,48 @@ describe("LectorShell · discovery states that must not become a guide", () => {
         </GuideActorScopeProvider>
       </GuideAvailabilityProvider>,
     );
-    fireEvent.click(screen.getByTestId(GUIDE_TAB));
-
-    expect(
-      await screen.findByTestId("reader-guide-unavailable"),
-    ).toBeInTheDocument();
+    // No gate, no question, and therefore nothing to offer.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId(GUIDE_TAB)).not.toBeInTheDocument();
     expect(getGuideDiscovery).not.toHaveBeenCalled();
+  });
+
+  it("the panel closes by itself if the guide stops being offered", async () => {
+    getGuideDiscovery.mockResolvedValue({ available: true, ...PQP_PIN });
+    const { rerender } = renderReader({
+      bookSlug: "parejas-que-perduran",
+      order: 2,
+      unit: unitFor(PAREJAS_READER_ANCHOR),
+    });
+    await openGuide();
+    expect(await screen.findByTestId("reader-guide-panel")).toBeInTheDocument();
+
+    // The pilot gate closes underneath the reader. The panel must go with it,
+    // and nothing else may happen: no session is started and none is
+    // cancelled — an unmount is not a decision about anyone's progress.
+    rerender(
+      <GuideAvailabilityProvider available={false}>
+        <GuideActorScopeProvider scope={"A".repeat(43)}>
+          <LectorShell
+            apiBase="https://api.example/api"
+            token="tok"
+            bookSlug="parejas-que-perduran"
+            initial={initialFor(2, "Un capítulo")}
+            unit={unitFor(PAREJAS_READER_ANCHOR)}
+            marks={null}
+          />
+        </GuideActorScopeProvider>
+      </GuideAvailabilityProvider>,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("reader-guide-panel"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId(GUIDE_TAB)).not.toBeInTheDocument();
+    expect(createGuideSession).not.toHaveBeenCalled();
   });
 });

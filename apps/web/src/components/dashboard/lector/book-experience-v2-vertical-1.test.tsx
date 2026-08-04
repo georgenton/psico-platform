@@ -14,6 +14,7 @@ import type {
 } from "@psico/types";
 import { GUIDE_READER_ANCHOR } from "@psico/types";
 import { LectorShell } from "./LectorShell";
+import { storedToMode } from "./reader-mode";
 import { GuideAvailabilityProvider } from "../guide/guide-availability";
 import { GuideActorScopeProvider } from "../guide/guide-actor-scope";
 import type * as ApiClientModule from "@psico/api-client";
@@ -60,7 +61,23 @@ vi.mock("@psico/api-client", async (importOriginal) => {
   };
 });
 
-vi.mock("./AudioBar", () => ({ AudioBar: () => null }));
+/**
+ * The audio player, stubbed but VISIBLE.
+ *
+ * It renders a marker instead of `null` so «where can this chapter be played
+ * from» is an assertable question. `ChapterMediaListen` imports the very same
+ * module, so one mock covers both the surface that should have it and the
+ * header that should not.
+ */
+vi.mock("./AudioBar", () => ({
+  AudioBar: () => <div data-testid="audio-bar" />,
+}));
+
+/** Every URL that would reach the chapter-audio endpoint. */
+const audioEndpointCalls = () =>
+  fetchSpy.mock.calls
+    .map((c) => String(c[0]))
+    .filter((u) => /\/audio(\?|$)/.test(u) || u.includes("/access"));
 
 const mediaItem = (
   kind: ChapterMediaSummary["kind"],
@@ -106,11 +123,53 @@ function mockNetwork(items: ChapterMediaSummary[]) {
   }) as any);
 }
 
+/**
+ * Every IntersectionObserver the shell built, and whether it is still live.
+ *
+ * The reader's observer has to be REBUILT each time the chapter text remounts,
+ * and the old one has to be gone: an observer still holding nodes that left the
+ * document reports nothing, which is how reading progress used to freeze after
+ * a trip through Escuchar. Recording construction, the elements each one was
+ * given, and disconnection is what lets a test say both halves of that.
+ */
+interface FakeObserverRecord {
+  cb: IntersectionObserverCallback;
+  observed: Element[];
+  disconnected: boolean;
+}
+let observers: FakeObserverRecord[];
+const liveObservers = () => observers.filter((o) => !o.disconnected);
+/** The observer currently in charge, or undefined while nothing is mounted. */
+const activeObserver = () => liveObservers().at(-1);
+
+/** Feed the live observer an intersection, the way scrolling would. */
+async function intersect(blockId: string, ratio = 1) {
+  const io = activeObserver();
+  if (!io) throw new Error("no live IntersectionObserver");
+  await act(async () => {
+    io.cb(
+      [
+        {
+          target: { dataset: { blockId } } as unknown as Element,
+          intersectionRatio: ratio,
+        } as unknown as IntersectionObserverEntry,
+      ],
+      null as unknown as IntersectionObserver,
+    );
+  });
+}
+
 beforeEach(() => {
+  observers = [];
   class FakeIO {
-    observe = vi.fn();
-    unobserve = vi.fn();
-    disconnect = vi.fn();
+    rec: FakeObserverRecord;
+    constructor(cb: IntersectionObserverCallback) {
+      this.rec = { cb, observed: [], disconnected: false };
+      observers.push(this.rec);
+    }
+    observe = (el: Element) => void this.rec.observed.push(el);
+    unobserve = () => {};
+    disconnect = () => void (this.rec.disconnected = true);
   }
   (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver =
     FakeIO as unknown as typeof IntersectionObserver;
@@ -127,7 +186,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function buildInitial(audioAvailable = false): LectorChapterResponse {
+function buildInitial(
+  audioAvailable = false,
+  progressPct = 0.5,
+): LectorChapterResponse {
   return {
     book: {
       id: "book-1",
@@ -159,7 +221,7 @@ function buildInitial(audioAvailable = false): LectorChapterResponse {
     annotations: [],
     session: {
       lastBlockId: "b-1",
-      progressPct: 0.5,
+      progressPct,
       timeSpentSec: 120,
       completedAt: null,
     },
@@ -228,14 +290,23 @@ function buildUnit(anchored = false): ContentUnitRead {
 const renderReader = ({
   guidePilot = false,
   audioAvailable = false,
-}: { guidePilot?: boolean; audioAvailable?: boolean } = {}) => {
+  // A three-block chapter without the pilot: the observer tests need more than
+  // one block to have somewhere to move to.
+  anchored,
+  progressPct,
+}: {
+  guidePilot?: boolean;
+  audioAvailable?: boolean;
+  anchored?: boolean;
+  progressPct?: number;
+} = {}) => {
   const shell = (
     <LectorShell
       apiBase="https://api.example/api"
       token="bearer-stub"
       bookSlug="emociones-en-construccion"
-      initial={buildInitial(audioAvailable)}
-      unit={buildUnit(guidePilot)}
+      initial={buildInitial(audioAvailable, progressPct)}
+      unit={buildUnit(anchored ?? guidePilot)}
       marks={null}
     />
   );
@@ -833,5 +904,352 @@ describe("Reading signal — a surface over the text is not reading", () => {
     fetchSpy.mockClear();
     await tick(3);
     expect(readingBeats()).toBeGreaterThan(0);
+  });
+});
+
+// ── Closure pass 2: audio, the guide, and the observer ─────────────────────
+
+/**
+ * Escuchar is a mode, so it is the only place the chapter plays.
+ *
+ * The reading header used to carry a mini-pill that opened the FULL audiobook
+ * while «Leer» was on screen. That made the mode selector a half-truth: the
+ * chapter had two audio homes, one of them hidden inside the other mode. The
+ * player did not lose anything by moving — it is the same component, the same
+ * endpoint, the same completion — it simply lives where the reader chose it.
+ */
+describe("Audio belongs to Escuchar", () => {
+  it("READ_MODE_AUDIO_BAR_PRESENT=false — no full player while reading", async () => {
+    mockNetwork([mediaItem("AUDIOBOOK", "a1")]);
+    renderReader({ audioAvailable: true });
+    await settle();
+    expect(screen.getByTestId("reader-experience-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("audio-bar")).toBeNull();
+  });
+
+  it("READ_MODE_AUDIO_ENDPOINT_CALLS=0 — nothing asks for audio from Leer", async () => {
+    mockNetwork([mediaItem("AUDIOBOOK", "a1")]);
+    renderReader({ audioAvailable: true });
+    await settle();
+    expect(audioEndpointCalls()).toEqual([]);
+  });
+
+  it("LISTEN_MODE_AUDIO_BAR_PRESENT=true — choosing Escuchar still plays", async () => {
+    mockNetwork([mediaItem("AUDIOBOOK", "a1")]);
+    renderReader({ audioAvailable: true });
+    await settle();
+    fireEvent.click(screen.getByTestId("reader-mode-escuchar"));
+    await settle();
+    expect(screen.getByTestId("audio-bar")).toBeInTheDocument();
+  });
+
+  it("the audiobook has exactly one home — never two at once", async () => {
+    mockNetwork([mediaItem("AUDIOBOOK", "a1")]);
+    renderReader({ audioAvailable: true });
+    await settle();
+    fireEvent.click(screen.getByTestId("reader-mode-escuchar"));
+    await settle();
+    expect(screen.getAllByTestId("audio-bar")).toHaveLength(1);
+    // …and the reading composition is not underneath it.
+    expect(screen.queryByTestId("reader-experience-view")).toBeNull();
+  });
+});
+
+/**
+ * The guide narrates the chapter, so the chapter has to be there.
+ *
+ * Opening it from Escuchar or Ver used to leave the panel over nothing: the
+ * reading composition was mounted only in «Leer», so «Ir al pasaje» had no
+ * block to find. The mode itself is never touched — the panel simply overrides
+ * what is behind it while it is open, and stops overriding when it closes.
+ */
+describe("Guided panel — the text is always behind it", () => {
+  const openGuide = async () => {
+    await waitFor(() => screen.getByTestId("reader-mode-guiada"));
+    fireEvent.click(screen.getByTestId("reader-mode-guiada"));
+    await settle();
+  };
+
+  beforeEach(() => {
+    getGuideDiscovery.mockResolvedValue({
+      available: true,
+      guideKey: "eec-c1-cuerpo-antes-que-mente",
+      guideVersion: 1,
+    });
+  });
+
+  it("GUIDE_READER_BACKGROUND_FROM_READ=true", async () => {
+    renderReader({ guidePilot: true });
+    await settle();
+    await openGuide();
+    expect(screen.getByTestId("reader-experience-view")).toBeInTheDocument();
+  });
+
+  it("GUIDE_READER_BACKGROUND_FROM_LISTEN=true — and the audio steps aside", async () => {
+    mockNetwork([mediaItem("AUDIOBOOK", "a1")]);
+    renderReader({ guidePilot: true, audioAvailable: true });
+    await settle();
+    fireEvent.click(screen.getByTestId("reader-mode-escuchar"));
+    await settle();
+    expect(screen.getByTestId("audio-bar")).toBeInTheDocument();
+
+    await openGuide();
+    expect(screen.getByTestId("reader-experience-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("audio-bar")).toBeNull();
+  });
+
+  it("GUIDE_READER_BACKGROUND_FROM_VIDEO=true — and the video steps aside", async () => {
+    mockNetwork([mediaItem("VIDEO", "v1")]);
+    renderReader({ guidePilot: true });
+    await settle();
+    fireEvent.click(screen.getByTestId("reader-mode-ver"));
+    await settle();
+    expect(screen.queryByTestId("reader-experience-view")).toBeNull();
+
+    await openGuide();
+    expect(screen.getByTestId("reader-experience-view")).toBeInTheDocument();
+  });
+
+  it("GUIDE_CLOSE_RESTORES_REQUESTED_MODE=true — Escuchar comes back", async () => {
+    mockNetwork([mediaItem("AUDIOBOOK", "a1")]);
+    renderReader({ guidePilot: true, audioAvailable: true });
+    await settle();
+    fireEvent.click(screen.getByTestId("reader-mode-escuchar"));
+    await settle();
+    await openGuide();
+
+    fireEvent.click(screen.getByTestId("reader-mode-guiada"));
+    await settle();
+    expect(screen.getByTestId("audio-bar")).toBeInTheDocument();
+    expect(screen.queryByTestId("reader-experience-view")).toBeNull();
+    expect(screen.getByTestId("reader-mode-escuchar")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    // The mode was never changed, so nothing had to be restored — and the
+    // stored preference still names the format the reader picked. (It is read
+    // through `storedToMode` because GR-2 kept the legacy token: Escuchar is
+    // persisted as `"guia"`, which is a storage value and not the guide.)
+    expect(storedToMode(window.localStorage.getItem("psico:lector:mode"))).toBe(
+      "escuchar",
+    );
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("GUIDE_CLOSE_RESTORES_REQUESTED_MODE=true — Ver comes back", async () => {
+    mockNetwork([mediaItem("VIDEO", "v1")]);
+    renderReader({ guidePilot: true });
+    await settle();
+    fireEvent.click(screen.getByTestId("reader-mode-ver"));
+    await settle();
+    await openGuide();
+
+    fireEvent.click(screen.getByTestId("reader-mode-guiada"));
+    await settle();
+    expect(screen.queryByTestId("reader-experience-view")).toBeNull();
+    expect(screen.getByTestId("reader-mode-ver")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(storedToMode(window.localStorage.getItem("psico:lector:mode"))).toBe(
+      "ver",
+    );
+  });
+
+  it("GUIDE_ANCHOR_FROM_MEDIA_MODE=true — the passage is in the document to scroll to", async () => {
+    mockNetwork([mediaItem("AUDIOBOOK", "a1")]);
+    renderReader({ guidePilot: true, audioAvailable: true });
+    await settle();
+    fireEvent.click(screen.getByTestId("reader-mode-escuchar"));
+    await settle();
+    await openGuide();
+
+    // `goToGuidePassage` looks the block up in the shell's ref map, which is
+    // populated by the mounted blocks. Opened from Escuchar, they are there.
+    // (The button itself lives behind a started session and is covered by
+    // `ReaderGuidePanel.test.tsx`; what this pins is the precondition that
+    // used to be missing — the block to scroll to.)
+    const anchored = document.querySelector('[data-block-id="b-p"]');
+    expect(anchored).not.toBeNull();
+    expect(anchored?.textContent ?? "").toContain(
+      GUIDE_READER_ANCHOR.passageLastSentence,
+    );
+    // Looking at a passage is not navigation and not a mark.
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(
+      fetchSpy.mock.calls.filter(
+        (c) =>
+          String(c[0]).includes("/highlights") &&
+          (c[1] as RequestInit | undefined)?.method === "POST",
+      ),
+    ).toHaveLength(0);
+  });
+});
+
+/**
+ * The observer has to come back with the text.
+ *
+ * `blocks` never changes across a mode round trip, so an effect keyed on it
+ * alone never re-ran — and the observer kept pointing at DOM nodes that had
+ * been unmounted. Nothing reported, progress froze, and every heartbeat
+ * afterwards repeated the block from before the trip.
+ */
+describe("Reading progress survives a mode round trip", () => {
+  const roundTrip = async (via: "escuchar" | "ver" | "home") => {
+    if (via === "home") {
+      openHome();
+      await settle();
+      fireEvent.click(screen.getByTestId("chapter-home-continue"));
+    } else {
+      fireEvent.click(screen.getByTestId(`reader-mode-${via}`));
+      await settle();
+      fireEvent.click(screen.getByTestId("reader-mode-leer"));
+    }
+    await settle();
+  };
+
+  it("READER_OBSERVER_REATTACHES_AFTER_HOME=true", async () => {
+    renderReader({ anchored: true });
+    await settle();
+    const first = activeObserver();
+    expect(first?.observed.length).toBeGreaterThan(0);
+
+    await roundTrip("home");
+    const second = activeObserver();
+    expect(second).not.toBe(first);
+    expect(first?.disconnected).toBe(true);
+    expect(second?.observed.length).toBeGreaterThan(0);
+  });
+
+  it("READER_OBSERVER_REATTACHES_AFTER_LISTEN=true", async () => {
+    mockNetwork([mediaItem("AUDIOBOOK", "a1")]);
+    renderReader({ anchored: true, audioAvailable: true });
+    await settle();
+    const first = activeObserver();
+
+    await roundTrip("escuchar");
+    const second = activeObserver();
+    expect(second).not.toBe(first);
+    expect(first?.disconnected).toBe(true);
+    expect(second?.observed.length).toBeGreaterThan(0);
+  });
+
+  it("READER_OBSERVER_REATTACHES_AFTER_VIDEO=true", async () => {
+    mockNetwork([mediaItem("VIDEO", "v1")]);
+    renderReader({ anchored: true });
+    await settle();
+    const first = activeObserver();
+
+    await roundTrip("ver");
+    const second = activeObserver();
+    expect(second).not.toBe(first);
+    expect(first?.disconnected).toBe(true);
+    expect(second?.observed.length).toBeGreaterThan(0);
+  });
+
+  it("ACTIVE_READER_INTERSECTION_OBSERVERS<=1 across every surface", async () => {
+    mockNetwork([mediaItem("AUDIOBOOK", "a1"), mediaItem("VIDEO", "v1")]);
+    renderReader({ anchored: true, audioAvailable: true });
+    await settle();
+    expect(liveObservers()).toHaveLength(1);
+
+    for (const via of ["escuchar", "ver", "home"] as const) {
+      await roundTrip(via);
+      expect(liveObservers()).toHaveLength(1);
+    }
+  });
+
+  it("the observer exists only while the text is mounted", async () => {
+    mockNetwork([mediaItem("AUDIOBOOK", "a1")]);
+    getGuideDiscovery.mockResolvedValue({
+      available: true,
+      guideKey: "eec-c1-cuerpo-antes-que-mente",
+      guideVersion: 1,
+    });
+    renderReader({ guidePilot: true, audioAvailable: true });
+    await settle();
+
+    // Escuchar: the text is gone, and so is the observer.
+    fireEvent.click(screen.getByTestId("reader-mode-escuchar"));
+    await settle();
+    expect(liveObservers()).toHaveLength(0);
+
+    // The guide brings the text back, so the observer comes back with it.
+    await waitFor(() => screen.getByTestId("reader-mode-guiada"));
+    fireEvent.click(screen.getByTestId("reader-mode-guiada"));
+    await settle();
+    expect(liveObservers()).toHaveLength(1);
+
+    // Closing it returns to Escuchar — text gone, observer gone.
+    fireEvent.click(screen.getByTestId("reader-mode-guiada"));
+    await settle();
+    expect(liveObservers()).toHaveLength(0);
+  });
+
+  it("PROGRESS_CONTINUES_AFTER_MODE_ROUNDTRIP=true — and the beat carries it", async () => {
+    vi.useFakeTimers();
+    try {
+      // A session that echoes what it was told, the way the server does: the
+      // stored progress never decreases, so the reply cannot undo the client.
+      const beats: { lastBlockId: string; progressPct: number }[] = [];
+      manifestCalls = [];
+      fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ) => {
+        const url = String(input);
+        if (url.includes("/lector/session") && init?.method === "PATCH") {
+          const body = JSON.parse(String(init.body)) as {
+            lastBlockId: string;
+            progressPct: number;
+          };
+          beats.push(body);
+          return new Response(
+            JSON.stringify({ progressPct: body.progressPct }),
+            { status: 200 },
+          );
+        }
+        if (url.includes("/media") && !url.includes("/access")) {
+          manifestCalls.push(url);
+          return new Response(
+            JSON.stringify({
+              bookSlug: "emociones-en-construccion",
+              chapterOrder: 1,
+              items: [mediaItem("AUDIOBOOK", "a1")],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response("{}", { status: 200 });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      }) as any);
+
+      renderReader({ anchored: true, audioAvailable: true, progressPct: 0.2 });
+      await settleFake();
+      expect(
+        document.querySelector<HTMLElement>('[style*="width: 20%"]'),
+      ).not.toBeNull();
+
+      // Out to Escuchar and back — the trip that used to kill the observer.
+      fireEvent.click(screen.getByTestId("reader-mode-escuchar"));
+      await settleFake();
+      fireEvent.click(screen.getByTestId("reader-mode-leer"));
+      await settleFake();
+
+      // Scroll onto a block further down. Three blocks, so the second is 2/3.
+      await intersect("b-p");
+      expect(
+        document.querySelector<HTMLElement>('[style*="width: 67%"]'),
+      ).not.toBeNull();
+
+      // LAST_BLOCK_CONTINUES_AFTER_MODE_ROUNDTRIP — the next beat says so.
+      beats.length = 0;
+      await tick(2);
+      expect(beats.length).toBeGreaterThan(0);
+      expect(beats.at(-1)?.lastBlockId).toBe("b-p");
+      expect(beats.at(-1)?.progressPct).toBeCloseTo(2 / 3, 5);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

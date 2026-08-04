@@ -28,7 +28,6 @@ import {
   ReaderCompanionDock,
   type DockTab,
 } from "./companion/ReaderCompanionDock";
-import { AudioBar } from "./AudioBar";
 import { ChapterMediaListen } from "./media/ChapterMediaListen";
 import { ChapterMediaWatch } from "./media/ChapterMediaWatch";
 import { modeToStored, storedToMode, type ReaderMode } from "./reader-mode";
@@ -518,6 +517,30 @@ export function LectorShell({
     : "leer";
 
   /**
+   * Is the chapter text on screen right now?
+   *
+   * Not the same question as «is Leer the chosen mode». The guided panel is a
+   * SURFACE that narrates the chapter and sends the reader to a passage inside
+   * it, so the text has to be mounted behind it — and it has to be mounted no
+   * matter which format the reader had chosen before opening the guide.
+   * Deriving that from `effectiveMode === "leer"` alone left a reader who
+   * opened the guide from Escuchar or Ver with a panel over nothing: «Ir al
+   * pasaje» had no block to find.
+   *
+   * The mode itself is untouched. Opening the guide does not call
+   * `changeMode`, does not write `localStorage`, and does not cancel a session
+   * — so closing the panel puts the requested format back on screen by simply
+   * ceasing to override it. The media surfaces read the same authority from
+   * the other side: while the guide is open they step aside, because the guide
+   * is about the text.
+   *
+   * It is also what tells the IntersectionObserver whether there is anything
+   * to observe. See the observer effect below.
+   */
+  const readerContentMounted =
+    surface === "reader" && (effectiveMode === "leer" || guideOpen);
+
+  /**
    * If the guided mode stops being offered, the panel cannot stay open.
    *
    * The reader can be inside the panel when the context changes underneath
@@ -564,8 +587,28 @@ export function LectorShell({
 
   // ── IntersectionObserver: track currently visible block ────────────────
 
+  /**
+   * The observer has to be rebuilt every time the text is remounted.
+   *
+   * `blocks` alone was the wrong authority. Leaving «Leer» for the chapter
+   * home, for Escuchar, for Ver — or opening the guide from a media mode —
+   * unmounts every block element and `registerRef(id, null)` empties the map;
+   * coming back mounts brand-new elements. The array of blocks is identical
+   * through all of that, so the effect never re-ran and the observer was left
+   * holding references to nodes that are no longer in the document. Reading
+   * resumed and nothing moved: no visible block, no progress, and every
+   * heartbeat afterwards repeated the block from before the round trip.
+   *
+   * `readerContentMounted` is the fact that actually changed, so it belongs in
+   * the dependency list. The cleanup disconnects before each rebuild, which is
+   * what keeps this to a single live observer
+   * (`ACTIVE_READER_INTERSECTION_OBSERVERS<=1`) instead of one per visit.
+   */
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Nothing is rendered, so there is nothing to observe — and the previous
+    // observer is already disconnected by this effect's own cleanup.
+    if (!readerContentMounted) return;
     const io = new IntersectionObserver(
       (entries) => {
         // The block that has the most intersection ratio wins.
@@ -589,9 +632,11 @@ export function LectorShell({
       { threshold: [0, 0.25, 0.5, 0.75, 1] },
     );
 
+    // The children mounted (and registered their refs) before this parent
+    // effect runs, so the map already holds the CURRENT elements.
     for (const el of blockRefs.current.values()) io.observe(el);
     return () => io.disconnect();
-  }, [blocks]);
+  }, [blocks, readerContentMounted]);
 
   /**
    * How many activities and exercises this chapter really shows.
@@ -1080,20 +1125,18 @@ export function LectorShell({
             >
               Aa
             </button>
-            {/* Mini-pill audio entry kept in Modo Libro for users who
-                want a quick listen without switching the whole reading
-                experience. In Modo Guía the audio lives in the banner
-                below, so we hide the pill to avoid duplicating it. */}
-            {surface === "reader" &&
-            chapter.audioAvailable &&
-            effectiveMode === "leer" ? (
-              <AudioBar
-                apiBase={apiBase}
-                token={token}
-                bookId={book.id}
-                chapterOrder={chapter.order}
-              />
-            ) : null}
+            {/* The header used to carry a mini-pill that opened the FULL
+                chapter audiobook while «Leer» was on screen. It is gone, and
+                its absence is the point: Escuchar is a mode with its own
+                surface, its own subformats and its own completion, so a second
+                entry point in the reading header meant the same audiobook had
+                two homes and the mode selector was not telling the truth about
+                where audio lives.
+
+                Nothing was lost with it — playback, signed access, completion,
+                transcript, speed and the sleep timer all live inside
+                `ChapterMediaListen`, which mounts the same `AudioBar`. The
+                reader reaches them by choosing Escuchar. */}
             <button
               type="button"
               hidden={surface === "home"}
@@ -1344,7 +1387,11 @@ export function LectorShell({
         />
       ) : null}
 
-      {surface === "reader" && effectiveMode === "escuchar" ? (
+      {/* The media surfaces step aside while the guide is open — the guide is
+          about the TEXT, and two players competing for the same chapter is not
+          a state we want a reader to be in. `requestedMode` is untouched, so
+          closing the panel brings the format straight back. */}
+      {surface === "reader" && !guideOpen && effectiveMode === "escuchar" ? (
         <ChapterMediaListen
           apiBase={apiBase}
           token={token}
@@ -1360,7 +1407,7 @@ export function LectorShell({
         />
       ) : null}
 
-      {surface === "reader" && effectiveMode === "ver" ? (
+      {surface === "reader" && !guideOpen && effectiveMode === "ver" ? (
         <ChapterMediaWatch
           apiBase={apiBase}
           token={token}
@@ -1374,8 +1421,12 @@ export function LectorShell({
           list and «Marcar capítulo como leído» rendered unconditionally, so a
           person who picked Escuchar got the player with the whole chapter under
           it. Reading lives in one surface now, and the other formats are the
-          only thing on screen when they are chosen. */}
-      {surface === "reader" && effectiveMode === "leer" ? (
+          only thing on screen when they are chosen.
+
+          `readerContentMounted` — not `effectiveMode === "leer"` — because the
+          guided panel needs the chapter behind it whichever format the reader
+          came from. See the derivation above. */}
+      {readerContentMounted ? (
         <ReaderExperienceView
           bookSlug={bookSlug}
           chapterOrder={chapter.order}

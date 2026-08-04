@@ -46,16 +46,20 @@ afterEach(() => {
 function mountHook(opts: {
   read?: () => { lastBlockId: string; progressPct: number } | null;
   onProgress?: (n: number) => void;
+  enabled?: boolean;
 }) {
-  return renderHook(() =>
-    useHeartbeat({
-      apiBase,
-      token,
-      bookId,
-      chapterOrder,
-      onProgress: opts.onProgress,
-      read: opts.read ?? (() => ({ lastBlockId: "b-1", progressPct: 0.25 })),
-    }),
+  return renderHook(
+    ({ enabled }: { enabled: boolean }) =>
+      useHeartbeat({
+        apiBase,
+        token,
+        bookId,
+        chapterOrder,
+        onProgress: opts.onProgress,
+        read: opts.read ?? (() => ({ lastBlockId: "b-1", progressPct: 0.25 })),
+        enabled,
+      }),
+    { initialProps: { enabled: opts.enabled ?? true } },
   );
 }
 
@@ -185,5 +189,125 @@ describe("useHeartbeat — cleanup", () => {
       await vi.advanceTimersByTimeAsync(30_000);
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Book Experience V2, vertical 1 — the reading heartbeat is about READING.
+ *
+ * `LectorShell` turns it off on the chapter home, in Escuchar, in Ver and while
+ * the guided panel is open. These two tests pin the hook side of that: nothing
+ * is sent while off, and coming back does not bill the time spent away.
+ */
+describe("useHeartbeat — enabled gate", () => {
+  it("sends nothing at all while disabled", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ progressPct: 0.3 })));
+    mountHook({ enabled: false });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("RESUME_DOES_NOT_COUNT_INACTIVE_INTERVAL — the first beat back is one tick, not the whole absence", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ progressPct: 0.3 })));
+    const view = mountHook({ enabled: true });
+
+    // Read for one tick, then leave for twenty minutes.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    fetchSpy.mockClear();
+    view.rerender({ enabled: false });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20 * 60_000);
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    // Come back. The first beat must report ~5 s of reading, not 20 minutes
+    // (nor the server-capped 60 s, which would still be a minute that never
+    // happened).
+    view.rerender({ enabled: true });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(
+      String((fetchSpy.mock.calls[0]![1] as RequestInit).body),
+    ) as { timeSpentDeltaSec: number };
+    expect(body.timeSpentDeltaSec).toBeLessThanOrEqual(5);
+  });
+});
+
+/**
+ * The background tab is the other way the clock lied.
+ *
+ * `beat()` already returned early while `document.hidden`, but returning early
+ * does not stop time — the elapsed counter kept running, so the first beat
+ * after twenty minutes in another tab reported the whole absence as reading.
+ */
+describe("useHeartbeat — background tab", () => {
+  const setHidden = (hidden: boolean) => {
+    Object.defineProperty(document, "hidden", {
+      value: hidden,
+      configurable: true,
+      writable: true,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  };
+
+  it("HIDDEN_TAB_HEARTBEAT_REQUESTS=0", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ progressPct: 0.3 })));
+    mountHook({});
+    await act(async () => {
+      setHidden(true);
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    setHidden(false);
+  });
+
+  it("BACKGROUND_TIME_COUNTED_AS_READING=false — twenty minutes away is not a minute of reading", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ progressPct: 0.3 })));
+    mountHook({});
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    fetchSpy.mockClear();
+
+    await act(async () => {
+      setHidden(true);
+      await vi.advanceTimersByTimeAsync(20 * 60_000);
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    await act(async () => {
+      setHidden(false);
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(
+      String((fetchSpy.mock.calls[0]![1] as RequestInit).body),
+    ) as { timeSpentDeltaSec: number };
+    expect(body.timeSpentDeltaSec).toBeLessThanOrEqual(5);
+  });
+
+  it("removes the visibility listener on unmount", () => {
+    const remove = vi.spyOn(document, "removeEventListener");
+    mountHook({}).unmount();
+    expect(remove).toHaveBeenCalledWith(
+      "visibilitychange",
+      expect.any(Function),
+    );
   });
 });

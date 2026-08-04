@@ -146,12 +146,28 @@ export function AudioBar({
    * Starting expanded has to fetch too — `toggle()` is what normally asks, and
    * nobody is going to click it. Guarded by `initialOpen` so a collapsed bar
    * still costs nothing until the reader opens it.
+   *
+   * The ref is what keeps it to ONE request. Leaning on `fetchAudio`'s own
+   * guard is not enough: that guard reads `data || loading`, and after a
+   * failure both are falsy again. `fetchAudio` is rebuilt when `loading`
+   * changes, the effect re-runs, the guard waves it through, and a reader
+   * without Pro sitting on «Escuchar» hammers the endpoint for as long as the
+   * screen stays open. Success hid it, because `data` stops the cycle.
+   *
+   * Keyed by the chapter identity so navigating to a different chapter inside
+   * the same mounted bar does fetch again — but a re-render, a new error or a
+   * finished load never do. The token is deliberately not part of the key: a
+   * refreshed token is the same chapter, and credentials have no business in
+   * a cache key.
    */
+  const autoFetchedKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (!initialOpen) return;
+    const key = `${apiBase}|${bookId}|${chapterOrder}`;
+    if (autoFetchedKeyRef.current === key) return;
+    autoFetchedKeyRef.current = key;
     void fetchAudio();
-    // `fetchAudio` already refuses to run twice (`if (data || loading) return`).
-  }, [initialOpen, fetchAudio]);
+  }, [initialOpen, apiBase, bookId, chapterOrder, fetchAudio]);
 
   // Pause when collapsing so audio doesn't keep playing under a closed bar.
   useEffect(() => {

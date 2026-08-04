@@ -362,3 +362,64 @@ describe("AudioBar — mounted as the surface", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
+
+// ── Scope declaration — what «Escuchar» is, and what it is NOT ────────────
+
+describe("MEDIA_VERTICAL_2_COMPLETE=false", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  /**
+   * The audiobook ENTRY experience is done: the player opens, it is laid out
+   * in flow, it names the chapter, and it does not autoplay.
+   *
+   * What is NOT done, and must not be reported as done:
+   *
+   *   AUDIOBOOK_TRANSCRIPT_VISIBLE=false  no transcript is rendered anywhere
+   *   AUDIOBOOK_SEGMENTS_VISIBLE=false    no chapter markers, no segment list
+   *
+   * The response DOES carry `transcript`, and the bar reads it — but only to
+   * find the reader block matching the current time and scroll to it. That is
+   * navigation of text the READER already renders, not a transcript surface.
+   * On Escuchar there is no reader text mounted, so it highlights nothing.
+   *
+   * This test fails the day someone renders segment text without building a
+   * real surface for it, which is the moment the claim would stop being true.
+   */
+  it("shows no transcript and no segment list, even when the response carries them", async () => {
+    const withSegments: LectorAudioResponse = {
+      ...baseAudioResponse,
+      transcript: [
+        { start: 0, end: 12, text: "Empezamos por el cuerpo", blockId: "b-1" },
+        { start: 12, end: 30, text: "y después la palabra", blockId: "b-2" },
+      ],
+    };
+    fetchSpy.mockResolvedValue(fetchOk(withSegments));
+
+    const { container } = render(
+      <AudioBar
+        apiBase="https://api.example/api"
+        token="bearer-stub"
+        bookId="emociones-en-construccion"
+        chapterOrder={1}
+        initialOpen
+        inline
+      />,
+    );
+
+    await screen.findByTestId("audio-player-panel");
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("Empezamos por el cuerpo");
+    expect(text).not.toContain("y después la palabra");
+    expect(text).not.toMatch(/transcripci[óo]n/i);
+    expect(text).not.toMatch(/segmento/i);
+    expect(text).not.toMatch(/ideas? clave/i);
+  });
+});

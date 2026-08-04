@@ -103,8 +103,12 @@ describe("InicioV2", () => {
     });
     render(<InicioV2 home={home} />);
     expect(screen.getByText(/Continúa tu recorrido/i)).toBeInTheDocument();
-    expect(screen.getByText(/Emociones — La pausa/i)).toBeInTheDocument();
-    // CTA link → lector route
+    // Book above, chapter below — and the chapter named by its title. `chapterN`
+    // is the platform order, which is not the book's own chapter number.
+    expect(screen.getByText("Emociones")).toBeInTheDocument();
+    expect(screen.getByText("La pausa")).toBeInTheDocument();
+    expect(screen.queryByText(/Capítulo\s*\d/)).toBeNull();
+    // CTA link → lector route, which still uses the order
     const link = screen.getByRole("link", { name: /Seguir leyendo/i });
     expect(link.getAttribute("href")).toBe(
       "/dashboard/biblioteca/emociones-en-construccion/lector/3",

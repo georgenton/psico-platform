@@ -12,6 +12,27 @@ la plataforma (`order = 1` es el prefacio). Fuente inspeccionada:
 `~/.psico-ops/book-ingest/parejas-que-perduran/02-cuando-amar-tambien-sana.md`,
 el mismo archivo del que salió el contenido publicado.
 
+## 0. Procedencia
+
+Los conteos de abajo describen exactamente estos bytes y ningún otro:
+
+```
+SOURCE_FILE=02-cuando-amar-tambien-sana.md
+SOURCE_SHA256=7b87d8328c7efd61bd57b988b9c087c35caa2bdffe0e775329348189374e0167
+MANIFEST_FILE=book-manifest.json
+MANIFEST_SHA256=d60a56b2e500cd985f4a439a6ab10cbbd84963e4df3a6b4bfde071d246923cb1
+SOURCE_NONEMPTY_BLOCK_COUNT=88
+DIAGNOSTIC_RUN_AT=2026-08-04T13:22:42-05:00
+```
+
+Ambos hashes coinciden con los declarados en el `sha256sums.txt` del propio
+paquete de ingesta, así que la fuente auditada es la autorizada y no una copia
+suelta. `DIAGNOSTIC_RUN_AT` es la fecha del commit que produjo este documento
+(`git show -s --format=%cI`), no una fecha escrita a mano.
+
+Si el archivo cambia, estos hashes dejan de coincidir y el diagnóstico caduca:
+hay que volver a correrlo antes de actuar sobre él.
+
 **Este documento no aplica nada.** Es un diagnóstico de solo lectura y un plan.
 No se ejecutó bootstrap, no se creó revisión, no se publicó contenido, no se
 escribió en producción y no se tocó Railway. La corrección requiere aprobación
@@ -104,9 +125,18 @@ Por el camino normal de contenido, no a mano contra la base:
 
 - se corrige el archivo fuente en `book-ingest/parejas-que-perduran/`,
 - se genera una **revisión nueva** del capítulo,
-- se publica esa revisión,
-- las marcas de lectura existentes siguen ancladas a su versión de bloque, que
-  es exactamente por lo que el contenido está versionado.
+- se publica esa revisión.
+
+Sobre las marcas de lectura (resaltados y notas), lo que se puede afirmar hoy:
+
+> Las marcas existentes permanecen asociadas a sus versiones actuales. La
+> visibilidad o migración hacia la nueva revisión **no está demostrada** y debe
+> verificarse antes de publicar.
+
+Eso es más débil que decir «no se pierde nada», y a propósito: que el contenido
+esté versionado explica dónde quedan ancladas las marcas, no qué ve el lector
+después. Verificarlo — con un resaltado real sobre un bloque real, antes y
+después de publicar una revisión — es parte del trabajo, no un supuesto.
 
 No hay `UPDATE` directo sobre bloques publicados en este plan. Nada de esto está
 hecho.

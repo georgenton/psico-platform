@@ -36,8 +36,10 @@ function groupByPart(
  *
  * Chapters are grouped by book part (e.g. "PARTE I · Deconstruyendo lo que
  * sabíamos") when the book defines them; otherwise a single flat list. Each
- * row shows the chapter number, title, duration, and user status; locked-by-
- * tier rows show a padlock but still navigate (to the paywall flow).
+ * row shows the chapter title, duration, and reading status — and no number:
+ * `n` is the platform order, not the book's own chapter numbering (see
+ * `lector/chapter-label.ts`). Locked-by-tier rows show a padlock but still
+ * navigate (to the paywall flow).
  *
  * Sprint S6-front: rows are anchors to /lector/:order.
  */
@@ -117,7 +119,17 @@ export function ChaptersList({
                       }}
                       aria-hidden
                     >
-                      {ch.userProgress.status === "completed" ? "✓" : ch.n}
+                      {/* Reading status, not a chapter number. `ch.n` is the
+                          platform order — on a book whose first unit is a
+                          preface it is one ahead of the editorial number, so
+                          printing it here told the reader «2» about the
+                          chapter the book calls its first. See
+                          `lector/chapter-label.ts`. */}
+                      {ch.userProgress.status === "completed"
+                        ? "✓"
+                        : ch.userProgress.status === "started"
+                          ? "◍"
+                          : "·"}
                     </span>
                     <div className="min-w-0">
                       <div

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { HomeContinueBook } from "@psico/types";
 import { coverGradient } from "../cover-gradients";
+import { chapterHeading } from "../lector/chapter-label";
 
 /**
  * ContinueBookCard — hero card showing the user's last-touched book.
@@ -60,7 +61,9 @@ export function ContinueBookCard({ book }: { book: HomeContinueBook }) {
           className="mt-2.5 text-[13.5px] leading-snug"
           style={{ color: "var(--color-warm-700)" }}
         >
-          Siguiente · Cap. {book.chapterN} — {book.chapterTitle}
+          {/* Named by title. `chapterN` is the platform order, not the
+              book's own chapter number — see `lector/chapter-label.ts`. */}
+          Siguiente · {chapterHeading({ title: book.chapterTitle })}
         </div>
         <div
           className="mt-2 flex flex-wrap items-center gap-2.5 text-[11.5px]"

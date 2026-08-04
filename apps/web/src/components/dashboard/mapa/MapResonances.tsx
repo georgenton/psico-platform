@@ -102,8 +102,10 @@ export function MapResonances({ initial }: { initial: ResonanceSummary[] }) {
                     color: "var(--color-warm-500)",
                   }}
                 >
-                  Confirmado por ti · Cap. {r.chapterOrder} ·{" "}
-                  {formatDate(r.confirmedAt)}
+                  {/* No chapter number: `chapterOrder` is the platform
+                      order, and the concept above already says what this
+                      was. See `lector/chapter-label.ts`. */}
+                  Confirmado por ti · {formatDate(r.confirmedAt)}
                   {r.important ? " · Importante para ti" : ""}
                 </div>
               </div>

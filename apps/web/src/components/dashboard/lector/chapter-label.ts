@@ -21,15 +21,29 @@
  * Deriving the number instead — `order - 1` for one slug, say — would trade a
  * wrong number for a wrong number that is harder to notice. There are no
  * per-book special cases here on purpose.
+ *
+ * Scope of what this module settles, stated plainly so nobody reads it as more:
+ *
+ *   EDITORIAL_LABEL_RULE_IMPLEMENTED=true      the presentation rule lives here
+ *   EDITORIAL_LABEL_METADATA_PRESENT=false     nothing stores such a label
+ *   EDITORIAL_LABEL_WIRING_COMPLETE=false      no contract, no transport, no wiring
+ *   PLATFORM_ORDER_USED_AS_VISIBLE_NUMBER=false
+ *
+ * The presentation rule is ready. The day editorial metadata exists it will
+ * still need a storage contract, a way across the API, and wiring into each
+ * surface — this file is the last step of that chain, not the whole of it.
  */
 
 export interface ChapterLabelInput {
   /**
    * An editorial label supplied by the book itself («Capítulo 1», «Prefacio»).
    *
-   * Nothing populates this yet — no layer stores it. It exists so that the day
-   * a book does carry one, the honest branch is already the first one, and the
-   * change is a wiring change rather than a rewrite of every heading.
+   * Nothing populates this yet — no layer stores it, no endpoint carries it,
+   * nothing passes it in. It exists so the honest branch is already the first
+   * one when that chain is built, not because the chain is half built.
+   *
+   * Until then a book with no front matter still gets no «Capítulo 1»:
+   * NOT_SUPPORTED_UNTIL_EDITORIAL_METADATA_EXISTS.
    */
   editorialLabel?: string | null;
   title: string;

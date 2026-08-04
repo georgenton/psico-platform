@@ -234,10 +234,15 @@ const renderShell = (
   );
 
 describe("LectorShell — header + blocks (from Content Core)", () => {
-  it("renders book and chapter title in the header", () => {
+  it("renders the book and the chapter TITLE — never the platform order as a chapter number", () => {
     renderShell();
     expect(screen.getByText("Emociones en Construcción")).toBeInTheDocument();
-    expect(screen.getByText(/Cap\. 1.*El primer paso/)).toBeInTheDocument();
+    expect(screen.getByText("El primer paso")).toBeInTheDocument();
+    // `Chapter.order` is an ordering key, not the book's own numbering. No
+    // layer stores an editorial label yet, so the heading claims no number at
+    // all rather than a plausible wrong one.
+    expect(screen.queryByText(/Cap\.\s*\d/)).toBeNull();
+    expect(screen.queryByText(/Capítulo\s*\d/)).toBeNull();
   });
 
   it("renders every block's content from the content-core unit, in order", () => {

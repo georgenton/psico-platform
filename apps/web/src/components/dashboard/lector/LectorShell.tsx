@@ -32,6 +32,7 @@ import { ChapterMediaListen } from "./media/ChapterMediaListen";
 import { ChapterMediaWatch } from "./media/ChapterMediaWatch";
 import { modeToStored, storedToMode, type ReaderMode } from "./reader-mode";
 import { ChapterExperienceHome } from "./ChapterExperienceHome";
+import { chapterHeading } from "./chapter-label";
 import {
   ReaderExperienceView,
   READER_ACTIVITIES_ANCHOR_ID,
@@ -1077,7 +1078,7 @@ export function LectorShell({
               className="truncate text-[13px] font-semibold"
               style={{ color: "var(--reader-text, var(--color-warm-900))" }}
             >
-              Cap. {chapter.order} · {chapter.title}
+              {chapterHeading({ title: chapter.title })}
             </div>
           </div>
           <div className="flex items-center gap-2">

@@ -243,3 +243,71 @@ describe("useHeartbeat — enabled gate", () => {
     expect(body.timeSpentDeltaSec).toBeLessThanOrEqual(5);
   });
 });
+
+/**
+ * The background tab is the other way the clock lied.
+ *
+ * `beat()` already returned early while `document.hidden`, but returning early
+ * does not stop time — the elapsed counter kept running, so the first beat
+ * after twenty minutes in another tab reported the whole absence as reading.
+ */
+describe("useHeartbeat — background tab", () => {
+  const setHidden = (hidden: boolean) => {
+    Object.defineProperty(document, "hidden", {
+      value: hidden,
+      configurable: true,
+      writable: true,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  };
+
+  it("HIDDEN_TAB_HEARTBEAT_REQUESTS=0", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ progressPct: 0.3 })));
+    mountHook({});
+    await act(async () => {
+      setHidden(true);
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    setHidden(false);
+  });
+
+  it("BACKGROUND_TIME_COUNTED_AS_READING=false — twenty minutes away is not a minute of reading", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ progressPct: 0.3 })));
+    mountHook({});
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    fetchSpy.mockClear();
+
+    await act(async () => {
+      setHidden(true);
+      await vi.advanceTimersByTimeAsync(20 * 60_000);
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    await act(async () => {
+      setHidden(false);
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(
+      String((fetchSpy.mock.calls[0]![1] as RequestInit).body),
+    ) as { timeSpentDeltaSec: number };
+    expect(body.timeSpentDeltaSec).toBeLessThanOrEqual(5);
+  });
+
+  it("removes the visibility listener on unmount", () => {
+    const remove = vi.spyOn(document, "removeEventListener");
+    mountHook({}).unmount();
+    expect(remove).toHaveBeenCalledWith(
+      "visibilitychange",
+      expect.any(Function),
+    );
+  });
+});

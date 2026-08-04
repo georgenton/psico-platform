@@ -339,7 +339,7 @@ export function LectorShell({
   // changes the route, and never starts a session (only the cover's button
   // does). The chapter stays mounted behind it.
   const guideActorScope = useGuideActorScope();
-  const { openMoodCheckin } = useMoodCheckin();
+  const { openMoodCheckin, moodCheckinOpen } = useMoodCheckin();
   const guideAvailable = useGuideAvailability();
   const [guideOpen, setGuideOpen] = useState(false);
   const guideTabRef = useRef<HTMLButtonElement>(null);
@@ -637,19 +637,33 @@ export function LectorShell({
   // ── Heartbeat ──────────────────────────────────────────────────────────
 
   /**
-   * The reading heartbeat is about READING, so it only runs while reading is
-   * what is on screen.
+   * What «reading time» means here, exactly:
    *
-   * Before this gate it ran everywhere: twenty minutes in the audio surface,
-   * or on the chapter home, or inside the guided panel, all landed in
-   * `PATCH /lector/session` as time spent on the chapter. That is a learning
-   * signal about a thing that did not happen, and `Mi Evolución` reads it.
+   *   foreground time, in the Reader Experience, with no competing
+   *   interactive surface open.
    *
-   * Listening and watching are real, and they have their own completion
-   * signals (`chapter_media_completed`). They are simply not reading minutes.
+   * It is a measure of a SITUATION, not of the person. It does not claim
+   * attention, comprehension or feeling — `BEHAVIOR_IS_NOT_EMOTION` — and
+   * `Mi Evolución` presents it as what it is.
+   *
+   * So the gate names every surface that competes for the same minutes. The
+   * chapter home, the audio surface and the video surface replace the text;
+   * the guided panel, the companion dock, the preferences sheet, the breathing
+   * overlay and the check-in dialog sit over it. Writing a note is not reading
+   * either, even though it happens with the chapter open.
+   *
+   * Two things deliberately do NOT pause it. Selecting text is how a person
+   * highlights, which is reading. And the resonance nudge is an invitation
+   * beside the text, not a modal over it.
    */
   const readingHeartbeatEnabled =
-    surface === "reader" && effectiveMode === "leer" && !guideOpen;
+    surface === "reader" &&
+    effectiveMode === "leer" &&
+    !guideOpen &&
+    !dockOpen &&
+    !prefsOpen &&
+    breatheExercise === null &&
+    !moodCheckinOpen;
 
   useHeartbeat({
     apiBase,

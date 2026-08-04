@@ -661,8 +661,13 @@ describe("Chapter Home — activities row and units", () => {
     const section = screen.getByTestId("reader-activities-section");
     // ACTIVITIES_SECTION_FULLY_VISIBLE — scrolled into view, at its start.
     expect(scrollSpy).toHaveBeenCalledWith({ block: "start" });
-    // ACTIVITIES_SECTION_FOCUSED
+    // ACTIVITIES_SECTION_FOCUSED — programmatic focus, and focus a person can
+    // see: the ring is a class the stylesheet paints, not `outline: none`.
     expect(document.activeElement).toBe(section);
+    expect(section.className).toContain("reader-activities-anchor");
+    expect(section.style.outline).toBe("");
+    // Not a permanent tab stop for anyone reading past it.
+    expect(section).toHaveAttribute("tabindex", "-1");
     // ACTIVITIES_ROUTE_CHANGED=false — no navigation was attempted.
     expect(mockPush).not.toHaveBeenCalled();
   });
@@ -779,5 +784,54 @@ describe("Chapter Home — reader controls and overlays", () => {
       (c) => (c[1] as RequestInit | undefined)?.method === "DELETE",
     );
     expect(destructive).toHaveLength(0);
+  });
+});
+
+// ── Signal boundary: surfaces that sit OVER the text ───────────────────────
+
+/**
+ * READING_TIME = foreground time, in the Reader Experience, with no competing
+ * interactive surface open. It measures a situation, never the person:
+ * `BEHAVIOR_IS_NOT_EMOTION`. These pin the four surfaces that were still
+ * billing their minutes as reading.
+ */
+describe("Reading signal — a surface over the text is not reading", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("DOCK_TIME_COUNTED_AS_READING=false — writing a note is not reading", async () => {
+    renderReader();
+    await settleFake();
+    fireEvent.click(screen.getByLabelText("Abrir panel del lector"));
+    fetchSpy.mockClear();
+    await tick(6);
+    expect(readingBeats()).toBe(0);
+  });
+
+  it("PREFERENCES_TIME_COUNTED_AS_READING=false", async () => {
+    renderReader();
+    await settleFake();
+    fireEvent.click(screen.getByLabelText("Preferencias de lectura"));
+    fetchSpy.mockClear();
+    await tick(6);
+    expect(readingBeats()).toBe(0);
+  });
+
+  it("BREATHING_PRACTICE_TIME_COUNTED_AS_READING=false", async () => {
+    renderReader();
+    await settleFake();
+    // The chapter's curated breathing card opens the overlay.
+    fireEvent.click(screen.getByText("Empezar →"));
+    fetchSpy.mockClear();
+    await tick(6);
+    expect(readingBeats()).toBe(0);
+  });
+
+  it("selecting text is still reading — highlighting does not pause the clock", async () => {
+    renderReader();
+    await settleFake();
+    fetchSpy.mockClear();
+    await tick(3);
+    expect(readingBeats()).toBeGreaterThan(0);
   });
 });

@@ -150,9 +150,17 @@ export function ReaderExperienceView({
         <section
           id={READER_ACTIVITIES_ANCHOR_ID}
           data-testid="reader-activities-section"
+          // `tabIndex={-1}` makes the section focusable programmatically
+          // without adding a permanent tab stop for people reading past it.
           tabIndex={-1}
           aria-label="Actividades y ejercicios del capítulo"
-          style={{ scrollMarginTop: 96, outline: "none" }}
+          // The focus this receives is REAL focus, so it gets a real ring.
+          // `outline: none` would have moved the caret somewhere invisible,
+          // which is worse than not moving it at all. The ring is a lavender
+          // outline plus an offset halo, so it reads as a shape and not only
+          // as a colour, and it draws outside the box — no layout shift.
+          className="reader-activities-anchor"
+          style={{ scrollMarginTop: 96, borderRadius: 16 }}
         >
           {/* Interactive activities (backlog: actividades reales) */}
           <ChapterExercises

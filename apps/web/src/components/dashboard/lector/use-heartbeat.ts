@@ -12,7 +12,13 @@ import { useEffect, useRef } from "react";
  * --------------------
  * - We don't pause on idle (no mouse-move tracking). The 5 s tick is fine;
  *   the server cap keeps it honest.
- * - We DO pause on `document.hidden = true` (tab in background).
+ * - We DO pause on `document.hidden = true` (tab in background), and we reset
+ *   the elapsed clock when the tab comes back. Skipping the beat was never
+ *   enough on its own: the elapsed time kept accumulating while the tab was
+ *   away, so the first beat on return billed the whole absence as reading
+ *   (clamped to the server's 60 s, which is still a minute that did not
+ *   happen). Browsers also throttle or suspend timers in background, so the
+ *   correction cannot rely on the interval having kept running either.
  * - We DO pause when `enabled` is false. This is the caller saying «the
  *   person is not reading right now» — they are on the chapter home, in the
  *   audio surface, in the video surface, or inside the guided panel. Time
@@ -74,6 +80,23 @@ export function useHeartbeat({
   useEffect(() => {
     if (enabled) lastTickRef.current = Date.now();
   }, [enabled]);
+
+  /**
+   * Same correction for the tab itself.
+   *
+   * `beat()` already returns early while `document.hidden`, but returning
+   * early does not stop time: the clock was still running, so the first beat
+   * after coming back reported the whole background stretch. Listening for
+   * `visibilitychange` restarts it at the moment the tab becomes visible,
+   * which is the moment reading could actually resume.
+   */
+  useEffect(() => {
+    const onVisibility = () => {
+      if (!document.hidden) lastTickRef.current = Date.now();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
 
   useEffect(() => {
     if (!enabled) return;

@@ -154,20 +154,24 @@ export function AudioBar({
    * without Pro sitting on «Escuchar» hammers the endpoint for as long as the
    * screen stays open. Success hid it, because `data` stops the cycle.
    *
-   * Keyed by the chapter identity so navigating to a different chapter inside
-   * the same mounted bar does fetch again — but a re-render, a new error or a
-   * finished load never do. The token is deliberately not part of the key: a
-   * refreshed token is the same chapter, and credentials have no business in
-   * a cache key.
+   * ONE_AUTOMATIC_REQUEST_PER_MOUNT. A re-render, a new error or a finished
+   * load never produce another; the reader's «Reintentar» still does, because
+   * that is a click and not an effect.
+   *
+   * CHAPTER_PROP_CHANGE_WITHOUT_REMOUNT=OUT_OF_SCOPE. Feeding a different
+   * `chapterOrder` to an already-mounted bar would need `data` cleared too —
+   * `fetchAudio` refuses while the previous chapter's response is still held —
+   * so a key on the chapter identity would only look like support for it. Every
+   * caller today remounts the bar per chapter (the reader route is keyed by
+   * `[chapterOrder]`), so a plain one-shot says exactly what is true.
    */
-  const autoFetchedKeyRef = useRef<string | null>(null);
+  const autoFetchedRef = useRef(false);
   useEffect(() => {
     if (!initialOpen) return;
-    const key = `${apiBase}|${bookId}|${chapterOrder}`;
-    if (autoFetchedKeyRef.current === key) return;
-    autoFetchedKeyRef.current = key;
+    if (autoFetchedRef.current) return;
+    autoFetchedRef.current = true;
     void fetchAudio();
-  }, [initialOpen, apiBase, bookId, chapterOrder, fetchAudio]);
+  }, [initialOpen, fetchAudio]);
 
   // Pause when collapsing so audio doesn't keep playing under a closed bar.
   useEffect(() => {

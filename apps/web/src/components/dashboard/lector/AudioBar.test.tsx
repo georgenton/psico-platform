@@ -523,6 +523,29 @@ describe("INITIAL_OPEN never retries by itself", () => {
     });
   }
 
+  it("ONE_AUTOMATIC_REQUEST_PER_MOUNT — re-rendering the same bar asks nothing more", async () => {
+    // Same instance, same props, after a failure — the state that used to
+    // rebuild `fetchAudio` and re-enter the effect.
+    failFirstThenHang(() => fetchStatus(500));
+    const { rerender } = renderInline();
+
+    await screen.findByText(/No pudimos cargar el audio/);
+    for (let i = 0; i < 3; i += 1) {
+      rerender(
+        <AudioBar
+          apiBase="https://api.example/api"
+          token="bearer-stub"
+          bookId="emociones-en-construccion"
+          chapterOrder={1}
+          initialOpen
+          inline
+        />,
+      );
+      await settle();
+    }
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("INITIAL_OPEN_SUCCESS_REQUESTS=1 — a working chapter asks once", async () => {
     fetchSpy.mockResolvedValue(fetchOk(baseAudioResponse));
     renderInline();

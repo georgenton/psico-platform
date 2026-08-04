@@ -324,15 +324,54 @@ describe("LectorService.getAudio (Pro gate)", () => {
     expect(result.durationSec).toBe(600);
     expect(result.transcript).toHaveLength(1);
     expect(result.transcript[0]?.text).toBe("transcript text");
-    // Metadata for lock-screen / audio bar display. Format is
-    // "Cap. <order> · <title>" + book title + author + coverArtUrl OR
-    // fallback to the cover gradient token.
+    // Metadata for lock-screen / audio bar display: the chapter's own title
+    // (never prefixed with `order` — see the honest-label test below), the
+    // book title, the author, and coverArtUrl OR the cover gradient token.
     expect(result.metadata).toEqual({
-      title: "Cap. 1 · Capítulo 1",
+      title: "Capítulo 1",
       subtitle: "Emociones en Construcción",
       artist: "Marina Quintana",
       artworkUrl: "warm",
     });
+  });
+
+  it("titles the audio with the chapter title, never with the platform order", async () => {
+    // «Parejas que Perduran» keeps its preface at order 1, so its editorial
+    // chapter 1 is order 2 — the lock screen used to read «Cap. 2» on it.
+    const prisma = makePrisma({
+      book: {
+        findFirst: vi.fn().mockResolvedValue({
+          ...freeBook,
+          title: "Parejas que perduran",
+          author: { name: "David Jaramillo" },
+        }),
+      } as never,
+      chapter: {
+        findUnique: vi.fn().mockResolvedValue({
+          ...baseChapter,
+          order: 2,
+          title: "Cuando amar también sana",
+          audios: [
+            {
+              id: "a-2",
+              fileUrl: "https://r2.example/pqp-2.m4a",
+              durationSeconds: 600,
+              transcription: null,
+            },
+          ],
+        }),
+      } as never,
+    });
+    const svc = new LectorService(prisma, config, storage, makeAccess());
+    const result = await svc.getAudio("PRO" as Plan, "any", 2);
+
+    expect(result.metadata.title).toBe("Cuando amar también sana");
+    expect(result.metadata.subtitle).toBe("Parejas que perduran");
+    expect(result.metadata.title).not.toMatch(/Cap\.\s*\d/);
+    expect(result.metadata.title).not.toMatch(/Capítulo\s*\d/);
+    // Everything else about the response is untouched.
+    expect(result.url).toBeTruthy();
+    expect(result.durationSec).toBe(600);
   });
 
   it("uses coverArtUrl when present and falls back to cover token otherwise", async () => {

@@ -191,6 +191,50 @@ describe("HomeService.getHome", () => {
     );
   });
 
+  it("names the chapter in the mid-book insight, and never numbers it", async () => {
+    // «Parejas que Perduran» keeps its preface at order 1, so the book's own
+    // chapter 1 arrives as order 2. The insight used to read «Capítulo 2»
+    // about the chapter whose title page says one.
+    prisma.user.findUnique.mockResolvedValue({
+      ...fakeUserRow,
+      currentStreakDays: 0, // let rule 1 fall through
+      preferences: { weeklyGoalMinutes: 60 },
+    });
+    prisma.userProgress.findFirst.mockResolvedValue({
+      completedAt: null,
+      chapter: {
+        id: "ch-2",
+        order: 2,
+        title: "Cuando amar también sana",
+        book: {
+          id: "book-pqp",
+          title: "Parejas que perduran",
+          cover: "warm",
+          author: { name: "David Jaramillo" },
+        },
+      },
+    });
+    prisma.userProgress.findMany.mockResolvedValue([]);
+    prisma.userProgress.count.mockResolvedValue(1);
+    prisma.chapter.count.mockResolvedValue(2); // → progressPct 50, mid-book
+    prisma.book.findMany.mockResolvedValue([]);
+    prisma.conversation.findFirst.mockResolvedValue(null);
+    prisma.dismissedReflectionPrompt.findMany.mockResolvedValue([]);
+    prisma.reflectionPrompt.findFirst.mockResolvedValue(null);
+
+    const result = await service.getHome("user-1");
+
+    expect(result.insightToday?.kind).toBe("book-progress");
+    expect(result.insightToday?.body).toContain("Cuando amar también sana");
+    expect(result.insightToday?.body).not.toMatch(/Cap\.\s*\d/);
+    expect(result.insightToday?.body).not.toMatch(/Capítulo\s*\d/);
+    // The CTA is untouched: only the sentence changed.
+    expect(result.insightToday?.ctaHref).toBe("/dashboard/biblioteca");
+    expect(result.insightToday?.ctaLabel).toBe("Seguir leyendo");
+    // And `chapterN` stays in the contract — the client routes with it.
+    expect(result.continueBook?.chapterN).toBe(2);
+  });
+
   it("flags recos as locked when user is free and book is pro", async () => {
     prisma.user.findUnique.mockResolvedValue({
       ...fakeUserRow,

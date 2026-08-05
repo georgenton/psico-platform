@@ -1,4 +1,4 @@
-# ADR 0014 — Video provider for Terapia v1: Daily.co with provider strategy
+# ADR 0020 — Video provider for Terapia v1: Daily.co with provider strategy
 
 **Status:** Accepted · 2026-06-09
 **Sprint:** S62 (Terapia foundations)
@@ -11,6 +11,7 @@ El diseño en `docs/design/handoff/11-terapia.md` Pantalla 8 dice:
 > Decisión técnica recomendada: integrar Daily.co o Whereby embebido, NO construir esto en casa.
 
 Necesitamos sala de videollamada para sesiones de terapia con:
+
 - audio + video bidireccional
 - token corto (≤2h TTL)
 - sin grabación (privacidad)
@@ -20,23 +21,24 @@ Necesitamos sala de videollamada para sesiones de terapia con:
 
 ## Opciones evaluadas
 
-| Criterio | Daily.co | Whereby | Twilio Video | LiveKit Cloud |
-|---|---|---|---|---|
-| SDK React + RN | ✅ official | ✅ official | ✅ official | ✅ official |
-| Pricing $/min | ~$0.004 | ~$0.005 | ~$0.0035 | ~$0.005 |
-| TURN regional LATAM | ✅ Sao Paulo | ⚠️ via global | ✅ | ✅ |
-| Token rotation per session | ✅ meeting tokens | ✅ room URLs | ✅ access tokens | ✅ JWT |
-| Recording opt-out | ✅ default off | ✅ default off | ✅ | ✅ |
-| Embeddable iframe | ✅ prebuilt | ✅ prebuilt | ❌ SDK only | ❌ SDK only |
-| Mobile native quality | A | B+ | A | A |
-| Docs + DevEx | A | A | B | A |
-| Free tier para dev | 10000 min/mes | 100h/mes | $50 credit | $5k credit |
+| Criterio                   | Daily.co          | Whereby        | Twilio Video     | LiveKit Cloud |
+| -------------------------- | ----------------- | -------------- | ---------------- | ------------- |
+| SDK React + RN             | ✅ official       | ✅ official    | ✅ official      | ✅ official   |
+| Pricing $/min              | ~$0.004           | ~$0.005        | ~$0.0035         | ~$0.005       |
+| TURN regional LATAM        | ✅ Sao Paulo      | ⚠️ via global  | ✅               | ✅            |
+| Token rotation per session | ✅ meeting tokens | ✅ room URLs   | ✅ access tokens | ✅ JWT        |
+| Recording opt-out          | ✅ default off    | ✅ default off | ✅               | ✅            |
+| Embeddable iframe          | ✅ prebuilt       | ✅ prebuilt    | ❌ SDK only      | ❌ SDK only   |
+| Mobile native quality      | A                 | B+             | A                | A             |
+| Docs + DevEx               | A                 | A              | B                | A             |
+| Free tier para dev         | 10000 min/mes     | 100h/mes       | $50 credit       | $5k credit    |
 
 ## Decisión
 
 **Daily.co como provider default + interface `IVideoProvider` para swap futuro.**
 
 Razones:
+
 1. **TURN regional Sao Paulo** — crítico para LATAM (boundary Ecuador → LATAM).
 2. **Iframe prebuilt** ahorra UI work del lector de video — se renderiza con `<DailyIframe>` web y `<Daily.Room>` mobile.
 3. **Free tier 10k min/mes** cubre validación inicial (1 sesión/usuario/mes × 50 min × ~200 users = 10k min).
@@ -79,17 +81,20 @@ DAILY_DOMAIN=psico-ec.daily.co   # subdomain del workspace
 ## Consecuencias
 
 **Positivas:**
+
 - TURN regional reduce jitter para users en Ecuador / LATAM.
 - Provider swap a Whereby/LiveKit en 1 archivo nuevo cuando el volumen lo justifique.
 - Patrón conocido por el equipo (mismo que Stripe/Voice/APNs).
 - Free tier cubre primeros ~100 usuarios pagos sin costo.
 
 **Negativas:**
+
 - Vendor lock-in al SDK de Daily (prebuilt iframe). Mitigación: el SDK queda solo en `apps/web` y `apps/mobile`; el backend solo consume su API HTTP.
 - Daily Free tier no incluye SLA. Para producción pagada, plan Scale ($0.004/min).
 - Recording desactivado por default; si después abrimos opcional, requiere consent flow + storage S3.
 
 **Privacidad:**
+
 - Tokens son short-lived; nunca persisten en DB del lado server (solo `joinUrl` derivado en `TherapySession`).
 - No grabación → no archivos a almacenar / borrar.
 - Notes del terapeuta van por separado en `TherapistNote` (E2E encrypted, ADR 0007).

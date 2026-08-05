@@ -1,6 +1,17 @@
 # Bitácoras de sprints — índice
 
-**Última actualización:** 2026-07-13 · **143 bitácoras.**
+```
+STATUS=HISTORICAL_SPRINT_ARCHIVE
+LAST_FULL_VERIFICATION=2026-07-13
+CURRENT_AUTHORITY=docs/README.md + código + PRs
+```
+
+> Cada bitácora describe el estado del repo **el día que se escribió** y no se
+> actualiza después. Sirve para reconstruir por qué se decidió algo; no para
+> saber cómo está el sistema hoy. Para eso: [`docs/README.md`](../README.md),
+> el código, y los PRs.
+
+**Última actualización del índice:** 2026-07-13 · **143 bitácoras.**
 
 Este índice agrupa las bitácoras **por programa/tema** (más útil que la cronología pura: las sesiones dejaron de numerarse tras S54). Para la **línea temporal completa** con Resumen para Notion, decisiones y deuda técnica por sesión, ver el session log de [`CLAUDE.md`](../../CLAUDE.md).
 

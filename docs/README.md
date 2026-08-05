@@ -9,6 +9,15 @@ contradicen, gana el marcado aquí como autoridad canónica.
   [`design/handoff/INDEX.md`](design/handoff/INDEX.md).
 - **Línea temporal completa** → el session log de [`../CLAUDE.md`](../CLAUDE.md).
 
+```
+DOCS_CANONICAL_INDEX=docs/README.md
+ADR_RANGE=0001..0020
+ADR_DUPLICATE_NUMBERS=none
+```
+
+Las bitácoras y el handoff de diseño son **archivo histórico**: describen el día
+en que se escribieron. Cuando contradigan al código, gana el código.
+
 ---
 
 ## Mapa Emocional
@@ -62,7 +71,7 @@ documento la contradiga en materia de presentación multimodal, manda esa.
 | Catálogo de medios, proveedores, acceso firmado, disponibilidad, placeholders y estado editorial | [`product/chapter-01-media-package.md`](product/chapter-01-media-package.md) |
 | Eventos de medios y su reflejo en Mi Evolución                                                   | [`architecture/learning-events.md`](architecture/learning-events.md)         |
 | Superficie del lector y modos (Libro / Guía)                                                     | [`product/guided-reading-v1.md`](product/guided-reading-v1.md)               |
-| Proveedor de video para terapia (decisión aparte)                                                | [`adr/0014-video-provider-daily-co.md`](adr/0014-video-provider-daily-co.md) |
+| Proveedor de video para terapia (decisión aparte)                                                | [`adr/0020-video-provider-daily-co.md`](adr/0020-video-provider-daily-co.md) |
 
 ## Libros y Content Core
 

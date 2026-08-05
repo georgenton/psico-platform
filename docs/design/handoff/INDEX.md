@@ -1,5 +1,16 @@
 # Psico Platform · Handoff técnico
 
+```
+STATUS=HISTORICAL_DESIGN_HANDOFF
+LAST_FULL_VERIFICATION=2026-06-13
+CURRENT_PRODUCT_AUTHORITY=docs/README.md + OpenAPI + código
+```
+
+> Este handoff describe el producto tal como se especificó. Varias áreas
+> cambiaron después (Mapa Emocional V2, Content Core, Guided Reading), así que
+> cuando este documento y el código no coincidan, **gana el código**. La forma
+> exacta de cada endpoint vive en el OpenAPI generado, no aquí.
+
 Documentación de implementación para todas las pantallas del producto. Un archivo por pantalla / área.
 
 ## Convenciones globales

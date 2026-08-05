@@ -3,7 +3,7 @@
 **Fecha:** 2026-06-09
 **Rama:** `feature/sprint-s62-terapia-foundations`
 **Tests:** 471/472 API + 34/34 crypto + 50/50 web + 20/20 mobile (461 → 471, +10 nuevos · 1 skipped sentinel)
-**ADR producido:** [0014 — Video provider: Daily.co](../adr/0014-video-provider-daily-co.md)
+**ADR producido:** [0020 — Video provider: Daily.co](../adr/0020-video-provider-daily-co.md) (se escribió como 0014; renumerado por colisión)
 
 ---
 
@@ -35,17 +35,18 @@ CrisisLog                    # auditoría sin contenido sensible
 
 ### Endpoints (3 nuevos)
 
-| Método | Path | Auth | Notas |
-|---|---|---|---|
-| GET | `/api/terapia/crisis?country=EC` | **PÚBLICO** | Decisión ética del diseño — no exigir login en crisis |
-| POST | `/api/terapia/crisis/log` | Auth **opcional** | Audita usando `trigger` categórico + `contactedLineId`. SIN contenido |
-| GET | `/api/terapia/hub` | Auth | Landing — intro, activeTherapist, nextSession, recentPrescriptions |
+| Método | Path                             | Auth              | Notas                                                                 |
+| ------ | -------------------------------- | ----------------- | --------------------------------------------------------------------- |
+| GET    | `/api/terapia/crisis?country=EC` | **PÚBLICO**       | Decisión ética del diseño — no exigir login en crisis                 |
+| POST   | `/api/terapia/crisis/log`        | Auth **opcional** | Audita usando `trigger` categórico + `contactedLineId`. SIN contenido |
+| GET    | `/api/terapia/hub`               | Auth              | Landing — intro, activeTherapist, nextSession, recentPrescriptions    |
 
 ### Crisis catalog (`crisis-catalog.ts`)
 
 Curado en código (no DB). EC + CO + MX con líneas reales + fallback internacional vía findahelpline.com. Diseñado para crecer sin migration.
 
 Cada país expone:
+
 - `lines[]` con `id, name, phone, whatsapp?, chatUrl?, availability, languages[]`
 - `safetyTipsShort[]` (tips inmediatos)
 - `nextSteps[]` (qué hacer en próximas 24h)
@@ -57,6 +58,7 @@ Cada país expone:
 ### Tests (+10)
 
 `terapia.service.spec.ts`:
+
 - getCrisis: EC default, EC explicit, fallback ZZ, lowercase normalization (4)
 - logCrisis: row creation + anonymous fallback (2)
 - getHub: empty state, activeTherapist from last COMPLETED, nextSession projection, prescriptions cap to 3 (4)
@@ -66,6 +68,7 @@ Cada país expone:
 ## Privacidad
 
 ADR 0007 (E2E para Diario/Eco) extendido al patrón en `TherapySession`:
+
 - `intentionCiphertext + intentionNonce` — el pre-session intention va cifrado cliente-side igual que Diario.
 - `feedbackNoteCiphertext + feedbackNoteNonce` — la nota post-sesión también E2E.
 - `sharedEntryIds: string[]` — IDs del Diario compartidos para esta sesión; el blob re-encriptado vive en `SharedDiaryEntry` (existente desde S6).
@@ -92,6 +95,7 @@ Therapist notes (visible solo al terapeuta) NO entran en este sprint — son del
 ## ADR 0014 — Video provider
 
 Documenta:
+
 - Decisión: **Daily.co** con interface `IVideoProvider` strategy.
 - Razones: TURN regional São Paulo, iframe prebuilt, free tier suficiente para validación.
 - Env vars: `VIDEO_PROVIDER` (`daily`/`console`), `DAILY_API_KEY`, `DAILY_API_URL`, `DAILY_DOMAIN`.
@@ -127,6 +131,7 @@ Implementación del provider aterriza en S65 cuando se construya `/api/terapia/s
 ## Próximo sprint
 
 **S63 — Directorio + Perfil terapeuta + seed:**
+
 - GET `/api/terapia/therapists` (paginado + filtros)
 - GET `/api/terapia/therapists/filters` (catálogo de filtros)
 - GET `/api/terapia/therapists/:id` (detalle)

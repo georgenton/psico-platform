@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { ChapterMediaSummary } from "@psico/types";
 import { AudioBar } from "../AudioBar";
 import { ComingSoonNotice } from "./ComingSoonNotice";
+import { MediaPicker, firstShowable } from "./MediaPicker";
 import {
   clearMediaResume,
   readMediaResume,
@@ -79,7 +80,9 @@ export function ChapterMediaListen({
   const { report, failedKey } = useChapterMediaCompletion({ apiBase, token });
 
   const audiobook = items?.find((item) => item.kind === "AUDIOBOOK") ?? null;
-  const podcast = items?.find((item) => item.kind === "PODCAST") ?? null;
+  // Every episode, not the first one. A chapter may carry several, and until
+  // now the rest existed in the manifest and were unreachable.
+  const podcasts = items?.filter((item) => item.kind === "PODCAST") ?? [];
 
   const views: Record<SubformatKey, BookExperienceModeView> = {
     audiobook: mediaModeFromManifest("AUDIOBOOK", items),
@@ -183,10 +186,11 @@ export function ChapterMediaListen({
         )
       ) : tab === "podcast" ? (
         <PodcastPanel
-          item={podcast}
+          episodes={podcasts}
           manifestError={error}
           apiBase={apiBase}
           token={token}
+          bookSlug={bookSlug}
           onEnded={(mediaKey) => void report(mediaKey)}
           retryKey={failedKey}
           onRetry={(mediaKey) => void report(mediaKey)}
@@ -262,31 +266,42 @@ function MediaTab({
 }
 
 /**
- * The podcast panel. It only asks for a signed URL once the person is on this
- * tab and the manifest says the master exists — an unavailable format never
- * triggers a signing request.
+ * The podcast panel — every episode the chapter carries, not just the first.
+ *
+ * It only asks for a signed URL once the person is on this tab AND the episode
+ * they are looking at says its master exists. An announced-but-unproduced
+ * episode is shown, is inert, and triggers no signing request; picking a
+ * different one loads that one and nothing else.
  */
 function PodcastPanel({
-  item,
+  episodes,
   manifestError,
   apiBase,
   token,
+  bookSlug,
   onEnded,
   retryKey,
   onRetry,
 }: {
-  item: ChapterMediaSummary | null;
+  episodes: readonly ChapterMediaSummary[];
   manifestError: MediaFetchError | null;
   apiBase: string;
   token: string;
+  bookSlug: string;
   onEnded: (mediaKey: string) => void;
   retryKey: string | null;
   onRetry: (mediaKey: string) => void;
 }) {
   const requestAccess = useChapterMediaAccess({ apiBase, token });
+  const [pickedKey, setPickedKey] = useState<string | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [accessError, setAccessError] = useState<MediaFetchError | null>(null);
   const [attempt, setAttempt] = useState(0);
+
+  // Derived, not stored: an episode that has been picked and then vanished
+  // from the manifest cannot linger as a selection pointing at nothing.
+  const picked = episodes.find((e) => e.mediaKey === pickedKey) ?? null;
+  const item = picked ?? firstShowable(episodes);
   const available = item?.availability === "AVAILABLE";
 
   useEffect(() => {
@@ -321,19 +336,37 @@ function PodcastPanel({
     return (
       <ComingSoonNotice
         icon="🎙️"
-        title="Podcast en producción"
-        hint="Este capítulo todavía no tiene episodio."
+        title="No hay episodios de podcast para este capítulo."
+        hint="Puedes leerlo o escuchar el audiolibro mientras tanto."
       />
     );
   }
 
+  const picker = (
+    <MediaPicker
+      items={episodes}
+      selectedKey={item.mediaKey}
+      onSelect={(key) => {
+        setPickedKey(key);
+        // A new episode is a new signed URL; keeping the old one would leave
+        // the previous audio under the new title for a render.
+        setUrl(null);
+        setAccessError(null);
+      }}
+      label="Episodios"
+    />
+  );
+
   if (!available) {
     return (
-      <ComingSoonNotice
-        icon="🎙️"
-        title="Podcast en producción"
-        hint={item.description}
-      />
+      <>
+        <ComingSoonNotice
+          icon="🎙️"
+          title="Podcast en producción"
+          hint={item.description}
+        />
+        {picker}
+      </>
     );
   }
 
@@ -344,19 +377,29 @@ function PodcastPanel({
         style={{ borderColor: "var(--color-warm-200)" }}
       >
         <p className="text-[13px]" style={{ color: "var(--color-warm-700)" }}>
-          No pudimos preparar el episodio.
+          No pudimos preparar este episodio.
         </p>
-        <button
-          type="button"
-          onClick={() => setAttempt((n) => n + 1)}
-          className="mt-2 rounded-full px-3 py-1 text-[12.5px] font-semibold"
-          style={{
-            background: "var(--color-warm-100)",
-            color: "var(--color-warm-800)",
-          }}
-        >
-          Reintentar
-        </button>
+        <div className="mt-2 flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => setAttempt((n) => n + 1)}
+            className="rounded-full px-3 py-1 text-[12.5px] font-semibold"
+            style={{
+              minHeight: 44,
+              background: "var(--color-warm-100)",
+              color: "var(--color-warm-800)",
+            }}
+          >
+            Reintentar
+          </button>
+          <Link
+            href={`/dashboard/biblioteca/${bookSlug}`}
+            className="text-[12.5px] font-semibold"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            ← Volver al libro
+          </Link>
+        </div>
       </div>
     );
   }
@@ -380,6 +423,9 @@ function PodcastPanel({
       </p>
       {url ? (
         <MediaAudioElement
+          // Keyed by episode: a plain `src` swap would keep the element's
+          // playback state across a change of episode.
+          key={item.mediaKey}
           src={url}
           label="Podcast del capítulo"
           mediaKey={item.mediaKey}
@@ -397,6 +443,14 @@ function PodcastPanel({
       {retryKey === item.mediaKey ? (
         <RetryCompletion onRetry={() => onRetry(item.mediaKey)} />
       ) : null}
+      {picker}
+      <Link
+        href={`/dashboard/biblioteca/${bookSlug}`}
+        className="mt-3 inline-block text-[12.5px] font-semibold"
+        style={{ color: "var(--color-warm-500)" }}
+      >
+        ← Volver al libro
+      </Link>
     </div>
   );
 }

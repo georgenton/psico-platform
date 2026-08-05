@@ -2926,7 +2926,14 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 **Contexto:** para probar la app con un usuario real (entrar, leer, subrayar, anotar, conversar con Eco, ver cómo lo mide el Mapa) hacía falta texto de verdad. El usuario aportó los 3 primeros capítulos de *Emociones en Construcción* (Parte I) en prosa. Actividades y videos aún no existen como features → se colocan **mocks** para que esos bloques rendericen y el flujo se vea completo.
 
 **Lo que se construyó:**
-- **`apps/api/scripts/ingest-chapter-md.mjs`** — parser heurístico Markdown **o** prosa plana → `ChapterBlock`s. Primera línea = título; líneas cortas sin punto = headings; el resto = párrafos. Secciones "Actividades" → sus párrafos como `EXERCISE` + una card `✍️` mock. Inyecta una `PAUSE` de respiración ~45 % y una card `🎬 Video (próximamente)` antes de referencias. Idempotente por REEMPLAZO (⚠️ cascade sobre highlights/annotations). Lee sidecars `titles.json` / `parts.json`.
+- **`apps/api/scripts/ingest-chapter-md.mjs`** — parser heurístico Markdown **o** prosa plana → `ChapterBlock`s. Primera línea = título; líneas cortas sin punto = headings; el resto = párrafos. Secciones "Actividades" → sus párrafos como `EXERCISE` + una card `✍️` mock. Inyecta una `PAUSE` de respiración ~45 % y una card `🎬 Video (próximamente)` antes de referencias. Idempotente por REEMPLAZO (`deleteMany` + `createMany`). Lee sidecars `titles.json` / `parts.json`.
+
+  > **Corrección posterior (2026-08-05).** Esta entrada decía «⚠️ cascade sobre highlights/annotations». Era cierto cuando se escribió, y dejó de serlo con la migración `20260717000000_cc6c_stable_mark_storage`, que soltó ambas FK y las recreó:
+  >
+  > - `Highlight.blockId` y `Annotation.blockId` usan hoy `ON DELETE SET NULL`, más un `CHECK` de «al menos un ancla». Si la marca solo tiene el ancla legada, no puede soltarse sin violar el `CHECK`: lo que se bloquea es el **borrado del bloque**. Si además tiene `contentBlockId`, sí puede soltarse el vínculo legado sin eliminar la marca.
+  > - `ReadingSession.lastBlockId` no tiene FK, así que borrar un `ChapterBlock` lo deja **colgante**, apuntando a una fila que ya no existe.
+  >
+  > La conclusión operativa no cambia, pero el motivo sí: la reingesta destructiva `deleteMany`/`createMany` **sigue prohibida** en capítulos con actividad. Usar actualizaciones que preserven `blockId` y auditar las referencias antes de eliminar cualquier bloque. Verificado contra producción (`pg_constraint`), no solo contra el schema.
 - **`apps/api/content/emociones-en-construccion/`** — `capitulo-01/02/03.md` + `titles.json` (títulos canónicos) + `parts.json` (los 3 son Parte 1 "Deconstruyendo lo que sabíamos").
 
 **Bugs corregidos:** (1) título del Cap. 3 parseado como párrafo de 600 chars → `titles.json` + guard `takeTitle` (≤120 chars, sin punto final); (2) sección "Actividades" del Cap. 3 = 31 párrafos → parser mantiene prosa + una card mock, no fuerza todo a EXERCISE.
@@ -2991,7 +2998,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 - **Seed override pattern:** `passage` (crudo, envuelto por-tab) · `ecoSeed` (prompt Eco listo) · `reflexionSeedOverride` (consigna Reflexión lista), en precedencia.
 - **`EcoChat` reutilizable** extraído de la pantalla Eco mobile (SSE, crisis, reveal máquina de escribir, paginación, reporte); la pantalla quedó como wrapper delgado y el sheet monta el mismo componente.
 - **`EcoTopicCard` → abre el panel** (no navega) vía `onOpen?(prompt)` opcional; igual `HighlightPopover` (web) y `BlockActionsSheet` (mobile) ganan «🌿 Eco» + «🪷 Reflexión» que abren el dock/sheet sembrado.
-- **Actividades interactivas** (backlog #1): catálogo curado `CHAPTER_EXERCISES` en `@psico/types` (como `ECO_CHAPTER_PROMPTS`), 100 % cliente, cero backend. `reflect` → abre Reflexión sembrada (entrada cifrada → Mapa); `breathe` → ejercicio guiado inhala/sostén/exhala animado (overlay web / Modal mobile). **No re-ingesta** (evita borrar highlights por cascade).
+- **Actividades interactivas** (backlog #1): catálogo curado `CHAPTER_EXERCISES` en `@psico/types` (como `ECO_CHAPTER_PROMPTS`), 100 % cliente, cero backend. `reflect` → abre Reflexión sembrada (entrada cifrada → Mapa); `breathe` → ejercicio guiado inhala/sostén/exhala animado (overlay web / Modal mobile). **No re-ingesta** (una reingesta destruye los `blockId` de los que cuelgan las marcas — ver la corrección en Sprint A).
 
 **Privacidad (ADR 0007):** Notas plaintext por diseño; Reflexión cifrada (solo ciphertext + números on-device); libros son contenido público; respiración es UX pura.
 

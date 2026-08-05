@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ComingSoonNotice } from "./ComingSoonNotice";
+import { MediaPicker, firstShowable } from "./MediaPicker";
 import { RetryCompletion } from "./ChapterMediaListen";
 import type { ChapterMediaSummary } from "@psico/types";
 import {
@@ -30,11 +32,14 @@ import {
 export function ChapterMediaWatch({
   apiBase,
   token,
+  bookSlug,
   items,
   manifestError,
 }: {
   apiBase: string;
   token: string;
+  /** For the way out. Watching is still reading a book. */
+  bookSlug: string;
   /**
    * The chapter media manifest, resolved by the reader — see the note in
    * `ChapterMediaListen`. One chapter, one manifest.
@@ -46,13 +51,37 @@ export function ChapterMediaWatch({
   const requestAccess = useChapterMediaAccess({ apiBase, token });
   const { report, failedKey } = useChapterMediaCompletion({ apiBase, token });
 
+  const [pickedKey, setPickedKey] = useState<string | null>(null);
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
   const [transcriptUrl, setTranscriptUrl] = useState<string | null>(null);
   const [accessError, setAccessError] = useState<MediaFetchError | null>(null);
   const [attempt, setAttempt] = useState(0);
 
-  const video = items?.find((item) => item.kind === "VIDEO") ?? null;
+  // Every video the chapter carries. A chapter with two explainers used to
+  // show only one of them, with no way to reach the other.
+  const videos = items?.filter((item) => item.kind === "VIDEO") ?? [];
+  // Derived, not stored — a pick that no longer exists in the manifest cannot
+  // survive as a selection pointing at nothing.
+  const picked = videos.find((v) => v.mediaKey === pickedKey) ?? null;
+  const video = picked ?? firstShowable(videos);
   const available = video?.availability === "AVAILABLE";
+
+  const picker =
+    videos.length > 0 && video ? (
+      <MediaPicker
+        items={videos}
+        selectedKey={video.mediaKey}
+        onSelect={(key) => {
+          setPickedKey(key);
+          // A new video is a new signed embed; keeping the old one would leave
+          // the previous player under the new title for a render.
+          setEmbedUrl(null);
+          setTranscriptUrl(null);
+          setAccessError(null);
+        }}
+        label="Videos"
+      />
+    ) : null;
 
   useEffect(() => {
     if (!video || !available) return;
@@ -87,17 +116,29 @@ export function ChapterMediaWatch({
     );
   }
 
-  if (!video || !available) {
+  if (!video) {
+    return (
+      <Frame>
+        <ComingSoonNotice
+          icon="🎬"
+          title="No hay videos para este capítulo."
+          hint="Puedes leerlo o escucharlo mientras tanto."
+        />
+      </Frame>
+    );
+  }
+
+  if (!available) {
+    // Announced, not produced: the row is shown and inert, and no iframe and
+    // no access request happen behind it.
     return (
       <Frame>
         <ComingSoonNotice
           icon="🎬"
           title="Videoexplicación en producción"
-          hint={
-            video?.description ??
-            "Este capítulo todavía no tiene su video. Puedes leerlo o escucharlo mientras tanto."
-          }
+          hint={video.description}
         />
+        {picker}
       </Frame>
     );
   }
@@ -110,20 +151,31 @@ export function ChapterMediaWatch({
           style={{ borderColor: "var(--color-warm-200)" }}
         >
           <p className="text-[13px]" style={{ color: "var(--color-warm-700)" }}>
-            No pudimos preparar el video.
+            No pudimos preparar este video.
           </p>
-          <button
-            type="button"
-            onClick={() => setAttempt((n) => n + 1)}
-            className="mt-2 rounded-full px-3 py-1 text-[12.5px] font-semibold"
-            style={{
-              background: "var(--color-warm-100)",
-              color: "var(--color-warm-800)",
-            }}
-          >
-            Reintentar
-          </button>
+          <div className="mt-2 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setAttempt((n) => n + 1)}
+              className="rounded-full px-3 py-1 text-[12.5px] font-semibold"
+              style={{
+                minHeight: 44,
+                background: "var(--color-warm-100)",
+                color: "var(--color-warm-800)",
+              }}
+            >
+              Reintentar
+            </button>
+            <Link
+              href={`/dashboard/biblioteca/${bookSlug}`}
+              className="text-[12.5px] font-semibold"
+              style={{ color: "var(--color-warm-500)" }}
+            >
+              ← Volver al libro
+            </Link>
+          </div>
         </div>
+        {picker}
       </Frame>
     );
   }
@@ -136,6 +188,9 @@ export function ChapterMediaWatch({
       >
         {embedUrl ? (
           <StreamFrame
+            // Keyed by video: without it, switching would reuse the same
+            // iframe element and the SDK listener bound to the previous one.
+            key={video.mediaKey}
             embedUrl={embedUrl}
             title={video.title}
             onEnded={() => void report(video.mediaKey)}
@@ -204,6 +259,16 @@ export function ChapterMediaWatch({
           {failedKey === video.mediaKey ? (
             <RetryCompletion onRetry={() => void report(video.mediaKey)} />
           ) : null}
+
+          {picker}
+
+          <Link
+            href={`/dashboard/biblioteca/${bookSlug}`}
+            className="mt-3 inline-block text-[12.5px] font-semibold"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            ← Volver al libro
+          </Link>
         </div>
       </div>
     </Frame>

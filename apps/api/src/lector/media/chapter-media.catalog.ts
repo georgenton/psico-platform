@@ -436,9 +436,17 @@ export const EEC_C1_AUDIOBOOK = validateChapterMediaDefinition({
 });
 
 /**
- * The podcast — announced, not produced. §8 of the spec fixes the format
- * (`PODCAST_V1_FORMAT=JORGE_SOLO`); the master does not exist, so the
- * definition carries no source and the API says `COMING_SOON`.
+ * The podcast. §8 of the spec fixes the format (`PODCAST_V1_FORMAT=JORGE_SOLO`).
+ *
+ * What is published today is a DEMONSTRATION cut, not the master: it lasts
+ * under a minute and says so out loud in its first sentence. The description
+ * repeats it in writing, because someone browsing the picker reads before they
+ * press play. See docs/operations/two-book-media-demo-manifest.md — including
+ * how to retire it when the real episode exists (new key or bumped version,
+ * never a silent re-upload).
+ *
+ * `PRO_ONLY` mirrors the audiobook above, so this changes nobody's access
+ * beyond what chapter audio already asks for.
  */
 export const EEC_C1_PODCAST = validateChapterMediaDefinition({
   mediaKey: "eec-c1-podcast-v1",
@@ -446,13 +454,16 @@ export const EEC_C1_PODCAST = validateChapterMediaDefinition({
   bookSlug: "emociones-en-construccion",
   chapterOrder: 1,
   kind: "PODCAST",
-  status: "DRAFT",
+  status: "PUBLISHED",
   title: "Podcast · capítulo 1",
   description:
-    "Jorge explica el capítulo con un guion conversacional: una pregunta, un ejemplo cotidiano y qué hacer con eso.",
-  durationSec: null,
-  accessPolicy: null,
-  source: null,
+    "Jorge explica el capítulo con un guion conversacional: una pregunta, un ejemplo cotidiano y qué hacer con eso. Edición de demostración: dura mucho menos que el episodio definitivo, y lo dice al empezar.",
+  durationSec: 52,
+  accessPolicy: "PRO_ONLY",
+  source: {
+    kind: "R2",
+    objectKey: "media/emociones-en-construccion/c1/podcast-demo-v1.m4a",
+  },
   posterObjectKey: null,
   transcriptObjectKey: null,
   chapters: [],
@@ -491,6 +502,83 @@ export const EEC_C1_VIDEO = validateChapterMediaDefinition({
 });
 
 /**
+ * *Parejas que perduran*, the chapter that sits second in the reading sequence.
+ *
+ * `chapterOrder` is a POSITION, not an editorial number — the fix in
+ * `13620bf` exists because those two drifted apart. So none of the three
+ * titles below carries a chapter number: the surfaces show the format and the
+ * chapter's own title, which are both true whatever the numbering turns out
+ * to be.
+ *
+ * All three assets are demonstration cuts. Same retirement path as the EEC
+ * podcast above.
+ */
+export const PAR_C2_AUDIOBOOK = validateChapterMediaDefinition({
+  mediaKey: "par-c2-audiobook-v1",
+  mediaVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 2,
+  kind: "AUDIOBOOK",
+  status: "PUBLISHED",
+  title: "Audiolibro del capítulo",
+  description:
+    "Narración del capítulo, para escucharlo en vez de leerlo. Edición de demostración: es un fragmento breve, no el capítulo entero, y lo dice al empezar.",
+  durationSec: 27,
+  accessPolicy: "PRO_ONLY",
+  // The chapter has its own `Audio` row, so this reuses the existing signing
+  // path exactly as the EEC audiobook does — no second audio table.
+  source: { kind: "CHAPTER_AUDIO" },
+  posterObjectKey: null,
+  transcriptObjectKey: null,
+  chapters: [],
+});
+
+export const PAR_C2_PODCAST = validateChapterMediaDefinition({
+  mediaKey: "par-c2-podcast-v1",
+  mediaVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 2,
+  kind: "PODCAST",
+  status: "PUBLISHED",
+  title: "Podcast del capítulo",
+  description:
+    "Una conversación sobre el capítulo: de qué trata y qué hacer con eso. Edición de demostración: dura mucho menos que el episodio definitivo, y lo dice al empezar.",
+  durationSec: 36,
+  accessPolicy: "PRO_ONLY",
+  source: {
+    kind: "R2",
+    objectKey: "media/parejas-que-perduran/c2/podcast-demo-v1.m4a",
+  },
+  posterObjectKey: null,
+  transcriptObjectKey: null,
+  chapters: [],
+});
+
+/**
+ * Announced, not produced — and blocked on infrastructure rather than on
+ * editorial work: Cloudflare Stream is not configured in production, so no
+ * embed can be minted for anybody. No chapter marks either, because no script
+ * has been approved and inventing a timeline would be inventing the video.
+ */
+export const PAR_C2_VIDEO = validateChapterMediaDefinition({
+  mediaKey: "par-c2-video-v1",
+  mediaVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 2,
+  kind: "VIDEO",
+  status: "DRAFT",
+  title: "Videoexplicación del capítulo",
+  description:
+    "El capítulo explicado en video, con esquemas y pasajes del libro. Una alternativa al texto, no un adorno.",
+  durationSec: null,
+  accessPolicy: null,
+  source: null,
+  posterObjectKey: null,
+  transcriptObjectKey: null,
+  chapters: [],
+});
+
+/**
  * The PRODUCTION registry — exactly the approved definitions, in presentation
  * order. Adding one is a deliberate, reviewed change: a real asset, an
  * editorial approval, and the ops steps in
@@ -500,6 +588,9 @@ export const PRODUCTION_CHAPTER_MEDIA: readonly ChapterMediaDefinition[] = [
   EEC_C1_AUDIOBOOK,
   EEC_C1_PODCAST,
   EEC_C1_VIDEO,
+  PAR_C2_AUDIOBOOK,
+  PAR_C2_PODCAST,
+  PAR_C2_VIDEO,
 ];
 
 export const productionChapterMediaRegistry = new ChapterMediaCatalogRegistry(

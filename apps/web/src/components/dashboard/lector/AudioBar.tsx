@@ -551,7 +551,9 @@ export function AudioBar({
                       aria-controls="audio-transcript-region"
                       className="rounded-full px-3 py-1 text-[11.5px] font-semibold"
                       style={{
-                        minHeight: 32,
+                        // Same 44px floor as the segments below it: this is a
+                        // control someone taps on a phone, not a caption.
+                        minHeight: 44,
                         background: "var(--color-warm-100)",
                         color: "var(--color-warm-700)",
                       }}
@@ -622,8 +624,13 @@ export function AudioBar({
                                     }}
                                   >
                                     {isActive ? (
+                                      // «Segmento actual», not «Reproduciendo»:
+                                      // this marks where the playhead sits,
+                                      // which is true whether or not the audio
+                                      // is playing. The bar does not track a
+                                      // playing state and must not imply one.
                                       <span className="sr-only">
-                                        Reproduciendo:{" "}
+                                        Segmento actual:{" "}
                                       </span>
                                     ) : null}
                                     {seg.text}

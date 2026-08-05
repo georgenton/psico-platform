@@ -151,11 +151,33 @@ describe("toSummary — the public projection", () => {
   });
 
   it("marks a source-less definition as COMING_SOON", () => {
-    const podcast =
-      productionChapterMediaRegistry.getExact("eec-c1-podcast-v1");
-    const summary = toSummary(podcast, { chapterAudioPresent: true });
+    const video = productionChapterMediaRegistry.getExact("par-c2-video-v1");
+    const summary = toSummary(video, { chapterAudioPresent: true });
     expect(summary.availability).toBe("COMING_SOON");
     expect(summary.hasCaptions).toBe(false);
+  });
+
+  /**
+   * The two-book demo, as the manifest reports it. Availability is not a copy
+   * decision: it is `PUBLISHED` + a source, and for an audiobook also the
+   * chapter's `Audio` row. This pins the six answers a reader gets.
+   */
+  it("TWO_BOOK_MEDIA_AVAILABILITY", () => {
+    const at = (key: string, chapterAudioPresent: boolean) =>
+      toSummary(productionChapterMediaRegistry.getExact(key), {
+        chapterAudioPresent,
+      }).availability;
+
+    // R2-backed podcasts do not depend on the chapter audio row at all.
+    expect(at("eec-c1-podcast-v1", false)).toBe("AVAILABLE");
+    expect(at("par-c2-podcast-v1", false)).toBe("AVAILABLE");
+
+    expect(at("eec-c1-audiobook-v1", true)).toBe("AVAILABLE");
+    expect(at("par-c2-audiobook-v1", true)).toBe("AVAILABLE");
+
+    // Announced, not produced — Cloudflare Stream is not configured.
+    expect(at("eec-c1-video-v1", true)).toBe("COMING_SOON");
+    expect(at("par-c2-video-v1", true)).toBe("COMING_SOON");
   });
 
   it("CHAPTER_AUDIO_WITH_ROW=AVAILABLE", () => {
@@ -339,9 +361,45 @@ describe("getAccess", () => {
     const { service, access, storage } = makeService();
 
     await expect(
-      service.getAccess("u", "PRO", "eec-c1-podcast-v1"),
+      service.getAccess("u", "PRO", "eec-c1-video-v1"),
     ).rejects.toMatchObject({ message: "MEDIA_NOT_AVAILABLE" });
     expect(access.assertCanReadContent).not.toHaveBeenCalled();
+    expect(storage.getSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it("PODCAST_ACCESS — signs the R2 object and names neither key nor policy", async () => {
+    const { service, storage, lector } = makeService();
+
+    const result = await service.getAccess("u", "PRO", "eec-c1-podcast-v1");
+
+    expect(result.kind).toBe("PODCAST");
+    expect(storage.getSignedUrl).toHaveBeenCalledWith(
+      "media/emociones-en-construccion/c1/podcast-demo-v1.m4a",
+      R2_MEDIA_SIGNED_URL_TTL_SEC,
+    );
+    // A podcast is its own object: it must NOT be routed through the
+    // chapter-audio path, which would hand back the audiobook instead.
+    expect(lector.getAudio).not.toHaveBeenCalled();
+
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("objectKey");
+    expect(serialized).not.toContain("PRO_ONLY");
+    expect(serialized).not.toContain("podcast-demo-v1.m4a");
+  });
+
+  it("PAREJAS_AUDIOBOOK_ACCESS — reuses the chapter-audio signer for its own book", async () => {
+    const { service, lector, storage } = makeService();
+
+    const result = await service.getAccess("u", "PRO", "par-c2-audiobook-v1");
+
+    expect(result.kind).toBe("AUDIOBOOK");
+    // Its own book and its own position in the sequence — not chapter 1 of the
+    // other book, which is the mistake a hard-coded slug would make.
+    expect(lector.getAudio).toHaveBeenCalledWith(
+      "PRO",
+      "parejas-que-perduran",
+      2,
+    );
     expect(storage.getSignedUrl).not.toHaveBeenCalled();
   });
 

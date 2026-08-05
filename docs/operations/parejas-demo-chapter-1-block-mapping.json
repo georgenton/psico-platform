@@ -1,0 +1,437 @@
+{
+  "cms9j750z003r3mryht2zqou6": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Repite el título canónico del capítulo (L1) con barras de columna del escaneo."
+  },
+  "cms9j7518003u3mry2o4m1brm": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Fragmento del párrafo de apertura; el texto completo está en L27."
+  },
+  "cms9j751h003x3mryzesstvvj": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Fragmento del mismo párrafo de apertura; completo en L27."
+  },
+  "cms9j751r00403mry124y8j4j": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Nota nuestra sobre el escaneo, publicada dentro del capítulo."
+  },
+  "cms9j751y00433mry92l46z59": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Residuo del escaneo de la portadilla."
+  },
+  "cms9j752500463mryf61xgagr": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Residuo del escaneo de la portadilla."
+  },
+  "cms9j752g00493mry8e6c3k29": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Residuo del escaneo de la portadilla."
+  },
+  "cms9j752n004c3mryqhwzebys": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Residuo del escaneo de la portadilla."
+  },
+  "cms9j752u004f3mryp3yfbxej": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Residuo del escaneo de la portadilla."
+  },
+  "cms9j7532004i3mryi0ff3wc2": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Residuo del escaneo de la portadilla."
+  },
+  "cms9j753m004l3mrygtu2ramc": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Sello del capítulo partido; el título ya es canónico en el manifiesto."
+  },
+  "cms9j7542004o3mryym0z2a5f": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Segunda copia corrupta del título del capítulo."
+  },
+  "cms9j754e004r3mry084sb97o": {
+    "action": "preserved",
+    "newBlockId": "cms9j754e004r3mry084sb97o",
+    "reason": "Párrafo real con corrupción interna («palo san: A to», «mms tre», «un Mm o»). Requiere el original."
+  },
+  "cms9j754n004u3mrykkvpymhr": {
+    "action": "preserved",
+    "newBlockId": "cms9j754n004u3mrykkvpymhr",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j754z004x3mryzlzhn5c2": {
+    "action": "preserved",
+    "newBlockId": "cms9j754z004x3mryzlzhn5c2",
+    "reason": "«di sidad», «psic man», «experimento q» — huecos que solo el original puede cerrar."
+  },
+  "cms9j755800503mryqlikuejz": {
+    "action": "preserved",
+    "newBlockId": "cms9j755800503mryqlikuejz",
+    "reason": "Ilegible. ⚠️ Es el `sourceHeading` del ancla del Guide de Parejas: tocarlo rompe el Guide."
+  },
+  "cms9j755f00533mryrxtxnsnv": {
+    "action": "preserved",
+    "newBlockId": "cms9j755f00533mryrxtxnsnv",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j755q00563mryeci83bxx": {
+    "action": "preserved",
+    "newBlockId": "cms9j755q00563mryeci83bxx",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j755y00593mry5szipk7f": {
+    "action": "preserved",
+    "newBlockId": "cms9j755y00593mry5szipk7f",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j7566005c3mryysp5olvi": {
+    "action": "preserved",
+    "newBlockId": "cms9j7566005c3mryysp5olvi",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j756e005f3mrycqhogt0o": {
+    "action": "preserved",
+    "newBlockId": "cms9j756e005f3mrycqhogt0o",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j756p005i3mryk53j8yg0": {
+    "action": "preserved",
+    "newBlockId": "cms9j756p005i3mryk53j8yg0",
+    "reason": "«la responsablede | las» → «la responsable de las»: palabra pegada más barra de columna."
+  },
+  "cms9j756x005l3mrygo3bbr9z": {
+    "action": "preserved",
+    "newBlockId": "cms9j756x005l3mrygo3bbr9z",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j7575005o3mryxxuz3cr9": {
+    "action": "preserved",
+    "newBlockId": "cms9j7575005o3mryxxuz3cr9",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j757g005r3mryc0s19cdm": {
+    "action": "preserved",
+    "newBlockId": "cms9j757g005r3mryc0s19cdm",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j757r005u3mryxdfkctl7": {
+    "action": "preserved",
+    "newBlockId": "cms9j757r005u3mryxdfkctl7",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j7580005x3mryrjx60w4p": {
+    "action": "preserved",
+    "newBlockId": "cms9j7580005x3mryrjx60w4p",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j758c00603mryuvn13gg8": {
+    "action": "preserved",
+    "newBlockId": "cms9j758c00603mryuvn13gg8",
+    "reason": "«Como escri el poeta» está truncado; completarlo sería escribir prosa nuestra."
+  },
+  "cms9j758n00633mry8l7koshw": {
+    "action": "preserved",
+    "newBlockId": "cms9j758n00633mry8l7koshw",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j758v00663mry3t9rhtro": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Línea huérfana sin contenido editorial («O a PA +»)."
+  },
+  "cms9j759200693mrytnzs8ati": {
+    "action": "preserved",
+    "newBlockId": "cms9j759200693mrytnzs8ati",
+    "reason": "Encabezado y prosa fundidos; «Sroute» contradice «Sroufe» de L67/L79."
+  },
+  "cms9j759a006c3mry8epoc0su": {
+    "action": "preserved",
+    "newBlockId": "cms9j759a006c3mry8epoc0su",
+    "reason": "«nero en la Universidad de Mi» — arranque comido."
+  },
+  "cms9j759l006f3mryiuyzv31u": {
+    "action": "preserved",
+    "newBlockId": "cms9j759l006f3mryiuyzv31u",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j759t006i3mrypzo6pvt5": {
+    "action": "preserved",
+    "newBlockId": "cms9j759t006i3mrypzo6pvt5",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75a1006l3mrykxr7kca6": {
+    "action": "preserved",
+    "newBlockId": "cms9j75a1006l3mrykxr7kca6",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75ac006o3mry9h19ir6g": {
+    "action": "preserved",
+    "newBlockId": "cms9j75ac006o3mry9h19ir6g",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75ak006r3mryjab831ow": {
+    "action": "preserved",
+    "newBlockId": "cms9j75ak006r3mryjab831ow",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75as006u3mrym1wrivus": {
+    "action": "preserved",
+    "newBlockId": "cms9j75as006u3mrym1wrivus",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75b1006x3mrykctqyk19": {
+    "action": "preserved",
+    "newBlockId": "cms9j75b1006x3mrykctqyk19",
+    "reason": "«terrores noctumos» → «nocturnos»: rn→m. L107 lo escribe bien."
+  },
+  "cms9j75bd00703mry2p5v8syg": {
+    "action": "preserved",
+    "newBlockId": "cms9j75bd00703mry2p5v8syg",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75bl00733mrynfxa2y6t": {
+    "action": "preserved",
+    "newBlockId": "cms9j75bl00733mrynfxa2y6t",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75bt00763mry6kxogu2l": {
+    "action": "preserved",
+    "newBlockId": "cms9j75bt00763mry6kxogu2l",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75c100793mryhkx87fti": {
+    "action": "preserved",
+    "newBlockId": "cms9j75c100793mryhkx87fti",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75c8007c3mry7d28vdk0": {
+    "action": "preserved",
+    "newBlockId": "cms9j75c8007c3mry7d28vdk0",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75cg007f3mry6yw41joj": {
+    "action": "preserved",
+    "newBlockId": "cms9j75cg007f3mry6yw41joj",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75ct007i3mryhqmakux0": {
+    "action": "preserved",
+    "newBlockId": "cms9j75ct007i3mryhqmakux0",
+    "reason": "Frase partida: L93 termina a mitad y L97 la continúa; «Mrs» (L95) es ruido intercalado. La copia duplicada (L117) confirma la continuación."
+  },
+  "cms9j75d1007l3mrys0iblmrh": {
+    "action": "merged",
+    "newBlockId": "cms9j75ct007i3mryhqmakux0",
+    "reason": "Ruido intercalado dentro de la frase partida; se absorbe en L93."
+  },
+  "cms9j75d8007o3mrymswsht2v": {
+    "action": "merged",
+    "newBlockId": "cms9j75ct007i3mryhqmakux0",
+    "reason": "Continuación de L93. El prefijo «EME » es ruido: L117 tiene la misma frase sin él."
+  },
+  "cms9j75df007r3mryj3pd92m4": {
+    "action": "preserved",
+    "newBlockId": "cms9j75df007r3mryj3pd92m4",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75dt007u3mryf307owz1": {
+    "action": "preserved",
+    "newBlockId": "cms9j75dt007u3mryf307owz1",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75e2007x3mryvgjbg746": {
+    "action": "preserved",
+    "newBlockId": "cms9j75e2007x3mryvgjbg746",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75ea00803mrysqxcgqi8": {
+    "action": "preserved",
+    "newBlockId": "cms9j75ea00803mrysqxcgqi8",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75em00833mryz5del8gs": {
+    "action": "preserved",
+    "newBlockId": "cms9j75em00833mryz5del8gs",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75ev00863mry3cjbttdo": {
+    "action": "preserved",
+    "newBlockId": "cms9j75ev00863mry3cjbttdo",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75f300893mrypunuyhnv": {
+    "action": "preserved",
+    "newBlockId": "cms9j75f300893mrypunuyhnv",
+    "reason": "«Poco : -uco» y «nuest:..» — dos huecos que requieren el original."
+  },
+  "cms9j75fa008c3mryf1fx8d1y": {
+    "action": "preserved",
+    "newBlockId": "cms9j75fa008c3mryf1fx8d1y",
+    "reason": "Cola « “E» retirada: la copia duplicada (L131) termina la frase sin ella."
+  },
+  "cms9j75fl008f3mryq95yefda": {
+    "action": "preserved",
+    "newBlockId": "cms9j75fl008f3mryq95yefda",
+    "reason": "Frase truncada en «la hormona que reduc»."
+  },
+  "cms9j75fs008i3mryzsm0tusj": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Duplicado de L97 (misma frase, sin el ruido «EME »)."
+  },
+  "cms9j75g9008l3mry5wwn2hbg": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Duplicado literal de L99."
+  },
+  "cms9j75gh008o3mryik401vyp": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Duplicado literal de L101."
+  },
+  "cms9j75gp008r3mrylw38xcoy": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Duplicado literal de L103."
+  },
+  "cms9j75h0008u3mrywlnqm58v": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Duplicado literal del encabezado de L105."
+  },
+  "cms9j75h9008x3mrymgn3ghw7": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Duplicado de L107, partido en dos y con «noctumos»."
+  },
+  "cms9j75hi00903mryelrl85hz": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Segunda mitad del duplicado de L107."
+  },
+  "cms9j75ht00933mryvqkdfks0": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Duplicado de L109+L111+L113, unido y con la misma corrupción."
+  },
+  "cms9j75i100963mryart46x0z": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Duplicado de L115, más truncado que el original."
+  },
+  "cms9j75if00993mrylpv190hx": {
+    "action": "removed",
+    "newBlockId": null,
+    "reason": "Cola del duplicado de L115."
+  },
+  "cms9j75io009c3mrylblxj2r9": {
+    "action": "preserved",
+    "newBlockId": "cms9j75io009c3mrylblxj2r9",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75iw009f3mryeky8k8cp": {
+    "action": "preserved",
+    "newBlockId": "cms9j75iw009f3mryeky8k8cp",
+    "reason": "«derenernas», «redescubrimos»: plausible pero no verificable sin la página."
+  },
+  "cms9j75j9009i3mrystn5fc7e": {
+    "action": "preserved",
+    "newBlockId": "cms9j75j9009i3mrystn5fc7e",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75jg009l3mry5a1jw042": {
+    "action": "preserved",
+    "newBlockId": "cms9j75jg009l3mry5a1jw042",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75jp009o3mryjlfy2tez": {
+    "action": "preserved",
+    "newBlockId": "cms9j75jp009o3mryjlfy2tez",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75k1009r3mrydn4atbot": {
+    "action": "preserved",
+    "newBlockId": "cms9j75k1009r3mrydn4atbot",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75kd009u3mry11lu3zap": {
+    "action": "preserved",
+    "newBlockId": "cms9j75kd009u3mry11lu3zap",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75kt009x3mrykgnsmu9b": {
+    "action": "preserved",
+    "newBlockId": "cms9j75kt009x3mrykgnsmu9b",
+    "reason": "Barra de columna retirada en «tres | reglas»."
+  },
+  "cms9j75l300a03mrybk4a0wcj": {
+    "action": "preserved",
+    "newBlockId": "cms9j75l300a03mrybk4a0wcj",
+    "reason": "«un parque d cido» — hueco en mitad de palabra."
+  },
+  "cms9j75lb00a33mryxdi0unk0": {
+    "action": "preserved",
+    "newBlockId": "cms9j75lb00a33mryxdi0unk0",
+    "reason": "Bloque muy dañado: «; A\" o», «bailar < blico», «le»."
+  },
+  "cms9j75lq00a63mryaml9eoh6": {
+    "action": "preserved",
+    "newBlockId": "cms9j75lq00a63mryaml9eoh6",
+    "reason": "«de 1osc el estrés» y cola «mE.»."
+  },
+  "cms9j75m000a93mryjb605jxh": {
+    "action": "preserved",
+    "newBlockId": "cms9j75m000a93mryjb605jxh",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75m800ac3mryeb8ognro": {
+    "action": "preserved",
+    "newBlockId": "cms9j75m800ac3mryeb8ognro",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75mf00af3mryibnqns8g": {
+    "action": "preserved",
+    "newBlockId": "cms9j75mf00af3mryibnqns8g",
+    "reason": "«Mirense» sin tilde: probable pérdida de diacrítico, no verificable sin la página."
+  },
+  "cms9j75mx00ai3mry0tzkrubl": {
+    "action": "preserved",
+    "newBlockId": "cms9j75mx00ai3mry0tzkrubl",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75n400al3mryhim18qy4": {
+    "action": "preserved",
+    "newBlockId": "cms9j75n400al3mryhim18qy4",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75nd00ao3mryk07b9iap": {
+    "action": "preserved",
+    "newBlockId": "cms9j75nd00ao3mryk07b9iap",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75nr00ar3mryz5ytq44n": {
+    "action": "preserved",
+    "newBlockId": "cms9j75nr00ar3mryz5ytq44n",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75o000au3mryd17rzt3i": {
+    "action": "preserved",
+    "newBlockId": "cms9j75o000au3mryd17rzt3i",
+    "reason": "Sin defecto detectado."
+  },
+  "cms9j75o800ax3mryle8l60nz": {
+    "action": "preserved",
+    "newBlockId": "cms9j75o800ax3mryle8l60nz",
+    "reason": "Sin defecto detectado."
+  }
+}

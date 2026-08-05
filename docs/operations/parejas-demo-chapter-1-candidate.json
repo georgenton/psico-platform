@@ -1,0 +1,578 @@
+{
+  "bookSlug": "parejas-que-perduran",
+  "chapterOrder": 2,
+  "editorialChapter": 1,
+  "source": "OCR",
+  "editionStatus": "PROVISIONAL_DEMO",
+  "currentStorageModel": "LEGACY_CHAPTER_BLOCK",
+  "candidateId": "parejas-ch1-ocr-cleanup-draft-1",
+  "contentCoreRevisionCreated": false,
+  "candidatePublished": false,
+  "status": "DRAFT_NOT_PUBLISHED",
+  "applyStrategy": "IN_PLACE_UPDATE_PRESERVING_BLOCK_IDS",
+  "partialCleanup": true,
+  "sourceNonEmptyLines": 88,
+  "sourceTitleLines": 1,
+  "publishedSourceBlocks": 87,
+  "candidateBlocks": 62,
+  "blocks": [
+    {
+      "blockId": "cms9j754e004r3mry084sb97o",
+      "order": 12,
+      "kind": "PARAGRAPH",
+      "sourceLine": 27,
+      "classification": "UNRESOLVED_SOURCE_AMBIGUITY",
+      "changed": false,
+      "content": "En las montañas de Ecuador, existe un árbol llamado palo san: A to. Su madera, al quemarse, desprende un aroma que calma el 5 alma y fortalece el espíritu. Así es el amor en las relaciones — que perduran: un fuego lento, invisible pero mms tre, protege y sana. AE Este capítulo no es solo un compendio de teorías. Es un : viaje a través de laboratorios científicos, consultas terapéuti--— cas y hogares donde el amor se ha convertido en un Mm o"
+    },
+    {
+      "blockId": "cms9j754n004u3mrykkvpymhr",
+      "order": 13,
+      "kind": "PARAGRAPH",
+      "sourceLine": 29,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "trasciende el tiempo."
+    },
+    {
+      "blockId": "cms9j754z004x3mryzlzhn5c2",
+      "order": 14,
+      "kind": "PARAGRAPH",
+      "sourceLine": 31,
+      "classification": "UNRESOLVED_SOURCE_AMBIGUITY",
+      "changed": false,
+      "content": "El amor como medicina — En el invierno de 1978, en un di sidad de Washington, un joven psic man preparaba un experimento q nuestra comprensión del amor."
+    },
+    {
+      "blockId": "cms9j755800503mryqlikuejz",
+      "order": 15,
+      "kind": "HEADING",
+      "sourceLine": 33,
+      "classification": "UNRESOLVED_SOURCE_AMBIGUITY",
+      "changed": false,
+      "content": "Suran no solo las o pende xn - Escribió el Poeta Rumi: A lo demás», y a Veces"
+    },
+    {
+      "blockId": "cms9j755f00533mryrxtxnsnv",
+      "order": 16,
+      "kind": "PARAGRAPH",
+      "sourceLine": 35,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "Reclutaron a parejas en conflicto —aquellas que discutían por dinero, desconfiaban, guardaban rencores — y les pidieron algo aparentemente simple: sentarse frente a frente, tomarse de las manos y mirarse a los ojos durante diez minutos. Ni disculpas, ni soluciones, solo silencio y contacto. Los resultados, medidos en muestras de sangre, fueron reveladores: un aumento del 30 % en oxitocina, incluso si seguían en desacuerdo. La hormona no requería consenso, solo presencia (Scheele et al., 2016)."
+    },
+    {
+      "blockId": "cms9j755q00563mryeci83bxx",
+      "order": 17,
+      "kind": "PARAGRAPH",
+      "sourceLine": 37,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "Ana y Luis, casados 35 años, llegaron a mi consultorio sintiéndose «como fantasmas compartiendo una casa». Les propuse el juego. En la segunda sesión, Ana rompió a llorar:"
+    },
+    {
+      "blockId": "cms9j755y00593mry5szipk7f",
+      "order": 18,
+      "kind": "PARAGRAPH",
+      "sourceLine": 39,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "— En sus ojos hay destellos dorados, como los del sol cuando se hunde en el mar... ¿Siempre estuvieron ahí?."
+    },
+    {
+      "blockId": "cms9j7566005c3mryysp5olvi",
+      "order": 19,
+      "kind": "PARAGRAPH",
+      "sourceLine": 41,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "Luis, con voz quebrada, respondió:"
+    },
+    {
+      "blockId": "cms9j756e005f3mrycqhogt0o",
+      "order": 20,
+      "kind": "PARAGRAPH",
+      "sourceLine": 43,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "—Sí, pero hacía décadas que no los buscaba."
+    },
+    {
+      "blockId": "cms9j756p005i3mryk53j8yg0",
+      "order": 21,
+      "kind": "PARAGRAPH",
+      "sourceLine": 45,
+      "classification": "CORRECT_OCR_SOURCE_VERIFIED",
+      "changed": true,
+      "content": "La dopamina es la alquimista del amor, la responsable de las mariposas en el estómago, las noches en vela pensando en él o ella, y también... de la rutina que nos hace creer que el — amor se ha evaporado. En 2020, la Universidad de Nueva York escaneó cerebros de parejas con dos décadas de matrimonio. Aquellas que exploraban juntas lo desconocido —viajes a países remotos, clases de cocina tailandesa, caminatas bajo la lluvia— mostraban una activación en el núcleo accumbens idéntica a la de su luna de miel (Acevedo et al., 2020)."
+    },
+    {
+      "blockId": "cms9j756x005l3mrygo3bbr9z",
+      "order": 22,
+      "kind": "PARAGRAPH",
+      "sourceLine": 47,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "Carlos y Rita, en sus 50 años, celebraban su aniversario en la base del Cotopaxi, el volcán activo más alto de Ecuador. Él, con vértigo crónico; ella, con una rodilla operada. Subieron lentamente, tomados de la mano, hasta que la niebla envolvió el sendero."
+    },
+    {
+      "blockId": "cms9j7575005o3mryxxuz3cr9",
+      "order": 23,
+      "kind": "HEADING",
+      "sourceLine": 49,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "—No llegamos a la cima —confesó Rita—, pero en medio"
+    },
+    {
+      "blockId": "cms9j757g005r3mryc0s19cdm",
+      "order": 24,
+      "kind": "PARAGRAPH",
+      "sourceLine": 51,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "de esa bruma, vi su miedo... y lo abracé como a un niño. Hacía años que no lo hacía."
+    },
+    {
+      "blockId": "cms9j757r005u3mryxdfkctl7",
+      "order": 25,
+      "kind": "PARAGRAPH",
+      "sourceLine": 53,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "Carlos añadió:"
+    },
+    {
+      "blockId": "cms9j7580005x3mryrjx60w4p",
+      "order": 26,
+      "kind": "PARAGRAPH",
+      "sourceLine": 55,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "—Reímos tanto que el viento se llevó nuestras voces. Fue como tener 20 otra vez."
+    },
+    {
+      "blockId": "cms9j758c00603mryuvn13gg8",
+      "order": 27,
+      "kind": "PARAGRAPH",
+      "sourceLine": 57,
+      "classification": "UNRESOLVED_SOURCE_AMBIGUITY",
+      "changed": false,
+      "content": "El amor no es magia: es química consciente. La oxitocina teje redes de confianza en la quietud de una mirada; la dopamina enciende fogatas en la niebla de lo cotidiano. Como escri el poeta Pablo Neruda: «El amores un viaje por agua y por estrellas» (Neruda, 1959). Y en ese viaje, cada abrazo, cada"
+    },
+    {
+      "blockId": "cms9j758n00633mry8l7koshw",
+      "order": 28,
+      "kind": "HEADING",
+      "sourceLine": 59,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "aventura, son remos que nos alejan de la rutina y nos acercan a la esencia del otro. ="
+    },
+    {
+      "blockId": "cms9j759200693mrytnzs8ati",
+      "order": 30,
+      "kind": "HEADING",
+      "sourceLine": 63,
+      "classification": "UNRESOLVED_SOURCE_AMBIGUITY",
+      "changed": false,
+      "content": "Los hijos En 1975, el psicólogo Alan Sroute"
+    },
+    {
+      "blockId": "cms9j759a006c3mry8epoc0su",
+      "order": 31,
+      "kind": "HEADING",
+      "sourceLine": 65,
+      "classification": "UNRESOLVED_SOURCE_AMBIGUITY",
+      "changed": false,
+      "content": "nero en la Universidad de Mi durante 30 años, observando có"
+    },
+    {
+      "blockId": "cms9j759l006f3mryiuyzv31u",
+      "order": 32,
+      "kind": "PARAGRAPH",
+      "sourceLine": 67,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "el futuro emocional de sus hijos. Los resultados, publicados en 2005, fueron reveladores: los niños cuyos padres resolvían conflictos con humor —bromas suaves, canciones tontas durante una pelea, miradas cómplices— tenían un 40 % más de éxito en sus relaciones adultas (Sroufe et al., 2005)."
+    },
+    {
+      "blockId": "cms9j759t006i3mrypzo6pvt5",
+      "order": 33,
+      "kind": "PARAGRAPH",
+      "sourceLine": 69,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "¿Por qué el humor marca la diferencia?"
+    },
+    {
+      "blockId": "cms9j75a1006l3mrykxr7kca6",
+      "order": 34,
+      "kind": "PARAGRAPH",
+      "sourceLine": 71,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "* Regulación emocional: Los niños aprenden que los problemas pueden abordarse sin miedo."
+    },
+    {
+      "blockId": "cms9j75ac006o3mry9h19ir6g",
+      "order": 35,
+      "kind": "PARAGRAPH",
+      "sourceLine": 73,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "* Modelo de resiliencia: Ven que el conflicto no es el fin, sino una oportunidad para crear complicidad."
+    },
+    {
+      "blockId": "cms9j75ak006r3mryjab831ow",
+      "order": 36,
+      "kind": "PARAGRAPH",
+      "sourceLine": 75,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "* Neuroplasticidad: La risa libera endorfinas, reforzando circuitos cerebrales de seguridad (Porges, 2011)."
+    },
+    {
+      "blockId": "cms9j75as006u3mrym1wrivus",
+      "order": 37,
+      "kind": "HEADING",
+      "sourceLine": 77,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "María y Pablo, una pareja de Quito con dos hijos, llegaron"
+    },
+    {
+      "blockId": "cms9j75b1006x3mrykctqyk19",
+      "order": 38,
+      "kind": "PARAGRAPH",
+      "sourceLine": 79,
+      "classification": "CORRECT_OCR_SOURCE_VERIFIED",
+      "changed": true,
+      "content": "a terapia exhaustos. Sus discusiones sobre finanzas terminaban en gritos, y su hija Laura, de 7 años, había desarrollado terrores nocturnos. Siguiendo el modelo de Sroufe, les propuse un experimento:"
+    },
+    {
+      "blockId": "cms9j75bd00703mry2p5v8syg",
+      "order": 39,
+      "kind": "PARAGRAPH",
+      "sourceLine": 81,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "1. La regla del tono absurdo: Durante una pelea, debían hablar como personajes de dibujos animados (ej: voz aguda, movimientos exagerados)."
+    },
+    {
+      "blockId": "cms9j75bl00733mrynfxa2y6t",
+      "order": 40,
+      "kind": "PARAGRAPH",
+      "sourceLine": 83,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "2. El tiempo fuera con broma: Si la tensión subía, uno decía «¡alerta de emergencia cósmica!» y bailaban una coreografía ridícula."
+    },
+    {
+      "blockId": "cms9j75bt00763mry6kxogu2l",
+      "order": 41,
+      "kind": "PARAGRAPH",
+      "sourceLine": 85,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "Resultados en 4 meses:"
+    },
+    {
+      "blockId": "cms9j75c100793mryhkx87fti",
+      "order": 42,
+      "kind": "PARAGRAPH",
+      "sourceLine": 87,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "* Los terrores de Laura desaparecieron."
+    },
+    {
+      "blockId": "cms9j75c8007c3mry7d28vdk0",
+      "order": 43,
+      "kind": "PARAGRAPH",
+      "sourceLine": 89,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "* Pablo reportó: «Ahora, cuando discutimos, Laura nos mira y dice: “Papá, usa tu voz de pato\"»."
+    },
+    {
+      "blockId": "cms9j75cg007f3mry6yw41joj",
+      "order": 44,
+      "kind": "HEADING",
+      "sourceLine": 91,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "El humor no es evasión: es un acto de reconexión. Un es-"
+    },
+    {
+      "blockId": "cms9j75ct007i3mryhqmakux0",
+      "order": 45,
+      "kind": "PARAGRAPH",
+      "sourceLine": 93,
+      "classification": "JOIN_ORPHAN_LINES",
+      "changed": true,
+      "content": "tudio de la Universidad de California (Keltner et al., 2001) demostró que las familias que usan el humor durante conflictos tienen niveles más bajos de cortisol (la hormona del estrés) y mayores picos de oxitocina."
+    },
+    {
+      "blockId": "cms9j75df007r3mryj3pd92m4",
+      "order": 48,
+      "kind": "PARAGRAPH",
+      "sourceLine": 99,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "Según el neurocientífico Stephen Porges, los niños absorben la calma o el caos a través del tono de voz y el contacto físico de sus padres. Cuando un bebé ve a sus padres abrazarse después de una pelea, su sistema nervioso registra: «El mundo es seguro incluso cuando hay conflicto» (Porges, 2011)."
+    },
+    {
+      "blockId": "cms9j75dt007u3mryf307owz1",
+      "order": 49,
+      "kind": "PARAGRAPH",
+      "sourceLine": 101,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "Las relaciones que perduran, como los árboles amazónicos, no son entidades aisladas. Son redes vivas donde cada gesto, cada risa, cada conflicto resuelto con creatividad alimenta a las generaciones futuras. Como escribió la poeta Maya Ange-"
+    },
+    {
+      "blockId": "cms9j75e2007x3mryvgjbg746",
+      "order": 50,
+      "kind": "PARAGRAPH",
+      "sourceLine": 103,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "lou: «Los hijos no recuerdan lo que intentaste enseñarles. Recuerdan lo que eres» (Angelou, 2008)."
+    },
+    {
+      "blockId": "cms9j75ea00803mrysqxcgqi8",
+      "order": 51,
+      "kind": "HEADING",
+      "sourceLine": 105,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "Un testimonio personal: Mireya y yo — Los abrazos que cruzaron el dolor"
+    },
+    {
+      "blockId": "cms9j75em00833mryz5del8gs",
+      "order": 52,
+      "kind": "PARAGRAPH",
+      "sourceLine": 107,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "Así como las raíces de los árboles se adaptan al terreno rocoso, el amor verdadero se reinventa ante la adversidad. En nuestra relación de matrimonio, los abrazos nocturnos y matutinos fueron siempre rituales sagrados."
+    },
+    {
+      "blockId": "cms9j75ev00863mry3cjbttdo",
+      "order": 53,
+      "kind": "PARAGRAPH",
+      "sourceLine": 109,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "— Es como recargar pilas —decía Mireya."
+    },
+    {
+      "blockId": "cms9j75f300893mrypunuyhnv",
+      "order": 54,
+      "kind": "PARAGRAPH",
+      "sourceLine": 111,
+      "classification": "UNRESOLVED_SOURCE_AMBIGUITY",
+      "changed": false,
+      "content": "Sin embargo, durante un año crítico, tres cirugías de cadera me obligaron a dormir boca arriba. imposibilitando esos abrazos laterales que nos unían. Poco : -uco, sin damos cuenta, la distancia física se filtró en nuest:.. conexión emocional."
+    },
+    {
+      "blockId": "cms9j75fa008c3mryf1fx8d1y",
+      "order": 55,
+      "kind": "PARAGRAPH",
+      "sourceLine": 113,
+      "classification": "CORRECT_OCR_SOURCE_VERIFIED",
+      "changed": true,
+      "content": "— Ya no nos sentíamos fríos, pero sí... desenchufados — confesó Mireya una noche, con voz temblorosa."
+    },
+    {
+      "blockId": "cms9j75fl008f3mryq95yefda",
+      "order": 56,
+      "kind": "PARAGRAPH",
+      "sourceLine": 115,
+      "classification": "UNRESOLVED_SOURCE_AMBIGUITY",
+      "changed": false,
+      "content": "Fue entonces cuando la ciencia que estudiamos en este capítulo se volvió nuestra aliada. Sabíamos, por estudios com el de Carter (2014), que el contacto físico —aunc ue fuera nimo— liberaba oxitocina, la hormona que reduc"
+    },
+    {
+      "blockId": "cms9j75io009c3mrylblxj2r9",
+      "order": 67,
+      "kind": "PARAGRAPH",
+      "sourceLine": 137,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "¡VAMOS A LA PRÁCTICA!"
+    },
+    {
+      "blockId": "cms9j75iw009f3mryeky8k8cp",
+      "order": 68,
+      "kind": "PARAGRAPH",
+      "sourceLine": 139,
+      "classification": "UNRESOLVED_SOURCE_AMBIGUITY",
+      "changed": false,
+      "content": "En medio del ritmo acelerado de la vida, te invito a derenernas, respirar y reconectar a través de pequeños rituales que alimentan el amor, la curiosidad y la presencia. Estos ejercicios son más que actividades: son puertas para redescubrimos, juntos."
+    },
+    {
+      "blockId": "cms9j75j9009i3mrystn5fc7e",
+      "order": 69,
+      "kind": "PARAGRAPH",
+      "sourceLine": 141,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "Ejercicio 1: El Ritual del Palo Santo Cotidiano 1. Cada noche, antes de dormir, enciendan una vara de palo santo (o una vela si no tienen)."
+    },
+    {
+      "blockId": "cms9j75jg009l3mry5a1jw042",
+      "order": 70,
+      "kind": "PARAGRAPH",
+      "sourceLine": 143,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "2. Abrácense en silencio durante 20 segundos, inhalando el aroma."
+    },
+    {
+      "blockId": "cms9j75jp009o3mryjlfy2tez",
+      "order": 71,
+      "kind": "PARAGRAPH",
+      "sourceLine": 145,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "3. Compartan una frase de gratitud específica: Ejemplo: «Gracias por guardar mi taza favorita hoy»,"
+    },
+    {
+      "blockId": "cms9j75k1009r3mrydn4atbot",
+      "order": 72,
+      "kind": "PARAGRAPH",
+      "sourceLine": 147,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "4. Registren en un diario cómo se sintieron física y emocionalmente tras una semana,"
+    },
+    {
+      "blockId": "cms9j75kd009u3mry11lu3zap",
+      "order": 73,
+      "kind": "HEADING",
+      "sourceLine": 149,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "Ejercicio 2: La Aventura Dopamínica Mensual"
+    },
+    {
+      "blockId": "cms9j75kt009x3mrykgnsmu9b",
+      "order": 74,
+      "kind": "PARAGRAPH",
+      "sourceLine": 151,
+      "classification": "CORRECT_OCR_SOURCE_VERIFIED",
+      "changed": true,
+      "content": "1. Cada mes, uno planifica una «cita sorpresa» con tres reglas:"
+    },
+    {
+      "blockId": "cms9j75l300a03mrybk4a0wcj",
+      "order": 75,
+      "kind": "PARAGRAPH",
+      "sourceLine": 153,
+      "classification": "UNRESOLVED_SOURCE_AMBIGUITY",
+      "changed": false,
+      "content": "o Debe ser en un lugar nuevo (ej: un parque d cido, un taller de cerámica)."
+    },
+    {
+      "blockId": "cms9j75lb00a33mryxdi0unk0",
+      "order": 76,
+      "kind": "PARAGRAPH",
+      "sourceLine": 155,
+      "classification": "UNRESOLVED_SOURCE_AMBIGUITY",
+      "changed": false,
+      "content": "plato étnico). ; A\" o Provocar vulnerabilidad divertida (ej: bailar < blico, cantar en un karaoke). le"
+    },
+    {
+      "blockId": "cms9j75lq00a63mryaml9eoh6",
+      "order": 77,
+      "kind": "PARAGRAPH",
+      "sourceLine": 157,
+      "classification": "UNRESOLVED_SOURCE_AMBIGUITY",
+      "changed": false,
+      "content": "2. Al final, respondan: «¿Qué descubrimos de 1osc el estrés diario nos hace olvidar?». mE."
+    },
+    {
+      "blockId": "cms9j75m000a93mryjb605jxh",
+      "order": 78,
+      "kind": "HEADING",
+      "sourceLine": 159,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "Ejercicio 3: El Mapa de las Miradas"
+    },
+    {
+      "blockId": "cms9j75m800ac3mryeb8ognro",
+      "order": 79,
+      "kind": "PARAGRAPH",
+      "sourceLine": 161,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "1. Siéntense frente a frente con las rodillas tocándose."
+    },
+    {
+      "blockId": "cms9j75mf00af3mryibnqns8g",
+      "order": 80,
+      "kind": "PARAGRAPH",
+      "sourceLine": 163,
+      "classification": "UNRESOLVED_SOURCE_AMBIGUITY",
+      "changed": false,
+      "content": "2. Mirense a los ojos en silencio durante 3 minutos (usen un cronómetro)."
+    },
+    {
+      "blockId": "cms9j75mx00ai3mry0tzkrubl",
+      "order": 81,
+      "kind": "PARAGRAPH",
+      "sourceLine": 165,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "3. Sin hablar, dibujen en hojas separadas lo que vieron en los ojos del otro (colores, emociones, recuerdos)."
+    },
+    {
+      "blockId": "cms9j75n400al3mryhim18qy4",
+      "order": 82,
+      "kind": "PARAGRAPH",
+      "sourceLine": 167,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "4. Compartan los dibujos y guárdenlos en un sobre etiquetado: «El día que redescubrimos nuestra luz»."
+    },
+    {
+      "blockId": "cms9j75nd00ao3mryk07b9iap",
+      "order": 83,
+      "kind": "PARAGRAPH",
+      "sourceLine": 169,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "Ejercicio 4: El Termómetro del Amor Consciente 1. Al final de cada mes, respondan individualmente: o ¿Cómo nutrimos la estabilidad este mes? (Ej: un plan"
+    },
+    {
+      "blockId": "cms9j75nr00ar3mryz5ytq44n",
+      "order": 84,
+      "kind": "HEADING",
+      "sourceLine": 171,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "financiero conjunto). o ¿Cómo alimentamos la satisfacción? (Ej: una cita sin"
+    },
+    {
+      "blockId": "cms9j75o000au3mryd17rzt3i",
+      "order": 85,
+      "kind": "PARAGRAPH",
+      "sourceLine": 173,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "celulares). o ¿Qué patrón heredado rompimos? (Ej: dejar de criticar, empezar a escuchar). 2. Compartan respuestas y elijan una acción concreta para"
+    },
+    {
+      "blockId": "cms9j75o800ax3mryle8l60nz",
+      "order": 86,
+      "kind": "PARAGRAPH",
+      "sourceLine": 175,
+      "classification": "KEEP",
+      "changed": false,
+      "content": "mejorar el próximo mes."
+    }
+  ]
+}

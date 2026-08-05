@@ -252,3 +252,207 @@ describe("Escuchar — the surface is the player", () => {
     expect(accessCalls()).toHaveLength(0);
   });
 });
+
+/**
+ * PODCAST_ITEMS=0_TO_N.
+ *
+ * A chapter may carry no episode, one, or several. Until this PR the panel
+ * called `.find()` and rendered the first — a second episode existed in the
+ * manifest and there was no way to reach it. These tests pin all three counts,
+ * plus the two states that must never cost a signing request.
+ */
+describe("PODCAST_ITEMS=0_TO_N", () => {
+  const EP = (n: number, over: Partial<ChapterMediaSummary> = {}) => ({
+    ...PODCAST,
+    mediaKey: `p${n}`,
+    title: `Episodio ${n}`,
+    description: `Conversación ${n}.`,
+    ...over,
+  });
+
+  /** Escuchar opens on Audiolibro; the podcast panel is one click away. */
+  async function openPodcast() {
+    fireEvent.click(screen.getByTestId("media-subformat-podcast"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+
+  it("0 items — says so, and asks for nothing", async () => {
+    renderListen([AUDIOBOOK]);
+    // With no episode at all the tab itself is not offered, which is the
+    // earliest honest answer. Nothing is requested either way.
+    expect(screen.queryByTestId("media-subformat-podcast")).toBeNull();
+    expect(accessCalls()).toHaveLength(0);
+  });
+
+  it("0 items but the tab is reachable — the empty state names the absence", async () => {
+    // A podcast announced for the chapter and then withdrawn leaves the family
+    // open through the audiobook; the panel must still answer for itself.
+    renderListen([AUDIOBOOK, EP(1, { availability: "COMING_SOON" })]);
+    expect(screen.getByTestId("media-subformat-podcast")).toBeInTheDocument();
+    expect(accessCalls()).toHaveLength(0);
+  });
+
+  it("1 item — plays it, and shows no picker for a single choice", async () => {
+    renderListen([AUDIOBOOK, EP(1)]);
+    await openPodcast();
+    await waitFor(() => expect(screen.getByText("Episodio 1")).toBeVisible());
+    expect(screen.queryByTestId("media-picker")).toBeNull();
+    expect(accessCalls()).toHaveLength(1);
+  });
+
+  it("N items — lists every episode and opens on the first playable one", async () => {
+    renderListen([AUDIOBOOK, EP(1), EP(2), EP(3)]);
+    await openPodcast();
+    await waitFor(() =>
+      expect(screen.getByTestId("media-picker")).toBeVisible(),
+    );
+    expect(screen.getByTestId("media-pick-p1")).toBeInTheDocument();
+    expect(screen.getByTestId("media-pick-p2")).toBeInTheDocument();
+    expect(screen.getByTestId("media-pick-p3")).toBeInTheDocument();
+    expect(screen.getByTestId("media-pick-p1")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    // One episode is showing, so exactly one URL was signed.
+    expect(accessCalls()).toHaveLength(1);
+  });
+
+  it("PODCAST_SELECTION_AUTOPLAY=false — picking another episode loads it without starting sound", async () => {
+    renderListen([AUDIOBOOK, EP(1), EP(2)]);
+    await openPodcast();
+    await waitFor(() =>
+      expect(screen.getByTestId("media-picker")).toBeVisible(),
+    );
+
+    fireEvent.click(screen.getByTestId("media-pick-p2"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    // The title now appears twice on purpose — as the panel heading and as its
+    // own row in the list — so the assertion is on the selection, not a count.
+    await waitFor(() =>
+      expect(screen.getByTestId("media-pick-p2")).toHaveAttribute(
+        "aria-current",
+        "true",
+      ),
+    );
+    expect(screen.getAllByText("Episodio 2").length).toBeGreaterThan(0);
+    // The browser's own player, and never an autoplay attribute on it.
+    const player = screen.getByLabelText("Podcast del capítulo");
+    expect(player).not.toHaveAttribute("autoplay");
+    expect(accessCalls()).toHaveLength(2);
+  });
+
+  it("PODCAST_COMING_SOON_ACCESS_REQUESTS=0 — every episode unproduced disables the tab itself", async () => {
+    // The standard answers this one BEFORE the panel does: a format with
+    // nothing playable is disabled, so the panel never mounts and nothing is
+    // signed. Clicking the tab is inert.
+    renderListen([
+      AUDIOBOOK,
+      EP(1, { availability: "COMING_SOON" }),
+      EP(2, { availability: "COMING_SOON" }),
+    ]);
+    const tab = screen.getByTestId("media-subformat-podcast");
+    expect(tab).toHaveAttribute("aria-disabled", "true");
+
+    await openPodcast();
+    expect(tab).toHaveAttribute("aria-selected", "false");
+    expect(screen.queryByTestId("media-picker")).toBeNull();
+    expect(screen.queryByLabelText("Podcast del capítulo")).toBeNull();
+    expect(accessCalls()).toHaveLength(0);
+  });
+
+  it("PODCAST_COMING_SOON_ROW_INERT=true — an unproduced episode is listed and unreachable", async () => {
+    // Mixed: one produced, one not. The tab opens on the playable episode and
+    // the announced one is shown, disabled, and costs no signing request.
+    renderListen([AUDIOBOOK, EP(1), EP(2, { availability: "COMING_SOON" })]);
+    await openPodcast();
+    await waitFor(() =>
+      expect(screen.getByTestId("media-picker")).toBeVisible(),
+    );
+
+    const unproduced = screen.getByTestId("media-pick-p2");
+    expect(unproduced).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("En producción")).toBeVisible();
+
+    const before = accessCalls().length;
+    fireEvent.click(unproduced);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    // Still on the produced episode, and no second URL was signed.
+    expect(screen.getByTestId("media-pick-p1")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    expect(accessCalls()).toHaveLength(before);
+  });
+
+  it("error + retry — says which thing failed and offers both ways forward", async () => {
+    fetchSpy.mockImplementation(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (async () => new Response("{}", { status: 500 })) as any,
+    );
+    renderListen([AUDIOBOOK, EP(1)]);
+    await openPodcast();
+    await waitFor(() =>
+      expect(
+        screen.getByText("No pudimos preparar este episodio."),
+      ).toBeVisible(),
+    );
+    expect(screen.getByText("Reintentar")).toBeInTheDocument();
+    expect(screen.getByText("← Volver al libro")).toHaveAttribute(
+      "href",
+      "/dashboard/biblioteca/emociones-en-construccion",
+    );
+
+    const before = accessCalls().length;
+    fireEvent.click(screen.getByText("Reintentar"));
+    await waitFor(() => expect(accessCalls().length).toBe(before + 1));
+  });
+});
+
+/**
+ * Escuchar is a format, not a second reader, and it measures nothing.
+ * Same reasoning as the video surface — see `ChapterMediaWatch.test.tsx`.
+ */
+describe("PODCAST_SURFACE_IS_NOT_THE_READER", () => {
+  const EP2 = (n: number) => ({
+    ...PODCAST,
+    mediaKey: `q${n}`,
+    title: `Episodio ${n}`,
+  });
+
+  it("shows no chapter text, no exercises and no «marcar como leído»", async () => {
+    renderListen([AUDIOBOOK, EP2(1)]);
+    fireEvent.click(screen.getByTestId("media-subformat-podcast"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByText(/Marcar capítulo/i)).toBeNull();
+    expect(screen.queryByText(/Ideas clave/i)).toBeNull();
+    expect(screen.queryByText(/Actividades/i)).toBeNull();
+    expect(screen.queryByText(/Referencias/i)).toBeNull();
+  });
+
+  it("AUTOMATIC_EMOTIONAL_MAP_WRITES=0 · AUTOMATIC_RESONANCE_WRITES=0", async () => {
+    renderListen([AUDIOBOOK, EP2(1), EP2(2)]);
+    fireEvent.click(screen.getByTestId("media-subformat-podcast"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("media-picker")).toBeVisible(),
+    );
+    fireEvent.click(screen.getByTestId("media-pick-q2"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const written = fetchSpy.mock.calls.filter((c) =>
+      /\/(mood|resonances|emotional-map)/.test(String(c[0])),
+    );
+    expect(written).toHaveLength(0);
+  });
+});

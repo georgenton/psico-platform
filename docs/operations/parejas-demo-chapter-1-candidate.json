@@ -4,9 +4,17 @@
   "editorialChapter": 1,
   "source": "OCR",
   "editionStatus": "PROVISIONAL_DEMO",
-  "candidateRevision": 2,
+  "currentStorageModel": "LEGACY_CHAPTER_BLOCK",
+  "candidateId": "parejas-ch1-ocr-cleanup-draft-1",
+  "contentCoreRevisionCreated": false,
+  "candidatePublished": false,
   "status": "DRAFT_NOT_PUBLISHED",
   "applyStrategy": "IN_PLACE_UPDATE_PRESERVING_BLOCK_IDS",
+  "partialCleanup": true,
+  "sourceNonEmptyLines": 88,
+  "sourceTitleLines": 1,
+  "publishedSourceBlocks": 87,
+  "candidateBlocks": 62,
   "blocks": [
     {
       "blockId": "cms9j754e004r3mry084sb97o",

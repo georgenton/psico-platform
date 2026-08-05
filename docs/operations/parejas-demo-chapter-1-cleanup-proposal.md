@@ -6,10 +6,16 @@ STATUS=PROVISIONAL_DEMO
 FINAL_EDITION=false
 AUTHOR_APPROVAL_REQUIRED=true
 
-CURRENT_REVISION=1
-CANDIDATE_REVISION=2
+CURRENT_STORAGE_MODEL=LEGACY_CHAPTER_BLOCK
+PUBLISHED_SOURCE_BLOCKS=87
+CANDIDATE_ID=parejas-ch1-ocr-cleanup-draft-1
+CONTENT_CORE_REVISION_CREATED=false
 CANDIDATE_PUBLISHED=false
 PRODUCTION_CHANGED=false
+
+PARTIAL_CLEANUP=true
+UNRESOLVED_BLOCKS=13
+FINAL_READER_QUALITY_APPROVED=false
 ```
 
 Esto es una **propuesta**. No aplica nada, no publica nada y no toca producción.
@@ -27,7 +33,9 @@ SOURCE_SHA256=7b87d8328c7efd61bd57b988b9c087c35caa2bdffe0e775329348189374e0167
 MANIFEST_SHA256=d60a56b2e500cd985f4a439a6ab10cbbd84963e4df3a6b4bfde071d246923cb1
 SOURCE_SHA256_MATCH=true
 MANIFEST_SHA256_MATCH=true
-SOURCE_NONEMPTY_BLOCKS=88
+SOURCE_NONEMPTY_LINES=88
+SOURCE_TITLE_LINES=1
+PUBLISHED_SOURCE_BLOCKS=87
 ```
 
 Los dos hashes coinciden con los declarados en el plan, así que este documento
@@ -35,7 +43,10 @@ describe exactamente los mismos bytes.
 
 Las 88 líneas no vacías se reparten así: la primera es el `# título` que la
 ingesta consume como título del capítulo, y las 87 restantes son los bloques
-publicados. La revisión productiva se leyó **solo lectura** por la API
+publicados. El capítulo se sirve desde `ChapterBlock` **legado**: ahí no hay
+numeración de revisiones, así que este documento ya no habla de «revisión 1 → 2»
+—eso sería inventar una semántica que el almacenamiento no tiene— sino de un
+candidato con nombre, `parejas-ch1-ocr-cleanup-draft-1`. La revisión productiva se leyó **solo lectura** por la API
 autenticada (`GET /api/lector/parejas-que-perduran/2`) y alinea **87 de 87** con
 la fuente, contenido idéntico. Por eso los `blockId` de este documento son los
 reales, no supuestos.
@@ -122,7 +133,8 @@ David.
 [`parejas-demo-chapter-1-candidate.json`](./parejas-demo-chapter-1-candidate.json)
 
 ```
-CANDIDATE_REVISION=2
+CANDIDATE_ID=parejas-ch1-ocr-cleanup-draft-1
+CONTENT_CORE_REVISION_CREATED=false
 STATUS=DRAFT_NOT_PUBLISHED
 APPLY_STRATEGY=IN_PLACE_UPDATE_PRESERVING_BLOCK_IDS
 
@@ -139,9 +151,23 @@ UNEXPLAINED_CONTENT_LOSS=0
 NEW_UNSUPPORTED_PROSE=0
 ```
 
-Se retiran 23 bloques y ninguno se lleva contenido con él: 14 son residuo de
-escaneo o nuestra propia nota, y los 9 restantes son duplicados cuyo original
-permanece. Cada retirada tiene su motivo escrito en el mapa.
+```
+NO_UNIQUE_EDITORIAL_CONTENT_IDENTIFIED_IN_REMOVALS=true
+```
+
+Esa afirmación es más débil que «ninguna retirada se lleva contenido», y lo es a
+propósito. Lo que se puede sostener, retirada por retirada:
+
+- **nueve** bloques tienen un duplicado superviviente — ahí la pérdida es cero y
+  se puede comprobar comparando las dos copias;
+- **uno** es una nota técnica nuestra, no del libro;
+- los **trece** restantes se clasifican como residuo de escaneo en el que **no se
+  identificó contenido editorial único**. Eso no es lo mismo que demostrar que no
+  lo había: `MES A` o `r FE "CA` no dejan nada que leer, pero la confirmación
+  definitiva sigue dependiendo de la página original.
+
+Y el capítulo no queda limpio: `PARTIAL_CLEANUP=true`, con 13 bloques dañados
+intactos. `FINAL_READER_QUALITY_APPROVED=false`.
 
 ## 4. Marcas de lectura — cómo hay que aplicar esto
 
@@ -170,7 +196,53 @@ Por eso el candidato declara `APPLY_STRATEGY=IN_PLACE_UPDATE_PRESERVING_BLOCK_ID
 23 que se van, y para los 2 absorbidos una decisión editorial sobre qué hacer
 con sus marcas antes de borrarlos.
 
-Queda una cosa sin demostrar, y es la que bloquea publicar:
+### Qué referencia hoy a estos bloques
+
+Inventario **de solo lectura** contra producción. Solo conteos: ningún
+identificador, ningún texto de marca, ninguna identidad.
+
+```
+HIGHLIGHTS_ON_CORRECTED_BLOCKS=0
+HIGHLIGHTS_ON_MERGED_BLOCKS=0
+HIGHLIGHTS_ON_REMOVED_BLOCKS=0
+
+ANNOTATIONS_ON_CORRECTED_BLOCKS=0
+ANNOTATIONS_ON_MERGED_BLOCKS=0
+ANNOTATIONS_ON_REMOVED_BLOCKS=0
+
+READING_SESSIONS_ON_MERGED_BLOCKS=0
+READING_SESSIONS_ON_REMOVED_BLOCKS=1
+
+OTHER_BLOCK_REFERENCES_FOUND=ninguna
+OTHER_REFERENCES_ON_AFFECTED_BLOCKS=0
+```
+
+El barrido del esquema encontró exactamente tres referencias a un bloque:
+`Highlight.blockId`, `Annotation.blockId` y `ReadingSession.lastBlockId`.
+`BookBookmark` ancla en el libro, no en un bloque, así que no entra.
+
+Nadie ha resaltado ni anotado nada en este capítulo. Pero **una sesión de
+lectura apunta a un bloque que la limpieza borraría**, y `lastBlockId` es un
+`String` suelto, sin clave foránea: borrar ese bloque no lo pone a `null`, lo
+deja apuntando a una fila que ya no existe. Alguien perdería su «seguir donde lo
+dejaste» sin que nada falle ruidosamente.
+
+### Regla de aplicación
+
+| Situación                            | Qué se puede hacer                                       |
+| ------------------------------------ | -------------------------------------------------------- |
+| Bloque corregido **con** highlights  | No se actualiza hasta resolver los offsets               |
+| Bloque absorbido **con** referencias | No se elimina hasta migrarlas todas a su `newBlockId`    |
+| Bloque retirado **con** referencias  | No se elimina hasta decidir destino o retirada explícita |
+| Bloque **sin** referencias           | Puede seguir en la propuesta de aplicación               |
+
+Con los conteos de arriba: las 5 correcciones y 22 de las 23 retiradas caen en
+la última fila. **Una retirada no**, la que sostiene esa sesión de lectura.
+
+Esto no implementa migración de marcas ni un framework para ello: describe la
+condición que hay que cumplir antes de tocar cada bloque.
+
+### Lo que bloquea publicar
 
 ```
 MARKS_VISIBILITY_VERIFIED=false
@@ -179,18 +251,44 @@ MARKS_VISIBILITY_VERIFIED=false
 Un `UPDATE` in situ conserva el `id`, pero `Highlight.startOffset`/`endOffset`
 son posiciones de caracteres dentro del texto del bloque: corregir «la
 responsablede | las» → «la responsable de las» desplaza cada offset posterior de
-ese bloque. Ninguno de los cinco bloques corregidos ha sido comprobado con un
-resaltado real antes y después. **Eso hay que hacerlo con un resaltado de verdad
-sobre un bloque de verdad, no razonarlo.**
+ese bloque. Hoy no hay resaltados ahí, así que el riesgo es futuro, no actual —
+pero la regla tiene que existir antes de que alguien resalte.
+
+Cómo se comprueba, sin fabricar datos en producción:
+
+1. **Inventario de solo lectura** de las marcas existentes (hecho, arriba).
+2. **Fixture local** que reproduzca el desplazamiento de offsets sobre los cinco
+   bloques corregidos.
+3. **Smoke posterior**, únicamente cuando se autorice la aplicación.
+
+```
+PRODUCTION_TEST_MARK_CREATED=false
+```
+
+No se creó ninguna marca de prueba en producción, y no se propone crearla: sería
+escribir datos de un usuario real para validar una herramienta nuestra.
+
+### Qué demuestran los tests de este PR
+
+```
+PROPOSAL_INTERNAL_CONSISTENCY_VERIFIED=true
+EDITORIAL_CORRECTNESS_VERIFIED=false
+MARKS_VISIBILITY_VERIFIED=false
+GUIDE_ANCHORS_VERIFIED=true
+```
+
+Los tests comprueban que la propuesta es coherente consigo misma —cada bloque
+contabilizado, cada retirada con motivo, nada inventado, el ancla del Guide
+intacta—. **No** comprueban que las correcciones sean editorialmente correctas,
+y **no** comprueban que una marca sobreviva a la aplicación.
 
 ## 5. Qué falta para poder aplicar
 
 1. Aprobación de David sobre las 5 correcciones y las 23 retiradas.
 2. Revisión editorial de los 13 bloques `UNRESOLVED` contra el original.
-3. Prueba de visibilidad de marcas: crear un resaltado sobre uno de los bloques
-   corregidos, aplicar, y verificar que sigue donde debe.
-4. Decisión sobre las marcas de los 2 bloques absorbidos.
+3. Decidir qué pasa con la sesión de lectura anclada en un bloque a retirar.
+4. Fixture de offsets para los 5 bloques corregidos.
 5. Si la revisión editorial toca L33, actualizar `PAREJAS_READER_ANCHOR` en el
    mismo cambio.
 
-Hasta que 1–3 estén hechos, esto no se publica.
+Hasta que 1–4 estén hechos, esto no se publica.

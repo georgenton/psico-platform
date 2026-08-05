@@ -34,7 +34,15 @@ const mapping = read("parejas-demo-chapter-1-block-mapping.json") as Record<
 const candidate = read("parejas-demo-chapter-1-candidate.json") as {
   bookSlug: string;
   chapterOrder: number;
-  candidateRevision: number;
+  candidateId: string;
+  currentStorageModel: string;
+  contentCoreRevisionCreated: boolean;
+  candidatePublished: boolean;
+  partialCleanup: boolean;
+  sourceNonEmptyLines: number;
+  sourceTitleLines: number;
+  publishedSourceBlocks: number;
+  candidateBlocks: number;
   status: string;
   applyStrategy: string;
   blocks: {
@@ -51,9 +59,10 @@ const candidate = read("parejas-demo-chapter-1-candidate.json") as {
 const text = candidate.blocks.map((b) => b.content).join("\n");
 
 describe("Parejas cleanup — the proposal accounts for every block", () => {
-  it("SOURCE_BLOCKS=87 — one mapping entry per published block", () => {
-    // 88 non-empty source lines: the first is the `# heading` the ingest
-    // consumes as the chapter title, the other 87 are the published blocks.
+  it("88 source lines − 1 title = 87 published blocks, one mapping entry each", () => {
+    expect(candidate.sourceNonEmptyLines).toBe(88);
+    expect(candidate.sourceTitleLines).toBe(1);
+    expect(candidate.publishedSourceBlocks).toBe(87);
     expect(Object.keys(mapping)).toHaveLength(87);
   });
 
@@ -136,6 +145,8 @@ describe("Parejas cleanup — nothing was invented", () => {
       (b) => b.classification === "UNRESOLVED_SOURCE_AMBIGUITY",
     );
     expect(unresolved.length).toBe(13);
+    // The chapter does not come out clean, and the candidate says so.
+    expect(candidate.partialCleanup).toBe(true);
     // Damaged and untouched: this is what "we did not write prose for David"
     // looks like as an assertion.
     for (const b of unresolved)
@@ -146,6 +157,28 @@ describe("Parejas cleanup — nothing was invented", () => {
     for (const marker of ["TODO", "FIXME", "XXX", "<placeholder", "LOREM"]) {
       expect(text.toUpperCase(), marker).not.toContain(marker.toUpperCase());
     }
+  });
+});
+
+describe("Parejas cleanup — the mark inventory is on the record", () => {
+  it("carries the read-only counts and the honest gates", () => {
+    const proposal = readFileSync(
+      join(DOCS, "parejas-demo-chapter-1-cleanup-proposal.md"),
+      "utf8",
+    );
+    for (const line of [
+      "HIGHLIGHTS_ON_CORRECTED_BLOCKS=0",
+      "ANNOTATIONS_ON_REMOVED_BLOCKS=0",
+      "READING_SESSIONS_ON_REMOVED_BLOCKS=1",
+      "PRODUCTION_TEST_MARK_CREATED=false",
+      "MARKS_VISIBILITY_VERIFIED=false",
+      "EDITORIAL_CORRECTNESS_VERIFIED=false",
+      "NO_UNIQUE_EDITORIAL_CONTENT_IDENTIFIED_IN_REMOVALS=true",
+    ]) {
+      expect(proposal, line).toContain(line);
+    }
+    // What these tests prove, and what they do not.
+    expect(proposal).toContain("PROPOSAL_INTERNAL_CONSISTENCY_VERIFIED=true");
   });
 });
 
@@ -172,7 +205,14 @@ describe("Parejas cleanup — the Guide anchor still resolves", () => {
 
 describe("Parejas cleanup — it is a proposal, not an apply", () => {
   it("CANDIDATE_PUBLISHED=false and the apply preserves ids", () => {
-    expect(candidate.candidateRevision).toBe(2);
+    // A named draft, not "revision 2": the chapter is served from the legacy
+    // `ChapterBlock` table, which has no revision numbering to speak of.
+    // Claiming one would invent a semantics the storage does not have.
+    expect(candidate.candidateId).toBe("parejas-ch1-ocr-cleanup-draft-1");
+    expect(candidate).not.toHaveProperty("candidateRevision");
+    expect(candidate.currentStorageModel).toBe("LEGACY_CHAPTER_BLOCK");
+    expect(candidate.contentCoreRevisionCreated).toBe(false);
+    expect(candidate.candidatePublished).toBe(false);
     expect(candidate.status).toBe("DRAFT_NOT_PUBLISHED");
     // Re-ingesting would delete every block row and orphan every mark, so the
     // strategy is an in-place update. See the proposal §4.

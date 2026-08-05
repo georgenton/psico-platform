@@ -2926,7 +2926,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 **Contexto:** para probar la app con un usuario real (entrar, leer, subrayar, anotar, conversar con Eco, ver cómo lo mide el Mapa) hacía falta texto de verdad. El usuario aportó los 3 primeros capítulos de *Emociones en Construcción* (Parte I) en prosa. Actividades y videos aún no existen como features → se colocan **mocks** para que esos bloques rendericen y el flujo se vea completo.
 
 **Lo que se construyó:**
-- **`apps/api/scripts/ingest-chapter-md.mjs`** — parser heurístico Markdown **o** prosa plana → `ChapterBlock`s. Primera línea = título; líneas cortas sin punto = headings; el resto = párrafos. Secciones "Actividades" → sus párrafos como `EXERCISE` + una card `✍️` mock. Inyecta una `PAUSE` de respiración ~45 % y una card `🎬 Video (próximamente)` antes de referencias. Idempotente por REEMPLAZO (`deleteMany` + `createMany`). Lee sidecars `titles.json` / `parts.json`.
+- **`apps/api/scripts/ingest-chapter-md.mjs`** — parser heurístico Markdown **o** prosa plana → `ChapterBlock`s. Primera línea = título; líneas cortas sin punto = headings; el resto = párrafos. Secciones "Actividades" → sus párrafos como `EXERCISE` + una card `✍️` mock. Inyecta una `PAUSE` de respiración ~45 % y una card `🎬 Video (próximamente)` antes de referencias. Repetible a nivel del contenido, pero **no** idempotente respecto a `blockId` y sus referencias: ejecuta `deleteMany` + `createMany`. Lee sidecars `titles.json` / `parts.json`.
 
   > **Corrección posterior (2026-08-05).** Esta entrada decía «⚠️ cascade sobre highlights/annotations». Era cierto cuando se escribió, y dejó de serlo con la migración `20260717000000_cc6c_stable_mark_storage`, que soltó ambas FK y las recreó:
   >

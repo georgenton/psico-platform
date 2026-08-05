@@ -379,9 +379,11 @@ export class LectorService {
     // The title is the chapter's own title, with no number in front of it.
     // `chapter.order` is where the unit sits in the reading sequence; in a
     // book whose first unit is a preface it runs one ahead of the editorial
-    // number, so prefixing it here would put a wrong chapter number on the
-    // lock screen. No layer stores an editorial label yet — when one exists,
-    // this is where it goes.
+    // number, so prefixing it here would put a wrong chapter number in front
+    // of the reader. This metadata is what the WEB player renders — and what
+    // a future media client could hand to the OS. The mobile lock screen
+    // today reads the embedded ID3/M4A tags instead, as the note above says.
+    // No layer stores an editorial label yet — when one exists, it goes here.
     const metadata: LectorAudioMetadata = {
       title: chapter.title,
       subtitle: book.title,

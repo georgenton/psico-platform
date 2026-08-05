@@ -174,6 +174,13 @@ describe("Parejas cleanup — the mark inventory is on the record", () => {
       "MARKS_VISIBILITY_VERIFIED=false",
       "EDITORIAL_CORRECTNESS_VERIFIED=false",
       "NO_UNIQUE_EDITORIAL_CONTENT_IDENTIFIED_IN_REMOVALS=true",
+      "READING_SESSION_LAST_BLOCK_REMAP_REQUIRED=true",
+      // CC-6C changed these from CASCADE to SET NULL and added the anchor
+      // CHECK. Verified against the live database, not just the schema file:
+      // getting this backwards changes what a re-ingest does to real marks.
+      "Highlight.blockId    → ChapterBlock.id · ON DELETE SET NULL",
+      "Annotation.blockId   → ChapterBlock.id · ON DELETE SET NULL",
+      "ReadingSession.lastBlockId → String nullable · SIN clave foránea",
     ]) {
       expect(proposal, line).toContain(line);
     }

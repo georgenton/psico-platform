@@ -187,9 +187,30 @@ MARKS_REQUIRE_MAPPING=true
 De ahí sale el segundo hallazgo operativo. El camino que el plan §5 describía
 —corregir el archivo fuente y re-ingestar— **no se puede usar**:
 `apps/api/scripts/ingest-chapter-md.mjs` hace `deleteMany` y luego `createMany`
-(líneas 330–331). Cada bloque recibe un `id` nuevo, y con la FK
-`onDelete: SetNull` de `Highlight.blockId` cada resaltado del capítulo queda sin
-ancla — cuando el `CHECK` de al menos un ancla no aborte el borrado antes.
+(líneas 330–331). Cada bloque recibe un `id` nuevo.
+
+Qué pasa entonces con las marcas depende de la regla de borrado, y esa regla
+cambió a mitad de camino. Conviene dejarla escrita, porque la creencia antigua
+sigue circulando:
+
+```
+Highlight.blockId    → ChapterBlock.id · ON DELETE SET NULL   (+ CHECK de ancla)
+Annotation.blockId   → ChapterBlock.id · ON DELETE SET NULL   (+ CHECK de ancla)
+ReadingSession.lastBlockId → String nullable · SIN clave foránea
+```
+
+La migración de S6 (`20260602100000`) las creó como `ON DELETE CASCADE`. La de
+CC-6C (`20260717000000_cc6c_stable_mark_storage`) las **soltó y las recreó como
+`ON DELETE SET NULL`**, y añadió el `CHECK` de «al menos un ancla». Su propio
+comentario lo explica: una marca solo-legado (`contentBlockId` nulo) no puede
+desanclarse sin violar el `CHECK`, así que lo que se bloquea es el borrado del
+bloque. Verificado además contra la base de producción, solo lectura:
+`Highlight_blockId_fkey` y `Annotation_blockId_fkey` son ambas `SET NULL`, los
+dos `CHECK` de ancla existen, y `ReadingSession.lastBlockId` no tiene FK.
+
+Es decir: re-ingestar no borra silenciosamente los resaltados legados — falla, o
+los desancla si tienen ancla de Content Core. Ninguna de las dos cosas es
+aceptable para una limpieza de contenido.
 
 Por eso el candidato declara `APPLY_STRATEGY=IN_PLACE_UPDATE_PRESERVING_BLOCK_IDS`:
 `UPDATE` de `content` sobre los 62 `id` que sobreviven, `DELETE` explícito de los
@@ -215,6 +236,11 @@ READING_SESSIONS_ON_REMOVED_BLOCKS=1
 
 OTHER_BLOCK_REFERENCES_FOUND=ninguna
 OTHER_REFERENCES_ON_AFFECTED_BLOCKS=0
+
+CURRENT_HIGHLIGHT_DELETION_RISK=none_present
+CURRENT_ANNOTATION_DELETION_RISK=none_present
+CURRENT_DANGLING_READING_SESSION_RISK=1
+READING_SESSION_LAST_BLOCK_REMAP_REQUIRED=true
 ```
 
 El barrido del esquema encontró exactamente tres referencias a un bloque:
@@ -238,6 +264,18 @@ dejaste» sin que nada falle ruidosamente.
 
 Con los conteos de arriba: las 5 correcciones y 22 de las 23 retiradas caen en
 la última fila. **Una retirada no**, la que sostiene esa sesión de lectura.
+
+Y una condición adicional, concreta para esa sesión:
+
+```
+READING_SESSION_LAST_BLOCK_REMAP_REQUIRED=true
+```
+
+Antes de eliminar ese bloque, su `lastBlockId` tiene que apuntar a un bloque
+superviviente adecuado o quedar explícitamente reiniciado. **Cuál** de las dos
+cosas no se decide aquí: es una decisión de producto sobre dónde debería
+retomar esa persona, no un detalle de implementación. Esta propuesta no toca
+esa fila.
 
 Esto no implementa migración de marcas ni un framework para ello: describe la
 condición que hay que cumplir antes de tocar cada bloque.

@@ -203,33 +203,53 @@ describe("chapter media catalog — registry", () => {
 });
 
 describe("chapter media catalog — the production registry", () => {
-  it("holds exactly the three approved chapter-1 definitions", () => {
+  it("holds exactly the approved definitions for the two books", () => {
     expect(
       PRODUCTION_CHAPTER_MEDIA.map((d) => [d.mediaKey, d.kind, d.status]),
     ).toEqual([
       ["eec-c1-audiobook-v1", "AUDIOBOOK", "PUBLISHED"],
-      ["eec-c1-podcast-v1", "PODCAST", "DRAFT"],
+      ["eec-c1-podcast-v1", "PODCAST", "PUBLISHED"],
       ["eec-c1-video-v1", "VIDEO", "DRAFT"],
+      ["par-c2-audiobook-v1", "AUDIOBOOK", "PUBLISHED"],
+      ["par-c2-podcast-v1", "PODCAST", "PUBLISHED"],
+      ["par-c2-video-v1", "VIDEO", "DRAFT"],
     ]);
-    expect(productionChapterMediaRegistry.size).toBe(3);
+    expect(productionChapterMediaRegistry.size).toBe(6);
   });
 
-  it("reuses the existing chapter audio for the audiobook", () => {
-    const audiobook = productionChapterMediaRegistry.getExact(
-      "eec-c1-audiobook-v1",
-    );
-    expect(audiobook.source).toEqual({ kind: "CHAPTER_AUDIO" });
-    expect(audiobook.accessPolicy).toBe("PRO_ONLY");
+  it("reuses the existing chapter audio for both audiobooks", () => {
+    for (const key of ["eec-c1-audiobook-v1", "par-c2-audiobook-v1"]) {
+      const audiobook = productionChapterMediaRegistry.getExact(key);
+      expect(audiobook.source).toEqual({ kind: "CHAPTER_AUDIO" });
+      expect(audiobook.accessPolicy).toBe("PRO_ONLY");
+    }
   });
 
-  it("invents no provider reference for the two unproduced formats", () => {
-    for (const key of ["eec-c1-podcast-v1", "eec-c1-video-v1"]) {
+  it("invents no provider reference for the unproduced videos", () => {
+    // Both videos are blocked on Cloudflare Stream, which production does not
+    // have configured. A `videoUid` here would be an invented provider fact.
+    for (const key of ["eec-c1-video-v1", "par-c2-video-v1"]) {
       const def = productionChapterMediaRegistry.getExact(key);
+      expect(def.status).toBe("DRAFT");
       expect(def.source).toBeNull();
       expect(def.accessPolicy).toBeNull();
       expect(def.durationSec).toBeNull();
       expect(def.posterObjectKey).toBeNull();
       expect(def.transcriptObjectKey).toBeNull();
+    }
+  });
+
+  it("names every published R2 object by key, never by URL", () => {
+    // `objectKey` is a storage path, not a secret — and it is the one thing
+    // that MUST be a key: a URL here would be a signed link pasted into
+    // reviewed code, which is the mistake this grammar exists to catch.
+    const r2 = PRODUCTION_CHAPTER_MEDIA.filter(
+      (d) => d.source?.kind === "R2",
+    ).map((d) => (d.source as { objectKey: string }).objectKey);
+    expect(r2.length).toBeGreaterThan(0);
+    for (const key of r2) {
+      expect(key).toMatch(/^[a-z0-9][a-z0-9._:/-]*$/);
+      expect(key).not.toContain("://");
     }
   });
 
@@ -239,7 +259,6 @@ describe("chapter media catalog — the production registry", () => {
     expect(serialized).not.toMatch(/token/i);
     expect(serialized).not.toMatch(/secret/i);
     expect(serialized).not.toMatch(/videoUid/);
-    expect(serialized).not.toMatch(/objectKey/);
     expect(serialized).not.toMatch(/userId/i);
   });
 

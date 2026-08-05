@@ -171,6 +171,40 @@ const MEASURE = `(() => {
     const cs = getComputedStyle(el);
     return { minWidth: cs.minWidth, width: cs.width };
   })();
+  // The audiobook transcript. Reported as null when the state under test does
+  // not show one, so the assertions below simply skip rather than invent.
+  const transcript = (() => {
+    const region = document.querySelector('#audio-transcript-region');
+    const heading = document.querySelector('#audio-transcript-heading');
+    if (!region || !heading) return null;
+    const segs = [...region.querySelectorAll('[data-testid^="transcript-segment-"]')];
+    const rr = region.getBoundingClientRect();
+    const audioEl = document.querySelector('[data-gr2="media-surface"] audio')
+      ?? document.querySelector('audio');
+    return {
+      region: { y: Math.round(rr.y), left: Math.round(rr.left), right: Math.round(rr.right) },
+      playerBottom: audioEl
+        ? Math.round(audioEl.getBoundingClientRect().bottom)
+        : null,
+      headingY: Math.round(heading.getBoundingClientRect().y),
+      segments: segs.length,
+      // A segment wider than the box it sits in means the sentence is cut off
+      // sideways — the failure this check exists for.
+      clippedSideways: segs.filter((el) => el.scrollWidth > el.clientWidth + 1).length,
+      // Every segment must be a real, tappable, on-screen control.
+      outsideX: segs.filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.left < -1 || r.right > window.innerWidth + 1;
+      }).length,
+      shortestTapTarget: segs.length
+        ? Math.round(Math.min(...segs.map((el) => el.getBoundingClientRect().height)))
+        : null,
+      // The region may scroll inside itself; that is the design. What it may
+      // not do is widen the page.
+      selfScrollsY: region.scrollHeight > region.clientHeight,
+      overflowsX: region.scrollWidth > region.clientWidth + 1,
+    };
+  })();
   return {
     innerWidth: window.innerWidth,
     docScrollWidth: document.documentElement.scrollWidth,
@@ -186,6 +220,7 @@ const MEASURE = `(() => {
     mediaSurface: box('[data-gr2="media-surface"]'),
     audio: box('[data-gr2="media-surface"] audio'),
     ecoCardContentWidth: contentWidth('[data-gr2="eco-card"]'),
+    transcript,
     controlsOutsideViewport: outside,
     clickTargetsIntercepted: intercepted,
   };
@@ -194,6 +229,7 @@ const MEASURE = `(() => {
 // ── tiny assertion runner ───────────────────────────────────────────────────
 let failures = 0;
 let checks = 0;
+let skipped = 0;
 function check(label, ok, detail) {
   checks += 1;
   if (ok) return;
@@ -286,6 +322,34 @@ function assertUniversal(where, m) {
       JSON.stringify(m.audio),
     );
   }
+  if (m.transcript) {
+    const t = m.transcript;
+    check(
+      `${where}: the transcript sits below the player`,
+      t.playerBottom === null || t.headingY >= t.playerBottom - 1,
+      JSON.stringify({ headingY: t.headingY, playerBottom: t.playerBottom }),
+    );
+    check(
+      `${where}: the transcript fits the viewport sideways`,
+      t.region.left >= 0 && t.region.right <= m.innerWidth,
+      JSON.stringify(t.region),
+    );
+    check(
+      `${where}: no transcript line is cut off sideways`,
+      t.clippedSideways === 0 && t.overflowsX === false,
+      JSON.stringify({ clipped: t.clippedSideways, overflowsX: t.overflowsX }),
+    );
+    check(
+      `${where}: every transcript segment is inside the viewport`,
+      t.outsideX === 0,
+      `outside=${t.outsideX}`,
+    );
+    check(
+      `${where}: transcript segments are tappable`,
+      t.shortestTapTarget === null || t.shortestTapTarget >= 44,
+      `shortest=${t.shortestTapTarget}`,
+    );
+  }
   if (m.ecoCardContentWidth !== null) {
     // Enough room for a line of Spanish prose, not a one-word column.
     check(
@@ -300,9 +364,25 @@ const browser = await chromium.launch({ channel: "chrome" }).catch(() =>
   chromium.launch(),
 );
 
-// One login, reused: the API throttles /auth/login per IP.
+// One login, reused: the API throttles /auth/login per IP (5 per 15 minutes).
+// Across RUNS too — iterating on this file used to burn the whole allowance in
+// a few minutes and then fail at the login step, which reads like a broken app
+// and is not. So a recent session is reused unless E2E_FORCE_LOGIN says
+// otherwise. Anything older than the window is treated as stale.
 const statePath = `${process.env.TMPDIR ?? "/tmp"}/psico-e2e-responsive-state.json`;
-{
+const SESSION_MAX_AGE_MS = 15 * 60 * 1000;
+const reusable = await (async () => {
+  if (process.env.E2E_FORCE_LOGIN === "1") return false;
+  try {
+    const { statSync } = await import("node:fs");
+    return Date.now() - statSync(statePath).mtimeMs < SESSION_MAX_AGE_MS;
+  } catch {
+    return false;
+  }
+})();
+if (reusable) {
+  console.log("reusing the saved session (E2E_FORCE_LOGIN=1 to log in again)");
+} else {
   const ctx = await browser.newContext({ viewport: { width: 1365, height: 900 } });
   const page = await ctx.newPage();
   await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
@@ -335,20 +415,57 @@ for (const vp of VIEWPORTS) {
   });
   page.on("pageerror", (e) => pageErrors.push(String(e).slice(0, 200)));
 
+  /**
+   * Returns false when the mode simply is not offered to this account — a
+   * hidden mode is a legitimate entitlement outcome (PRO_ONLY media, a book
+   * with no master), not a layout failure. The caller turns that into a
+   * printed skip, so a non-PRO run reports honestly instead of crashing.
+   */
   const tab = async (name) => {
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.getByRole("tab", { name }).click({ force: true });
+    const loc = page.getByRole("tab", { name });
+    if ((await loc.count()) === 0) return false;
+    await loc.click({ force: true });
     await page.waitForTimeout(700);
+    return true;
   };
   const state = async (label, url, prepare) => {
     // NOT `networkidle`: the reader fires a session heartbeat every 5 seconds,
     // so the network never goes idle and the wait would time out on a
     // correctly configured stack. Wait for the DOM, then settle explicitly.
-    await page.goto(url, { waitUntil: "domcontentloaded" });
+    // A client-side route push still in flight can abort the next navigation.
+    // Retry once; a second abort is a real problem and rethrows.
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded" });
+    } catch (err) {
+      if (!/ERR_ABORTED/.test(String(err))) throw err;
+      await page.waitForTimeout(1000);
+      await page.goto(url, { waitUntil: "domcontentloaded" });
+    }
     await page.waitForTimeout(1200);
-    if (prepare) await prepare();
+    if (prepare) {
+      const reached = await prepare();
+      if (reached === false) {
+        skipped += 1;
+        console.log(`  – ${label}: skipped, mode not offered to this account`);
+        consoleErrors.length = 0;
+        pageErrors.length = 0;
+        return;
+      }
+    }
     await page.waitForTimeout(600);
-    assertUniversal(`${vp.w}px ${label}`, await page.evaluate(MEASURE));
+    // Choosing a mode can push a route, and an evaluate that lands mid
+    // navigation dies with «execution context was destroyed». That is a race in
+    // the harness, not a defect in the page, so settle and ask once more.
+    let measured;
+    try {
+      measured = await page.evaluate(MEASURE);
+    } catch (err) {
+      if (!/execution context was destroyed/i.test(String(err))) throw err;
+      await page.waitForTimeout(1500);
+      measured = await page.evaluate(MEASURE);
+    }
+    assertUniversal(`${vp.w}px ${label}`, measured);
 
     const hydration = [...consoleErrors, ...pageErrors].filter((t) =>
       /hydrat|Text content|did not match/i.test(t),
@@ -379,10 +496,16 @@ for (const vp of VIEWPORTS) {
 
   await state("Leer", READER);
   await state("Escuchar/Audiolibro", READER, () => tab(/Escuchar/));
-  await state("Escuchar/Podcast", READER, async () => {
-    await tab(/Escuchar/);
-    await tab(/^Podcast$/);
-  });
+
+  // NOT covered here: the audiobook transcript laid out. Reaching it needs an
+  // account entitled to a PRO audiobook AND a chapter with a stored audio row —
+  // `audioAvailable` is a server prop, so no client-side fixture can produce it.
+  // The transcript assertions in MEASURE/assertUniversal are already in place
+  // and fire the moment such an account runs this file.
+  //   AUDIOBOOK_TRANSCRIPT_RESPONSIVE=NOT_VERIFIED_NO_ENTITLED_ACCOUNT
+  await state("Escuchar/Podcast", READER, async () =>
+    (await tab(/Escuchar/)) && (await tab(/^Podcast$/)),
+  );
   await state("Ver", READER, () => tab(/Ver/));
 
   // Transcript: the podcast master does not exist, so this state runs on the
@@ -406,10 +529,9 @@ for (const vp of VIEWPORTS) {
     );
     await route.fulfill({ json: body });
   });
-  await state("Transcript", READER, async () => {
-    await tab(/Escuchar/);
-    await tab(/^Podcast$/);
-  });
+  await state("Transcript", READER, async () =>
+    (await tab(/Escuchar/)) && (await tab(/^Podcast$/)),
+  );
   await page.unrouteAll?.();
 
   await state("MiEvolucion/Actividad", `${BASE}/dashboard/evolucion`);
@@ -469,6 +591,8 @@ for (const vp of VIEWPORTS) {
 
 await browser.close();
 console.log(
-  `\n${checks - failures}/${checks} checks passed${failures ? ` — ${failures} FAILED` : ""}`,
+  `\n${checks - failures}/${checks} checks passed` +
+    `${failures ? ` — ${failures} FAILED` : ""}` +
+    `${skipped ? ` · ${skipped} state(s) skipped (mode not offered)` : ""}`,
 );
 process.exit(failures === 0 ? 0 : 1);

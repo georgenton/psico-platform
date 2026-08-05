@@ -377,23 +377,23 @@ describe("MEDIA_VERTICAL_2_COMPLETE=false", () => {
   });
 
   /**
-   * The audiobook ENTRY experience is done: the player opens, it is laid out
-   * in flow, it names the chapter, and it does not autoplay.
+   * Vertical 2A ships the transcript, and this test moved with it.
    *
-   * What is NOT done, and must not be reported as done:
+   * Before, it pinned that NO segment text was rendered — a true statement
+   * then, and the tripwire that was supposed to fire the day someone showed
+   * the transcript without building a surface for it. That day is this PR,
+   * and the surface exists, so the assertion inverts.
    *
-   *   AUDIOBOOK_TRANSCRIPT_VISIBLE=false  no transcript is rendered anywhere
-   *   AUDIOBOOK_SEGMENTS_VISIBLE=false    no chapter markers, no segment list
+   * What has NOT moved, and is what the flag still means:
    *
-   * The response DOES carry `transcript`, and the bar reads it — but only to
-   * find the reader block matching the current time and scroll to it. That is
-   * navigation of text the READER already renders, not a transcript surface.
-   * On Escuchar there is no reader text mounted, so it highlights nothing.
+   *   PODCAST_IMPLEMENTED=false   the tab is gated, nothing plays
+   *   VIDEO_IMPLEMENTED=false     same
    *
-   * This test fails the day someone renders segment text without building a
-   * real surface for it, which is the moment the claim would stop being true.
+   * And the older invariant that outlives both: Escuchar is the audio of the
+   * chapter, not a second copy of it. The transcript is the words being read;
+   * references and exercises stay in Leer.
    */
-  it("shows no transcript and no segment list, even when the response carries them", async () => {
+  it("shows the transcript, and still refuses to be the reader", async () => {
     const withSegments: LectorAudioResponse = {
       ...baseAudioResponse,
       transcript: [
@@ -416,15 +416,17 @@ describe("MEDIA_VERTICAL_2_COMPLETE=false", () => {
 
     await screen.findByTestId("audio-player-panel");
     const text = container.textContent ?? "";
-    expect(text).not.toContain("Empezamos por el cuerpo");
-    expect(text).not.toContain("y después la palabra");
-    expect(text).not.toMatch(/transcripci[óo]n/i);
-    expect(text).not.toMatch(/segmento/i);
+
+    // The narration's own words: shown.
+    expect(text).toContain("Empezamos por el cuerpo");
+    expect(text).toContain("y después la palabra");
+
+    // The chapter's apparatus: not here.
+    expect(text).not.toMatch(/referencias bibliogr[áa]ficas/i);
+    expect(text).not.toMatch(/ejercicios de este cap/i);
     expect(text).not.toMatch(/ideas? clave/i);
   });
 });
-
-// ── The retry loop ────────────────────────────────────────────────────────
 
 describe("INITIAL_OPEN never retries by itself", () => {
   let fetchSpy: MockInstance<typeof fetch>;
@@ -592,5 +594,216 @@ describe("INITIAL_OPEN never retries by itself", () => {
     expect(audio).not.toBeNull();
     expect(audio).not.toHaveAttribute("autoplay");
     expect(audio!.autoplay).toBe(false);
+  });
+});
+
+// ── Media Vertical 2A — the transcript is visible on Escuchar ─────────────
+
+describe("AUDIOBOOK_TRANSCRIPT_VISIBLE", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  const ONE_SEGMENT = [
+    { start: 0, end: 600, text: "Empezamos por el cuerpo.", blockId: "b-1" },
+  ];
+
+  /** Deliberately out of order, and one with no blockId. */
+  const MANY_SEGMENTS = [
+    { start: 30, end: 60, text: "y después la palabra.", blockId: null },
+    { start: 0, end: 30, text: "Empezamos por el cuerpo.", blockId: "b-1" },
+    { start: 60, end: 90, text: "Al final, la pausa.", blockId: "b-3" },
+  ];
+
+  const withTranscript = (
+    transcript: LectorAudioResponse["transcript"],
+  ): LectorAudioResponse => ({ ...baseAudioResponse, transcript });
+
+  const renderInline = () =>
+    render(
+      <AudioBar
+        apiBase="https://api.example/api"
+        token="bearer-stub"
+        bookId="emociones-en-construccion"
+        chapterOrder={1}
+        initialOpen
+        inline
+      />,
+    );
+
+  const renderHeaderBar = () =>
+    render(
+      <AudioBar
+        apiBase="https://api.example/api"
+        token="bearer-stub"
+        bookId="emociones-en-construccion"
+        chapterOrder={1}
+      />,
+    );
+
+  it("shows a single-segment transcript", async () => {
+    fetchSpy.mockResolvedValue(fetchOk(withTranscript(ONE_SEGMENT)));
+    renderInline();
+
+    expect(await screen.findByText("Transcripción")).toBeInTheDocument();
+    expect(screen.getByText("Empezamos por el cuerpo.")).toBeInTheDocument();
+  });
+
+  it("DYNAMIC_SEGMENT_COUNT — shows N segments, in start order", async () => {
+    fetchSpy.mockResolvedValue(fetchOk(withTranscript(MANY_SEGMENTS)));
+    renderInline();
+
+    await screen.findByText("Transcripción");
+    const rendered = screen
+      .getAllByRole("button")
+      .filter((b) => b.getAttribute("data-testid")?.startsWith("transcript-"))
+      .map((b) => b.textContent);
+
+    expect(rendered).toHaveLength(3);
+    // Sorted by `start`, not by the order the server happened to send.
+    expect(rendered[0]).toContain("Empezamos por el cuerpo.");
+    expect(rendered[1]).toContain("y después la palabra.");
+    expect(rendered[2]).toContain("Al final, la pausa.");
+    // …and the timestamps come out ascending.
+    expect(rendered[0]).toContain("0:00");
+    expect(rendered[1]).toContain("0:30");
+    expect(rendered[2]).toContain("1:00");
+  });
+
+  it("a segment with no blockId is still shown", async () => {
+    fetchSpy.mockResolvedValue(fetchOk(withTranscript(MANY_SEGMENTS)));
+    renderInline();
+
+    await screen.findByText("Transcripción");
+    // `blockId` is a convenience for scrolling the reader, not a condition
+    // for the words existing.
+    expect(screen.getByText("y después la palabra.")).toBeInTheDocument();
+  });
+
+  it("TRANSCRIPT_EMPTY_STATE — says so instead of inventing text", async () => {
+    fetchSpy.mockResolvedValue(fetchOk(withTranscript([])));
+    renderInline();
+
+    await screen.findByText("Transcripción");
+    expect(
+      screen.getByText("Transcripción no disponible para este capítulo."),
+    ).toBeInTheDocument();
+    // The player is still there — an absent transcript is not a broken screen.
+    expect(screen.getByTestId("audio-player-panel")).toBeInTheDocument();
+  });
+
+  it("opens expanded on the Escuchar surface and collapses on demand", async () => {
+    fetchSpy.mockResolvedValue(fetchOk(withTranscript(ONE_SEGMENT)));
+    renderInline();
+
+    const toggle = await screen.findByRole("button", { name: "Ocultar" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("region", { name: "Transcripción" })).toBeVisible();
+
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Mostrar" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByText("Empezamos por el cuerpo.")).toBeNull();
+  });
+
+  it("starts collapsed in the reader header bar", async () => {
+    fetchSpy.mockResolvedValue(fetchOk(withTranscript(ONE_SEGMENT)));
+    renderHeaderBar();
+
+    fireEvent.click(screen.getByRole("button", { name: /abrir audio/i }));
+    expect(
+      await screen.findByRole("button", { name: "Mostrar" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Empezamos por el cuerpo.")).toBeNull();
+  });
+});
+
+describe("ACTIVE_SEGMENT + SEGMENT_CLICK", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  const SEGMENTS = [
+    { start: 0, end: 30, text: "Primero.", blockId: "b-1" },
+    { start: 30, end: 60, text: "Segundo.", blockId: "b-2" },
+  ];
+
+  async function renderWithSegments() {
+    fetchSpy.mockResolvedValue(
+      fetchOk({ ...baseAudioResponse, transcript: SEGMENTS }),
+    );
+    const view = render(
+      <AudioBar
+        apiBase="https://api.example/api"
+        token="bearer-stub"
+        bookId="emociones-en-construccion"
+        chapterOrder={1}
+        initialOpen
+        inline
+      />,
+    );
+    await screen.findByText("Transcripción");
+    const audio = view.container.querySelector("audio")!;
+    return { ...view, audio };
+  }
+
+  it("marks the segment containing currentTime", async () => {
+    const { audio } = await renderWithSegments();
+
+    Object.defineProperty(audio, "currentTime", {
+      value: 45,
+      configurable: true,
+    });
+    fireEvent.timeUpdate(audio);
+
+    expect(screen.getByTestId("transcript-segment-1")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    expect(screen.getByTestId("transcript-segment-0")).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
+  it("SEGMENT_CLICK_SEEKS — clicking a segment moves the playhead", async () => {
+    const { audio } = await renderWithSegments();
+    expect(audio.currentTime).toBe(0);
+
+    fireEvent.click(screen.getByTestId("transcript-segment-1"));
+    expect(audio.currentTime).toBe(30);
+  });
+
+  it("SEGMENT_CLICK_AUTOPLAYS=false — it seeks, it does not start sound", async () => {
+    const { audio } = await renderWithSegments();
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValue(undefined);
+
+    fireEvent.click(screen.getByTestId("transcript-segment-1"));
+
+    expect(play).not.toHaveBeenCalled();
+    expect(audio.autoplay).toBe(false);
+    play.mockRestore();
+  });
+
+  it("segments are real buttons, reachable by keyboard", async () => {
+    await renderWithSegments();
+    const seg = screen.getByTestId("transcript-segment-0");
+    expect(seg.tagName).toBe("BUTTON");
+    expect(seg).not.toHaveAttribute("disabled");
   });
 });

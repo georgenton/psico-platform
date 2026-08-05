@@ -100,6 +100,14 @@ export function AudioBar({
   const [, setTick] = useState(0);
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const lastScrolledBlockRef = useRef<string | null>(null);
+  /**
+   * The transcript is the audiobook's text, not the book's. On the Escuchar
+   * surface the player IS the screen, so it opens with the transcript already
+   * showing; in the reader header the bar is a small overlay dropping over the
+   * text, and a long transcript there would bury the page.
+   */
+  const [transcriptOpen, setTranscriptOpen] = useState(inline);
+  const [activeSegment, setActiveSegment] = useState(-1);
 
   // Sorted transcript memo (defensive — backend may emit unsorted).
   const sortedSegments = useMemo(() => {
@@ -245,23 +253,45 @@ export function AudioBar({
     const el = audioRef.current;
     if (!el || sortedSegments.length === 0) return;
     const t = el.currentTime;
+    // ONE search, two consumers: the transcript highlight and the reader
+    // block scroll. They ask the same question — which segment is playing —
+    // so they must never disagree about the answer.
     const idx = findSegmentIndex(t);
     if (idx < 0) {
+      if (activeSegment !== -1) setActiveSegment(-1);
       if (activeBlockId !== null) setActiveBlockId(null);
       return;
     }
     const seg = sortedSegments[idx]!;
     // Out of segment window (gap between segments) → no active.
     const inside = t < seg.end;
+    const nextSegment = inside ? idx : -1;
+    if (nextSegment !== activeSegment) setActiveSegment(nextSegment);
     const target = inside ? seg.blockId : null;
     if (target !== activeBlockId) {
       setActiveBlockId(target);
     }
   }
 
+  /**
+   * Jump the narration to a segment. It does NOT start playback: someone
+   * scanning the transcript is reading, not asking for sound, and a click
+   * that starts audio out of nowhere is the kind of surprise this surface
+   * has been careful to avoid since entry stopped autoplaying.
+   */
+  function seekToSegment(startSec: number) {
+    const el = audioRef.current;
+    if (!el) return;
+    el.currentTime = startSec;
+  }
+
   // Scroll the active block into view (smooth, centered) — only when it
   // changes, and avoid re-scrolling repeatedly on the same block.
   useEffect(() => {
+    // Inline is the Escuchar surface: the reader text is not mounted behind
+    // it, so there is nothing to scroll. The transcript below carries the
+    // position instead. Non-inline (the reader header bar) is untouched.
+    if (inline) return;
     if (!activeBlockId) return;
     if (lastScrolledBlockRef.current === activeBlockId) return;
     const el = document.querySelector(`[data-block-id="${activeBlockId}"]`);
@@ -272,7 +302,7 @@ export function AudioBar({
       });
       lastScrolledBlockRef.current = activeBlockId;
     }
-  }, [activeBlockId]);
+  }, [activeBlockId, inline]);
 
   return (
     <>
@@ -484,6 +514,128 @@ export function AudioBar({
                       );
                     })}
                   </div>
+                </div>
+
+                {/* ── Transcripción ─────────────────────────────────────
+                    The words being read, from the response the player
+                    already has. It is secondary to the audio — collapsed
+                    under a real toggle — and it is NOT the chapter: no
+                    references, no exercises, no second copy of the book.
+
+                    Segment count is whatever the server sent. Today that
+                    is one segment covering the whole narration, because
+                    `Audio.transcription` is a single string; when the
+                    voice pipeline learns word-level timing it will be
+                    many, and this renders both without changing. A
+                    segment with no `blockId` still shows: the id is a
+                    convenience for the reader-scroll, not a condition
+                    for existing. */}
+                <div
+                  className="mt-1 border-t pt-2"
+                  style={{ borderColor: "var(--color-warm-200)" }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <h3
+                      id="audio-transcript-heading"
+                      className="text-[11.5px] font-semibold uppercase tracking-[0.1em]"
+                      style={{
+                        color: "var(--reader-muted, var(--color-warm-500))",
+                      }}
+                    >
+                      Transcripción
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setTranscriptOpen((v) => !v)}
+                      aria-expanded={transcriptOpen}
+                      aria-controls="audio-transcript-region"
+                      className="rounded-full px-3 py-1 text-[11.5px] font-semibold"
+                      style={{
+                        minHeight: 32,
+                        background: "var(--color-warm-100)",
+                        color: "var(--color-warm-700)",
+                      }}
+                    >
+                      {transcriptOpen ? "Ocultar" : "Mostrar"}
+                    </button>
+                  </div>
+
+                  {transcriptOpen ? (
+                    <div
+                      id="audio-transcript-region"
+                      role="region"
+                      aria-labelledby="audio-transcript-heading"
+                      className="mt-2 max-h-[320px] overflow-y-auto"
+                    >
+                      {sortedSegments.length === 0 ? (
+                        <p
+                          className="text-[12.5px]"
+                          style={{
+                            color: "var(--reader-muted, var(--color-warm-500))",
+                          }}
+                        >
+                          Transcripción no disponible para este capítulo.
+                        </p>
+                      ) : (
+                        <ol className="flex flex-col gap-1">
+                          {sortedSegments.map((seg, i) => {
+                            const isActive = i === activeSegment;
+                            return (
+                              <li key={`${seg.start}-${i}`}>
+                                <button
+                                  type="button"
+                                  data-testid={`transcript-segment-${i}`}
+                                  onClick={() => seekToSegment(seg.start)}
+                                  aria-current={isActive ? "true" : undefined}
+                                  className="flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left"
+                                  style={{
+                                    minHeight: 44,
+                                    background: isActive
+                                      ? "var(--color-lavender-100)"
+                                      : "transparent",
+                                    // Not colour alone: the active segment
+                                    // also carries a marker and bolder text.
+                                    borderLeft: isActive
+                                      ? "3px solid var(--color-lavender-500)"
+                                      : "3px solid transparent",
+                                  }}
+                                >
+                                  <span
+                                    aria-hidden
+                                    className="shrink-0 font-mono text-[11px]"
+                                    style={{
+                                      minWidth: 40,
+                                      color: isActive
+                                        ? "var(--color-lavender-700)"
+                                        : "var(--reader-muted, var(--color-warm-400))",
+                                    }}
+                                  >
+                                    {isActive ? "▸ " : ""}
+                                    {fmtCountdown(seg.start * 1000)}
+                                  </span>
+                                  <span
+                                    className="min-w-0 flex-1 whitespace-pre-wrap text-[12.5px] leading-relaxed"
+                                    style={{
+                                      color:
+                                        "var(--reader-text, var(--color-warm-800))",
+                                      fontWeight: isActive ? 600 : 400,
+                                    }}
+                                  >
+                                    {isActive ? (
+                                      <span className="sr-only">
+                                        Reproduciendo:{" "}
+                                      </span>
+                                    ) : null}
+                                    {seg.text}
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : null}

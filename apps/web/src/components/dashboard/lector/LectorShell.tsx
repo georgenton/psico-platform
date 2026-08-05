@@ -1434,6 +1434,7 @@ export function LectorShell({
         <ChapterMediaWatch
           apiBase={apiBase}
           token={token}
+          bookSlug={bookSlug}
           items={mediaItems}
           manifestError={mediaError}
         />

@@ -155,11 +155,28 @@ export function ExperiencePlayer({
     headingRef.current?.querySelector<HTMLElement>("h3, h2")?.focus();
   }, [state.activeIndex, state.status, run.booting, run.busy]);
 
-  /** Move one panel forward. Presentation only — no command leaves. */
+  /**
+   * Move one panel forward. Presentation only — no command leaves, with ONE
+   * exception at the very end.
+   *
+   * The scenes after the last checkpoint are the close: a summary, sometimes an
+   * optional resonance. Their forward action is the only thing left to press,
+   * so it is what completes the run. Without this the closing «Continuar» (and
+   * the resonance's «Ahora no» / «Terminar», which share this handler) is inert
+   * at `windowEndIndex`: every checkpoint is registered, nothing calls
+   * SESSION_COMPLETE, and the session stays ACTIVE forever — so the Completion
+   * Summary is unreachable and the card never stops saying «Continuar».
+   *
+   * `finish` is idempotent and server-owned; a second press replays rather than
+   * opening anything new.
+   */
   const goForward = useCallback(() => {
     if (!run.session) return;
     const next = state.activeIndex + 1;
-    if (next > state.windowEndIndex) return;
+    if (next > state.windowEndIndex) {
+      if (state.status === "awaiting_guide_completion") void run.finish();
+      return;
+    }
     const key = sceneKeyAt(definition, next);
     if (key === null) return;
     setLocalSceneKey(key);
@@ -179,8 +196,9 @@ export function ExperiencePlayer({
     actorScope,
     definition,
     pin,
-    run.session,
+    run,
     state.activeIndex,
+    state.status,
     state.windowEndIndex,
   ]);
 

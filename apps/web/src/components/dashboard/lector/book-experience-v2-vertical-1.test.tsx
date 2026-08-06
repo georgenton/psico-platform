@@ -390,7 +390,10 @@ describe("Chapter Home — what the chapter offers", () => {
     expect(routeKeys()).not.toContain("escuchar");
   });
 
-  it("6 · a guided experience the server confirmed gets its own row", async () => {
+  it("6 · GR-7 — a confirmed guide gets no generic row; journeys are listed", async () => {
+    // The old «Experiencia guiada» row said nothing about what the journey
+    // was, and with nothing published it was a door onto an empty room. The
+    // published experiences are the entry point now, one card each.
     getGuideDiscovery.mockResolvedValue({
       available: true,
       guideKey: "eec-c1-cuerpo-antes-que-mente",
@@ -399,14 +402,18 @@ describe("Chapter Home — what the chapter offers", () => {
     renderReader({ guidePilot: true });
     await settle();
     openHome();
-    await waitFor(() => expect(routeKeys()).toContain("guiada"));
+    await waitFor(() => expect(routeKeys()).not.toContain("guiada"));
   });
 
-  it("7 · no guide for this chapter means no guided row at all", async () => {
+  it("7 · no experience published means no section at all — not an empty one", async () => {
     renderReader();
     await settle();
     openHome();
     expect(screen.queryByTestId("chapter-route-guiada")).toBeNull();
+    // Zero is the absence of a section, never a placeholder or a disabled card.
+    expect(screen.queryByTestId("chapter-experiences")).toBeNull();
+    expect(screen.queryByText(/no hay experiencias/i)).toBeNull();
+    expect(screen.queryByText(/próximamente/i)).toBeNull();
   });
 
   it("8 · UNKNOWN_MODE=HIDDEN — a format nobody announced has no row", async () => {

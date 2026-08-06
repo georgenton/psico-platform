@@ -29,6 +29,15 @@ export interface ChapterExperienceResult {
   status: ChapterExperienceStatus;
   /** The single published experience pinned to `pin`, or `null`. */
   definition: ChapterExperiencePublicView | null;
+  /**
+   * GR-7 — everything discovery published for this chapter, in the server's
+   * order. Chapter Home lists these; the player takes one of them.
+   *
+   * Same read, same request. A second hook for "the list" would have meant a
+   * second request for an answer this one already holds, and two places to
+   * change when the route does.
+   */
+  items: readonly ChapterExperiencePublicView[];
 }
 
 /**
@@ -58,15 +67,20 @@ export function selectExperienceForGuidePin(
 export function useChapterExperience(input: {
   bookSlug: string;
   chapterOrder: number;
-  pin: GuidePin;
+  /** `null` when the caller wants the chapter's list rather than one journey. */
+  pin: GuidePin | null;
   /** Only ask once the reader is actually looking at a guided surface. */
   enabled?: boolean;
 }): ChapterExperienceResult {
   const { bookSlug, chapterOrder, enabled = true } = input;
-  const { guideKey, guideVersion } = input.pin;
+  // `pin: null` is Chapter Home asking: it wants the list and has no single
+  // journey in mind, so `definition` stays null and only `items` is read.
+  const guideKey = input.pin?.guideKey ?? null;
+  const guideVersion = input.pin?.guideVersion ?? null;
   const [state, setState] = useState<ChapterExperienceResult>({
     status: "loading",
     definition: null,
+    items: [],
   });
 
   useEffect(() => {
@@ -81,16 +95,23 @@ export function useChapterExperience(input: {
         if (cancelled) return;
         setState({
           status: "ready",
-          definition: selectExperienceForGuidePin(res.items, {
-            guideKey,
-            guideVersion,
-          }),
+          definition:
+            guideKey !== null && guideVersion !== null
+              ? selectExperienceForGuidePin(res.items, {
+                  guideKey,
+                  guideVersion,
+                })
+              : null,
+          // Fail closed on a shape that is not a list: no experiences is a
+          // state this product handles, an undefined one is not.
+          items: Array.isArray(res.items) ? res.items : [],
         });
       } catch {
         // A failed read is not a definition. The caller renders the same
         // fail-closed surface it renders for "no journey here", because from
         // the reader's side those are the same fact: nothing to open.
-        if (!cancelled) setState({ status: "error", definition: null });
+        if (!cancelled)
+          setState({ status: "error", definition: null, items: [] });
       }
     })();
     return () => {

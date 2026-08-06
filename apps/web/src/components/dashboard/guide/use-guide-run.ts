@@ -93,6 +93,54 @@ interface PlayerState {
    * until the reader says so.
    */
   recoverable: GuideSessionView | null;
+  /**
+   * GR-7 — what THIS run has been told, for the Completion Summary.
+   *
+   * Not progress: the server owns that, and `session` carries it. This is the
+   * detail the summary needs and the session view does not carry — which
+   * checkpoints were confirmed here, and what the server answered about each
+   * recall. It only ever grows from a server response, so it cannot claim a
+   * step the ledger did not accept.
+   */
+  facts: GuideRunFacts;
+}
+
+export interface GuideRunFacts {
+  confirmedStepKeys: readonly string[];
+  recalls: readonly { stepKey: string; outcome: GuideRecallOutcome }[];
+}
+
+const NO_FACTS: GuideRunFacts = { confirmedStepKeys: [], recalls: [] };
+
+/**
+ * Fold one ACCEPTED command into the run's facts.
+ *
+ * Only reached after the server answered, so nothing here is a prediction.
+ * Confirmations are deduplicated because a replayed idempotent command is the
+ * same fact twice, not two confirmations.
+ */
+function extendFacts(
+  facts: GuideRunFacts,
+  command: PendingGuideCommand,
+  feedback: { outcome: GuideRecallOutcome } | undefined,
+): GuideRunFacts {
+  if (command.commandType === "STEP_COMPLETE") {
+    if (facts.confirmedStepKeys.includes(command.stepKey)) return facts;
+    return {
+      ...facts,
+      confirmedStepKeys: [...facts.confirmedStepKeys, command.stepKey],
+    };
+  }
+  if (command.commandType === "STEP_RECALL" && feedback) {
+    return {
+      ...facts,
+      recalls: [
+        ...facts.recalls.filter((r) => r.stepKey !== command.stepKey),
+        { stepKey: command.stepKey, outcome: feedback.outcome },
+      ],
+    };
+  }
+  return facts;
 }
 
 const INITIAL: PlayerState = {
@@ -106,6 +154,7 @@ const INITIAL: PlayerState = {
   recallOutcome: null,
   pinMismatch: false,
   recoverable: null,
+  facts: NO_FACTS,
 };
 
 const STORAGE_BLOCKED: GuideUiError = {
@@ -169,6 +218,8 @@ export interface GuideRun {
   recallOutcome: GuideRecallOutcome | null;
   /** GR-5 — an open run the server offered, which nothing has adopted yet. */
   recoverable: GuideSessionView | null;
+  /** GR-7 — what this run was told, for the Completion Summary. */
+  facts: GuideRunFacts;
   choice: string | null;
   setChoice: (option: string | null) => void;
   start: () => Promise<void>;
@@ -363,6 +414,12 @@ export function useGuideRun({
           // last one alone rather than blanking a screen the reader is on.
           ...(res.feedback ? { recallOutcome: res.feedback.outcome } : {}),
         });
+        // Facts grow from the PREVIOUS facts, so this takes the updater form
+        // rather than riding along in `patch`. React batches the two.
+        setState((prev) => ({
+          ...prev,
+          facts: extendFacts(prev.facts, command, res.feedback),
+        }));
       } catch (err) {
         const uiError = toGuideUiError(err);
         if (uiError.kind === "resync") {
@@ -883,6 +940,8 @@ export function useGuideRun({
     booting: state.booting,
     recallOutcome: state.recallOutcome,
     recoverable: state.recoverable,
+    /** GR-7 — what this run was told, for the Completion Summary. */
+    facts: state.facts,
     choice,
     setChoice,
     start,

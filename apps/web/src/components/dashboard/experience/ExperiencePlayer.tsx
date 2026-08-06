@@ -39,6 +39,7 @@ import {
   writeExperienceScene,
 } from "./experience-scene-store";
 import { rendererForSceneKind } from "./experience-scene-registry";
+import { CompletionSummary } from "./CompletionSummary";
 import type {
   ExperienceMediaHooks,
   ExperienceSceneContext,
@@ -71,6 +72,12 @@ export interface ExperiencePlayerProps {
    * on the resonance endpoint — never the check-in.
    */
   onConfirmResonance?: () => Promise<void>;
+  /**
+   * GR-7 — back to Chapter Home to pick a different journey. Present only
+   * when the chapter actually publishes another one, so the Completion
+   * Summary never offers a door with nothing behind it.
+   */
+  onPickAnotherExperience?: () => void;
 }
 
 export function ExperiencePlayer({
@@ -84,6 +91,7 @@ export function ExperiencePlayer({
   onContinueReading,
   onClose,
   onConfirmResonance,
+  onPickAnotherExperience,
 }: ExperiencePlayerProps) {
   const run = useGuideRun({
     actorScope,
@@ -103,6 +111,19 @@ export function ExperiencePlayer({
   // is advisory: `deriveExperiencePresentationState` clamps it to the window
   // and ignores it outright when it belongs to another session.
   const [localSceneKey, setLocalSceneKey] = useState<string | null>(null);
+  /**
+   * GR-7 — whether the reader saved a resonance during THIS run.
+   *
+   * Lifted out of the scene so the Completion Summary can report it, and set
+   * only when the write actually succeeded. «Ahora no» leaves it false and
+   * writes nothing: an absent yes is not a no worth recording.
+   */
+  const [resonanceConfirmed, setResonanceConfirmed] = useState(false);
+  const confirmResonance = useCallback(async () => {
+    if (!onConfirmResonance) return;
+    await onConfirmResonance();
+    setResonanceConfirmed(true);
+  }, [onConfirmResonance]);
   const serverKey = `${run.session?.sessionId ?? ""}|${run.session?.currentStepKey ?? ""}`;
   useEffect(() => {
     if (!run.session) {
@@ -301,23 +322,22 @@ export function ExperiencePlayer({
   if (state.status === "completed") {
     return (
       <Panel>
-        <SceneHeading>Recorrido terminado</SceneHeading>
-        <SceneBody>
-          Lo que registraste quedó guardado. Puedes volver al capítulo cuando
-          quieras.
-        </SceneBody>
-        <SceneActions>
-          {onContinueReading ? (
-            <SceneAction
-              label="Continuar leyendo"
-              onClick={onContinueReading}
-            />
-          ) : null}
-          {onClose ? (
-            <SceneAction label="Cerrar" onClick={onClose} variant="ghost" />
-          ) : null}
-        </SceneActions>
-        <ScopeNote />
+        {/* GR-7 — the end of a journey reports facts, not a score. */}
+        <CompletionSummary
+          experience={definition}
+          session={run.session}
+          facts={run.facts}
+          resonanceConfirmed={resonanceConfirmed}
+          {...(onContinueReading ? { onContinueReading } : {})}
+          {...(onClose ? { onBackToChapter: onClose } : {})}
+          {...(onPickAnotherExperience
+            ? { onPickAnother: onPickAnotherExperience }
+            : {})}
+          onRepeat={() => {
+            clearExperienceScene(pin);
+            void run.start();
+          }}
+        />
       </Panel>
     );
   }
@@ -358,7 +378,7 @@ export function ExperiencePlayer({
     submitRecall: run.submitRecall,
     goForward,
     goToPassage: onGoToPassage ?? null,
-    confirmResonance: onConfirmResonance ?? null,
+    confirmResonance: onConfirmResonance ? confirmResonance : null,
   };
 
   // The renderer is typed against its own narrowed scene; the registry hands

@@ -176,10 +176,12 @@ describe("PAREJAS_CHAPTER_HOME_DOES_NOT_SHOW_PLATFORM_ORDER", () => {
           ver: mode({ kind: "VIDEO", state: "HIDDEN", label: "Ver" }),
         }}
         guidedView={mode({ kind: "GUIDED", state: "HIDDEN", label: "Guiada" })}
+        experiences={[]}
+        experienceSession={null}
+        onOpenExperience={() => {}}
         activityCount={0}
         onContinueReading={() => {}}
         onPickMode={() => {}}
-        onOpenGuided={() => {}}
         onOpenActivities={() => {}}
       />,
     );

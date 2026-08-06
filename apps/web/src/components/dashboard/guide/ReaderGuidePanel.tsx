@@ -6,6 +6,7 @@ import type { GuideWebBundle } from "./guide-web-bundle";
 import type { GuideAnchorResolution } from "./guide-anchor";
 import { ExperiencePlayer } from "../experience/ExperiencePlayer";
 import { useChapterExperience } from "../experience/use-chapter-experience";
+import type { ChapterExperiencePublicView } from "@psico/types";
 
 /**
  * GR-3 / GR-6 — guided reading, inside the reader.
@@ -50,6 +51,15 @@ export interface ReaderGuidePanelProps {
   chapterOrder: number;
   apiBase: string;
   token: string;
+  /**
+   * GR-7 — the experience the reader picked on Chapter Home, at the EXACT
+   * version discovery served. When present the panel plays it instead of
+   * resolving one itself: picking a card must open that card's journey, never
+   * "the latest" and never the first one as a fallback.
+   */
+  experience?: ChapterExperiencePublicView | null;
+  /** Back to Chapter Home to choose a different journey. */
+  onPickAnotherExperience?: () => void;
   onClose: () => void;
   /** Scroll + focus the anchored paragraph. The panel stays open. */
   onGoToPassage: () => void;
@@ -66,6 +76,8 @@ export function ReaderGuidePanel({
   chapterOrder,
   apiBase,
   token,
+  experience,
+  onPickAnotherExperience,
   onClose,
   onGoToPassage,
   onContinueReading,
@@ -132,11 +144,16 @@ export function ReaderGuidePanel({
   // GR-6 — server-owned. The panel does not know which journey presents this
   // chapter until the API says so, which is what lets a CMS change the answer
   // without a deploy.
-  const { status, definition } = useChapterExperience({
+  const discovered = useChapterExperience({
     bookSlug,
     chapterOrder,
     pin: bundle.pin,
+    // A picked experience already came from discovery; asking again would be
+    // a second request for an answer the caller is holding.
+    enabled: !experience,
   });
+  const status = experience ? "ready" : discovered.status;
+  const definition = experience ?? discovered.definition;
 
   // Defence in depth. The reader already refuses to mount this panel without a
   // located passage; the panel refuses on its own too, because a cover with a
@@ -216,6 +233,7 @@ export function ReaderGuidePanel({
           onContinueReading={onContinueReading}
           onClose={onClose}
           onConfirmResonance={confirmResonance}
+          {...(onPickAnotherExperience ? { onPickAnotherExperience } : {})}
         />
       </div>
     </aside>

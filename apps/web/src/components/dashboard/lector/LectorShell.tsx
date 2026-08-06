@@ -6,9 +6,11 @@ import Link from "next/link";
 import type {
   AnnotationSummary,
   BreatheExercise,
+  ChapterExperiencePublicView,
   ContentUnitMarks,
   ContentUnitRead,
   HighlightColor,
+  GuideSessionView,
   HighlightSummary,
   LectorChapterResponse,
 } from "@psico/types";
@@ -32,6 +34,8 @@ import { ChapterMediaListen } from "./media/ChapterMediaListen";
 import { ChapterMediaWatch } from "./media/ChapterMediaWatch";
 import { modeToStored, storedToMode, type ReaderMode } from "./reader-mode";
 import { ChapterExperienceHome } from "./ChapterExperienceHome";
+import { guideApi } from "@psico/api-client";
+import { useChapterExperience } from "../experience/use-chapter-experience";
 import { chapterHeading } from "./chapter-label";
 import {
   ReaderExperienceView,
@@ -320,6 +324,27 @@ export function LectorShell({
     setSurface("reader");
   }, []);
 
+  /**
+   * GR-7 — the chapter's published experiences, from the same discovery route
+   * the player uses. `pin: null` because Chapter Home wants the list, not one
+   * journey; the player still resolves its own by pin.
+   */
+  const chapterExperiences = useChapterExperience({
+    bookSlug,
+    chapterOrder: chapter.order,
+    pin: null,
+    // Only ask when the reader is looking at the list.
+    enabled: surface === "home",
+  });
+
+  /**
+   * The experience the reader picked, at the exact version discovery served.
+   * `null` means "not chosen"; picking never resolves "latest" and never falls
+   * back to the first card when the chosen one is gone.
+   */
+  const [pickedExperience, setPickedExperience] =
+    useState<ChapterExperiencePublicView | null>(null);
+
   // Text selection state for the popover.
   const [selection, setSelection] = useState<{
     blockId: string;
@@ -497,6 +522,32 @@ export function LectorShell({
       }),
     [guideRuntimeReady, discovery.status],
   );
+
+  /**
+   * The open session the SERVER reports for this chapter's pin, which is what
+   * turns a card's «Empezar» into «Continuar». One read, and only while the
+   * list is on screen: the cards report what the server said, never a guess.
+   */
+  const [openSession, setOpenSession] = useState<GuideSessionView | null>(null);
+  useEffect(() => {
+    if (surface !== "home" || guideBundle === null) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const answer = await guideApi.getRecoverableSession(guideBundle.pin);
+        if (!cancelled) {
+          setOpenSession(answer.recoverable ? answer.session : null);
+        }
+      } catch {
+        // A failed read is not a session. The cards fall back to «Empezar»,
+        // which is what the reader sees when nothing is open anyway.
+        if (!cancelled) setOpenSession(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [surface, guideBundle]);
 
   /**
    * What the reader ASKED for and what the chapter can actually give them.
@@ -1334,6 +1385,16 @@ export function LectorShell({
           chapterOrder={chapter.order}
           apiBase={apiBase}
           token={token}
+          experience={pickedExperience}
+          {...(chapterExperiences.items.length > 1
+            ? {
+                onPickAnotherExperience: () => {
+                  closeGuide({ restoreFocus: false });
+                  setPickedExperience(null);
+                  openChapterHome();
+                },
+              }
+            : {})}
           onClose={() => closeGuide()}
           onGoToPassage={goToGuidePassage}
           /**
@@ -1390,6 +1451,13 @@ export function LectorShell({
           progressPct={progressPct}
           modeViews={modeViews}
           guidedView={guidedView}
+          experiences={chapterExperiences.items}
+          experienceSession={openSession}
+          onOpenExperience={(experience) => {
+            setPickedExperience(experience);
+            openReaderSurface();
+            setGuideOpen(true);
+          }}
           activityCount={activityCount}
           onContinueReading={() => {
             changeMode("leer");
@@ -1398,10 +1466,6 @@ export function LectorShell({
           onPickMode={(mode) => {
             changeMode(mode);
             openReaderSurface();
-          }}
-          onOpenGuided={() => {
-            openReaderSurface();
-            setGuideOpen(true);
           }}
           onOpenActivities={() => {
             // The section only exists in «Leer», so the row takes us there and

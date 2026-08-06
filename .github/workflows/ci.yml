@@ -12,7 +12,6 @@ on:
       - "sync/**"
   pull_request:
     branches:
-      - develop
       - main
       - "changeset-release/**"
       - "sync/**"

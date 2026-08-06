@@ -793,7 +793,12 @@ describe("Chapter Home — reader controls and overlays", () => {
     renderReader();
     await settle();
     const btn = screen.getByTestId("reader-open-chapter-home");
-    expect(btn).toHaveAccessibleName("Cómo recorrerlo");
+    // WCAG 2.5.3, Label in Name: whoever says the word printed on the
+    // button — "Recorrido" — has to be able to activate it by voice. The
+    // accessible name may add context, never replace the visible label.
+    expect(btn).toHaveTextContent("Recorrido");
+    expect(btn).toHaveAccessibleName("Recorrido: cómo recorrerlo");
+    expect(btn.getAttribute("aria-label")).toContain(btn.textContent!.trim());
     expect(btn.style.minHeight).toBe("44px");
     expect(btn.style.minWidth).toBe("44px");
 

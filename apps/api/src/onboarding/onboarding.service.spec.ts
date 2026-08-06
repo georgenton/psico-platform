@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { OnboardingService } from "./onboarding.service";
+import { ONBOARDING_INTRO } from "./constants";
 
 const userId = "user-1";
 
@@ -390,6 +391,22 @@ describe("OnboardingService", () => {
       // We don't ask the user to "complete onboarding" by calling reset —
       // the `create` branch is intentionally empty (only userId).
       expect(call.create).toEqual({ userId });
+    });
+  });
+
+  describe("the welcome copy counts the steps the user will actually see", () => {
+    // MotivosPicker/MoodPicker/ProfileForm print "Paso N de 4", so promising
+    // three steps here and showing four is a small dishonesty the reader meets
+    // before they have read a single line of the book.
+    it("does not promise three short questions and then show four steps", () => {
+      // The old copy opened by promising the whole flow was three questions.
+      expect(ONBOARDING_INTRO.body).not.toContain("Te haremos tres preguntas");
+      expect(ONBOARDING_INTRO.body).toContain("cuatro pasos");
+    });
+
+    it("still says the three questions are short and that skipping is allowed", () => {
+      expect(ONBOARDING_INTRO.body).toContain("tres preguntas cortas");
+      expect(ONBOARDING_INTRO.body).toContain("saltar este paso");
     });
   });
 });

@@ -20,9 +20,13 @@ import type { OnboardingIntro, OnboardingTourStep } from "@psico/types";
 export const ONBOARDING_INTRO: OnboardingIntro = {
   title: "Empecemos.",
   subtitle: "Antes de leer, queremos conocerte un poco.",
+  // The step counter the user meets on the very next screen says "Paso 1
+  // de 4", so the welcome has to count the same way: three questions plus
+  // the recommendation. Promising three steps and showing four is the kind
+  // of small dishonesty that costs trust before anyone has read a line.
   body:
-    "Te haremos tres preguntas cortas para entender qué te trae aquí y " +
-    "cómo te sientes hoy. Con eso vas a recibir una recomendación de por " +
+    "Son cuatro pasos breves: tres preguntas cortas para entender qué te " +
+    "trae aquí y cómo te sientes hoy, y al final tu recomendación de por " +
     "dónde empezar a leer. " +
     "Si prefieres saltar este paso, puedes hacerlo y explorar a tu ritmo.",
   signature: "— Psico Platform",

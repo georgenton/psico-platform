@@ -1092,8 +1092,13 @@ export function LectorShell({
                 surface === "home" ? openReaderSurface() : openChapterHome()
               }
               aria-pressed={surface === "home"}
+              // The accessible name has to contain the visible one, or a
+              // voice-control user who says "Recorrido" — the word on the
+              // button — activates nothing (WCAG 2.5.3, Label in Name).
               aria-label={
-                surface === "home" ? "Volver al lector" : "Cómo recorrerlo"
+                surface === "home"
+                  ? "Volver al lector"
+                  : "Recorrido: cómo recorrerlo"
               }
               className="rounded-full px-4 text-[13px] font-semibold"
               // The one control that is on BOTH surfaces, so it is the one that

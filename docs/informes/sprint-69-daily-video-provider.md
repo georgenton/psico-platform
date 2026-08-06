@@ -3,7 +3,7 @@
 **Fecha:** 2026-06-09
 **Rama:** `feature/sprint-s69-daily-video-provider`
 **Tests:** 522/523 API (509 → 522, +13 nuevos · 1 skipped sentinel) + web 50/50 + mobile 20/20 + crypto 34/34
-**ADR aplicado:** [0014 — Video provider Daily.co](docs/adr/0014-video-provider-daily-co.md) — escrito en S65, ahora implementado.
+**ADR aplicado:** [0020 — Video provider Daily.co](docs/adr/0020-video-provider-daily-co.md) — escrito en S65, ahora implementado.
 
 ---
 
@@ -25,6 +25,7 @@ Cierra el último gap del backend de Terapia v1. Hasta ahora `joinSession` devol
 ### Tests (+13)
 
 `daily-video.provider.spec.ts`:
+
 - `isConfigured` flags (false sin key, true con todo).
 - `createRoom` happy path — verifica URL/method/headers/body shape (privacy, max_participants, enable_recording=false).
 - `createRoom` 409 → fetch existing room → retorna URL.
@@ -96,6 +97,7 @@ Mock de `fetch` vía `vi.stubGlobal("fetch", ...)`. `ConfigService` mockeado com
 ## Próximo paso
 
 **Cuando ops provisione Daily**:
+
 1. `DAILY_API_KEY` en Railway envs (API service).
 2. `DAILY_DOMAIN=psico.daily.co` (subdomain real).
 3. `VIDEO_PROVIDER=daily` flip.

@@ -33,6 +33,16 @@ suelta. `DIAGNOSTIC_RUN_AT` es la fecha del commit que produjo este documento
 Si el archivo cambia, estos hashes dejan de coincidir y el diagnóstico caduca:
 hay que volver a correrlo antes de actuar sobre él.
 
+> **Continuación:** la propuesta concreta —clasificación de los 87 bloques con
+> sus identificadores reales, candidato y mapa— está en
+> [`parejas-demo-chapter-1-cleanup-proposal.md`](./parejas-demo-chapter-1-cleanup-proposal.md).
+> Corrige dos cosas de este diagnóstico: el encabezado duplicado resultó ser una
+> página entera duplicada, y el camino de aplicación de §5 (re-ingesta) dejaría
+> las marcas de lectura sin ancla. También sustituye la idea de «revisión 1 → 2»:
+> el capítulo se sirve desde `ChapterBlock` legado, que no tiene numeración de
+> revisiones, así que el candidato es un borrador con nombre. La limpieza es
+> parcial (`PARTIAL_CLEANUP=true`, 13 bloques dañados intactos).
+
 **Este documento no aplica nada.** Es un diagnóstico de solo lectura y un plan.
 No se ejecutó bootstrap, no se creó revisión, no se publicó contenido, no se
 escribió en producción y no se tocó Railway. La corrección requiere aprobación

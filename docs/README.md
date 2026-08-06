@@ -11,7 +11,7 @@ contradicen, gana el marcado aquí como autoridad canónica.
 
 ```
 DOCS_CANONICAL_INDEX=docs/README.md
-ADR_RANGE=0001..0020
+ADR_RANGE=0001..0021
 ADR_DUPLICATE_NUMBERS=none
 ```
 
@@ -66,12 +66,13 @@ documento la contradiga en materia de presentación multimodal, manda esa.
 
 ## Audio, podcast y video del capítulo
 
-| Tema                                                                                             | Autoridad canónica                                                           |
-| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| Catálogo de medios, proveedores, acceso firmado, disponibilidad, placeholders y estado editorial | [`product/chapter-01-media-package.md`](product/chapter-01-media-package.md) |
-| Eventos de medios y su reflejo en Mi Evolución                                                   | [`architecture/learning-events.md`](architecture/learning-events.md)         |
-| Superficie del lector y modos (Libro / Guía)                                                     | [`product/guided-reading-v1.md`](product/guided-reading-v1.md)               |
-| Proveedor de video para terapia (decisión aparte)                                                | [`adr/0020-video-provider-daily-co.md`](adr/0020-video-provider-daily-co.md) |
+| Tema                                                                                             | Autoridad canónica                                                                                                 |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Catálogo de medios, proveedores, acceso firmado, disponibilidad, placeholders y estado editorial | [`product/chapter-01-media-package.md`](product/chapter-01-media-package.md)                                       |
+| Eventos de medios y su reflejo en Mi Evolución                                                   | [`architecture/learning-events.md`](architecture/learning-events.md)                                               |
+| Superficie del lector y modos (Libro / Guía)                                                     | [`product/guided-reading-v1.md`](product/guided-reading-v1.md)                                                     |
+| Proveedor de video para terapia (decisión aparte)                                                | [`adr/0020-video-provider-daily-co.md`](adr/0020-video-provider-daily-co.md)                                       |
+| Escenas de presentación vs pasos de dominio (Experience Player V2)                               | [`adr/0021-experience-player-v2-scene-step-separation.md`](adr/0021-experience-player-v2-scene-step-separation.md) |
 
 ## Libros y Content Core
 

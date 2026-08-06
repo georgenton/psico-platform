@@ -194,10 +194,11 @@ describe("ratchet · guide web surface", () => {
       "completeGuideSession",
       "completeGuideSessionStep",
       "createGuideSession",
-      // GR-5 — the one READ. It is not a sixth command: it creates nothing,
-      // and it is what lets a reader resume on a second device instead of
-      // being offered a fresh start for a journey they already opened.
-      "getRecoverableSession",
+      // GR-7 — the one READ, and it is not a sixth command: it creates
+      // nothing. It replaced `getRecoverableSession` at boot because that one
+      // sees ACTIVE runs only, so a finished journey came back looking like
+      // one nobody had ever opened.
+      "getExperienceState",
       "submitGuideStepRecall",
     ]);
     expect(runner).not.toMatch(/setInterval|setTimeout\s*\(\s*.*poll/i);

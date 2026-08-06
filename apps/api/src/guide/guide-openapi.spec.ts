@@ -64,6 +64,8 @@ const GUIDE_PATHS = Object.keys(openapi.paths)
   .sort();
 
 const AVAILABILITY_PATH = "/api/guide/availability";
+/** GR-7 — where the actor stands in one exact experience. */
+const STATE_PATH = "/api/guide/sessions/state";
 const DISCOVERY_PATH = "/api/guide/discovery/{bookSlug}/{chapterOrder}";
 const RECOVERABLE_PATH = "/api/guide/sessions/recoverable";
 
@@ -85,6 +87,7 @@ const ALL_GUIDE_PATHS = [
   AVAILABILITY_PATH,
   DISCOVERY_PATH,
   RECOVERABLE_PATH,
+  STATE_PATH,
 ].sort();
 
 const EXPECTED_OPERATION_IDS = [
@@ -104,12 +107,40 @@ const responseOf = (path: string, status: string): Schema =>
     ?.schema as Schema;
 
 describe("ratchet · guide OpenAPI surface", () => {
-  it("publishes exactly eight paths — five commands and three read routes", () => {
+  it("publishes exactly nine paths — five commands and four read routes", () => {
     expect(GUIDE_PATHS).toEqual(ALL_GUIDE_PATHS);
     const ids = EXPECTED_PATHS.map((p) => openapi.paths[p]?.post?.operationId)
       .filter((id): id is string => typeof id === "string")
       .sort();
     expect(ids).toEqual(EXPECTED_OPERATION_IDS);
+  });
+
+  it("state is a GET-only read that takes its pin as query parameters", () => {
+    const ops = openapi.paths[STATE_PATH];
+    expect(Object.keys(ops ?? {})).toEqual(["get"]);
+    const get = ops?.get;
+    expect(get?.operationId).toBe("getGuideExperienceState");
+    expect(get?.requestBody).toBeUndefined();
+    const params = (get?.parameters ?? []) as { name?: string; in?: string }[];
+    expect(params.map((q) => q.name).sort()).toEqual([
+      "guideKey",
+      "guideVersion",
+    ]);
+    expect(params.every((q) => q.in === "query")).toBe(true);
+  });
+
+  it("the state response is a closed three-arm union and names no answer", () => {
+    const schema = openapi.paths[STATE_PATH]?.get?.responses?.["200"]
+      ?.content?.["application/json"]?.schema as
+      | { oneOf?: unknown[] }
+      | undefined;
+    expect(schema?.oneOf).toHaveLength(3);
+    // The whole arm set, serialized, must not carry a way to name the right
+    // option — the summary reports verdicts, never answers.
+    const serialized = JSON.stringify(schema);
+    expect(serialized).not.toContain("correctOptionKey");
+    expect(serialized).not.toContain("selectedOptionKey");
+    expect(serialized).not.toContain("INCORRECT");
   });
 
   it("recovery is a GET-only read that takes its pin as query parameters", () => {

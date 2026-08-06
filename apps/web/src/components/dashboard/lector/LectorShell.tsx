@@ -534,10 +534,11 @@ export function LectorShell({
     let cancelled = false;
     void (async () => {
       try {
-        const answer = await guideApi.getRecoverableSession(guideBundle.pin);
-        if (!cancelled) {
-          setOpenSession(answer.recoverable ? answer.session : null);
-        }
+        // GR-7 — `state`, not `recoverable`. The older read sees ACTIVE runs
+        // only, so a finished journey came back as nothing and the card read
+        // «Empezar» the morning after somebody completed it.
+        const answer = await guideApi.getExperienceState(guideBundle.pin);
+        if (!cancelled) setOpenSession(answer.session);
       } catch {
         // A failed read is not a session. The cards fall back to «Empezar»,
         // which is what the reader sees when nothing is open anyway.

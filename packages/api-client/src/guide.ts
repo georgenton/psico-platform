@@ -5,6 +5,7 @@ import type {
   GuideAvailabilityResponse,
   GuideDiscoveryResponse,
   GuideCommandResponse,
+  GuideExperienceStateResponse,
   RecoverableGuideSessionResponse,
   StartGuideSessionRequestBody,
   SubmitGuideStepRecallRequestBody,
@@ -107,6 +108,24 @@ export const guideApi = {
    * genuine "nothing to resume", and those are different facts. The grammar is
    * the SERVER's, restated — the server stays the authority.
    */
+  /**
+   * GR-7 — where this actor stands in ONE exact experience.
+   *
+   * Answers the question `/recoverable` could not: a COMPLETED run is
+   * invisible to that endpoint, which is why a finished journey read as
+   * «Empezar» after a reload. One read, no polling, no cache — the caller
+   * asks when it renders and takes the answer at face value.
+   */
+  getExperienceState: (pin: { guideKey: string; guideVersion: number }) => {
+    const query = new URLSearchParams({
+      guideKey: pin.guideKey,
+      guideVersion: String(pin.guideVersion),
+    });
+    return apiClient.get<GuideExperienceStateResponse>(
+      `/guide/sessions/state?${query.toString()}`,
+    );
+  },
+
   getRecoverableSession: (pin: { guideKey: string; guideVersion: number }) => {
     if (
       typeof pin?.guideKey !== "string" ||

@@ -29,6 +29,7 @@
 import { useEffect, useRef } from "react";
 import type {
   ChapterExperiencePublicView,
+  GuideCompletionSummaryView,
   GuideRecallOutcome,
   GuideSessionView,
 } from "@psico/types";
@@ -38,6 +39,13 @@ export interface CompletionSummaryProps {
   experience: ChapterExperiencePublicView;
   session: GuideSessionView | null;
   facts: GuideRunFacts;
+  /**
+   * GR-7 — the SERVER's projection, present when this browser was not there
+   * for the run. It carries counts rather than titles, because the ledger
+   * knows how many concepts were explored and this build cannot name them
+   * without re-deriving a journey the reader has already left.
+   */
+  serverSummary?: GuideCompletionSummaryView | null;
   /** True only when the reader confirmed one in this run. */
   resonanceConfirmed: boolean;
   onBackToChapter?: () => void;
@@ -102,6 +110,7 @@ export function CompletionSummary({
   experience,
   session,
   facts,
+  serverSummary,
   resonanceConfirmed,
   onBackToChapter,
   onContinueReading,
@@ -147,6 +156,40 @@ export function CompletionSummary({
           ? ` Registraste ${session.stepsCompleted} de ${session.totalSteps} pasos.`
           : ""}
       </p>
+
+      {/* A run this browser watched lists its checkpoints by name. A run it
+          only heard about lists the server's counts — fewer facts, all of
+          them provable. */}
+      {concepts.length + practices.length + facts.recalls.length === 0 &&
+      serverSummary ? (
+        <ul className="mt-6">
+          {serverSummary.conceptsExplored > 0 ? (
+            <Row
+              label={`${serverSummary.conceptsExplored} ${
+                serverSummary.conceptsExplored === 1
+                  ? "idea explorada"
+                  : "ideas exploradas"
+              }`}
+            />
+          ) : null}
+          {serverSummary.practicesConfirmed > 0 ? (
+            <Row
+              label={`${serverSummary.practicesConfirmed} ${
+                serverSummary.practicesConfirmed === 1
+                  ? "práctica confirmada"
+                  : "prácticas confirmadas"
+              }`}
+            />
+          ) : null}
+          {serverSummary.recalls.map((recall, i) => (
+            <Row
+              key={`server-recall-${i}`}
+              label="Recordar lo leído"
+              detail={OUTCOME_LABEL[recall.outcome]}
+            />
+          ))}
+        </ul>
+      ) : null}
 
       {concepts.length + practices.length + facts.recalls.length > 0 ? (
         <ul className="mt-6">

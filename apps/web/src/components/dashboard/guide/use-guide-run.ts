@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { guideApi } from "@psico/api-client";
 import type {
   GuideCommandResponse,
+  GuideCompletionSummaryView,
   GuideRecallOutcome,
   GuideSessionView,
 } from "@psico/types";
@@ -103,6 +104,12 @@ interface PlayerState {
    * step the ledger did not accept.
    */
   facts: GuideRunFacts;
+  /**
+   * GR-7 — the summary the SERVER projected for a run that ended before this
+   * browser was looking. `facts` covers the run in progress; this covers the
+   * one that finished yesterday.
+   */
+  serverSummary: GuideCompletionSummaryView | null;
 }
 
 export interface GuideRunFacts {
@@ -155,6 +162,7 @@ const INITIAL: PlayerState = {
   pinMismatch: false,
   recoverable: null,
   facts: NO_FACTS,
+  serverSummary: null,
 };
 
 const STORAGE_BLOCKED: GuideUiError = {
@@ -220,6 +228,8 @@ export interface GuideRun {
   recoverable: GuideSessionView | null;
   /** GR-7 — what this run was told, for the Completion Summary. */
   facts: GuideRunFacts;
+  /** GR-7 — the server's summary of a run that ended before this mount. */
+  serverSummary: GuideCompletionSummaryView | null;
   choice: string | null;
   setChoice: (option: string | null) => void;
   start: () => Promise<void>;
@@ -643,11 +653,25 @@ export function useGuideRun({
       let cancelled = false;
       void (async () => {
         try {
-          const answer = await guideApi.getRecoverableSession(runPin);
+          // GR-7 — `state` answers the question `recoverable` could not. A
+          // COMPLETED run is invisible to that endpoint, which is why a
+          // finished journey opened on its cover the next morning as if it
+          // had never happened.
+          const answer = await guideApi.getExperienceState(runPin);
           if (cancelled) return;
+          if (answer.state === "COMPLETED") {
+            // Showing the summary, not resuming: the session is terminal and
+            // nothing here starts a new one.
+            patch({
+              booting: false,
+              session: answer.session,
+              serverSummary: answer.summary,
+            });
+            return;
+          }
           patch({
             booting: false,
-            recoverable: answer.recoverable ? answer.session : null,
+            recoverable: answer.state === "ACTIVE" ? answer.session : null,
           });
         } catch {
           // A failed recovery read is not an error worth a screen: the reader
@@ -669,9 +693,20 @@ export function useGuideRun({
       let cancelled = false;
       void (async () => {
         try {
-          const answer = await guideApi.getRecoverableSession(runPin);
+          const answer = await guideApi.getExperienceState(runPin);
           if (cancelled) return;
-          if (!answer.recoverable) {
+          if (answer.state === "COMPLETED") {
+            // It finished — here or on another device. The pointer is not
+            // stale, the run simply ended.
+            patch({
+              booting: false,
+              record,
+              session: answer.session,
+              serverSummary: answer.summary,
+            });
+            return;
+          }
+          if (answer.state !== "ACTIVE") {
             // The run ended elsewhere. The local pointer is stale, not a
             // reason to show an error.
             clearGuideRecovery(runPin);
@@ -942,6 +977,7 @@ export function useGuideRun({
     recoverable: state.recoverable,
     /** GR-7 — what this run was told, for the Completion Summary. */
     facts: state.facts,
+    serverSummary: state.serverSummary,
     choice,
     setChoice,
     start,

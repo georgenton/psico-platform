@@ -40,7 +40,10 @@ import { JwtAuthGuard } from "../auth";
 import type { AuthenticatedUser } from "../auth";
 import { CurrentUser } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import type { RecoverableGuideSessionResponse } from "@psico/types";
+import type {
+  GuideExperienceStateResponse,
+  RecoverableGuideSessionResponse,
+} from "@psico/types";
 import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { GuideLifecycleService } from "./guide-lifecycle.service";
@@ -49,6 +52,11 @@ import {
   parseGuideRecoveryQuery,
   type GuideRecoveryQuery,
 } from "./guide-recovery-params";
+import {
+  GUIDE_INVALID_STATE_QUERY,
+  parseGuideStateQuery,
+  type GuideStateQuery,
+} from "./guide-state-params";
 import type {
   GuideCommandResult,
   GuideRecallCommandResult,
@@ -76,6 +84,7 @@ import {
 } from "./guide-http-errors";
 import {
   GUIDE_AVAILABILITY_RESPONSE,
+  GUIDE_EXPERIENCE_STATE_RESPONSE,
   GUIDE_RECOVERABLE_SESSION_RESPONSE,
   GUIDE_DISCOVERY_RESPONSE,
   GUIDE_COMMAND_RESPONSE,
@@ -166,6 +175,50 @@ export class GuideController {
    * not a question about a real guide, and replying `recoverable:false` there
    * would answer something the caller never asked.
    */
+  /**
+   * GR-7 — "where do I stand in this experience?".
+   *
+   * The gap it closes: `/sessions/recoverable` sees ACTIVE runs only, so a
+   * finished journey read as never-started the next time the reader opened
+   * the chapter. Keeping that memory in the browser was the tempting fix and
+   * the wrong one — a client asserting "I completed this" is a claim about
+   * the ledger it has no standing to make.
+   *
+   * READ-ONLY and actor-scoped by construction. A foreign session is not
+   * denied, it is invisible: the answer is byte-identical to "no session".
+   */
+  @Get("sessions/state")
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "getGuideExperienceState",
+    summary:
+      "Dónde está el actor en un pin exacto: NOT_STARTED, ACTIVE o " +
+      "COMPLETED con su resumen. No revela sesiones ajenas y no crea nada.",
+  })
+  @ApiQuery({ name: "guideKey", required: true, schema: { type: "string" } })
+  @ApiQuery({
+    name: "guideVersion",
+    required: true,
+    schema: { type: "integer", minimum: 1 },
+  })
+  @ApiOkResponse({ schema: GUIDE_EXPERIENCE_STATE_RESPONSE })
+  @ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+  @ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+  async getGuideExperienceState(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query("guideKey") guideKey?: string,
+    @Query("guideVersion") guideVersion?: string,
+  ): Promise<GuideExperienceStateResponse> {
+    let pin: GuideStateQuery;
+    try {
+      pin = parseGuideStateQuery(guideKey, guideVersion);
+    } catch {
+      throw new BadRequestException({ code: GUIDE_INVALID_STATE_QUERY });
+    }
+    return this.lifecycle.findExperienceState(user.userId, pin);
+  }
+
   @Get("sessions/recoverable")
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Header("Cache-Control", "private, no-store")

@@ -10,6 +10,7 @@ import type {
   GuideSessionView,
   GuideSessionStatus,
   GuideStepDefinition,
+  GuideExperienceStateResponse,
 } from "@psico/types";
 import type { Prisma } from "@prisma/client";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -31,6 +32,7 @@ import {
 } from "../learning/learning-event-builders";
 import type { ValidatedLearningEvent } from "../learning/validated-learning-event";
 import { productionGuideRegistry } from "./guide-catalog";
+import { toGuideCompletionSummary } from "./guide-completion-summary";
 import type {
   ValidatedGuideCancelSemantics,
   ValidatedGuideCommandSemantics,
@@ -310,6 +312,82 @@ export class GuideLifecycleService {
       totalSteps: projection.totalSteps,
       currentStepKey: projection.currentStepKey,
     };
+  }
+
+  /**
+   * GR-7 — "where do I stand in THIS experience?", answered by the server.
+   *
+   * `findRecoverableSession` could only see ACTIVE runs, which is why a
+   * finished journey read as never-started after a reload while an unfinished
+   * one survived. The honest fix is a read, not a client-side memory: a
+   * browser asserting "I completed this" is a claim about the ledger that the
+   * browser has no standing to make.
+   *
+   * Three answers and nothing else. A CANCELLED session presents as
+   * `NOT_STARTED` — cancelling is the reader withdrawing, and reporting it
+   * back tells them about a decision they already made rather than about
+   * where they are. Another actor's session is not denied, it is invisible:
+   * `findLatestOwnForExactPin` filters on `userId`, so a foreign run and no
+   * run are the same answer.
+   *
+   * READ-ONLY. No session, step, receipt or learning event is written.
+   */
+  async findExperienceState(
+    userId: string,
+    pin: { guideKey: string; guideVersion: number },
+  ): Promise<GuideExperienceStateResponse> {
+    const NOT_STARTED = {
+      state: "NOT_STARTED",
+      session: null,
+      summary: null,
+    } as const;
+
+    const session = await this.sessions.findLatestOwnForExactPin(userId, pin);
+    if (session === null || session.status === "CANCELLED") {
+      return NOT_STARTED;
+    }
+
+    // A session pinned to a version the registry no longer holds cannot be
+    // reasoned about, so it reads as not started rather than as a guess.
+    let definition: GuideDefinition;
+    try {
+      definition = productionGuideRegistry.getExact(
+        session.guideKey,
+        session.guideVersion,
+      );
+    } catch {
+      return NOT_STARTED;
+    }
+
+    const accepted = (await this.steps.listAccepted(session.id)).map((row) =>
+      parseAcceptedGuideStepRow(row),
+    );
+    const projection = deriveGuideProjection(
+      definition,
+      accepted,
+      session.status,
+    );
+    const view: GuideSessionView = {
+      sessionId: session.id,
+      guideKey: session.guideKey,
+      guideVersion: session.guideVersion,
+      status: session.status,
+      stepsCompleted: projection.stepsCompleted,
+      totalSteps: projection.totalSteps,
+      currentStepKey: projection.currentStepKey,
+    };
+
+    if (session.status === "COMPLETED") {
+      return {
+        state: "COMPLETED",
+        session: view,
+        summary: toGuideCompletionSummary({
+          definition,
+          acceptedSteps: accepted,
+        }),
+      };
+    }
+    return { state: "ACTIVE", session: view, summary: null };
   }
 
   /** Build the result from CURRENT stored state (never from the command). */

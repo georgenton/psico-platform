@@ -191,6 +191,74 @@ export const GUIDE_RECOVERABLE_SESSION_RESPONSE: SchemaObject = {
   oneOf: [GUIDE_RECOVERABLE_NONE, GUIDE_RECOVERABLE_SOME],
 };
 
+/**
+ * GR-7 — GET /api/guide/sessions/state.
+ *
+ * Three arms, each with `session` and `summary` pinned to exactly what that
+ * state can carry. `NOT_STARTED` holds two nulls so it cannot be told apart
+ * from "someone else's session" — a foreign run and no run must look
+ * identical, or the endpoint becomes a way to probe other actors.
+ */
+export const GUIDE_COMPLETION_SUMMARY_VIEW: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["conceptsExplored", "practicesConfirmed", "recalls"],
+  properties: {
+    conceptsExplored: { type: "integer", minimum: 0 },
+    practicesConfirmed: { type: "integer", minimum: 0 },
+    recalls: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["outcome"],
+        properties: {
+          // The PUBLIC verdict only. The chosen option and the correct one
+          // are both absent by construction.
+          outcome: { type: "string", enum: ["CORRECT", "REVIEW"] },
+        },
+      },
+    },
+  },
+};
+
+export const GUIDE_STATE_NOT_STARTED: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["state", "session", "summary"],
+  properties: {
+    state: { type: "string", enum: ["NOT_STARTED"] },
+    session: { type: "null" },
+    summary: { type: "null" },
+  },
+};
+
+export const GUIDE_STATE_ACTIVE: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["state", "session", "summary"],
+  properties: {
+    state: { type: "string", enum: ["ACTIVE"] },
+    session: GUIDE_SESSION_VIEW,
+    summary: { type: "null" },
+  },
+};
+
+export const GUIDE_STATE_COMPLETED: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["state", "session", "summary"],
+  properties: {
+    state: { type: "string", enum: ["COMPLETED"] },
+    session: GUIDE_SESSION_VIEW,
+    summary: GUIDE_COMPLETION_SUMMARY_VIEW,
+  },
+};
+
+export const GUIDE_EXPERIENCE_STATE_RESPONSE: SchemaObject = {
+  oneOf: [GUIDE_STATE_NOT_STARTED, GUIDE_STATE_ACTIVE, GUIDE_STATE_COMPLETED],
+};
+
 /** The response of all five commands. */
 export const GUIDE_COMMAND_RESPONSE: SchemaObject = {
   type: "object",

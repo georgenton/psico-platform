@@ -327,6 +327,7 @@ export function ExperiencePlayer({
           experience={definition}
           session={run.session}
           facts={run.facts}
+          serverSummary={run.serverSummary}
           resonanceConfirmed={resonanceConfirmed}
           {...(onContinueReading ? { onContinueReading } : {})}
           {...(onClose ? { onBackToChapter: onClose } : {})}

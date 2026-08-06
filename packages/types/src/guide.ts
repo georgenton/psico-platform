@@ -194,6 +194,44 @@ export type RecoverableGuideSessionResponse =
   | { recoverable: true; session: GuideSessionView };
 
 /**
+ * GR-7 — what a finished experience can be told about itself, after a reload.
+ *
+ * Counts and verdicts, nothing that identifies a row. The recall entries carry
+ * the PUBLIC outcome only: an internal `INCORRECT` surfaces as `REVIEW`,
+ * because "there is something here to look at again" is what the reader needs
+ * and "you got it wrong" is not the same claim. The chosen option and the
+ * correct one are both absent — naming either at the end would undo the point
+ * of having asked.
+ */
+export interface GuideCompletionSummaryView {
+  conceptsExplored: number;
+  practicesConfirmed: number;
+  recalls: Array<{ outcome: GuideRecallOutcome }>;
+}
+
+/**
+ * GR-7 — where this actor stands in ONE exact experience.
+ *
+ * The gap this closes: an ACTIVE run survived a reload because
+ * `/sessions/recoverable` could see it, and a COMPLETED one did not, so a
+ * finished journey read as «Empezar» the next morning. The fix is a read, not
+ * a client-side memory — a browser saying "I completed this" is a claim about
+ * the ledger that the browser has no standing to make.
+ *
+ * A CANCELLED session presents as `NOT_STARTED`. Cancellation is the reader
+ * withdrawing, and reporting it back is telling them about a decision they
+ * already made rather than about where they are.
+ */
+export type GuideExperienceStateResponse =
+  | { state: "NOT_STARTED"; session: null; summary: null }
+  | { state: "ACTIVE"; session: GuideSessionView; summary: null }
+  | {
+      state: "COMPLETED";
+      session: GuideSessionView;
+      summary: GuideCompletionSummaryView;
+    };
+
+/**
  * The response of all five commands. `created` means this call applied the
  * transition (HTTP 201); `replayed` means an identical prior command already
  * did and nothing ran now (HTTP 200).

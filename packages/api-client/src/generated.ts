@@ -2078,6 +2078,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guide/sessions/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Dónde está el actor en un pin exacto: NOT_STARTED, ACTIVE o COMPLETED con su resumen. No revela sesiones ajenas y no crea nada. */
+        get: operations["getGuideExperienceState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guide/sessions/recoverable": {
         parameters: {
             query?: never;
@@ -12250,6 +12267,126 @@ export interface operations {
             };
         };
     };
+    getGuideExperienceState: {
+        parameters: {
+            query: {
+                guideKey: string;
+                guideVersion: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        state: PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf0State;
+                        session: null;
+                        summary: null;
+                    } | {
+                        /** @enum {string} */
+                        state: PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf1State;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf1SessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                        summary: null;
+                    } | {
+                        /** @enum {string} */
+                        state: PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf2State;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf2SessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                        summary: {
+                            conceptsExplored: number;
+                            practicesConfirmed: number;
+                            recalls: {
+                                /** @enum {string} */
+                                outcome: PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf2SummaryRecallsOutcome;
+                            }[];
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     getRecoverableGuideSession: {
         parameters: {
             query: {
@@ -16809,6 +16946,29 @@ export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentA
     AUDIOBOOK = "AUDIOBOOK",
     PODCAST = "PODCAST",
     VIDEO = "VIDEO"
+}
+export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf0State {
+    NOT_STARTED = "NOT_STARTED"
+}
+export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf1State {
+    ACTIVE = "ACTIVE"
+}
+export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf1SessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
+}
+export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf2State {
+    COMPLETED = "COMPLETED"
+}
+export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf2SessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
+}
+export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf2SummaryRecallsOutcome {
+    CORRECT = "CORRECT",
+    REVIEW = "REVIEW"
 }
 export enum PathsApiGuideSessionsRecoverableGetResponses200ContentApplicationJsonOneOf1SessionStatus {
     ACTIVE = "ACTIVE",

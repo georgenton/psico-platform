@@ -98,7 +98,7 @@ describe("ratchet · guide public surface", () => {
     // Exactly ONE read route — the CC-7.R1 availability gate — and no mutation
     // verb beyond the five POST commands.
     const gets = source.match(/@Get\(/g) ?? [];
-    expect(gets).toHaveLength(3);
+    expect(gets).toHaveLength(4);
     expect(source).toContain('@Get("availability")');
     // GR-4 added the SECOND read route: contextual discovery. It is read-only
     // and answers a closed union; it is not a sixth command.
@@ -107,10 +107,14 @@ describe("ratchet · guide public surface", () => {
     // what makes resume work on a second device. Also read-only, also a closed
     // union, and still not a sixth command — it creates nothing.
     expect(source).toContain('@Get("sessions/recoverable")');
+    // GR-7 added the FOURTH: where the actor stands in an exact experience.
+    // `recoverable` sees ACTIVE runs only, so a finished journey read as
+    // never-started after a reload. Read-only, closed union, no sixth command.
+    expect(source).toContain('@Get("sessions/state")');
     for (const verb of ["@Patch(", "@Put(", "@Delete("]) {
       expect(source.includes(verb), verb).toBe(false);
     }
-    // The handlers: the five commands + the three reads (plus the three
+    // The handlers: the five commands + the FOUR reads (plus the three
     // private helpers — GR-3 added `toRecallResponse`, which decorates the
     // shared shape with the recall outcome and adds no route).
     expect(
@@ -124,6 +128,7 @@ describe("ratchet · guide public surface", () => {
       "createGuideSession",
       "getGuideAvailability",
       "getGuideDiscovery",
+      "getGuideExperienceState",
       "getRecoverableGuideSession",
       "submitGuideStepRecall",
       "toRecallResponse",

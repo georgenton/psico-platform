@@ -28,7 +28,11 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from "@nestjs/common";
-import type { ChapterExperienceDefinition } from "@psico/types";
+import type {
+  AdminChapterExperiences,
+  AdminExperienceRow,
+  ChapterExperienceDefinition,
+} from "@psico/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { productionGuideRegistry } from "../guide/guide-catalog";
 import { productionGuideDiscoveryCatalog } from "../guide/guide-discovery-catalog";
@@ -38,30 +42,6 @@ import {
   validateExperienceDefinition,
 } from "./experience-catalog";
 import { productionExperienceRepository } from "./experience-production-catalog";
-
-/** One row as `/autor`-style admin surfaces need to render it. */
-export interface AdminExperienceRow {
-  id: string | null;
-  experienceKey: string;
-  experienceVersion: number;
-  title: string;
-  summary: string | null;
-  estimatedMinutes: number | null;
-  status: "DRAFT" | "PUBLISHED";
-  sceneCount: number;
-  /** `code` rows have no database id and cannot be edited in place. */
-  source: "database" | "code";
-  publishedAt: string | null;
-  updatedAt: string | null;
-}
-
-export interface AdminChapterExperiences {
-  bookSlug: string;
-  chapterOrder: number;
-  /** The only guide an experience here may pin, or null when none exists. */
-  guidePin: { guideKey: string; guideVersion: number } | null;
-  experiences: AdminExperienceRow[];
-}
 
 /** Editorial failures, surfaced as codes rather than stack traces. */
 const EDITORIAL_CODES: Record<string, string> = {

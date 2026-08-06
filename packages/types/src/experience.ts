@@ -340,3 +340,41 @@ export interface ChapterExperiencePublicView {
 export interface ChapterExperienceDiscoveryResponse {
   items: ChapterExperiencePublicView[];
 }
+
+// ─── CMS V1 (#637) — admin views ────────────────────────────────────────────
+
+/**
+ * One experience as the back-office lists it.
+ *
+ * `source` is the honest part: a `code` row ships in the build and has no
+ * database id, so it can be read and cloned forward but never edited in place.
+ */
+export interface AdminExperienceRow {
+  id: string | null;
+  experienceKey: string;
+  experienceVersion: number;
+  title: string;
+  summary: string | null;
+  estimatedMinutes: number | null;
+  status: "DRAFT" | "PUBLISHED";
+  sceneCount: number;
+  source: "database" | "code";
+  publishedAt: string | null;
+  updatedAt: string | null;
+}
+
+/** Everything the editor needs for one chapter, in one read. */
+export interface AdminChapterExperiences {
+  bookSlug: string;
+  chapterOrder: number;
+  /** The only guide an experience here may pin, or null when none exists. */
+  guidePin: { guideKey: string; guideVersion: number } | null;
+  experiences: AdminExperienceRow[];
+}
+
+/** A stored definition, as the draft editor loads it. */
+export interface AdminExperienceDraft {
+  id: string;
+  status: "DRAFT" | "PUBLISHED";
+  definition: ChapterExperienceDefinition;
+}

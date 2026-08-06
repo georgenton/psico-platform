@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { guideApi } from "./guide";
+import { GUIDE_RECOVERY_PARAMS_INVALID, guideApi } from "./guide";
 import { apiClient } from "./client";
 
 /**
@@ -168,5 +168,50 @@ describe("guideApi", () => {
     ]) {
       expect(body).not.toHaveProperty(forbidden);
     }
+  });
+
+  describe("getRecoverableSession", () => {
+    it("GETs the pin as query parameters and posts nothing", async () => {
+      await guideApi.getRecoverableSession({
+        guideKey: "eec-c1-cuerpo-antes-que-mente",
+        guideVersion: 1,
+      });
+      expect(get).toHaveBeenCalledWith(
+        "/guide/sessions/recoverable?guideKey=eec-c1-cuerpo-antes-que-mente&guideVersion=1",
+      );
+      // A read. Resuming must never be able to create the thing it resumes.
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["", 1],
+      ["UPPER", 1],
+      ["has spaces", 1],
+      ["ok-key", 0],
+      ["ok-key", -1],
+      ["ok-key", 1.5],
+      ["ok-key", Number.NaN],
+    ])("rejects (%s, %s) locally, without a request", async (key, version) => {
+      await expect(
+        guideApi.getRecoverableSession({
+          guideKey: key as string,
+          guideVersion: version as number,
+        }),
+      ).rejects.toThrow(GUIDE_RECOVERY_PARAMS_INVALID);
+      // A malformed pin would come back as `recoverable: false`, which reads
+      // exactly like "nothing to resume". Those are different facts, so the
+      // request is never made.
+      expect(get).not.toHaveBeenCalled();
+    });
+
+    it("the local rejection never echoes the pin it rejected", async () => {
+      const secretish = "Not A Key";
+      await guideApi
+        .getRecoverableSession({ guideKey: secretish, guideVersion: 1 })
+        .catch((err: Error) => {
+          expect(err.message).toBe(GUIDE_RECOVERY_PARAMS_INVALID);
+          expect(err.message).not.toContain(secretish);
+        });
+    });
   });
 });

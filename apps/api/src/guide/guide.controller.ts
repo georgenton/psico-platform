@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Query,
   Controller,
   Get,
   Header,
@@ -11,6 +12,7 @@ import {
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
+  ApiQuery,
   ApiBearerAuth,
   ApiBody,
   ApiConflictResponse,
@@ -38,9 +40,15 @@ import { JwtAuthGuard } from "../auth";
 import type { AuthenticatedUser } from "../auth";
 import { CurrentUser } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import type { RecoverableGuideSessionResponse } from "@psico/types";
 import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { GuideLifecycleService } from "./guide-lifecycle.service";
+import {
+  GUIDE_INVALID_RECOVERY_QUERY,
+  parseGuideRecoveryQuery,
+  type GuideRecoveryQuery,
+} from "./guide-recovery-params";
 import type {
   GuideCommandResult,
   GuideRecallCommandResult,
@@ -68,6 +76,7 @@ import {
 } from "./guide-http-errors";
 import {
   GUIDE_AVAILABILITY_RESPONSE,
+  GUIDE_RECOVERABLE_SESSION_RESPONSE,
   GUIDE_DISCOVERY_RESPONSE,
   GUIDE_COMMAND_RESPONSE,
   GUIDE_RECALL_BODY,
@@ -137,6 +146,63 @@ export class GuideController {
     @CurrentUser() user: AuthenticatedUser,
   ): GuideAvailabilityResponse {
     return { available: this.rollout.isAvailable(user.userId) };
+  }
+
+  /**
+   * GR-5 — "am I already in the middle of this guide?", answered by the server.
+   *
+   * This is what makes resume work across devices. V1 could only recover what
+   * the same browser had kept, so starting on a laptop and opening the phone
+   * looked like starting over; the checkpoint was always in the ledger, it just
+   * had no way out.
+   *
+   * READ-ONLY and actor-scoped: the lookup filters on the JWT's user, so
+   * another actor's session is not denied — it is not found. A session pinned
+   * to a DIFFERENT guide is equally invisible, and neither case is
+   * distinguishable from "you have none", which is the point: this surface
+   * cannot be used to learn what somebody else is doing.
+   *
+   * A malformed pin is a 400, not a negative answer — "guide version zero" is
+   * not a question about a real guide, and replying `recoverable:false` there
+   * would answer something the caller never asked.
+   */
+  @Get("sessions/recoverable")
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "getRecoverableGuideSession",
+    summary:
+      "La sesión activa del actor para un pin exacto, si existe. No revela " +
+      "sesiones ajenas ni de otro pin, y nunca crea nada.",
+  })
+  @ApiQuery({ name: "guideKey", required: true, schema: { type: "string" } })
+  @ApiQuery({
+    name: "guideVersion",
+    required: true,
+    schema: { type: "integer", minimum: 1 },
+  })
+  @ApiOkResponse({ schema: GUIDE_RECOVERABLE_SESSION_RESPONSE })
+  @ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+  @ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+  async getRecoverableGuideSession(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query("guideKey") guideKey?: string,
+    @Query("guideVersion") guideVersion?: string,
+  ): Promise<RecoverableGuideSessionResponse> {
+    let pin: GuideRecoveryQuery;
+    try {
+      pin = parseGuideRecoveryQuery(guideKey, guideVersion);
+    } catch {
+      throw new BadRequestException({ code: GUIDE_INVALID_RECOVERY_QUERY });
+    }
+
+    const session = await this.lifecycle.findRecoverableSession(
+      user.userId,
+      pin,
+    );
+    return session === null
+      ? { recoverable: false, session: null }
+      : { recoverable: true, session };
   }
 
   /**

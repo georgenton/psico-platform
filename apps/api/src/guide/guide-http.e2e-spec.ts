@@ -754,6 +754,112 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
 
   // ── CC-7.R1 · server-owned pilot rollout gate ─────────────────────────────
 
+  // ── GR-5 · cross-device recovery ───────────────────────────────────────────
+
+  describe("GR-5 · recovering a session on a second device", () => {
+    // The guide commands are throttled per actor (30–60/min). This block walks
+    // whole journeys, so without clearing the counters it would be the SUITE's
+    // cumulative traffic — not the endpoint under test — deciding the outcome.
+    beforeEach(async () => {
+      await h.redis.flushall();
+    });
+
+    const recover = (token: string, key = GUIDE_KEY, version = "1") =>
+      http()
+        .get("/api/guide/sessions/recoverable")
+        .query({ guideKey: key, guideVersion: version })
+        .set(auth(token));
+
+    it("requires a JWT — an anonymous read learns nothing", async () => {
+      await http()
+        .get("/api/guide/sessions/recoverable")
+        .query({ guideKey: GUIDE_KEY, guideVersion: "1" })
+        .expect(401);
+    });
+
+    it("answers recoverable:false with zero writes when there is nothing", async () => {
+      const before = await counts();
+      const res = await recover(tokenA).expect(200);
+      expect(res.body).toEqual({ recoverable: false, session: null });
+      expect(await counts()).toEqual(before);
+    });
+
+    it("resumes mid-journey: the ledger, not the client, says where we are", async () => {
+      const sessionId = await start(tokenA);
+      await completeStep(sessionId, STEP_CONCEPT).expect(201);
+
+      // A second device knows only the pin — no session id, no local state.
+      const res = await recover(tokenA).expect(200);
+      expect(res.body.recoverable).toBe(true);
+      expect(res.body.session).toEqual({
+        sessionId,
+        guideKey: GUIDE_KEY,
+        guideVersion: 1,
+        status: "ACTIVE",
+        stepsCompleted: 1,
+        totalSteps: 3,
+        currentStepKey: STEP_PRACTICE,
+      });
+    });
+
+    it("another person's session is invisible — same answer as none at all", async () => {
+      const sessionId = await start(tokenA);
+      await completeStep(sessionId, STEP_CONCEPT).expect(201);
+      const mine = await recover(tokenA).expect(200);
+      const theirs = await recover(tokenB).expect(200);
+      expect(mine.body.recoverable).toBe(true);
+      // Byte-for-byte the empty answer: no timing tell, no distinct code, no
+      // hint that a session exists at all.
+      expect(theirs.body).toEqual({ recoverable: false, session: null });
+    });
+
+    it("a different pin does not resolve to the session that exists", async () => {
+      const sessionId = await start(tokenA);
+      await completeStep(sessionId, STEP_CONCEPT).expect(201);
+      const other = await recover(tokenA, GUIDE_KEY, "9").expect(200);
+      expect(other.body).toEqual({ recoverable: false, session: null });
+    });
+
+    it("a malformed query is a 400, never a coerced guess", async () => {
+      for (const [key, version] of [
+        [GUIDE_KEY, "1.0"],
+        [GUIDE_KEY, "0"],
+        [GUIDE_KEY, "abc"],
+        ["Not A Key", "1"],
+      ]) {
+        const res = await recover(tokenA, key, version).expect(400);
+        expect(res.body.code).toBe("GUIDE_INVALID_RECOVERY_QUERY");
+        // The rejected value never travels back out in the envelope.
+        expect(JSON.stringify(res.body)).not.toContain("Not A Key");
+      }
+    });
+
+    it("a completed session stops being recoverable", async () => {
+      const sessionId = await start(tokenA);
+      await completeStep(sessionId, STEP_CONCEPT).expect(201);
+      await completeStep(sessionId, STEP_PRACTICE).expect(201);
+      await http()
+        .post(`/api/guide/sessions/${sessionId}/steps/${STEP_RECALL}/recall`)
+        .set(auth(tokenA))
+        .send({ idempotencyKey: nextKey(), selectedOptionKey: CORRECT_OPTION })
+        .expect(201);
+      await http()
+        .post(`/api/guide/sessions/${sessionId}/complete`)
+        .set(auth(tokenA))
+        .send({ idempotencyKey: nextKey() })
+        .expect(201);
+
+      const res = await recover(tokenA).expect(200);
+      expect(res.body).toEqual({ recoverable: false, session: null });
+    });
+
+    it("the response is never cached — resume must read the ledger every time", async () => {
+      const res = await recover(tokenA).expect(200);
+      expect(res.headers["cache-control"]).toContain("no-store");
+      expect(res.headers["cache-control"]).toContain("private");
+    });
+  });
+
   describe("CC-7.R1 · pilot rollout gate", () => {
     // Three apps over the SAME database and the SAME JWTs, differing only in the
     // server-owned rollout config. Booting per-mode is what lets us prove the

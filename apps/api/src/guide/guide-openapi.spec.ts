@@ -65,6 +65,7 @@ const GUIDE_PATHS = Object.keys(openapi.paths)
 
 const AVAILABILITY_PATH = "/api/guide/availability";
 const DISCOVERY_PATH = "/api/guide/discovery/{bookSlug}/{chapterOrder}";
+const RECOVERABLE_PATH = "/api/guide/sessions/recoverable";
 
 /** The five COMMAND paths (POST) — the availability GET is deliberately not here. */
 const EXPECTED_PATHS = [
@@ -76,13 +77,14 @@ const EXPECTED_PATHS = [
 ];
 
 /**
- * The full published Guide surface — the five commands plus the two read
- * routes: the pilot gate and GR-4 contextual discovery.
+ * The full published Guide surface — the five commands plus the three read
+ * routes: the pilot gate, GR-4 contextual discovery and GR-5 session recovery.
  */
 const ALL_GUIDE_PATHS = [
   ...EXPECTED_PATHS,
   AVAILABILITY_PATH,
   DISCOVERY_PATH,
+  RECOVERABLE_PATH,
 ].sort();
 
 const EXPECTED_OPERATION_IDS = [
@@ -102,12 +104,28 @@ const responseOf = (path: string, status: string): Schema =>
     ?.schema as Schema;
 
 describe("ratchet · guide OpenAPI surface", () => {
-  it("publishes exactly seven paths — five commands and two read routes", () => {
+  it("publishes exactly eight paths — five commands and three read routes", () => {
     expect(GUIDE_PATHS).toEqual(ALL_GUIDE_PATHS);
     const ids = EXPECTED_PATHS.map((p) => openapi.paths[p]?.post?.operationId)
       .filter((id): id is string => typeof id === "string")
       .sort();
     expect(ids).toEqual(EXPECTED_OPERATION_IDS);
+  });
+
+  it("recovery is a GET-only read that takes its pin as query parameters", () => {
+    const ops = openapi.paths[RECOVERABLE_PATH];
+    // GET only. A route that could resume a journey by POSTing would be a
+    // sixth command wearing a read's name.
+    expect(Object.keys(ops ?? {})).toEqual(["get"]);
+    const get = ops?.get;
+    expect(get?.operationId).toBe("getRecoverableGuideSession");
+    expect(get?.requestBody).toBeUndefined();
+    const params = (get?.parameters ?? []) as { name?: string; in?: string }[];
+    expect(params.map((q) => q.name).sort()).toEqual([
+      "guideKey",
+      "guideVersion",
+    ]);
+    expect(params.every((q) => q.in === "query")).toBe(true);
   });
 
   it("exposes ONLY POST on the five COMMAND paths", () => {

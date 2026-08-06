@@ -175,6 +175,25 @@ export interface GuideSessionView {
 }
 
 /**
+ * GR-5 — the answer to "am I already in the middle of this guide?".
+ *
+ * A closed two-branch union so the client cannot read a half-populated shape:
+ * either there is a recoverable session and `session` is the same public view
+ * every command returns, or there is not and `session` is `null`.
+ *
+ * "Not recoverable" is deliberately one answer for several situations — no
+ * active session, an active session pinned to a different guide, a version
+ * that left the registry. Distinguishing them would let a caller enumerate
+ * what somebody else is doing.
+ *
+ * This carries the CHECKPOINT, not the panel. The Player derives which scene
+ * to open from `currentStepKey`, which is why no scene is ever stored.
+ */
+export type RecoverableGuideSessionResponse =
+  | { recoverable: false; session: null }
+  | { recoverable: true; session: GuideSessionView };
+
+/**
  * The response of all five commands. `created` means this call applied the
  * transition (HTTP 201); `replayed` means an identical prior command already
  * did and nothing ran now (HTTP 200).

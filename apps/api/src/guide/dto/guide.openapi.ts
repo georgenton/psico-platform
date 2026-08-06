@@ -160,6 +160,37 @@ export const GUIDE_DISCOVERY_RESPONSE: SchemaObject = {
   oneOf: [GUIDE_DISCOVERY_UNAVAILABLE, GUIDE_DISCOVERY_AVAILABLE],
 };
 
+/**
+ * GR-5 — GET /api/guide/sessions/recoverable.
+ *
+ * A CLOSED union with the same discipline as discovery: the negative arm
+ * carries `session: null` and nothing else, so it cannot be mined to learn
+ * whether somebody has an active session under a different pin.
+ */
+export const GUIDE_RECOVERABLE_NONE: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["recoverable", "session"],
+  properties: {
+    recoverable: { type: "boolean", enum: [false] },
+    session: { type: "null" },
+  },
+};
+
+export const GUIDE_RECOVERABLE_SOME: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["recoverable", "session"],
+  properties: {
+    recoverable: { type: "boolean", enum: [true] },
+    session: GUIDE_SESSION_VIEW,
+  },
+};
+
+export const GUIDE_RECOVERABLE_SESSION_RESPONSE: SchemaObject = {
+  oneOf: [GUIDE_RECOVERABLE_NONE, GUIDE_RECOVERABLE_SOME],
+};
+
 /** The response of all five commands. */
 export const GUIDE_COMMAND_RESPONSE: SchemaObject = {
   type: "object",

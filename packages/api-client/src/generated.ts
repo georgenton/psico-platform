@@ -2078,6 +2078,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guide/sessions/recoverable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** La sesión activa del actor para un pin exacto, si existe. No revela sesiones ajenas ni de otro pin, y nunca crea nada. */
+        get: operations["getRecoverableGuideSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guide/discovery/{bookSlug}/{chapterOrder}": {
         parameters: {
             query?: never;
@@ -12216,6 +12233,102 @@ export interface operations {
             };
         };
     };
+    getRecoverableGuideSession: {
+        parameters: {
+            query: {
+                guideKey: string;
+                guideVersion: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        recoverable: false;
+                        session: null;
+                    } | {
+                        /** @enum {boolean} */
+                        recoverable: true;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsRecoverableGetResponses200ContentApplicationJsonOneOf1SessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     getGuideDiscovery: {
         parameters: {
             query?: never;
@@ -16604,6 +16717,11 @@ export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentA
     AUDIOBOOK = "AUDIOBOOK",
     PODCAST = "PODCAST",
     VIDEO = "VIDEO"
+}
+export enum PathsApiGuideSessionsRecoverableGetResponses200ContentApplicationJsonOneOf1SessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
 }
 export enum PathsApiGuideSessionsPostResponses200ContentApplicationJsonSessionStatus {
     ACTIVE = "ACTIVE",

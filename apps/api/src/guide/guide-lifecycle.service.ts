@@ -7,6 +7,7 @@ import type {
   GuideDefinition,
   GuideRecallOutcome,
   GuideSessionProjection,
+  GuideSessionView,
   GuideSessionStatus,
   GuideStepDefinition,
 } from "@psico/types";
@@ -240,6 +241,75 @@ export class GuideLifecycleService {
       guideFail("GUIDE_STEP_COMMAND_MISMATCH");
     }
     return step as GuideRecallStepDefinition;
+  }
+
+  /**
+   * GR-5 — "am I already in the middle of this guide?", answered by the SERVER.
+   *
+   * This is the whole of cross-device resume. V1 could only recover what the
+   * same browser had kept, so opening the guide on a phone after starting it
+   * on a laptop looked like starting over. The checkpoint has always lived in
+   * the ledger; it just had no way out.
+   *
+   * READ-ONLY and actor-scoped by construction: `findActive` filters on the
+   * JWT's userId, so another actor's session is not "denied" — it does not
+   * exist. A session pinned to a DIFFERENT guide is equally invisible here;
+   * this endpoint answers about one pin and nothing else, and it never cancels
+   * or replaces what it finds.
+   *
+   * What comes back is the checkpoint, not the panel:
+   * `CROSS_DEVICE_EXACT_SCENE_RESUME=false`. The Player derives the first
+   * scene for `currentStepKey` itself, which is why no `sceneKey` is stored
+   * anywhere and why this needed no migration.
+   */
+  async findRecoverableSession(
+    userId: string,
+    pin: { guideKey: string; guideVersion: number },
+  ): Promise<GuideSessionView | null> {
+    const session = await this.sessions.findActive(userId);
+    if (session === null) return null;
+    if (
+      session.guideKey !== pin.guideKey ||
+      session.guideVersion !== pin.guideVersion
+    ) {
+      return null;
+    }
+
+    // The pinned definition, not the newest — a session that outlived its
+    // version cannot be reasoned about, so it reads as unrecoverable rather
+    // than as a guess.
+    // `getExact` THROWS for a pin the registry no longer holds. Here that is
+    // not an error to surface: a session whose version was retired is simply
+    // not recoverable, and answering 500 would turn a stale pin into an
+    // outage on a read that promises to be harmless.
+    let definition: GuideDefinition;
+    try {
+      definition = productionGuideRegistry.getExact(
+        session.guideKey,
+        session.guideVersion,
+      );
+    } catch {
+      return null;
+    }
+
+    const accepted = (await this.steps.listAccepted(session.id)).map((row) =>
+      parseAcceptedGuideStepRow(row),
+    );
+    const projection = deriveGuideProjection(
+      definition,
+      accepted,
+      session.status,
+    );
+
+    return {
+      sessionId: session.id,
+      guideKey: session.guideKey,
+      guideVersion: session.guideVersion,
+      status: session.status,
+      stepsCompleted: projection.stepsCompleted,
+      totalSteps: projection.totalSteps,
+      currentStepKey: projection.currentStepKey,
+    };
   }
 
   /** Build the result from CURRENT stored state (never from the command). */

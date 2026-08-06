@@ -33,6 +33,8 @@ import { EEC_PIN, PQP_PIN } from "./guide-test-fixtures";
  */
 
 const GUIDE_DIR = __dirname;
+/** GR-6 — the player and its cursor live beside the guide, not inside it. */
+const EXPERIENCE_DIR = join(__dirname, "..", "experience");
 const LECTOR_DIR = join(__dirname, "..", "lector");
 
 function runtimeFiles(dir: string): string[] {
@@ -52,8 +54,17 @@ function stripComments(source: string): string {
 }
 
 const GUIDE_FILES = runtimeFiles(GUIDE_DIR);
+/**
+ * GR-6 — the scan follows the code. The panels a reader actually taps now live
+ * in `experience/` and `experience/scenes/`, so leaving those out would have
+ * left the ratchet guarding the room the writes moved out of.
+ */
+const EXPERIENCE_FILES = [
+  ...runtimeFiles(EXPERIENCE_DIR),
+  ...runtimeFiles(join(EXPERIENCE_DIR, "scenes")),
+];
 const LECTOR_SHELL = join(LECTOR_DIR, "LectorShell.tsx");
-const SCANNED = [...GUIDE_FILES, LECTOR_SHELL];
+const SCANNED = [...GUIDE_FILES, ...EXPERIENCE_FILES, LECTOR_SHELL];
 
 function sourcesOf(files: string[]): Array<[string, string]> {
   return files.map((f) => [f, stripComments(readFileSync(f, "utf8"))]);
@@ -148,7 +159,9 @@ describe("firewall · the guide never writes on the reader's behalf", () => {
       join(GUIDE_DIR, "guide-web-bundle.ts"),
       join(GUIDE_DIR, "guide-pin.ts"),
       join(GUIDE_DIR, "guide-recovery.ts"),
-      join(GUIDE_DIR, "guide-scene.ts"),
+      join(EXPERIENCE_DIR, "experience-scene-store.ts"),
+      join(EXPERIENCE_DIR, "experience-presentation.ts"),
+      join(EXPERIENCE_DIR, "ExperiencePlayer.tsx"),
       join(GUIDE_DIR, "ReaderGuidePanel.tsx"),
     ];
     for (const [file, source] of sourcesOf(READER_CHAIN)) {

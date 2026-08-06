@@ -62,8 +62,23 @@ vi.mock("@psico/api-client", async (importOriginal) => {
       getGuideDiscovery: (...a: unknown[]) => getGuideDiscovery(...a),
       createGuideSession: (...a: unknown[]) => createGuideSession(...a),
     },
+    // GR-6 — the Player's definition is server-owned. The panel asks for it
+    // instead of importing a catalog, so a test that renders the panel has to
+    // answer that read; the fixture is the same shape the route returns.
+    experienceApi: {
+      listPublishedForChapter: (input: {
+        bookSlug: string;
+        chapterOrder: number;
+      }) => Promise.resolve(experiencesForChapter(input)),
+    },
   };
 });
+
+import {
+  EEC_EXPERIENCE,
+  PQP_EXPERIENCE,
+  experiencesForChapter,
+} from "../guide/guide-test-fixtures";
 
 const EEC_PIN = { guideKey: "eec-c1-cuerpo-antes-que-mente", guideVersion: 1 };
 const PQP_PIN = { guideKey: "pqp-c1-contacto-sostenido", guideVersion: 1 };
@@ -237,16 +252,16 @@ describe("LectorShell · the five reading contexts", () => {
     await openGuide();
 
     expect(await screen.findByTestId("reader-guide-panel")).toBeInTheDocument();
-    // The cover heading of the panel — the chapter card in the reader carries
-    // the same words, so scope the query to the panel itself.
+    // GR-6 — the cover title is the SERVER's. It comes from the experience
+    // discovery payload, not from a catalog compiled into this bundle, which
+    // is what lets a CMS change it without a deploy. Asserting the words is
+    // asserting where they came from: the fixture is the API's response.
     expect(
-      screen.getByRole("heading", {
-        name: "El cuerpo sabe antes que la mente",
-      }),
+      await screen.findByRole("heading", { name: EEC_EXPERIENCE.title }),
     ).toBeInTheDocument();
-    // …and NOT the other book's cover.
+    // …and NOT the other book's experience.
     expect(
-      screen.queryByText("El contacto sostenido en silencio"),
+      screen.queryByRole("heading", { name: PQP_EXPERIENCE.title }),
     ).not.toBeInTheDocument();
   });
 
@@ -261,13 +276,14 @@ describe("LectorShell · the five reading contexts", () => {
 
     expect(await screen.findByTestId("reader-guide-panel")).toBeInTheDocument();
     expect(
-      screen.getByText("El contacto sostenido en silencio"),
+      await screen.findByRole("heading", { name: PQP_EXPERIENCE.title }),
     ).toBeInTheDocument();
     expect(getGuideDiscovery).toHaveBeenCalledWith("parejas-que-perduran", 2);
+    // The exact pinned version is what the panel resolved, and the other
+    // book's experience is nowhere on screen.
+    expect(PQP_EXPERIENCE.experienceVersion).toBe(1);
     expect(
-      screen.queryByRole("heading", {
-        name: "El cuerpo sabe antes que la mente",
-      }),
+      screen.queryByRole("heading", { name: EEC_EXPERIENCE.title }),
     ).not.toBeInTheDocument();
   });
 

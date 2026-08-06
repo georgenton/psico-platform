@@ -73,7 +73,18 @@ export interface GuideRecoveryRecord {
   actorScope: string;
   guideKey: string;
   guideVersion: number;
-  startIdempotencyKey: string;
+  /**
+   * The key that identifies the START this browser sent.
+   *
+   * ABSENT on a session this browser ADOPTED rather than started — GR-5's
+   * cross-device resume. The distinction is load-bearing: replaying a start
+   * key is how a browser re-finds its own run, but minting one for a session
+   * somebody else's device opened would AUTOCANCEL that run, because on the
+   * server a START with an unseen key ends the active session and creates a
+   * new one. So an adopted record carries no key, and boot re-asks the server
+   * instead of replaying anything.
+   */
+  startIdempotencyKey?: string;
   sessionId?: string;
   pendingCommand?: PendingGuideCommand;
 }
@@ -248,14 +259,20 @@ export function parseGuideRecoveryRecord(
   if (guidePinKey(pin) === null) return null;
   if (value.guideKey !== pin.guideKey) return null;
   if (value.guideVersion !== pin.guideVersion) return null;
-  if (!isUuid(value.startIdempotencyKey)) return null;
+  // A key that is PRESENT must be well formed. A key that is absent means an
+  // adopted session — legal, but only alongside the session it adopted.
+  const hasStartKey = value.startIdempotencyKey !== undefined;
+  if (hasStartKey && !isUuid(value.startIdempotencyKey)) return null;
+  if (!hasStartKey && !isSessionId(value.sessionId)) return null;
 
   const record: GuideRecoveryRecord = {
     schemaVersion: 1,
     actorScope: expectedActorScope,
     guideKey: pin.guideKey,
     guideVersion: pin.guideVersion,
-    startIdempotencyKey: value.startIdempotencyKey,
+    ...(hasStartKey
+      ? { startIdempotencyKey: value.startIdempotencyKey as string }
+      : {}),
   };
 
   if (value.sessionId !== undefined) {

@@ -1,36 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChapterConcept, GuideRecallOutcome } from "@psico/types";
-import { GUIDE_SCOPE_NOTE } from "./guide-presentation";
-import type { GuideReaderCopy } from "./guide-reader-copy";
+import { useCallback, useEffect, useRef } from "react";
+import type { ChapterConcept } from "@psico/types";
 import type { GuideWebBundle } from "./guide-web-bundle";
-import { useGuideRun } from "./use-guide-run";
 import type { GuideAnchorResolution } from "./guide-anchor";
-import {
-  clearGuideScene,
-  readGuideScene,
-  resolveScene,
-  storedOutcomeFor,
-  writeGuideScene,
-  type GuideScene,
-} from "./guide-scene";
+import { ExperiencePlayer } from "../experience/ExperiencePlayer";
+import { useChapterExperience } from "../experience/use-chapter-experience";
 
 /**
- * GR-3 — guided reading, inside the reader.
+ * GR-3 / GR-6 — guided reading, inside the reader.
  *
  * The chapter stays mounted behind this panel. That is the whole point of the
- * feature: the previous version navigated to `/dashboard/exploraciones`, and
- * the reader lost their place to answer three questions about the page they
- * were on.
+ * feature: an earlier version navigated away to `/dashboard/exploraciones`,
+ * and the reader lost their place to answer three questions about the page
+ * they were on.
  *
- * The run is `useGuideRun`, the same one the standalone route uses. What lives
- * here is presentation: which of the eight scenes of the CURRENT server-owned
- * checkpoint is on screen. Losing that costs a tap, never progress.
+ * GR-6 emptied this file of everything except that idea. It used to hold a
+ * second player — its own eight scenes, its own cursor, its own copy of the
+ * cover and the finish — beside the standalone route's. Two players of the
+ * same run is how two screens start disagreeing about what a person has done,
+ * so there is now exactly one: `ExperiencePlayer`, mounted here and mounted by
+ * the standalone route, with the same registry and the same rules.
  *
- * It is NOT a modal: the chapter behind it stays readable and reachable. So it
- * takes focus when it opens (there is new content to read) and hands it back
- * when it closes, but it never traps it.
+ * What remains here is genuinely reader-specific and belongs to no other
+ * surface:
+ *
+ *   - the drawer itself, and the fact that it takes focus without trapping it;
+ *   - the anchor precondition — no located passage, no offer;
+ *   - the way back to the book, in the two forms the reader expects.
+ *
+ * It is NOT a modal: the chapter behind it stays readable and reachable.
  */
 
 /** The reader's tab points at this with `aria-controls`. */
@@ -72,36 +71,48 @@ export function ReaderGuidePanel({
   onContinueReading,
   onOpenExplicitCheckin,
 }: ReaderGuidePanelProps) {
-  const { presentation, pin } = bundle;
-  const C: GuideReaderCopy = bundle.copy;
-  const run = useGuideRun({ actorScope, pin, presentation });
-  const headingRef = useRef<HTMLHeadingElement>(null);
-  const { session, screen, busy } = run;
-
-  /**
-   * The step the SERVER says is current, resolved in the PINNED presentation.
-   *
-   * Every command this panel sends names this key. The previous build had the
-   * step keys written into the JSX, which meant the anchor button always sent
-   * `explorar-cuerpo-antes-que-mente` — correct for exactly one guide and
-   * silently wrong for any other.
-   */
-  const currentStep = run.step;
-  const confirmStepKey =
-    currentStep?.surface === "confirm" ? currentStep.stepKey : null;
-  const recallStep = currentStep?.surface === "recall" ? currentStep : null;
-
-  const [scene, setSceneState] = useState<GuideScene>("cover");
-  const [ackFeedback, setAckFeedback] = useState(false);
-  const [storedOutcome, setStoredOutcome] = useState<GuideRecallOutcome | null>(
-    null,
-  );
-  const [announcement, setAnnouncement] = useState("");
   const panelRef = useRef<HTMLElement>(null);
 
-  // Escape closes, from anywhere inside the panel or after it took focus.
-  // The reader keeps the shortcut they already expect from every other
-  // dismissible surface in the dashboard.
+  /**
+   * The explicit resonance write.
+   *
+   * It lives here because this is where the chapter context is: the concept,
+   * the book and the chapter the reader is actually in. The scene decides
+   * WHEN (an explicit tap) and this decides WHAT — a `POST /resonances` with
+   * `source: "guide"`, the same path the panel has used since GR-3.
+   *
+   * It is NOT the check-in. `onOpenExplicitCheckin` remains a separate prop
+   * for a separate act; wiring one to the other is exactly the mistake this
+   * callback exists to prevent.
+   */
+  const confirmResonance = useCallback(async () => {
+    const res = await fetch(`${apiBase}/resonances`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        conceptKey: concept.key,
+        conceptLabel: concept.label,
+        bookSlug,
+        chapterOrder,
+        source: "guide",
+      }),
+    });
+    // The scene renders "no pudimos guardarla" from this rejection; a silent
+    // failure would tell somebody their resonance was saved when it was not.
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  }, [apiBase, token, concept, bookSlug, chapterOrder]);
+
+  // Escape closes, from anywhere inside the panel or after it took focus. The
+  // reader keeps the shortcut they already expect from every other dismissible
+  // surface in the dashboard.
+  //
+  // It closes the SURFACE and nothing else: no command is sent, the session is
+  // not cancelled, the recovery record is not cleared and the route does not
+  // change. Leaving is not abandoning — the run is exactly where it was, and
+  // reopening the panel finds it there.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -110,202 +121,48 @@ export function ReaderGuidePanel({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Focus enters the panel once, when it opens. Not a trap — Tab still walks
-  // out into the chapter, which is the point of a non-modal surface.
+  // Focus enters the panel once, when it opens, because there is new content
+  // to read. Not a trap — Tab still walks out into the chapter, which is the
+  // point of a non-modal surface. Handing focus back on close is the caller's
+  // half, and the reader does it.
   useEffect(() => {
     panelRef.current?.focus();
   }, []);
-  /**
-   * «Empezar» does two things at once: it creates the session (the network
-   * part, which is the server's) and it moves off the cover (the local part).
-   * The second cannot happen in the click handler because the session only
-   * exists once the response lands, so the intent is remembered here and the
-   * scene effect honours it exactly once.
-   */
-  const justStarted = useRef(false);
 
-  /** Move to a scene and remember it — always stamped with the CURRENT
-   * server state, so a stale record can be detected instead of trusted. */
-  const goToScene = useCallback(
-    (next: GuideScene, outcome?: GuideRecallOutcome | null) => {
-      setSceneState(next);
-      if (!session) return;
-      const verdict = outcome ?? run.recallOutcome ?? storedOutcome;
-      writeGuideScene(
-        {
-          schemaVersion: 1,
-          actorScope,
-          guideKey: pin.guideKey,
-          guideVersion: pin.guideVersion,
-          sessionId: session.sessionId,
-          currentStepKey: session.currentStepKey,
-          scene: next,
-          ...(verdict ? { recallOutcome: verdict } : {}),
-        },
-        pin,
-      );
-    },
-    [actorScope, pin, run.recallOutcome, session, storedOutcome],
-  );
-
-  // Re-derive the scene whenever the SERVER's checkpoint moves. The stored
-  // record only survives if it still describes this session and this
-  // checkpoint; otherwise the reader lands on the first scene of where they
-  // actually are — never at the start of the whole guide.
-  const sessionId = session?.sessionId;
-  const currentStepKey = session?.currentStepKey ?? null;
-  useEffect(() => {
-    if (!sessionId) return;
-    const stored = readGuideScene(actorScope, pin);
-    setStoredOutcome(storedOutcomeFor({ sessionId }, stored));
-    const resolved = resolveScene(
-      { sessionId, currentStepKey },
-      stored,
-      presentation,
-    );
-    // `null` means the pinned presentation does not know this checkpoint. The
-    // run already reports `unknown-step`, which is the screen that shows; there
-    // is no local scene to move to, so we leave the state where it is rather
-    // than inventing a cover.
-    if (resolved === null) return;
-    // A reload lands here: `feedback` means the verdict was never
-    // acknowledged, `finish` means it was. Both come from the record, so the
-    // reader picks up exactly where they were instead of at the closing screen
-    // with an answer they never saw.
-    //
-    // Only a record that DESCRIBES this exact checkpoint may answer that
-    // question. When it does not — a fresh run, another device, a checkpoint
-    // just left — the answer is "not acknowledged", because a verdict that
-    // arrives a moment later must still be shown.
-    const describesNow =
-      stored?.sessionId === sessionId &&
-      stored?.currentStepKey === currentStepKey;
-    setAckFeedback(describesNow ? stored.scene !== "feedback" : false);
-    if (justStarted.current) {
-      justStarted.current = false;
-      // A fresh start lands on the cover by definition; the reader already
-      // pressed the button that says «Empezar», so leaving them on it again
-      // would be asking twice.
-      // Only off the cover. A start that resumes an existing session lands
-      // wherever the server says it is, and that is not ours to skip.
-      if (resolved === "cover" && !stored) {
-        setSceneState("clip");
-        return;
-      }
-    }
-    setSceneState(resolved);
-  }, [actorScope, pin, presentation, sessionId, currentStepKey]);
-
-  // Focus the heading after a scene change so a screen reader announces the
-  // new screen instead of a button that no longer exists.
-  useEffect(() => {
-    if (run.booting || busy) return;
-    headingRef.current?.focus();
-  }, [scene, screen, run.booting, busy]);
-
-  const outcome = run.recallOutcome ?? storedOutcome;
-
-  // The verdict arrives asynchronously; write it down as soon as it does, so a
-  // reload one second later still shows it.
-  // Deps are the verdict and the session, deliberately: `goToScene` changes
-  // identity on every render, and including it would rewrite the record
-  // continuously for no reason. The rule is not installed in this workspace,
-  // so this note is the explanation rather than a disable comment.
-  const freshOutcome = run.recallOutcome;
-  const goToSceneRef = useRef(goToScene);
-  goToSceneRef.current = goToScene;
-  useEffect(() => {
-    if (!freshOutcome || ackFeedback) return;
-    goToSceneRef.current("feedback", freshOutcome);
-  }, [freshOutcome, ackFeedback]);
-
-  // ── Practice timer — optional, local, and written down nowhere ────────────
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
-  useEffect(() => {
-    if (secondsLeft === null) return;
-    if (secondsLeft <= 0) {
-      setSecondsLeft(null);
-      return;
-    }
-    const t = setTimeout(() => setSecondsLeft((s) => (s ?? 1) - 1), 1000);
-    return () => clearTimeout(t);
-  }, [secondsLeft]);
-
-  // ── Resonance — explicit, after the guide, never automatic ────────────────
-  const [resonance, setResonance] = useState<
-    "idle" | "saving" | "saved" | "error" | "dismissed"
-  >("idle");
-
-  async function confirmResonance() {
-    setResonance("saving");
-    try {
-      const res = await fetch(`${apiBase}/resonances`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          conceptKey: concept.key,
-          conceptLabel: concept.label,
-          bookSlug,
-          chapterOrder,
-          source: "guide",
-        }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setResonance("saved");
-    } catch {
-      setResonance("error");
-    }
-  }
-
-  function repeatGuide() {
-    // Clears only this browser's recovery + presentation. Nothing that was
-    // recorded is touched: past sessions and their events stay exactly as
-    // they were, because they happened.
-    clearGuideScene(pin);
-    setAckFeedback(false);
-    setStoredOutcome(null);
-    setResonance("idle");
-    setSceneState("cover");
-    run.restart();
-  }
-
-  function goToPassage() {
-    onGoToPassage();
-    setAnnouncement(C.anchor.located);
-  }
-
-  // The server's screen wins whenever it says something categorical (booting,
-  // cancelled, closed). Only INSIDE a live checkpoint does the local scene
-  // decide what shows — and even there, an unacknowledged recall verdict comes
-  // first, because the reader answered a question and deserves the answer.
-  const inCheckpoint = screen === "step" || screen === "finish";
-  const effective: GuideScene | null = !inCheckpoint
-    ? null
-    : outcome && !ackFeedback && screen === "finish"
-      ? "feedback"
-      : scene;
+  // GR-6 — server-owned. The panel does not know which journey presents this
+  // chapter until the API says so, which is what lets a CMS change the answer
+  // without a deploy.
+  const { status, definition } = useChapterExperience({
+    bookSlug,
+    chapterOrder,
+    pin: bundle.pin,
+  });
 
   // Defence in depth. The reader already refuses to mount this panel without a
   // located passage; the panel refuses on its own too, because a cover with a
-  // working «Empezar» would record progress through a guide whose first step
+  // working «Empezar» would record progress through a journey whose passage
   // cannot be shown. No session is created, so nothing has to be undone.
-  if (anchor.status !== "RESOLVED") {
+  //
+  // A pin with no published experience fails the same way and for the same
+  // reason: there is nothing honest to render.
+  if (
+    anchor.status !== "RESOLVED" ||
+    status === "loading" ||
+    definition === null
+  ) {
     return (
       <aside
         id={READER_GUIDE_PANEL_ID}
-        aria-label={C.panelLabel}
+        aria-label="Recorrido guiado del capítulo"
         data-testid="reader-guide-panel"
         className="reader-guide-panel"
         tabIndex={-1}
       >
         <style>{PANEL_CSS}</style>
         <div className="rgp-head">
-          <span className="rgp-eyebrow">{C.cover.eyebrow}</span>
+          <span className="rgp-eyebrow">Recorrido guiado</span>
           <button type="button" onClick={onClose} className="rgp-close">
-            {C.close}
+            Cerrar
           </button>
         </div>
         <div className="rgp-body">
@@ -314,7 +171,9 @@ export function ReaderGuidePanel({
             role="status"
             data-testid="rgp-anchor-unresolved"
           >
-            {C.unavailable}
+            {status === "loading"
+              ? "Preparando el recorrido…"
+              : "No pudimos preparar el recorrido de este capítulo. Puedes seguir leyendo con normalidad."}
           </p>
         </div>
       </aside>
@@ -325,7 +184,7 @@ export function ReaderGuidePanel({
     <aside
       id={READER_GUIDE_PANEL_ID}
       ref={panelRef}
-      aria-label={C.panelLabel}
+      aria-label="Recorrido guiado del capítulo"
       data-testid="reader-guide-panel"
       className="reader-guide-panel"
       tabIndex={-1}
@@ -334,407 +193,32 @@ export function ReaderGuidePanel({
 
       <div className="rgp-head">
         <span className="rgp-badges">
-          <span className="rgp-eyebrow">{C.cover.eyebrow}</span>
-          {/* The scope sits beside the badge, not below the title: what the
-              guide covers is part of the offer, not a footnote to it. */}
+          <span className="rgp-eyebrow">Recorrido guiado</span>
+          {/* What the guide covers is part of the offer, not a footnote. */}
           <span className="rgp-scope" data-testid="rgp-scope">
-            {C.cover.scope}
+            Registra avance educativo
           </span>
         </span>
         <button type="button" onClick={onClose} className="rgp-close">
-          {C.close}
+          Cerrar
         </button>
       </div>
 
-      {session ? (
-        <p className="rgp-progress" data-testid="rgp-progress">
-          {session.stepsCompleted} de {session.totalSteps} pasos registrados
-        </p>
-      ) : null}
-
-      <div aria-live="polite" aria-atomic="true" className="rgp-live">
-        {announcement}
-        {run.error ? (
-          <span role="alert" className="rgp-error">
-            {run.error.message}
-            {run.retry ? (
-              <button
-                type="button"
-                onClick={run.retryPending}
-                disabled={busy}
-                className="rgp-btn ghost"
-              >
-                {presentation.labels.retry}
-              </button>
-            ) : null}
-          </span>
-        ) : null}
-      </div>
-
       <div className="rgp-body">
-        {screen === "booting" ? (
-          <p className="rgp-muted">Recuperando tu avance…</p>
-        ) : null}
-
-        {screen === "storage-unavailable" ? (
-          <>
-            <h2 ref={headingRef} tabIndex={-1} className="rgp-title">
-              No podemos guardar tu avance en este navegador
-            </h2>
-            <p className="rgp-text">
-              Sin poder guardar la clave de recuperación no podemos garantizar
-              que un paso se registre una sola vez, así que no iniciamos la
-              guía.
-            </p>
-          </>
-        ) : null}
-
-        {/* Cover — the ONLY screen that can create a session, and only on a
-            click. Opening the panel never starts anything. */}
-        {screen === "cover" || effective === "cover" ? (
-          <>
-            <h2 ref={headingRef} tabIndex={-1} className="rgp-title">
-              {C.cover.title}
-            </h2>
-            <p className="rgp-duration">{C.cover.duration}</p>
-            {C.cover.body.map((p) => (
-              <p key={p} className="rgp-text">
-                {p}
-              </p>
-            ))}
-            {screen === "cover" ? (
-              <button
-                type="button"
-                className="rgp-btn primary"
-                disabled={busy}
-                onClick={() => {
-                  justStarted.current = true;
-                  void run.start();
-                }}
-              >
-                {busy ? "Abriendo…" : C.cover.start}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="rgp-btn primary"
-                onClick={() => goToScene("clip")}
-              >
-                {C.clip.continue}
-              </button>
-            )}
-          </>
-        ) : null}
-
-        {effective === "clip" ? (
-          <ClipScene copy={C} onContinue={() => goToScene("anchor")} />
-        ) : null}
-
-        {effective === "anchor" ? (
-          <>
-            <h2 ref={headingRef} tabIndex={-1} className="rgp-title">
-              {C.anchor.title}
-            </h2>
-            <p className="rgp-text">{C.anchor.body}</p>
-            <button
-              type="button"
-              className="rgp-btn ghost"
-              onClick={goToPassage}
-            >
-              {C.anchor.goToPassage}
-            </button>
-            <button
-              type="button"
-              className="rgp-btn primary"
-              disabled={busy || confirmStepKey === null}
-              onClick={() => confirmStepKey && run.completeStep(confirmStepKey)}
-            >
-              {busy ? "Guardando…" : C.anchor.confirm}
-            </button>
-            <p className="rgp-note">{C.anchor.confirmNote}</p>
-          </>
-        ) : null}
-
-        {effective === "practice" ? (
-          <>
-            <h2 ref={headingRef} tabIndex={-1} className="rgp-title">
-              {C.practice.title}
-            </h2>
-            {C.practice.body.map((p) => (
-              <p key={p} className="rgp-text">
-                {p}
-              </p>
-            ))}
-            {secondsLeft === null ? (
-              <button
-                type="button"
-                className="rgp-btn ghost"
-                onClick={() => setSecondsLeft(C.practice.timerSeconds)}
-              >
-                {C.practice.timerStart}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="rgp-btn ghost"
-                onClick={() => setSecondsLeft(null)}
-              >
-                {C.practice.timerStop} · {secondsLeft}s
-              </button>
-            )}
-            <p className="rgp-note">{C.practice.timerNote}</p>
-            <button
-              type="button"
-              className="rgp-btn primary"
-              disabled={busy || confirmStepKey === null}
-              onClick={() => confirmStepKey && run.completeStep(confirmStepKey)}
-            >
-              {busy ? "Guardando…" : C.practice.confirm}
-            </button>
-            <p className="rgp-note">{C.practice.confirmNote}</p>
-          </>
-        ) : null}
-
-        {effective === "recall" && recallStep ? (
-          <>
-            <h2 ref={headingRef} tabIndex={-1} className="rgp-title">
-              {C.recall.title}
-            </h2>
-            <fieldset className="rgp-fieldset">
-              <legend className="rgp-legend">{recallStep.question}</legend>
-              <div role="radiogroup" aria-label={recallStep.question}>
-                {recallStep.options.map((option) => (
-                  <label key={option.optionKey} className="rgp-option">
-                    <input
-                      type="radio"
-                      name="rgp-recall"
-                      value={option.optionKey}
-                      checked={run.choice === option.optionKey}
-                      onChange={() => run.setChoice(option.optionKey)}
-                      disabled={busy}
-                    />
-                    <span>{option.label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <button
-              type="button"
-              className="rgp-btn primary"
-              disabled={busy || run.choice === null}
-              onClick={() =>
-                run.choice && run.submitRecall(recallStep.stepKey, run.choice)
-              }
-            >
-              {busy ? "Guardando…" : C.recall.submit}
-            </button>
-          </>
-        ) : null}
-
-        {effective === "feedback" && outcome ? (
-          <div data-testid="rgp-feedback">
-            <h2 ref={headingRef} tabIndex={-1} className="rgp-title">
-              {outcome === "CORRECT"
-                ? C.feedback.correct.title
-                : C.feedback.review.title}
-            </h2>
-            <p className="rgp-text">
-              {outcome === "CORRECT"
-                ? C.feedback.correct.body
-                : C.feedback.review.body}
-            </p>
-            {outcome === "REVIEW" ? (
-              <button
-                type="button"
-                className="rgp-btn ghost"
-                onClick={goToPassage}
-              >
-                {C.completed.returnToPassage}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="rgp-btn primary"
-              onClick={() => {
-                setAckFeedback(true);
-                goToScene("finish", outcome);
-              }}
-            >
-              {C.feedback.continue}
-            </button>
-          </div>
-        ) : null}
-
-        {screen === "finish" && (!outcome || ackFeedback) ? (
-          <>
-            <h2 ref={headingRef} tabIndex={-1} className="rgp-title">
-              {C.finish.title}
-            </h2>
-            <p className="rgp-text">{C.finish.body}</p>
-            <button
-              type="button"
-              className="rgp-btn primary"
-              disabled={busy}
-              onClick={run.finish}
-            >
-              {busy ? "Guardando…" : C.finish.finish}
-            </button>
-          </>
-        ) : null}
-
-        {screen === "completed" ? (
-          <div data-testid="rgp-completed">
-            <p className="rgp-banner">{C.completed.banner}</p>
-
-            {/* The resonance is a separate, explicit question — it is not a
-                requirement to have finished, and «Ahora no» writes nothing. */}
-            {resonance === "saved" ? (
-              <p className="rgp-text">🌱 {C.resonance.saved}</p>
-            ) : resonance === "dismissed" ? null : (
-              <div className="rgp-resonance">
-                <p className="rgp-text">{C.resonance.question}</p>
-                {resonance === "error" ? (
-                  <p className="rgp-error-text">{C.resonance.error}</p>
-                ) : null}
-                <button
-                  type="button"
-                  className="rgp-btn primary"
-                  disabled={resonance === "saving"}
-                  onClick={() => void confirmResonance()}
-                >
-                  {resonance === "saving" ? "Guardando…" : C.resonance.yes}
-                </button>
-                <button
-                  type="button"
-                  className="rgp-btn ghost"
-                  onClick={() => setResonance("dismissed")}
-                >
-                  {C.resonance.no}
-                </button>
-              </div>
-            )}
-
-            <button
-              type="button"
-              className="rgp-btn ghost"
-              onClick={onOpenExplicitCheckin}
-            >
-              {C.checkin.action}
-            </button>
-            <p className="rgp-note">{C.checkin.note}</p>
-
-            <div className="rgp-actions">
-              <button
-                type="button"
-                className="rgp-btn ghost"
-                onClick={onContinueReading}
-              >
-                {C.completed.continueReading}
-              </button>
-              <button
-                type="button"
-                className="rgp-btn ghost"
-                onClick={goToPassage}
-              >
-                {C.completed.returnToPassage}
-              </button>
-              <button
-                type="button"
-                className="rgp-btn ghost"
-                onClick={repeatGuide}
-              >
-                {C.completed.repeat}
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {screen === "cancelled" ? (
-          <>
-            <h2 ref={headingRef} tabIndex={-1} className="rgp-title">
-              Guía cerrada
-            </h2>
-            <button
-              type="button"
-              className="rgp-btn ghost"
-              onClick={repeatGuide}
-            >
-              {presentation.labels.restart}
-            </button>
-          </>
-        ) : null}
-
-        {screen === "unknown-step" || screen === "inconsistent" ? (
-          <>
-            <h2 ref={headingRef} tabIndex={-1} className="rgp-title">
-              No pudimos mostrar el paso actual.
-            </h2>
-            <p className="rgp-text">
-              Tu avance está guardado. Vuelve a intentarlo más tarde.
-            </p>
-          </>
-        ) : null}
-
-        {screen === "start-retry" ? (
-          <>
-            <h2 ref={headingRef} tabIndex={-1} className="rgp-title">
-              No pudimos abrir tu guía
-            </h2>
-            <p className="rgp-text">
-              Tu avance sigue guardado. Reintenta cuando quieras — usaremos el
-              mismo intento, así que no se duplicará nada.
-            </p>
-          </>
-        ) : null}
+        <ExperiencePlayer
+          actorScope={actorScope}
+          definition={definition}
+          bundle={bundle}
+          anchor={anchor}
+          concept={concept}
+          media={{ bookSlug, chapterOrder, apiBase, token }}
+          onGoToPassage={onGoToPassage}
+          onContinueReading={onContinueReading}
+          onClose={onClose}
+          onConfirmResonance={confirmResonance}
+        />
       </div>
-
-      <p className="rgp-scope">{GUIDE_SCOPE_NOTE}</p>
     </aside>
-  );
-}
-
-/** The clip scene. No player, because there is no asset — see the copy. */
-function ClipScene({
-  copy: C,
-  onContinue,
-}: {
-  copy: GuideReaderCopy;
-  onContinue: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const heading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
-    heading.current?.focus();
-  }, []);
-  return (
-    <>
-      <h2 ref={heading} tabIndex={-1} className="rgp-title">
-        {C.clip.title}
-      </h2>
-      <div className="rgp-clip" data-testid="rgp-clip-pending">
-        <span>🎬</span>
-        <b>{C.clip.pending}</b>
-        <span className="rgp-note">{C.clip.pendingNote}</span>
-      </div>
-      <button
-        type="button"
-        className="rgp-btn ghost"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        {open ? C.clip.hideTranscript : C.clip.readTranscript}
-      </button>
-      {open
-        ? C.clip.transcript.map((p) => (
-            <p key={p} className="rgp-text">
-              {p}
-            </p>
-          ))
-        : null}
-      <button type="button" className="rgp-btn primary" onClick={onContinue}>
-        {C.clip.continue}
-      </button>
-    </>
   );
 }
 

@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -63,16 +63,25 @@ import { describe, expect, it } from "vitest";
  */
 
 const GUIDE_DIR = __dirname;
+/** GR-6 — the one player and its parts. */
+const EXPERIENCE_DIR = join(__dirname, "..", "experience");
 const WEB_SRC = join(__dirname, "..", "..", "..");
 const EXPLORACIONES_DIR = join(WEB_SRC, "app", "dashboard", "exploraciones");
 
 function runtimeFiles(dir: string): string[] {
-  return readdirSync(dir)
-    .map((entry) => join(dir, entry))
-    .filter((full) => statSync(full).isFile())
-    .filter(
-      (full) => /\.tsx?$/.test(full) && !/\.(spec|test)\.tsx?$/.test(full),
-    );
+  return (
+    readdirSync(dir)
+      .map((entry) => join(dir, entry))
+      .filter((full) => statSync(full).isFile())
+      .filter(
+        (full) => /\.tsx?$/.test(full) && !/\.(spec|test)\.tsx?$/.test(full),
+      )
+      // Test scaffolding is not the shipped surface. `guide-test-fixtures.ts`
+      // exists so a test can name a pin and a scene binding; holding it to the
+      // runtime ban would mean no test could build a fixture at all, which
+      // buys nothing and costs the coverage the ratchets exist to protect.
+      .filter((full) => !/guide-test-fixtures\.ts$/.test(full))
+  );
 }
 
 /** Comments explaining an absence must never trip a ratchet. */
@@ -130,6 +139,15 @@ describe("ratchet · guide web surface", () => {
         if (file.endsWith("ReaderGuidePanel.tsx") && key === "conceptKey") {
           continue;
         }
+        // GR-6 — the panel also carries `bookId`, and for a comparable
+        // reason: the chapter-media surfaces key on the book id, and the
+        // AUDIO scene mounts the reader's own `AudioBar`. It is plumbing for
+        // a DIFFERENT contract, not context for a guide command — and the
+        // assertion below is the one that matters, because the panel makes no
+        // guideApi call at all.
+        if (file.endsWith("ReaderGuidePanel.tsx") && key === "bookId") {
+          continue;
+        }
         expect(
           source.includes(key),
           `${relative(GUIDE_DIR, file)} → ${key}`,
@@ -176,10 +194,12 @@ describe("ratchet · guide web surface", () => {
       "completeGuideSession",
       "completeGuideSessionStep",
       "createGuideSession",
+      // GR-5 — the one READ. It is not a sixth command: it creates nothing,
+      // and it is what lets a reader resume on a second device instead of
+      // being offered a fresh start for a journey they already opened.
+      "getRecoverableSession",
       "submitGuideStepRecall",
     ]);
-    // No read endpoint exists — the UI must not invent one.
-    expect(runner).not.toMatch(/guideApi\.get/);
     expect(runner).not.toMatch(/setInterval|setTimeout\s*\(\s*.*poll/i);
 
     // Nobody else on the surface talks to the Guide API directly.
@@ -245,7 +265,10 @@ describe("ratchet · guide web surface", () => {
 
     // GUIDE_RECOVERY_SCOPE_SENT_TO_API=false — the player passes the scope to
     // storage helpers only; no guideApi call carries it.
-    const player = readFileSync(join(GUIDE_DIR, "GuidePlayer.tsx"), "utf8");
+    const player = readFileSync(
+      join(EXPERIENCE_DIR, "ExperiencePlayer.tsx"),
+      "utf8",
+    );
     for (const call of [
       ...player.matchAll(/guideApi\.[a-zA-Z]+\(([^;]*?)\);/g),
     ]) {
@@ -448,14 +471,19 @@ describe("ratchet · guide web surface", () => {
    * caller supplies; naming a guide inside any of them would reintroduce the
    * singleton under a different spelling.
    */
+  // Full paths since GR-6: the player and the scene cursor moved next door,
+  // and the property they carry — a runtime that works for ANY pinned guide —
+  // moved with them.
   const GENERIC_RUNTIME = [
-    "use-guide-run.ts",
-    "guide-recovery.ts",
-    "guide-scene.ts",
-    "guide-web-bundle.ts",
-    "guide-pin.ts",
-    "GuidePlayer.tsx",
-    "ReaderGuidePanel.tsx",
+    join(GUIDE_DIR, "use-guide-run.ts"),
+    join(GUIDE_DIR, "guide-recovery.ts"),
+    join(GUIDE_DIR, "guide-web-bundle.ts"),
+    join(GUIDE_DIR, "guide-pin.ts"),
+    join(GUIDE_DIR, "ReaderGuidePanel.tsx"),
+    join(EXPERIENCE_DIR, "ExperiencePlayer.tsx"),
+    join(EXPERIENCE_DIR, "experience-scene-store.ts"),
+    join(EXPERIENCE_DIR, "experience-presentation.ts"),
+    join(EXPERIENCE_DIR, "experience-scene-registry.ts"),
   ];
 
   /**
@@ -501,8 +529,8 @@ describe("ratchet · guide web surface", () => {
   });
 
   it("the generic runtime never names a specific guide", () => {
-    for (const name of GENERIC_RUNTIME) {
-      const source = stripComments(readFileSync(join(GUIDE_DIR, name), "utf8"));
+    for (const file of GENERIC_RUNTIME) {
+      const source = stripComments(readFileSync(file, "utf8"));
       for (const literal of [
         "eec-c1-cuerpo-antes-que-mente",
         "pqp-c1-contacto-sostenido",
@@ -513,7 +541,10 @@ describe("ratchet · guide web surface", () => {
         "practicar-diez-minutos-de-contacto",
         "recordar-contacto-sostenido",
       ]) {
-        expect(source.includes(literal), `${name} → ${literal}`).toBe(false);
+        expect(
+          source.includes(literal),
+          `${relative(GUIDE_DIR, file)} → ${literal}`,
+        ).toBe(false);
       }
     }
   });
@@ -545,12 +576,114 @@ describe("ratchet · guide web surface", () => {
   });
 
   it("STARTSWITH_STEP_SCENE_INFERENCE=0 — the scene is declared, not guessed", () => {
-    const scene = stripComments(
-      readFileSync(join(GUIDE_DIR, "guide-scene.ts"), "utf8"),
+    // GR-6 moved the cursor from the eight-scene machine to the experience
+    // definition, and the property survived the move: which panel opens is
+    // READ from the pinned scenes, never inferred from a step key's spelling.
+    // The old build did `stepKey.startsWith("practicar")`, which quietly made
+    // a Spanish word part of the contract.
+    const cursor = stripComments(
+      readFileSync(join(EXPERIENCE_DIR, "experience-presentation.ts"), "utf8"),
     );
-    expect(scene).not.toMatch(/startsWith\(/);
-    // It reads the declared field instead.
-    expect(scene).toContain("initialReaderScene");
+    expect(cursor).not.toMatch(/startsWith\(/);
+    // It walks the declared scene order and its bindings instead.
+    expect(cursor).toContain("completesGuideStepKey");
+  });
+
+  /**
+   * GR-6 — ONE player.
+   *
+   * Before this, the standalone route and the reader panel each rendered their
+   * own copy of the run: two sets of scenes, two cursors, two ideas of what
+   * "finished" looked like. Two players of the same session is how two screens
+   * start disagreeing about what a person has done.
+   *
+   * This is the ratchet that keeps a second one from coming back.
+   */
+  it("CANONICAL_PLAYER_IMPLEMENTATIONS=1 — one player, two frames", () => {
+    // EXPERIENCE_PLAYER_PRESENT=true
+    expect(existsSync(join(EXPERIENCE_DIR, "ExperiencePlayer.tsx"))).toBe(true);
+
+    // GUIDE_PLAYER_V1_PRESENT=false · LEGACY_GUIDE_SCENE_MACHINE_PRESENT=false
+    expect(existsSync(join(GUIDE_DIR, "GuidePlayer.tsx"))).toBe(false);
+    expect(existsSync(join(GUIDE_DIR, "guide-scene.ts"))).toBe(false);
+
+    // Both mounts render the SAME component.
+    for (const mount of ["GuidePlayerMount.tsx", "ReaderGuidePanel.tsx"]) {
+      const source = stripComments(
+        readFileSync(join(GUIDE_DIR, mount), "utf8"),
+      );
+      expect(source, mount).toContain("<ExperiencePlayer");
+    }
+
+    // READER_PANEL_IS_THIN_WRAPPER=true — the panel owns the drawer, the
+    // anchor precondition and the ways back to the book. It does not render a
+    // scene, and it does not send a command.
+    const panel = stripComments(
+      readFileSync(join(GUIDE_DIR, "ReaderGuidePanel.tsx"), "utf8"),
+    );
+    expect(panel).not.toContain("useGuideRun");
+    expect(panel).not.toMatch(/guideApi\./);
+  });
+
+  it("RENDERER_REGISTRY_EXHAUSTIVE=true — twelve keys, no default", () => {
+    const registry = stripComments(
+      readFileSync(
+        join(EXPERIENCE_DIR, "experience-scene-registry.ts"),
+        "utf8",
+      ),
+    );
+    // The compile-time obligation, stated in the source so a refactor that
+    // dropped it would be visible here too.
+    expect(registry).toContain(
+      "satisfies Record<ExperienceSceneKind, ExperienceSceneRenderer>",
+    );
+    for (const kind of [
+      "INTRO",
+      "PASSAGE",
+      "CONCEPT",
+      "EXAMPLE",
+      "AUDIO",
+      "VIDEO",
+      "PRACTICE",
+      "REFLECTION",
+      "QUESTION",
+      "RECALL",
+      "SUMMARY",
+      "RESONANCE",
+    ]) {
+      expect(registry, kind).toMatch(new RegExp(`\\b${kind}:`));
+    }
+    // No fallback component: an unknown kind must fail closed, not render
+    // something that looks like a panel.
+    expect(registry).not.toMatch(/\bdefault:/);
+  });
+
+  /**
+   * GR-6 — the web ships no production catalog.
+   *
+   * A definition compiled into the bundle cannot change when a CMS publishes.
+   * The browser asks the server and renders what it is handed.
+   */
+  it("WEB_CONSUMES_SERVER_PUBLISHED_EXPERIENCES=true", () => {
+    const hook = stripComments(
+      readFileSync(join(EXPERIENCE_DIR, "use-chapter-experience.ts"), "utf8"),
+    );
+    expect(hook).toContain("experienceApi.listPublishedForChapter");
+
+    // No experience file may hard-code a production experience key.
+    for (const file of readdirSync(EXPERIENCE_DIR)) {
+      if (!file.endsWith(".ts") && !file.endsWith(".tsx")) continue;
+      if (file.includes(".test.") || file.includes(".spec.")) continue;
+      const source = stripComments(
+        readFileSync(join(EXPERIENCE_DIR, file), "utf8"),
+      );
+      for (const key of [
+        "eec-c1-cuerpo-antes-que-mente",
+        "pqp-c1-contacto-sostenido",
+      ]) {
+        expect(source, `${file} names ${key}`).not.toContain(key);
+      }
+    }
   });
 
   it("CLIENT_CORRECT_OPTION_KEY_LITERAL=0 across the whole guide surface", () => {

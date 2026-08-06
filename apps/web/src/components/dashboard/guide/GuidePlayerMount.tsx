@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 
-import { GuidePlayer } from "./GuidePlayer";
+import { ExperiencePlayer } from "../experience/ExperiencePlayer";
+import { useChapterExperience } from "../experience/use-chapter-experience";
 import { useGuideActorScope } from "./guide-actor-scope";
 import { useGuideAvailability } from "./guide-availability";
 import { resolveGuideWebBundle } from "./guide-web-bundle";
@@ -21,7 +22,8 @@ const STANDALONE_PIN = {
 } as const;
 
 /**
- * CC-7.5 / CC-7.R1 — mounts the Guide player with the actor scope from context.
+ * CC-7.5 / CC-7.R1 / GR-6 — mounts the Experience Player with the actor scope
+ * from context. Same player the reader panel mounts; only the frame differs.
  *
  * The scope is resolved ONCE by the dashboard layout and published through the
  * `GuideActorScopeProvider`; this thin client wrapper reads it so the page can
@@ -38,9 +40,22 @@ const STANDALONE_PIN = {
  *   - CC-7.5: when the scope is null (the layout could not resolve the
  *     authenticated identity this render) the player is likewise not mounted.
  */
+/** The chapter this standalone route plays, stated with its pin. */
+const STANDALONE_CONTEXT = {
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 1,
+} as const;
+
 export function GuidePlayerMount() {
   const available = useGuideAvailability();
   const scope = useGuideActorScope();
+  // Hooks run before the gates below return: React requires the call order to
+  // be stable, and `enabled` is what keeps a gated-out reader from asking.
+  const experience = useChapterExperience({
+    ...STANDALONE_CONTEXT,
+    pin: STANDALONE_PIN,
+    enabled: available && scope !== null,
+  });
 
   if (!available) {
     return (
@@ -93,10 +108,12 @@ export function GuidePlayerMount() {
     );
   }
 
-  // A pin with no registered bundle is not a guide this build can play. It
-  // fails closed rather than rendering the other guide's copy under this URL.
+  // A pin with no registered bundle is not a guide this build can play, and a
+  // pin with no PUBLISHED experience has no journey to present. Both fail
+  // closed rather than rendering the other guide's copy under this URL.
   const bundle = resolveGuideWebBundle(STANDALONE_PIN);
-  if (!bundle) {
+  const definition = experience.definition;
+  if (!bundle || definition === null) {
     return (
       <section
         aria-live="polite"
@@ -117,5 +134,11 @@ export function GuidePlayerMount() {
     );
   }
 
-  return <GuidePlayer actorScope={scope} bundle={bundle} />;
+  return (
+    <ExperiencePlayer
+      actorScope={scope}
+      definition={definition}
+      bundle={bundle}
+    />
+  );
 }

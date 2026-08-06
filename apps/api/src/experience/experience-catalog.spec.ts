@@ -34,12 +34,16 @@ import {
  * summary panel from quietly moving somebody's record forward.
  */
 
-/** A minimal valid payload for each kind, so every test starts from truth. */
+/**
+ * The kind-specific fields each scene must carry, so every test starts from
+ * truth. Words are NOT here: a scene's copy lives in its `copy` block, which
+ * every kind carries and which the public view resolves for the browser.
+ */
 const PAYLOAD: Record<ExperienceSceneKind, Record<string, unknown>> = {
-  INTRO: { title: "Hola", body: "Un momento." },
+  INTRO: {},
   PASSAGE: { anchorKey: "a-key" },
   CONCEPT: { conceptKey: "c-key" },
-  EXAMPLE: { title: "Así", body: "Se ve así." },
+  EXAMPLE: {},
   AUDIO: { mediaKind: "AUDIOBOOK" },
   VIDEO: { mediaKind: "VIDEO" },
   PRACTICE: { exerciseKey: "e-key" },
@@ -50,8 +54,18 @@ const PAYLOAD: Record<ExperienceSceneKind, Record<string, unknown>> = {
   RESONANCE: { conceptKey: "c-key" },
 };
 
+/** The words every kind carries. Short, ours, and never book prose. */
+const COPY = { title: "Un momento", body: ["Una línea corta."] };
+
 const scene = (kind: ExperienceSceneKind, over: Record<string, unknown> = {}) =>
-  ({ sceneKey: "s-1", order: 1, kind, ...PAYLOAD[kind], ...over }) as unknown;
+  ({
+    sceneKey: "s-1",
+    order: 1,
+    kind,
+    copy: COPY,
+    ...PAYLOAD[kind],
+    ...over,
+  }) as unknown;
 
 const experience = (scenes: unknown[], over: Record<string, unknown> = {}) =>
   ({
@@ -99,7 +113,13 @@ describe("Experience V2 — the twelve scene kinds", () => {
       // CONCEPT's payload under a RECALL kind.
       validateExperienceDefinition(
         experience([
-          { sceneKey: "s-1", order: 1, kind: "RECALL", conceptKey: "c-key" },
+          {
+            sceneKey: "s-1",
+            order: 1,
+            kind: "RECALL",
+            copy: COPY,
+            conceptKey: "c-key",
+          },
         ]),
       ),
     ).toThrow(ExperienceCatalogError);
@@ -109,7 +129,7 @@ describe("Experience V2 — the twelve scene kinds", () => {
     for (const kind of ["JOURNAL", "SERVER_ACTION", "", "concept"]) {
       expect(() =>
         validateExperienceDefinition(
-          experience([{ sceneKey: "s-1", order: 1, kind }]),
+          experience([{ sceneKey: "s-1", order: 1, kind, copy: COPY }]),
         ),
       ).toThrow(ExperienceCatalogError);
     }
@@ -437,9 +457,14 @@ describe("Experience V2 — the production catalog", () => {
       ...EEC_C1_EXPERIENCE.scenes,
       ...PQP_C1_EXPERIENCE.scenes,
     ]) {
-      if (s.kind === "INTRO" || s.kind === "EXAMPLE") {
-        expect(s.body.length).toBeLessThanOrEqual(600);
+      // Now that every kind carries a `copy` block, the check covers all
+      // twelve rather than the two that used to hold prose fields. A scene
+      // whose body ran to book length would mean the chapter had been pasted
+      // into the journey instead of pointed at.
+      for (const line of s.copy.body ?? []) {
+        expect(line.length).toBeLessThanOrEqual(600);
       }
+      expect(s.copy.title.length).toBeLessThanOrEqual(120);
     }
   });
 });

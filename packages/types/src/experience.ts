@@ -105,76 +105,106 @@ export interface ExperienceSceneBase {
   completesGuideStepKey?: string;
 }
 
+/**
+ * The renderable words of ONE scene.
+ *
+ * It lives on the definition, server-side, because a journey's copy has to be
+ * able to change when a CMS publishes — not when a browser bundle ships. The
+ * client renders what it is handed and holds no catalog of its own.
+ *
+ * Deliberately small and shared across kinds. Twelve bespoke copy shapes would
+ * be twelve places to add a field the day a panel needs one more line.
+ */
+export interface ExperienceSceneCopy {
+  title: string;
+  /** One paragraph, or several. A renderer decides how to lay them out. */
+  body?: readonly string[];
+  /** A quieter clarification. Never a new claim. */
+  note?: string;
+  /** The label of the control that CONFIRMS the bound step. */
+  actionLabel?: string;
+  /** Placeholder for a local, never-transmitted textarea. */
+  placeholder?: string;
+}
+
 /** Our own opening copy. Presentational. */
 export interface ExperienceIntroScene extends ExperienceSceneBase {
   kind: "INTRO";
-  title: string;
-  body: string;
+  copy: ExperienceSceneCopy;
 }
 
 /** Locates an already-approved reader anchor. Never carries the passage text. */
 export interface ExperiencePassageScene extends ExperienceSceneBase {
   kind: "PASSAGE";
   anchorKey: string;
+  copy: ExperienceSceneCopy;
 }
 
 /** Explains one catalog Concept. */
 export interface ExperienceConceptScene extends ExperienceSceneBase {
   kind: "CONCEPT";
   conceptKey: string;
+  copy: ExperienceSceneCopy;
 }
 
 /** Our own illustrative copy. Presentational. */
 export interface ExperienceExampleScene extends ExperienceSceneBase {
   kind: "EXAMPLE";
-  title: string;
-  body: string;
+  copy: ExperienceSceneCopy;
 }
 
 /** Reuses the chapter media pipeline. Never autoplays, never binds. */
 export interface ExperienceAudioScene extends ExperienceSceneBase {
   kind: "AUDIO";
   mediaKind: "AUDIOBOOK" | "PODCAST";
+  copy: ExperienceSceneCopy;
 }
 
 export interface ExperienceVideoScene extends ExperienceSceneBase {
   kind: "VIDEO";
   mediaKind: "VIDEO";
+  copy: ExperienceSceneCopy;
 }
 
 /** A catalog practice. Completion is always the person's own confirmation. */
 export interface ExperiencePracticeScene extends ExperienceSceneBase {
   kind: "PRACTICE";
   exerciseKey: string;
+  copy: ExperienceSceneCopy;
 }
 
 /** Invites writing. The text stays client-side / E2E — never sent as text. */
 export interface ExperienceReflectionScene extends ExperienceSceneBase {
   kind: "REFLECTION";
   promptKey: string;
+  copy: ExperienceSceneCopy;
 }
 
 /** An ungraded question. Not recall: nothing is scored, nothing is stored. */
 export interface ExperienceQuestionScene extends ExperienceSceneBase {
   kind: "QUESTION";
   promptKey: string;
+  copy: ExperienceSceneCopy;
 }
 
 /** An objective item. The SERVER grades it; the answer never ships. */
 export interface ExperienceRecallScene extends ExperienceSceneBase {
   kind: "RECALL";
   itemKey: string;
+  copy: ExperienceSceneCopy;
 }
 
 /** Factual close. Derived at render time; carries no payload. */
 export interface ExperienceSummaryScene extends ExperienceSceneBase {
   kind: "SUMMARY";
+  copy: ExperienceSceneCopy;
 }
 
 /** An optional, separate offer. "Ahora no" writes nothing. */
 export interface ExperienceResonanceScene extends ExperienceSceneBase {
   kind: "RESONANCE";
   conceptKey: string;
+  copy: ExperienceSceneCopy;
 }
 
 export type ExperienceSceneDefinition =
@@ -238,4 +268,75 @@ export interface ChapterExperienceSummary {
   summary?: string;
   estimatedMinutes?: number;
   sceneCount: number;
+}
+
+/**
+ * GR-6 — what the browser asks for when a reader opens a chapter.
+ *
+ * Closed and deliberately plain: a list, zero to many, of PUBLISHED
+ * definitions at their exact immutable versions. There is no cursor, no
+ * filter and no total, because a chapter has as many journeys as it has and
+ * that number is small.
+ *
+ * The response carries definitions, never presentation copy: what a panel
+ * SAYS is the client's, what a journey IS is the server's.
+ */
+
+// ─── The public view ────────────────────────────────────────────────────────
+
+/** A recall option as the reader sees it. The correct one is not marked. */
+export interface ExperienceRecallOptionView {
+  optionKey: string;
+  label: string;
+}
+
+/**
+ * One scene, resolved for rendering.
+ *
+ * `payload` carries everything a renderer needs and nothing it does not. The
+ * RECALL payload in particular carries the question and the options and NEVER
+ * `correctOptionKey`: the server grades, and an answer that never leaves the
+ * server cannot be read out of a network tab.
+ */
+export interface ExperienceScenePayload {
+  title: string;
+  body: readonly string[];
+  note?: string;
+  actionLabel?: string;
+  placeholder?: string;
+  /** PASSAGE — the approved locator, never the passage text itself. */
+  anchorKey?: string;
+  /** CONCEPT · RESONANCE. */
+  conceptKey?: string;
+  /** AUDIO · VIDEO — which produced format, never a signed URL. */
+  mediaKind?: "AUDIOBOOK" | "PODCAST" | "VIDEO";
+  /** RECALL only. */
+  question?: string;
+  options?: readonly ExperienceRecallOptionView[];
+}
+
+export interface ExperienceScenePublicView {
+  sceneKey: string;
+  order: number;
+  kind: ExperienceSceneKind;
+  completesGuideStepKey?: string;
+  payload: ExperienceScenePayload;
+}
+
+/**
+ * One experience, as the browser receives it: renderable, versioned, and
+ * carrying no internal identifier a client has no business holding.
+ */
+export interface ChapterExperiencePublicView {
+  experienceKey: string;
+  experienceVersion: number;
+  title: string;
+  summary?: string;
+  estimatedMinutes?: number;
+  guidePin: { guideKey: string; guideVersion: number };
+  scenes: ExperienceScenePublicView[];
+}
+
+export interface ChapterExperienceDiscoveryResponse {
+  items: ChapterExperiencePublicView[];
 }

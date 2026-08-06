@@ -18,6 +18,13 @@
 
 import type { ChapterExperienceDefinition, ExperiencePin } from "@psico/types";
 
+/**
+ * The DI token. Injecting the interface by token rather than the concrete
+ * class is what makes the CMS swap a one-line change in the module.
+ */
+export const EXPERIENCE_DEFINITION_REPOSITORY =
+  "EXPERIENCE_DEFINITION_REPOSITORY";
+
 export interface ChapterExperienceContext {
   bookSlug: string;
   chapterOrder: number;

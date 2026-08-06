@@ -2197,6 +2197,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/experiences/discovery/{bookSlug}/{chapterOrder}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Las experiencias PUBLICADAS de un capítulo, en versiones exactas. Cero a varias; no crea nada. */
+        get: operations["getChapterExperiences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/patrones": {
         parameters: {
             query?: never;
@@ -13114,6 +13131,81 @@ export interface operations {
             };
         };
     };
+    getChapterExperiences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Slug canónico del libro (kebab-case, minúsculas). */
+                bookSlug: string;
+                /** @description Orden del capítulo EN LA PLATAFORMA, que no siempre coincide con la numeración impresa del libro. */
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            experienceKey: string;
+                            experienceVersion: number;
+                            title: string;
+                            summary?: string;
+                            estimatedMinutes?: number;
+                            guidePin: {
+                                guideKey: string;
+                                guideVersion: number;
+                            };
+                            scenes: {
+                                sceneKey: string;
+                                order: number;
+                                /** @enum {string} */
+                                kind: PathsApiExperiencesDiscoveryBookSlugChapterOrderGetResponses200ContentApplicationJsonItemsScenesKind;
+                                completesGuideStepKey?: string;
+                                payload: {
+                                    title: string;
+                                    body: string[];
+                                    note?: string;
+                                    actionLabel?: string;
+                                    placeholder?: string;
+                                    anchorKey?: string;
+                                    conceptKey?: string;
+                                    /** @enum {string} */
+                                    mediaKind?: PathsApiExperiencesDiscoveryBookSlugChapterOrderGetResponses200ContentApplicationJsonItemsScenesPayloadMediaKind;
+                                    question?: string;
+                                    options?: {
+                                        optionKey: string;
+                                        label: string;
+                                    }[];
+                                };
+                            }[];
+                        }[];
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     PatronesController_getPatrones: {
         parameters: {
             query?: {
@@ -16780,6 +16872,25 @@ export enum PathsApiGuideSessionsSessionIdCompletePostResponses201ContentApplica
     ACTIVE = "ACTIVE",
     COMPLETED = "COMPLETED",
     CANCELLED = "CANCELLED"
+}
+export enum PathsApiExperiencesDiscoveryBookSlugChapterOrderGetResponses200ContentApplicationJsonItemsScenesKind {
+    INTRO = "INTRO",
+    PASSAGE = "PASSAGE",
+    CONCEPT = "CONCEPT",
+    EXAMPLE = "EXAMPLE",
+    AUDIO = "AUDIO",
+    VIDEO = "VIDEO",
+    PRACTICE = "PRACTICE",
+    REFLECTION = "REFLECTION",
+    QUESTION = "QUESTION",
+    RECALL = "RECALL",
+    SUMMARY = "SUMMARY",
+    RESONANCE = "RESONANCE"
+}
+export enum PathsApiExperiencesDiscoveryBookSlugChapterOrderGetResponses200ContentApplicationJsonItemsScenesPayloadMediaKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
 }
 export enum PathsApiPatronesGetParametersQueryPeriod {
     Value30d = "30d",

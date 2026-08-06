@@ -18,6 +18,7 @@ import {
   sceneKindCanBind,
   sceneKindCanComplete,
   type ChapterExperienceDefinition,
+  type ExperienceSceneCopy,
   type ExperienceSceneDefinition,
   type ExperienceSceneKind,
   type ExperienceStatus,
@@ -84,6 +85,34 @@ function optionalCopy(value: unknown, max: number): string | undefined {
   return requireCopy(value, max);
 }
 
+/**
+ * The scene's renderable words, rebuilt field by field.
+ *
+ * Bounded on purpose: a definition is editorial copy, not a place to smuggle
+ * a chapter. The limits are generous for a panel and hostile to a book.
+ */
+function rebuildCopy(value: unknown): ExperienceSceneCopy {
+  if (!isPlainObject(value)) fail();
+  const obj = value as Record<string, unknown>;
+  assertExactKeys(obj, ["title", "body", "note", "actionLabel", "placeholder"]);
+  const copy: {
+    -readonly [K in keyof ExperienceSceneCopy]: ExperienceSceneCopy[K];
+  } = { title: requireCopy(obj.title, 160) };
+  if (obj.body !== undefined) {
+    const body = obj.body;
+    if (!Array.isArray(body) || body.length === 0) fail();
+    copy.body = (body as unknown[]).map((line) => requireCopy(line, 600));
+  }
+  if (obj.note !== undefined) copy.note = requireCopy(obj.note, 300);
+  if (obj.actionLabel !== undefined) {
+    copy.actionLabel = requireCopy(obj.actionLabel, 60);
+  }
+  if (obj.placeholder !== undefined) {
+    copy.placeholder = requireCopy(obj.placeholder, 160);
+  }
+  return copy as ExperienceSceneCopy;
+}
+
 const SCENE_BASE_KEYS = ["sceneKey", "order", "kind"] as const;
 const BINDABLE_BASE_KEYS = [...SCENE_BASE_KEYS, "completesGuideStepKey"];
 
@@ -132,99 +161,118 @@ function rebuildScene(value: unknown): ExperienceSceneDefinition {
 
   switch (sceneKind) {
     case "INTRO": {
-      assertExactKeys(obj, [...allowed, "title", "body"]);
+      assertExactKeys(obj, [...allowed, "copy"]);
       const base = rebuildSceneBase(obj, sceneKind);
       return {
         ...base,
         kind: "INTRO",
-        title: requireCopy(obj.title, 120),
-        body: requireCopy(obj.body, 600),
+        copy: rebuildCopy(obj.copy),
       };
     }
     case "PASSAGE": {
-      assertExactKeys(obj, [...allowed, "anchorKey"]);
+      assertExactKeys(obj, [...allowed, "anchorKey", "copy"]);
       const base = rebuildSceneBase(obj, sceneKind);
-      return { ...base, kind: "PASSAGE", anchorKey: requireKey(obj.anchorKey) };
+      return {
+        ...base,
+        kind: "PASSAGE",
+        anchorKey: requireKey(obj.anchorKey),
+        copy: rebuildCopy(obj.copy),
+      };
     }
     case "CONCEPT": {
-      assertExactKeys(obj, [...allowed, "conceptKey"]);
+      assertExactKeys(obj, [...allowed, "conceptKey", "copy"]);
       const base = rebuildSceneBase(obj, sceneKind);
       return {
         ...base,
         kind: "CONCEPT",
         conceptKey: requireKey(obj.conceptKey),
+        copy: rebuildCopy(obj.copy),
       };
     }
     case "EXAMPLE": {
-      assertExactKeys(obj, [...allowed, "title", "body"]);
+      assertExactKeys(obj, [...allowed, "copy"]);
       const base = rebuildSceneBase(obj, sceneKind);
       return {
         ...base,
         kind: "EXAMPLE",
-        title: requireCopy(obj.title, 120),
-        body: requireCopy(obj.body, 600),
+        copy: rebuildCopy(obj.copy),
       };
     }
     case "AUDIO": {
-      assertExactKeys(obj, [...allowed, "mediaKind"]);
+      assertExactKeys(obj, [...allowed, "mediaKind", "copy"]);
       const base = rebuildSceneBase(obj, sceneKind);
       if (obj.mediaKind !== "AUDIOBOOK" && obj.mediaKind !== "PODCAST") fail();
       return {
         ...base,
         kind: "AUDIO",
         mediaKind: obj.mediaKind as "AUDIOBOOK" | "PODCAST",
+        copy: rebuildCopy(obj.copy),
       };
     }
     case "VIDEO": {
-      assertExactKeys(obj, [...allowed, "mediaKind"]);
+      assertExactKeys(obj, [...allowed, "mediaKind", "copy"]);
       const base = rebuildSceneBase(obj, sceneKind);
       if (obj.mediaKind !== "VIDEO") fail();
-      return { ...base, kind: "VIDEO", mediaKind: "VIDEO" };
+      return {
+        ...base,
+        kind: "VIDEO",
+        mediaKind: "VIDEO",
+        copy: rebuildCopy(obj.copy),
+      };
     }
     case "PRACTICE": {
-      assertExactKeys(obj, [...allowed, "exerciseKey"]);
+      assertExactKeys(obj, [...allowed, "exerciseKey", "copy"]);
       const base = rebuildSceneBase(obj, sceneKind);
       return {
         ...base,
         kind: "PRACTICE",
         exerciseKey: requireKey(obj.exerciseKey),
+        copy: rebuildCopy(obj.copy),
       };
     }
     case "REFLECTION": {
-      assertExactKeys(obj, [...allowed, "promptKey"]);
+      assertExactKeys(obj, [...allowed, "promptKey", "copy"]);
       const base = rebuildSceneBase(obj, sceneKind);
       return {
         ...base,
         kind: "REFLECTION",
         promptKey: requireKey(obj.promptKey),
+        copy: rebuildCopy(obj.copy),
       };
     }
     case "QUESTION": {
-      assertExactKeys(obj, [...allowed, "promptKey"]);
+      assertExactKeys(obj, [...allowed, "promptKey", "copy"]);
       const base = rebuildSceneBase(obj, sceneKind);
       return {
         ...base,
         kind: "QUESTION",
         promptKey: requireKey(obj.promptKey),
+        copy: rebuildCopy(obj.copy),
       };
     }
     case "RECALL": {
-      assertExactKeys(obj, [...allowed, "itemKey"]);
+      assertExactKeys(obj, [...allowed, "itemKey", "copy"]);
       const base = rebuildSceneBase(obj, sceneKind);
-      return { ...base, kind: "RECALL", itemKey: requireKey(obj.itemKey) };
+      return {
+        ...base,
+        kind: "RECALL",
+        itemKey: requireKey(obj.itemKey),
+        copy: rebuildCopy(obj.copy),
+      };
     }
     case "SUMMARY": {
-      assertExactKeys(obj, [...allowed]);
+      assertExactKeys(obj, [...allowed, "copy"]);
       const base = rebuildSceneBase(obj, sceneKind);
-      return { ...base, kind: "SUMMARY" };
+      return { ...base, kind: "SUMMARY", copy: rebuildCopy(obj.copy) };
     }
     case "RESONANCE": {
-      assertExactKeys(obj, [...allowed, "conceptKey"]);
+      assertExactKeys(obj, [...allowed, "conceptKey", "copy"]);
       const base = rebuildSceneBase(obj, sceneKind);
       return {
         ...base,
         kind: "RESONANCE",
         conceptKey: requireKey(obj.conceptKey),
+        copy: rebuildCopy(obj.copy),
       };
     }
     default:

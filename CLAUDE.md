@@ -173,7 +173,7 @@ Each module exposes its public surface through a `index.ts` barrel export.
 
 - TypeScript `strict` mode across the entire monorepo. Avoid `any`; if unavoidable, document the reason with a comment.
 - Conventional Commits: `feat` · `fix` · `docs` · `chore` · `refactor` · `test` · `ci` · `perf`.
-- Branch naming: `main` · `develop` · `feature/xxx` · `fix/xxx` · `release/vX.Y.Z` · `chore/xxx`.
+- Branch naming: `main` (sole integration branch and the base for every PR) · `feature/xxx` · `fix/xxx` · `release/vX.Y.Z` · `chore/xxx`. `develop` is kept as a frozen read-only mirror of `main`: it is not a PR target, not a release source, and there are no `develop → main` promotions. Session logs below predate this and describe the two-branch flow in force at the time.
 - Semantic versioning: `MAJOR.MINOR.PATCH`.
 - Architectural decisions documented as ADRs in `docs/adr/`.
 - All code comments written in English.

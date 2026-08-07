@@ -395,7 +395,7 @@ export function DraftEditor({
           }}
           data-testid="preview-draft"
         >
-          {busy === "preview" ? "Abriendo…" : "Vista previa"}
+          {busy === "preview" ? "Guardando…" : "Guardar y previsualizar"}
         </button>
         <button
           type="button"
@@ -425,7 +425,43 @@ export function DraftEditor({
           </span>
         ) : null}
       </div>
+
+      {preview ? <PreviewSection preview={preview} /> : null}
     </div>
+  );
+}
+
+/**
+ * The preview, on the same page below the editor.
+ *
+ * The bundle comes from the definition's own pin, so the surface renders
+ * against the guide this experience is actually bound to. A pin this build does
+ * not ship is reported rather than substituted — previewing against the wrong
+ * guide would be worse than not previewing at all.
+ */
+function PreviewSection({ preview }: { preview: ChapterExperiencePublicView }) {
+  const bundle = resolveGuideWebBundle(preview.guidePin);
+
+  return (
+    <section className="mt-8" data-testid="draft-preview-section">
+      <h2 className="mb-1.5 text-[13px] font-semibold" style={LABEL}>
+        Vista previa
+      </h2>
+      <p
+        className="mb-2.5 text-[12.5px]"
+        style={{ color: "var(--color-warm-500)" }}
+      >
+        Muestra el borrador ya guardado. Sigue sin publicarse.
+      </p>
+      {bundle === null ? (
+        <p className="text-[13px]" style={{ color: "var(--color-warm-500)" }}>
+          Esta build no incluye la guía {preview.guidePin.guideKey}@
+          {preview.guidePin.guideVersion}, así que no podemos previsualizarla.
+        </p>
+      ) : (
+        <ExperiencePreview definition={preview} bundle={bundle} />
+      )}
+    </section>
   );
 }
 

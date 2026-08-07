@@ -12,7 +12,7 @@ import type { ChapterExperienceDefinition } from "@psico/types";
  * server, and this file deliberately does not re-assert it.
  */
 
-const { saveDraft, publishDraft, push } = vi.hoisted(() => ({
+const { saveDraft, publishDraft, previewDraft, push } = vi.hoisted(() => ({
   saveDraft: vi.fn(async (_id: string, _definition: unknown) => ({
     id: "row_1",
   })),
@@ -23,6 +23,22 @@ const { saveDraft, publishDraft, push } = vi.hoisted(() => ({
     }),
   ),
   push: vi.fn(),
+  // The server maps the SAVED draft into the reader's view; the editor only
+  // renders what comes back.
+  previewDraft: vi.fn(async (_id: string, _definition: unknown) => ({
+    experienceKey: "qa-cms",
+    experienceVersion: 1,
+    title: "Una experiencia",
+    guidePin: { guideKey: "eec-c1-cuerpo-antes-que-mente", guideVersion: 1 },
+    scenes: [
+      {
+        sceneKey: "intro",
+        order: 1,
+        kind: "INTRO",
+        payload: { title: "Primera", body: ["Cuerpo uno."] },
+      },
+    ],
+  })),
 }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -30,6 +46,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("@/app/dashboard/admin/experiencias/actions", () => ({
   saveDraftAction: saveDraft,
   publishDraftAction: publishDraft,
+  previewDraftAction: previewDraft,
   createDraftAction: vi.fn(),
   createNextDraftAction: vi.fn(),
 }));
@@ -84,6 +101,7 @@ beforeEach(() => {
   cleanup();
   saveDraft.mockClear();
   publishDraft.mockClear();
+  previewDraft.mockClear();
   push.mockClear();
 });
 
@@ -227,5 +245,46 @@ describe("DraftEditor — writing", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Una escena dice completar un paso que la guía no tiene.",
     );
+  });
+});
+
+describe("DraftEditor — preview", () => {
+  it("says it saves, because it does", () => {
+    // The button used to read «Vista previa» while quietly writing the draft
+    // first. Naming the write is cheaper than explaining it afterwards.
+    renderEditor();
+    expect(screen.getByTestId("preview-draft")).toHaveTextContent(
+      "Guardar y previsualizar",
+    );
+  });
+
+  it("shows nothing until it is asked to", () => {
+    renderEditor();
+    expect(screen.queryByTestId("draft-preview-section")).toBeNull();
+  });
+
+  it("renders the saved draft through the preview surface", async () => {
+    // This is the wiring that was missing once already: the action ran and the
+    // state was set, but nothing on the page rendered it.
+    renderEditor();
+
+    await userEvent.click(screen.getByTestId("preview-draft"));
+
+    expect(previewDraft).toHaveBeenCalledTimes(1);
+    expect(
+      await screen.findByTestId("draft-preview-section"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("experience-preview")).toBeInTheDocument();
+  });
+
+  it("is explicit that previewing is not publishing", async () => {
+    renderEditor();
+
+    await userEvent.click(screen.getByTestId("preview-draft"));
+
+    expect(
+      await screen.findByText(/Sigue sin publicarse/i),
+    ).toBeInTheDocument();
+    expect(publishDraft).not.toHaveBeenCalled();
   });
 });

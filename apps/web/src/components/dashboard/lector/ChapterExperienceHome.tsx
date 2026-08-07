@@ -1,6 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import type {
+  ChapterExperiencePublicView,
+  GuideSessionView,
+} from "@psico/types";
+import { ExperienceList } from "../experience/ExperienceList";
 import type { BookExperienceModeView } from "./book-experience";
 import {
   disabledNotice,
@@ -52,6 +57,16 @@ export interface ChapterExperienceHomeProps {
   /** The guided-reading surface, from Guide discovery. Hidden until PUBLISHED. */
   guidedView: BookExperienceModeView;
   /**
+   * GR-7 — the experiences discovery published for this chapter, in the
+   * server's order. Empty means the section does not exist: a chapter without
+   * a journey is a complete chapter, and "no hay experiencias" is a worse
+   * answer than saying nothing at all.
+   */
+  experiences: readonly ChapterExperiencePublicView[];
+  /** The open session the server reported, for the cards' status. */
+  experienceSession: GuideSessionView | null;
+  onOpenExperience: (experience: ChapterExperiencePublicView) => void;
+  /**
    * How many activities and exercises this chapter really shows, counted once
    * each. Curated activities and the chapter's own exercise list are two
    * collections that can name the same thing, so the shell dedupes before
@@ -63,8 +78,6 @@ export interface ChapterExperienceHomeProps {
   onContinueReading: () => void;
   /** Picking a format row. Only ever called for an enabled one. */
   onPickMode: (mode: ReaderMode) => void;
-  /** Opening the guided-reading surface. Only ever called when it is visible. */
-  onOpenGuided: () => void;
   /** Opens the reader AT the activities section, not merely at the chapter. */
   onOpenActivities: () => void;
 }
@@ -113,10 +126,12 @@ export function ChapterExperienceHome({
   progressPct,
   modeViews,
   guidedView,
+  experiences,
+  experienceSession,
+  onOpenExperience,
   activityCount,
   onContinueReading,
   onPickMode,
-  onOpenGuided,
   onOpenActivities,
 }: ChapterExperienceHomeProps) {
   const rows: RouteRow[] = [];
@@ -148,17 +163,16 @@ export function ChapterExperienceHome({
     });
   }
 
-  if (isModeVisible(guidedView)) {
-    const enabled = isModeEnabled(guidedView);
-    rows.push({
-      key: "guiada",
-      label: "Experiencia guiada",
-      detail: "—",
-      chip: disabledNotice(guidedView) ?? "Disponible",
-      enabled,
-      onPick: enabled ? onOpenGuided : null,
-    });
-  }
+  // GR-7 — no generic «Experiencia guiada» row. It said nothing about what
+  // the journey is and, with nothing published, it was a door onto an empty
+  // room. The experiences below are the entry point, one card each, and when
+  // there are none there is no row and no section.
+  //
+  // The pilot gate still decides whether ANY of this is offered: a closed
+  // gate means no cards, whatever discovery published.
+  const experiencesVisible =
+    isModeVisible(guidedView) && isModeEnabled(guidedView);
+  const visibleExperiences = experiencesVisible ? experiences : [];
 
   if (activityCount > 0) {
     rows.push({
@@ -311,6 +325,12 @@ export function ChapterExperienceHome({
         Las ramas que aún no se conocen no se listan. «—» cuando no hay dato de
         duración: nunca se estima.
       </p>
+
+      <ExperienceList
+        experiences={visibleExperiences}
+        session={experienceSession}
+        onOpen={onOpenExperience}
+      />
 
       <div className="mt-7 flex flex-wrap gap-3">
         <button

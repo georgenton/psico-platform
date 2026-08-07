@@ -120,6 +120,40 @@ export class GuideSessionRepository {
     }
   }
 
+  /**
+   * GR-7 — the LATEST session this actor has for an exact pin, whatever its
+   * status.
+   *
+   * `findActive` cannot answer "did I finish this?", which is why a completed
+   * journey read as never-started after a reload. This is the same shape of
+   * read — scoped to `userId` by construction, so another actor's session does
+   * not come back denied, it does not exist — widened to the statuses that
+   * are not ACTIVE.
+   *
+   * Newest first: a reader who cancelled a run and started again should be
+   * told about the run they are in, not the one they walked away from.
+   */
+  async findLatestOwnForExactPin(
+    userId: string,
+    pin: { guideKey: string; guideVersion: number },
+    db?: GuideSessionDb,
+  ): Promise<GuideSessionRow | null> {
+    const client = db ?? this.prisma;
+    try {
+      return await client.guideSession.findFirst({
+        where: {
+          userId,
+          guideKey: pin.guideKey,
+          guideVersion: pin.guideVersion,
+        },
+        orderBy: { startedAt: "desc" },
+        select: SELECT,
+      });
+    } catch (err) {
+      sanitize(err);
+    }
+  }
+
   /** Create the ACTIVE session. All counters start server-owned at zero. */
   async createActive(
     input: CreateGuideSessionInput,

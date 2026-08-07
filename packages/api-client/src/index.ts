@@ -20,6 +20,10 @@ export { learningApi } from "./learning";
 
 // CC-7.4D — the five Guide V1 session commands (ADR 0019).
 export { guideApi } from "./guide";
+export {
+  experienceApi,
+  EXPERIENCE_DISCOVERY_PARAMS_INVALID,
+} from "./experience";
 // Sprint D — GET /api/activity (Inicio timeline feed).
 export { activityApi } from "./activity";
 // Sprint E1 — GET /api/evolucion (stats + achievements for "Mi Evolución").

@@ -5,6 +5,8 @@ import type {
   GuideAvailabilityResponse,
   GuideDiscoveryResponse,
   GuideCommandResponse,
+  GuideExperienceStateResponse,
+  RecoverableGuideSessionResponse,
   StartGuideSessionRequestBody,
   SubmitGuideStepRecallRequestBody,
   SubmitGuideStepRecallResponse,
@@ -13,6 +15,15 @@ import { apiClient } from "./client";
 
 /** The one code a locally-rejected discovery input reports. */
 export const GUIDE_DISCOVERY_PARAMS_INVALID = "GUIDE_DISCOVERY_PARAMS_INVALID";
+
+/** The one code a locally-rejected recovery pin reports (GR-5). */
+export const GUIDE_RECOVERY_PARAMS_INVALID = "GUIDE_RECOVERY_PARAMS_INVALID";
+
+/**
+ * The catalog's key grammar, restated: lowercase, bounded, no spaces. Same
+ * shape `parseGuideRecoveryQuery` enforces on the server.
+ */
+const GUIDE_KEY_RE = /^[a-z0-9][a-z0-9._:-]{0,199}$/;
 
 /**
  * The SAME canonical grammar the server applies to the path segment: trim,
@@ -75,6 +86,63 @@ export const guideApi = {
     }
     return apiClient.get<GuideDiscoveryResponse>(
       `/guide/discovery/${encodeURIComponent(slug)}/${chapterOrder}`,
+    );
+  },
+
+  /**
+   * GR-5 — "do I already have this journey open, somewhere else?".
+   *
+   * The answer is derived from the accepted-step LEDGER, not from anything the
+   * client remembers, which is what makes resuming on a second device the same
+   * as resuming on the first. Read-only: it creates no session, step or
+   * receipt.
+   *
+   * `recoverable: false` is ONE answer covering several situations — no
+   * session, a session pinned to a different guide or version, a version the
+   * catalog retired. They stay indistinguishable on purpose: a client that
+   * could tell them apart would be a way to learn about sessions that are not
+   * the caller's.
+   *
+   * Malformed input is rejected locally for the same reason discovery rejects
+   * it: a `false` caused by a typo in the pin would be indistinguishable from a
+   * genuine "nothing to resume", and those are different facts. The grammar is
+   * the SERVER's, restated — the server stays the authority.
+   */
+  /**
+   * GR-7 — where this actor stands in ONE exact experience.
+   *
+   * Answers the question `/recoverable` could not: a COMPLETED run is
+   * invisible to that endpoint, which is why a finished journey read as
+   * «Empezar» after a reload. One read, no polling, no cache — the caller
+   * asks when it renders and takes the answer at face value.
+   */
+  getExperienceState: (pin: { guideKey: string; guideVersion: number }) => {
+    const query = new URLSearchParams({
+      guideKey: pin.guideKey,
+      guideVersion: String(pin.guideVersion),
+    });
+    return apiClient.get<GuideExperienceStateResponse>(
+      `/guide/sessions/state?${query.toString()}`,
+    );
+  },
+
+  getRecoverableSession: (pin: { guideKey: string; guideVersion: number }) => {
+    if (
+      typeof pin?.guideKey !== "string" ||
+      !GUIDE_KEY_RE.test(pin.guideKey) ||
+      !Number.isInteger(pin?.guideVersion) ||
+      pin.guideVersion <= 0
+    ) {
+      // The rejected pin is NOT echoed — untrusted input does not travel into
+      // an error message that something will eventually log.
+      return Promise.reject(new Error(GUIDE_RECOVERY_PARAMS_INVALID));
+    }
+    const query = new URLSearchParams({
+      guideKey: pin.guideKey,
+      guideVersion: String(pin.guideVersion),
+    });
+    return apiClient.get<RecoverableGuideSessionResponse>(
+      `/guide/sessions/recoverable?${query.toString()}`,
     );
   },
 

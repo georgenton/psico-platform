@@ -14766,6 +14766,521 @@
         ]
       }
     },
+    "/api/guide/sessions/state": {
+      "get": {
+        "operationId": "getGuideExperienceState",
+        "parameters": [
+          {
+            "name": "guideKey",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guideVersion",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "state",
+                        "session",
+                        "summary"
+                      ],
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "NOT_STARTED"
+                          ]
+                        },
+                        "session": {
+                          "type": "null"
+                        },
+                        "summary": {
+                          "type": "null"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "state",
+                        "session",
+                        "summary"
+                      ],
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "ACTIVE"
+                          ]
+                        },
+                        "session": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "sessionId",
+                            "guideKey",
+                            "guideVersion",
+                            "status",
+                            "stepsCompleted",
+                            "totalSteps",
+                            "currentStepKey"
+                          ],
+                          "properties": {
+                            "sessionId": {
+                              "type": "string"
+                            },
+                            "guideKey": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "guideVersion": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "ACTIVE",
+                                "COMPLETED",
+                                "CANCELLED"
+                              ]
+                            },
+                            "stepsCompleted": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
+                            },
+                            "totalSteps": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "currentStepKey": {
+                              "type": "string",
+                              "nullable": true,
+                              "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                            }
+                          }
+                        },
+                        "summary": {
+                          "type": "null"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "state",
+                        "session",
+                        "summary"
+                      ],
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "COMPLETED"
+                          ]
+                        },
+                        "session": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "sessionId",
+                            "guideKey",
+                            "guideVersion",
+                            "status",
+                            "stepsCompleted",
+                            "totalSteps",
+                            "currentStepKey"
+                          ],
+                          "properties": {
+                            "sessionId": {
+                              "type": "string"
+                            },
+                            "guideKey": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "guideVersion": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "ACTIVE",
+                                "COMPLETED",
+                                "CANCELLED"
+                              ]
+                            },
+                            "stepsCompleted": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
+                            },
+                            "totalSteps": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "currentStepKey": {
+                              "type": "string",
+                              "nullable": true,
+                              "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                            }
+                          }
+                        },
+                        "summary": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "conceptsExplored",
+                            "practicesConfirmed",
+                            "recalls"
+                          ],
+                          "properties": {
+                            "conceptsExplored": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "practicesConfirmed": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "recalls": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "outcome"
+                                ],
+                                "properties": {
+                                  "outcome": {
+                                    "type": "string",
+                                    "enum": [
+                                      "CORRECT",
+                                      "REVIEW"
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Dónde está el actor en un pin exacto: NOT_STARTED, ACTIVE o COMPLETED con su resumen. No revela sesiones ajenas y no crea nada.",
+        "tags": [
+          "Guide"
+        ]
+      }
+    },
+    "/api/guide/sessions/recoverable": {
+      "get": {
+        "operationId": "getRecoverableGuideSession",
+        "parameters": [
+          {
+            "name": "guideKey",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guideVersion",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "recoverable",
+                        "session"
+                      ],
+                      "properties": {
+                        "recoverable": {
+                          "type": "boolean",
+                          "enum": [
+                            false
+                          ]
+                        },
+                        "session": {
+                          "type": "null"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "recoverable",
+                        "session"
+                      ],
+                      "properties": {
+                        "recoverable": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "session": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "sessionId",
+                            "guideKey",
+                            "guideVersion",
+                            "status",
+                            "stepsCompleted",
+                            "totalSteps",
+                            "currentStepKey"
+                          ],
+                          "properties": {
+                            "sessionId": {
+                              "type": "string"
+                            },
+                            "guideKey": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "guideVersion": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "ACTIVE",
+                                "COMPLETED",
+                                "CANCELLED"
+                              ]
+                            },
+                            "stepsCompleted": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
+                            },
+                            "totalSteps": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "currentStepKey": {
+                              "type": "string",
+                              "nullable": true,
+                              "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "La sesión activa del actor para un pin exacto, si existe. No revela sesiones ajenas ni de otro pin, y nunca crea nada.",
+        "tags": [
+          "Guide"
+        ]
+      }
+    },
     "/api/guide/discovery/{bookSlug}/{chapterOrder}": {
       "get": {
         "operationId": "getGuideDiscovery",
@@ -16386,6 +16901,236 @@
         "summary": "Cierra la sesión como COMPLETED; exige el ledger completo de la versión fijada.",
         "tags": [
           "Guide"
+        ]
+      }
+    },
+    "/api/experiences/discovery/{bookSlug}/{chapterOrder}": {
+      "get": {
+        "operationId": "getChapterExperiences",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            },
+            "description": "Slug canónico del libro (kebab-case, minúsculas)."
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Orden del capítulo EN LA PLATAFORMA, que no siempre coincide con la numeración impresa del libro."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "experienceKey",
+                          "experienceVersion",
+                          "title",
+                          "guidePin",
+                          "scenes"
+                        ],
+                        "properties": {
+                          "experienceKey": {
+                            "type": "string"
+                          },
+                          "experienceVersion": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "summary": {
+                            "type": "string"
+                          },
+                          "estimatedMinutes": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "guidePin": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "guideKey",
+                              "guideVersion"
+                            ],
+                            "properties": {
+                              "guideKey": {
+                                "type": "string"
+                              },
+                              "guideVersion": {
+                                "type": "integer",
+                                "minimum": 1
+                              }
+                            }
+                          },
+                          "scenes": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "sceneKey",
+                                "order",
+                                "kind",
+                                "payload"
+                              ],
+                              "properties": {
+                                "sceneKey": {
+                                  "type": "string"
+                                },
+                                "order": {
+                                  "type": "integer",
+                                  "minimum": 1
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "INTRO",
+                                    "PASSAGE",
+                                    "CONCEPT",
+                                    "EXAMPLE",
+                                    "AUDIO",
+                                    "VIDEO",
+                                    "PRACTICE",
+                                    "REFLECTION",
+                                    "QUESTION",
+                                    "RECALL",
+                                    "SUMMARY",
+                                    "RESONANCE"
+                                  ]
+                                },
+                                "completesGuideStepKey": {
+                                  "type": "string"
+                                },
+                                "payload": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "title",
+                                    "body"
+                                  ],
+                                  "properties": {
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "body": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "note": {
+                                      "type": "string"
+                                    },
+                                    "actionLabel": {
+                                      "type": "string"
+                                    },
+                                    "placeholder": {
+                                      "type": "string"
+                                    },
+                                    "anchorKey": {
+                                      "type": "string"
+                                    },
+                                    "conceptKey": {
+                                      "type": "string"
+                                    },
+                                    "mediaKind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "AUDIOBOOK",
+                                        "PODCAST",
+                                        "VIDEO"
+                                      ]
+                                    },
+                                    "question": {
+                                      "type": "string"
+                                    },
+                                    "options": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "optionKey",
+                                          "label"
+                                        ],
+                                        "properties": {
+                                          "optionKey": {
+                                            "type": "string"
+                                          },
+                                          "label": {
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Las experiencias PUBLICADAS de un capítulo, en versiones exactas. Cero a varias; no crea nada.",
+        "tags": [
+          "Experience"
         ]
       }
     },

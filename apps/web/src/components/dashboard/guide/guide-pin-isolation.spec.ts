@@ -9,14 +9,12 @@ import {
   type GuideRecoveryRecord,
 } from "./guide-recovery";
 import {
-  firstSceneOf,
-  parseGuideSceneRecord,
-  readGuideScene,
-  resolveScene,
-  sceneStorageKey,
-  writeGuideScene,
-  type GuideSceneRecord,
-} from "./guide-scene";
+  experienceSceneStorageKey,
+  parseExperienceSceneRecord,
+  readExperienceScene,
+  sceneKeyFor,
+  writeExperienceScene,
+} from "../experience/experience-scene-store";
 import {
   EEC_PIN,
   EEC_PRESENTATION,
@@ -49,21 +47,6 @@ function recoveryFor(pin: typeof EEC_PIN): GuideRecoveryRecord {
     guideKey: pin.guideKey,
     guideVersion: pin.guideVersion,
     startIdempotencyKey: KEY,
-  };
-}
-
-function sceneFor(
-  pin: typeof EEC_PIN,
-  currentStepKey: string | null,
-): GuideSceneRecord {
-  return {
-    schemaVersion: 1,
-    actorScope: SCOPE_A,
-    guideKey: pin.guideKey,
-    guideVersion: pin.guideVersion,
-    sessionId: SESSION,
-    currentStepKey,
-    scene: "practice",
   };
 }
 
@@ -247,138 +230,116 @@ describe("pending commands are parsed against the pinned presentation", () => {
 
 // ─── Scenes ──────────────────────────────────────────────────────────────────
 
-describe("scene storage is isolated per pin", () => {
-  it("gives each guide its own slot", () => {
-    expect(sceneStorageKey(EEC_PIN)).toBe(
-      "psico.guide.scene.eec-c1-cuerpo-antes-que-mente.v1",
-    );
-    expect(sceneStorageKey(PQP_PIN)).toBe(
-      "psico.guide.scene.pqp-c1-contacto-sostenido.v1",
-    );
-    expect(sceneStorageKey(EEC_PIN)).not.toBe(sceneStorageKey(PQP_PIN));
+/**
+ * GR-6 — the scene cursor moved to the experience pin, and so did this test.
+ *
+ * The property being protected is unchanged: one reader walking two journeys
+ * must not have either one's cursor answer for the other. What changed is what
+ * a cursor is pinned to. It used to be `guideKey@guideVersion`; it is now
+ * `experienceKey@experienceVersion`, because the panel a person is looking at
+ * belongs to the experience, not to the guide underneath it.
+ */
+describe("experience scene storage is isolated per pin", () => {
+  const EEC_XP = {
+    experienceKey: "eec-c1-cuerpo-antes-que-mente",
+    experienceVersion: 1,
+  };
+  const PQP_XP = {
+    experienceKey: "pqp-c1-contacto-sostenido",
+    experienceVersion: 1,
+  };
+
+  const sceneRecord = (
+    pin: { experienceKey: string; experienceVersion: number },
+    sceneKey: string,
+    actorScope = SCOPE_A,
+  ) => ({
+    schemaVersion: 1 as const,
+    actorScope,
+    experienceKey: pin.experienceKey,
+    experienceVersion: pin.experienceVersion,
+    sessionId: SESSION,
+    currentStepKey: "practicar-escucharte-por-dentro",
+    sceneKey,
   });
 
-  it("CROSS_GUIDE_SCENE_REJECTED=true, both directions", () => {
+  it("gives each experience its own slot", () => {
+    expect(experienceSceneStorageKey(EEC_XP)).toBe(
+      "psico.experience.scene.eec-c1-cuerpo-antes-que-mente.v1",
+    );
+    expect(experienceSceneStorageKey(PQP_XP)).not.toBe(
+      experienceSceneStorageKey(EEC_XP),
+    );
+  });
+
+  it("CROSS_EXPERIENCE_SCENE_REJECTED=true, both directions", () => {
     expect(
-      parseGuideSceneRecord(
-        sceneFor(EEC_PIN, "practicar-escucharte-por-dentro"),
+      parseExperienceSceneRecord(
+        sceneRecord(EEC_XP, "practica"),
         SCOPE_A,
-        PQP_PIN,
+        PQP_XP,
       ),
     ).toBeNull();
     expect(
-      parseGuideSceneRecord(
-        sceneFor(PQP_PIN, "practicar-diez-minutos-de-contacto"),
+      parseExperienceSceneRecord(
+        sceneRecord(PQP_XP, "practica"),
         SCOPE_A,
-        EEC_PIN,
+        EEC_XP,
+      ),
+    ).toBeNull();
+  });
+
+  it("rejects a record written by another actor", () => {
+    expect(
+      parseExperienceSceneRecord(
+        sceneRecord(EEC_XP, "practica", SCOPE_B),
+        SCOPE_A,
+        EEC_XP,
       ),
     ).toBeNull();
   });
 
   it("does not leak a written scene across pins", () => {
-    writeGuideScene(
-      sceneFor(EEC_PIN, "practicar-escucharte-por-dentro"),
-      EEC_PIN,
-    );
-    expect(readGuideScene(SCOPE_A, PQP_PIN)).toBeNull();
-    expect(readGuideScene(SCOPE_A, EEC_PIN)).not.toBeNull();
+    writeExperienceScene(sceneRecord(EEC_XP, "practica"), EEC_XP);
+    expect(readExperienceScene(SCOPE_A, PQP_XP)).toBeNull();
+    expect(readExperienceScene(SCOPE_A, EEC_XP)).not.toBeNull();
   });
 
   it("refuses to write a record into another pin's slot", () => {
-    writeGuideScene(
-      sceneFor(EEC_PIN, "explorar-cuerpo-antes-que-mente"),
-      PQP_PIN,
-    );
+    writeExperienceScene(sceneRecord(EEC_XP, "practica"), PQP_XP);
     expect(
-      window.localStorage.getItem(sceneStorageKey(PQP_PIN) as string),
-    ).toBeNull();
-  });
-});
-
-describe("firstSceneOf reads the presentation, never the step key's prefix", () => {
-  it("opens each Parejas checkpoint on its declared scene", () => {
-    expect(firstSceneOf("explorar-contacto-sostenido", PQP_PRESENTATION)).toBe(
-      "cover",
-    );
-    expect(
-      firstSceneOf("practicar-diez-minutos-de-contacto", PQP_PRESENTATION),
-    ).toBe("practice");
-    expect(firstSceneOf("recordar-contacto-sostenido", PQP_PRESENTATION)).toBe(
-      "recall",
-    );
-  });
-
-  it("keeps the Emociones behaviour unchanged", () => {
-    expect(
-      firstSceneOf("explorar-cuerpo-antes-que-mente", EEC_PRESENTATION),
-    ).toBe("cover");
-    expect(
-      firstSceneOf("practicar-escucharte-por-dentro", EEC_PRESENTATION),
-    ).toBe("practice");
-    expect(
-      firstSceneOf("recordar-cuerpo-antes-que-mente", EEC_PRESENTATION),
-    ).toBe("recall");
-  });
-
-  it("UNKNOWN_CURRENT_STEP_FAILS_CLOSED=true — null, never `cover`", () => {
-    expect(firstSceneOf("paso-que-no-existe", PQP_PRESENTATION)).toBeNull();
-    // A step from the OTHER guide is exactly this case.
-    expect(
-      firstSceneOf("practicar-escucharte-por-dentro", PQP_PRESENTATION),
-    ).toBeNull();
-    expect(
-      resolveScene(
-        { sessionId: SESSION, currentStepKey: "paso-que-no-existe" },
-        null,
-        PQP_PRESENTATION,
-      ),
+      window.localStorage.getItem(experienceSceneStorageKey(PQP_XP) as string),
     ).toBeNull();
   });
 
-  it("still reports `finish` when the server's cursor is null", () => {
-    expect(firstSceneOf(null, PQP_PRESENTATION)).toBe("finish");
-  });
-});
-
-describe("resolveScene discards a record from another checkpoint", () => {
-  it("falls back to the CURRENT checkpoint's first scene", () => {
-    const stored = sceneFor(PQP_PIN, "practicar-diez-minutos-de-contacto");
+  it("a cursor from another session or checkpoint is not this moment", () => {
+    const stored = sceneRecord(EEC_XP, "practica");
     expect(
-      resolveScene(
-        // The server has moved on to recall; the record still describes the
-        // practice checkpoint, so it is stale rather than wrong.
-        { sessionId: SESSION, currentStepKey: "recordar-contacto-sostenido" },
-        stored,
-        PQP_PRESENTATION,
-      ),
-    ).toBe("recall");
-  });
-
-  it("keeps a record that still describes this checkpoint", () => {
-    const stored = sceneFor(PQP_PIN, "practicar-diez-minutos-de-contacto");
-    expect(
-      resolveScene(
+      sceneKeyFor(
         {
           sessionId: SESSION,
-          currentStepKey: "practicar-diez-minutos-de-contacto",
+          currentStepKey: "practicar-escucharte-por-dentro",
         },
         stored,
-        PQP_PRESENTATION,
       ),
-    ).toBe("practice");
-  });
-
-  it("discards a record from another session", () => {
-    const stored = sceneFor(PQP_PIN, "practicar-diez-minutos-de-contacto");
+    ).toBe("practica");
     expect(
-      resolveScene(
+      sceneKeyFor(
         {
           sessionId: "ses_otra",
-          currentStepKey: "practicar-diez-minutos-de-contacto",
+          currentStepKey: "practicar-escucharte-por-dentro",
         },
         stored,
-        PQP_PRESENTATION,
       ),
-    ).toBe("practice");
+    ).toBeNull();
+    expect(
+      sceneKeyFor(
+        {
+          sessionId: SESSION,
+          currentStepKey: "recordar-cuerpo-antes-que-mente",
+        },
+        stored,
+      ),
+    ).toBeNull();
   });
 });

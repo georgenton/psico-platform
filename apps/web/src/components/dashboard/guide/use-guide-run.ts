@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { guideApi } from "@psico/api-client";
 import type {
   GuideCommandResponse,
+  GuideCompletionSummaryView,
   GuideRecallOutcome,
   GuideSessionView,
 } from "@psico/types";
@@ -59,6 +60,8 @@ export type GuideRetryState =
 export type GuideScreen =
   | "booting"
   | "cover"
+  /** GR-5 — the server holds a run this browser never started. */
+  | "recoverable"
   | "start-retry"
   | "storage-unavailable"
   | "step"
@@ -85,6 +88,66 @@ interface PlayerState {
    * `guideKey@guideVersion`. Terminal by design: see `PIN_MISMATCH`.
    */
   pinMismatch: boolean;
+  /**
+   * GR-5 — a run the SERVER says is open for this actor and pin, which this
+   * browser has no local record of. An offer, never a run: nothing is adopted
+   * until the reader says so.
+   */
+  recoverable: GuideSessionView | null;
+  /**
+   * GR-7 — what THIS run has been told, for the Completion Summary.
+   *
+   * Not progress: the server owns that, and `session` carries it. This is the
+   * detail the summary needs and the session view does not carry — which
+   * checkpoints were confirmed here, and what the server answered about each
+   * recall. It only ever grows from a server response, so it cannot claim a
+   * step the ledger did not accept.
+   */
+  facts: GuideRunFacts;
+  /**
+   * GR-7 — the summary the SERVER projected for a run that ended before this
+   * browser was looking. `facts` covers the run in progress; this covers the
+   * one that finished yesterday.
+   */
+  serverSummary: GuideCompletionSummaryView | null;
+}
+
+export interface GuideRunFacts {
+  confirmedStepKeys: readonly string[];
+  recalls: readonly { stepKey: string; outcome: GuideRecallOutcome }[];
+}
+
+const NO_FACTS: GuideRunFacts = { confirmedStepKeys: [], recalls: [] };
+
+/**
+ * Fold one ACCEPTED command into the run's facts.
+ *
+ * Only reached after the server answered, so nothing here is a prediction.
+ * Confirmations are deduplicated because a replayed idempotent command is the
+ * same fact twice, not two confirmations.
+ */
+function extendFacts(
+  facts: GuideRunFacts,
+  command: PendingGuideCommand,
+  feedback: { outcome: GuideRecallOutcome } | undefined,
+): GuideRunFacts {
+  if (command.commandType === "STEP_COMPLETE") {
+    if (facts.confirmedStepKeys.includes(command.stepKey)) return facts;
+    return {
+      ...facts,
+      confirmedStepKeys: [...facts.confirmedStepKeys, command.stepKey],
+    };
+  }
+  if (command.commandType === "STEP_RECALL" && feedback) {
+    return {
+      ...facts,
+      recalls: [
+        ...facts.recalls.filter((r) => r.stepKey !== command.stepKey),
+        { stepKey: command.stepKey, outcome: feedback.outcome },
+      ],
+    };
+  }
+  return facts;
 }
 
 const INITIAL: PlayerState = {
@@ -97,6 +160,9 @@ const INITIAL: PlayerState = {
   storageBlocked: false,
   recallOutcome: null,
   pinMismatch: false,
+  recoverable: null,
+  facts: NO_FACTS,
+  serverSummary: null,
 };
 
 const STORAGE_BLOCKED: GuideUiError = {
@@ -128,7 +194,13 @@ function screenOf(
   if (state.pinMismatch) return "inconsistent";
   if (state.storageBlocked) return "storage-unavailable";
   const s = state.session;
-  if (!s) return state.retry?.kind === "START" ? "start-retry" : "cover";
+  if (!s) {
+    if (state.retry?.kind === "START") return "start-retry";
+    // An open run the reader could continue is a different question from "do
+    // you want to start this?". Collapsing them into the cover would quietly
+    // offer to abandon a journey they left open on another device.
+    return state.recoverable ? "recoverable" : "cover";
+  }
   if (s.status === "COMPLETED") return "completed";
   if (s.status === "CANCELLED") return "cancelled";
   if (s.currentStepKey === null) {
@@ -152,9 +224,17 @@ export interface GuideRun {
   booting: boolean;
   /** The last recall verdict of this session, or null before one exists. */
   recallOutcome: GuideRecallOutcome | null;
+  /** GR-5 — an open run the server offered, which nothing has adopted yet. */
+  recoverable: GuideSessionView | null;
+  /** GR-7 — what this run was told, for the Completion Summary. */
+  facts: GuideRunFacts;
+  /** GR-7 — the server's summary of a run that ended before this mount. */
+  serverSummary: GuideCompletionSummaryView | null;
   choice: string | null;
   setChoice: (option: string | null) => void;
   start: () => Promise<void>;
+  /** Accept `recoverable`. Never sends a START, so it never autocancels. */
+  adopt: () => void;
   completeStep: (stepKey: GuideStepPresentation["stepKey"]) => void;
   submitRecall: (
     stepKey: GuideStepPresentation["stepKey"],
@@ -268,6 +348,12 @@ export function useGuideRun({
    */
   const replayStart = useCallback(
     async (record: GuideRecoveryRecord): Promise<GuideSessionView> => {
+      // Unreachable without a key: the boot effect routes adopted records to
+      // the server recovery read instead. The throw makes that a fact rather
+      // than a convention a refactor could quietly break.
+      if (record.startIdempotencyKey === undefined) {
+        throw new Error("GUIDE_ADOPTED_RECORD_HAS_NO_START_KEY");
+      }
       const res = await guideApi.createGuideSession({
         idempotencyKey: record.startIdempotencyKey,
         guideKey: runPin.guideKey,
@@ -338,6 +424,12 @@ export function useGuideRun({
           // last one alone rather than blanking a screen the reader is on.
           ...(res.feedback ? { recallOutcome: res.feedback.outcome } : {}),
         });
+        // Facts grow from the PREVIOUS facts, so this takes the updater form
+        // rather than riding along in `patch`. React batches the two.
+        setState((prev) => ({
+          ...prev,
+          facts: extendFacts(prev.facts, command, res.feedback),
+        }));
       } catch (err) {
         const uiError = toGuideUiError(err);
         if (uiError.kind === "resync") {
@@ -554,12 +646,86 @@ export function useGuideRun({
       return;
     }
     if (read.state === "empty") {
-      // No prior START from this browser ⇒ the cover, and an explicit click.
-      patch({ booting: false });
-      return;
+      // GR-5 — no prior START from THIS browser is no longer the end of the
+      // question. The server may hold an open run for this actor and pin, and
+      // asking costs one read. What it never does is start anything: the
+      // answer becomes an offer the reader accepts with a click.
+      let cancelled = false;
+      void (async () => {
+        try {
+          // GR-7 — `state` answers the question `recoverable` could not. A
+          // COMPLETED run is invisible to that endpoint, which is why a
+          // finished journey opened on its cover the next morning as if it
+          // had never happened.
+          const answer = await guideApi.getExperienceState(runPin);
+          if (cancelled) return;
+          if (answer.state === "COMPLETED") {
+            // Showing the summary, not resuming: the session is terminal and
+            // nothing here starts a new one.
+            patch({
+              booting: false,
+              session: answer.session,
+              serverSummary: answer.summary,
+            });
+            return;
+          }
+          patch({
+            booting: false,
+            recoverable: answer.state === "ACTIVE" ? answer.session : null,
+          });
+        } catch {
+          // A failed recovery read is not an error worth a screen: the reader
+          // still has the cover, and starting is still available. Reporting it
+          // would turn "we could not check" into "something is wrong".
+          if (!cancelled) patch({ booting: false });
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
 
     const record = read.record;
+
+    if (record.startIdempotencyKey === undefined) {
+      // An ADOPTED run. There is no key to replay — re-ask the server, which
+      // is the only authority on whether that session is still open.
+      let cancelled = false;
+      void (async () => {
+        try {
+          const answer = await guideApi.getExperienceState(runPin);
+          if (cancelled) return;
+          if (answer.state === "COMPLETED") {
+            // It finished — here or on another device. The pointer is not
+            // stale, the run simply ended.
+            patch({
+              booting: false,
+              record,
+              session: answer.session,
+              serverSummary: answer.summary,
+            });
+            return;
+          }
+          if (answer.state !== "ACTIVE") {
+            // The run ended elsewhere. The local pointer is stale, not a
+            // reason to show an error.
+            clearGuideRecovery(runPin);
+            patch({ booting: false, record: null, session: null });
+            return;
+          }
+          if (rejectForeignSession(answer.session)) return;
+          patch({ session: answer.session, record, booting: false });
+        } catch (err) {
+          if (!cancelled) {
+            patch({ booting: false, record, error: toGuideUiError(err) });
+          }
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
     let cancelled = false;
     void (async () => {
       try {
@@ -654,6 +820,36 @@ export function useGuideRun({
     patch({ busy: true, error: null, retry: null, record });
     await runStart(record);
   }, [blockOnStorage, patch, recordFor, remember, runStart]);
+
+  /**
+   * GR-5 — accept the run the server offered.
+   *
+   * Deliberately NOT a START. On the server a START with an unseen key
+   * autocancels the active session and opens a new one, so "continue" and
+   * "start over" have to be different calls or continuing would silently
+   * destroy the thing it claims to resume.
+   *
+   * The record it writes carries no start key: the next boot re-asks the
+   * server rather than replaying anything.
+   */
+  const adopt = useCallback(() => {
+    const offered = state.recoverable;
+    if (!offered) return;
+    if (rejectForeignSession(offered)) return;
+    const record = remember(recordFor({ sessionId: offered.sessionId }));
+    if (!record) {
+      blockOnStorage();
+      return;
+    }
+    patch({ session: offered, record, recoverable: null, error: null });
+  }, [
+    blockOnStorage,
+    patch,
+    recordFor,
+    rejectForeignSession,
+    remember,
+    state.recoverable,
+  ]);
 
   const restart = useCallback(() => {
     // Clears ONLY this pin's slot. Another guide's recovery is not this run's
@@ -778,9 +974,14 @@ export function useGuideRun({
     busy: state.busy,
     booting: state.booting,
     recallOutcome: state.recallOutcome,
+    recoverable: state.recoverable,
+    /** GR-7 — what this run was told, for the Completion Summary. */
+    facts: state.facts,
+    serverSummary: state.serverSummary,
     choice,
     setChoice,
     start,
+    adopt,
     completeStep,
     submitRecall,
     finish,

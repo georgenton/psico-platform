@@ -2078,6 +2078,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guide/sessions/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Dónde está el actor en un pin exacto: NOT_STARTED, ACTIVE o COMPLETED con su resumen. No revela sesiones ajenas y no crea nada. */
+        get: operations["getGuideExperienceState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guide/sessions/recoverable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** La sesión activa del actor para un pin exacto, si existe. No revela sesiones ajenas ni de otro pin, y nunca crea nada. */
+        get: operations["getRecoverableGuideSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guide/discovery/{bookSlug}/{chapterOrder}": {
         parameters: {
             query?: never;
@@ -2174,6 +2208,23 @@ export interface paths {
         put?: never;
         /** Cierra la sesión como COMPLETED; exige el ledger completo de la versión fijada. */
         post: operations["completeGuideSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/experiences/discovery/{bookSlug}/{chapterOrder}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Las experiencias PUBLICADAS de un capítulo, en versiones exactas. Cero a varias; no crea nada. */
+        get: operations["getChapterExperiences"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -12216,6 +12267,222 @@ export interface operations {
             };
         };
     };
+    getGuideExperienceState: {
+        parameters: {
+            query: {
+                guideKey: string;
+                guideVersion: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        state: PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf0State;
+                        session: null;
+                        summary: null;
+                    } | {
+                        /** @enum {string} */
+                        state: PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf1State;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf1SessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                        summary: null;
+                    } | {
+                        /** @enum {string} */
+                        state: PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf2State;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf2SessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                        summary: {
+                            conceptsExplored: number;
+                            practicesConfirmed: number;
+                            recalls: {
+                                /** @enum {string} */
+                                outcome: PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf2SummaryRecallsOutcome;
+                            }[];
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    getRecoverableGuideSession: {
+        parameters: {
+            query: {
+                guideKey: string;
+                guideVersion: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        recoverable: false;
+                        session: null;
+                    } | {
+                        /** @enum {boolean} */
+                        recoverable: true;
+                        session: {
+                            sessionId: string;
+                            guideKey: string;
+                            guideVersion: number;
+                            /** @enum {string} */
+                            status: PathsApiGuideSessionsRecoverableGetResponses200ContentApplicationJsonOneOf1SessionStatus;
+                            /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
+                            stepsCompleted: number;
+                            totalSteps: number;
+                            currentStepKey: string | null;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     getGuideDiscovery: {
         parameters: {
             query?: never;
@@ -12992,6 +13259,81 @@ export interface operations {
                 };
             };
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    getChapterExperiences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Slug canónico del libro (kebab-case, minúsculas). */
+                bookSlug: string;
+                /** @description Orden del capítulo EN LA PLATAFORMA, que no siempre coincide con la numeración impresa del libro. */
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            experienceKey: string;
+                            experienceVersion: number;
+                            title: string;
+                            summary?: string;
+                            estimatedMinutes?: number;
+                            guidePin: {
+                                guideKey: string;
+                                guideVersion: number;
+                            };
+                            scenes: {
+                                sceneKey: string;
+                                order: number;
+                                /** @enum {string} */
+                                kind: PathsApiExperiencesDiscoveryBookSlugChapterOrderGetResponses200ContentApplicationJsonItemsScenesKind;
+                                completesGuideStepKey?: string;
+                                payload: {
+                                    title: string;
+                                    body: string[];
+                                    note?: string;
+                                    actionLabel?: string;
+                                    placeholder?: string;
+                                    anchorKey?: string;
+                                    conceptKey?: string;
+                                    /** @enum {string} */
+                                    mediaKind?: PathsApiExperiencesDiscoveryBookSlugChapterOrderGetResponses200ContentApplicationJsonItemsScenesPayloadMediaKind;
+                                    question?: string;
+                                    options?: {
+                                        optionKey: string;
+                                        label: string;
+                                    }[];
+                                };
+                            }[];
+                        }[];
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -16605,6 +16947,34 @@ export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses201ContentA
     PODCAST = "PODCAST",
     VIDEO = "VIDEO"
 }
+export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf0State {
+    NOT_STARTED = "NOT_STARTED"
+}
+export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf1State {
+    ACTIVE = "ACTIVE"
+}
+export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf1SessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
+}
+export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf2State {
+    COMPLETED = "COMPLETED"
+}
+export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf2SessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
+}
+export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf2SummaryRecallsOutcome {
+    CORRECT = "CORRECT",
+    REVIEW = "REVIEW"
+}
+export enum PathsApiGuideSessionsRecoverableGetResponses200ContentApplicationJsonOneOf1SessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    CANCELLED = "CANCELLED"
+}
 export enum PathsApiGuideSessionsPostResponses200ContentApplicationJsonSessionStatus {
     ACTIVE = "ACTIVE",
     COMPLETED = "COMPLETED",
@@ -16662,6 +17032,25 @@ export enum PathsApiGuideSessionsSessionIdCompletePostResponses201ContentApplica
     ACTIVE = "ACTIVE",
     COMPLETED = "COMPLETED",
     CANCELLED = "CANCELLED"
+}
+export enum PathsApiExperiencesDiscoveryBookSlugChapterOrderGetResponses200ContentApplicationJsonItemsScenesKind {
+    INTRO = "INTRO",
+    PASSAGE = "PASSAGE",
+    CONCEPT = "CONCEPT",
+    EXAMPLE = "EXAMPLE",
+    AUDIO = "AUDIO",
+    VIDEO = "VIDEO",
+    PRACTICE = "PRACTICE",
+    REFLECTION = "REFLECTION",
+    QUESTION = "QUESTION",
+    RECALL = "RECALL",
+    SUMMARY = "SUMMARY",
+    RESONANCE = "RESONANCE"
+}
+export enum PathsApiExperiencesDiscoveryBookSlugChapterOrderGetResponses200ContentApplicationJsonItemsScenesPayloadMediaKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
 }
 export enum PathsApiPatronesGetParametersQueryPeriod {
     Value30d = "30d",

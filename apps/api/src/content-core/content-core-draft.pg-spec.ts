@@ -6,7 +6,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { backfillContentCore } from "./backfill";
 import { backfillAnchors } from "./anchors";
 import { ingestUnitV2, type IngestBlockInput } from "./ingest-v2";
-import { publishDraftRevision, saveUnitDraft } from "./content-draft";
+import {
+  describeEditionDraft,
+  publishDraftRevision,
+  saveUnitDraft,
+} from "./content-draft";
 import { unitKeyFromLegacyChapterId } from "./lib/block-key";
 
 /**
@@ -79,6 +83,18 @@ suite("Content Studio · draft lifecycle (real PostgreSQL)", () => {
       orderBy: { order: "asc" },
     });
     return bvs.map((bv) => bv.content);
+  }
+
+  /** The revision an editor opening the book right now would be editing from. */
+  async function currentBase(): Promise<string> {
+    const draft = await prisma.revision.findFirst({
+      where: { editionId, status: "DRAFT" },
+      orderBy: { number: "desc" },
+      select: { id: true },
+    });
+    if (draft) return draft.id;
+    const ed = await prisma.edition.findUnique({ where: { id: editionId } });
+    return ed!.publishedRevisionId!;
   }
 
   const placement = { order: 1, partNumber: null, partTitle: null };
@@ -176,6 +192,7 @@ suite("Content Studio · draft lifecycle (real PostgreSQL)", () => {
 
     const saved = await saveUnitDraft(prisma, {
       editionId,
+      expectedRevisionId: await currentBase(),
       unitKey,
       title: "C1",
       placement,
@@ -202,6 +219,7 @@ suite("Content Studio · draft lifecycle (real PostgreSQL)", () => {
     // silently revert chapter 1 by rebasing onto the published revision.
     const saved = await saveUnitDraft(prisma, {
       editionId,
+      expectedRevisionId: await currentBase(),
       unitKey: unit2Key,
       title: "C2",
       placement: placement2,
@@ -303,6 +321,7 @@ suite("Content Studio · draft lifecycle (real PostgreSQL)", () => {
     // else. The draft can no longer be published without dropping the ingest.
     const draft = await saveUnitDraft(prisma, {
       editionId,
+      expectedRevisionId: await currentBase(),
       unitKey,
       title: "C1",
       placement,
@@ -329,12 +348,18 @@ suite("Content Studio · draft lifecycle (real PostgreSQL)", () => {
     ]);
   });
 
-  it("serialises two concurrent saves into two distinct revisions", async () => {
+  it("lets one concurrent save win and refuses the other outright", async () => {
+    // Both tabs hold the SAME token, because both read the base before either
+    // wrote. The lock decides who is first; the token decides that the second
+    // does not get to overwrite them. Before the token existed this produced two
+    // revisions, the later silently burying the earlier.
+    const shared = await currentBase();
     const before = await prisma.revision.count({ where: { editionId } });
 
-    await Promise.allSettled([
+    const results = await Promise.allSettled([
       saveUnitDraft(prisma, {
         editionId,
+        expectedRevisionId: shared,
         unitKey,
         title: "C1",
         placement,
@@ -342,6 +367,7 @@ suite("Content Studio · draft lifecycle (real PostgreSQL)", () => {
       }),
       saveUnitDraft(prisma, {
         editionId,
+        expectedRevisionId: shared,
         unitKey,
         title: "C1",
         placement,
@@ -349,16 +375,20 @@ suite("Content Studio · draft lifecycle (real PostgreSQL)", () => {
       }),
     ]);
 
+    const ok = results.filter((r) => r.status === "fulfilled");
+    const failed = results.filter((r) => r.status === "rejected");
+    expect(ok).toHaveLength(1);
+    expect(failed).toHaveLength(1);
+    expect(String((failed[0] as PromiseRejectedResult).reason)).toContain(
+      "CONTENT_DRAFT_CONFLICT",
+    );
+
     const all = await prisma.revision.findMany({
       where: { editionId },
       select: { number: true, status: true },
     });
-    const numbers = all.map((r) => r.number);
-
-    // Both saves build on drafts, so both commit; the lock just orders them.
-    expect(all.length).toBe(before + 2);
-    expect(new Set(numbers).size).toBe(numbers.length);
-    // Whichever committed second is the only one still open.
+    expect(all.length).toBe(before + 1);
+    expect(new Set(all.map((r) => r.number)).size).toBe(all.length);
     expect(all.filter((r) => r.status === "DRAFT")).toHaveLength(1);
   });
 
@@ -368,6 +398,7 @@ suite("Content Studio · draft lifecycle (real PostgreSQL)", () => {
     await Promise.allSettled([
       saveUnitDraft(prisma, {
         editionId,
+        expectedRevisionId: await currentBase(),
         unitKey,
         title: "C1",
         placement,
@@ -407,5 +438,105 @@ suite("Content Studio · draft lifecycle (real PostgreSQL)", () => {
     expect(all.filter((r) => r.status === "DRAFT").length).toBeLessThanOrEqual(
       1,
     );
+  });
+
+  describe("optimistic concurrency", () => {
+    it("refuses a save from a tab whose base moved, and writes nothing", async () => {
+      // Two tabs open the same chapter. One saves; the other must not be able to
+      // overwrite work it never saw.
+      const staleToken = await currentBase();
+
+      await saveUnitDraft(prisma, {
+        editionId,
+        expectedRevisionId: staleToken,
+        unitKey,
+        title: "C1",
+        placement,
+        blocks: [p("Lo que guardó la primera pestaña, texto suficiente.")],
+      });
+
+      const before = await prisma.revision.count({ where: { editionId } });
+
+      await expect(
+        saveUnitDraft(prisma, {
+          editionId,
+          expectedRevisionId: staleToken,
+          unitKey,
+          title: "C1",
+          placement,
+          blocks: [p("Lo que intentó la segunda pestaña, ya obsoleto.")],
+        }),
+      ).rejects.toThrow("CONTENT_DRAFT_CONFLICT");
+
+      // The refusal is total: no revision, no unit version, no block version.
+      expect(await prisma.revision.count({ where: { editionId } })).toBe(
+        before,
+      );
+    });
+
+    it("lets the stale tab continue once it reloads", async () => {
+      const fresh = await currentBase();
+
+      const saved = await saveUnitDraft(prisma, {
+        editionId,
+        expectedRevisionId: fresh,
+        unitKey,
+        title: "C1",
+        placement,
+        blocks: [p("La segunda pestaña recargó y ahora sí guarda bien.")],
+      });
+
+      expect(saved.revisionId).not.toBe(fresh);
+    });
+
+    it("refuses a token that an external ingest has overtaken", async () => {
+      const editorToken = await currentBase();
+
+      await ingestUnitV2(prisma, {
+        editionId,
+        unitKey,
+        title: "C1",
+        placement,
+        blocks: [p("Mantenimiento que adelanta al editor una vez más.")],
+      });
+
+      const before = await prisma.revision.count({ where: { editionId } });
+
+      // The editor's draft was archived by the ingest, so their token no longer
+      // names the base — the stale text cannot be resurrected.
+      await expect(
+        saveUnitDraft(prisma, {
+          editionId,
+          expectedRevisionId: editorToken,
+          unitKey,
+          title: "C1",
+          placement,
+          blocks: [p("Texto viejo del editor que no debe revivir.")],
+        }),
+      ).rejects.toThrow("CONTENT_DRAFT_CONFLICT");
+
+      expect(await prisma.revision.count({ where: { editionId } })).toBe(
+        before,
+      );
+    });
+  });
+
+  describe("edition-level draft description", () => {
+    it("reports which chapters a draft would change", async () => {
+      const base = await currentBase();
+      await saveUnitDraft(prisma, {
+        editionId,
+        expectedRevisionId: base,
+        unitKey: unit2Key,
+        title: "C2",
+        placement: placement2,
+        blocks: [p("Sólo el capítulo dos cambia en este borrador.")],
+      });
+
+      const described = await describeEditionDraft(prisma, editionId);
+
+      expect(described.draftRevisionId).not.toBeNull();
+      expect(described.changedUnitKeys).toEqual([unit2Key]);
+    });
   });
 });

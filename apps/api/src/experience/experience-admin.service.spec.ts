@@ -41,7 +41,7 @@ function definition(
   overrides: Partial<ChapterExperienceDefinition> = {},
 ): ChapterExperienceDefinition {
   return {
-    experienceKey: "qa-cms",
+    experienceKey: "eec-c1-cuerpo-antes-que-mente",
     experienceVersion: 1,
     bookSlug: "emociones-en-construccion",
     chapterOrder: 1,
@@ -82,6 +82,7 @@ beforeEach(() => {
   prisma.$transaction.mockImplementation((fn: (tx: unknown) => unknown) =>
     fn(prisma),
   );
+  prisma.chapterExperienceVersion.findMany.mockResolvedValue([]);
   service = new ExperienceAdminService(prisma as unknown as PrismaService);
 });
 
@@ -169,7 +170,7 @@ describe("ExperienceAdminService — published versions are immutable", () => {
     prisma.chapterExperienceVersion.findUnique.mockResolvedValue({
       id: "row_1",
       status: "PUBLISHED",
-      experienceKey: "qa-cms",
+      experienceKey: "eec-c1-cuerpo-antes-que-mente",
       experienceVersion: 1,
       bookSlug: "emociones-en-construccion",
       chapterOrder: 1,
@@ -187,7 +188,7 @@ describe("ExperienceAdminService — published versions are immutable", () => {
     prisma.chapterExperienceVersion.findUnique.mockResolvedValue({
       id: "row_1",
       status: "DRAFT",
-      experienceKey: "qa-cms",
+      experienceKey: "eec-c1-cuerpo-antes-que-mente",
       experienceVersion: 3,
       bookSlug: "emociones-en-construccion",
       chapterOrder: 1,
@@ -207,7 +208,7 @@ describe("ExperienceAdminService — published versions are immutable", () => {
     const stored =
       prisma.chapterExperienceVersion.update.mock.calls[0]![0].data
         .definitionJson;
-    expect(stored.experienceKey).toBe("qa-cms");
+    expect(stored.experienceKey).toBe("eec-c1-cuerpo-antes-que-mente");
     expect(stored.experienceVersion).toBe(3);
     expect(stored.bookSlug).toBe("emociones-en-construccion");
     expect(stored.chapterOrder).toBe(1);
@@ -286,5 +287,104 @@ describe("ExperienceAdminService — publishing", () => {
     await expect(service.publish("row_1")).rejects.toBeInstanceOf(
       ConflictException,
     );
+  });
+});
+
+describe("ExperienceAdminService — one lineage per guide", () => {
+  /**
+   * The rule exists because of a fact about PROGRESS, not about presentation.
+   *
+   * A chapter resolves exactly one guide pin, and `experienceCardStatus` reads
+   * Start / Continue / Completed from the GuideSession matching that pin. Two
+   * distinct experience keys bound to it would therefore report each other's
+   * progress: finish one, and the other reads «Completada» without anyone
+   * having opened it.
+   *
+   * So CMS V1 permits one lineage per guide and unlimited immutable versions of
+   * it. Genuinely independent experiences need independent guides, which is a
+   * Guide-authoring capability this vertical does not claim to have.
+   */
+  it("refuses a second experience key when the chapter ships a code-owned one", async () => {
+    prisma.chapterExperienceVersion.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.createDraft("user_1", definition({ experienceKey: "otra-cosa" })),
+    ).rejects.toMatchObject({
+      response: { code: "EXPERIENCE_GUIDE_ALREADY_HAS_LINEAGE" },
+    });
+    expect(prisma.chapterExperienceVersion.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses a second key when the existing lineage is a published database row", async () => {
+    prisma.chapterExperienceVersion.findMany.mockResolvedValue([
+      { experienceKey: "eec-c1-cuerpo-antes-que-mente" },
+    ]);
+
+    await expect(
+      service.createDraft("user_1", definition({ experienceKey: "otra-cosa" })),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it("refuses a second key when the existing lineage is only a DRAFT", async () => {
+    // Allowing it would just move the collision to publish time, after an
+    // editor has already done the work.
+    prisma.chapterExperienceVersion.findMany.mockResolvedValue([
+      { experienceKey: "un-borrador-en-curso" },
+    ]);
+
+    await expect(
+      service.createDraft("user_1", definition({ experienceKey: "otra-cosa" })),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it("still creates the FIRST experience for a chapter with no lineage yet", async () => {
+    prisma.chapterExperienceVersion.findMany.mockResolvedValue([]);
+    prisma.chapterExperienceVersion.findUnique.mockResolvedValue(null);
+    prisma.chapterExperienceVersion.create.mockResolvedValue({ id: "row_1" });
+
+    // Chapter 2 publishes no code-owned experience, but it also has no guide —
+    // so use chapter 1's guide with the SAME key the chapter already owns.
+    await service.createDraft(
+      "user_1",
+      definition({ experienceKey: "eec-c1-cuerpo-antes-que-mente" }),
+    );
+
+    expect(prisma.chapterExperienceVersion.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("never blocks a new version of the lineage that already exists", async () => {
+    // The rule is about distinct KEYS. Versioning is the supported path and
+    // must keep working from a code-owned definition.
+    prisma.chapterExperienceVersion.findUnique.mockResolvedValue(null);
+    prisma.chapterExperienceVersion.findFirst.mockResolvedValue(null);
+    prisma.chapterExperienceVersion.create.mockResolvedValue({ id: "row_2" });
+
+    await service.createNextDraft("user_1", "eec-c1-cuerpo-antes-que-mente", 1);
+
+    const data = prisma.chapterExperienceVersion.create.mock.calls[0]![0].data;
+    expect(data.experienceVersion).toBe(2);
+  });
+
+  it("keeps versioning a lineage that is already in the database", async () => {
+    prisma.chapterExperienceVersion.findUnique
+      .mockResolvedValueOnce({
+        definitionJson: definition({
+          experienceKey: "eec-c1-cuerpo-antes-que-mente",
+          experienceVersion: 2,
+          status: "PUBLISHED",
+        }),
+      })
+      // The clash check that follows must find nothing at version 3.
+      .mockResolvedValueOnce(null);
+    prisma.chapterExperienceVersion.findFirst.mockResolvedValue({
+      experienceVersion: 2,
+    });
+    prisma.chapterExperienceVersion.create.mockResolvedValue({ id: "row_3" });
+
+    await service.createNextDraft("user_1", "eec-c1-cuerpo-antes-que-mente", 2);
+
+    const data = prisma.chapterExperienceVersion.create.mock.calls[0]![0].data;
+    expect(data.experienceVersion).toBe(3);
+    expect(data.status).toBe("DRAFT");
   });
 });

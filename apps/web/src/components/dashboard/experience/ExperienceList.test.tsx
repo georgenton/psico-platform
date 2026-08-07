@@ -214,3 +214,60 @@ describe("Chapter Home · card status comes from the server", () => {
     );
   });
 });
+
+describe("experienceCardStatus — progress follows the GUIDE, not the version", () => {
+  /**
+   * CMS V1 (#637) records this deliberately, because it is the fact the
+   * one-lineage-per-guide rule exists to protect.
+   *
+   * The status is read from the GuideSession matching the card's guide pin. Two
+   * versions of one experience share that pin, so completion carries forward
+   * across a republish — which is what we want, and why the CMS refuses to
+   * create a SECOND experience key on the same pin: it would inherit the first
+   * one's progress without anyone having opened it.
+   */
+  const pinned = (experienceVersion: number) => ({
+    experienceKey: "eec",
+    experienceVersion,
+    title: `v${experienceVersion}`,
+    guidePin: { guideKey: "guide-eec", guideVersion: 1 },
+    scenes: [],
+  });
+
+  const completedSession = {
+    sessionId: "s1",
+    guideKey: "guide-eec",
+    guideVersion: 1,
+    status: "COMPLETED" as const,
+    stepsCompleted: 3,
+    totalSteps: 3,
+    currentStepKey: null,
+  };
+
+  it("keeps a finished journey finished after a new version is published", () => {
+    expect(
+      experienceCardStatus(
+        pinned(2) as unknown as Parameters<typeof experienceCardStatus>[0],
+        completedSession,
+      ),
+    ).toBe("completed");
+  });
+
+  it("would report an unopened experience as finished if it shared the pin", () => {
+    // Precisely the confusion CMS V1 prevents at creation time: nothing here
+    // can tell these two apart, because the session only knows the guide.
+    const otherKeySamePin = {
+      ...pinned(1),
+      experienceKey: "otra-experiencia",
+    };
+
+    expect(
+      experienceCardStatus(
+        otherKeySamePin as unknown as Parameters<
+          typeof experienceCardStatus
+        >[0],
+        completedSession,
+      ),
+    ).toBe("completed");
+  });
+});

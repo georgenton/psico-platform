@@ -21,14 +21,37 @@ export function NewExperienceButton({
   bookSlug,
   chapterOrder,
   guideAvailable,
+  lineageExists,
 }: {
   bookSlug: string;
   chapterOrder: number;
   guideAvailable: boolean;
+  /**
+   * Whether this chapter already has an experience bound to its guide.
+   *
+   * CMS V1 allows one lineage per guide, because GuideSession is the progress
+   * authority: a second key on the same pin would share Start / Continue /
+   * Completed with the first. The server refuses it; this stops the UI from
+   * offering it in the first place.
+   */
+  lineageExists: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (guideAvailable && lineageExists) {
+    return (
+      <span
+        className="text-[12.5px]"
+        style={{ color: "var(--color-warm-500)" }}
+        data-testid="new-experience-lineage-exists"
+      >
+        Este capítulo ya tiene una experiencia para su guía. Para cambiarla,
+        crea una nueva versión.
+      </span>
+    );
+  }
 
   if (!guideAvailable) {
     return (

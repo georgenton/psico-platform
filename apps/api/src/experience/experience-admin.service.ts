@@ -214,8 +214,64 @@ export class ExperienceAdminService {
       });
     }
 
+    // CMS V1 — ONE lineage per guide.
+    //
+    // A chapter resolves exactly one guide pin, and GuideSession is the
+    // authority on Start / Continue / Completed. Two distinct experience keys
+    // bound to that pin would therefore SHARE progress: finishing one would
+    // show the other as finished too. That is not two experiences, it is two
+    // presentations of one, so the CMS refuses to create the second rather than
+    // offering a button whose result would not mean what it looks like.
+    //
+    // Versions of the SAME key are unaffected — that is the whole point of the
+    // versioning model, and completion carrying forward across them is
+    // deliberate.
+    const existingKeys = await this.lineageKeysForChapter(
+      input.bookSlug,
+      input.chapterOrder,
+    );
+    const foreign = [...existingKeys].filter(
+      (key) => key !== input.experienceKey,
+    );
+    if (foreign.length > 0) {
+      throw new ConflictException({
+        code: "EXPERIENCE_GUIDE_ALREADY_HAS_LINEAGE",
+        message:
+          "Este capítulo ya tiene una experiencia vinculada a esta guía. " +
+          "Crea una nueva versión de la experiencia existente.",
+      });
+    }
+
     const definition = this.rebuildAsDraft(input, pin);
     return this.insert(userId, definition);
+  }
+
+  /**
+   * Every experience key this chapter already has, from BOTH sides — code-owned
+   * definitions and database rows, drafts included.
+   *
+   * Drafts count: a draft is a lineage that is about to exist, and letting a
+   * second one be started beside it would just move the collision to publish
+   * time, when an editor has already done the work.
+   */
+  private async lineageKeysForChapter(
+    bookSlug: string,
+    chapterOrder: number,
+  ): Promise<Set<string>> {
+    const [rows, fromCode] = await Promise.all([
+      this.prisma.chapterExperienceVersion.findMany({
+        where: { bookSlug, chapterOrder },
+        select: { experienceKey: true },
+      }),
+      productionExperienceRepository.listPublishedForChapter({
+        bookSlug,
+        chapterOrder,
+      }),
+    ]);
+    return new Set([
+      ...rows.map((r) => r.experienceKey),
+      ...fromCode.map((d) => d.experienceKey),
+    ]);
   }
 
   /**

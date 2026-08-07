@@ -128,6 +128,7 @@ export default async function AdminChapterExperiencesPage({
             bookSlug={params.bookSlug}
             chapterOrder={chapterOrder}
             guideAvailable={admin?.guidePin != null}
+            lineageExists={experiences.length > 0}
           />
         </div>
 

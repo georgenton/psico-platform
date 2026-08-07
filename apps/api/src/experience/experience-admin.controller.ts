@@ -78,6 +78,18 @@ export class ExperienceAdminController {
     return this.admin.getDraft(id);
   }
 
+  @Get("drafts/:id/preview")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "getExperienceDraftPreview",
+    summary:
+      "El borrador tal como lo recibiría un lector, por el mismo mapper que usa discovery.",
+  })
+  @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
+  getDraftPreview(@Param("id") id: string) {
+    return this.admin.getDraftPublicView(id);
+  }
+
   @Post("drafts")
   @Header("Cache-Control", "private, no-store")
   @ApiOperation({

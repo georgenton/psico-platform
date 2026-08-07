@@ -32,6 +32,7 @@ import type {
   AdminChapterExperiences,
   AdminExperienceRow,
   ChapterExperienceDefinition,
+  ChapterExperiencePublicView,
 } from "@psico/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { productionGuideRegistry } from "../guide/guide-catalog";
@@ -42,6 +43,7 @@ import {
   validateExperienceDefinition,
 } from "./experience-catalog";
 import { productionExperienceRepository } from "./experience-production-catalog";
+import { toPublicExperienceView } from "./experience-public-view";
 
 /** Editorial failures, surfaced as codes rather than stack traces. */
 const EDITORIAL_CODES: Record<string, string> = {
@@ -163,6 +165,31 @@ export class ExperienceAdminService {
       return editorial(err);
     }
     return { id: row.id, status: row.status, definition };
+  }
+
+  /**
+   * The draft as a READER would receive it — through the same mapper the
+   * discovery route uses.
+   *
+   * The CMS preview renders this rather than mapping the definition in the
+   * browser, so the editor sees the real thing: RECALL options come from the
+   * server-side exercise catalog, and `correctOptionKey` is left behind here
+   * exactly as it is for a reader. A second mapper written for the CMS would be
+   * a place for the two to disagree.
+   */
+  async getDraftPublicView(id: string): Promise<ChapterExperiencePublicView> {
+    const row = await this.prisma.chapterExperienceVersion.findUnique({
+      where: { id },
+      select: { definitionJson: true },
+    });
+    if (!row) throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
+    try {
+      return toPublicExperienceView(
+        validateExperienceDefinition(row.definitionJson),
+      );
+    } catch (err) {
+      return editorial(err);
+    }
   }
 
   /**

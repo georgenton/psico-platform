@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChapterConcept, ChapterExperiencePublicView } from "@psico/types";
-import { useGuideRun } from "../guide/use-guide-run";
+import { useGuideRun, type GuideRun } from "../guide/use-guide-run";
 import { GUIDE_SCOPE_NOTE } from "../guide/guide-presentation";
 import type { GuideWebBundle } from "../guide/guide-web-bundle";
 import type { GuideAnchorResolution } from "../guide/guide-anchor";
@@ -80,7 +80,44 @@ export interface ExperiencePlayerProps {
   onPickAnotherExperience?: () => void;
 }
 
-export function ExperiencePlayer({
+/**
+ * The LIVE player: the reader's run, owned by the server.
+ *
+ * This is the only place `useGuideRun` is called, and it stays that way. The
+ * CMS preview does not reach into this component or teach the hook a second
+ * mode — it renders the same surface below from an in-memory run, so there is
+ * one player, one registry and twelve renderers no matter who is looking.
+ */
+export function ExperiencePlayer(props: ExperiencePlayerProps) {
+  const run = useGuideRun({
+    actorScope: props.actorScope,
+    pin: props.bundle.pin,
+    presentation: props.bundle.presentation,
+  });
+
+  return <ExperiencePlayerSurface {...props} run={run} />;
+}
+
+export interface ExperiencePlayerSurfaceProps extends ExperiencePlayerProps {
+  /** Where the run's state comes from. Live from the server, or in memory. */
+  run: GuideRun;
+  /**
+   * Whether moving between panels is remembered for next time.
+   *
+   * The reader's cursor is per-experience and lives in `localStorage`. A
+   * preview must not touch it: an editor stepping through a draft would
+   * otherwise move the place a reader comes back to.
+   */
+  persistSceneCursor?: boolean;
+}
+
+/**
+ * Everything that turns a run plus a definition into panels on screen.
+ *
+ * It holds no opinion about where the run came from, which is exactly what
+ * lets the CMS preview reuse it without a fork.
+ */
+export function ExperiencePlayerSurface({
   actorScope,
   definition,
   bundle,
@@ -92,13 +129,9 @@ export function ExperiencePlayer({
   onClose,
   onConfirmResonance,
   onPickAnotherExperience,
-}: ExperiencePlayerProps) {
-  const run = useGuideRun({
-    actorScope,
-    pin: bundle.pin,
-    presentation: bundle.presentation,
-  });
-
+  run,
+  persistSceneCursor = true,
+}: ExperiencePlayerSurfaceProps) {
   const pin = useMemo(
     () => ({
       experienceKey: definition.experienceKey,
@@ -130,11 +163,13 @@ export function ExperiencePlayer({
       setLocalSceneKey(null);
       return;
     }
-    const stored = readExperienceScene(actorScope, pin);
+    const stored = persistSceneCursor
+      ? readExperienceScene(actorScope, pin)
+      : null;
     setLocalSceneKey(sceneKeyFor(run.session, stored));
     // `serverKey` is the dependency on purpose: the cursor is only re-read when
     // the SERVER's coordinates change, not on every render.
-  }, [actorScope, pin, run.session, serverKey]);
+  }, [actorScope, pin, persistSceneCursor, run.session, serverKey]);
 
   const state = useMemo(
     () =>
@@ -180,6 +215,7 @@ export function ExperiencePlayer({
     const key = sceneKeyAt(definition, next);
     if (key === null) return;
     setLocalSceneKey(key);
+    if (!persistSceneCursor) return;
     writeExperienceScene(
       {
         schemaVersion: 1,
@@ -195,6 +231,7 @@ export function ExperiencePlayer({
   }, [
     actorScope,
     definition,
+    persistSceneCursor,
     pin,
     run,
     state.activeIndex,
@@ -209,6 +246,7 @@ export function ExperiencePlayer({
     const key = sceneKeyAt(definition, prev);
     if (key === null) return;
     setLocalSceneKey(key);
+    if (!persistSceneCursor) return;
     writeExperienceScene(
       {
         schemaVersion: 1,
@@ -224,6 +262,7 @@ export function ExperiencePlayer({
   }, [
     actorScope,
     definition,
+    persistSceneCursor,
     pin,
     run.session,
     state.activeIndex,
@@ -325,7 +364,7 @@ export function ExperiencePlayer({
           <SceneAction
             label={run.busy ? "Abriendo…" : "Empezar de nuevo"}
             onClick={() => {
-              clearExperienceScene(pin);
+              if (persistSceneCursor) clearExperienceScene(pin);
               void run.start();
             }}
             disabled={run.busy}
@@ -353,7 +392,7 @@ export function ExperiencePlayer({
             ? { onPickAnother: onPickAnotherExperience }
             : {})}
           onRepeat={() => {
-            clearExperienceScene(pin);
+            if (persistSceneCursor) clearExperienceScene(pin);
             void run.start();
           }}
         />

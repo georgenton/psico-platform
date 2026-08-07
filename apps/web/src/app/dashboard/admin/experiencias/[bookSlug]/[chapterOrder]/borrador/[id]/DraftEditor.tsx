@@ -5,11 +5,18 @@ import { useState } from "react";
 import {
   EXPERIENCE_SCENE_KINDS,
   type ChapterExperienceDefinition,
+  type ChapterExperiencePublicView,
   type ExperienceSceneDefinition,
   type ExperienceSceneKind,
 } from "@psico/types";
 
-import { publishDraftAction, saveDraftAction } from "../../../../actions";
+import { ExperiencePreview } from "@/components/dashboard/experience/ExperiencePreview";
+import { resolveGuideWebBundle } from "@/components/dashboard/guide/guide-web-bundle";
+import {
+  previewDraftAction,
+  publishDraftAction,
+  saveDraftAction,
+} from "../../../../actions";
 
 /**
  * CMS V1 (#637) — the draft editor.
@@ -110,7 +117,11 @@ export function DraftEditor({
       initial.scenes.map((scene, i) => [i, fromBody(scene.copy.body)]),
     ),
   );
-  const [busy, setBusy] = useState<null | "save" | "publish">(null);
+  const [busy, setBusy] = useState<null | "save" | "publish" | "preview">(null);
+  /** The saved draft as a reader would receive it, mapped by the server. */
+  const [preview, setPreview] = useState<ChapterExperiencePublicView | null>(
+    null,
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -170,6 +181,19 @@ export function DraftEditor({
       setMessage("Guardado.");
     } catch (err) {
       setError(readError(err, "No pudimos guardar el borrador."));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function openPreview() {
+    setBusy("preview");
+    setError(null);
+    setMessage(null);
+    try {
+      setPreview(await previewDraftAction(id, definition));
+    } catch (err) {
+      setError(readError(err, "No pudimos abrir la vista previa."));
     } finally {
       setBusy(null);
     }
@@ -358,6 +382,20 @@ export function DraftEditor({
           data-testid="save-draft"
         >
           {busy === "save" ? "Guardando…" : "Guardar"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void openPreview()}
+          disabled={busy !== null}
+          className="rounded-full px-5 text-[13.5px] font-semibold disabled:opacity-60"
+          style={{
+            minHeight: 44,
+            background: "var(--color-lavender-50)",
+            color: "var(--color-lavender-700)",
+          }}
+          data-testid="preview-draft"
+        >
+          {busy === "preview" ? "Abriendo…" : "Vista previa"}
         </button>
         <button
           type="button"

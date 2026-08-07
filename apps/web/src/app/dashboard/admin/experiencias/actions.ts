@@ -1,7 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { ChapterExperienceDefinition } from "@psico/types";
+import type {
+  ChapterExperienceDefinition,
+  ChapterExperiencePublicView,
+} from "@psico/types";
 
 import { serverFetch } from "@/lib/api.server";
 
@@ -71,4 +74,19 @@ export async function publishDraftAction(
   revalidatePath(chapterPath(bookSlug, chapterOrder));
   revalidatePath(`/dashboard/biblioteca/${bookSlug}/lector/${chapterOrder}`);
   return published;
+}
+
+/**
+ * The draft as a reader would receive it. Saves first, so what is previewed is
+ * what is on screen — and mapped by the server, so RECALL options come from the
+ * same catalog the reader's copy does.
+ */
+export async function previewDraftAction(
+  id: string,
+  definition: ChapterExperienceDefinition,
+): Promise<ChapterExperiencePublicView> {
+  await saveDraftAction(id, definition);
+  return serverFetch<ChapterExperiencePublicView>(
+    `/pulso/experiences/drafts/${encodeURIComponent(id)}/preview`,
+  );
 }

@@ -139,6 +139,13 @@ const ADMIN_NAV_ITEMS: readonly NavItem[] = [
     tourTarget: null,
   },
   {
+    href: "/dashboard/admin/experiencias",
+    label: "Pulso · Experiencias",
+    iconKind: null,
+    exact: false,
+    tourTarget: null,
+  },
+  {
     href: "/dashboard/admin/reports",
     label: "Pulso · Reports",
     iconKind: null,

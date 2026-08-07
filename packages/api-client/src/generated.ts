@@ -515,11 +515,6 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Etapa 6 — receive the NUMERIC text features the client computed on-device
-         *     from a decrypted reflection. The body has no text field by design; the
-         *     whitelist ValidationPipe strips anything extra (ADR 0007).
-         */
         post: operations["EmotionalMapController_logTextFeatures"];
         delete?: never;
         options?: never;
@@ -950,10 +945,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Which micro-checkin question to ask next (Mapa Emocional · Etapa 2).
-         *     `item: null` when today's question was already answered.
-         */
         get: operations["MoodController_nextCheckin"];
         put?: never;
         post?: never;
@@ -972,7 +963,6 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Persist one 0–4 checkin answer. Plain ordinal, no text (ADR 0007). */
         post: operations["MoodController_logCheckin"];
         delete?: never;
         options?: never;
@@ -1099,14 +1089,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Callback the user's browser hits after Stripe Checkout. The front
-         *     passes back the `session_id` Stripe appended to `successUrl`.
-         *
-         *     We do NOT mutate the user's plan here — the Stripe webhook is the
-         *     canonical write path. This handler just confirms the result so the
-         *     front can show success/processing/failed immediately without polling.
-         */
         get: operations["BillingController_getReturn"];
         put?: never;
         post?: never;
@@ -1696,13 +1678,6 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Audio in (multipart `audio` field), transcript out. Plan-gated at the
-         *     service layer (FREE → 403 VOICE_REQUIRES_PRO; quota exhausted →
-         *     402 VOICE_QUOTA_EXCEEDED) and rate-limited here to 10/min/user — voice
-         *     transcription is expensive both server-side and at the provider, so
-         *     we cap aggressively even for Pro users.
-         */
         post: operations["VoiceController_transcribe"];
         delete?: never;
         options?: never;
@@ -1719,12 +1694,6 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * `/voz/usage` from docs/design/handoff/07-voz.md. v1 is informational —
-         *     the server already counted seconds on `/transcribe`. The client posts
-         *     its own measurement so the server can cross-check and return the
-         *     authoritative remaining-minutes value back.
-         */
         post: operations["VoiceController_reportUsage"];
         delete?: never;
         options?: never;
@@ -2225,6 +2194,92 @@ export interface paths {
         get: operations["getChapterExperiences"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/experiences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Experiencias publicadas y borradores de un capítulo, más la guía a la que pueden vincularse. */
+        get: operations["listChapterExperiencesForAdmin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/experiences/drafts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Una definición guardada, para editarla. */
+        get: operations["getExperienceDraftForAdmin"];
+        /** Guarda el borrador completo. No hay patch por campo: una escritura parcial deja estados que ningún validador vio. */
+        put: operations["saveExperienceDraft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/experiences/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Crea una experiencia nueva en versión 1, siempre como borrador. */
+        post: operations["createExperienceDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/experiences/{experienceKey}/{experienceVersion}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clona una versión publicada como el siguiente borrador. La original no se toca. */
+        post: operations["createNextExperienceDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/experiences/drafts/{id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publica el borrador. Revalida contra la guía exacta del registro del servidor y lo vuelve inmutable. */
+        post: operations["publishExperienceDraft"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3219,552 +3274,33 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        ErrorEnvelopeDto: {
-            /** @description HTTP status code, e.g. 400, 401, 404, 422, 500. */
-            statusCode: number;
-            /**
-             * @description Machine-readable error code (SCREAMING_SNAKE_CASE), e.g.
-             *     `VALIDATION_ERROR`, `AUTH_INVALID_CREDENTIALS`, `RATE_LIMIT_EXCEEDED`.
-             *     Stable contract — clients branch on this, not `message`.
-             */
-            code: string;
-            /** @description Human-readable summary. Safe to surface to end-users. */
-            message: string;
-            /**
-             * @description Optional structured detail. For `VALIDATION_ERROR` this is the array of
-             *     class-validator constraint failures; for other codes it may carry
-             *     domain-specific context.
-             */
-            details?: Record<string, never>;
-            /** @description ISO-8601 server timestamp at error time. */
-            timestamp: string;
-            /** @description Request path that produced the error, e.g. `/api/auth/login`. */
-            path: string;
-        };
-        RegisterDeviceDto: {
-            /** @enum {string} */
-            platform: RegisterDeviceDtoPlatform;
-            token: string;
-            deviceLabel?: string;
-        };
-        RegisterDto: {
-            /**
-             * Format: email
-             * @description The user's email address. Must be a valid RFC 5321 address. Used as
-             *     the unique login identifier and as the destination for verification
-             *     + password-reset emails.
-             */
-            email: string;
-            /**
-             * @description Password (8–72 characters). Bcrypt silently truncates anything past
-             *     72 bytes, so the upper bound is enforced explicitly to surface that
-             *     truncation as a validation error instead of a silent confidence
-             *     downgrade.
-             *
-             *     The server hashes with bcrypt before persisting; the raw password
-             *     never reaches storage and never appears in any log.
-             */
-            password: string;
-            /**
-             * @description Display name (2–100 chars). Shown in the UI and in transactional
-             *     emails. Not used for authentication.
-             */
-            name: string;
-        };
-        AuthUserDto: {
-            /** @description Stable opaque user ID (UUID v4). */
-            id: string;
-            /** @description Login email. Always lowercase as stored. */
-            email: string;
-            /** @description Display name shown in the UI and in transactional emails. */
-            name: string;
-            /**
-             * @description Authorization role: typically `"USER"`. Other values: `"AUTHOR"`,
-             *     `"PSYCHOLOGIST"`, `"ADMIN"`. Frontend uses this to show admin /
-             *     author surfaces.
-             */
-            role: string;
-            /**
-             * @description Active plan tier: `"FREE"`, `"PRO"`, `"ANNUAL"`, or `"B2B"`. Gates
-             *     Pro-only features in the UI; the API also re-enforces server-side.
-             */
-            plan: string;
-            /**
-             * @description base64url-encoded 16-byte Argon2id salt used by the client to derive
-             *     the E2E master key (ADR 0007 §A). NOT a secret — useless without the
-             *     password. `null` for legacy accounts created before Sprint S6-crypto;
-             *     the server backfills it on next login so this value stops being
-             *     `null` for an account after one successful login.
-             */
-            cryptoSalt: string | null;
-        };
-        AuthResponseDto: {
-            /**
-             * @description Short-lived JWT (~15 min). Send as
-             *     `Authorization: Bearer <token>` on every authenticated request.
-             */
-            accessToken: string;
-            /**
-             * @description Long-lived JWT (~30 days), single-use. POST to `/auth/refresh` to
-             *     exchange for a new access+refresh pair. The presented refresh token
-             *     is invalidated atomically on rotation.
-             */
-            refreshToken: string;
-            /** @description The authenticated user's public profile. */
-            user: components["schemas"]["AuthUserDto"];
-        };
-        LoginDto: {
-            /**
-             * Format: email
-             * @description The email used at registration.
-             */
-            email: string;
-            /**
-             * @description The user's password. Never logged, never echoed back. The server
-             *     compares against the bcrypt hash and discards the plaintext after.
-             */
-            password: string;
-        };
-        RefreshDto: {
-            refreshToken: string;
-        };
-        ForgotPasswordDto: {
-            /** Format: email */
-            email: string;
-        };
-        ResetPasswordDto: {
-            /**
-             * @description Raw reset token from the email link, base64url 32–128 chars. The
-             *     server hashes (SHA-256) before lookup — the raw token only ever
-             *     touches the email and this request body.
-             */
-            token: string;
-            /**
-             * @description New password (8–72 characters). Bcrypt silently truncates anything
-             *     past 72 bytes, so the upper bound is enforced explicitly to surface
-             *     that as a validation error.
-             *
-             *     The server hashes with bcrypt before persisting; raw plaintext never
-             *     touches storage or logs. The previous password hash is overwritten —
-             *     there is no history.
-             */
-            newPassword: string;
-        };
-        VerifyEmailDto: {
-            token: string;
-        };
-        OAuthGoogleDto: {
-            /**
-             * @description Google ID token (JWT) obtained client-side from Google Identity
-             *     Services (web) or Google Sign-In SDK (mobile). The backend verifies
-             *     the signature against Google's public keys via `google-auth-library`
-             *     — no Passport redirect flow.
-             *
-             *     Typical length: ~1000–1500 characters. The token is single-use from
-             *     our perspective: we extract identity claims and discard.
-             */
-            idToken: string;
-        };
-        CreateBookReviewDto: {
-            rating: number;
-            text: string;
-        };
-        CreateBookDto: {
-            /**
-             * @description URL slug for the book — must be lowercase kebab-case (matches
-             *     `/^[a-z0-9]+(?:-[a-z0-9]+)*$/`). Used in `/dashboard/biblioteca/[slug]`
-             *     and as the canonical identifier. Pick carefully: changing it later
-             *     breaks bookmarks and shared links.
-             */
-            slug: string;
-            /**
-             * @description Display title. Shown in the book card, the detail header, and the
-             *     reader chrome. No length cap because Spanish titles can run long
-             *     ("Familias Ensambladas: un manual para…").
-             */
-            title: string;
-            /**
-             * @description Long-form description shown on the detail screen + meta tags. Plain
-             *     text; markdown not interpreted in v1.
-             */
-            description?: string;
-            /**
-             * Format: uri
-             * @description R2 URL of the cover image. Optional — when omitted, the front uses
-             *     the `coverToken`-based gradient fallback.
-             */
-            coverUrl?: string;
-            /**
-             * @description Minimum plan tier required to access the book. `"FREE"` means the
-             *     book shows in the catalog for all users; higher tiers gate it
-             *     behind the paywall. Plugin emits the enum in OpenAPI.
-             * @enum {string}
-             */
-            plan: CreateBookDtoPlan;
-        };
-        UpdateBookDto: {
-            /**
-             * @description Toggle catalog visibility. `false` hides the book from
-             *     `GET /api/books` (the public list) without deleting it; admins can
-             *     still read the detail by direct slug. Use to soft-retire books or
-             *     to stage new ones before launch.
-             */
-            isPublished?: boolean;
-        };
-        CreateChapterDto: {
-            /**
-             * @description Display order within the book (1-indexed). Used as the chapter
-             *     identifier in `/dashboard/biblioteca/[slug]/lector/[order]`.
-             *     Collision with an existing chapter returns 409 `ORDINAL_TAKEN`.
-             */
-            order: number;
-            /**
-             * @description Display title of the chapter. Shown in the reader header + the
-             *     chapter list on the book detail page.
-             */
-            title: string;
-            /**
-             * @description Optional short description shown in the chapter list (1-2 lines
-             *     preview). Plain text.
-             */
-            description?: string;
-            /**
-             * @description Optional estimated reading time in minutes. Used to roll up the
-             *     book's `durationMinutes` on the detail screen and to size session
-             *     progress. Author's best guess — server doesn't validate against
-             *     actual content.
-             */
-            durationMinutes?: number;
-        };
-        UploadAudioDto: {
-            title: string;
-            durationSeconds: number;
-        };
-        MarkProgressDto: {
-            score?: number;
-        };
-        UpdateUserMoodBodyDto: {
-            moodId: string;
-        };
-        LogTextFeaturesDto: {
-            /** @description Diary entry the features belong to; enables idempotent re-save upsert. */
-            entryId?: string;
-            /** @description Tokens in the analyzed entry. */
-            wordCount: number;
-            /** @description First-person singular pronoun density in [0,1]. */
-            selfFocus: number;
-            /** @description Positive-affect word density in [0,1]. */
-            positive: number;
-            /** @description Negative-affect word density in [0,1]. */
-            negative: number;
-            /** @description Cognitive-insight marker density in [0,1]. */
-            insight: number;
-            /** @description Causal-language density in [0,1]. */
-            causal: number;
-            /** @description Absolutist word density in [0,1]. */
-            absolutist: number;
-            /** @description Social-reference density in [0,1]. */
-            social: number;
-            /** @description Self-kind talk density in [0,1]. */
-            selfKind: number;
-            /** @description Self-critical talk density in [0,1]. */
-            selfCritic: number;
-        };
-        EcoScopeDto: {
-            bookSlug: string;
-            chapterOrder: number;
-        };
-        SendEcoMessageDto: {
-            /**
-             * @description Server-side ID of the thread the message belongs to. The user must
-             *     own the thread or the service returns 404 (we do not 403 — would
-             *     leak existence). Max length 128 to allow opaque IDs.
-             */
-            threadId: string;
-            /**
-             * @description Ephemeral plaintext of the user's message. Server uses it for the
-             *     LLM prompt + layer-1 crisis regex detection, then drops it. NEVER
-             *     persists, NEVER logs, NEVER returns in any response. The privacy
-             *     spec enforces this at CI time.
-             *
-             *     Hard cap 2000 chars (~500 tokens) to control LLM cost and stay
-             *     under the design's "respuestas cortas" voice.
-             */
-            textPlaintext: string;
-            /**
-             * Format: base64
-             * @description XChaCha20-Poly1305 ciphertext of the same message, base64url-encoded.
-             *     Encrypted client-side under the eco subkey (HKDF from master key
-             *     with `ECO_KEY_INFO`). Server persists as-is, decrypts never.
-             *
-             *     For replays / history reads, this is what the client decrypts
-             *     locally to render the message bubble.
-             */
-            textCiphertext: string;
-            /**
-             * Format: base64
-             * @description Fresh 24-byte XChaCha20 nonce paired with `textCiphertext`,
-             *     base64url-encoded (32 chars exactly). Must be a new random nonce on
-             *     every send — reuse under the same key breaks confidentiality.
-             */
-            textNonce: string;
-            /**
-             * @description Optional intent hint. `"suggest"` nudges Eco to recommend a book or
-             *     exercise instead of free-form chat. v1 routes both through the same
-             *     LLM call with the intent injected into the system prompt — explicit
-             *     dispatch can come later if recommendation tuning needs it.
-             */
-            intent?: Record<string, never>;
-            /** @description Fase H — optional reading context (reader dock/sheet handoff). */
-            scope?: components["schemas"]["EcoScopeDto"];
-        };
-        ReportEcoMessageDto: {
-            /**
-             * @description Category of the issue. One of:
-             *     - `HALLUCINATION` — Eco invented facts or sources
-             *     - `OFF_TONE` — wrong register (too clinical, too casual, etc)
-             *     - `SENSITIVE_CONTENT` — produced content that crosses safety lines
-             *     - `CRISIS_MISHANDLED` — failed to detect or respond appropriately to a crisis signal
-             *     - `OTHER` — falls outside the above (description in `comment`)
-             *
-             *     Plugin emits the enum in OpenAPI from `@IsEnum`.
-             */
-            reason: Record<string, never>;
-            /**
-             * @description Optional free-text explanation, up to 500 chars. Recommended when
-             *     `reason === "OTHER"`. Stored as-is — the user is signaling intent,
-             *     not entering encrypted content.
-             */
-            comment?: string;
-        };
-        ChatRequestDto: {
-            message: string;
-            conversationId?: string;
-        };
-        CreateCheckoutSessionDto: {
-            /**
-             * @description Plan tier to purchase. Plugin emits the enum in OpenAPI.
-             * @enum {string}
-             */
-            billingPlan: CreateCheckoutSessionDtoBillingPlan;
-            /**
-             * Format: uri
-             * @description Where Stripe should redirect after successful payment. Stripe
-             *     appends `?session_id=...` automatically. The front passes that to
-             *     `/billing/return` to confirm.
-             */
-            successUrl: string;
-            /**
-             * Format: uri
-             * @description Where Stripe should redirect if the user aborts payment. No state
-             *     change happens; the front can just return the user to the plan
-             *     picker.
-             */
-            cancelUrl: string;
-        };
-        CreatePortalSessionDto: {
-            /**
-             * Format: uri
-             * @description Where Stripe should redirect after the user closes the portal.
-             *     Web: `/dashboard/plan`. Mobile: a Universal Link / deep link back
-             *     to `(tabs)/plan`. The session is single-use — Stripe burns it
-             *     when the user finishes.
-             */
-            returnUrl: string;
-        };
-        CancelSubscriptionDto: {
-            /**
-             * @description Optional free-text reason the user typed in the cancel modal.
-             *     Capped at 480 chars (Stripe metadata cap). Not validated for
-             *     sentiment / category — analytics teams categorize later.
-             */
-            reason?: string;
-        };
-        CreateDiaryEntryDto: {
-            /**
-             * @description Mood token from the shared `DIARY_MOODS` catalog (great / good / ok /
-             *     low / hard). Plaintext by design (patterns analytics). Server derives the
-             *     normalization columns; the client controls neither provenance nor
-             *     eligibility.
-             *
-             *     PR-2B · **optional and null-capable**. A reflexion may carry no mood at
-             *     all: an absent or explicit-`null` value both mean "no pick" → the server
-             *     stores `mood = null` and marks it `not_selected` / ineligible. A present
-             *     value MUST be canonical (`@ValidateIf` skips only when absent/null; a
-             *     legacy / unknown / empty token → 400). Eligibility additionally requires a
-             *     matching `moodSelectionVersion` attestation (see below) — a canonical mood
-             *     with no attestation is preserved but stays ineligible. The plugin
-             *     auto-emits the enum in OpenAPI.
-             * @enum {string|null}
-             */
-            mood?: CreateDiaryEntryDtoMood;
-            /**
-             * @description PR-2B · the client's versioned attestation that `mood` was an EXPLICIT
-             *     pick. The ONLY value a client may send is `explicit-v1`
-             *     (`CLIENT_SELECTION_VERSIONS`); the server-owned attestations (`mood-log-v1`,
-             *     `seed-v1`) are stamped by their own endpoints and rejected here. This is a
-             *     versioned attestation, NOT a cryptographic proof — the server still derives
-             *     provenance/eligibility. Omit it (or send `null`) for a mood the composer
-             *     defaulted rather than the user tapping. Sending it without a `mood` is a
-             *     400 (`MOOD_SELECTION_WITHOUT_MOOD`).
-             * @enum {string}
-             */
-            moodSelectionVersion?: CreateDiaryEntryDtoMoodSelectionVersion;
-            /**
-             * @description Origin of the entry. `"free"` for user-initiated, `"prompted"` for a
-             *     journal-prompt response, `"voz"` for a voice-to-text dictation.
-             *     Default `"free"` if omitted.
-             * @enum {string}
-             */
-            kind?: CreateDiaryEntryDtoKind;
-            /**
-             * @description The `DiaryPrompt.id` the user is responding to, when `kind="prompted"`.
-             *     Up to 64 chars to allow opaque server-side identifiers.
-             */
-            promptId?: string;
-            /**
-             * @description The XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.
-             *     Encrypted client-side under a per-user subkey derived via HKDF from
-             *     the master key. Server never decrypts. Bounded at ~1.4 MB ciphertext
-             *     (≈1 MB plaintext) — anything bigger is a UI bug.
-             */
-            textCiphertext: string;
-            /**
-             * @description The 24-byte XChaCha20 nonce that pairs with `textCiphertext`,
-             *     base64url-encoded. Must be unique per (key, write) — the client
-             *     generates a fresh random nonce on every encryption (server doesn't
-             *     enforce uniqueness; the client invariant is documented in ADR 0007 §C).
-             */
-            textNonce: string;
-            /**
-             * @description Optional preview ciphertext, used by the list view to render a short
-             *     snippet without decrypting the full body. Bounded the same way as
-             *     `textCiphertext`. Short entries may omit it.
-             */
-            excerptCiphertext?: string;
-            /**
-             * @description The 24-byte XChaCha20 nonce for `excerptCiphertext`. Required IF
-             *     `excerptCiphertext` is provided.
-             */
-            excerptNonce?: string;
-            /**
-             * @description Up to 12 plain-text tags (each 1–32 chars). Plaintext by design — the
-             *     patterns module clusters by tag for the weekly summary. Users should
-             *     NOT include private info in tags (the UI nudges them toward
-             *     categorical labels like `trabajo` / `familia` / `sueño`).
-             */
-            tags?: string[];
-            /**
-             * Format: uri
-             * @description R2 signed URL for an attached voice recording. The audio itself is
-             *     NOT stored long-term — the Voice module discards it post-transcription
-             *     (07-voz.md). Persisted in the entry for replay during the active
-             *     session only.
-             */
-            audioUrl?: string;
-            /** @description Duration in seconds of the attached voice recording, when present. */
-            audioDurationSec?: number;
-        };
-        UpdateDiaryEntryDto: {
-            /**
-             * @description New mood token from the shared `DIARY_MOODS` catalog. Server uses
-             *     it for the patterns analytics — visible in plaintext by design.
-             *     Plugin emits the enum in OpenAPI from `@IsIn`.
-             *
-             *     PR-2B · null-capable, three-way. The service distinguishes the cases via
-             *     `hasOwnProperty`, so the validator must let both `null` and a canonical
-             *     string through while still rejecting garbage:
-             *       - **absent** (property omitted) → leave the mood untouched.
-             *       - **`null`** → clear the mood (`not_selected`, ineligible).
-             *       - **canonical string** → set it (eligible only with `explicit-v1`).
-             *       - empty / legacy / unknown token → 400.
-             *     `@ValidateIf(value !== undefined && value !== null)` skips validation for
-             *     the absent and null cases (both legitimate) and enforces `@IsIn` on any
-             *     present value.
-             * @enum {string|null}
-             */
-            mood?: UpdateDiaryEntryDtoMood;
-            /**
-             * @description PR-2B · client attestation that the new `mood` was an EXPLICIT pick. Only
-             *     `explicit-v1` (`CLIENT_SELECTION_VERSIONS`) is accepted from a client; the
-             *     server-owned attestations are stamped elsewhere. Sending it without a
-             *     `mood`, or alongside `mood: null`, is a 400 (`MOOD_SELECTION_WITHOUT_MOOD`).
-             *     Re-saving the SAME canonical mood WITHOUT this attestation never degrades an
-             *     already-eligible row (the service preserves the existing normalization).
-             * @enum {string}
-             */
-            moodSelectionVersion?: UpdateDiaryEntryDtoMoodSelectionVersion;
-            /**
-             * @description New XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.
-             *     Encrypted client-side under the diary subkey derived via HKDF from
-             *     the master key. Server never decrypts.
-             *
-             *     If sent, `textNonce` MUST also be sent (paired write).
-             */
-            textCiphertext?: string;
-            /**
-             * @description Fresh 24-byte XChaCha20 nonce paired with `textCiphertext`,
-             *     base64url-encoded. Must be a new random nonce — reusing the previous
-             *     nonce under the same key catastrophically breaks confidentiality
-             *     (XChaCha20 invariant).
-             *
-             *     If sent, `textCiphertext` MUST also be sent.
-             */
-            textNonce?: string;
-            /**
-             * @description New preview ciphertext for the list view. Same pairing rules as
-             *     `textCiphertext`/`textNonce` — sending one requires sending the other.
-             */
-            excerptCiphertext?: string;
-            /**
-             * @description Fresh 24-byte XChaCha20 nonce paired with `excerptCiphertext`. Required
-             *     if `excerptCiphertext` is sent.
-             */
-            excerptNonce?: string;
-            /**
-             * @description Replacement tag set (up to 12, each 1–32 chars). Plaintext by
-             *     design — used by the patterns module to cluster entries for the
-             *     weekly summary. The UI nudges users to categorical labels (e.g.
-             *     `trabajo` / `familia` / `sueño`) and explicitly NOT to put private
-             *     info here.
-             */
-            tags?: string[];
-        };
-        ShareDiaryEntryDto: {
-            /**
-             * @description Stable ID of the therapist the entry is being shared with. The
-             *     therapist must already be in the user's verified therapist list
-             *     (v2 — surface lives in TherapyModule).
-             */
-            therapistId: string;
-            /**
-             * @description XChaCha20-Poly1305 ciphertext of the plaintext entry, encrypted with
-             *     the ephemeralKey. base64url-encoded. Same bounds as Diary
-             *     ciphertext (`~1.4 MB` max).
-             */
-            ciphertextForTherapist: string;
-            /**
-             * @description The ephemeralKey wrapped with the shared secret from
-             *     `ECDH(userPriv, therapistPub)`. Short blob (≤ 1 KB) — separate cap
-             *     from `ciphertextForTherapist` so a malformed payload here can't
-             *     bypass the body ciphertext size check.
-             */
-            wrappedKey: string;
-            /**
-             * @description X25519 public key the client generated SPECIFICALLY for this share.
-             *     32 raw bytes → 43 base64url chars unpadded. Burned after this share
-             *     — the therapist's app reads it to derive the shared secret, and the
-             *     user's app discards the matching private key.
-             */
-            userOneShotPubKey: string;
-            /**
-             * @description Optional explicit expiry (ISO-8601). Server caps at 30 days from
-             *     now; default is 7 days when omitted. After expiry the share row is
-             *     tombstoned by the sweeper job (v2) — the therapist can no longer
-             *     read.
-             */
-            expiresAt?: string;
-        };
+        ErrorEnvelopeDto: Record<string, never>;
+        RegisterDeviceDto: Record<string, never>;
+        RegisterDto: Record<string, never>;
+        AuthResponseDto: Record<string, never>;
+        LoginDto: Record<string, never>;
+        RefreshDto: Record<string, never>;
+        ForgotPasswordDto: Record<string, never>;
+        ResetPasswordDto: Record<string, never>;
+        VerifyEmailDto: Record<string, never>;
+        OAuthGoogleDto: Record<string, never>;
+        CreateBookReviewDto: Record<string, never>;
+        CreateBookDto: Record<string, never>;
+        UpdateBookDto: Record<string, never>;
+        CreateChapterDto: Record<string, never>;
+        UploadAudioDto: Record<string, never>;
+        MarkProgressDto: Record<string, never>;
+        UpdateUserMoodBodyDto: Record<string, never>;
+        LogTextFeaturesDto: Record<string, never>;
+        SendEcoMessageDto: Record<string, never>;
+        ReportEcoMessageDto: Record<string, never>;
+        ChatRequestDto: Record<string, never>;
+        CreateCheckoutSessionDto: Record<string, never>;
+        CreatePortalSessionDto: Record<string, never>;
+        CancelSubscriptionDto: Record<string, never>;
+        CreateDiaryEntryDto: Record<string, never>;
+        UpdateDiaryEntryDto: Record<string, never>;
+        ShareDiaryEntryDto: Record<string, never>;
         LogMoodDto: {
             /**
              * @description Mood token from the shared catalog.
@@ -3773,450 +3309,28 @@ export interface components {
              */
             mood: LogMoodDtoMood;
         };
-        LogCheckinDto: {
-            /**
-             * @description Which question was answered. Must be one of the CHECKIN_ITEMS keys from
-             *     `@psico/types` (compile-time shared catalog; adding an item there is
-             *     enough — no migration, the column is String).
-             * @enum {string}
-             */
-            itemKey: LogCheckinDtoItemKey;
-            /** @description Answer on the shared CHECKIN_SCALE: 0 = "Para nada" … 4 = "Totalmente". */
-            score: number;
-        };
-        PatchSubscriptionDto: {
-            /**
-             * @description What to do with the subscription:
-             *     - `"cancel"` — mark cancel-at-period-end; the user keeps Pro
-             *       until the period closes
-             *     - `"reactivate"` — undo a pending cancellation (no-op if not pending)
-             *     - `"switch-plan"` — move to a different plan with proration. Currently
-             *       501 — server-side TODO.
-             *
-             *     Plugin emits the enum in OpenAPI.
-             */
-            action: Record<string, never>;
-            /**
-             * @description Free-text reason for cancellation (up to 480 chars). Captured for
-             *     retention analytics; sent to Stripe metadata. Only meaningful when
-             *     `action === "cancel"` — ignored for the other actions.
-             */
-            reason?: string;
-            /**
-             * @description Target plan tier for `action: "switch-plan"`. Required for that
-             *     action; ignored otherwise. Until the server implements the switch,
-             *     the request returns 501.
-             * @enum {string}
-             */
-            newPlanId?: PatchSubscriptionDtoNewPlanId;
-        };
-        UpdateProfileDto: {
-            /**
-             * @description Display first name shown in the home greeting and in transactional
-             *     emails. 1–100 chars. The `name` field (legacy full display name) is
-             *     not editable here.
-             */
-            firstName?: string;
-            /**
-             * @description Free-text city. Plaintext — used to size therapy listings by
-             *     proximity. Pass `null` to clear. Max 100 chars.
-             */
-            city?: string | null;
-            /**
-             * @description ISO 3166-1 alpha-2 country code (exactly 2 chars, e.g. `"EC"`,
-             *     `"PE"`). Used by `/terapia/crisis` to pick the right hotline. Pass
-             *     `null` to clear — the service then falls back to a generic
-             *     international list.
-             */
-            country?: string | null;
-            /**
-             * Format: uri
-             * @description R2 signed URL to the user's avatar image. Set by the avatar upload
-             *     endpoint (`POST /user/avatar`); callers can also pass `null` to
-             *     clear and revert to initials-based fallback.
-             */
-            avatarUrl?: string | null;
-        };
-        UpdateTimezoneDto: {
-            timezone: string;
-        };
-        UpdatePreferencesDto: {
-            /**
-             * @description Preferred narrator voice for audio chapters. Mirrors the
-             *     onboarding step 3 choice. Plugin emits the enum in OpenAPI.
-             * @enum {string}
-             */
-            voicePreference?: UpdatePreferencesDtoVoicePreference;
-            /**
-             * @description Whether the home screen should prompt for a mood ping in the
-             *     morning if not already pinged today. Disable for users who find
-             *     the nudges noisy.
-             */
-            moodPrompts?: boolean;
-            /**
-             * @description The time of day the user prefers to engage. Drives the inactive-nudge
-             *     scheduler + future smart-reminder timing. `"any"` opts out of the
-             *     heuristic.
-             * @enum {string}
-             */
-            bestTime?: UpdatePreferencesDtoBestTime;
-            /**
-             * @description Self-set weekly reading goal in minutes (0–10080 = max 1 week). The
-             *     patterns module surfaces progress against this in the weekly
-             *     summary email. 0 = no goal set; UI hides the progress bar.
-             */
-            weeklyGoalMinutes?: number;
-            /**
-             * @description UI theme preference. `"system"` follows OS dark-mode setting (web
-             *     + mobile); `"light"`/`"dark"` force the corresponding palette.
-             *     Client renders the change instantly.
-             * @enum {string}
-             */
-            theme?: UpdatePreferencesDtoTheme;
-            /**
-             * @description UI language. v1 only has Spanish flavours: `"es-419"` (LATAM,
-             *     neutral / Ecuadorian) and `"es-ES"` (peninsular). User input
-             *     normalized to the Ecuadorian "tú" register either way — this just
-             *     picks copy tweaks.
-             * @enum {string}
-             */
-            language?: UpdatePreferencesDtoLanguage;
-            /**
-             * @description Ambient theme (Sprint B1). Re-skins the dashboard with a different
-             *     palette + typography. All ambients are free regardless of plan — purely
-             *     cosmetic, no functional gating.
-             * @enum {string}
-             */
-            ambient?: UpdatePreferencesDtoAmbient;
-        };
-        UpdateReaderPreferencesDto: {
-            /** @enum {string} */
-            font?: UpdateReaderPreferencesDtoFont;
-            fontSize?: number;
-            /** @enum {string} */
-            theme?: UpdateReaderPreferencesDtoTheme;
-            lineHeight?: number;
-        };
-        UpdateNotificationsDto: {
-            /**
-             * @description If `true`, the inactive-nudge processor may push a daily reminder at
-             *     `reminderTime` local. Also gates the weekly-digest push companion
-             *     (the email itself is governed by `weeklyReport`).
-             */
-            dailyReminder?: boolean;
-            /**
-             * @description Local hour for daily/weekly notifications, format `HH:MM` 24h
-             *     (e.g. `"07:00"`, `"19:30"`). Interpreted in the user's
-             *     `Profile.timezone` (Sprint S53); legacy users without a timezone
-             *     fall back to UTC.
-             */
-            reminderTime?: string;
-            /**
-             * @description Push notifications celebrating streak milestones (3-day, 7-day,
-             *     30-day, etc). Separate from `dailyReminder` so users can keep the
-             *     habit nudge but mute the celebrations.
-             */
-            streakReminders?: boolean;
-            /**
-             * @description Push notifications when Eco posts a reply (e.g. async LLM finishes
-             *     a long generation). v1 SSE streams to the live tab, so this only
-             *     fires for closed-app + Live Activities flows.
-             */
-            ecoReplies?: boolean;
-            /**
-             * @description Push + email reminders for upcoming therapy sessions (24h, 1h before
-             *     the slot). Only firing while the user has at least one SCHEDULED
-             *     session.
-             */
-            terapiaReminders?: boolean;
-            /**
-             * @description Monday-morning email digest summarising the prior week (entries
-             *     count, mood distribution, top tags, optional LLM-backed narrative
-             *     if available). Push companion to the digest is gated by
-             *     `dailyReminder` — the email itself flips with this flag alone.
-             */
-            weeklyReport?: boolean;
-        };
-        UpdatePrivacyDto: {
-            shareDiaryWithTherapist?: boolean;
-            anonymizedAnalytics?: boolean;
-            marketingEmail?: boolean;
-            /**
-             * @description Fase D (V2, decision L4) — consent for the on-device reflection text
-             *     analysis (TXT-L1). Setting it to false also deletes every derived
-             *     numeric row the user uploaded (consent cascade).
-             */
-            localTextAnalysis?: boolean;
-        };
-        UpdateMoodDto: {
-            /**
-             * @description Wellness mood token (`great` / `good` / `meh` / `bad` / …). One of
-             *     `WELLNESS_MOOD_IDS`. Unknown tokens are rejected with 400 by `@IsIn`.
-             * @enum {string}
-             */
-            mood: UpdateMoodDtoMood;
-        };
-        EmailChangeRequestDto: {
-            /**
-             * Format: email
-             * @description Target email the user wants to switch to. Must be a valid RFC 5321
-             *     address and NOT already registered (409 `EMAIL_ALREADY_REGISTERED`
-             *     on conflict). Case is normalized server-side.
-             */
-            newEmail: string;
-        };
-        PasswordChangeDto: {
-            /**
-             * @description The user's current password. Verified against the bcrypt hash
-             *     before any write. Never logged.
-             */
-            currentPassword: string;
-            /**
-             * @description New password (8–72 chars). Bcrypt silently truncates anything past
-             *     72 bytes, so the upper bound is enforced explicitly. Same rules as
-             *     register — picking weak passwords is the user's choice.
-             */
-            newPassword: string;
-        };
-        ReencryptedEntryDto: {
-            /**
-             * @description Server ID of the existing `DiaryEntry`. Must belong to the
-             *     authenticated user — service enforces ownership and throws
-             *     400 ENTRY_NOT_OWNED if any ID in the array doesn't match.
-             */
-            id: string;
-            /**
-             * @description New XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.
-             *     Replaces the entry's `textCiphertext` atomically inside the
-             *     transaction.
-             */
-            textCiphertext: string;
-            /**
-             * @description Fresh 24-byte XChaCha20 nonce for `textCiphertext`. Must be a new
-             *     random value — reusing the old nonce under the new key would still
-             *     be fine cryptographically (different key) but loses the nonce-uniqueness
-             *     habit clients should keep.
-             */
-            textNonce: string;
-            /**
-             * @description Optional re-encrypted preview ciphertext (used by the list view).
-             *     Required if the entry had an excerpt cipher before; the client
-             *     decides based on the existing entry.
-             */
-            excerptCiphertext?: string;
-            /**
-             * @description Fresh nonce for `excerptCiphertext`. Required if `excerptCiphertext`
-             *     is provided.
-             */
-            excerptNonce?: string;
-        };
-        PasswordChangeWithRekeyDto: {
-            /**
-             * @description Current password (plaintext, used only to verify bcrypt match before
-             *     the rekey). Never logged. Not the same as `newPassword`.
-             */
-            currentPassword: string;
-            /**
-             * @description New password (10–256 chars). Tighter min than register (which is 8)
-             *     because rekey is a destructive operation — we nudge users toward a
-             *     password they actually remember.
-             */
-            newPassword: string;
-            /**
-             * @description Fresh 16-byte (or up to 21-byte) Argon2id salt the client generated
-             *     for the new master key, base64url-encoded (22–28 chars). Distinct
-             *     from the old salt — the client throws away the old master key entirely
-             *     and starts over.
-             */
-            newCryptoSalt: string;
-            /**
-             * @description Every active diary entry re-encrypted with the new diary subkey
-             *     (HKDF from the new master key). Cap of 500 entries per request to
-             *     keep the transaction bounded; if the user has more, the UI chunks
-             *     across multiple requests.
-             */
-            reencryptedEntries: components["schemas"]["ReencryptedEntryDto"][];
-        };
-        DeleteRequestDto: {
-            /**
-             * @description Current password — required to confirm intent. The 30-day cooldown
-             *     + email confirmation is the second factor. Verified against
-             *     bcrypt; never logged.
-             */
-            password: string;
-            /**
-             * @description Optional reason for leaving (up to 500 chars). Captured for
-             *     retention analytics. Not surfaced anywhere user-facing.
-             */
-            reason?: string;
-        };
-        OnboardingStep1Dto: {
-            /**
-             * @description Catalog IDs of the chosen motives. At least one required, max 5 —
-             *     picking everything is signal for "I don't know" which we treat the
-             *     same as default.
-             *
-             *     The service validates each id exists in the `OnboardingMotivo`
-             *     table and returns 400 `MOTIVOS_NOT_FOUND` with the bad IDs.
-             */
-            motivosIds: string[];
-        };
-        OnboardingStep2Dto: {
-            /**
-             * @description Catalog ID from `OnboardingMood` (separate vocabulary from
-             *     `WELLNESS_MOODS` and `DIARY_MOODS`). Service validates the ID
-             *     exists; unknown IDs return 400 `MOOD_NOT_FOUND` with the bad
-             *     value echoed back for actionable error display.
-             */
-            moodId: string;
-        };
-        OnboardingStep3Dto: {
-            /**
-             * @description Display first name shown in the home greeting and the inactive-nudge
-             *     push (e.g. "Hola María, ¿cómo estás?"). 2–40 chars. Disallows emoji,
-             *     symbols, control chars, and leading/trailing whitespace; permissive
-             *     about accented characters so `"María José"` works.
-             *
-             *     Persisted to both `OnboardingState.firstName` (audit) and
-             *     `User.firstName` (canonical).
-             */
-            firstName: string;
-            /**
-             * @description Preferred narrator voice for audio playback:
-             *     - `"marina"` — Marina Quintana voice (the anchor author's own)
-             *     - `"tomas"` — Tomás voice (paired contributor)
-             *     - `"none"` — opt out of audio entirely
-             *
-             *     Persisted to `UserPreferences.voicePreference`. The audio file URL
-             *     the Lector serves picks the right track based on this preference.
-             *     Plugin emits the enum in OpenAPI.
-             * @enum {string}
-             */
-            voicePreference: OnboardingStep3DtoVoicePreference;
-        };
-        OnboardingCompleteDto: {
-            /**
-             * @description ID of the book the user chose to start with. `null` is valid — the
-             *     user finished onboarding without committing to a specific book
-             *     (the "terminar" / skip-book option in step 4). When set, the
-             *     choice is mirrored to `OnboardingState.chosenBookId` for audit and
-             *     the front auto-starts that book on the next dashboard visit.
-             */
-            chosenBookId?: string | null;
-        };
-        OnboardingTourCompleteDto: {
-            /**
-             * @description Number of tour steps the user actually saw before closing. `0` =
-             *     skipped right after opening; the catalog max is 5 today but the
-             *     upper bound is 20 to allow future growth without a contract bump.
-             *
-             *     "Terminar" (clicked through all) sends `stepsCompleted = N` (total
-             *     catalog size); "Saltar" sends the current step index.
-             */
-            stepsCompleted: number;
-        };
-        LectorSessionHeartbeatDto: {
-            /**
-             * @description ID of the `Book` the reading session belongs to. The service
-             *     resolves the `chapterId` from `(bookId, chapterOrder)` for the
-             *     upsert; an unknown pair returns 404.
-             */
-            bookId: string;
-            /**
-             * @description Ordinal of the chapter being read (1-indexed). Combined with
-             *     `bookId` to identify the active chapter.
-             */
-            chapterOrder: number;
-            /**
-             * @description ID of the last `ChapterBlock` the user has scrolled past. Used to
-             *     resume the session on next open (UI scrolls back to this block).
-             */
-            lastBlockId: string;
-            /**
-             * @description Seconds since the previous heartbeat. Cap at 3600 in validation;
-             *     service further clamps to 60 to defend against suspend-and-resume
-             *     spikes. The cumulative `timeSpentSec` on the row grows monotonically.
-             */
-            timeSpentDeltaSec: number;
-            /**
-             * @description 0.0–1.0 ratio of how far the user has scrolled through the chapter.
-             *     Server clamps to [0, 1] and never lets the stored value decrease —
-             *     once 0.78 has been observed, the next heartbeat with 0.42 is silently
-             *     ignored (likely a UI bug / refresh / scroll-back). Use `complete`
-             *     endpoint to set 1.0 explicitly.
-             */
-            progressPct: number;
-        };
-        CreateHighlightDto: {
-            /**
-             * @description Public stable block identity (Content Core, CC-6B). Preferred anchor for
-             *     new clients. Resolved server-side to the legacy binding; if `blockId` is
-             *     also sent they must correspond (else ANCHOR_IDENTITY_MISMATCH).
-             */
-            blockKey?: string;
-            /**
-             * @description Legacy ChapterBlock id — still accepted for backward compatibility. At
-             *     least one of `blockKey`/`blockId` is required (else ANCHOR_MISSING_TARGET).
-             */
-            blockId?: string;
-            /**
-             * @description Source text version the user read (CC-6C). REQUIRED for a Content Core
-             *     write (`blockKey`) so the offsets validate against, and the quote is
-             *     captured from, exactly that BlockVersion — not whatever is published at
-             *     POST time. Omitted for a legacy `blockId`-only write.
-             */
-            blockVersionId?: string;
-            /**
-             * @description UTF-16 code-unit offset into the block's `content` where the
-             *     highlight starts. Inclusive. The service rejects with 400 if
-             *     `startOffset >= endOffset` or if `endOffset` exceeds the actual
-             *     block length (the block is loaded server-side for verification).
-             */
-            startOffset: number;
-            /**
-             * @description UTF-16 code-unit offset into the block's `content` where the
-             *     highlight ends. Exclusive. Must satisfy `startOffset < endOffset`
-             *     and be `≤ block.content.length`.
-             */
-            endOffset: number;
-            /**
-             * @description Highlight color: `"YELLOW"` (default), `"BLUE"`, or `"PINK"`. The
-             *     UI uses color to let users categorize visually (e.g. yellow = key
-             *     passages, blue = quotes, pink = action items). Plugin emits the
-             *     enum in OpenAPI.
-             */
-            color?: Record<string, never>;
-            /**
-             * @description Optional one-line note attached to the highlight (up to 280 chars).
-             *     For longer commentary, use the Annotations API instead — annotations
-             *     are the right model for paragraph-length reflection.
-             */
-            note?: string;
-        };
-        CreateAnnotationDto: {
-            /**
-             * @description Public stable block identity (Content Core, CC-6B). Preferred anchor for
-             *     new clients; resolved server-side. If `blockId` is also sent they must
-             *     correspond (else ANCHOR_IDENTITY_MISMATCH).
-             */
-            blockKey?: string;
-            /**
-             * @description Legacy ChapterBlock id — still accepted for backward compatibility. At
-             *     least one of `blockKey`/`blockId` is required (else ANCHOR_MISSING_TARGET).
-             */
-            blockId?: string;
-            /**
-             * @description Annotation body. 1–4096 chars (~1000 words). Plaintext — annotations
-             *     are NOT E2E encrypted because books are public content and the
-             *     reflection here is contextual. Users who need privacy for personal
-             *     reflection should use the Diary (which IS E2E).
-             */
-            text: string;
-        };
-        UpdateAnnotationDto: {
-            /** @description New annotation body. Same constraints as creation (1–4096 chars). */
-            text: string;
-        };
+        LogCheckinDto: Record<string, never>;
+        PatchSubscriptionDto: Record<string, never>;
+        UpdateProfileDto: Record<string, never>;
+        UpdateTimezoneDto: Record<string, never>;
+        UpdatePreferencesDto: Record<string, never>;
+        UpdateReaderPreferencesDto: Record<string, never>;
+        UpdateNotificationsDto: Record<string, never>;
+        UpdatePrivacyDto: Record<string, never>;
+        UpdateMoodDto: Record<string, never>;
+        EmailChangeRequestDto: Record<string, never>;
+        PasswordChangeDto: Record<string, never>;
+        PasswordChangeWithRekeyDto: Record<string, never>;
+        DeleteRequestDto: Record<string, never>;
+        OnboardingStep1Dto: Record<string, never>;
+        OnboardingStep2Dto: Record<string, never>;
+        OnboardingStep3Dto: Record<string, never>;
+        OnboardingCompleteDto: Record<string, never>;
+        OnboardingTourCompleteDto: Record<string, never>;
+        LectorSessionHeartbeatDto: Record<string, never>;
+        CreateHighlightDto: Record<string, never>;
+        CreateAnnotationDto: Record<string, never>;
+        UpdateAnnotationDto: Record<string, never>;
         ContentReadBlockDto: {
             /** @description Stable block identity (uuidv5). */
             blockKey: string;
@@ -4320,354 +3434,32 @@ export interface components {
             completedCount: number;
             totalCount: number;
         };
-        ShareWithTherapistDto: {
-            therapistId: string;
+        SaveExperienceDefinitionDto: {
+            /** @description Un ChapterExperienceDefinition completo. El servidor decide status, versión, publishedAt y autor: lo que venga en esos campos se ignora. */
+            definition: Record<string, never>;
         };
-        ConfirmResonanceDto: {
-            /** @description Stable concept key (persisted; never renamed in the catalog). */
-            conceptKey: string;
-            /** @description Human label shown on the map ("Mis resonancias"). */
-            conceptLabel: string;
-            bookSlug: string;
-            chapterOrder: number;
-            /**
-             * @description Where the confirmation happened (provenance).
-             * @enum {string}
-             */
-            source: ConfirmResonanceDtoSource;
-        };
-        UpdateResonanceDto: {
-            important: boolean;
-        };
-        MarkResolvedDto: {
-            note?: string;
-        };
-        RejectAuthorRequestDto: {
-            /**
-             * @description Editorial feedback shown to the author in the publication checklist UI.
-             *     Empty allowed (e.g. generic "no apto"), but ops should write something
-             *     actionable.
-             */
-            feedback?: string;
-        };
-        ChangeRoleDto: {
-            /** @enum {string} */
-            role: ChangeRoleDtoRole;
-            /** @description Optional reason captured for audit. */
-            reason?: string;
-        };
-        RegisterLiveActivityDto: {
-            activityId: string;
-            /** @enum {string} */
-            kind: RegisterLiveActivityDtoKind;
-            pushToken: string;
-            bundleId: string;
-        };
-        CrisisLogDto: {
-            /**
-             * @description Where the crisis surface was triggered from:
-             *     - `ECO_SAFETY_LAYER` — Eco's layer-1 regex / layer-2 LLM sentinel
-             *       fired and we routed the user to the hotline.
-             *     - `HOME_BUTTON` — explicit "Necesito ayuda" tile on the home screen.
-             *     - `PROFILE_LINK` — link in the profile / settings menu.
-             *     - `THERAPIST_SUGGESTION` — a therapist's reply suggested the
-             *       user contact a hotline.
-             *
-             *     Plugin emits the enum in OpenAPI.
-             * @enum {string}
-             */
-            trigger: CrisisLogDtoTrigger;
-            /**
-             * @description Optional ID of the hotline the user tapped to call/visit from
-             *     the crisis screen's list. Useful to know which lines are
-             *     effective for which countries. Up to 64 chars to allow opaque
-             *     catalog IDs.
-             */
-            contactedLineId?: string;
-            /**
-             * @description ISO 3166-1 alpha-2 country code, 2 chars. Inferred client-side
-             *     from the user's profile / IP geolocation. Drives which set of
-             *     hotlines was shown at the moment of the event.
-             */
-            country?: string;
-        };
-        CreateBookingDto: {
-            /**
-             * @description Stable opaque ID of the therapist (UUID). The client gets it from
-             *     the directory or detail screens.
-             */
-            therapistId: string;
-            /**
-             * @description ISO-8601 UTC timestamp of the slot start (e.g.
-             *     `"2026-06-15T14:30:00.000Z"`). The server validates the slot
-             *     exists in the therapist's published availability + isn't already
-             *     booked.
-             */
-            slotIso: string;
-            /**
-             * @description Session modality: `"INDIVIDUAL"` (1 client), `"COUPLE"` (2), or
-             *     `"FAMILY"` (3+). Affects the Stripe price + the video room
-             *     configuration (S65).
-             * @enum {string}
-             */
-            modality: CreateBookingDtoModality;
-            /**
-             * @description Optional ID from the catalog of first-time reasons (e.g.
-             *     "anxiety", "couples-counselling"). Helps the therapist prep before
-             *     the first session. Subsequent bookings can omit it.
-             */
-            firstReasonId?: string;
-            /**
-             * @description Session length in minutes (15–120). Defaults to the therapist's
-             *     default if omitted. Must match an available slot length.
-             */
-            durationMin?: number;
-            /**
-             * Format: uri
-             * @description Stripe Checkout success redirect URL. Not used in S64 (Stripe
-             *     wiring lands in S65); when present, S65's StripeProvider passes it
-             *     to `checkout.sessions.create`.
-             */
-            successUrl?: string;
-            /**
-             * Format: uri
-             * @description Stripe Checkout cancel redirect URL. Same v1 status as
-             *     `successUrl` — passed through to Stripe in S65 when wired.
-             */
-            cancelUrl?: string;
-        };
-        UpdateSessionPrepDto: {
-            intentionCiphertext?: string;
-            intentionNonce?: string;
-            /** @enum {string} */
-            checkInMood?: UpdateSessionPrepDtoCheckInMood;
-            sharedEntryIds?: string[];
-        };
-        SessionFeedbackDto: {
-            /**
-             * @description 1–5 star rating of the session. Public to the therapist for
-             *     reflection + Pulso aggregates. 1 = worst, 5 = best.
-             */
-            rating: number;
-            /**
-             * @description Up to 8 categorical tags (e.g. `"util"`, `"empatico"`,
-             *     `"poca-conexion"`) from a curated picker on the post-session
-             *     screen. Plaintext — same analytics-safe contract as Diary tags.
-             */
-            tags?: string[];
-            /**
-             * @description XChaCha20-Poly1305 ciphertext of the user's free-form note,
-             *     base64url-encoded. Encrypted client-side under the therapy subkey
-             *     derived from the master key (ADR 0007 §A). Server never decrypts.
-             *     Required if `noteNonce` is provided.
-             */
-            noteCiphertext?: string;
-            /**
-             * @description 24-byte XChaCha20 nonce paired with `noteCiphertext`,
-             *     base64url-encoded. Required if `noteCiphertext` is provided.
-             *     Server enforces pairing → 400 `CIPHER_NONCE_PAIRING` on
-             *     mismatch.
-             */
-            noteNonce?: string;
-        };
-        TechnicalReportDto: {
-            /** @enum {string} */
-            issue: TechnicalReportDtoIssue;
-            description: string;
-        };
-        UpdatePrescriptionDto: {
-            completed?: boolean;
-        };
-        RescheduleSessionDto: {
-            /**
-             * @description ISO-8601 UTC timestamp of the new slot start (e.g.
-             *     `"2026-06-20T15:00:00.000Z"`). Must be a slot that exists in the
-             *     therapist's published availability + isn't already taken.
-             */
-            newSlotIso: string;
-        };
-        CancelSessionDto: {
-            reason: string;
-            refundRequested?: boolean;
-        };
-        RetryCheckoutDto: {
-            /** Format: uri */
-            successUrl: string;
-            /** Format: uri */
-            cancelUrl: string;
-        };
-        CreateAuthorBookDto: {
-            /**
-             * @description Draft title (2–120 chars). Editable later via `PATCH .../libros/:id`
-             *     up until the book is published. Bound to author's choice — no
-             *     uniqueness check, since drafts are private.
-             */
-            title: string;
-            /**
-             * @description Optional ID of a template to scaffold the book with. v1 templates
-             *     include `"emociones-12"` (12-chapter emotion-mapping arc) and
-             *     `"familia-8"` (8-chapter family-systems arc). When omitted the
-             *     book starts empty with a single placeholder chapter.
-             */
-            templateId?: string;
-        };
-        UpdateAuthorBookDto: {
-            /** @description New title (2–120 chars). Same constraints as `CreateAuthorBookDto`. */
-            title?: string;
-            /**
-             * @description Optional subtitle (up to 200 chars). Shown below the title on the
-             *     cover and detail header. Often a clarifying second line —
-             *     "Un manual para…" style.
-             */
-            subtitle?: string;
-            /**
-             * @description Long-form summary shown on the book detail screen. Up to 2000 chars
-             *     (~400 words). Plain text — markdown not interpreted in v1.
-             */
-            summary?: string;
-            /**
-             * @description Cover palette token used as fallback when no `coverArtUrl` is set.
-             *     One of `"warm"` / `"cool"` / `"mixed"` — drives the gradient the
-             *     front renders. Plugin emits the enum in OpenAPI.
-             * @enum {string}
-             */
-            cover?: UpdateAuthorBookDtoCover;
-            /**
-             * @description R2 URL of a custom cover image. When present, takes precedence
-             *     over `cover` (the palette token). Set via the cover-image upload
-             *     endpoint, then this PATCH wires it.
-             */
-            coverArtUrl?: string;
-            /**
-             * @description Optional `BookCategory.id` (max 64 chars). Shown in the catalog
-             *     filter chips on `Mi Biblioteca`. Service validates the ID exists
-             *     in the category table.
-             */
-            categoryId?: string;
-            /**
-             * @description ISO-639-1 language code (e.g. `"es"`, `"en"`). v1 only Spanish is
-             *     surfaced in the catalog, but author can mark drafts as English for
-             *     future expansion.
-             */
-            language?: string;
-        };
-        ChapterBlockDto: {
-            /**
-             * @description Block kind: `paragraph` (body text), `heading` (section anchor),
-             *     `quote` (offset quote), `pause` (mindful pause), `exercise`
-             *     (interactive prompt). Max 32 chars to allow future variants
-             *     without breaking the schema.
-             */
-            kind: string;
-            /**
-             * @description Block plain-text content. Max 8000 chars per block — long
-             *     paragraphs should be split into multiple blocks for better
-             *     reading rhythm.
-             */
-            content: string;
-            /**
-             * @description Optional kind-specific metadata. Examples:
-             *     - `exercise`: `{ promptId, type: "scale" }`
-             *     - `pause`: `{ durationSec: 30 }`
-             *
-             *     Server does not validate the shape — it's the editor's
-             *     responsibility. Stored as Prisma `Json`.
-             */
-            meta?: Record<string, never>;
-        };
-        UpdateChapterDto: {
-            /**
-             * @description New chapter title (up to 200 chars). Shown in the reader header
-             *     and the chapters list.
-             */
-            title?: string;
-            /** @description Optional subtitle (up to 300 chars). Shown below the title. */
-            subtitle?: string;
-            /**
-             * @description Full block list. The server REPLACES the existing block array
-             *     entirely (not a diff). Max 500 blocks per chapter — well above
-             *     any organic content.
-             *
-             *     If you only want to update meta (title/locked/hidden) without
-             *     touching the body, omit this field.
-             */
-            blocks?: components["schemas"]["ChapterBlockDto"][];
-            /**
-             * @description Whether the chapter is locked behind the book's plan tier. `true`
-             *     = Pro readers only. `false` = all readers (default for chapter 1
-             *     of each book per the funnel design).
-             */
-            isLocked?: boolean;
-            /**
-             * @description Whether the chapter is hidden from the public reader. Used during
-             *     editorial work-in-progress — author can edit without exposing
-             *     half-done content. `false` = visible.
-             */
-            isHidden?: boolean;
-            /**
-             * @description Optimistic concurrency: the chapter version the client loaded
-             *     with. If a save happened in between, the server returns 409
-             *     `CHAPTER_VERSION_CONFLICT` with the current version + the most
-             *     recent saved blocks so the editor can render a diff modal.
-             *
-             *     Omit to opt out of conflict detection (last-write-wins).
-             */
-            expectedVersion?: number;
-        };
-        StructureItemDto: {
-            n: number;
-            title?: string;
-            subtitle?: string;
-            isLocked?: boolean;
-            isHidden?: boolean;
-        };
-        UpdateStructureDto: {
-            chapters: components["schemas"]["StructureItemDto"][];
-        };
-        AuthorAiHelpDto: {
-            /**
-             * @description Which transform to apply. Plugin emits the enum in OpenAPI from
-             *     `@IsIn`.
-             * @enum {string}
-             */
-            intent: AuthorAiHelpDtoIntent;
-            /**
-             * @description Source text from the editor block (1–8000 chars). The LLM
-             *     receives this verbatim. Author keeps full control — server never
-             *     autosaves the LLM output back into the book.
-             */
-            text: string;
-            /**
-             * @description Optional `AuthorBookChapterBlock.id` the text was selected from.
-             *     Used for the AI usage audit row + future per-block instrumentation.
-             *     Omit if the helper is invoked over a free-form selection.
-             */
-            blockId?: string;
-            /**
-             * @description Optional chapter / book context (up to 1000 chars). Injected into
-             *     the system prompt as "el lector ha leído hasta este punto" so the
-             *     LLM keeps tone consistent. Typically the chapter summary + the
-             *     previous block.
-             */
-            context?: string;
-        };
-        UpdatePayoutSettingsDto: {
-            /** @enum {string} */
-            method: UpdatePayoutSettingsDtoMethod;
-            /**
-             * @description Detalles libres por método. Ejemplos:
-             *      - bank_ec: { bankName, accountType: "ahorros|corriente", accountNumber, accountHolder }
-             *      - paypal:  { email }
-             *      - payphone: { phone, accountHolder }
-             *      - manual:  { instructions }
-             *     Nada se valida server-side aquí — finanzas confirma manualmente
-             *     antes de pagar. Cap 4000 chars en JSON.stringify para evitar spam.
-             */
-            details?: Record<string, never>;
-            taxId?: string;
-            legalName?: string;
-            legalAddress?: string;
-        };
+        ShareWithTherapistDto: Record<string, never>;
+        ConfirmResonanceDto: Record<string, never>;
+        UpdateResonanceDto: Record<string, never>;
+        MarkResolvedDto: Record<string, never>;
+        RejectAuthorRequestDto: Record<string, never>;
+        ChangeRoleDto: Record<string, never>;
+        RegisterLiveActivityDto: Record<string, never>;
+        CrisisLogDto: Record<string, never>;
+        CreateBookingDto: Record<string, never>;
+        UpdateSessionPrepDto: Record<string, never>;
+        SessionFeedbackDto: Record<string, never>;
+        TechnicalReportDto: Record<string, never>;
+        UpdatePrescriptionDto: Record<string, never>;
+        RescheduleSessionDto: Record<string, never>;
+        CancelSessionDto: Record<string, never>;
+        RetryCheckoutDto: Record<string, never>;
+        CreateAuthorBookDto: Record<string, never>;
+        UpdateAuthorBookDto: Record<string, never>;
+        UpdateChapterDto: Record<string, never>;
+        UpdateStructureDto: Record<string, never>;
+        AuthorAiHelpDto: Record<string, never>;
+        UpdatePayoutSettingsDto: Record<string, never>;
     };
     responses: never;
     parameters: never;
@@ -4763,14 +3555,6 @@ export interface operations {
         };
         responses: {
             200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuthResponseDto"];
-                };
-            };
-            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5051,12 +3835,6 @@ export interface operations {
             };
         };
         responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5105,12 +3883,6 @@ export interface operations {
             };
         };
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5204,15 +3976,7 @@ export interface operations {
     };
     BooksController_list: {
         parameters: {
-            query?: {
-                view?: PathsApiBooksGetParametersQueryView;
-                categoryId?: string;
-                authorId?: string;
-                sort?: PathsApiBooksGetParametersQuerySort;
-                q?: string;
-                page?: number;
-                perPage?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -5223,9 +3987,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -5266,12 +4028,6 @@ export interface operations {
             };
         };
         responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5320,9 +4076,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -5363,9 +4117,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -5449,9 +4201,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -5481,10 +4231,7 @@ export interface operations {
     };
     BooksController_listReviews: {
         parameters: {
-            query?: {
-                page?: number;
-                perPage?: number;
-            };
+            query?: never;
             header?: never;
             path: {
                 idOrSlug: string;
@@ -5497,9 +4244,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -5546,9 +4291,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -5591,9 +4334,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -5636,9 +4377,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -5681,9 +4420,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -5817,12 +4554,6 @@ export interface operations {
             };
         };
         responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5958,9 +4689,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>[];
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -5993,9 +4722,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6067,9 +4794,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6102,9 +4827,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
         };
     };
@@ -6145,9 +4868,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
         };
     };
@@ -6164,9 +4885,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6207,9 +4926,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6250,9 +4967,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6293,9 +5008,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6340,9 +5053,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6430,9 +5141,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6692,9 +5401,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>[];
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6727,9 +5434,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6766,9 +5471,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6805,9 +5508,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6840,9 +5541,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6864,16 +5563,7 @@ export interface operations {
     };
     SubscriptionController_listInvoices: {
         parameters: {
-            query?: {
-                /**
-                 * @description Max number of invoices to fetch (1–50). Default 12 when omitted —
-                 *     matches the row count of the Mi Plan invoice table.
-                 *
-                 *     Stripe returns newest-first; no cursor is exposed yet (single-page
-                 *     UX). When pagination is needed, add `starting_after`.
-                 */
-                limit?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -6884,9 +5574,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6923,9 +5611,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -6958,9 +5644,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7015,14 +5699,7 @@ export interface operations {
     };
     ReflexionesController_list: {
         parameters: {
-            query?: {
-                from?: string;
-                to?: string;
-                mood?: PathsApiReflexionesEntriesGetParametersQueryMood;
-                tag?: string;
-                page?: number;
-                perPage?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -7033,9 +5710,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7080,9 +5755,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7123,9 +5796,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7166,9 +5837,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7211,9 +5880,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7256,9 +5923,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7305,9 +5970,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7354,9 +6017,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7401,9 +6062,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7444,9 +6103,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7491,9 +6148,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7534,9 +6189,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7569,9 +6222,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>[];
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7604,9 +6255,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7639,9 +6288,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7663,16 +6310,7 @@ export interface operations {
     };
     BillingController_listInvoices: {
         parameters: {
-            query?: {
-                /**
-                 * @description Max number of invoices to fetch (1–50). Default 12 when omitted —
-                 *     matches the row count of the Mi Plan invoice table.
-                 *
-                 *     Stripe returns newest-first; no cursor is exposed yet (single-page
-                 *     UX). When pagination is needed, add `starting_after`.
-                 */
-                limit?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -7683,9 +6321,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7722,9 +6358,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7761,9 +6395,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7785,9 +6417,7 @@ export interface operations {
     };
     BillingController_getReturn: {
         parameters: {
-            query: {
-                session_id: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -7798,9 +6428,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7837,9 +6465,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7876,9 +6502,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7911,9 +6535,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -7979,9 +6601,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -8027,14 +6647,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8062,14 +6674,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8101,9 +6705,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -8140,9 +6742,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -8179,9 +6779,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -8214,9 +6812,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -8253,9 +6849,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -8292,9 +6886,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -8331,9 +6923,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -8370,9 +6960,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -8405,14 +6993,6 @@ export interface operations {
             };
         };
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8560,9 +7140,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -8599,9 +7177,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -8634,9 +7210,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -8879,9 +7453,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -9043,19 +7615,7 @@ export interface operations {
     };
     VoiceController_transcribe: {
         parameters: {
-            query?: {
-                /**
-                 * @description Optional language hint sent to the speech-to-text provider. Both
-                 *     Whisper and Deepgram accept ISO-639-1 codes (`"es"`, `"en"`) plus a
-                 *     few extended tags (`"es-419"` for LATAM Spanish, recommended for
-                 *     Ecuador users).
-                 *
-                 *     Capped at 16 chars — defense against arbitrary attacker input
-                 *     reaching the third-party API. When omitted, the provider
-                 *     auto-detects (less accurate for short clips).
-                 */
-                language?: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -9066,9 +7626,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -9117,9 +7675,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -9412,9 +7968,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -9450,9 +8004,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -9489,9 +8041,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -9527,9 +8077,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -9566,9 +8114,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -9656,9 +8202,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -9748,9 +8292,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -13343,11 +11885,159 @@ export interface operations {
             };
         };
     };
+    listChapterExperiencesForAdmin: {
+        parameters: {
+            query: {
+                bookSlug: string;
+                chapterOrder: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Vista de administración del capítulo. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getExperienceDraftForAdmin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    saveExperienceDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveExperienceDefinitionDto"];
+            };
+        };
+        responses: {
+            /** @description La versión ya está publicada y es inmutable. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    createExperienceDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveExperienceDefinitionDto"];
+            };
+        };
+        responses: {
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    createNextExperienceDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experienceKey: string;
+                experienceVersion: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    publishExperienceDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     PatronesController_getPatrones: {
         parameters: {
-            query?: {
-                period?: PathsApiPatronesGetParametersQueryPeriod;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -13358,9 +12048,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -13397,14 +12085,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13457,9 +12137,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -13500,9 +12178,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -13547,9 +12223,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -13639,9 +12313,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -13682,9 +12354,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
         };
     };
@@ -13703,9 +12373,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -13735,12 +12403,7 @@ export interface operations {
     };
     PulsoController_list: {
         parameters: {
-            query?: {
-                reason?: PathsApiPulsoReportsEcoGetParametersQueryReason;
-                limit?: number;
-                cursor?: string;
-                status?: PathsApiPulsoReportsEcoGetParametersQueryStatus;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -13751,9 +12414,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -13800,9 +12461,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -13845,9 +12504,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -13888,9 +12545,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -13931,9 +12586,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -14016,12 +12669,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14072,12 +12719,6 @@ export interface operations {
             };
         };
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14115,13 +12756,7 @@ export interface operations {
     };
     PulsoController_listUsers: {
         parameters: {
-            query?: {
-                /** @description Substring match on email or name (case-insensitive). */
-                q?: string;
-                /** @description Filter by exact role. */
-                role?: PathsApiPulsoUsersGetParametersQueryRole;
-                limit?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -14218,14 +12853,6 @@ export interface operations {
             };
         };
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14381,9 +13008,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -14453,9 +13078,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -14488,9 +13111,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -14512,50 +13133,7 @@ export interface operations {
     };
     TerapiaController_listTherapists: {
         parameters: {
-            query?: {
-                /**
-                 * @description Catalog ID of a primary motive (e.g. `"anxiety"`). Filters to
-                 *     therapists who declare expertise in that motive. Max 32 chars
-                 *     for opaque IDs.
-                 */
-                motivo?: string;
-                /**
-                 * @description Therapy modality the user wants: `"INDIVIDUAL"`, `"COUPLE"`, or
-                 *     `"FAMILY"`. Filters to therapists who offer that modality.
-                 *     Plugin emits the enum in OpenAPI.
-                 */
-                modalidad?: PathsApiTerapiaTherapistsGetParametersQueryModalidad;
-                /**
-                 * @description Catalog ID of a preferred therapist gender (e.g. `"female"`,
-                 *     `"male"`, `"non-binary"`). Surfaces in the design as "preferencia
-                 *     de género del terapeuta".
-                 */
-                genero?: string;
-                /**
-                 * @description ISO-639-1 language code (e.g. `"es"`, `"en"`) the therapist
-                 *     speaks. 2–8 chars to accept variants like `"es-419"`.
-                 */
-                language?: string;
-                /**
-                 * @description Minimum session price in USD cents-resolved-to-units (0–10000).
-                 *     Combined with `priceMax` for ranges.
-                 */
-                priceMin?: number;
-                /**
-                 * @description Maximum session price in USD (0–10000). Combined with `priceMin`
-                 *     for ranges.
-                 */
-                priceMax?: number;
-                /** @description Sort order for the result set. Defaults to `"rating"`. */
-                sort?: PathsApiTerapiaTherapistsGetParametersQuerySort;
-                /**
-                 * @description Page number (1-indexed). Default 1 via the `Transform` decorator
-                 *     that coerces query string to number and applies the default.
-                 */
-                page?: number;
-                /** @description Items per page (1–100). Default 20. */
-                pageSize?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -14566,9 +13144,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -14603,9 +13179,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -14627,10 +13201,7 @@ export interface operations {
     };
     TerapiaController_listReviews: {
         parameters: {
-            query?: {
-                page?: number;
-                pageSize?: number;
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
@@ -14643,9 +13214,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -14680,9 +13249,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -14704,15 +13271,7 @@ export interface operations {
     };
     TerapiaController_getAvailability: {
         parameters: {
-            query?: {
-                /**
-                 * @description How many calendar days forward to project (1–30). Default 14 when
-                 *     omitted — matches the 2-week therapist booking horizon in the
-                 *     design. The `Transform` decorator coerces the query string to a
-                 *     number and applies the default if absent.
-                 */
-                days?: number;
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
@@ -14725,9 +13284,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -14760,14 +13317,6 @@ export interface operations {
             };
         };
         responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14810,9 +13359,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -14851,9 +13398,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -14888,9 +13433,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -14929,9 +13472,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -14970,9 +13511,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -14994,9 +13533,7 @@ export interface operations {
     };
     TerapiaController_listSessions: {
         parameters: {
-            query?: {
-                status?: PathsApiTerapiaSessionsGetParametersQueryStatus;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -15007,9 +13544,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -15042,9 +13577,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>[];
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -15083,9 +13616,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -15107,10 +13638,7 @@ export interface operations {
     };
     TerapiaController_listNotifications: {
         parameters: {
-            query?: {
-                unread?: boolean;
-                limit?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -15121,9 +13649,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -15226,14 +13752,6 @@ export interface operations {
             };
         };
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15319,9 +13837,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -15526,9 +14042,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -15687,12 +14201,6 @@ export interface operations {
             };
         };
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15853,12 +14361,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15913,12 +14415,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16084,9 +14580,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -16135,9 +14629,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -16226,25 +14718,6 @@ export interface operations {
             };
         };
     };
-}
-export enum PathsApiBooksGetParametersQueryView {
-    catalogo = "catalogo",
-    mis = "mis",
-    recos = "recos",
-    favoritos = "favoritos",
-    guardados = "guardados"
-}
-export enum PathsApiBooksGetParametersQuerySort {
-    recent = "recent",
-    alpha = "alpha",
-    marina = "marina"
-}
-export enum PathsApiReflexionesEntriesGetParametersQueryMood {
-    great = "great",
-    good = "good",
-    ok = "ok",
-    low = "low",
-    hard = "hard"
 }
 export enum PathsApiLectorMediaMediaKeyAccessGetResponses200ContentApplicationJsonOneOf0Kind {
     AUDIOBOOK = "AUDIOBOOK",
@@ -17052,155 +15525,12 @@ export enum PathsApiExperiencesDiscoveryBookSlugChapterOrderGetResponses200Conte
     PODCAST = "PODCAST",
     VIDEO = "VIDEO"
 }
-export enum PathsApiPatronesGetParametersQueryPeriod {
-    Value30d = "30d",
-    Value90d = "90d",
-    Value1y = "1y"
-}
-export enum PathsApiPulsoReportsEcoGetParametersQueryReason {
-    HALLUCINATION = "HALLUCINATION",
-    OFF_TONE = "OFF_TONE",
-    SENSITIVE_CONTENT = "SENSITIVE_CONTENT",
-    CRISIS_MISHANDLED = "CRISIS_MISHANDLED",
-    OTHER = "OTHER"
-}
-export enum PathsApiPulsoReportsEcoGetParametersQueryStatus {
-    open = "open",
-    resolved = "resolved",
-    all = "all"
-}
-export enum PathsApiPulsoUsersGetParametersQueryRole {
-    USER = "USER",
-    AUTHOR = "AUTHOR",
-    PSYCHOLOGIST = "PSYCHOLOGIST",
-    ADMIN = "ADMIN"
-}
-export enum PathsApiTerapiaTherapistsGetParametersQueryModalidad {
-    INDIVIDUAL = "INDIVIDUAL",
-    COUPLE = "COUPLE",
-    FAMILY = "FAMILY"
-}
-export enum PathsApiTerapiaTherapistsGetParametersQuerySort {
-    rating = "rating",
-    price_asc = "price-asc",
-    price_desc = "price-desc",
-    popular = "popular"
-}
-export enum PathsApiTerapiaSessionsGetParametersQueryStatus {
-    upcoming = "upcoming",
-    past = "past",
-    all = "all"
-}
-export enum RegisterDeviceDtoPlatform {
-    EXPO = "EXPO",
-    WEB = "WEB"
-}
-export enum CreateBookDtoPlan {
-    FREE = "FREE",
-    PRO = "PRO",
-    ANNUAL = "ANNUAL",
-    B2B = "B2B"
-}
-export enum CreateCheckoutSessionDtoBillingPlan {
-    PRO_MONTHLY = "PRO_MONTHLY",
-    PRO_YEARLY = "PRO_YEARLY",
-    B2B = "B2B"
-}
-export enum CreateDiaryEntryDtoMood {
-    great = "great",
-    good = "good",
-    ok = "ok",
-    low = "low",
-    hard = "hard"
-}
-export enum CreateDiaryEntryDtoMoodSelectionVersion {
-    explicit_v1 = "explicit-v1"
-}
-export enum CreateDiaryEntryDtoKind {
-    free = "free",
-    prompted = "prompted",
-    voz = "voz"
-}
-export enum UpdateDiaryEntryDtoMood {
-    great = "great",
-    good = "good",
-    ok = "ok",
-    low = "low",
-    hard = "hard"
-}
-export enum UpdateDiaryEntryDtoMoodSelectionVersion {
-    explicit_v1 = "explicit-v1"
-}
 export enum LogMoodDtoMood {
     great = "great",
     good = "good",
     ok = "ok",
     low = "low",
     hard = "hard"
-}
-export enum LogCheckinDtoItemKey {
-    claridad_nombrar = "claridad_nombrar",
-    claridad_causa = "claridad_causa",
-    compasion_amable = "compasion_amable",
-    compasion_juicio = "compasion_juicio",
-    consciencia_presente = "consciencia_presente",
-    consciencia_pausa = "consciencia_pausa"
-}
-export enum PatchSubscriptionDtoNewPlanId {
-    PRO_MONTHLY = "PRO_MONTHLY",
-    PRO_YEARLY = "PRO_YEARLY",
-    B2B = "B2B"
-}
-export enum UpdatePreferencesDtoVoicePreference {
-    marina = "marina",
-    tomas = "tomas",
-    none = "none"
-}
-export enum UpdatePreferencesDtoBestTime {
-    morning = "morning",
-    noon = "noon",
-    evening = "evening",
-    any = "any"
-}
-export enum UpdatePreferencesDtoTheme {
-    system = "system",
-    light = "light",
-    dark = "dark"
-}
-export enum UpdatePreferencesDtoLanguage {
-    es_419 = "es-419",
-    es_ES = "es-ES"
-}
-export enum UpdatePreferencesDtoAmbient {
-    calma = "calma",
-    enfoque = "enfoque",
-    energia = "energia",
-    noche = "noche"
-}
-export enum UpdateReaderPreferencesDtoFont {
-    serif = "serif",
-    sans = "sans"
-}
-export enum UpdateReaderPreferencesDtoTheme {
-    system = "system",
-    light = "light",
-    sepia = "sepia",
-    dark = "dark"
-}
-export enum UpdateMoodDtoMood {
-    great = "great",
-    good = "good",
-    calm = "calm",
-    neutral = "neutral",
-    tired = "tired",
-    anxious = "anxious",
-    sad = "sad",
-    angry = "angry"
-}
-export enum OnboardingStep3DtoVoicePreference {
-    marina = "marina",
-    tomas = "tomas",
-    none = "none"
 }
 export enum ContentUnitReadDtoSource {
     content_core = "content-core",
@@ -17219,63 +15549,4 @@ export enum LearningUnitProgressItemDtoState {
     not_started = "not_started",
     opened = "opened",
     completed = "completed"
-}
-export enum ConfirmResonanceDtoSource {
-    highlight = "highlight",
-    eco = "eco",
-    exercise = "exercise",
-    guide = "guide"
-}
-export enum ChangeRoleDtoRole {
-    USER = "USER",
-    AUTHOR = "AUTHOR",
-    PSYCHOLOGIST = "PSYCHOLOGIST",
-    ADMIN = "ADMIN"
-}
-export enum RegisterLiveActivityDtoKind {
-    TERAPIA_SESSION = "TERAPIA_SESSION",
-    LECTOR_ACTIVE = "LECTOR_ACTIVE",
-    ECO_ACTIVE = "ECO_ACTIVE"
-}
-export enum CrisisLogDtoTrigger {
-    ECO_SAFETY_LAYER = "ECO_SAFETY_LAYER",
-    HOME_BUTTON = "HOME_BUTTON",
-    PROFILE_LINK = "PROFILE_LINK",
-    THERAPIST_SUGGESTION = "THERAPIST_SUGGESTION"
-}
-export enum CreateBookingDtoModality {
-    INDIVIDUAL = "INDIVIDUAL",
-    COUPLE = "COUPLE",
-    FAMILY = "FAMILY"
-}
-export enum UpdateSessionPrepDtoCheckInMood {
-    calmo = "calmo",
-    ansioso = "ansioso",
-    triste = "triste",
-    energico = "energico",
-    cansado = "cansado"
-}
-export enum TechnicalReportDtoIssue {
-    AUDIO_FAILED = "AUDIO_FAILED",
-    VIDEO_FAILED = "VIDEO_FAILED",
-    CONNECTION_DROPPED = "CONNECTION_DROPPED",
-    THERAPIST_NO_SHOW = "THERAPIST_NO_SHOW",
-    OTHER = "OTHER"
-}
-export enum UpdateAuthorBookDtoCover {
-    warm = "warm",
-    cool = "cool",
-    mixed = "mixed"
-}
-export enum AuthorAiHelpDtoIntent {
-    revisar = "revisar",
-    ejemplo = "ejemplo",
-    tono = "tono",
-    simplificar = "simplificar"
-}
-export enum UpdatePayoutSettingsDtoMethod {
-    bank_ec = "bank_ec",
-    paypal = "paypal",
-    payphone = "payphone",
-    manual = "manual"
 }

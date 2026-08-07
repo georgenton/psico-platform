@@ -157,6 +157,7 @@ model User {
   learningEvents          LearningEvent[]
   guideSessions           GuideSession[]
   guideCommandReceipts    GuideCommandReceipt[]
+  chapterExperienceVersions ChapterExperienceVersion[]
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -2626,4 +2627,41 @@ model GuideCommandReceipt {
   @@unique([userId, idempotencyKey])
   @@index([sessionId, commandType])
   @@index([userId, createdAt])
+}
+
+/// CMS V1 (#637) — the database home of chapter experience definitions.
+///
+/// ONE table, and the scenes live inside `definitionJson` as the SAME
+/// `ChapterExperienceDefinition` the runtime already consumes. There is no
+/// parallel CMS shape: the editor edits what the Player reads, so a definition
+/// cannot drift from the contract it is validated against.
+///
+/// DRAFT rows are editable and invisible to readers. PUBLISHED rows are
+/// immutable — editing one means creating the next `experienceVersion` — which
+/// is what lets a GuideSession pin a version and still resolve it a month
+/// later.
+model ChapterExperienceVersion {
+  id               String          @id @default(cuid())
+  experienceKey    String
+  experienceVersion Int
+  bookSlug         String
+  chapterOrder     Int
+  status           ExperienceVersionStatus @default(DRAFT)
+  /// A full ChapterExperienceDefinition, validated before it is ever stored.
+  definitionJson   Json
+  createdByUserId  String
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  publishedAt      DateTime?
+
+  createdBy User @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  /// The pin is the identity. Two rows can never claim the same version.
+  @@unique([experienceKey, experienceVersion])
+  @@index([bookSlug, chapterOrder, status])
+}
+
+enum ExperienceVersionStatus {
+  DRAFT
+  PUBLISHED
 }

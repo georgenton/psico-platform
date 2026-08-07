@@ -1,14 +1,13 @@
-import { BlockKind, type Prisma, type PrismaClient } from "@prisma/client";
-import { uuidv5 } from "./lib/block-key";
-import { contentHash } from "./lib/content-hash";
+import type { Prisma, PrismaClient } from "@prisma/client";
+import type { UnitPlacement } from "./lib/revision-manifest";
 import {
-  buildNextManifest,
-  planUnitIngest,
-  validateManifest,
-  type ManifestEntry,
-  type UnitPlacement,
-} from "./lib/revision-manifest";
-import type { NewBlockInput, PrevBlock } from "./lib/matcher";
+  archiveRevisionTx,
+  assertUnitInputValid,
+  findActiveDraftTx,
+  lockEditionTx,
+  mintUnitRevisionTx,
+  publishRevisionTx,
+} from "./revision-lifecycle";
 
 /**
  * Content Core — CC-5 non-destructive ingest.
@@ -26,6 +25,13 @@ import type { NewBlockInput, PrevBlock } from "./lib/matcher";
  * edition serialize and every unit's change survives (none is clobbered). A unit
  * ingest requires an already-published base revision (`INGEST_REQUIRES_BASE_REVISION`)
  * — it never creates the first, partial revision (backfill/publish seeds it).
+ *
+ * Content Studio (Block A) moved the mint/publish steps into
+ * `revision-lifecycle.ts` so an editor can hold a draft between them. Nothing
+ * about THIS entry point changed: one call still means "publish this content
+ * now", and it still builds from what is PUBLISHED rather than from whatever an
+ * editor happens to be drafting — an ingest is maintenance, not a review of
+ * someone's unfinished work.
  */
 
 export interface IngestBlockInput {
@@ -51,210 +57,49 @@ export interface IngestResult {
   blocksTombstoned: number;
 }
 
-const VALID_BLOCK_KINDS = new Set<string>(Object.values(BlockKind));
-
 export async function ingestUnitV2(
   prisma: PrismaClient,
   params: IngestUnitParams,
 ): Promise<IngestResult> {
-  // Ingest input boundary (all checked before opening the transaction):
-  //  - a unit must have at least one block (a published unit with zero blocks is
-  //    an integrity error the read adapter rejects — never publish one);
-  if (params.blocks.length === 0) {
-    throw new Error("INGEST_EMPTY_UNIT");
-  }
-  //  - reject an invalid block kind explicitly rather than letting `undefined`
-  //    reach Prisma.
-  for (const b of params.blocks) {
-    if (!VALID_BLOCK_KINDS.has(b.kind)) {
-      throw new Error("INGEST_INVALID_BLOCK_KIND");
-    }
-  }
+  // Checked before opening the transaction, as before.
+  assertUnitInputValid(params);
 
   return prisma.$transaction(
     async (tx) => {
-      // Serialize concurrent ingests on the SAME edition: lock the Edition row
-      // FOR UPDATE, THEN read the published pointer + manifest. A racing ingest
-      // that just committed is observed here (its manifest is copied forward),
-      // never clobbered — under READ COMMITTED the reads after the lock grant
-      // see the winner's committed rows.
-      const locked = await tx.$queryRaw<
-        Array<{ publishedRevisionId: string | null }>
-      >`SELECT "publishedRevisionId" FROM "Edition" WHERE "id" = ${params.editionId} FOR UPDATE`;
-      if (locked.length === 0) throw new Error("INGEST_EDITION_NOT_FOUND");
+      const { publishedRevisionId } = await lockEditionTx(tx, params.editionId);
 
       // A unit ingest EDITS an existing published edition — it never creates the
       // first (partial) revision. The base revision is seeded by backfill/publish.
-      const publishedRevisionId = locked[0].publishedRevisionId;
       if (!publishedRevisionId) {
         throw new Error("INGEST_REQUIRES_BASE_REVISION");
       }
 
-      const prevRev = await tx.revision.findUnique({
-        where: { id: publishedRevisionId },
-        include: { units: { include: { unit: true } } },
-      });
-      if (!prevRev) throw new Error("INGEST_BASE_REVISION_NOT_FOUND");
+      // Look for the editor's draft BEFORE minting. Afterwards the highest
+      // numbered draft is this ingest's own revision, and we would archive
+      // nothing.
+      const staleDraft = await findActiveDraftTx(tx, params.editionId);
 
-      const prevManifest: ManifestEntry[] = prevRev.units.map((ru) => ({
-        unitKey: ru.unit.unitKey,
-        unitVersionId: ru.unitVersionId,
-        order: ru.order,
-        partNumber: ru.partNumber,
-        partTitle: ru.partTitle,
-      }));
-
-      // Stable ContentUnit (create if this is the unit's first ingest).
-      let unit = await tx.contentUnit.findUnique({
-        where: {
-          editionId_unitKey: {
-            editionId: params.editionId,
-            unitKey: params.unitKey,
-          },
-        },
-      });
-      if (!unit) {
-        unit = await tx.contentUnit.create({
-          data: { editionId: params.editionId, unitKey: params.unitKey },
-        });
-      }
-
-      // Previous blocks for THIS unit (from its version in the prev manifest).
-      const prevEntry = prevManifest.find((e) => e.unitKey === params.unitKey);
-      let prev: PrevBlock[] = [];
-      if (prevEntry) {
-        const bvs = await tx.blockVersion.findMany({
-          where: { unitVersionId: prevEntry.unitVersionId },
-          include: { contentBlock: true },
-          orderBy: { order: "asc" },
-        });
-        prev = bvs.map((bv) => ({
-          blockKey: bv.contentBlock.blockKey,
-          kind: bv.kind,
-          contentHash: bv.contentHash,
-          content: bv.content,
-        }));
-      }
-
-      const nextNumber = prevRev.number + 1;
-      const revision = await tx.revision.create({
-        data: {
-          editionId: params.editionId,
-          number: nextNumber,
-          status: "DRAFT",
-          note: "ingest-v2",
-        },
-      });
-
-      // New immutable version for the changed unit.
-      const version = await tx.contentUnitVersion.create({
-        data: {
-          unitId: unit.id,
-          title: params.title,
-          summary: params.summary ?? null,
-          durationMinutes: params.durationMinutes ?? null,
-        },
-      });
-
-      // Conservative CC-1 diff. New blocks mint a stable key from their content.
-      const nextBlocks: Array<NewBlockInput & { order: number }> =
-        params.blocks.map((b, i) => ({
-          kind: b.kind,
-          content: b.content,
-          contentHash: contentHash(b.content),
-          order: i,
-        }));
-      // Editorial position is part of the key so two IDENTICAL new blocks in the
-      // same unit/revision (same contentHash) get DISTINCT stable keys.
-      const mintKey = (i: number) =>
-        uuidv5(
-          `${params.editionId}:${params.unitKey}:r${nextNumber}:pos${nextBlocks[i].order}:${nextBlocks[i].contentHash}`,
-        );
-      const plan = planUnitIngest(prev, nextBlocks, mintKey);
-
-      let blocksMatched = 0;
-      let blocksNew = 0;
-      for (let i = 0; i < plan.blocks.length; i += 1) {
-        const pb = plan.blocks[i];
-        const original = params.blocks[i];
-        const kind = BlockKind[pb.kind as keyof typeof BlockKind];
-
-        // Reuse the stable ContentBlock if the key survives; create if net-new.
-        // A ContentBlock is NEVER deleted here — removed blocks simply get no
-        // BlockVersion in this revision (they tombstone).
-        let cb = await tx.contentBlock.findUnique({
-          where: { blockKey: pb.blockKey },
-        });
-        if (!cb) {
-          cb = await tx.contentBlock.create({
-            data: { blockKey: pb.blockKey, unitId: unit.id },
-          });
-          blocksNew += 1;
-        } else {
-          blocksMatched += 1;
-        }
-
-        const metaInput = original.meta == null ? {} : { meta: original.meta };
-        await tx.blockVersion.create({
-          data: {
-            contentBlockId: cb.id,
-            unitVersionId: version.id,
-            order: pb.order,
-            kind,
-            content: pb.content,
-            contentHash: pb.contentHash,
-            ...metaInput,
-          },
-        });
-      }
-      const blocksTombstoned = plan.tombstonedKeys.length;
-
-      // Manifest: copy the prior manifest forward, swap only this unit.
-      const nextManifest = buildNextManifest(
-        prevManifest,
-        params.unitKey,
-        version.id,
-        params.placement,
+      const minted = await mintUnitRevisionTx(
+        tx,
+        params,
+        publishedRevisionId,
+        "ingest-v2",
       );
-      validateManifest(nextManifest);
 
-      for (const e of nextManifest) {
-        const u = await tx.contentUnit.findUnique({
-          where: {
-            editionId_unitKey: {
-              editionId: params.editionId,
-              unitKey: e.unitKey,
-            },
-          },
-        });
-        if (!u) throw new Error("INGEST_UNIT_NOT_FOUND");
-        await tx.revisionUnit.create({
-          data: {
-            revisionId: revision.id,
-            unitId: u.id,
-            unitVersionId: e.unitVersionId,
-            order: e.order,
-            partNumber: e.partNumber,
-            partTitle: e.partTitle,
-          },
-        });
-      }
+      // An editorial draft built on the OLD published revision cannot be
+      // published on top of this one without silently dropping what we just
+      // shipped, so it is retired here rather than left to fail later. Archived,
+      // never deleted: the editor's work stays readable.
+      if (staleDraft) await archiveRevisionTx(tx, staleDraft.id);
 
       // Publish atomically — LAST.
-      await tx.revision.update({
-        where: { id: revision.id },
-        data: { status: "PUBLISHED", publishedAt: new Date() },
-      });
-      await tx.edition.update({
-        where: { id: params.editionId },
-        data: { publishedRevisionId: revision.id },
-      });
+      await publishRevisionTx(tx, params.editionId, minted.revisionId);
 
       return {
-        revisionNumber: nextNumber,
-        blocksMatched,
-        blocksNew,
-        blocksTombstoned,
+        revisionNumber: minted.revisionNumber,
+        blocksMatched: minted.blocksMatched,
+        blocksNew: minted.blocksNew,
+        blocksTombstoned: minted.blocksTombstoned,
       };
     },
     { timeout: 30_000 },

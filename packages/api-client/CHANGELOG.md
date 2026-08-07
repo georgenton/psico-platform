@@ -1,5 +1,58 @@
 # @psico/api-client
 
+## 0.3.0
+
+### Minor Changes
+
+- c7295cd: CC-7.R1 — Guide V1 server-owned pilot rollout gate. Adds
+  `GuideAvailabilityResponse` and the `GUIDE_UNAVAILABLE` error code to
+  `@psico/types`, and a `guideApi.getGuideAvailability()` client for the new
+  opaque `GET /api/guide/availability` endpoint.
+- df0527a: CMS V1 (#637): chapter experience definitions can now live in the database.
+
+  `@psico/types` gains the back-office view shapes (`AdminChapterExperiences`,
+  `AdminExperienceRow`, `AdminExperienceDraft`); the generated client picks up the
+  ADMIN-only endpoints that create, save and publish them. The runtime read
+  contract is unchanged — `ChapterExperienceDefinition` is still exactly what the
+  Player consumes, which is why the editor can store it verbatim.
+
+- b96cb9f: Experience Player V2 — the presentation contract (ADR 0021) and server-owned
+  session recovery.
+
+  Adds `ExperienceSceneKind` (twelve ordered panels) alongside the four
+  `GuideStepKind` values, which are unchanged. A scene may bind to at most one
+  pinned Guide step; six of the twelve kinds can never bind at all, so a summary
+  or an intro is structurally incapable of moving somebody's record.
+
+  Also adds `ChapterExperienceDefinition`, `ExperiencePin` and the
+  scene/step binding matrix as data.
+
+  Adds `RecoverableGuideSessionResponse` and
+  `guideApi.getRecoverableSession({ guideKey, guideVersion })` — the read that
+  lets a reader pick a journey back up on another device. The answer is derived
+  from the accepted-step ledger rather than from anything a client stored, and
+  "not recoverable" is one indistinguishable answer for every situation that
+  produces it, so the read cannot be used to learn about sessions that are not
+  the caller's.
+
+- 50752c5: Add the contextual Guide discovery response and its client method.
+
+  `GuideDiscoveryResponse` is a closed union: the unavailable arm carries no pin,
+  so a negative answer cannot be mined for a guide key. `getGuideDiscovery`
+  validates the slug and chapter order before building the route and never emits
+  a request for malformed input.
+
+  Additive: no existing Guide type or command changes.
+
+### Patch Changes
+
+- Updated dependencies [c7295cd]
+- Updated dependencies [df0527a]
+- Updated dependencies [b96cb9f]
+- Updated dependencies [50752c5]
+- Updated dependencies [d232f06]
+  - @psico/types@0.11.0
+
 ## 0.2.0
 
 ### Minor Changes

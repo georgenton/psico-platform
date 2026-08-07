@@ -1,5 +1,60 @@
 # @psico/types
 
+## 0.11.0
+
+### Minor Changes
+
+- c7295cd: CC-7.R1 — Guide V1 server-owned pilot rollout gate. Adds
+  `GuideAvailabilityResponse` and the `GUIDE_UNAVAILABLE` error code to
+  `@psico/types`, and a `guideApi.getGuideAvailability()` client for the new
+  opaque `GET /api/guide/availability` endpoint.
+- df0527a: CMS V1 (#637): chapter experience definitions can now live in the database.
+
+  `@psico/types` gains the back-office view shapes (`AdminChapterExperiences`,
+  `AdminExperienceRow`, `AdminExperienceDraft`); the generated client picks up the
+  ADMIN-only endpoints that create, save and publish them. The runtime read
+  contract is unchanged — `ChapterExperienceDefinition` is still exactly what the
+  Player consumes, which is why the editor can store it verbatim.
+
+- b96cb9f: Experience Player V2 — the presentation contract (ADR 0021) and server-owned
+  session recovery.
+
+  Adds `ExperienceSceneKind` (twelve ordered panels) alongside the four
+  `GuideStepKind` values, which are unchanged. A scene may bind to at most one
+  pinned Guide step; six of the twelve kinds can never bind at all, so a summary
+  or an intro is structurally incapable of moving somebody's record.
+
+  Also adds `ChapterExperienceDefinition`, `ExperiencePin` and the
+  scene/step binding matrix as data.
+
+  Adds `RecoverableGuideSessionResponse` and
+  `guideApi.getRecoverableSession({ guideKey, guideVersion })` — the read that
+  lets a reader pick a journey back up on another device. The answer is derived
+  from the accepted-step ledger rather than from anything a client stored, and
+  "not recoverable" is one indistinguishable answer for every situation that
+  produces it, so the read cannot be used to learn about sessions that are not
+  the caller's.
+
+- 50752c5: Add the contextual Guide discovery response and its client method.
+
+  `GuideDiscoveryResponse` is a closed union: the unavailable arm carries no pin,
+  so a negative answer cannot be mined for a guide key. `getGuideDiscovery`
+  validates the slug and chapter order before building the route and never emits
+  a request for malformed input.
+
+  Additive: no existing Guide type or command changes.
+
+### Patch Changes
+
+- d232f06: Add the Parejas que perduran chapter concept to the shared catalog.
+
+  One curated entry (`pqp-c1-contacto-sostenido`) so the demo Guide's targets can
+  be materialized in an already-bootstrapped book. Keyed by platform chapter order
+  2 — the book's chapter 1 sits there because the ingest manifest gave order 1 to
+  the preface.
+
+  Additive: no existing key, label or shape changes.
+
 ## 0.10.0
 
 ### Minor Changes

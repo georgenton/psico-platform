@@ -2235,6 +2235,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pulso/experiences/drafts/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** El borrador tal como lo recibiría un lector, por el mismo mapper que usa discovery. */
+        get: operations["getExperienceDraftPreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pulso/experiences/drafts": {
         parameters: {
             query?: never;
@@ -2280,6 +2297,108 @@ export interface paths {
         put?: never;
         /** Publica el borrador. Revalida contra la guía exacta del registro del servidor y lo vuelve inmutable. */
         post: operations["publishExperienceDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/content/books": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Los libros del catálogo que un editor puede abrir. */
+        get: operations["listContentStudioBooks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/content/books/{bookSlug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Estado editorial del libro: revisión publicada, borrador activo y capítulos con cambios. */
+        get: operations["getContentStudioBook"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** El capítulo como debe editarse: el borrador activo si existe, si no lo publicado. El revisionId devuelto es el token de concurrencia. */
+        get: operations["getContentStudioChapter"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Guarda el capítulo en el borrador del libro. No publica: el lector no ve nada hasta publicar. */
+        put: operations["saveContentStudioChapterDraft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** El capítulo tal como quedaría, leído del borrador activo. Sólo lectura. */
+        get: operations["previewContentStudioChapter"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/content/books/{bookSlug}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publica el borrador del LIBRO. El alcance es la edición completa, no un capítulo. */
+        post: operations["publishContentStudioBook"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3437,6 +3556,25 @@ export interface components {
         SaveExperienceDefinitionDto: {
             /** @description Un ChapterExperienceDefinition completo. El servidor decide status, versión, publishedAt y autor: lo que venga en esos campos se ignora. */
             definition: Record<string, never>;
+        };
+        ContentBlockInputDto: {
+            /** @example PARAGRAPH */
+            kind: string;
+            /** @description El texto del bloque. */
+            content: string;
+            meta?: Record<string, never>;
+        };
+        SaveChapterDraftDto: {
+            /** @description La revisión que el editor cargó. */
+            expectedRevisionId: string;
+            title: string;
+            summary?: string | null;
+            durationMinutes?: number | null;
+            blocks: components["schemas"]["ContentBlockInputDto"][];
+        };
+        PublishBookDto: {
+            /** @description El borrador que el editor está publicando. */
+            expectedDraftRevisionId: string;
         };
         ShareWithTherapistDto: Record<string, never>;
         ConfirmResonanceDto: Record<string, never>;
@@ -11961,6 +12099,27 @@ export interface operations {
             };
         };
     };
+    getExperienceDraftPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     createExperienceDraft: {
         parameters: {
             query?: never;
@@ -12026,6 +12185,143 @@ export interface operations {
                 };
             };
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    listContentStudioBooks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Libros con su número de capítulos. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getContentStudioBook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    getContentStudioChapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    saveContentStudioChapterDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveChapterDraftDto"];
+            };
+        };
+        responses: {
+            /** @description El borrador cambió; no se escribió nada. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    previewContentStudioChapter: {
+        parameters: {
+            query: {
+                revisionId: string;
+            };
+            header?: never;
+            path: {
+                bookSlug: string;
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    publishContentStudioBook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishBookDto"];
+            };
+        };
+        responses: {
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

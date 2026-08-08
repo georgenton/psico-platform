@@ -173,3 +173,75 @@ export class ContentStudioChapterImageResponseDto {
   })
   imageUrl!: string;
 }
+
+/**
+ * Chapter media, as an admin browser is allowed to see it.
+ *
+ * Deliberately not the definition. An object key, a Stream UID or an access
+ * policy decide what plays and who may play it; putting them in a JSON response
+ * would leak our storage layout into a browser tab for no editorial benefit.
+ * The admin edits copy, so the admin sees copy — plus honest booleans about what
+ * exists.
+ */
+export class ContentStudioMediaChapterMarkDto {
+  @ApiProperty() startSec!: number;
+  @ApiProperty() label!: string;
+}
+
+export class ContentStudioMediaCardDto {
+  @ApiProperty({ enum: ["AUDIOBOOK", "PODCAST", "VIDEO"] })
+  kind!: "AUDIOBOOK" | "PODCAST" | "VIDEO";
+
+  @ApiProperty() mediaKey!: string;
+  @ApiProperty() mediaVersion!: number;
+  @ApiProperty() title!: string;
+  @ApiProperty({ nullable: true, type: String }) description!: string | null;
+  @ApiProperty({ nullable: true, type: Number }) durationSec!: number | null;
+
+  @ApiProperty({ type: [ContentStudioMediaChapterMarkDto] })
+  chapters!: ContentStudioMediaChapterMarkDto[];
+
+  @ApiProperty({
+    enum: ["COMING_SOON", "AVAILABLE"],
+    description: "Lo que el lector ve hoy.",
+  })
+  runtimeAvailability!: "COMING_SOON" | "AVAILABLE";
+
+  @ApiProperty({ description: "Si hay un archivo realmente asociado." })
+  sourceReady!: boolean;
+
+  @ApiProperty() hasTranscript!: boolean;
+  @ApiProperty() hasPoster!: boolean;
+  @ApiProperty() hasCaptions!: boolean;
+
+  @ApiProperty({
+    enum: ["CODE", "DATABASE"],
+    description: "De dónde sale la definición vigente.",
+  })
+  provenance!: "CODE" | "DATABASE";
+
+  @ApiProperty({ enum: ["CODE_OWNED", "DRAFT", "PUBLISHED"] })
+  editorialStatus!: "CODE_OWNED" | "DRAFT" | "PUBLISHED";
+
+  @ApiProperty({ nullable: true, type: String })
+  draftId!: string | null;
+}
+
+export class ContentStudioChapterMediaResponseDto {
+  @ApiProperty() bookSlug!: string;
+  @ApiProperty() chapterOrder!: number;
+
+  @ApiProperty({ type: [ContentStudioMediaCardDto] })
+  media!: ContentStudioMediaCardDto[];
+}
+
+export class ContentStudioMediaDraftRefDto {
+  @ApiProperty() draftId!: string;
+  @ApiProperty() mediaKey!: string;
+}
+
+export class ContentStudioMediaPublishResponseDto {
+  @ApiProperty() draftId!: string;
+  @ApiProperty() mediaKey!: string;
+  @ApiProperty() mediaVersion!: number;
+}

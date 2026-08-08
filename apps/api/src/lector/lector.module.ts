@@ -16,6 +16,9 @@ import {
   DEFAULT_CHAPTER_MEDIA_REGISTRY,
 } from "./media/chapter-media.service";
 import { CloudflareStreamAccessService } from "./media/cloudflare-stream-access.service";
+import { CodeChapterMediaDefinitionRepository } from "./media/chapter-media-definition.repository";
+import { DatabaseChapterMediaRepository } from "./media/database-chapter-media.repository";
+import { HybridChapterMediaRepository } from "./media/hybrid-chapter-media.repository";
 
 /**
  * LectorModule — Sprint S6, extended by GR-2.
@@ -47,9 +50,24 @@ import { CloudflareStreamAccessService } from "./media/cloudflare-stream-access.
     AnnotationsService,
     ChapterMediaService,
     CloudflareStreamAccessService,
+    /**
+     * C2A — code and CMS answer as one catalog.
+     *
+     * The code-owned registry stays the fallback rather than being replaced:
+     * on the day this ships, every production definition still lives in
+     * reviewed code, and an empty table is a poor thing to bet a reader's
+     * audiobook on. It retires when every definition has been adopted.
+     */
     {
       provide: CHAPTER_MEDIA_REGISTRY,
-      useValue: DEFAULT_CHAPTER_MEDIA_REGISTRY,
+      useFactory: (prisma: PrismaService) =>
+        new HybridChapterMediaRepository(
+          new DatabaseChapterMediaRepository(prisma),
+          new CodeChapterMediaDefinitionRepository(
+            DEFAULT_CHAPTER_MEDIA_REGISTRY,
+          ),
+        ),
+      inject: [PrismaService],
     },
     LearningCatalogResolver,
     {

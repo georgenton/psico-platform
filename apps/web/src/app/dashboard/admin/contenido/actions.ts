@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { ApiError } from "@/lib/api";
 import { serverFetch } from "@/lib/api.server";
 import type {
+  ChapterMediaList,
+  MediaCard,
+  MediaDraftRef,
+  MediaPublishResult,
   ChapterImageResult,
   CoverResult,
   ChapterPreview,
@@ -150,5 +154,106 @@ export async function uploadChapterImageAction(
     return { ok: true, data: uploaded };
   } catch (err) {
     return asOutcome<ChapterImageResult>(err);
+  }
+}
+
+// ── Chapter media (C2A) ─────────────────────────────────────────────────────
+//
+// Definitions, not bytes. Nothing here uploads or signs anything.
+
+function chapterPath(bookSlug: string, chapterOrder: number): string {
+  return `/dashboard/admin/contenido/${bookSlug}/${chapterOrder}`;
+}
+
+export async function listChapterMediaAction(
+  bookSlug: string,
+  chapterOrder: number,
+): Promise<ActionOutcome<ChapterMediaList>> {
+  try {
+    return {
+      ok: true,
+      data: await serverFetch<ChapterMediaList>(
+        `/pulso/content/books/${encodeURIComponent(bookSlug)}/chapters/${chapterOrder}/media`,
+      ),
+    };
+  } catch (err) {
+    return asOutcome<ChapterMediaList>(err);
+  }
+}
+
+/**
+ * Take over a code-owned definition. The clone keeps the same key and version,
+ * so nothing a reader has already completed changes meaning.
+ */
+export async function adoptChapterMediaAction(
+  bookSlug: string,
+  chapterOrder: number,
+  mediaKey: string,
+): Promise<ActionOutcome<MediaDraftRef>> {
+  try {
+    const data = await serverFetch<MediaDraftRef>(
+      `/pulso/content/books/${encodeURIComponent(bookSlug)}/chapters/${chapterOrder}/media/${encodeURIComponent(mediaKey)}/adopt`,
+      { method: "POST" },
+    );
+    revalidatePath(chapterPath(bookSlug, chapterOrder));
+    return { ok: true, data };
+  } catch (err) {
+    return asOutcome<MediaDraftRef>(err);
+  }
+}
+
+export async function createChapterMediaAction(
+  bookSlug: string,
+  chapterOrder: number,
+  body: { kind: string; title: string; description: string },
+): Promise<ActionOutcome<MediaDraftRef>> {
+  try {
+    const data = await serverFetch<MediaDraftRef>(
+      `/pulso/content/books/${encodeURIComponent(bookSlug)}/chapters/${chapterOrder}/media`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+    revalidatePath(chapterPath(bookSlug, chapterOrder));
+    return { ok: true, data };
+  } catch (err) {
+    return asOutcome<MediaDraftRef>(err);
+  }
+}
+
+export async function updateMediaDraftAction(
+  draftId: string,
+  body: {
+    title: string;
+    description: string;
+    durationSec: number | null;
+    chapters: Array<{ startSec: number; label: string }>;
+  },
+): Promise<ActionOutcome<MediaCard>> {
+  try {
+    return {
+      ok: true,
+      data: await serverFetch<MediaCard>(
+        `/pulso/content/media/drafts/${encodeURIComponent(draftId)}`,
+        { method: "PUT", body: JSON.stringify(body) },
+      ),
+    };
+  } catch (err) {
+    return asOutcome<MediaCard>(err);
+  }
+}
+
+export async function publishMediaDraftAction(
+  draftId: string,
+  bookSlug: string,
+  chapterOrder: number,
+): Promise<ActionOutcome<MediaPublishResult>> {
+  try {
+    const data = await serverFetch<MediaPublishResult>(
+      `/pulso/content/media/drafts/${encodeURIComponent(draftId)}/publish`,
+      { method: "POST" },
+    );
+    revalidatePath(chapterPath(bookSlug, chapterOrder));
+    return { ok: true, data };
+  } catch (err) {
+    return asOutcome<MediaPublishResult>(err);
   }
 }

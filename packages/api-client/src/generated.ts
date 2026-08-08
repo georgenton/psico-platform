@@ -2439,6 +2439,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Audiolibro, podcast y video del capítulo, con su procedencia y su estado editorial. */
+        get: operations["listContentStudioChapterMedia"];
+        put?: never;
+        /** Anuncia un formato que el capítulo aún no tiene. Sin archivo: se publica como «En producción». */
+        post: operations["createContentStudioChapterMedia"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/{mediaKey}/adopt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pasa una definición de código al CMS sin cambiar su identidad ni lo que el lector ve. */
+        post: operations["adoptContentStudioChapterMedia"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/content/media/drafts/{draftId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getContentStudioMediaDraft"];
+        /** Edita la copia editorial. Identidad, origen y política de acceso los conserva el servidor. */
+        put: operations["updateContentStudioMediaDraft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/content/media/drafts/{draftId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** La definición del CMS pasa a ser la autoridad de esa pieza. Sin deploy y sin tocar el archivo. */
+        post: operations["publishContentStudioMediaDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/patrones": {
         parameters: {
             query?: never;
@@ -3704,6 +3773,68 @@ export interface components {
             revisionNumber: number;
             /** @description Cuántos capítulos cambiaba el borrador al publicarse. */
             changedUnitCountBeforePublish: number;
+        };
+        ContentStudioMediaChapterMarkDto: {
+            startSec: number;
+            label: string;
+        };
+        ContentStudioMediaCardDto: {
+            /** @enum {string} */
+            kind: ContentStudioMediaCardDtoKind;
+            mediaKey: string;
+            mediaVersion: number;
+            title: string;
+            description: string | null;
+            durationSec: number | null;
+            chapters: components["schemas"]["ContentStudioMediaChapterMarkDto"][];
+            /**
+             * @description Lo que el lector ve hoy.
+             * @enum {string}
+             */
+            runtimeAvailability: ContentStudioMediaCardDtoRuntimeAvailability;
+            /** @description Si hay un archivo realmente asociado. */
+            sourceReady: boolean;
+            hasTranscript: boolean;
+            hasPoster: boolean;
+            hasCaptions: boolean;
+            /**
+             * @description De dónde sale la definición vigente.
+             * @enum {string}
+             */
+            provenance: ContentStudioMediaCardDtoProvenance;
+            /** @enum {string} */
+            editorialStatus: ContentStudioMediaCardDtoEditorialStatus;
+            draftId: string | null;
+        };
+        ContentStudioChapterMediaResponseDto: {
+            bookSlug: string;
+            chapterOrder: number;
+            media: components["schemas"]["ContentStudioMediaCardDto"][];
+        };
+        ContentStudioMediaDraftRefDto: {
+            draftId: string;
+            mediaKey: string;
+        };
+        CreateComingSoonMediaDto: {
+            /** @enum {string} */
+            kind: CreateComingSoonMediaDtoKind;
+            title: string;
+            description: string;
+        };
+        MediaChapterMarkDto: {
+            startSec: number;
+            label: string;
+        };
+        UpdateMediaDraftDto: {
+            title: string;
+            description: string;
+            durationSec?: Record<string, never> | null;
+            chapters: components["schemas"]["MediaChapterMarkDto"][];
+        };
+        ContentStudioMediaPublishResponseDto: {
+            draftId: string;
+            mediaKey: string;
+            mediaVersion: number;
         };
         ShareWithTherapistDto: Record<string, never>;
         ConfirmResonanceDto: Record<string, never>;
@@ -12575,6 +12706,192 @@ export interface operations {
             };
         };
     };
+    listContentStudioChapterMedia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStudioChapterMediaResponseDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    createContentStudioChapterMedia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateComingSoonMediaDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStudioMediaDraftRefDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    adoptContentStudioChapterMedia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+                chapterOrder: number;
+                mediaKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStudioMediaDraftRefDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    getContentStudioMediaDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draftId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStudioMediaCardDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    updateContentStudioMediaDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draftId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMediaDraftDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStudioMediaCardDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    publishContentStudioMediaDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draftId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStudioMediaPublishResponseDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     PatronesController_getPatrones: {
         parameters: {
             query?: never;
@@ -16093,4 +16410,27 @@ export enum LearningUnitProgressItemDtoState {
 export enum ContentStudioChapterResponseDtoRevisionStatus {
     DRAFT = "DRAFT",
     PUBLISHED = "PUBLISHED"
+}
+export enum ContentStudioMediaCardDtoKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
+}
+export enum ContentStudioMediaCardDtoRuntimeAvailability {
+    COMING_SOON = "COMING_SOON",
+    AVAILABLE = "AVAILABLE"
+}
+export enum ContentStudioMediaCardDtoProvenance {
+    CODE = "CODE",
+    DATABASE = "DATABASE"
+}
+export enum ContentStudioMediaCardDtoEditorialStatus {
+    CODE_OWNED = "CODE_OWNED",
+    DRAFT = "DRAFT",
+    PUBLISHED = "PUBLISHED"
+}
+export enum CreateComingSoonMediaDtoKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
 }

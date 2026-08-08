@@ -40,6 +40,9 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RequiredRole, RolesGuard } from "../shared";
 import { ContentStudioService } from "./content-studio.service";
 import { ContentStudioAssetsService } from "./content-studio-assets.service";
+import { ChapterMediaAdminService } from "./chapter-media-admin.service";
+import { CurrentUser } from "../shared";
+import type { AuthenticatedUser } from "../auth";
 import {
   ContentStudioBookListResponseDto,
   ContentStudioBookStateResponseDto,
@@ -48,12 +51,18 @@ import {
   ContentStudioChapterImageResponseDto,
   ContentStudioCoverResponseDto,
   ContentStudioPublishResponseDto,
+  ContentStudioChapterMediaResponseDto,
+  ContentStudioMediaCardDto,
+  ContentStudioMediaDraftRefDto,
+  ContentStudioMediaPublishResponseDto,
   ContentStudioSaveResponseDto,
 } from "./dto/content-studio-response.dto";
 import {
+  CreateComingSoonMediaDto,
   PreviewQueryDto,
   PublishBookDto,
   SaveChapterDraftDto,
+  UpdateMediaDraftDto,
 } from "./dto/content-studio.dto";
 
 /**
@@ -75,6 +84,7 @@ export class ContentStudioController {
   constructor(
     private readonly studio: ContentStudioService,
     private readonly assets: ContentStudioAssetsService,
+    private readonly media: ChapterMediaAdminService,
   ) {}
 
   @Get("books")
@@ -234,5 +244,117 @@ export class ContentStudioController {
   @ApiConflictResponse({ type: ErrorEnvelopeDto })
   publish(@Param("bookSlug") bookSlug: string, @Body() dto: PublishBookDto) {
     return this.studio.publishBook(bookSlug, dto.expectedDraftRevisionId);
+  }
+
+  // ── Chapter media (C2A) ──────────────────────────────────────────────────
+  //
+  // Definitions, not bytes. Nothing below uploads, signs or asks a provider
+  // anything: this moves the editorial catalog out of a deploy, and no further.
+
+  @Get("books/:bookSlug/chapters/:chapterOrder/media")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "listContentStudioChapterMedia",
+    summary:
+      "Audiolibro, podcast y video del capítulo, con su procedencia y su estado editorial.",
+  })
+  @ApiOkResponse({ type: ContentStudioChapterMediaResponseDto })
+  @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
+  listMedia(
+    @Param("bookSlug") bookSlug: string,
+    @Param("chapterOrder", ParseIntPipe) chapterOrder: number,
+  ) {
+    return this.media.listForChapter(bookSlug, chapterOrder);
+  }
+
+  /**
+   * Adopt a code-owned definition: an exact clone at the SAME key and version.
+   * Public runtime does not change, because the clone starts as a CMS draft.
+   */
+  @Post("books/:bookSlug/chapters/:chapterOrder/media/:mediaKey/adopt")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "adoptContentStudioChapterMedia",
+    summary:
+      "Pasa una definición de código al CMS sin cambiar su identidad ni lo que el lector ve.",
+  })
+  @ApiOkResponse({ type: ContentStudioMediaDraftRefDto })
+  @ApiConflictResponse({ type: ErrorEnvelopeDto })
+  adoptMedia(
+    @Param("bookSlug") bookSlug: string,
+    @Param("chapterOrder", ParseIntPipe) chapterOrder: number,
+    @Param("mediaKey") mediaKey: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.media.adopt(bookSlug, chapterOrder, mediaKey, user.userId);
+  }
+
+  /** A format this chapter does not have yet. Starts as «En producción». */
+  @Post("books/:bookSlug/chapters/:chapterOrder/media")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "createContentStudioChapterMedia",
+    summary:
+      "Anuncia un formato que el capítulo aún no tiene. Sin archivo: se publica como «En producción».",
+  })
+  @ApiOkResponse({ type: ContentStudioMediaDraftRefDto })
+  @ApiConflictResponse({ type: ErrorEnvelopeDto })
+  createMedia(
+    @Param("bookSlug") bookSlug: string,
+    @Param("chapterOrder", ParseIntPipe) chapterOrder: number,
+    @Body() dto: CreateComingSoonMediaDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.media.createComingSoon(
+      bookSlug,
+      chapterOrder,
+      dto.kind,
+      dto.title,
+      dto.description,
+      user.userId,
+    );
+  }
+
+  @Get("media/drafts/:draftId")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({ operationId: "getContentStudioMediaDraft" })
+  @ApiOkResponse({ type: ContentStudioMediaCardDto })
+  @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
+  getMediaDraft(@Param("draftId") draftId: string) {
+    return this.media.getDraft(draftId);
+  }
+
+  @Put("media/drafts/:draftId")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "updateContentStudioMediaDraft",
+    summary:
+      "Edita la copia editorial. Identidad, origen y política de acceso los conserva el servidor.",
+  })
+  @ApiOkResponse({ type: ContentStudioMediaCardDto })
+  @ApiConflictResponse({ type: ErrorEnvelopeDto })
+  updateMediaDraft(
+    @Param("draftId") draftId: string,
+    @Body() dto: UpdateMediaDraftDto,
+  ) {
+    return this.media.updateDraft(draftId, {
+      title: dto.title,
+      description: dto.description,
+      durationSec: dto.durationSec ?? null,
+      chapters: dto.chapters,
+    });
+  }
+
+  @Post("media/drafts/:draftId/publish")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "publishContentStudioMediaDraft",
+    summary:
+      "La definición del CMS pasa a ser la autoridad de esa pieza. Sin deploy y sin tocar el archivo.",
+  })
+  @ApiOkResponse({ type: ContentStudioMediaPublishResponseDto })
+  @ApiConflictResponse({ type: ErrorEnvelopeDto })
+  publishMediaDraft(@Param("draftId") draftId: string) {
+    return this.media.publishDraft(draftId);
   }
 }

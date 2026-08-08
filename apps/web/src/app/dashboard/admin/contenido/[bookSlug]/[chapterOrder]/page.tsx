@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSessionUser, isNextThrow, serverFetch } from "@/lib/api.server";
 import type { BookState, ChapterContent } from "../../contracts";
 import { ChapterEditor } from "./ChapterEditor";
+import { MediaSection } from "./MediaSection";
 
 export const metadata: Metadata = { title: "Pulso · Editar capítulo" };
 export const dynamic = "force-dynamic";
@@ -44,11 +45,19 @@ export default async function ContentStudioChapterPage({
   if (!chapter) notFound();
 
   return (
-    <ChapterEditor
-      bookSlug={params.bookSlug}
-      chapterOrder={order}
-      bookTitle={book?.book.title ?? "Contenido editorial"}
-      initial={chapter}
-    />
+    <>
+      <ChapterEditor
+        bookSlug={params.bookSlug}
+        chapterOrder={order}
+        bookTitle={book?.book.title ?? "Contenido editorial"}
+        initial={chapter}
+      />
+      {/* Media sits beside the text, not inside the editor: it has its own
+          lifecycle and its own publish, and mixing the two would suggest one
+          "Guardar borrador" covers both. */}
+      <div className="mx-auto max-w-[860px]">
+        <MediaSection bookSlug={params.bookSlug} chapterOrder={order} />
+      </div>
+    </>
   );
 }

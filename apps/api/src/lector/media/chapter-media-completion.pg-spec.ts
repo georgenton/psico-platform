@@ -12,6 +12,7 @@ import { LearningCatalogResolver } from "../../learning/learning-catalog.resolve
 import { LearningEventRepository } from "../../learning/learning-event.repository";
 import { ChapterMediaService } from "./chapter-media.service";
 import { ChapterMediaCatalogRegistry } from "./chapter-media.catalog";
+import { CodeChapterMediaDefinitionRepository } from "./chapter-media-definition.repository";
 import { chapterMediaCompletionIdempotencyKey } from "./chapter-media-idempotency";
 
 /**
@@ -150,7 +151,9 @@ suite("GR-2 · chapter media completion (real PostgreSQL)", () => {
       stream as never,
       new LearningCatalogResolver(prisma as unknown as PrismaService),
       events as LearningEventRepository,
-      new ChapterMediaCatalogRegistry(FIXTURES),
+      new CodeChapterMediaDefinitionRepository(
+        new ChapterMediaCatalogRegistry(FIXTURES),
+      ),
     );
   }
 

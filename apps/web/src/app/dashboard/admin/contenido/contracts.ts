@@ -22,6 +22,42 @@ export type SaveResult = S["ContentStudioSaveResponseDto"];
 export type PublishResult = S["ContentStudioPublishResponseDto"];
 export type CoverResult = S["ContentStudioCoverResponseDto"];
 export type ChapterImageResult = S["ContentStudioChapterImageResponseDto"];
+export type ChapterMediaList = S["ContentStudioChapterMediaResponseDto"];
+export type MediaCard = S["ContentStudioMediaCardDto"];
+export type MediaDraftRef = S["ContentStudioMediaDraftRefDto"];
+export type MediaPublishResult = S["ContentStudioMediaPublishResponseDto"];
+
+/**
+ * The media enums as plain unions.
+ *
+ * The generated client models each as a runtime TS `enum`, which a string
+ * literal is not assignable to. Enum members ARE assignable to their literal
+ * types, so this still type-checks against the contract without pulling a value
+ * dependency into the bundle. Same reasoning as `RevisionStatus`.
+ */
+export type MediaKind = "AUDIOBOOK" | "PODCAST" | "VIDEO";
+export type MediaRuntimeAvailability = "COMING_SOON" | "AVAILABLE";
+export type MediaProvenance = "CODE" | "DATABASE";
+export type MediaEditorialStatus = "CODE_OWNED" | "DRAFT" | "PUBLISHED";
+
+/** A card whose enum fields accept literals — for fixtures and local state. */
+export type MediaCardOverrides = Partial<
+  Omit<
+    MediaCard,
+    "kind" | "runtimeAvailability" | "provenance" | "editorialStatus"
+  >
+> & {
+  kind?: MediaKind;
+  runtimeAvailability?: MediaRuntimeAvailability;
+  provenance?: MediaProvenance;
+  editorialStatus?: MediaEditorialStatus;
+};
+
+export const MEDIA_KIND_LABEL: Record<string, string> = {
+  AUDIOBOOK: "Audiolibro",
+  PODCAST: "Podcast",
+  VIDEO: "Video",
+};
 
 /**
  * The revision status as a plain union.

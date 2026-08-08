@@ -1,10 +1,13 @@
 import { ApiProperty } from "@nestjs/swagger";
 import {
   IsArray,
+  IsIn,
+  IsInt,
   IsObject,
   IsOptional,
   IsString,
   MaxLength,
+  Min,
   ValidateNested,
 } from "class-validator";
 import { Type } from "class-transformer";
@@ -71,4 +74,64 @@ export class PreviewQueryDto {
   @ApiProperty()
   @IsString()
   revisionId!: string;
+}
+
+/**
+ * Chapter media — what an admin browser may send.
+ *
+ * Editorial copy only. `mediaKey`, `mediaVersion`, `kind`, `status`,
+ * `accessPolicy` and everything provider-shaped are absent by design: those
+ * decide what plays and who may play it, and the server carries them forward
+ * from the stored definition. Same rule as the chapter title in Block B2.
+ */
+export class MediaChapterMarkDto {
+  @ApiProperty({ minimum: 0 })
+  @IsInt()
+  @Min(0)
+  startSec!: number;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(120)
+  label!: string;
+}
+
+export class UpdateMediaDraftDto {
+  @ApiProperty()
+  @IsString()
+  @MaxLength(200)
+  title!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(2_000)
+  description!: string;
+
+  @ApiProperty({ required: false, nullable: true, minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  durationSec?: number | null;
+
+  @ApiProperty({ type: [MediaChapterMarkDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MediaChapterMarkDto)
+  chapters!: MediaChapterMarkDto[];
+}
+
+export class CreateComingSoonMediaDto {
+  @ApiProperty({ enum: ["AUDIOBOOK", "PODCAST", "VIDEO"] })
+  @IsIn(["AUDIOBOOK", "PODCAST", "VIDEO"])
+  kind!: "AUDIOBOOK" | "PODCAST" | "VIDEO";
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(200)
+  title!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(2_000)
+  description!: string;
 }

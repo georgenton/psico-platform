@@ -77,3 +77,44 @@ export function imageObjectKey(prefix: string, mimetype: string): string {
   const random = randomBytes(8).toString("hex");
   return `${prefix}/${random}.${imageExtension(mimetype)}`;
 }
+
+/**
+ * Is this URL one of ours?
+ *
+ * Content Studio has no "paste a URL" field: every image it administers is born
+ * from its own upload endpoint and lands in our bucket. So an ADMIN with curl
+ * must not be able to point a published chapter at an arbitrary host — that
+ * would turn every reader into a request to somewhere we do not control, and
+ * hand that host a log of who read what and when.
+ *
+ * The comparison is on the parsed ORIGIN, never a prefix match on the string.
+ * `startsWith("https://ours.example")` happily accepts
+ * `https://ours.example.attacker.test/x.png`, which is exactly the shape an
+ * attacker would reach for.
+ *
+ * A configured base may carry a path (a bucket sub-prefix), so the candidate
+ * must sit under it — compared with a trailing slash so `/assets` does not also
+ * authorise `/assets-evil`.
+ */
+export function isTrustedImageUrl(
+  candidate: string,
+  configuredBase: string,
+): boolean {
+  let url: URL;
+  let base: URL;
+  try {
+    url = new URL(candidate);
+    base = new URL(configuredBase);
+  } catch {
+    return false;
+  }
+
+  // Plain http would be a mixed-content failure in the reader and strippable in
+  // transit; there is no reason for our own assets to be served that way.
+  if (url.protocol !== "https:") return false;
+  if (url.origin !== base.origin) return false;
+
+  const basePath = base.pathname.replace(/\/+$/, "");
+  if (!basePath) return true;
+  return url.pathname === basePath || url.pathname.startsWith(`${basePath}/`);
+}

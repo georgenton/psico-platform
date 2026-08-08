@@ -13,6 +13,19 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
+import { IMAGE_MAX_BYTES } from "../shared/image-upload";
+
+/**
+ * The transport guard: stop an oversized body before it becomes a Buffer in
+ * memory. The SERVICE still owns the rule — this only refuses to allocate for
+ * something it would reject anyway.
+ *
+ * `+ 1` is deliberate. Multer aborts at or above `fileSize`, so passing
+ * `IMAGE_MAX_BYTES` would refuse a file of exactly 5 MB while the service (and
+ * the copy in the UI: "hasta 5 MB") accepts it. One byte higher makes the two
+ * agree, with the service as the single authority on where the line is.
+ */
+export const TRANSPORT_LIMITS = { fileSize: IMAGE_MAX_BYTES + 1 };
 import {
   ApiBody,
   ApiConsumes,
@@ -156,7 +169,7 @@ export class ContentStudioController {
    */
   @Post("books/:bookSlug/cover")
   @Header("Cache-Control", "private, no-store")
-  @UseInterceptors(FileInterceptor("file"))
+  @UseInterceptors(FileInterceptor("file", { limits: TRANSPORT_LIMITS }))
   @ApiConsumes("multipart/form-data")
   @ApiBody({
     schema: {
@@ -187,7 +200,7 @@ export class ContentStudioController {
    */
   @Post("books/:bookSlug/chapters/:chapterOrder/images")
   @Header("Cache-Control", "private, no-store")
-  @UseInterceptors(FileInterceptor("file"))
+  @UseInterceptors(FileInterceptor("file", { limits: TRANSPORT_LIMITS }))
   @ApiConsumes("multipart/form-data")
   @ApiBody({
     schema: {

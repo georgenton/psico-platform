@@ -4,7 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { imageBlockInfo } from "@psico/types";
 import { PrismaService } from "../prisma/prisma.service";
+import { isTrustedImageUrl } from "../shared/image-upload";
+import type { Env } from "../config";
 import { editionKeyFor } from "../content-core/bootstrap-book";
 import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
 import {
@@ -56,7 +60,58 @@ export interface ContentBlockView {
 
 @Injectable()
 export class ContentStudioService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService<Env, true>,
+  ) {}
+
+  /**
+   * IMAGE blocks are validated here; every other kind passes through untouched.
+   *
+   * `meta` stays an open object on purpose — an AUDIO or VIDEO block carries
+   * metadata this vertical does not administer and must round-trip intact. But
+   * Content Studio DOES administer images now, so for that one kind the server
+   * owes the same guarantee the UI makes: no image without alt text, and no
+   * image pointing somewhere we do not control.
+   *
+   * Runs BEFORE `saveUnitDraft`, so a rejected save mints no revision, archives
+   * no draft and moves no pointer.
+   */
+  private assertImageBlocksValid(
+    blocks: Array<{ kind: string; content: string; meta?: unknown }>,
+  ): void {
+    const base = this.config.get("R2_PUBLIC_URL", { infer: true });
+
+    blocks.forEach((b, index) => {
+      if (b.kind !== "IMAGE") return;
+
+      const info = imageBlockInfo({
+        kind: b.kind,
+        content: b.content,
+        meta: (b.meta ?? null) as Record<string, unknown> | null,
+      });
+      // The shared reader contract is the grammar: same rule, one definition.
+      // It is null when `imageUrl` or `alt` is missing or the wrong shape.
+      if (!info) {
+        throw new BadRequestException({
+          code: "CONTENT_IMAGE_INVALID",
+          message:
+            "Cada imagen necesita una URL válida y un texto alternativo.",
+          index,
+        });
+      }
+      if (!isTrustedImageUrl(info.imageUrl, base)) {
+        // Deliberately says nothing about what IS allowed: the configured
+        // origin is not something an error message should hand out.
+        throw new BadRequestException({
+          code: "CONTENT_IMAGE_URL_NOT_ALLOWED",
+          message:
+            "La imagen debe haberse subido desde este panel. No se aceptan enlaces externos.",
+          index,
+        });
+      }
+    });
+  }
 
   async listBooks() {
     const books = await this.prisma.book.findMany({
@@ -197,6 +252,8 @@ export class ContentStudioService {
       blocks: Array<{ kind: string; content: string; meta?: unknown }>;
     },
   ) {
+    this.assertImageBlocksValid(input.blocks);
+
     const resolved = await this.resolveChapter(bookSlug, chapterOrder);
     const base = await this.readCurrentUnit(resolved);
 

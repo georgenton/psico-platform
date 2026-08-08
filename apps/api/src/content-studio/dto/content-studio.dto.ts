@@ -84,6 +84,11 @@ export class PreviewQueryDto {
  * decide what plays and who may play it, and the server carries them forward
  * from the stored definition. Same rule as the chapter title in Block B2.
  */
+/** Mirrors `validateChapterMediaDefinition`, so the boundary rejects what the
+ * domain would reject anyway — with a message that names the field. */
+export const MEDIA_TITLE_MAX = 160;
+export const MEDIA_DESCRIPTION_MAX = 400;
+
 export class MediaChapterMarkDto {
   @ApiProperty({ minimum: 0 })
   @IsInt()
@@ -97,17 +102,23 @@ export class MediaChapterMarkDto {
 }
 
 export class UpdateMediaDraftDto {
-  @ApiProperty()
+  // The limits are the DOMAIN's, not looser ones. `validateChapterMediaDefinition`
+  // caps title at 160 and description at 400, so accepting more here would only
+  // move the rejection from a clear 400 to an opaque one deeper in.
+  @ApiProperty({ maxLength: MEDIA_TITLE_MAX })
   @IsString()
-  @MaxLength(200)
+  @MaxLength(MEDIA_TITLE_MAX)
   title!: string;
 
-  @ApiProperty()
+  @ApiProperty({ maxLength: MEDIA_DESCRIPTION_MAX })
   @IsString()
-  @MaxLength(2_000)
+  @MaxLength(MEDIA_DESCRIPTION_MAX)
   description!: string;
 
-  @ApiProperty({ required: false, nullable: true, minimum: 0 })
+  // `type: Number` is load-bearing: without it Swagger emits an untyped schema
+  // and the generated client collapses this to `Record<string, never>`, which
+  // type-checks against nothing an editor could send.
+  @ApiProperty({ required: false, nullable: true, type: Number, minimum: 0 })
   @IsOptional()
   @IsInt()
   @Min(0)
@@ -125,13 +136,13 @@ export class CreateComingSoonMediaDto {
   @IsIn(["AUDIOBOOK", "PODCAST", "VIDEO"])
   kind!: "AUDIOBOOK" | "PODCAST" | "VIDEO";
 
-  @ApiProperty()
+  @ApiProperty({ maxLength: MEDIA_TITLE_MAX })
   @IsString()
-  @MaxLength(200)
+  @MaxLength(MEDIA_TITLE_MAX)
   title!: string;
 
-  @ApiProperty()
+  @ApiProperty({ maxLength: MEDIA_DESCRIPTION_MAX })
   @IsString()
-  @MaxLength(2_000)
+  @MaxLength(MEDIA_DESCRIPTION_MAX)
   description!: string;
 }

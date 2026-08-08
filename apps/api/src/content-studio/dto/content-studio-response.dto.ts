@@ -233,6 +233,14 @@ export class ContentStudioChapterMediaResponseDto {
 
   @ApiProperty({ type: [ContentStudioMediaCardDto] })
   media!: ContentStudioMediaCardDto[];
+
+  @ApiProperty({
+    enum: ["AUDIOBOOK", "PODCAST", "VIDEO"],
+    isArray: true,
+    description:
+      "Formatos que el capítulo no tiene. Sin esto el CMS sólo podría decir «no hay» sin ofrecer nada.",
+  })
+  missingKinds!: Array<"AUDIOBOOK" | "PODCAST" | "VIDEO">;
 }
 
 export class ContentStudioMediaDraftRefDto {

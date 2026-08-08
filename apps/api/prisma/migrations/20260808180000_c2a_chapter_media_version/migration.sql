@@ -31,10 +31,11 @@ CREATE TABLE "ChapterMediaVersion" (
 
 -- At most one draft and one published row per media key.
 --
--- The published half is what makes an exact lookup deterministic, and it is also
--- how a published row becomes immutable in the only way that counts: you cannot
--- mint a second one to supersede it. Editing a published definition therefore
--- has to go through a new media version, which C2B owns.
+-- This makes an exact lookup deterministic: there is never a second PUBLISHED
+-- row competing to answer for a key. It does NOT make the row's contents
+-- immutable — a direct UPDATE could still rewrite `definitionJson`. Content
+-- Studio refuses to edit a published row, and that guard lives in the service;
+-- the constraint guards duplication, not mutation.
 CREATE UNIQUE INDEX "ChapterMediaVersion_mediaKey_editorialStatus_key"
     ON "ChapterMediaVersion"("mediaKey", "editorialStatus");
 

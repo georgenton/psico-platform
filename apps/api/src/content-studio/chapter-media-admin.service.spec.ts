@@ -175,8 +175,10 @@ describe("announcing a format the chapter does not have", () => {
     );
 
     const data = prisma.chapterMediaVersion.create.mock.calls[0]![0].data;
-    // An admin typing a media key would be typing a completion identity.
-    expect(data.mediaKey).toBe("fe-c3-podcast-v1");
+    // The WHOLE slug, not its initials: `familias-ensambladas` and
+    // `familias-emocionales` both reduce to `fe`, and this key is a completion
+    // identity — a collision would merge two audiences' progress.
+    expect(data.mediaKey).toBe("familias-ensambladas-c3-podcast-v1");
     expect(data.mediaVersion).toBe(1);
     // Runtime DRAFT with no source: publishing this advertises «En producción»
     // rather than a player that cannot play.
@@ -308,5 +310,80 @@ describe("publishing", () => {
     await expect(service.publishDraft("row_9")).rejects.toBeInstanceOf(
       ConflictException,
     );
+  });
+});
+
+describe("what the chapter is missing", () => {
+  it("reports absent formats so the CMS can offer to create them", async () => {
+    prisma.book.findUnique.mockResolvedValue({ id: "book_2" });
+    prisma.chapter.findFirst.mockResolvedValue({ id: "chapter_2" });
+
+    // A book the code catalog knows nothing about.
+    const res = await service.listForChapter("familias-ensambladas", 3);
+
+    expect(res.media).toHaveLength(0);
+    // Without this the CMS could only say "no formats" with no way to act.
+    expect(res.missingKinds).toEqual(["AUDIOBOOK", "PODCAST", "VIDEO"]);
+  });
+
+  it("reports nothing missing when all three exist", async () => {
+    const res = await service.listForChapter(BOOK, 1);
+    expect(res.missingKinds).toEqual([]);
+  });
+});
+
+describe("several episodes of the same kind", () => {
+  it("lists every podcast, not one per kind", async () => {
+    // `ChapterMediaListen` filters EVERY podcast episode. An admin list that
+    // collapsed them would hide content the editor is responsible for.
+    prisma.chapterMediaVersion.findMany.mockResolvedValue([
+      {
+        id: "row_ep2",
+        editorialStatus: "PUBLISHED",
+        definitionJson: {
+          ...EEC_C1_PODCAST,
+          mediaKey: "eec-c1-podcast-ep2",
+          title: "Episodio 2",
+        },
+      },
+    ]);
+
+    const res = await service.listForChapter(BOOK, 1);
+    const podcasts = res.media.filter((m) => m.kind === "PODCAST");
+
+    expect(podcasts).toHaveLength(2);
+    expect(podcasts.map((p) => p.title)).toEqual([
+      EEC_C1_PODCAST.title,
+      "Episodio 2",
+    ]);
+    // And an extra episode does not make the kind "missing".
+    expect(res.missingKinds).toEqual([]);
+  });
+});
+
+describe("concurrent creation", () => {
+  it("turns a unique-constraint race into a 409, not a 500", async () => {
+    // The pre-checks are a read then a write, so two admins clicking at once can
+    // both pass them. The second one deserves an answer they can act on.
+    prisma.chapterMediaVersion.create.mockRejectedValue(
+      Object.assign(new Error("Unique constraint failed"), { code: "P2002" }),
+    );
+
+    await expect(
+      service.adopt(BOOK, 1, "eec-c1-podcast-v1", "admin_1"),
+    ).rejects.toMatchObject({
+      response: { code: "MEDIA_ALREADY_ADMINISTERED" },
+    });
+  });
+
+  it("still surfaces an unrelated database error", async () => {
+    // Swallowing everything as a conflict would hide real failures.
+    prisma.chapterMediaVersion.create.mockRejectedValue(
+      Object.assign(new Error("connection lost"), { code: "P1001" }),
+    );
+
+    await expect(
+      service.adopt(BOOK, 1, "eec-c1-podcast-v1", "admin_1"),
+    ).rejects.toThrow("connection lost");
   });
 });

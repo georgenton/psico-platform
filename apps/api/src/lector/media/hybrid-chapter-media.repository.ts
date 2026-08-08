@@ -14,17 +14,25 @@ import type { ChapterMediaDefinitionRepository } from "./chapter-media-definitio
  * today. Falling back to code keeps every key that ever shipped resolvable,
  * including the ones nobody has adopted.
  *
- * `listPublicForChapter` — one offer per KIND, at its highest `mediaVersion`,
- * database and code considered together. The product offers at most one
- * audiobook, one podcast and one video per chapter, so "which version is
- * current" is the only question; a superseded version stays resolvable through
- * `getExact` but stops being advertised.
+ * `listPublicForChapter` — the UNION of both, merged by `mediaKey`, with the
+ * database winning when both carry the same key. That is the adoption case, and
+ * it is the only merge rule here.
  *
- * On a tie the DATABASE wins, which is precisely the adoption case: same key,
- * same version, editorial copy now owned by the CMS.
+ * It deliberately does NOT collapse a chapter to one item per kind. The reader
+ * contract is a flat `items[]` and the surfaces read it accordingly:
+ * `ChapterMediaListen` filters EVERY podcast episode and `ChapterMediaWatch`
+ * filters every video into a picker keyed on `mediaKey`. Both of those started
+ * as `.find()` calls that showed the first item and hid the rest, and both were
+ * fixed; a repository that deduplicated by kind would reintroduce exactly that
+ * bug one layer lower, where the surfaces could not see it.
+ *
+ * There is likewise no "highest version wins" rule. Superseding a version is a
+ * decision the catalog has never expressed — a chapter carrying two versions
+ * showed both — and inventing it here would silently remove content an editor
+ * never asked to remove.
  */
 
-/** Presentation order, fixed. Alphabetical would put the podcast first. */
+/** Presentation order for entries the code catalog does not already order. */
 const KIND_ORDER: readonly ChapterMediaKind[] = [
   "AUDIOBOOK",
   "PODCAST",
@@ -53,19 +61,24 @@ export class HybridChapterMediaRepository implements ChapterMediaDefinitionRepos
       this.codeOwned.listPublicForChapter(bookSlug, chapterOrder),
     ]);
 
-    const current = new Map<ChapterMediaKind, ChapterMediaDefinition>();
+    const byKey = new Map(fromDatabase.map((d) => [d.mediaKey, d]));
 
-    // Code first, database second, so an equal version from the database
-    // overwrites — the adoption case.
-    for (const def of [...fromCode, ...fromDatabase]) {
-      const held = current.get(def.kind);
-      if (!held || def.mediaVersion >= held.mediaVersion) {
-        current.set(def.kind, def);
-      }
-    }
+    // Code declaration order IS presentation order, so adopting a definition
+    // must not move its card. Each code entry keeps its slot; the database
+    // version simply answers in its place.
+    const merged = fromCode.map((d) => byKey.get(d.mediaKey) ?? d);
 
-    return KIND_ORDER.map((kind) => current.get(kind)).filter(
-      (d): d is ChapterMediaDefinition => d !== undefined,
-    );
+    // Anything the CMS created that code never knew about — a new episode, a
+    // newly announced format — goes after, in a deterministic order.
+    const codeKeys = new Set(fromCode.map((d) => d.mediaKey));
+    const extras = fromDatabase
+      .filter((d) => !codeKeys.has(d.mediaKey))
+      .sort(
+        (a, b) =>
+          KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) ||
+          a.mediaKey.localeCompare(b.mediaKey),
+      );
+
+    return [...merged, ...extras];
   }
 }

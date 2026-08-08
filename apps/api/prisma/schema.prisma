@@ -2691,9 +2691,10 @@ model ChapterMediaVersion {
 
   createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
-  /// At most one draft and one published row per media key. The published half
-  /// is what makes `getExact` deterministic; it also makes a published row
-  /// immutable in the only way that counts — you cannot mint a second one.
+  /// At most one draft and one published row per media key, which is what makes
+  /// `getExact` deterministic. It guards DUPLICATION, not mutation: a direct
+  /// UPDATE could still rewrite `definitionJson`. Refusing to edit a published
+  /// definition is an application rule, enforced in ChapterMediaAdminService.
   @@unique([mediaKey, editorialStatus])
   @@index([bookSlug, chapterOrder, kind, editorialStatus])
 }

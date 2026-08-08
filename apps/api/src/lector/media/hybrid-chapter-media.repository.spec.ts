@@ -124,31 +124,88 @@ describe("HybridChapterMediaRepository — the chapter's offer", () => {
     expect(list[0]!.mediaVersion).toBe(1);
   });
 
-  it("advertises the highest version per kind", async () => {
+  it("PODCAST_N — every episode survives the merge", async () => {
+    // `ChapterMediaListen` filters EVERY podcast, and it used to `.find()` the
+    // first and hide the rest until that was fixed. Deduplicating by kind here
+    // would put that bug back one layer lower, where the surface cannot see it.
+    const ep1 = def({ mediaKey: "eec-c1-podcast-v1", title: "Episodio 1" });
+    const ep2 = def({ mediaKey: "eec-c1-podcast-ep2", title: "Episodio 2" });
+    const ep3 = def({ mediaKey: "eec-c1-podcast-ep3", title: "Episodio 3" });
     const hybrid = new HybridChapterMediaRepository(
-      stub([def({ mediaKey: "eec-c1-podcast-v2", mediaVersion: 2 })]),
-      codeRepo([def()]),
+      stub([ep3]),
+      codeRepo([ep1, ep2]),
     );
 
     const list = await hybrid.listPublicForChapter("eec", 1);
-    expect(list).toHaveLength(1);
-    expect(list[0]!.mediaVersion).toBe(2);
+    expect(list.map((d) => d.mediaKey)).toEqual([
+      "eec-c1-podcast-v1",
+      "eec-c1-podcast-ep2",
+      "eec-c1-podcast-ep3",
+    ]);
   });
 
-  it("never lets code outrank a newer database version", async () => {
+  it("PODCAST_1 — a single episode is untouched", async () => {
     const hybrid = new HybridChapterMediaRepository(
-      stub([def()]),
-      codeRepo([def({ mediaKey: "eec-c1-podcast-v2", mediaVersion: 2 })]),
+      stub([]),
+      codeRepo([def()]),
     );
-
-    expect((await hybrid.listPublicForChapter("eec", 1))[0]!.mediaVersion).toBe(
-      2,
-    );
+    expect(await hybrid.listPublicForChapter("eec", 1)).toHaveLength(1);
   });
 
-  it("keeps audiobook, podcast, video in that order", async () => {
-    // Alphabetical would put the podcast first; presentation order is a product
-    // decision, not a sort.
+  it("PODCAST_0 — a chapter with none stays empty", async () => {
+    const hybrid = new HybridChapterMediaRepository(stub([]), codeRepo([]));
+    expect(await hybrid.listPublicForChapter("eec", 1)).toHaveLength(0);
+  });
+
+  it("VIDEO is 0..N too — the picker is keyed on mediaKey", async () => {
+    const asVideo = (mediaKey: string) =>
+      def({
+        mediaKey,
+        kind: "VIDEO",
+        status: "DRAFT",
+        source: null,
+        accessPolicy: null,
+        durationSec: null,
+      });
+    const v1 = asVideo("eec-c1-video-a");
+    const v2 = asVideo("eec-c1-video-b");
+    const hybrid = new HybridChapterMediaRepository(
+      stub([]),
+      codeRepo([v1, v2]),
+    );
+
+    expect(
+      (await hybrid.listPublicForChapter("eec", 1)).map((d) => d.mediaKey),
+    ).toEqual(["eec-c1-video-a", "eec-c1-video-b"]);
+  });
+
+  it("does not supersede a version — a chapter carrying two shows both", async () => {
+    // Superseding is a decision the catalog has never expressed. Inventing it
+    // would silently remove content nobody asked to remove.
+    const v1 = def();
+    const v2 = def({ mediaKey: "eec-c1-podcast-v2", mediaVersion: 2 });
+    const hybrid = new HybridChapterMediaRepository(stub([v2]), codeRepo([v1]));
+
+    const list = await hybrid.listPublicForChapter("eec", 1);
+    expect(list.map((d) => d.mediaVersion)).toEqual([1, 2]);
+  });
+
+  it("PODCAST_ORDER — adopting a definition does not move its card", async () => {
+    const ep1 = def({ mediaKey: "eec-c1-podcast-v1", title: "Uno" });
+    const ep2 = def({ mediaKey: "eec-c1-podcast-ep2", title: "Dos" });
+    const hybrid = new HybridChapterMediaRepository(
+      // The SECOND episode was adopted; it must stay second.
+      stub([def({ mediaKey: "eec-c1-podcast-ep2", title: "Dos (CMS)" })]),
+      codeRepo([ep1, ep2]),
+    );
+
+    const list = await hybrid.listPublicForChapter("eec", 1);
+    expect(list.map((d) => d.title)).toEqual(["Uno", "Dos (CMS)"]);
+  });
+
+  it("orders CMS-only entries by kind, after the code catalog's own order", async () => {
+    // Code declaration order is presentation order and is preserved; entries the
+    // code catalog never knew about are appended deterministically.
     const video = def({
       mediaKey: "eec-c1-video-v1",
       kind: "VIDEO",
@@ -164,7 +221,7 @@ describe("HybridChapterMediaRepository — the chapter's offer", () => {
     });
     const hybrid = new HybridChapterMediaRepository(
       stub([video]),
-      codeRepo([def(), audiobook]),
+      codeRepo([audiobook, def()]),
     );
 
     expect(

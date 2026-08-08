@@ -44,9 +44,9 @@ function card(over: MediaCardOverrides = {}): MediaCard {
   } as MediaCard;
 }
 
-const list = (media: MediaCard[]) => ({
+const list = (media: MediaCard[], missingKinds: string[] = []) => ({
   ok: true,
-  data: { bookSlug: "eec", chapterOrder: 1, media },
+  data: { bookSlug: "eec", chapterOrder: 1, media, missingKinds },
 });
 
 beforeEach(() => {
@@ -61,6 +61,10 @@ beforeEach(() => {
     data: { draftId: "row_9", mediaKey: "eec-c1-podcast-v1", mediaVersion: 1 },
   });
   actions.updateMediaDraftAction.mockResolvedValue({ ok: true, data: card() });
+  actions.createChapterMediaAction.mockResolvedValue({
+    ok: true,
+    data: { draftId: "row_new", mediaKey: "eec-c1-video-v1" },
+  });
 });
 
 describe("MediaSection — reading the state", () => {
@@ -278,5 +282,95 @@ describe("MediaSection — a published definition", () => {
     expect(
       screen.queryByRole("button", { name: "Publicar definición" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("MediaSection — a format the chapter does not have", () => {
+  it("offers to create it instead of stating a dead end", async () => {
+    actions.listChapterMediaAction.mockResolvedValue(list([], ["VIDEO"]));
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("No disponible")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Video")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Crear ficha" }),
+    ).toBeInTheDocument();
+    // The old copy was a statement with nothing to do about it.
+    expect(
+      screen.queryByText(/todavía no tiene formatos multimedia/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("creates a definition with no file, and says so", async () => {
+    const user = userEvent.setup();
+    actions.listChapterMediaAction.mockResolvedValue(list([], ["PODCAST"]));
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Crear ficha" }),
+      ).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: "Crear ficha" }));
+
+    // The screen is explicit that nothing is being uploaded.
+    expect(
+      screen.getByText(/Se crea sin archivo.*«En producción»/),
+    ).toBeInTheDocument();
+
+    await user.type(
+      screen.getByLabelText(/Descripción del nuevo Podcast/),
+      "Una conversación.",
+    );
+    await user.click(screen.getByRole("button", { name: "Crear" }));
+
+    await waitFor(() =>
+      expect(actions.createChapterMediaAction).toHaveBeenCalled(),
+    );
+    const [slug, order, body] = actions.createChapterMediaAction.mock.calls[0]!;
+    expect(slug).toBe("eec");
+    expect(order).toBe(1);
+    expect(body.kind).toBe("PODCAST");
+    // The browser never names a media key — that is a completion identity.
+    expect(body).not.toHaveProperty("mediaKey");
+    expect(body).not.toHaveProperty("source");
+  });
+
+  it("will not submit without a description", async () => {
+    const user = userEvent.setup();
+    actions.listChapterMediaAction.mockResolvedValue(list([], ["PODCAST"]));
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Crear ficha" }),
+      ).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: "Crear ficha" }));
+
+    expect(screen.getByRole("button", { name: "Crear" })).toBeDisabled();
+  });
+
+  it("shows existing formats AND the missing ones together", async () => {
+    // A chapter with two podcast episodes and no video: every episode listed,
+    // plus one offer to announce the missing format.
+    actions.listChapterMediaAction.mockResolvedValue(
+      list(
+        [
+          card({ mediaKey: "eec-c1-podcast-v1", title: "Episodio 1" }),
+          card({ mediaKey: "eec-c1-podcast-ep2", title: "Episodio 2" }),
+        ],
+        ["VIDEO"],
+      ),
+    );
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Episodio 1")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Episodio 2")).toBeInTheDocument();
+    expect(screen.getByText("No disponible")).toBeInTheDocument();
   });
 });

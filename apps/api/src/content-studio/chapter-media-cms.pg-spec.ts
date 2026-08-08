@@ -21,8 +21,9 @@ import type { PrismaService } from "../prisma/prisma.service";
  *
  * The claims a mock cannot make honestly:
  *
- *   the `@@unique([mediaKey, editorialStatus])` constraint, which is what makes
- *   a published definition immutable rather than merely discouraged;
+ *   the `@@unique([mediaKey, editorialStatus])` constraint, which guarantees a
+ *   deterministic published lookup — it stops a SECOND published row, not an
+ *   UPDATE to the existing one;
  *
  *   that a CMS draft is invisible to the runtime even while it holds a fully
  *   playable definition;
@@ -217,9 +218,11 @@ suite("Content Studio · chapter media catalog (real PostgreSQL)", () => {
     });
   });
 
-  it("cannot mint a second published row for the same key", async () => {
-    // The constraint is what makes immutability real rather than merely a
-    // service-level rule somebody could route around.
+  it("cannot mint a SECOND published row for the same key", async () => {
+    // What the constraint actually buys: a deterministic published lookup. It
+    // does not freeze the row — a direct UPDATE could still rewrite the JSON —
+    // and C2A does not need it to. Refusing to edit a published definition is
+    // the service's job, pinned in the test above.
     await expect(
       prisma.chapterMediaVersion.create({
         data: {
@@ -277,7 +280,7 @@ suite("Content Studio · chapter media catalog (real PostgreSQL)", () => {
       "Una conversación sobre el capítulo.",
       adminUserId,
     );
-    expect(mediaKey).toBe("fe-c3-podcast-v1");
+    expect(mediaKey).toBe("familias-ensambladas-c3-podcast-v1");
 
     const emptyRepo = new HybridChapterMediaRepository(
       new DatabaseChapterMediaRepository(prisma as unknown as PrismaService),
@@ -303,7 +306,7 @@ suite("Content Studio · chapter media catalog (real PostgreSQL)", () => {
     expect(offer[0]!.accessPolicy).toBeNull();
   });
 
-  it("a newer database version supersedes code in the offer", async () => {
+  it("a CMS-only version joins the offer without displacing the code one", async () => {
     const v2 = validateChapterMediaDefinition({
       ...EEC_C1_PODCAST,
       mediaKey: "eec-c1-podcast-v2",
@@ -323,7 +326,12 @@ suite("Content Studio · chapter media catalog (real PostgreSQL)", () => {
     });
 
     const offer = await publicOffer();
-    expect(offer[0]!.mediaVersion).toBe(2);
+    // BOTH are offered. Superseding a version is a decision the catalog has
+    // never expressed, and inventing it here would silently remove an episode
+    // nobody asked to remove.
+    expect(
+      offer.filter((d) => d.kind === "PODCAST").map((d) => d.mediaVersion),
+    ).toEqual([1, 2]);
 
     // …and v1 stays resolvable, so an in-flight listen is never orphaned.
     expect((await hybrid.getExact("eec-c1-podcast-v1"))!.mediaVersion).toBe(1);

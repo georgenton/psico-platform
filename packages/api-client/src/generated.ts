@@ -3810,6 +3810,8 @@ export interface components {
             bookSlug: string;
             chapterOrder: number;
             media: components["schemas"]["ContentStudioMediaCardDto"][];
+            /** @description Formatos que el capítulo no tiene. Sin esto el CMS sólo podría decir «no hay» sin ofrecer nada. */
+            missingKinds: ContentStudioChapterMediaResponseDtoMissingKinds[];
         };
         ContentStudioMediaDraftRefDto: {
             draftId: string;
@@ -3828,7 +3830,7 @@ export interface components {
         UpdateMediaDraftDto: {
             title: string;
             description: string;
-            durationSec?: Record<string, never> | null;
+            durationSec?: number | null;
             chapters: components["schemas"]["MediaChapterMarkDto"][];
         };
         ContentStudioMediaPublishResponseDto: {
@@ -16428,6 +16430,11 @@ export enum ContentStudioMediaCardDtoEditorialStatus {
     CODE_OWNED = "CODE_OWNED",
     DRAFT = "DRAFT",
     PUBLISHED = "PUBLISHED"
+}
+export enum ContentStudioChapterMediaResponseDtoMissingKinds {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
 }
 export enum CreateComingSoonMediaDtoKind {
     AUDIOBOOK = "AUDIOBOOK",

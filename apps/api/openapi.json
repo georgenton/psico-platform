@@ -21855,12 +21855,25 @@
             "items": {
               "$ref": "#/components/schemas/ContentStudioMediaCardDto"
             }
+          },
+          "missingKinds": {
+            "type": "array",
+            "description": "Formatos que el capítulo no tiene. Sin esto el CMS sólo podría decir «no hay» sin ofrecer nada.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "AUDIOBOOK",
+                "PODCAST",
+                "VIDEO"
+              ]
+            }
           }
         },
         "required": [
           "bookSlug",
           "chapterOrder",
-          "media"
+          "media",
+          "missingKinds"
         ]
       },
       "ContentStudioMediaDraftRefDto": {
@@ -21890,10 +21903,12 @@
             ]
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 160
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 400
           }
         },
         "required": [
@@ -21922,13 +21937,15 @@
         "type": "object",
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 160
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 400
           },
           "durationSec": {
-            "type": "object",
+            "type": "number",
             "nullable": true,
             "minimum": 0
           },

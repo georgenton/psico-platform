@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   adoptChapterMediaAction,
+  createChapterMediaAction,
   listChapterMediaAction,
   publishMediaDraftAction,
   updateMediaDraftAction,
@@ -44,6 +45,7 @@ const EDITORIAL_LABEL: Record<string, string> = {
 
 export function MediaSection({ bookSlug, chapterOrder }: Props) {
   const [cards, setCards] = useState<MediaCard[] | null>(null);
+  const [missing, setMissing] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -51,6 +53,7 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
     const result = await listChapterMediaAction(bookSlug, chapterOrder);
     if (result.ok && result.data) {
       setCards(result.data.media);
+      setMissing(result.data.missingKinds ?? []);
       setError(null);
       return;
     }
@@ -121,7 +124,7 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
         >
           Cargando…
         </p>
-      ) : cards.length === 0 ? (
+      ) : cards.length === 0 && missing.length === 0 ? (
         <p
           className="mt-4 text-[13px]"
           style={{ color: "var(--color-warm-500)" }}
@@ -226,7 +229,172 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
           ))}
         </ul>
       )}
+
+      {missing.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {missing.map((kind) => (
+            <MissingMediaRow
+              key={kind}
+              kind={kind}
+              bookSlug={bookSlug}
+              chapterOrder={chapterOrder}
+              onCreated={reload}
+            />
+          ))}
+        </ul>
+      )}
     </section>
+  );
+}
+
+/**
+ * A format the chapter does not have.
+ *
+ * Saying «no disponible» with no way to act is a dead end, so this offers the
+ * one thing C2A can honestly do: announce the format. What it creates is a CMS
+ * draft carrying a runtime-DRAFT definition with NO source — publishing it puts
+ * «En producción» in front of a reader, never a player that cannot play. The
+ * file arrives in C2B.
+ */
+function MissingMediaRow({
+  kind,
+  bookSlug,
+  chapterOrder,
+  onCreated,
+}: {
+  kind: string;
+  bookSlug: string;
+  chapterOrder: number;
+  onCreated: () => Promise<void>;
+}) {
+  const label = MEDIA_KIND_LABEL[kind] ?? kind;
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState(`${label} · capítulo ${chapterOrder}`);
+  const [description, setDescription] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function create() {
+    setBusy(true);
+    setError(null);
+    const result = await createChapterMediaAction(bookSlug, chapterOrder, {
+      kind,
+      title,
+      description,
+    });
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error ?? "No pudimos crear la ficha.");
+      return;
+    }
+    setOpen(false);
+    await onCreated();
+  }
+
+  return (
+    <li
+      className="rounded-xl border border-dashed px-4 py-3"
+      style={{ borderColor: "var(--color-warm-300)" }}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p
+            className="text-[11px] font-bold uppercase tracking-[0.6px]"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            {label}
+          </p>
+          <p
+            className="text-[13.5px]"
+            style={{ color: "var(--color-warm-600)" }}
+          >
+            No disponible
+          </p>
+        </div>
+        {!open && (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="rounded-full px-4 py-2 text-[13px] font-semibold"
+            style={{
+              background: "var(--color-warm-100)",
+              color: "var(--color-warm-700)",
+            }}
+          >
+            Crear ficha
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="mt-3 space-y-2">
+          <label className="block">
+            <span
+              className="text-[11.5px] font-semibold"
+              style={{ color: "var(--color-warm-600)" }}
+            >
+              Título
+            </span>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              aria-label={`Título del nuevo ${label}`}
+              maxLength={160}
+              className="mt-1 w-full rounded-lg border px-3 py-2 text-[13.5px]"
+              style={{ borderColor: "var(--color-warm-200)" }}
+            />
+          </label>
+          <label className="block">
+            <span
+              className="text-[11.5px] font-semibold"
+              style={{ color: "var(--color-warm-600)" }}
+            >
+              Descripción
+            </span>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              aria-label={`Descripción del nuevo ${label}`}
+              maxLength={400}
+              rows={2}
+              className="mt-1 w-full resize-y rounded-lg border px-3 py-2 text-[13.5px]"
+              style={{ borderColor: "var(--color-warm-200)" }}
+            />
+          </label>
+          <p className="text-[12px]" style={{ color: "var(--color-warm-500)" }}>
+            Se crea sin archivo. Al publicarla, el lector verá «En producción».
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void create()}
+              disabled={busy || !title.trim() || !description.trim()}
+              className="rounded-full px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
+              style={{ background: "var(--color-lavender-600)" }}
+            >
+              {/* "Crear", not "Crear ficha": the row's own button opens this
+                  form, and two controls with the same label are ambiguous for
+                  anyone navigating by name. */}
+              {busy ? "Creando…" : "Crear"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              disabled={busy}
+              className="text-[13px] font-semibold"
+              style={{ color: "var(--color-warm-600)" }}
+            >
+              Cancelar
+            </button>
+            {error && (
+              <span role="alert" className="text-[13px] text-red-700">
+                {error}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </li>
   );
 }
 

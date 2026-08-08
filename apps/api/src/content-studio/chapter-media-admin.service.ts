@@ -119,39 +119,50 @@ export class ChapterMediaAdminService {
 
     const rows = await this.prisma.chapterMediaVersion.findMany({
       where: { bookSlug, chapterOrder },
-      orderBy: [{ mediaVersion: "desc" }, { createdAt: "desc" }],
+      orderBy: [{ createdAt: "asc" }],
     });
 
-    const byKind = new Map<ChapterMediaKind, AdminMediaCard>();
-
-    // Code first; a database row for the same kind replaces it below.
-    for (const def of productionChapterMediaRegistry.forChapter(
-      bookSlug,
-      chapterOrder,
-    )) {
-      byKind.set(def.kind, toCard(def, "CODE", "CODE_OWNED", null));
-    }
-
+    // Merged by mediaKey, NOT collapsed by kind. A chapter may carry several
+    // podcast episodes and several videos — the reader surfaces filter every one
+    // of them — so an admin list showing one per kind would hide content the
+    // editor is responsible for.
+    const dbByKey = new Map<string, AdminMediaCard>();
     for (const row of rows) {
       const def = this.rebuildOrNull(row.definitionJson);
       if (!def) continue;
-      const held = byKind.get(def.kind);
-      // A draft outranks the code row it was cloned from — that is what the
-      // editor is working on.
-      if (held && held.provenance === "DATABASE") continue;
-      byKind.set(
-        def.kind,
+      dbByKey.set(
+        def.mediaKey,
         toCard(def, "DATABASE", row.editorialStatus, row.id),
       );
     }
 
-    return {
+    const fromCode = productionChapterMediaRegistry.forChapter(
       bookSlug,
       chapterOrder,
-      media: KIND_ORDER.map((k) => byKind.get(k)).filter(
-        (c): c is AdminMediaCard => c !== undefined,
-      ),
-    };
+    );
+    // Code declaration order is presentation order; adopting must not move a card.
+    const media: AdminMediaCard[] = fromCode.map(
+      (def) =>
+        dbByKey.get(def.mediaKey) ?? toCard(def, "CODE", "CODE_OWNED", null),
+    );
+
+    const codeKeys = new Set(fromCode.map((d) => d.mediaKey));
+    const extras = [...dbByKey.entries()]
+      .filter(([key]) => !codeKeys.has(key))
+      .map(([, card]) => card)
+      .sort(
+        (a, b) =>
+          KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) ||
+          a.mediaKey.localeCompare(b.mediaKey),
+      );
+    media.push(...extras);
+
+    // What the chapter does NOT have. Without this the CMS can only say "no
+    // formats" with no way to act, which is a dead end rather than an answer.
+    const present = new Set(media.map((m) => m.kind));
+    const missingKinds = KIND_ORDER.filter((k) => !present.has(k));
+
+    return { bookSlug, chapterOrder, media, missingKinds };
   }
 
   /**
@@ -189,7 +200,7 @@ export class ChapterMediaAdminService {
       });
     }
 
-    const row = await this.prisma.chapterMediaVersion.create({
+    const row = await this.createRow({
       data: {
         mediaKey: def.mediaKey,
         mediaVersion: def.mediaVersion,
@@ -202,7 +213,10 @@ export class ChapterMediaAdminService {
         definitionJson: def as unknown as object,
         createdByUserId: adminUserId,
       },
-      select: { id: true },
+      conflict: {
+        code: "MEDIA_ALREADY_ADMINISTERED",
+        message: "Esta pieza ya se administra desde el CMS.",
+      },
     });
 
     return { draftId: row.id, mediaKey: def.mediaKey };
@@ -225,6 +239,9 @@ export class ChapterMediaAdminService {
   ) {
     await this.assertChapterExists(bookSlug, chapterOrder);
 
+    // Only the ABSENT-format flow lives here. A chapter that already carries a
+    // podcast may well want a second episode, but that is a new master with its
+    // own key, and that belongs to C2B where the file exists.
     const inCode = productionChapterMediaRegistry
       .forChapter(bookSlug, chapterOrder)
       .some((d) => d.kind === kind);
@@ -241,7 +258,7 @@ export class ChapterMediaAdminService {
 
     // Server-minted, deterministic, and inside the catalog's key grammar. An
     // admin typing a media key would be typing a completion identity.
-    const mediaKey = `${slugToken(bookSlug)}-c${chapterOrder}-${kind.toLowerCase()}-v1`;
+    const mediaKey = mintMediaKey(bookSlug, chapterOrder, kind);
 
     const definition = validateChapterMediaDefinition({
       mediaKey,
@@ -260,7 +277,7 @@ export class ChapterMediaAdminService {
       chapters: [],
     });
 
-    const row = await this.prisma.chapterMediaVersion.create({
+    const row = await this.createRow({
       data: {
         mediaKey,
         mediaVersion: 1,
@@ -271,7 +288,10 @@ export class ChapterMediaAdminService {
         definitionJson: definition as unknown as object,
         createdByUserId: adminUserId,
       },
-      select: { id: true },
+      conflict: {
+        code: "MEDIA_KIND_ALREADY_EXISTS",
+        message: "Este capítulo ya tiene ese formato.",
+      },
     });
 
     return { draftId: row.id, mediaKey };
@@ -369,6 +389,36 @@ export class ChapterMediaAdminService {
 
   // ── internals ────────────────────────────────────────────────────────────
 
+  /**
+   * Create, translating the unique-constraint violation.
+   *
+   * The pre-checks above are a read followed by a write, so two admins clicking
+   * at once can both pass them. `@@unique([mediaKey, editorialStatus])` catches
+   * the second one — and without this it would surface as a 500, which tells
+   * the editor nothing and looks like our bug rather than a race they can
+   * simply reload out of.
+   */
+  private async createRow(params: {
+    data: Parameters<PrismaService["chapterMediaVersion"]["create"]>[0]["data"];
+    conflict: { code: string; message: string };
+  }): Promise<{ id: string }> {
+    try {
+      return await this.prisma.chapterMediaVersion.create({
+        data: params.data,
+        select: { id: true },
+      });
+    } catch (err) {
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        (err as { code?: string }).code === "P2002"
+      ) {
+        throw new ConflictException(params.conflict);
+      }
+      throw err;
+    }
+  }
+
   private async assertChapterExists(bookSlug: string, chapterOrder: number) {
     const book = await this.prisma.book.findUnique({
       where: { slug: bookSlug },
@@ -408,11 +458,23 @@ export class ChapterMediaAdminService {
   }
 }
 
-/** A book slug reduced to the catalog's key grammar. */
-function slugToken(bookSlug: string): string {
-  const initials = bookSlug
-    .split("-")
-    .map((part) => part[0] ?? "")
-    .join("");
-  return /^[a-z0-9]+$/.test(initials) ? initials : "book";
+/**
+ * The media key for a newly announced format.
+ *
+ * Uses the WHOLE book slug. An earlier version reduced it to initials, which is
+ * lossy in a way that matters here: `familias-ensambladas` and
+ * `familias-emocionales` both become `fe`, and this key is a completion
+ * identity — two books colliding on it would merge two different audiences'
+ * progress. The slug already satisfies the catalog's key grammar (lowercase,
+ * `a-z 0-9 . _ : -`) and the result is far inside the 200-character bound.
+ *
+ * Deterministic and server-owned. No uuid, no hash service: the parts that make
+ * this unique are parts the server already knows.
+ */
+function mintMediaKey(
+  bookSlug: string,
+  chapterOrder: number,
+  kind: ChapterMediaKind,
+): string {
+  return `${bookSlug}-c${chapterOrder}-${kind.toLowerCase()}-v1`;
 }

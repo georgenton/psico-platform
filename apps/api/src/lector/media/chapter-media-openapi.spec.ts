@@ -77,15 +77,28 @@ describe("ratchet · chapter media OpenAPI surface", () => {
   it("keeps the ADMIN media surface out of the reader contract", () => {
     // C2A administers DEFINITIONS. If an upload route ever appears here it must
     // be a deliberate edit to this list, not a silent addition.
-    const adminPaths = Object.keys(openapi.paths)
-      .filter((p) => p.startsWith("/api/pulso/") && p.includes("/media"))
+    const adminOps = Object.entries(openapi.paths)
+      .filter(([p]) => p.startsWith("/api/pulso/") && p.includes("/media"))
+      .flatMap(([p, methods]) =>
+        Object.entries(methods).map(
+          ([method, op]) => `${method.toUpperCase()} ${p} → ${op.operationId}`,
+        ),
+      )
       .sort();
-    expect(adminPaths).toEqual([
-      "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media",
-      "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/{mediaKey}/adopt",
-      "/api/pulso/content/media/drafts/{draftId}",
-      "/api/pulso/content/media/drafts/{draftId}/publish",
-    ]);
+
+    // Methods and operationIds, not just paths: an upload would most likely
+    // arrive as a new POST on an existing path, which a path-only list would
+    // not notice.
+    expect(adminOps).toEqual(
+      [
+        "GET /api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media → listContentStudioChapterMedia",
+        "POST /api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media → createContentStudioChapterMedia",
+        "POST /api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/{mediaKey}/adopt → adoptContentStudioChapterMedia",
+        "GET /api/pulso/content/media/drafts/{draftId} → getContentStudioMediaDraft",
+        "PUT /api/pulso/content/media/drafts/{draftId} → updateContentStudioMediaDraft",
+        "POST /api/pulso/content/media/drafts/{draftId}/publish → publishContentStudioMediaDraft",
+      ].sort(),
+    );
 
     // And the admin projection carries no provider fact either — the reason it
     // is a projection rather than the definition itself.
@@ -101,9 +114,27 @@ describe("ratchet · chapter media OpenAPI surface", () => {
       "videoUid",
       "accessPolicy",
       "captionLanguage",
+      "posterObjectKey",
+      "transcriptObjectKey",
     ]) {
       expect(schemas).not.toContain(forbidden);
     }
+  });
+
+  it("types the media draft's durationSec as a number, not an object", () => {
+    // Without an explicit `type: Number` on the DTO, Swagger emits an untyped
+    // schema and the generated client collapses this to `Record<string, never>`
+    // — a type nothing an editor could actually send will satisfy.
+    const schema = (
+      openapi as unknown as {
+        components: { schemas: Record<string, Schema> };
+      }
+    ).components.schemas.UpdateMediaDraftDto;
+
+    expect(schema.properties?.durationSec).toMatchObject({
+      type: "number",
+      nullable: true,
+    });
   });
 
   it("publishes exactly three READER operations, with the expected ids", () => {

@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { ApiError } from "@/lib/api";
 import { serverFetch } from "@/lib/api.server";
 import type {
+  ChapterImageResult,
+  CoverResult,
   ChapterPreview,
   SaveResult,
   PublishResult,
@@ -106,5 +108,47 @@ export async function publishBookAction(
     return { ok: true, data: published };
   } catch (err) {
     return asOutcome<PublishResult>(err);
+  }
+}
+
+/**
+ * Upload the catalog cover. Immediate — this is metadata, not content, so there
+ * is no draft for it to wait in.
+ */
+export async function uploadCoverAction(
+  bookSlug: string,
+  form: FormData,
+): Promise<ActionOutcome<CoverResult>> {
+  try {
+    const uploaded = await serverFetch<CoverResult>(
+      `/pulso/content/books/${encodeURIComponent(bookSlug)}/cover`,
+      { method: "POST", body: form },
+    );
+    revalidatePath(bookPath(bookSlug));
+    return { ok: true, data: uploaded };
+  } catch (err) {
+    return asOutcome<CoverResult>(err);
+  }
+}
+
+/**
+ * Store an illustration's bytes.
+ *
+ * Deliberately does NOT revalidate anything: no block exists yet and no draft
+ * has moved. The image becomes part of the chapter only when the editor saves.
+ */
+export async function uploadChapterImageAction(
+  bookSlug: string,
+  chapterOrder: number,
+  form: FormData,
+): Promise<ActionOutcome<ChapterImageResult>> {
+  try {
+    const uploaded = await serverFetch<ChapterImageResult>(
+      `/pulso/content/books/${encodeURIComponent(bookSlug)}/chapters/${chapterOrder}/images`,
+      { method: "POST", body: form },
+    );
+    return { ok: true, data: uploaded };
+  } catch (err) {
+    return asOutcome<ChapterImageResult>(err);
   }
 }

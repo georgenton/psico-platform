@@ -5,10 +5,16 @@ import Link from "next/link";
 import type { ChapterBlockKind, ChapterBlockSummary } from "@psico/types";
 
 import { ReaderContentSurface } from "@/components/dashboard/lector/ReaderContentSurface";
-import { previewChapterAction, saveChapterDraftAction } from "../../actions";
+import {
+  previewChapterAction,
+  saveChapterDraftAction,
+  uploadChapterImageAction,
+} from "../../actions";
+import { AddImageButton, ImageBlockRow } from "./ImageBlockRow";
 import {
   KIND_LABEL,
   isEditableKind,
+  isImageKind,
   type ChapterContent,
   type ChapterPreview,
   type RevisionStatus,
@@ -130,6 +136,52 @@ export function ChapterEditor({
     setBlocks((prev) => prev.filter((b) => b.localId !== localId));
   }, []);
 
+  const patchMeta = useCallback(
+    (localId: string, meta: Record<string, unknown>) => {
+      setBlocks((prev) =>
+        prev.map((b) => (b.localId === localId ? { ...b, meta } : b)),
+      );
+    },
+    [],
+  );
+
+  /**
+   * Upload a file and hand back where it landed.
+   *
+   * Nothing is written to the chapter here — the bytes exist, and the block that
+   * points at them is ordinary local state until the editor saves.
+   */
+  const uploadImage = useCallback(
+    async (file: File): Promise<string | null> => {
+      const form = new FormData();
+      form.append("file", file);
+      const result = await uploadChapterImageAction(
+        bookSlug,
+        chapterOrder,
+        form,
+      );
+      if (result.ok && result.data) return result.data.imageUrl;
+      setError(result.error ?? "No pudimos subir la imagen.");
+      return null;
+    },
+    [bookSlug, chapterOrder],
+  );
+
+  const addImage = useCallback((imageUrl: string) => {
+    setBlocks((prev) => [
+      ...prev,
+      {
+        localId: nextLocalId(),
+        kind: "IMAGE",
+        content: "",
+        // `alt` starts empty on purpose: the row makes it required and the save
+        // button stays disabled until it is filled, so the requirement is met
+        // where somebody can still act on it.
+        meta: { imageUrl, alt: "" },
+      },
+    ]);
+  }, []);
+
   const add = useCallback((kind: string) => {
     setBlocks((prev) => [
       ...prev,
@@ -141,10 +193,22 @@ export function ChapterEditor({
    * Persist the editor's current blocks. Returns the new revision on success so
    * a caller can act on it, or null when nothing was written.
    */
+  // An illustration with no alt text is not publishable, and blocking the save
+  // is the last honest moment to say so.
+  const imagesMissingAlt = blocks.filter(
+    (b) =>
+      isImageKind(b.kind) &&
+      !(typeof b.meta?.alt === "string" && b.meta.alt.trim()),
+  ).length;
+
   async function persist(): Promise<{
     revisionId: string;
     revisionNumber: number;
   } | null> {
+    if (imagesMissingAlt > 0) {
+      setError("Cada imagen necesita un texto alternativo antes de guardar.");
+      return null;
+    }
     setError(null);
     const result = await saveChapterDraftAction(bookSlug, chapterOrder, {
       expectedRevisionId: revisionId,
@@ -273,9 +337,10 @@ export function ChapterEditor({
             className="rounded-xl border px-4 py-3"
             style={{
               borderColor: "var(--color-warm-200)",
-              background: isEditableKind(b.kind)
-                ? "var(--color-warm-50)"
-                : "var(--color-lavender-50)",
+              background:
+                isEditableKind(b.kind) || isImageKind(b.kind)
+                  ? "var(--color-warm-50)"
+                  : "var(--color-lavender-50)",
             }}
           >
             <div className="mb-2 flex items-center justify-between gap-2">
@@ -284,7 +349,9 @@ export function ChapterEditor({
                 style={{ color: "var(--color-warm-500)" }}
               >
                 {KIND_LABEL[b.kind] ?? b.kind}
-                {!isEditableKind(b.kind) && " · se conserva"}
+                {!isEditableKind(b.kind) &&
+                  !isImageKind(b.kind) &&
+                  " · se conserva"}
               </span>
               <div className="flex gap-1">
                 <button
@@ -319,7 +386,16 @@ export function ChapterEditor({
               </div>
             </div>
 
-            {isEditableKind(b.kind) ? (
+            {isImageKind(b.kind) ? (
+              <ImageBlockRow
+                index={i}
+                caption={b.content}
+                meta={b.meta ?? {}}
+                onCaptionChange={(v) => patchBlock(b.localId, v)}
+                onMetaChange={(m) => patchMeta(b.localId, m)}
+                onUpload={uploadImage}
+              />
+            ) : isEditableKind(b.kind) ? (
               <textarea
                 value={b.content}
                 onChange={(e) => patchBlock(b.localId, e.target.value)}
@@ -359,6 +435,7 @@ export function ChapterEditor({
         >
           Añadir:
         </span>
+        <AddImageButton onUploaded={addImage} onUpload={uploadImage} />
         {(["PARAGRAPH", "HEADING", "QUOTE", "PAUSE"] as const).map((k) => (
           <button
             key={k}

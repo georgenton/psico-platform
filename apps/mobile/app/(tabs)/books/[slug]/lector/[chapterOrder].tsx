@@ -32,6 +32,7 @@ import {
   breatheReflectSeed,
   breatheEcoSeed,
   reflexionEcoSeed,
+  imageBlockInfo,
   videoBlockInfo,
   chapterConcept,
   projectReaderBlocks,
@@ -47,6 +48,7 @@ import { EcoTopicCard } from "@/components/dashboard/lector/EcoTopicCard";
 import { ChapterExercises } from "@/components/dashboard/lector/exercises/ChapterExercises";
 import { BreathingExercise } from "@/components/dashboard/lector/exercises/BreathingExercise";
 import { VideoBlock } from "@/components/dashboard/lector/VideoBlock";
+import { ImageBlock } from "@/components/dashboard/lector/ImageBlock";
 import {
   BlockActionsSheet,
   highlightStyleFor,
@@ -753,6 +755,17 @@ function BlockView({
     return (
       <View onLayout={(e) => onLayout(e.nativeEvent.layout.y)}>
         <VideoBlock info={video} />
+      </View>
+    );
+  }
+
+  // Illustration — same contract as web, so a published figure looks like the
+  // same figure on both. No highlight/long-press: there is no text to anchor to.
+  const image = imageBlockInfo(block);
+  if (image) {
+    return (
+      <View onLayout={(e) => onLayout(e.nativeEvent.layout.y)}>
+        <ImageBlock info={image} />
       </View>
     );
   }

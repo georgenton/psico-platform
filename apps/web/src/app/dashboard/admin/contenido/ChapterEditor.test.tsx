@@ -122,12 +122,33 @@ describe("ChapterEditor — the text belongs to whoever typed it", () => {
     });
   });
 
-  it("shows a media block read-only and says it is preserved, not supported", () => {
-    renderEditor();
+  it("shows a preserved block read-only and says so", async () => {
+    // IMAGE is administered now, so the preserved case is a kind this vertical
+    // still cannot edit. "We do not edit this yet" and "we lost this" must never
+    // look the same to the person who wrote it.
+    renderEditor(
+      chapter({
+        blocks: [
+          {
+            blockKey: "k1",
+            kind: "PARAGRAPH",
+            order: 0,
+            content: "Texto.",
+            meta: null,
+          },
+          {
+            blockKey: "k3",
+            kind: "VIDEO",
+            order: 1,
+            content: "Una cápsula",
+            meta: { videoUrl: "https://cdn/v.mp4" },
+          },
+        ],
+      } as never),
+    );
 
-    // "We do not edit this yet" and "we lost this" must never look the same.
-    expect(screen.getByText(/Imagen · se conserva/)).toBeInTheDocument();
-    expect(screen.queryByLabelText("Imagen 2")).not.toBeInTheDocument();
+    expect(screen.getByText(/Video · se conserva/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Video 2")).not.toBeInTheDocument();
   });
 });
 

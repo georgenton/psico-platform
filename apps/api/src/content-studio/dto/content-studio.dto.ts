@@ -34,7 +34,13 @@ export class ContentBlockInputDto {
   @MaxLength(100_000)
   content!: string;
 
-  @ApiProperty({ required: false, type: Object })
+  @ApiProperty({
+    required: false,
+    type: Object,
+    additionalProperties: true,
+    description:
+      "Metadatos del bloque. Forma libre a propósito: un IMAGE o AUDIO trae metadatos que este vertical todavía no administra, y deben sobrevivir una edición de texto intactos.",
+  })
   @IsOptional()
   @IsObject()
   meta?: Record<string, unknown>;

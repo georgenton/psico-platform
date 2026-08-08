@@ -303,3 +303,26 @@ export async function readUnitAtRevision(
     })),
   };
 }
+
+/**
+ * Every unit's title as of an EXACT revision, keyed by `unitKey`.
+ *
+ * The chapter list in Content Studio must show what the editor is editing, and
+ * that is the revision's title — not `Chapter.title`, which stopped being the
+ * authority the moment Content Core took over the text. Reading it here rather
+ * than writing back to the legacy row keeps one authority instead of two that
+ * can disagree.
+ */
+export async function readUnitTitlesAtRevision(
+  prisma: PrismaClient,
+  revisionId: string,
+): Promise<Map<string, string>> {
+  const units = await prisma.revisionUnit.findMany({
+    where: { revisionId },
+    include: {
+      unit: { select: { unitKey: true } },
+      unitVersion: { select: { title: true } },
+    },
+  });
+  return new Map(units.map((ru) => [ru.unit.unitKey, ru.unitVersion.title]));
+}

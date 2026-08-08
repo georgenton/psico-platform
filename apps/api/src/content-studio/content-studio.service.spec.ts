@@ -17,6 +17,7 @@ const draft = vi.hoisted(() => ({
   publishDraftRevision: vi.fn(),
   describeEditionDraft: vi.fn(),
   readUnitAtRevision: vi.fn(),
+  readUnitTitlesAtRevision: vi.fn(),
 }));
 
 vi.mock("../content-core/content-draft", () => draft);
@@ -52,7 +53,13 @@ beforeEach(() => {
     id: "chapter_1",
     order: 1,
     title: "Cap 1",
+    partNumber: null,
+    partTitle: null,
   });
+  prisma.chapter.findMany.mockResolvedValue([
+    { id: "chapter_1", order: 1, title: "Título viejo" },
+  ]);
+  draft.readUnitTitlesAtRevision.mockResolvedValue(new Map());
   prisma.edition.findUnique.mockResolvedValue(EDITION);
   draft.describeEditionDraft.mockResolvedValue({
     publishedRevisionId: "r5",
@@ -244,6 +251,82 @@ describe("ContentStudioService — reading a chapter", () => {
 
     await expect(service.getChapter("libro", 99)).rejects.toBeInstanceOf(
       NotFoundException,
+    );
+  });
+});
+
+describe("ContentStudioService — a text edit may not reshape the book", () => {
+  it("carries the chapter's part through a save the browser never mentioned", async () => {
+    // Parts live on the legacy Chapter row. If a save sent nulls here, editing
+    // one paragraph would quietly flatten "Parte II" out of the book.
+    prisma.chapter.findFirst.mockResolvedValue({
+      id: "chapter_1",
+      order: 4,
+      title: "Cap 4",
+      partNumber: 2,
+      partTitle: "Parte II · Integrar",
+    });
+
+    await service.saveChapterDraft("libro", 4, {
+      expectedRevisionId: "r6",
+      title: "Cap 4",
+      blocks: [{ kind: "PARAGRAPH", content: "Texto." }],
+    });
+
+    expect(draft.saveUnitDraft.mock.calls[0]![1].placement).toEqual({
+      order: 4,
+      partNumber: 2,
+      partTitle: "Parte II · Integrar",
+    });
+  });
+});
+
+describe("ContentStudioService — the chapter list shows what is being edited", () => {
+  it("prefers the revision's title over the stale legacy row", async () => {
+    const unitKey = draft.saveUnitDraft.mock.calls.length; // unused, keeps lint quiet
+    void unitKey;
+    // The list must agree with the editor that produced it: `Chapter.title` is
+    // the legacy row and goes stale the moment Content Studio renames a chapter.
+    draft.readUnitTitlesAtRevision.mockImplementation(async () => {
+      const { unitKeyFromLegacyChapterId } =
+        await import("../content-core/lib/block-key");
+      return new Map([
+        [unitKeyFromLegacyChapterId("chapter_1"), "Título nuevo"],
+      ]);
+    });
+
+    const state = await service.getBookState("libro");
+
+    expect(state.chapters[0]!.title).toBe("Título nuevo");
+    // Read from the DRAFT, because that is what the editor is editing.
+    expect(draft.readUnitTitlesAtRevision).toHaveBeenCalledWith(
+      expect.anything(),
+      "r6",
+    );
+  });
+
+  it("falls back to the legacy title only for a chapter Content Core never saw", async () => {
+    draft.readUnitTitlesAtRevision.mockResolvedValue(new Map());
+
+    const state = await service.getBookState("libro");
+
+    expect(state.chapters[0]!.title).toBe("Título viejo");
+  });
+
+  it("reads published titles when there is no draft", async () => {
+    draft.describeEditionDraft.mockResolvedValue({
+      publishedRevisionId: "r5",
+      publishedRevisionNumber: 5,
+      draftRevisionId: null,
+      draftRevisionNumber: null,
+      changedUnitKeys: [],
+    });
+
+    await service.getBookState("libro");
+
+    expect(draft.readUnitTitlesAtRevision).toHaveBeenCalledWith(
+      expect.anything(),
+      "r5",
     );
   });
 });

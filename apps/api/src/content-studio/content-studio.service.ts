@@ -11,6 +11,7 @@ import {
   describeEditionDraft,
   publishDraftRevision,
   readUnitAtRevision,
+  readUnitTitlesAtRevision,
   saveUnitDraft,
 } from "../content-core/content-draft";
 import { CONTENT_DRAFT_CONFLICT } from "../content-core/revision-lifecycle";
@@ -36,6 +37,13 @@ interface ResolvedChapter {
   unitKey: string;
   chapterOrder: number;
   chapterTitle: string;
+  /**
+   * The chapter's place in the book, carried so a text edit preserves it.
+   * Legacy `Chapter` owns this, not the editor's browser — a save that sent
+   * nulls here would quietly flatten a book's parts on the way through.
+   */
+  partNumber: number | null;
+  partTitle: string | null;
 }
 
 export interface ContentBlockView {
@@ -92,6 +100,15 @@ export class ContentStudioService {
       select: { id: true, order: true, title: true },
     });
 
+    // Titles come from the revision being edited. `Chapter.title` is the legacy
+    // row and goes stale the moment Content Studio renames a chapter; showing it
+    // would mean the list disagrees with the editor that produced it.
+    const effectiveRevisionId =
+      described.draftRevisionId ?? described.publishedRevisionId;
+    const titles = effectiveRevisionId
+      ? await readUnitTitlesAtRevision(this.prisma, effectiveRevisionId)
+      : new Map<string, string>();
+
     const changed = new Set(described.changedUnitKeys);
     return {
       book: {
@@ -104,11 +121,16 @@ export class ContentStudioService {
       draftRevisionId: described.draftRevisionId,
       draftRevisionNumber: described.draftRevisionNumber,
       changedUnitCount: described.changedUnitKeys.length,
-      chapters: chapters.map((c) => ({
-        order: c.order,
-        title: c.title,
-        changed: changed.has(unitKeyFromLegacyChapterId(c.id)),
-      })),
+      chapters: chapters.map((c) => {
+        const unitKey = unitKeyFromLegacyChapterId(c.id);
+        return {
+          order: c.order,
+          // Falls back to the legacy title only for a chapter Content Core has
+          // never ingested — there is no revision to read a truer one from.
+          title: titles.get(unitKey) ?? c.title,
+          changed: changed.has(unitKey),
+        };
+      }),
     };
   }
 
@@ -137,6 +159,8 @@ export class ContentStudioService {
     );
     if (!unit) throw new NotFoundException({ code: "CONTENT_UNIT_NOT_FOUND" });
 
+    const isDraft = described.draftRevisionId === revisionId;
+
     return {
       bookSlug,
       chapterOrder,
@@ -144,12 +168,12 @@ export class ContentStudioService {
       summary: unit.summary,
       durationMinutes: unit.durationMinutes,
       revisionId,
-      revisionNumber:
-        described.draftRevisionId === revisionId
-          ? described.draftRevisionNumber
-          : described.publishedRevisionNumber,
-      revisionStatus:
-        described.draftRevisionId === revisionId ? "DRAFT" : "PUBLISHED",
+      // Non-null by construction: `revisionId` came from one of the two pairs
+      // below, and each id travels with its own number.
+      revisionNumber: (isDraft
+        ? described.draftRevisionNumber
+        : described.publishedRevisionNumber)!,
+      revisionStatus: isDraft ? ("DRAFT" as const) : ("PUBLISHED" as const),
       changedUnitCount: described.changedUnitKeys.length,
       blocks: unit.blocks as ContentBlockView[],
     };
@@ -176,12 +200,13 @@ export class ContentStudioService {
         title: input.title,
         summary: input.summary ?? null,
         durationMinutes: input.durationMinutes ?? null,
-        // Placement follows the chapter's own position; the browser does not
-        // get to move a chapter by saving its text.
+        // Placement follows the chapter's own position AND its part. The
+        // browser does not get to move a chapter by saving its text, and it
+        // does not get to erase which part the chapter belongs to either.
         placement: {
           order: resolved.chapterOrder,
-          partNumber: null,
-          partTitle: null,
+          partNumber: resolved.partNumber,
+          partTitle: resolved.partTitle,
         },
         blocks: input.blocks.map((b) => ({
           kind: b.kind,
@@ -251,6 +276,8 @@ export class ContentStudioService {
       revisionId: revision.id,
       revisionNumber: revision.number,
       title: unit.title,
+      summary: unit.summary,
+      durationMinutes: unit.durationMinutes,
       blocks: unit.blocks as ContentBlockView[],
     };
   }
@@ -309,7 +336,13 @@ export class ContentStudioService {
 
     const chapter = await this.prisma.chapter.findFirst({
       where: { bookId: book.id, order: chapterOrder },
-      select: { id: true, order: true, title: true },
+      select: {
+        id: true,
+        order: true,
+        title: true,
+        partNumber: true,
+        partTitle: true,
+      },
     });
     if (!chapter) throw new NotFoundException({ code: "CHAPTER_NOT_FOUND" });
 
@@ -322,6 +355,8 @@ export class ContentStudioService {
       unitKey: unitKeyFromLegacyChapterId(chapter.id),
       chapterOrder: chapter.order,
       chapterTitle: chapter.title,
+      partNumber: chapter.partNumber,
+      partTitle: chapter.partTitle,
     };
   }
 

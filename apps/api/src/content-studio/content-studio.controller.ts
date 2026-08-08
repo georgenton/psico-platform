@@ -22,6 +22,14 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RequiredRole, RolesGuard } from "../shared";
 import { ContentStudioService } from "./content-studio.service";
 import {
+  ContentStudioBookListResponseDto,
+  ContentStudioBookStateResponseDto,
+  ContentStudioChapterResponseDto,
+  ContentStudioPreviewResponseDto,
+  ContentStudioPublishResponseDto,
+  ContentStudioSaveResponseDto,
+} from "./dto/content-studio-response.dto";
+import {
   PreviewQueryDto,
   PublishBookDto,
   SaveChapterDraftDto,
@@ -51,7 +59,10 @@ export class ContentStudioController {
     operationId: "listContentStudioBooks",
     summary: "Los libros del catálogo que un editor puede abrir.",
   })
-  @ApiOkResponse({ description: "Libros con su número de capítulos." })
+  @ApiOkResponse({
+    type: ContentStudioBookListResponseDto,
+    description: "Libros con su número de capítulos.",
+  })
   listBooks() {
     return this.studio.listBooks();
   }
@@ -63,6 +74,7 @@ export class ContentStudioController {
     summary:
       "Estado editorial del libro: revisión publicada, borrador activo y capítulos con cambios.",
   })
+  @ApiOkResponse({ type: ContentStudioBookStateResponseDto })
   @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
   getBook(@Param("bookSlug") bookSlug: string) {
     return this.studio.getBookState(bookSlug);
@@ -75,6 +87,7 @@ export class ContentStudioController {
     summary:
       "El capítulo como debe editarse: el borrador activo si existe, si no lo publicado. El revisionId devuelto es el token de concurrencia.",
   })
+  @ApiOkResponse({ type: ContentStudioChapterResponseDto })
   @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
   getChapter(
     @Param("bookSlug") bookSlug: string,
@@ -90,6 +103,7 @@ export class ContentStudioController {
     summary:
       "Guarda el capítulo en el borrador del libro. No publica: el lector no ve nada hasta publicar.",
   })
+  @ApiOkResponse({ type: ContentStudioSaveResponseDto })
   @ApiConflictResponse({
     type: ErrorEnvelopeDto,
     description: "El borrador cambió; no se escribió nada.",
@@ -115,6 +129,7 @@ export class ContentStudioController {
     summary:
       "El capítulo tal como quedaría, leído del borrador activo. Sólo lectura.",
   })
+  @ApiOkResponse({ type: ContentStudioPreviewResponseDto })
   @ApiConflictResponse({ type: ErrorEnvelopeDto })
   preview(
     @Param("bookSlug") bookSlug: string,
@@ -131,6 +146,7 @@ export class ContentStudioController {
     summary:
       "Publica el borrador del LIBRO. El alcance es la edición completa, no un capítulo.",
   })
+  @ApiOkResponse({ type: ContentStudioPublishResponseDto })
   @ApiConflictResponse({ type: ErrorEnvelopeDto })
   publish(@Param("bookSlug") bookSlug: string, @Body() dto: PublishBookDto) {
     return this.studio.publishBook(bookSlug, dto.expectedDraftRevisionId);

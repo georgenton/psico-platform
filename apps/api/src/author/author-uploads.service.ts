@@ -8,15 +8,11 @@ import {
 import { PrismaService } from "../prisma";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { StorageService } from "../storage/storage.service";
+import { assertUploadableImage, imageExtension } from "../shared/image-upload";
 import { randomBytes } from "node:crypto";
 
-const COVER_MIME_ALLOWED = new Set([
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-]);
-const COVER_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+// The image rules live in one place now — `/autor` and Content Studio accept
+// exactly the same thing, so neither can drift into accepting more.
 
 const AUDIO_MIME_ALLOWED = new Set([
   "audio/mpeg",
@@ -71,24 +67,15 @@ export class AuthorUploadsService {
     bookId: string,
     file: Express.Multer.File | undefined,
   ) {
+    // Kept verbatim: `/autor` has always answered a missing file with this
+    // exact shape, and the shared helper's envelope form would change the wire
+    // response for an existing client. The MIME and size rules — the part worth
+    // sharing — come from the helper below.
     if (!file) throw new BadRequestException("FILE_REQUIRED");
-    if (!COVER_MIME_ALLOWED.has(file.mimetype)) {
-      throw new BadRequestException({
-        code: "INVALID_IMAGE_TYPE",
-        allowed: Array.from(COVER_MIME_ALLOWED),
-        got: file.mimetype,
-      });
-    }
-    if (file.size > COVER_MAX_BYTES) {
-      throw new BadRequestException({
-        code: "FILE_TOO_LARGE",
-        maxBytes: COVER_MAX_BYTES,
-        got: file.size,
-      });
-    }
+    assertUploadableImage(file);
 
     const book = await this.findOwnedBookOr404(userId, bookId);
-    const ext = fileExtension(file.mimetype, "jpg");
+    const ext = imageExtension(file.mimetype);
     const random = randomBytes(8).toString("hex");
     const key = `autor-books/${book.id}/cover-${random}.${ext}`;
 

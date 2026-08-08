@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { getSessionUser, isNextThrow, serverFetch } from "@/lib/api.server";
 import type { BookState } from "../contracts";
+import { CoverPanel } from "./CoverPanel";
 import { PublishBookPanel } from "./PublishBookPanel";
 
 export const metadata: Metadata = { title: "Pulso · Contenido del libro" };
@@ -84,6 +85,12 @@ export default async function ContentStudioBookPage({
           </p>
         )}
       </header>
+
+      <CoverPanel
+        bookSlug={params.bookSlug}
+        bookTitle={state.book.title}
+        coverArtUrl={state.book.coverArtUrl}
+      />
 
       {state.draftRevisionId !== null && state.draftRevisionNumber !== null && (
         <PublishBookPanel

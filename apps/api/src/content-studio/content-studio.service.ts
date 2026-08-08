@@ -116,6 +116,7 @@ export class ContentStudioService {
         title: book.title,
         subtitle: book.subtitle ?? null,
         authorName: book.author?.name ?? null,
+        coverArtUrl: book.coverArtUrl ?? null,
       },
       publishedRevisionNumber: described.publishedRevisionNumber,
       draftRevisionId: described.draftRevisionId,

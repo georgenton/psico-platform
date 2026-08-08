@@ -2388,6 +2388,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pulso/content/books/{bookSlug}/cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reemplaza la portada del catálogo. Inmediato: no crea borrador ni revisión. */
+        post: operations["uploadContentStudioCover"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sube la imagen de una ilustración. No crea bloque ni revisión: eso ocurre al guardar el borrador. */
+        post: operations["uploadContentStudioChapterImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pulso/content/books/{bookSlug}/publish": {
         parameters: {
             query?: never;
@@ -3576,6 +3610,8 @@ export interface components {
             title: string;
             subtitle: string | null;
             authorName: string | null;
+            /** @description La portada vigente del catálogo, o null si no hay ninguna. */
+            coverArtUrl: string | null;
         };
         ContentStudioChapterRowDto: {
             order: number;
@@ -3650,6 +3686,14 @@ export interface components {
             summary: string | null;
             durationMinutes: number | null;
             blocks: components["schemas"]["ContentStudioBlockDto"][];
+        };
+        ContentStudioCoverResponseDto: {
+            /** @description La portada ya vigente en el catálogo. */
+            coverArtUrl: string;
+        };
+        ContentStudioChapterImageResponseDto: {
+            /** @description Dónde quedó la imagen. Todavía no forma parte del capítulo: eso ocurre al guardar el borrador. */
+            imageUrl: string;
         };
         PublishBookDto: {
             /** @description El borrador que el editor está publicando. */
@@ -12416,6 +12460,79 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    uploadContentStudioCover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file?: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStudioCoverResponseDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    uploadContentStudioChapterImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file?: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStudioChapterImageResponseDto"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

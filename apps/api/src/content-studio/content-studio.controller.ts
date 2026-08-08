@@ -8,9 +8,14 @@ import {
   Post,
   Put,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import {
+  ApiBody,
+  ApiConsumes,
   ApiConflictResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -21,11 +26,14 @@ import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RequiredRole, RolesGuard } from "../shared";
 import { ContentStudioService } from "./content-studio.service";
+import { ContentStudioAssetsService } from "./content-studio-assets.service";
 import {
   ContentStudioBookListResponseDto,
   ContentStudioBookStateResponseDto,
   ContentStudioChapterResponseDto,
   ContentStudioPreviewResponseDto,
+  ContentStudioChapterImageResponseDto,
+  ContentStudioCoverResponseDto,
   ContentStudioPublishResponseDto,
   ContentStudioSaveResponseDto,
 } from "./dto/content-studio-response.dto";
@@ -51,7 +59,10 @@ import {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @RequiredRole("ADMIN")
 export class ContentStudioController {
-  constructor(private readonly studio: ContentStudioService) {}
+  constructor(
+    private readonly studio: ContentStudioService,
+    private readonly assets: ContentStudioAssetsService,
+  ) {}
 
   @Get("books")
   @Header("Cache-Control", "private, no-store")
@@ -134,6 +145,69 @@ export class ContentStudioController {
     @Query() query: PreviewQueryDto,
   ) {
     return this.studio.previewChapter(bookSlug, chapterOrder, query.revisionId);
+  }
+
+  /**
+   * The catalog cover. Immediate, and the UI says so.
+   *
+   * Not a Content Core write: a cover is metadata about the book, not a block
+   * inside a chapter, so it has no revision to belong to and no draft to wait
+   * in.
+   */
+  @Post("books/:bookSlug/cover")
+  @Header("Cache-Control", "private, no-store")
+  @UseInterceptors(FileInterceptor("file"))
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: { file: { type: "string", format: "binary" } },
+    },
+  })
+  @ApiOperation({
+    operationId: "uploadContentStudioCover",
+    summary:
+      "Reemplaza la portada del catálogo. Inmediato: no crea borrador ni revisión.",
+  })
+  @ApiOkResponse({ type: ContentStudioCoverResponseDto })
+  @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
+  uploadCover(
+    @Param("bookSlug") bookSlug: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    return this.assets.uploadCover(bookSlug, file);
+  }
+
+  /**
+   * An illustration's BYTES. Nothing more.
+   *
+   * No block is created and no revision is minted — the editor places the image
+   * and saves it through the ordinary draft lifecycle, so an upload that is
+   * never saved leaves the book exactly as it was.
+   */
+  @Post("books/:bookSlug/chapters/:chapterOrder/images")
+  @Header("Cache-Control", "private, no-store")
+  @UseInterceptors(FileInterceptor("file"))
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: { file: { type: "string", format: "binary" } },
+    },
+  })
+  @ApiOperation({
+    operationId: "uploadContentStudioChapterImage",
+    summary:
+      "Sube la imagen de una ilustración. No crea bloque ni revisión: eso ocurre al guardar el borrador.",
+  })
+  @ApiOkResponse({ type: ContentStudioChapterImageResponseDto })
+  @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
+  uploadChapterImage(
+    @Param("bookSlug") bookSlug: string,
+    @Param("chapterOrder", ParseIntPipe) chapterOrder: number,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    return this.assets.uploadChapterImage(bookSlug, chapterOrder, file);
   }
 
   @Post("books/:bookSlug/publish")

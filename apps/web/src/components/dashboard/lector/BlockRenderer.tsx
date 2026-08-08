@@ -5,8 +5,9 @@ import type {
   HighlightColor,
   HighlightSummary,
 } from "@psico/types";
-import { videoBlockInfo } from "@psico/types";
+import { imageBlockInfo, videoBlockInfo } from "@psico/types";
 import { VideoBlock } from "./VideoBlock";
+import { ImageBlock } from "./ImageBlock";
 
 interface Props {
   block: ChapterBlockSummary;
@@ -64,6 +65,11 @@ export function BlockRenderer({
   // dedicated player; no highlight/annotation overlay applies.
   const video = videoBlockInfo(block);
   if (video) return <VideoBlock info={video} blockId={block.id} />;
+
+  // Illustration. Like video, no highlight/annotation overlay applies — there is
+  // no text to anchor a range to.
+  const image = imageBlockInfo(block);
+  if (image) return <ImageBlock info={image} blockId={block.id} />;
 
   const isQuote = block.kind === "QUOTE";
   const isHeading = block.kind === "HEADING";

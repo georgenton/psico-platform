@@ -46,7 +46,7 @@ export class ApiError extends Error {
 interface FetchOptions extends Omit<RequestInit, "body"> {
   token?: string;
   // Accept typed objects so callers don't have to JSON.stringify manually
-  body?: object | string | null;
+  body?: object | string | FormData | null;
 }
 
 export async function apiFetch<T>(
@@ -55,12 +55,18 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
 
-  const serialisedBody =
-    body != null && typeof body === "object"
+  // FormData goes through untouched, and WITHOUT a Content-Type: fetch has to
+  // set it itself so the multipart boundary matches the body it generates.
+  // Setting it by hand produces a request no server can parse.
+  const isMultipart = body instanceof FormData;
+
+  const serialisedBody = isMultipart
+    ? body
+    : body != null && typeof body === "object"
       ? JSON.stringify(body)
       : (body ?? undefined);
 
-  if (serialisedBody != null) {
+  if (serialisedBody != null && !isMultipart) {
     headers.set("Content-Type", "application/json");
   }
   if (token) {

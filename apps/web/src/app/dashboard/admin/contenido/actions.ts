@@ -54,9 +54,6 @@ export async function saveChapterDraftAction(
   chapterOrder: number,
   input: {
     expectedRevisionId: string;
-    title: string;
-    summary: string | null;
-    durationMinutes: number | null;
     blocks: StudioBlockInput[];
   },
 ): Promise<ActionOutcome<SaveResult>> {

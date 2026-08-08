@@ -11,6 +11,7 @@ import {
   isEditableKind,
   type ChapterContent,
   type ChapterPreview,
+  type RevisionStatus,
   type StudioBlock,
 } from "../../contracts";
 
@@ -28,6 +29,11 @@ import {
  * dropped. An IMAGE keeps its `meta` and its position and is shown read-only,
  * because "we do not edit this yet" and "we lost this" must never look the same
  * to the person who wrote it.
+ *
+ * The title is READ-ONLY. Several surfaces still read the legacy `Chapter.title`
+ * — the web and mobile reader headers, page metadata — so a rename here would
+ * show up in some places and not others. The server owns it too, not just this
+ * screen: the save request has no title field to send.
  *
  * `revisionId` is the concurrency token. It comes from the load, goes back with
  * the save, and is replaced by whatever the save returns. On a 409 nothing local
@@ -79,12 +85,16 @@ export function ChapterEditor({
   bookTitle,
   initial,
 }: Props) {
-  const [title, setTitle] = useState(initial.title);
   const [blocks, setBlocks] = useState<EditorBlock[]>(() =>
     toEditorBlocks(initial.blocks),
   );
   const [revisionId, setRevisionId] = useState(initial.revisionId);
   const [revisionNumber, setRevisionNumber] = useState(initial.revisionNumber);
+  // State, not `initial`: after the first save the revision is a DRAFT, and a
+  // header still reading "publicada" would tell the editor their work is live.
+  const [revisionStatus, setRevisionStatus] = useState<RevisionStatus>(
+    initial.revisionStatus,
+  );
 
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -127,42 +137,67 @@ export function ChapterEditor({
     ]);
   }, []);
 
-  async function save() {
-    setSaving(true);
+  /**
+   * Persist the editor's current blocks. Returns the new revision on success so
+   * a caller can act on it, or null when nothing was written.
+   */
+  async function persist(): Promise<{
+    revisionId: string;
+    revisionNumber: number;
+  } | null> {
     setError(null);
     const result = await saveChapterDraftAction(bookSlug, chapterOrder, {
       expectedRevisionId: revisionId,
-      title,
-      summary: initial.summary,
-      durationMinutes: initial.durationMinutes,
-      // Content only. Order is the array's order; identity is the server's.
+      // Content only. Order is the array's order; identity, title, summary and
+      // duration are the server's.
       blocks: blocks.map((b) => ({
         kind: b.kind,
         content: b.content,
         ...(b.meta ? { meta: b.meta } : {}),
       })),
     });
-    setSaving(false);
 
     if (result.ok && result.data) {
       setRevisionId(result.data.revisionId);
       setRevisionNumber(result.data.revisionNumber);
+      setRevisionStatus("DRAFT");
       setSavedAt(Date.now());
-      // The preview belongs to the revision that just got superseded.
-      setPreview(null);
-      return;
+      return result.data;
     }
     if (result.conflict) setConflict(true);
     else setError(result.error ?? "No pudimos guardar el borrador.");
+    return null;
   }
 
-  async function openPreview() {
+  async function save() {
+    setSaving(true);
+    // A fresh save supersedes whatever revision the preview was showing.
+    const saved = await persist();
+    if (saved) setPreview(null);
+    setSaving(false);
+  }
+
+  /**
+   * Save, then preview what was saved.
+   *
+   * Previewing without saving would show the last PERSISTED draft while newer
+   * edits sat in a textarea — a preview that quietly lies about what it is
+   * previewing. So the button says it saves, and it does. A conflict stops the
+   * whole thing: no preview, no retry, local text untouched.
+   */
+  async function saveAndPreview() {
     setPreviewing(true);
     setPreviewError(null);
+    const saved = await persist();
+    if (!saved) {
+      setPreviewing(false);
+      setPreview(null);
+      return;
+    }
     const result = await previewChapterAction(
       bookSlug,
       chapterOrder,
-      revisionId,
+      saved.revisionId,
     );
     setPreviewing(false);
     if (result.ok && result.data) {
@@ -172,8 +207,7 @@ export function ChapterEditor({
     setPreviewError(
       result.conflict
         ? "El borrador cambió. Recarga para verlo."
-        : (result.error ??
-            "Guarda el borrador antes de previsualizar: sólo se puede ver el borrador activo."),
+        : (result.error ?? "No pudimos abrir la vista previa."),
     );
   }
 
@@ -215,21 +249,21 @@ export function ChapterEditor({
           style={{ color: "var(--color-warm-500)" }}
         >
           Cap. {chapterOrder} · revisión r{revisionNumber}{" "}
-          {initial.revisionStatus === "DRAFT" ? "(borrador)" : "(publicada)"}
+          {revisionStatus === "DRAFT" ? "(borrador)" : "(publicada)"}
         </p>
-        <label className="mt-2 block">
-          <span className="sr-only">Título del capítulo</span>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            aria-label="Título del capítulo"
-            className="w-full rounded-lg border px-3 py-2 text-[20px] font-bold"
-            style={{
-              borderColor: "var(--color-warm-200)",
-              color: "var(--color-warm-900)",
-            }}
-          />
-        </label>
+        <h1
+          className="mt-2 text-[20px] font-bold"
+          style={{ color: "var(--color-warm-900)" }}
+        >
+          {initial.title}
+        </h1>
+        <p
+          className="mt-1.5 text-[12.5px]"
+          style={{ color: "var(--color-warm-500)" }}
+        >
+          El título y la estructura del capítulo se administrarán en una
+          siguiente etapa. Aquí puedes editar su contenido.
+        </p>
       </header>
 
       <ol className="space-y-3">
@@ -351,7 +385,7 @@ export function ChapterEditor({
         <button
           type="button"
           onClick={save}
-          disabled={saving}
+          disabled={saving || previewing}
           className="rounded-full px-5 py-2.5 text-[13.5px] font-semibold text-white disabled:opacity-60"
           style={{ background: "var(--color-lavender-600)" }}
         >
@@ -359,15 +393,15 @@ export function ChapterEditor({
         </button>
         <button
           type="button"
-          onClick={openPreview}
-          disabled={previewing}
+          onClick={saveAndPreview}
+          disabled={previewing || saving}
           className="rounded-full px-4 py-2.5 text-[13.5px] font-semibold"
           style={{
             background: "var(--color-lavender-100)",
             color: "var(--color-lavender-700)",
           }}
         >
-          {previewing ? "Cargando…" : "Previsualizar"}
+          {previewing ? "Guardando…" : "Guardar y previsualizar"}
         </button>
         {savedAt !== null && (
           <span

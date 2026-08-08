@@ -1,12 +1,10 @@
 import { ApiProperty } from "@nestjs/swagger";
 import {
   IsArray,
-  IsInt,
   IsObject,
   IsOptional,
   IsString,
   MaxLength,
-  Min,
   ValidateNested,
 } from "class-validator";
 import { Type } from "class-transformer";
@@ -17,6 +15,11 @@ import { Type } from "class-transformer";
  * The browser sends CONTENT. It cannot send an edition, a unit key, a revision
  * number, a chapter id or a `ContentBlock` identity — those are resolved from
  * the route server-side, so a request cannot reach across books.
+ *
+ * Title, summary and duration are NOT here. The editor does not administer them
+ * yet, and a field an admin could change through curl but not through the UI is
+ * a promise the product has not made — the server carries them forward from the
+ * base revision instead.
  *
  * `meta` is the one loosely-typed field, and deliberately so: an IMAGE or AUDIO
  * block carries metadata this vertical does not administer yet, and it must
@@ -50,23 +53,6 @@ export class SaveChapterDraftDto {
   @ApiProperty({ description: "La revisión que el editor cargó." })
   @IsString()
   expectedRevisionId!: string;
-
-  @ApiProperty()
-  @IsString()
-  @MaxLength(300)
-  title!: string;
-
-  @ApiProperty({ required: false, nullable: true })
-  @IsOptional()
-  @IsString()
-  @MaxLength(2_000)
-  summary?: string;
-
-  @ApiProperty({ required: false, nullable: true })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  durationMinutes?: number;
 
   @ApiProperty({ type: [ContentBlockInputDto] })
   @IsArray()

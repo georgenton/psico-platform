@@ -21,6 +21,16 @@ export type ChapterPreview = S["ContentStudioPreviewResponseDto"];
 export type SaveResult = S["ContentStudioSaveResponseDto"];
 export type PublishResult = S["ContentStudioPublishResponseDto"];
 
+/**
+ * The revision status as a plain union.
+ *
+ * The generated client models it as a runtime TS `enum`, and importing that
+ * would pull a value dependency into the bundle just to hold two strings in
+ * component state. Enum members are assignable to their literal types, so this
+ * still type-checks against the contract.
+ */
+export type RevisionStatus = "DRAFT" | "PUBLISHED";
+
 /** What a save sends per block: content only, never identity. */
 export interface StudioBlockInput {
   kind: string;

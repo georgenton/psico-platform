@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ChapterEditor } from "./[bookSlug]/[chapterOrder]/ChapterEditor";
-import type { ChapterContent } from "./contracts";
+import type { ChapterContent, RevisionStatus } from "./contracts";
 
 /**
  * The chapter editor — the parts where being wrong loses somebody's writing.
@@ -21,7 +21,11 @@ const actions = vi.hoisted(() => ({
 vi.mock("./actions", () => actions);
 vi.mock("../../actions", () => actions);
 
-function chapter(overrides: Partial<ChapterContent> = {}): ChapterContent {
+type ChapterOverrides = Partial<Omit<ChapterContent, "revisionStatus">> & {
+  revisionStatus?: RevisionStatus;
+};
+
+function chapter(overrides: ChapterOverrides = {}): ChapterContent {
   return {
     bookSlug: "eec",
     chapterOrder: 1,
@@ -237,8 +241,8 @@ describe("ChapterEditor — preview", () => {
       data: {
         bookSlug: "eec",
         chapterOrder: 1,
-        revisionId: "rev_6",
-        revisionNumber: 6,
+        revisionId: "rev_7",
+        revisionNumber: 7,
         title: "Cuando la calma no llega",
         summary: null,
         durationMinutes: null,
@@ -262,29 +266,34 @@ describe("ChapterEditor — preview", () => {
     });
     renderEditor();
 
-    await user.click(screen.getByRole("button", { name: "Previsualizar" }));
+    await user.click(
+      screen.getByRole("button", { name: "Guardar y previsualizar" }),
+    );
 
     await waitFor(() =>
       expect(screen.getByText("Texto del borrador.")).toBeInTheDocument(),
     );
     expect(screen.getByText("Una cita del borrador.")).toBeInTheDocument();
-    expect(screen.getByText(/Vista previa · borrador r6/)).toBeInTheDocument();
+    expect(screen.getByText(/Vista previa · borrador r7/)).toBeInTheDocument();
+    // The button saves first, so it previews what that save produced.
     expect(actions.previewChapterAction).toHaveBeenCalledWith(
       "eec",
       1,
-      "rev_6",
+      "rev_7",
     );
   });
 
-  it("drops a stale preview when the draft moves under it", async () => {
+  it("saves the CURRENT text before previewing, and previews what it saved", async () => {
+    // Previewing without saving would show the last persisted draft while newer
+    // edits sat in a textarea — a preview that lies about what it is previewing.
     const user = userEvent.setup();
     actions.previewChapterAction.mockResolvedValue({
       ok: true,
       data: {
         bookSlug: "eec",
         chapterOrder: 1,
-        revisionId: "rev_6",
-        revisionNumber: 6,
+        revisionId: "rev_7",
+        revisionNumber: 7,
         title: "T",
         summary: null,
         durationMinutes: null,
@@ -293,7 +302,7 @@ describe("ChapterEditor — preview", () => {
             blockKey: "k1",
             kind: "PARAGRAPH",
             order: 0,
-            content: "Antes de guardar.",
+            content: "Texto recién editado.",
             meta: null,
           },
         ],
@@ -301,15 +310,101 @@ describe("ChapterEditor — preview", () => {
     });
     renderEditor();
 
-    await user.click(screen.getByRole("button", { name: "Previsualizar" }));
-    await waitFor(() =>
-      expect(screen.getByText("Antes de guardar.")).toBeInTheDocument(),
+    const box = screen.getByLabelText("Párrafo 1");
+    await user.clear(box);
+    await user.paste("Texto recién editado.");
+    await user.click(
+      screen.getByRole("button", { name: "Guardar y previsualizar" }),
     );
 
-    // Saving mints r7, so a preview of r6 is no longer what would ship.
+    await waitFor(() =>
+      expect(actions.saveChapterDraftAction).toHaveBeenCalled(),
+    );
+    expect(
+      actions.saveChapterDraftAction.mock.calls[0]![2].blocks[0].content,
+    ).toBe("Texto recién editado.");
+    await waitFor(() =>
+      expect(actions.previewChapterAction).toHaveBeenCalledWith(
+        "eec",
+        1,
+        "rev_7",
+      ),
+    );
+    // Scope to the rendered block — the same text is also in the textarea.
+    const rendered = document.querySelectorAll(".reader-block");
+    expect([...rendered].map((n) => n.textContent)).toContain(
+      "Texto recién editado.",
+    );
+  });
+
+  it("does not preview when the save conflicts, and keeps the local text", async () => {
+    const user = userEvent.setup();
+    actions.saveChapterDraftAction.mockResolvedValue({
+      ok: false,
+      conflict: true,
+    });
+    renderEditor();
+
+    await user.click(
+      screen.getByRole("button", { name: "Guardar y previsualizar" }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/El borrador cambió desde que abriste esta pantalla/),
+      ).toBeInTheDocument(),
+    );
+    expect(actions.previewChapterAction).not.toHaveBeenCalled();
+    expect(actions.saveChapterDraftAction).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ChapterEditor — the header tells the truth about what is live", () => {
+  it("stops saying publicada the moment a save makes it a draft", async () => {
+    const user = userEvent.setup();
+    renderEditor(
+      chapter({
+        revisionId: "rev_5",
+        revisionNumber: 5,
+        revisionStatus: "PUBLISHED",
+      }),
+    );
+
+    expect(screen.getByText(/revisión r5\s*\(publicada\)/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Guardar borrador" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/revisión r7\s*\(borrador\)/),
+      ).toBeInTheDocument(),
+    );
+    // The old label must be gone, not merely joined by a new one.
+    expect(screen.queryByText(/\(publicada\)/)).not.toBeInTheDocument();
+  });
+});
+
+describe("ChapterEditor — the title is not ours to change yet", () => {
+  it("shows the title read-only and never sends it", async () => {
+    // Legacy Chapter.title still feeds reader headers and page metadata, so a
+    // rename here would appear in some surfaces and not others.
+    const user = userEvent.setup();
+    renderEditor();
+
+    expect(screen.getByText("Cuando la calma no llega")).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Título del capítulo"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/se administrarán en una siguiente etapa/),
+    ).toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: "Guardar borrador" }));
     await waitFor(() =>
-      expect(screen.queryByText("Antes de guardar.")).not.toBeInTheDocument(),
+      expect(actions.saveChapterDraftAction).toHaveBeenCalled(),
+    );
+    expect(actions.saveChapterDraftAction.mock.calls[0]![2]).not.toHaveProperty(
+      "title",
     );
   });
 });

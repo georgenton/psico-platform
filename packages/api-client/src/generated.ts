@@ -2362,7 +2362,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Guarda el capítulo en el borrador del libro. No publica: el lector no ve nada hasta publicar. */
+        /** Guarda los BLOQUES del capítulo en el borrador del libro. No publica, y no renombra: título, resumen y duración se conservan desde la revisión base. */
         put: operations["saveContentStudioChapterDraft"];
         post?: never;
         delete?: never;
@@ -3633,9 +3633,6 @@ export interface components {
         SaveChapterDraftDto: {
             /** @description La revisión que el editor cargó. */
             expectedRevisionId: string;
-            title: string;
-            summary?: string | null;
-            durationMinutes?: number | null;
             blocks: components["schemas"]["ContentBlockInputDto"][];
         };
         ContentStudioSaveResponseDto: {

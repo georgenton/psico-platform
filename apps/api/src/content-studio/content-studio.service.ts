@@ -179,27 +179,35 @@ export class ContentStudioService {
     };
   }
 
+  /**
+   * Save the chapter's BLOCKS into the book's draft.
+   *
+   * Title, summary and duration are read from the base revision, not from the
+   * request. The editor does not administer them yet — several surfaces still
+   * read the legacy `Chapter.title` — and a field an admin could change through
+   * curl but not through the UI is a promise the product has not made. Carrying
+   * them forward from the base is also what keeps a save from being a rename.
+   */
   async saveChapterDraft(
     bookSlug: string,
     chapterOrder: number,
     input: {
       expectedRevisionId: string;
-      title: string;
-      summary?: string | null;
-      durationMinutes?: number | null;
       blocks: Array<{ kind: string; content: string; meta?: unknown }>;
     },
   ) {
     const resolved = await this.resolveChapter(bookSlug, chapterOrder);
+    const base = await this.readCurrentUnit(resolved);
 
     try {
       const saved = await saveUnitDraft(this.prisma, {
         editionId: resolved.editionId,
         expectedRevisionId: input.expectedRevisionId,
         unitKey: resolved.unitKey,
-        title: input.title,
-        summary: input.summary ?? null,
-        durationMinutes: input.durationMinutes ?? null,
+        // Server-owned metadata, carried forward from the base revision.
+        title: base.title,
+        summary: base.summary,
+        durationMinutes: base.durationMinutes,
         // Placement follows the chapter's own position AND its part. The
         // browser does not get to move a chapter by saving its text, and it
         // does not get to erase which part the chapter belongs to either.
@@ -309,6 +317,26 @@ export class ContentStudioService {
     } catch (err) {
       throw this.mapDomainError(err);
     }
+  }
+
+  /** The unit as of the edition's current base: active draft, else published. */
+  private async readCurrentUnit(resolved: ResolvedChapter) {
+    const described = await describeEditionDraft(
+      this.prisma,
+      resolved.editionId,
+    );
+    const baseRevisionId =
+      described.draftRevisionId ?? described.publishedRevisionId;
+    if (!baseRevisionId) {
+      throw new NotFoundException({ code: "CONTENT_NO_PUBLISHED_REVISION" });
+    }
+    const unit = await readUnitAtRevision(
+      this.prisma,
+      baseRevisionId,
+      resolved.unitKey,
+    );
+    if (!unit) throw new NotFoundException({ code: "CONTENT_UNIT_NOT_FOUND" });
+    return unit;
   }
 
   // ── identity resolution ──────────────────────────────────────────────────

@@ -87,7 +87,6 @@ describe("ContentStudioService — the browser names nothing internal", () => {
   it("derives edition, unit key and placement from the route, ignoring the body", async () => {
     await service.saveChapterDraft("libro", 1, {
       expectedRevisionId: "r6",
-      title: "Cap 1",
       blocks: [{ kind: "PARAGRAPH", content: "Texto." }],
     });
 
@@ -107,7 +106,6 @@ describe("ContentStudioService — the browser names nothing internal", () => {
   it("passes the editor's token through untouched", async () => {
     await service.saveChapterDraft("libro", 1, {
       expectedRevisionId: "r6",
-      title: "Cap 1",
       blocks: [{ kind: "PARAGRAPH", content: "Texto." }],
     });
 
@@ -120,7 +118,6 @@ describe("ContentStudioService — the browser names nothing internal", () => {
     const meta = { url: "https://cdn/x.png", alt: "una ilustración" };
     await service.saveChapterDraft("libro", 1, {
       expectedRevisionId: "r6",
-      title: "Cap 1",
       blocks: [
         { kind: "PARAGRAPH", content: "Texto." },
         { kind: "IMAGE", content: "", meta },
@@ -138,7 +135,6 @@ describe("ContentStudioService — the browser names nothing internal", () => {
     await expect(
       service.saveChapterDraft("libro", 1, {
         expectedRevisionId: "stale",
-        title: "Cap 1",
         blocks: [{ kind: "PARAGRAPH", content: "Texto." }],
       }),
     ).rejects.toBeInstanceOf(ConflictException);
@@ -269,7 +265,6 @@ describe("ContentStudioService — a text edit may not reshape the book", () => 
 
     await service.saveChapterDraft("libro", 4, {
       expectedRevisionId: "r6",
-      title: "Cap 4",
       blocks: [{ kind: "PARAGRAPH", content: "Texto." }],
     });
 
@@ -328,5 +323,57 @@ describe("ContentStudioService — the chapter list shows what is being edited",
       expect.anything(),
       "r5",
     );
+  });
+});
+
+describe("ContentStudioService — a save is not a rename", () => {
+  it("takes the title from the base revision and ignores anything a caller sends", async () => {
+    // The editor does not administer titles yet — several surfaces still read
+    // the legacy `Chapter.title`. A field an admin could change through curl but
+    // not through the UI is a promise the product has not made.
+    draft.readUnitAtRevision.mockResolvedValue({
+      title: "El título publicado",
+      summary: "Un resumen existente",
+      durationMinutes: 12,
+      blocks: [],
+    });
+
+    await service.saveChapterDraft("libro", 1, {
+      expectedRevisionId: "r6",
+      blocks: [{ kind: "PARAGRAPH", content: "Sólo cambia el texto." }],
+      // A caller who adds `title` here gets it stripped by the global
+      // whitelisting pipe; the service would ignore it regardless.
+      ...({ title: "Intento de renombrar" } as object),
+    });
+
+    const call = draft.saveUnitDraft.mock.calls[0]![1];
+    expect(call.title).toBe("El título publicado");
+    expect(call.summary).toBe("Un resumen existente");
+    expect(call.durationMinutes).toBe(12);
+  });
+
+  it("reads the title from the ACTIVE DRAFT when there is one", async () => {
+    // Two saves in a row must not resurrect the published title over a draft.
+    await service.saveChapterDraft("libro", 1, {
+      expectedRevisionId: "r6",
+      blocks: [{ kind: "PARAGRAPH", content: "Texto." }],
+    });
+
+    expect(draft.readUnitAtRevision).toHaveBeenCalledWith(
+      expect.anything(),
+      "r6",
+      expect.any(String),
+    );
+  });
+
+  it("never touches the legacy Chapter row", async () => {
+    await service.saveChapterDraft("libro", 1, {
+      expectedRevisionId: "r6",
+      blocks: [{ kind: "PARAGRAPH", content: "Texto." }],
+    });
+
+    // No dual-write: one authority, and it is Content Core.
+    expect(prisma.chapter).not.toHaveProperty("update");
+    expect(prisma.chapter).not.toHaveProperty("updateMany");
   });
 });

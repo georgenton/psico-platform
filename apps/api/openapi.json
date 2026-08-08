@@ -16789,7 +16789,7 @@
             }
           }
         },
-        "summary": "Guarda el capítulo en el borrador del libro. No publica: el lector no ve nada hasta publicar.",
+        "summary": "Guarda los BLOQUES del capítulo en el borrador del libro. No publica, y no renombra: título, resumen y duración se conservan desde la revisión base.",
         "tags": [
           "Pulso"
         ]
@@ -21178,17 +21178,6 @@
             "type": "string",
             "description": "La revisión que el editor cargó."
           },
-          "title": {
-            "type": "string"
-          },
-          "summary": {
-            "type": "string",
-            "nullable": true
-          },
-          "durationMinutes": {
-            "type": "number",
-            "nullable": true
-          },
           "blocks": {
             "type": "array",
             "items": {
@@ -21198,7 +21187,6 @@
         },
         "required": [
           "expectedRevisionId",
-          "title",
           "blocks"
         ]
       },

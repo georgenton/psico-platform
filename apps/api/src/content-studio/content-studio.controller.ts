@@ -101,7 +101,7 @@ export class ContentStudioController {
   @ApiOperation({
     operationId: "saveContentStudioChapterDraft",
     summary:
-      "Guarda el capítulo en el borrador del libro. No publica: el lector no ve nada hasta publicar.",
+      "Guarda los BLOQUES del capítulo en el borrador del libro. No publica, y no renombra: título, resumen y duración se conservan desde la revisión base.",
   })
   @ApiOkResponse({ type: ContentStudioSaveResponseDto })
   @ApiConflictResponse({
@@ -115,9 +115,6 @@ export class ContentStudioController {
   ) {
     return this.studio.saveChapterDraft(bookSlug, chapterOrder, {
       expectedRevisionId: dto.expectedRevisionId,
-      title: dto.title,
-      summary: dto.summary ?? null,
-      durationMinutes: dto.durationMinutes ?? null,
       blocks: dto.blocks,
     });
   }

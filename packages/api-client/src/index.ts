@@ -1,3 +1,4 @@
+export type { components as ApiComponents } from "./generated";
 export { apiClient } from "./client";
 export type { TokenStore } from "./client";
 export { ApiError } from "./error";

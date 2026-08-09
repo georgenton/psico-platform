@@ -19,6 +19,9 @@ const actions = vi.hoisted(() => ({
   publishMediaDraftAction: vi.fn(),
   updateMediaDraftAction: vi.fn(),
   createChapterMediaAction: vi.fn(),
+  uploadAudiobookAction: vi.fn(),
+  uploadPodcastAction: vi.fn(),
+  publishMediaMasterAction: vi.fn(),
 }));
 vi.mock("./actions", () => actions);
 vi.mock("../../actions", () => actions);
@@ -39,6 +42,7 @@ function card(over: MediaCardOverrides = {}): MediaCard {
     hasCaptions: false,
     provenance: "CODE",
     editorialStatus: "CODE_OWNED",
+    stagedMaster: false,
     draftId: null,
     ...over,
   } as MediaCard;
@@ -64,6 +68,353 @@ beforeEach(() => {
   actions.createChapterMediaAction.mockResolvedValue({
     ok: true,
     data: { draftId: "row_new", mediaKey: "eec-c1-video-v1" },
+  });
+  const uploaded = {
+    ok: true,
+    data: {
+      draftId: "row_up",
+      mediaKey: "eec-c1-audiobook-v2",
+      mediaVersion: 2,
+      sourceReady: true,
+    },
+  };
+  actions.uploadAudiobookAction.mockResolvedValue(uploaded);
+  actions.uploadPodcastAction.mockResolvedValue(uploaded);
+  actions.publishMediaMasterAction.mockResolvedValue({
+    ok: true,
+    data: {
+      draftId: "row_up",
+      mediaKey: "eec-c1-audiobook-v2",
+      mediaVersion: 2,
+    },
+  });
+});
+
+/** Spread + enum literal does not type-check; this keeps fixtures readable. */
+const patch = (base: MediaCard, over: MediaCardOverrides): MediaCard =>
+  ({ ...base, ...over }) as MediaCard;
+
+const m4a = () =>
+  new File([new Uint8Array([1, 2, 3])], "master.m4a", { type: "audio/mp4" });
+
+/** Fills the picker and the duration, then submits. */
+async function uploadAudio(
+  user: ReturnType<typeof userEvent.setup>,
+  label: RegExp,
+) {
+  await user.upload(screen.getByLabelText(label) as HTMLInputElement, m4a());
+  await user.type(screen.getByLabelText(/^Duración de/), "600");
+  await user.click(
+    screen.getByRole("button", { name: /Subir archivo|Añadir episodio$/ }),
+  );
+}
+
+describe("MediaSection — uploading an audiobook master", () => {
+  const audiobook = card({
+    kind: "AUDIOBOOK",
+    mediaKey: "eec-c1-audiobook-v1",
+    title: "Audiolibro · capítulo 1",
+  });
+
+  it("offers upload when there is no master yet", async () => {
+    actions.listChapterMediaAction.mockResolvedValue(
+      list([
+        patch(audiobook, {
+          sourceReady: false,
+          runtimeAvailability: "COMING_SOON",
+        }),
+      ]),
+    );
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Subir Audiolibro" }),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/sin archivo/)).toBeInTheDocument();
+  });
+
+  it("offers a NEW VERSION when a master already plays", async () => {
+    actions.listChapterMediaAction.mockResolvedValue(list([audiobook]));
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", {
+          name: "Subir nueva versión de Audiolibro · capítulo 1",
+        }),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/archivo listo/)).toBeInTheDocument();
+  });
+
+  it("says the upload will NOT reach readers until published", async () => {
+    const user = userEvent.setup();
+    actions.listChapterMediaAction.mockResolvedValue(list([audiobook]));
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Subir nueva versión/ }),
+      ).toBeInTheDocument(),
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Subir nueva versión/ }),
+    );
+
+    // The one thing an editor could reasonably misread: a finished upload
+    // looking like it went live.
+    expect(
+      screen.getByText(/seguirán escuchando la versión publicada/),
+    ).toBeInTheDocument();
+  });
+
+  it("uploads through the audiobook action and reloads", async () => {
+    const user = userEvent.setup();
+    actions.listChapterMediaAction.mockResolvedValue(list([audiobook]));
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Subir nueva versión/ }),
+      ).toBeInTheDocument(),
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Subir nueva versión/ }),
+    );
+    await uploadAudio(user, /^Audiolibro · /);
+
+    await waitFor(() =>
+      expect(actions.uploadAudiobookAction).toHaveBeenCalled(),
+    );
+    const [slug, order, form] = actions.uploadAudiobookAction.mock.calls[0]!;
+    expect(slug).toBe("eec");
+    expect(order).toBe(1);
+    expect(form).toBeInstanceOf(FormData);
+    expect(form.get("durationSec")).toBe("600");
+    // The browser never names where bytes go.
+    expect(form.get("objectKey")).toBeNull();
+    expect(actions.listChapterMediaAction).toHaveBeenCalledTimes(2);
+  });
+
+  it("publishes a staged master through the master route", async () => {
+    const user = userEvent.setup();
+    actions.listChapterMediaAction.mockResolvedValue(
+      list([
+        patch(audiobook, {
+          editorialStatus: "DRAFT",
+          provenance: "DATABASE",
+          draftId: "row_up",
+          sourceReady: true,
+          stagedMaster: true,
+        }),
+      ]),
+    );
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", {
+          name: "Publicar Audiolibro · capítulo 1",
+        }),
+      ).toBeInTheDocument(),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Publicar Audiolibro · capítulo 1" }),
+    );
+
+    await waitFor(() =>
+      expect(actions.publishMediaMasterAction).toHaveBeenCalledWith(
+        "row_up",
+        "eec",
+        1,
+      ),
+    );
+  });
+});
+
+describe("MediaSection — upload errors an editor can act on", () => {
+  const audiobook = card({
+    kind: "AUDIOBOOK",
+    mediaKey: "eec-c1-audiobook-v1",
+  });
+
+  it.each([
+    ["INVALID_AUDIO_TYPE", /Usa MP3 o M4A/],
+    ["FILE_TOO_LARGE", /supera los 50 MB/],
+    ["FILE_EMPTY", /vacío/],
+    [
+      "AUDIOBOOK_LEGACY_MASTER_REQUIRES_MIGRATION",
+      /necesita migrarse antes de poder reemplazar/,
+    ],
+  ])("translates %s into copy the editor can use", async (code, copy) => {
+    const user = userEvent.setup();
+    actions.listChapterMediaAction.mockResolvedValue(list([audiobook]));
+    actions.uploadAudiobookAction.mockResolvedValue({ ok: false, code });
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Subir nueva versión/ }),
+      ).toBeInTheDocument(),
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Subir nueva versión/ }),
+    );
+    await uploadAudio(user, /^Audiolibro/);
+
+    await waitFor(() =>
+      expect(screen.getAllByRole("alert")[0]).toHaveTextContent(copy),
+    );
+  });
+
+  it("never shows a storage error to the editor", async () => {
+    const user = userEvent.setup();
+    actions.listChapterMediaAction.mockResolvedValue(list([audiobook]));
+    actions.uploadAudiobookAction.mockResolvedValue({
+      ok: false,
+      error: "R2 bucket psico-media-dev objectKey rejected",
+    });
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Subir nueva versión/ }),
+      ).toBeInTheDocument(),
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Subir nueva versión/ }),
+    );
+    await uploadAudio(user, /^Audiolibro/);
+
+    await waitFor(() =>
+      expect(screen.getAllByRole("alert")[0]).toHaveTextContent(
+        /No pudimos completar la operación/,
+      ),
+    );
+    // Storage vocabulary is not something an editor can act on.
+    expect(screen.queryByText(/bucket|objectKey|R2/)).not.toBeInTheDocument();
+  });
+});
+
+describe("MediaSection — podcast is 0..N", () => {
+  it("offers Añadir episodio even with zero episodes", async () => {
+    actions.listChapterMediaAction.mockResolvedValue(list([]));
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "+ Añadir episodio de podcast" }),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("adds an episode without naming its key or version", async () => {
+    const user = userEvent.setup();
+    actions.listChapterMediaAction.mockResolvedValue(list([]));
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "+ Añadir episodio de podcast" }),
+      ).toBeInTheDocument(),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "+ Añadir episodio de podcast" }),
+    );
+    await user.type(screen.getByLabelText(/Título del nuevo episodio/), "Ep 3");
+    await user.type(
+      screen.getByLabelText(/Descripción del nuevo episodio/),
+      "Una charla.",
+    );
+    await uploadAudio(user, /^episodio de podcast$/);
+
+    await waitFor(() => expect(actions.uploadPodcastAction).toHaveBeenCalled());
+    const form = actions.uploadPodcastAction.mock.calls[0]![2] as FormData;
+    expect(form.get("title")).toBe("Ep 3");
+    // Identity is the server's.
+    expect(form.get("mediaKey")).toBeNull();
+    expect(form.get("mediaVersion")).toBeNull();
+  });
+
+  it("keeps every episode visible and keyed by mediaKey", async () => {
+    actions.listChapterMediaAction.mockResolvedValue(
+      list([
+        card({ mediaKey: "eec-c1-podcast-a", title: "Episodio 1" }),
+        card({ mediaKey: "eec-c1-podcast-b", title: "Episodio 2" }),
+        card({ mediaKey: "eec-c1-podcast-c", title: "Episodio 3" }),
+      ]),
+    );
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Episodio 1")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Episodio 2")).toBeInTheDocument();
+    expect(screen.getByText("Episodio 3")).toBeInTheDocument();
+    // Each episode gets its own replace control, named for the episode.
+    expect(
+      screen.getByRole("button", { name: "Subir nueva versión de Episodio 2" }),
+    ).toBeInTheDocument();
+  });
+
+  it("replacing one episode's master names that episode's key", async () => {
+    const user = userEvent.setup();
+    actions.listChapterMediaAction.mockResolvedValue(
+      list([
+        card({ mediaKey: "eec-c1-podcast-a", title: "Episodio 1" }),
+        card({ mediaKey: "eec-c1-podcast-b", title: "Episodio 2" }),
+      ]),
+    );
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", {
+          name: "Subir nueva versión de Episodio 2",
+        }),
+      ).toBeInTheDocument(),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Subir nueva versión de Episodio 2" }),
+    );
+    await uploadAudio(user, /^Podcast · Episodio 2$/);
+
+    await waitFor(() => expect(actions.uploadPodcastAction).toHaveBeenCalled());
+    const form = actions.uploadPodcastAction.mock.calls[0]![2] as FormData;
+    // Replacing THIS episode, not adding another one.
+    expect(form.get("mediaKey")).toBe("eec-c1-podcast-b");
+  });
+});
+
+describe("MediaSection — video", () => {
+  it("shows video state but offers no upload", async () => {
+    actions.listChapterMediaAction.mockResolvedValue(
+      list([
+        card({
+          kind: "VIDEO",
+          mediaKey: "eec-c1-video-v1",
+          title: "Video · capítulo 1",
+          runtimeAvailability: "COMING_SOON",
+          sourceReady: false,
+        }),
+      ]),
+    );
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Video · capítulo 1")).toBeInTheDocument(),
+    );
+    // No fake disabled uploader — the capability simply is not here yet.
+    expect(
+      screen.queryByRole("button", {
+        name: /Subir Video|Subir nueva versión de Video/,
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/subida de video llegará en la siguiente etapa/i),
+    ).toBeInTheDocument();
   });
 });
 

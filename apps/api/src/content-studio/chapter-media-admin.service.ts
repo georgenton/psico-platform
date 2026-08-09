@@ -58,6 +58,14 @@ export interface AdminMediaCard {
   hasCaptions: boolean;
   provenance: MediaProvenance;
   editorialStatus: MediaEditorialState;
+  /**
+   * This draft holds bytes uploaded through Content Studio, so publishing it
+   * must go through the master route — for an audiobook that is what freezes
+   * the previous version before the `Audio` pointer moves. An ADOPTED draft
+   * looks identical on `sourceReady` and needs the ordinary publish, so the two
+   * cannot be told apart without this.
+   */
+  stagedMaster: boolean;
   /** The DB row to edit or publish, when there is one. */
   draftId: string | null;
 }
@@ -99,6 +107,12 @@ function toCard(
       typeof def.source.captionLanguage === "string",
     provenance,
     editorialStatus,
+    // Only a database DRAFT can be staged, and only an R2 source comes from an
+    // upload — adoption clones whatever the code definition already had.
+    stagedMaster:
+      provenance === "DATABASE" &&
+      editorialStatus === "DRAFT" &&
+      def.source?.kind === "R2",
     draftId,
   };
 }

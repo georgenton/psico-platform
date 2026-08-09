@@ -3855,6 +3855,8 @@ export interface components {
             provenance: ContentStudioMediaCardDtoProvenance;
             /** @enum {string} */
             editorialStatus: ContentStudioMediaCardDtoEditorialStatus;
+            /** @description El borrador tiene un máster subido desde Contenido; publicarlo pasa por la ruta de máster. */
+            stagedMaster: boolean;
             draftId: string | null;
         };
         ContentStudioChapterMediaResponseDto: {

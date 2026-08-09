@@ -7,9 +7,13 @@ import {
   createChapterMediaAction,
   listChapterMediaAction,
   publishMediaDraftAction,
+  publishMediaMasterAction,
   updateMediaDraftAction,
+  uploadAudiobookAction,
+  uploadPodcastAction,
 } from "../../actions";
 import { MEDIA_KIND_LABEL, type MediaCard } from "../../contracts";
+import { MediaUploadPanel, mediaErrorCopy } from "./MediaUploadPanel";
 
 /**
  * The chapter's three formats.
@@ -48,6 +52,10 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
   const [missing, setMissing] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  // One upload form open at a time: two open pickers is an easy way to attach a
+  // file to the wrong thing.
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  const [addingEpisode, setAddingEpisode] = useState(false);
 
   const reload = useCallback(async () => {
     const result = await listChapterMediaAction(bookSlug, chapterOrder);
@@ -94,6 +102,28 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
     }
     await reload();
   }
+
+  async function publishMaster(card: MediaCard) {
+    if (!card.draftId) return;
+    setBusyKey(card.mediaKey);
+    const result = await publishMediaMasterAction(
+      card.draftId,
+      bookSlug,
+      chapterOrder,
+    );
+    setBusyKey(null);
+    if (!result.ok) {
+      setError(mediaErrorCopy(result));
+      return;
+    }
+    await reload();
+  }
+
+  const afterUpload = async () => {
+    setUploadingFor(null);
+    setAddingEpisode(false);
+    await reload();
+  };
 
   return (
     <section className="mt-10">
@@ -171,7 +201,7 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
                     {AVAILABILITY_LABEL[card.runtimeAvailability]} ·{" "}
                     {EDITORIAL_LABEL[card.editorialStatus]} · v
                     {card.mediaVersion}
-                    {!card.sourceReady && " · sin archivo"}
+                    {card.sourceReady ? " · archivo listo" : " · sin archivo"}
                   </p>
                 </div>
 
@@ -192,21 +222,80 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
                         : "Administrar en CMS"}
                     </button>
                   )}
-                  {card.editorialStatus === "DRAFT" && card.draftId && (
+                  {/* Audio masters can be attached here. Video cannot — its
+                      upload is a different provider and a later block. */}
+                  {card.kind !== "VIDEO" && (
                     <button
                       type="button"
-                      onClick={() => void publish(card)}
-                      disabled={busyKey === card.mediaKey}
-                      className="rounded-full px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
-                      style={{ background: "var(--color-lavender-600)" }}
+                      onClick={() =>
+                        setUploadingFor(
+                          uploadingFor === card.mediaKey ? null : card.mediaKey,
+                        )
+                      }
+                      className="rounded-full px-4 py-2 text-[13px] font-semibold"
+                      style={{
+                        background: "var(--color-warm-100)",
+                        color: "var(--color-warm-700)",
+                      }}
                     >
-                      {busyKey === card.mediaKey
-                        ? "Publicando…"
-                        : "Publicar definición"}
+                      {card.sourceReady
+                        ? `Subir nueva versión de ${card.title}`
+                        : `Subir ${MEDIA_KIND_LABEL[card.kind] ?? card.kind}`}
                     </button>
                   )}
+                  {card.editorialStatus === "DRAFT" &&
+                    card.draftId &&
+                    card.stagedMaster && (
+                      <button
+                        type="button"
+                        onClick={() => void publishMaster(card)}
+                        disabled={busyKey === card.mediaKey}
+                        className="rounded-full px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
+                        style={{ background: "var(--color-lavender-600)" }}
+                      >
+                        {busyKey === card.mediaKey
+                          ? "Publicando…"
+                          : `Publicar ${card.title}`}
+                      </button>
+                    )}
+                  {card.editorialStatus === "DRAFT" &&
+                    card.draftId &&
+                    !card.stagedMaster && (
+                      <button
+                        type="button"
+                        onClick={() => void publish(card)}
+                        disabled={busyKey === card.mediaKey}
+                        className="rounded-full px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
+                        style={{ background: "var(--color-lavender-600)" }}
+                      >
+                        {busyKey === card.mediaKey
+                          ? "Publicando…"
+                          : "Publicar definición"}
+                      </button>
+                    )}
                 </div>
               </div>
+
+              {uploadingFor === card.mediaKey && (
+                <MediaUploadPanel
+                  label={`${MEDIA_KIND_LABEL[card.kind] ?? card.kind} · ${card.title}`}
+                  submitLabel="Subir archivo"
+                  onUpload={(form) => {
+                    if (card.kind === "AUDIOBOOK") {
+                      return uploadAudiobookAction(
+                        bookSlug,
+                        chapterOrder,
+                        form,
+                      );
+                    }
+                    // Replacing THIS episode's master, not adding another one.
+                    form.set("mediaKey", card.mediaKey);
+                    return uploadPodcastAction(bookSlug, chapterOrder, form);
+                  }}
+                  onUploaded={afterUpload}
+                  onCancel={() => setUploadingFor(null)}
+                />
+              )}
 
               {card.editorialStatus === "DRAFT" && card.draftId && (
                 <MediaDraftEditor
@@ -228,6 +317,39 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
             </li>
           ))}
         </ul>
+      )}
+
+      {cards !== null && (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          {!addingEpisode && (
+            <button
+              type="button"
+              onClick={() => setAddingEpisode(true)}
+              className="rounded-full px-4 py-2 text-[13px] font-semibold"
+              style={{
+                background: "var(--color-warm-100)",
+                color: "var(--color-warm-700)",
+              }}
+            >
+              + Añadir episodio de podcast
+            </button>
+          )}
+          <span
+            className="text-[12px]"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            La subida de video llegará en la siguiente etapa.
+          </span>
+        </div>
+      )}
+
+      {addingEpisode && (
+        <NewEpisodeForm
+          bookSlug={bookSlug}
+          chapterOrder={chapterOrder}
+          onUploaded={afterUpload}
+          onCancel={() => setAddingEpisode(false)}
+        />
       )}
 
       {missing.length > 0 && (
@@ -586,6 +708,90 @@ function MediaDraftEditor({
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * A brand-new podcast episode.
+ *
+ * Podcast is 0..N, so this ADDS an episode rather than replacing the kind. The
+ * server mints the key and the version — a browser choosing either would be
+ * choosing a completion identity.
+ */
+function NewEpisodeForm({
+  bookSlug,
+  chapterOrder,
+  onUploaded,
+  onCancel,
+}: {
+  bookSlug: string;
+  chapterOrder: number;
+  onUploaded: () => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+
+  return (
+    <div
+      className="mt-3 rounded-xl border border-dashed px-4 py-3"
+      style={{ borderColor: "var(--color-warm-300)" }}
+    >
+      <p
+        className="text-[11px] font-bold uppercase tracking-[0.6px]"
+        style={{ color: "var(--color-warm-500)" }}
+      >
+        Nuevo episodio de podcast
+      </p>
+      <MediaUploadPanel
+        label="episodio de podcast"
+        submitLabel="Añadir episodio"
+        onUpload={(form) => {
+          form.set("title", title);
+          form.set("description", description);
+          return uploadPodcastAction(bookSlug, chapterOrder, form);
+        }}
+        onUploaded={onUploaded}
+        onCancel={onCancel}
+        extraFields={
+          <>
+            <label className="block">
+              <span
+                className="text-[11.5px] font-semibold"
+                style={{ color: "var(--color-warm-600)" }}
+              >
+                Título del episodio
+              </span>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                aria-label="Título del nuevo episodio"
+                maxLength={160}
+                className="mt-1 w-full rounded-lg border px-3 py-2 text-[13.5px]"
+                style={{ borderColor: "var(--color-warm-200)" }}
+              />
+            </label>
+            <label className="block">
+              <span
+                className="text-[11.5px] font-semibold"
+                style={{ color: "var(--color-warm-600)" }}
+              >
+                Descripción
+              </span>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                aria-label="Descripción del nuevo episodio"
+                maxLength={400}
+                rows={2}
+                className="mt-1 w-full resize-y rounded-lg border px-3 py-2 text-[13.5px]"
+                style={{ borderColor: "var(--color-warm-200)" }}
+              />
+            </label>
+          </>
+        }
+      />
     </div>
   );
 }

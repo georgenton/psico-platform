@@ -223,6 +223,12 @@ export class ContentStudioMediaCardDto {
   @ApiProperty({ enum: ["CODE_OWNED", "DRAFT", "PUBLISHED"] })
   editorialStatus!: "CODE_OWNED" | "DRAFT" | "PUBLISHED";
 
+  @ApiProperty({
+    description:
+      "El borrador tiene un máster subido desde Contenido; publicarlo pasa por la ruta de máster.",
+  })
+  stagedMaster!: boolean;
+
   @ApiProperty({ nullable: true, type: String })
   draftId!: string | null;
 }

@@ -22004,6 +22004,10 @@
               "PUBLISHED"
             ]
           },
+          "stagedMaster": {
+            "type": "boolean",
+            "description": "El borrador tiene un máster subido desde Contenido; publicarlo pasa por la ruta de máster."
+          },
           "draftId": {
             "type": "string",
             "nullable": true
@@ -22024,6 +22028,7 @@
           "hasCaptions",
           "provenance",
           "editorialStatus",
+          "stagedMaster",
           "draftId"
         ]
       },

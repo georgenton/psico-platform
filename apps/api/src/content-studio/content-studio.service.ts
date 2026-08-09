@@ -80,7 +80,9 @@ export class ContentStudioService {
   private assertImageBlocksValid(
     blocks: Array<{ kind: string; content: string; meta?: unknown }>,
   ): void {
-    const base = this.config.get("R2_PUBLIC_URL", { infer: true });
+    const base = this.config.get("R2_PUBLIC_URL", { infer: true }) as
+      | string
+      | undefined;
 
     blocks.forEach((b, index) => {
       if (b.kind !== "IMAGE") return;
@@ -100,7 +102,11 @@ export class ContentStudioService {
           index,
         });
       }
-      if (!isTrustedImageUrl(info.imageUrl, base)) {
+      // No public base configured (a private bucket) means no image URL can be
+      // trusted, so every one is refused. Fail closed: the alternative is
+      // trusting whatever an ADMIN sends because we have nothing to compare it
+      // against.
+      if (!base || !isTrustedImageUrl(info.imageUrl, base)) {
         // Deliberately says nothing about what IS allowed: the configured
         // origin is not something an error message should hand out.
         throw new BadRequestException({

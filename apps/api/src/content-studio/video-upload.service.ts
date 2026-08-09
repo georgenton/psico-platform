@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import {
@@ -84,6 +85,18 @@ export class VideoUploadService {
   ) {}
 
   /**
+   * Whether the CMS may offer video upload at all.
+   *
+   * Surfaced to the browser as a plain boolean so the editor is never led
+   * through a flow that ends in a provider error. The reason it is false is
+   * never sent: "no configurado" and "sin capacidad contratada" are the same
+   * fact to an editor, and only one of them is anybody else's business.
+   */
+  uploadsAvailable(): boolean {
+    return this.stream.uploadsAvailable();
+  }
+
+  /**
    * Allocate a video and stage a draft pointing at it.
    *
    * Case A — this video has never been playable (runtime «En producción»).
@@ -101,6 +114,15 @@ export class VideoUploadService {
     input: { mediaKey?: string; title?: string; description?: string },
     adminUserId: string,
   ): Promise<VideoUploadIntent> {
+    // Checked here and not only in the UI. A hidden button is a courtesy; this
+    // is the rule. Refusing before any provider call also means an editor who
+    // reaches this route another way gets a clean answer rather than a quota
+    // error phrased in someone else's vocabulary.
+    if (!this.uploadsAvailable()) {
+      throw new ServiceUnavailableException({
+        code: "VIDEO_UPLOAD_UNAVAILABLE",
+      });
+    }
     await this.assertChapterExists(bookSlug, chapterOrder);
 
     let next: ChapterMediaDefinition;

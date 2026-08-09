@@ -105,6 +105,26 @@ export class CloudflareStreamUploadService {
   }
 
   /**
+   * Can this account actually take an upload right now?
+   *
+   * Credentials are necessary and NOT sufficient: an account with no allocated
+   * capacity authenticates cleanly and then refuses every allocation. Since the
+   * provider will not answer that question without being asked to allocate
+   * something, the answer is an explicit operational statement rather than an
+   * inference — see `CLOUDFLARE_STREAM_UPLOADS_ENABLED`.
+   *
+   * Callers use this to decide whether to OFFER the capability. Nothing here
+   * reaches the network, so it is safe on a page load.
+   */
+  uploadsAvailable(): boolean {
+    if (!this.isConfigured()) return false;
+    return (
+      this.config.get("CLOUDFLARE_STREAM_UPLOADS_ENABLED", { infer: true }) ===
+      "true"
+    );
+  }
+
+  /**
    * Allocate a video and get a one-time URL to put bytes at.
    *
    * `maxDurationSeconds` is sent so the provider refuses an over-long file

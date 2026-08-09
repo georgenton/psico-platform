@@ -306,6 +306,63 @@ suite("Content Studio · chapter media catalog (real PostgreSQL)", () => {
     expect(offer[0]!.accessPolicy).toBeNull();
   });
 
+  it("a video awaiting its file is never publishable, and never playable", async () => {
+    // C3's one new draft-isolation case. An upload that was started and
+    // abandoned leaves a row that LOOKS like a video and has no bytes behind
+    // it. Two things must hold: a reader cannot reach it, and an editor cannot
+    // publish it into existence.
+    const book3 = await prisma.book.create({
+      data: { slug: "libro-video", title: "Libro" },
+    });
+    await prisma.chapter.create({
+      data: { bookId: book3.id, order: 1, title: "C1" },
+    });
+
+    const { draftId } = await admin.createComingSoon(
+      "libro-video",
+      1,
+      "VIDEO",
+      "Video · capítulo 1",
+      "Una escena del capítulo.",
+      adminUserId,
+    );
+
+    // Simulate the intent having allocated a provider asset whose bytes never
+    // arrived. This is the state, whatever route produced it.
+    await prisma.chapterMediaVersion.update({
+      where: { id: draftId },
+      data: { pendingVideoUid: "bbbbbbbbbbbbbbbbbbbb" },
+    });
+
+    const emptyRepo = new HybridChapterMediaRepository(
+      new DatabaseChapterMediaRepository(prisma as unknown as PrismaService),
+      new CodeChapterMediaDefinitionRepository(
+        new ChapterMediaCatalogRegistry([]),
+      ),
+    );
+
+    await expect(admin.publishDraft(draftId)).rejects.toMatchObject({
+      response: { code: "VIDEO_UPLOAD_INCOMPLETE" },
+    });
+
+    // And the refusal is not the only thing standing between the reader and it.
+    expect(await emptyRepo.listPublicForChapter("libro-video", 1)).toHaveLength(
+      0,
+    );
+
+    // Once the file lands, the marker clears and the ordinary rules resume.
+    await prisma.chapterMediaVersion.update({
+      where: { id: draftId },
+      data: { pendingVideoUid: null },
+    });
+    await admin.publishDraft(draftId);
+
+    const offer = await emptyRepo.listPublicForChapter("libro-video", 1);
+    expect(offer).toHaveLength(1);
+    // Announced, not playable: no file was ever attached in this test.
+    expect(offer[0]!.source).toBeNull();
+  });
+
   it("a CMS-only version joins the offer without displacing the code one", async () => {
     const v2 = validateChapterMediaDefinition({
       ...EEC_C1_PODCAST,

@@ -24720,6 +24720,10 @@
               "$ref": "#/components/schemas/ContentStudioMediaCardDto"
             }
           },
+          "videoUploadAvailable": {
+            "type": "boolean",
+            "description": "Si la subida de video puede ofrecerse hoy. En falso, el CMS muestra el estado real en vez de un botón que terminaría en error."
+          },
           "missingKinds": {
             "type": "array",
             "description": "Formatos que el capítulo no tiene. Sin esto el CMS sólo podría decir «no hay» sin ofrecer nada.",
@@ -24737,6 +24741,7 @@
           "bookSlug",
           "chapterOrder",
           "media",
+          "videoUploadAvailable",
           "missingKinds"
         ]
       },

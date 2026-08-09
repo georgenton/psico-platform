@@ -139,6 +139,26 @@ export const envSchema = z
     CLOUDFLARE_STREAM_API_TOKEN: z.string().optional(),
     CLOUDFLARE_STREAM_CUSTOMER_CODE: z.string().optional(),
 
+    /**
+     * Whether the Stream account can actually ACCEPT uploads today.
+     *
+     * Separate from the credentials, and deliberately not inferred from them.
+     * Having a valid token says nothing about having capacity: an account with
+     * no minutes allocated authenticates perfectly and then refuses every
+     * upload. The only way to learn the truth from the provider is to attempt
+     * an allocation, which is a network call on a page load that also creates a
+     * real asset we would have to delete.
+     *
+     * So this is an explicit operational statement, defaulting to OFF. The cost
+     * of being wrong is asymmetric: off-when-available hides a button somebody
+     * can turn on, while on-when-unavailable walks an editor through choosing a
+     * file, uploading it, and hitting a wall.
+     */
+    CLOUDFLARE_STREAM_UPLOADS_ENABLED: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
+
     // CC-7.R1 — Guide pilot rollout. Optional HERE only for typing: the
     // DEPLOYED requirement (mode required, `pilot` needs an allowlist) is
     // enforced fail-closed by the Guide rollout resolver

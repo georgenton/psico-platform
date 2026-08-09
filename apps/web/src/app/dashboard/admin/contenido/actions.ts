@@ -9,6 +9,8 @@ import type {
   MediaDraftRef,
   MediaPublishResult,
   MediaUploadResult,
+  VideoUploadIntent,
+  VideoUploadStatus,
   ChapterImageResult,
   CoverResult,
   ChapterPreview,
@@ -324,5 +326,53 @@ export async function publishMediaMasterAction(
     return { ok: true, data };
   } catch (err) {
     return asOutcome<MediaPublishResult>(err);
+  }
+}
+
+// ── Chapter video (C3) ──────────────────────────────────────────────────────
+//
+// The file does NOT pass through the server or through here. This asks the API
+// for a one-time destination; the browser posts the bytes straight to the
+// provider and then polls `videoUploadStatusAction` until it lands.
+
+export async function createVideoUploadIntentAction(
+  bookSlug: string,
+  chapterOrder: number,
+  input: { mediaKey?: string; title?: string; description?: string },
+): Promise<ActionOutcome<VideoUploadIntent>> {
+  try {
+    const data = await serverFetch<VideoUploadIntent>(
+      `/pulso/content/books/${encodeURIComponent(bookSlug)}/chapters/${chapterOrder}/media/video/upload-intent`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+    revalidatePath(chapterPath(bookSlug, chapterOrder));
+    return { ok: true, data };
+  } catch (err) {
+    return asOutcome<VideoUploadIntent>(err);
+  }
+}
+
+/**
+ * Ask whether the file landed. This is also what attaches the video to the
+ * draft once the provider confirms it — so the editor polling is the same act
+ * as the draft becoming publishable.
+ */
+export async function videoUploadStatusAction(
+  draftId: string,
+  bookSlug: string,
+  chapterOrder: number,
+): Promise<ActionOutcome<VideoUploadStatus>> {
+  try {
+    const data = await serverFetch<VideoUploadStatus>(
+      `/pulso/content/media/drafts/${encodeURIComponent(draftId)}/video-status`,
+    );
+    // Only once it is ready: revalidating on every poll would refetch the whole
+    // chapter every two seconds for no change.
+    if (data.state === "READY") {
+      revalidatePath(chapterPath(bookSlug, chapterOrder));
+    }
+    return { ok: true, data };
+  } catch (err) {
+    return asOutcome<VideoUploadStatus>(err);
   }
 }

@@ -22,6 +22,8 @@ const actions = vi.hoisted(() => ({
   uploadAudiobookAction: vi.fn(),
   uploadPodcastAction: vi.fn(),
   publishMediaMasterAction: vi.fn(),
+  createVideoUploadIntentAction: vi.fn(),
+  videoUploadStatusAction: vi.fn(),
 }));
 vi.mock("./actions", () => actions);
 vi.mock("../../actions", () => actions);
@@ -43,6 +45,7 @@ function card(over: MediaCardOverrides = {}): MediaCard {
     provenance: "CODE",
     editorialStatus: "CODE_OWNED",
     stagedMaster: false,
+    awaitingUpload: false,
     draftId: null,
     ...over,
   } as MediaCard;
@@ -389,7 +392,11 @@ describe("MediaSection — podcast is 0..N", () => {
 });
 
 describe("MediaSection — video", () => {
-  it("shows video state but offers no upload", async () => {
+  it("shows video state and now offers the upload C2B deferred", async () => {
+    // This assertion was inverted in C3. Under C2B the surface deliberately had
+    // no video uploader and said so; the promise it made was that the capability
+    // would arrive, not that it never would. What still must not appear is a
+    // disabled control or a placeholder that looks like it does something.
     actions.listChapterMediaAction.mockResolvedValue(
       list([
         card({
@@ -406,15 +413,11 @@ describe("MediaSection — video", () => {
     await waitFor(() =>
       expect(screen.getByText("Video · capítulo 1")).toBeInTheDocument(),
     );
-    // No fake disabled uploader — the capability simply is not here yet.
+    const upload = screen.getByRole("button", { name: /Subir Video/ });
+    expect(upload).toBeEnabled();
     expect(
-      screen.queryByRole("button", {
-        name: /Subir Video|Subir nueva versión de Video/,
-      }),
+      screen.queryByText(/subida de video llegará en la siguiente etapa/i),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/subida de video llegará en la siguiente etapa/i),
-    ).toBeInTheDocument();
   });
 });
 
@@ -723,5 +726,136 @@ describe("MediaSection — a format the chapter does not have", () => {
     );
     expect(screen.getByText("Episodio 2")).toBeInTheDocument();
     expect(screen.getByText("No disponible")).toBeInTheDocument();
+  });
+});
+
+describe("chapter video (C3)", () => {
+  it("offers to upload a video, which C2B deliberately did not", async () => {
+    // The reason this is asserted rather than assumed: the button was gated on
+    // `kind !== "VIDEO"` for a whole block, and the gate is exactly what C3
+    // removes.
+    actions.listChapterMediaAction.mockResolvedValue(
+      list([
+        card({
+          kind: "VIDEO",
+          mediaKey: "eec-c1-video-v1",
+          title: "Video",
+          sourceReady: false,
+          runtimeAvailability: "COMING_SOON",
+        }),
+      ]),
+    );
+
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    expect(
+      await screen.findByRole("button", { name: /Subir Video/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("says the file is still missing, not that there is none", async () => {
+    // An abandoned upload is a state the editor caused and can resolve. Reading
+    // it as "sin archivo" would hide that an attempt is outstanding.
+    actions.listChapterMediaAction.mockResolvedValue(
+      list([
+        card({
+          kind: "VIDEO",
+          mediaKey: "eec-c1-video-v1",
+          title: "Video",
+          sourceReady: false,
+          runtimeAvailability: "COMING_SOON",
+          editorialStatus: "DRAFT",
+          provenance: "DATABASE",
+          draftId: "draft-1",
+          awaitingUpload: true,
+        }),
+      ]),
+    );
+
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    expect(
+      await screen.findByText(/esperando el archivo/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Reintentar Video/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not offer to publish a video whose file never arrived", async () => {
+    // The server refuses this; showing the button would make the editor discover
+    // the rule by pressing it and reading an error.
+    actions.listChapterMediaAction.mockResolvedValue(
+      list([
+        card({
+          kind: "VIDEO",
+          mediaKey: "eec-c1-video-v1",
+          title: "Video",
+          sourceReady: false,
+          runtimeAvailability: "COMING_SOON",
+          editorialStatus: "DRAFT",
+          provenance: "DATABASE",
+          draftId: "draft-1",
+          awaitingUpload: true,
+        }),
+      ]),
+    );
+
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await screen.findByText(/esperando el archivo/i);
+    expect(
+      screen.queryByRole("button", { name: /Publicar/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("asks for a destination and never posts the file to our own server", async () => {
+    // The whole point of the C3 transport: the bytes go straight to the
+    // provider, so no action here may receive a FormData carrying the file.
+    actions.listChapterMediaAction.mockResolvedValue(list([], []));
+    actions.createVideoUploadIntentAction.mockResolvedValue({
+      ok: true,
+      data: {
+        draftId: "draft-1",
+        mediaKey: "eec-c1-video-x-v1",
+        mediaVersion: 1,
+        uploadUrl: "https://upload.videodelivery.net/one-time",
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      },
+    });
+
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /\+ Añadir video/i }),
+    );
+
+    await userEvent.type(
+      screen.getByLabelText("Título del video"),
+      "Una escena",
+    );
+    await userEvent.type(
+      screen.getByLabelText("Descripción del video"),
+      "Sobre el capítulo.",
+    );
+    await userEvent.upload(
+      screen.getByLabelText("Archivo de video"),
+      new File(["x"], "v.mp4", { type: "video/mp4" }),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Añadir video" }));
+
+    await waitFor(() =>
+      expect(actions.createVideoUploadIntentAction).toHaveBeenCalled(),
+    );
+    const [, , input] = actions.createVideoUploadIntentAction.mock.calls[0]!;
+    // Metadata only — no file, no FormData.
+    expect(input).toEqual({
+      mediaKey: undefined,
+      title: "Una escena",
+      description: "Sobre el capítulo.",
+    });
+    expect(actions.uploadAudiobookAction).not.toHaveBeenCalled();
+    expect(actions.uploadPodcastAction).not.toHaveBeenCalled();
   });
 });

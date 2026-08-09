@@ -100,6 +100,8 @@ describe("ratchet · chapter media OpenAPI surface", () => {
         "POST /api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/audiobook/upload → uploadContentStudioAudiobook",
         "POST /api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/podcast/upload → uploadContentStudioPodcast",
         "POST /api/pulso/content/media/drafts/{draftId}/publish-master → publishContentStudioMediaMaster",
+        "POST /api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/video/upload-intent → createContentStudioVideoUploadIntent",
+        "GET /api/pulso/content/media/drafts/{draftId}/video-status → getContentStudioVideoUploadStatus",
       ].sort(),
     );
 
@@ -124,13 +126,41 @@ describe("ratchet · chapter media OpenAPI surface", () => {
     }
   });
 
-  it("has no VIDEO upload route — Stream upload is C3", () => {
-    // C2B ships audio only. A video upload appearing here would be a scope
-    // change, not an implementation detail.
-    const videoUpload = Object.keys(openapi.paths).filter(
-      (p) => /video/i.test(p) && /upload/i.test(p),
-    );
-    expect(videoUpload).toEqual([]);
+  it("never accepts video BYTES, only a request for somewhere to put them", () => {
+    // C3 hands the browser a one-time provider URL and stays out of the
+    // transfer. A multipart video route appearing here would mean somebody
+    // reintroduced proxying — which is the decision this design exists to avoid.
+    const paths = openapi.paths as Record<string, Record<string, unknown>>;
+    for (const [path, methods] of Object.entries(paths)) {
+      if (!/video/i.test(path)) continue;
+      const body = JSON.stringify(methods);
+      expect(body).not.toContain("multipart/form-data");
+      expect(body).not.toContain("binary");
+    }
+  });
+
+  it("keeps the video upload contract free of provider facts", () => {
+    // The browser learns where to send the file and when that expires. The
+    // provider's identifier for the video is not its business, and a value in a
+    // response body is a value in a screenshot.
+    const schemas = (
+      openapi as unknown as { components: { schemas: Record<string, unknown> } }
+    ).components.schemas;
+    for (const name of [
+      "ContentStudioVideoUploadIntentDto",
+      "ContentStudioVideoUploadStatusDto",
+    ]) {
+      const schema = JSON.stringify(schemas[name]);
+      for (const forbidden of [
+        "videoUid",
+        "accountId",
+        "apiToken",
+        "customerCode",
+        "accessPolicy",
+      ]) {
+        expect(schema).not.toContain(forbidden);
+      }
+    }
   });
 
   it("keeps the upload response free of provider facts", () => {

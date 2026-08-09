@@ -70,8 +70,24 @@ const required = [
 const missing = required.filter((k) => !process.env[k]);
 if (missing.length > 0) refuse(`missing env: ${missing.join(", ")}`);
 
+/**
+ * The one bucket this test may ever write to.
+ *
+ * An exact match, not a pattern. "contains dev" would happily accept
+ * `psico-media` on a typo, and the production bucket is the one place a stray
+ * PutObject would actually cost something. Pinning the literal name means a
+ * misconfigured `.env` fails here rather than in production storage.
+ */
+const DEV_BUCKET = "psico-media-dev";
+
 const accountId = process.env.R2_ACCOUNT_ID;
 const bucket = process.env.R2_BUCKET_NAME;
+
+if (bucket !== DEV_BUCKET) {
+  refuse(
+    `R2_BUCKET_NAME must be exactly "${DEV_BUCKET}" — this test never writes to any other bucket`,
+  );
+}
 const publicBase = process.env.R2_PUBLIC_URL ?? null;
 
 // A Cloudflare account id is 32 hex characters. Anything else is a placeholder,

@@ -253,3 +253,21 @@ export class ContentStudioMediaPublishResponseDto {
   @ApiProperty() mediaKey!: string;
   @ApiProperty() mediaVersion!: number;
 }
+
+/**
+ * What an upload tells the browser.
+ *
+ * Enough to continue the flow, and nothing about where the bytes live. No
+ * object key, no bucket, no signed URL, no access policy — those are provider
+ * and entitlement facts, and a JSON response is not the place for them.
+ */
+export class ContentStudioMediaUploadResponseDto {
+  @ApiProperty() draftId!: string;
+  @ApiProperty() mediaKey!: string;
+  @ApiProperty() mediaVersion!: number;
+
+  @ApiProperty({
+    description: "El máster quedó almacenado. Todavía sin publicar.",
+  })
+  sourceReady!: boolean;
+}

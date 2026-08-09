@@ -146,3 +146,49 @@ export class CreateComingSoonMediaDto {
   @MaxLength(MEDIA_DESCRIPTION_MAX)
   description!: string;
 }
+
+/**
+ * Audio upload — what accompanies the file.
+ *
+ * Multipart, so these arrive as strings and are coerced. Deliberately absent:
+ * `objectKey`, `accessPolicy`, `status`, `bucket`. The server mints the key and
+ * derives the policy; a browser that could choose either would be choosing what
+ * plays and who may play it.
+ */
+export class UploadAudiobookDto {
+  @ApiProperty({ description: "Duración real del máster, en segundos." })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  durationSec!: number;
+}
+
+export class UploadPodcastEpisodeDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  durationSec!: number;
+
+  @ApiProperty({
+    required: false,
+    description:
+      "Presente para reemplazar el máster de un episodio existente; ausente para crear uno nuevo.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  mediaKey?: string;
+
+  @ApiProperty({ required: false, maxLength: MEDIA_TITLE_MAX })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MEDIA_TITLE_MAX)
+  title?: string;
+
+  @ApiProperty({ required: false, maxLength: MEDIA_DESCRIPTION_MAX })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MEDIA_DESCRIPTION_MAX)
+  description?: string;
+}

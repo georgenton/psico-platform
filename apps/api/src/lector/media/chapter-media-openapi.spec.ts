@@ -97,6 +97,9 @@ describe("ratchet · chapter media OpenAPI surface", () => {
         "GET /api/pulso/content/media/drafts/{draftId} → getContentStudioMediaDraft",
         "PUT /api/pulso/content/media/drafts/{draftId} → updateContentStudioMediaDraft",
         "POST /api/pulso/content/media/drafts/{draftId}/publish → publishContentStudioMediaDraft",
+        "POST /api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/audiobook/upload → uploadContentStudioAudiobook",
+        "POST /api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/podcast/upload → uploadContentStudioPodcast",
+        "POST /api/pulso/content/media/drafts/{draftId}/publish-master → publishContentStudioMediaMaster",
       ].sort(),
     );
 
@@ -118,6 +121,34 @@ describe("ratchet · chapter media OpenAPI surface", () => {
       "transcriptObjectKey",
     ]) {
       expect(schemas).not.toContain(forbidden);
+    }
+  });
+
+  it("has no VIDEO upload route — Stream upload is C3", () => {
+    // C2B ships audio only. A video upload appearing here would be a scope
+    // change, not an implementation detail.
+    const videoUpload = Object.keys(openapi.paths).filter(
+      (p) => /video/i.test(p) && /upload/i.test(p),
+    );
+    expect(videoUpload).toEqual([]);
+  });
+
+  it("keeps the upload response free of provider facts", () => {
+    const schema = JSON.stringify(
+      (
+        openapi as unknown as {
+          components: { schemas: Record<string, unknown> };
+        }
+      ).components.schemas.ContentStudioMediaUploadResponseDto,
+    );
+    for (const forbidden of [
+      "objectKey",
+      "bucket",
+      "signedUrl",
+      "accessPolicy",
+      "endpoint",
+    ]) {
+      expect(schema).not.toContain(forbidden);
     }
   });
 

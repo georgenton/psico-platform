@@ -17319,6 +17319,192 @@
         ]
       }
     },
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/audiobook/upload": {
+      "post": {
+        "operationId": "uploadContentStudioAudiobook",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "durationSec": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioMediaUploadResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Sube un máster de audiolibro. Queda en borrador privado: el lector no lo oye hasta publicar.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/podcast/upload": {
+      "post": {
+        "operationId": "uploadContentStudioPodcast",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "durationSec": {
+                    "type": "integer"
+                  },
+                  "mediaKey": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioMediaUploadResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Sube el máster de un episodio. Sin mediaKey crea un episodio nuevo; con mediaKey reemplaza su máster.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/content/media/drafts/{draftId}/publish-master": {
+      "post": {
+        "operationId": "publishContentStudioMediaMaster",
+        "parameters": [
+          {
+            "name": "draftId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioMediaPublishResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Publica un máster subido. El audiolibro anterior se congela a sus bytes exactos antes de mover el puntero.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
     "/api/patrones": {
       "get": {
         "operationId": "PatronesController_getPatrones",
@@ -21979,6 +22165,30 @@
           "draftId",
           "mediaKey",
           "mediaVersion"
+        ]
+      },
+      "ContentStudioMediaUploadResponseDto": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "mediaKey": {
+            "type": "string"
+          },
+          "mediaVersion": {
+            "type": "number"
+          },
+          "sourceReady": {
+            "type": "boolean",
+            "description": "El máster quedó almacenado. Todavía sin publicar."
+          }
+        },
+        "required": [
+          "draftId",
+          "mediaKey",
+          "mediaVersion",
+          "sourceReady"
         ]
       },
       "ShareWithTherapistDto": {

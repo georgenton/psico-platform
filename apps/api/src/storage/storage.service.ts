@@ -5,6 +5,7 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Env } from "../config";
@@ -84,6 +85,23 @@ export class StorageService {
         Body: buffer,
         ContentType: mimeType,
       }),
+    );
+  }
+
+  /**
+   * Delete ONE object by its exact key.
+   *
+   * Narrow on purpose, and not a feature: it exists so that bytes written for a
+   * record that then fails to persist do not linger unreferenced. Callers pass a
+   * key they minted moments earlier and nothing else — there is no prefix form,
+   * no list-and-delete, and no product surface that reaches this.
+   *
+   * Never call it on a key that something already published points at. Deleting
+   * a master to "roll back" would take content away from readers who have it.
+   */
+  async deleteObject(key: string): Promise<void> {
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
     );
   }
 

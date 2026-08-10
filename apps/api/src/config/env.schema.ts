@@ -42,7 +42,18 @@ export const envSchema = z
     R2_ACCESS_KEY_ID: z.string().min(1, "R2_ACCESS_KEY_ID is required"),
     R2_SECRET_ACCESS_KEY: z.string().min(1, "R2_SECRET_ACCESS_KEY is required"),
     R2_BUCKET_NAME: z.string().min(1, "R2_BUCKET_NAME is required"),
-    R2_PUBLIC_URL: z.string().url("R2_PUBLIC_URL must be a valid URL"),
+    // Optional: it is the PUBLIC base for covers and illustrations only.
+    //
+    // Audiobook, podcast and transcript masters are read through short-lived
+    // presigned GETs and never need it, so a private development bucket is a
+    // legitimate configuration. Requiring it here forced a developer to either
+    // invent a URL — which could then be stored on an image and 404 forever —
+    // or turn on public access for a bucket that is meant to prove PROTECTED
+    // media. `StorageService` refuses at the point of use instead.
+    R2_PUBLIC_URL: z
+      .string()
+      .url("R2_PUBLIC_URL must be a valid URL")
+      .optional(),
 
     // Payment gateway selection (Phase 1: stripe | Phase 2: payphone)
     DEFAULT_PAYMENT_PROVIDER: z.enum(["stripe", "payphone"]).default("stripe"),

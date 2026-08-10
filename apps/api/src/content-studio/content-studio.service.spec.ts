@@ -460,3 +460,49 @@ describe("ContentStudioService — images the server refuses to save", () => {
     expect(sent[2].meta).toEqual({ audioUrl: "http://x/y.mp3" });
   });
 });
+
+describe("ContentStudioService — a bucket with no public base URL", () => {
+  it("refuses every image rather than trusting one it cannot check", async () => {
+    // A private development bucket has no public base. With nothing to compare
+    // an URL against, the only safe answer is no — the alternative is trusting
+    // whatever an ADMIN sends. Protected media is unaffected: it never uses a
+    // public URL.
+    const privateBucketService = new ContentStudioService(
+      prisma as unknown as PrismaService,
+      { get: () => undefined } as unknown as ConfigService<Env, true>,
+    );
+
+    await expect(
+      privateBucketService.saveChapterDraft("libro", 1, {
+        expectedRevisionId: "r6",
+        blocks: [
+          {
+            kind: "IMAGE",
+            content: "",
+            meta: {
+              imageUrl: "https://assets.example.com/a.png",
+              alt: "Un diagrama",
+            },
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      response: { code: "CONTENT_IMAGE_URL_NOT_ALLOWED" },
+    });
+    expect(draft.saveUnitDraft).not.toHaveBeenCalled();
+  });
+
+  it("still saves text — protected content does not depend on a public base", async () => {
+    const privateBucketService = new ContentStudioService(
+      prisma as unknown as PrismaService,
+      { get: () => undefined } as unknown as ConfigService<Env, true>,
+    );
+
+    await expect(
+      privateBucketService.saveChapterDraft("libro", 1, {
+        expectedRevisionId: "r6",
+        blocks: [{ kind: "PARAGRAPH", content: "Texto." }],
+      }),
+    ).resolves.toBeTruthy();
+  });
+});

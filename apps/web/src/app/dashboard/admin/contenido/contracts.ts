@@ -20,6 +20,8 @@ export type ChapterContent = S["ContentStudioChapterResponseDto"];
 export type ChapterPreview = S["ContentStudioPreviewResponseDto"];
 export type SaveResult = S["ContentStudioSaveResponseDto"];
 export type PublishResult = S["ContentStudioPublishResponseDto"];
+export type CoverResult = S["ContentStudioCoverResponseDto"];
+export type ChapterImageResult = S["ContentStudioChapterImageResponseDto"];
 
 /**
  * The revision status as a plain union.
@@ -50,6 +52,15 @@ export const EDITABLE_KINDS = [
   "QUOTE",
   "PAUSE",
 ] as const;
+
+/**
+ * IMAGE is administered, but not as a textarea — it has a file, alt text, a
+ * caption and a credit. It gets its own editor row, so it is neither "editable
+ * text" nor "preserved read-only".
+ */
+export function isImageKind(kind: string): boolean {
+  return kind === "IMAGE";
+}
 export type EditableKind = (typeof EDITABLE_KINDS)[number];
 
 export const KIND_LABEL: Record<string, string> = {

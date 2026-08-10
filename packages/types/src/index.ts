@@ -2318,6 +2318,57 @@ export function videoBlockInfo(block: {
   return { url, poster, caption, durationSec };
 }
 
+/**
+ * An IMAGE block's metadata, read defensively.
+ *
+ * The grammar is the same shape web, mobile and the editor all agree on, and it
+ * lives here for the same reason `videoBlockInfo` does: three renderers reading
+ * `meta` by hand is three chances to disagree about what a valid image is.
+ *
+ * `alt` is required and the helper returns null without it. An illustration a
+ * screen reader cannot describe is not publishable content, and the editor
+ * enforces the same rule at the point where somebody can still fix it.
+ *
+ * Storage details stay server-side. `imageUrl` is a plain URL the browser can
+ * fetch; nothing here carries a bucket, an account id or a credential.
+ */
+export interface ImageBlockInfo {
+  imageUrl: string;
+  alt: string;
+  caption: string | null;
+  credit: string | null;
+}
+
+export function imageBlockInfo(block: {
+  kind: string;
+  content: string;
+  meta: Record<string, unknown> | null;
+}): ImageBlockInfo | null {
+  if (block.kind !== "IMAGE") return null;
+
+  const meta = block.meta ?? {};
+  const imageUrl =
+    typeof meta.imageUrl === "string" && meta.imageUrl.trim()
+      ? meta.imageUrl.trim()
+      : null;
+  const alt =
+    typeof meta.alt === "string" && meta.alt.trim() ? meta.alt.trim() : null;
+
+  // Both are load-bearing: without a URL there is nothing to show, and without
+  // alt text there is nothing to announce. Renderers fall back to their normal
+  // block rendering rather than emitting a broken or silent image.
+  if (!imageUrl || !alt) return null;
+
+  const text = (v: unknown): string | null =>
+    typeof v === "string" && v.trim() ? v.trim() : null;
+
+  // The caption lives in `content` (like every other block's text), with `meta`
+  // accepted as a fallback for blocks written before that settled.
+  const caption = text(block.content) ?? text(meta.caption);
+
+  return { imageUrl, alt, caption, credit: text(meta.credit) };
+}
+
 export interface HighlightSummary {
   id: string;
   /** Stable public block identity (uuidv5). Match reader blocks by this. */

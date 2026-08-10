@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ConflictException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from "@nestjs/common";
 import { ContentStudioService } from "./content-studio.service";
 import type { PrismaService } from "../prisma/prisma.service";
+import type { ConfigService } from "@nestjs/config";
+import type { Env } from "../config";
 
 /**
  * Content Studio — what the browser is NOT allowed to decide.
@@ -40,7 +46,12 @@ beforeEach(() => {
   // Hoisted module mocks accumulate calls across tests otherwise.
   vi.clearAllMocks();
   prisma = prismaMock();
-  service = new ContentStudioService(prisma as unknown as PrismaService);
+  service = new ContentStudioService(
+    prisma as unknown as PrismaService,
+    {
+      get: () => "https://assets.example.com",
+    } as unknown as ConfigService<Env, true>,
+  );
 
   prisma.book.findUnique.mockResolvedValue({
     id: "book_1",
@@ -113,14 +124,15 @@ describe("ContentStudioService — the browser names nothing internal", () => {
   });
 
   it("keeps a media block's metadata intact through a text save", async () => {
-    // IMAGE/AUDIO metadata is not administered yet, so it must survive rather
-    // than be stripped by a schema that has not learned about it.
-    const meta = { url: "https://cdn/x.png", alt: "una ilustración" };
+    // AUDIO metadata is not administered yet, so it must survive rather than be
+    // stripped by a schema that has not learned about it. (IMAGE used to be the
+    // example here; it is administered now and validated on the way in.)
+    const meta = { url: "https://cdn/x.m4a", durationSec: 90 };
     await service.saveChapterDraft("libro", 1, {
       expectedRevisionId: "r6",
       blocks: [
         { kind: "PARAGRAPH", content: "Texto." },
-        { kind: "IMAGE", content: "", meta },
+        { kind: "AUDIO", content: "", meta },
       ],
     });
 
@@ -375,5 +387,76 @@ describe("ContentStudioService — a save is not a rename", () => {
     // No dual-write: one authority, and it is Content Core.
     expect(prisma.chapter).not.toHaveProperty("update");
     expect(prisma.chapter).not.toHaveProperty("updateMany");
+  });
+});
+
+describe("ContentStudioService — images the server refuses to save", () => {
+  const TRUSTED = "https://assets.example.com/content/libro/chapter-1/a.png";
+
+  const save = (meta: Record<string, unknown>, content = "") =>
+    service.saveChapterDraft("libro", 1, {
+      expectedRevisionId: "r6",
+      blocks: [
+        { kind: "PARAGRAPH", content: "Texto." },
+        { kind: "IMAGE", content, meta },
+      ],
+    });
+
+  it("accepts an image with alt text from our own storage", async () => {
+    await expect(
+      save({ imageUrl: TRUSTED, alt: "Diagrama del ciclo predictivo" }),
+    ).resolves.toBeTruthy();
+  });
+
+  it.each([
+    ["alt is empty", { imageUrl: TRUSTED, alt: "   " }],
+    ["alt is missing", { imageUrl: TRUSTED }],
+    ["alt is not a string", { imageUrl: TRUSTED, alt: 7 }],
+    ["imageUrl is missing", { alt: "Un diagrama" }],
+    ["imageUrl is empty", { imageUrl: "", alt: "Un diagrama" }],
+  ])("rejects when %s, writing nothing", async (_label, meta) => {
+    // The UI enforces this too, but an ADMIN with curl is not using the UI —
+    // and an image nobody can perceive must not become publishable either way.
+    await expect(save(meta)).rejects.toBeInstanceOf(BadRequestException);
+    expect(draft.saveUnitDraft).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["plain http", "http://assets.example.com/x.png"],
+    ["another host", "https://untrusted.example/x.png"],
+    ["a lookalike host", "https://assets.example.com.attacker.test/x.png"],
+    ["a data URL", "data:image/png;base64,AAAA"],
+  ])("rejects %s, writing nothing", async (_label, imageUrl) => {
+    await expect(save({ imageUrl, alt: "Un diagrama" })).rejects.toMatchObject({
+      response: { code: "CONTENT_IMAGE_URL_NOT_ALLOWED" },
+    });
+    expect(draft.saveUnitDraft).not.toHaveBeenCalled();
+  });
+
+  it("never says what the allowed origin is", async () => {
+    // An error message is not the place to publish our storage configuration.
+    const err = await save({
+      imageUrl: "https://untrusted.example/x.png",
+      alt: "a",
+    }).catch((e: unknown) => e);
+    expect(JSON.stringify(err)).not.toContain("assets.example.com");
+  });
+
+  it("leaves every other kind's metadata alone", async () => {
+    // AUDIO/VIDEO/EXERCISE carry metadata this vertical does not administer;
+    // validating images must not start policing them.
+    const meta = { videoUrl: "https://anywhere.example/v.mp4", weird: 1 };
+    await service.saveChapterDraft("libro", 1, {
+      expectedRevisionId: "r6",
+      blocks: [
+        { kind: "PARAGRAPH", content: "Texto." },
+        { kind: "VIDEO", content: "Una cápsula", meta },
+        { kind: "AUDIO", content: "", meta: { audioUrl: "http://x/y.mp3" } },
+      ],
+    });
+
+    const sent = draft.saveUnitDraft.mock.calls[0]![1].blocks;
+    expect(sent[1].meta).toEqual(meta);
+    expect(sent[2].meta).toEqual({ audioUrl: "http://x/y.mp3" });
   });
 });

@@ -16852,6 +16852,128 @@
         ]
       }
     },
+    "/api/pulso/content/books/{bookSlug}/cover": {
+      "post": {
+        "operationId": "uploadContentStudioCover",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioCoverResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Reemplaza la portada del catálogo. Inmediato: no crea borrador ni revisión.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/images": {
+      "post": {
+        "operationId": "uploadContentStudioChapterImage",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioChapterImageResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Sube la imagen de una ilustración. No crea bloque ni revisión: eso ocurre al guardar el borrador.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
     "/api/pulso/content/books/{bookSlug}/publish": {
       "post": {
         "operationId": "publishContentStudioBook",
@@ -20992,13 +21114,19 @@
           "authorName": {
             "type": "string",
             "nullable": true
+          },
+          "coverArtUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "La portada vigente del catálogo, o null si no hay ninguna."
           }
         },
         "required": [
           "slug",
           "title",
           "subtitle",
-          "authorName"
+          "authorName",
+          "coverArtUrl"
         ]
       },
       "ContentStudioChapterRowDto": {
@@ -21252,6 +21380,30 @@
           "summary",
           "durationMinutes",
           "blocks"
+        ]
+      },
+      "ContentStudioCoverResponseDto": {
+        "type": "object",
+        "properties": {
+          "coverArtUrl": {
+            "type": "string",
+            "description": "La portada ya vigente en el catálogo."
+          }
+        },
+        "required": [
+          "coverArtUrl"
+        ]
+      },
+      "ContentStudioChapterImageResponseDto": {
+        "type": "object",
+        "properties": {
+          "imageUrl": {
+            "type": "string",
+            "description": "Dónde quedó la imagen. Todavía no forma parte del capítulo: eso ocurre al guardar el borrador."
+          }
+        },
+        "required": [
+          "imageUrl"
         ]
       },
       "PublishBookDto": {

@@ -46,6 +46,13 @@ export class ContentStudioBookDto {
   @ApiProperty() title!: string;
   @ApiProperty({ nullable: true, type: String }) subtitle!: string | null;
   @ApiProperty({ nullable: true, type: String }) authorName!: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: "La portada vigente del catálogo, o null si no hay ninguna.",
+  })
+  coverArtUrl!: string | null;
 }
 
 export class ContentStudioChapterRowDto {
@@ -152,4 +159,17 @@ export class ContentStudioPublishResponseDto {
     description: "Cuántos capítulos cambiaba el borrador al publicarse.",
   })
   changedUnitCountBeforePublish!: number;
+}
+
+export class ContentStudioCoverResponseDto {
+  @ApiProperty({ description: "La portada ya vigente en el catálogo." })
+  coverArtUrl!: string;
+}
+
+export class ContentStudioChapterImageResponseDto {
+  @ApiProperty({
+    description:
+      "Dónde quedó la imagen. Todavía no forma parte del capítulo: eso ocurre al guardar el borrador.",
+  })
+  imageUrl!: string;
 }

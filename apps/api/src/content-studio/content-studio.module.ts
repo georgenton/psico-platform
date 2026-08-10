@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ContentStudioController } from "./content-studio.controller";
 import { ContentStudioService } from "./content-studio.service";
+import { ContentStudioAssetsService } from "./content-studio-assets.service";
 
 /**
  * Content Studio — a small, dedicated admin module rather than more weight in
@@ -9,6 +10,6 @@ import { ContentStudioService } from "./content-studio.service";
  */
 @Module({
   controllers: [ContentStudioController],
-  providers: [ContentStudioService],
+  providers: [ContentStudioService, ContentStudioAssetsService],
 })
 export class ContentStudioModule {}

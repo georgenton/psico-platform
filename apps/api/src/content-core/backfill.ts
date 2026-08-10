@@ -112,11 +112,18 @@ export async function backfillContentCore(
             slug: book.slug,
             label: "Primera edición",
             language: "es-419",
-            // #580 — Content Core's own copy of the plan. Derived here so an
-            // edition stops needing its Book row to answer entitlement.
+            // #580 — Content Core's own copy of the plan, derived from legacy
+            // truth exactly once, on create.
             accessPlan: book.plan,
           },
-          update: { slug: book.slug, accessPlan: book.plan },
+          // Deliberately NOT re-syncing `accessPlan` on update. Legacy is the
+          // bootstrap source, not an ongoing authority: once an edition is
+          // native-owned, re-deriving from `Book.plan` here would silently undo
+          // an editorial decision on every backfill run. Adoption of an edition
+          // that predates the column is the migration's job, and re-adoption is
+          // `adoptLegacyEntitlementsTx`, which returns untouched when already
+          // owned.
+          update: { slug: book.slug },
         });
         stats.editions += 1;
 
@@ -144,26 +151,24 @@ export async function backfillContentCore(
           const unitKey = unitKeyFromLegacyChapterId(ch.id);
           chapterIdByOrder.set(ch.order, ch.id);
 
-          // 3. ContentUnit — identity, plus the derived preview designation.
+          // 3. ContentUnit — identity, plus the initial preview designation.
           //
-          // #580: the unit sitting at chapter 1 today BECOMES the designated
-          // free preview, so nothing a reader can currently open changes. From
-          // here on the designation travels with the unit rather than with the
-          // position, which is what makes reordering safe later.
-          const isFreePreview = isFreePreviewByPosition(ch.order);
+          // #580: on CREATE, the unit sitting at chapter 1 becomes the
+          // designated free preview, so nothing a reader can currently open
+          // changes. On a unit that already exists the designation is left
+          // exactly as it is — an editor may since have moved it, and this
+          // function is not entitled to move it back. Legacy initializes;
+          // Content Core owns.
           let unit = await tx.contentUnit.findUnique({
             where: { editionId_unitKey: { editionId: edition.id, unitKey } },
           });
           if (!unit) {
             unit = await tx.contentUnit.create({
-              data: { editionId: edition.id, unitKey, isFreePreview },
-            });
-          } else if (unit.isFreePreview !== isFreePreview) {
-            // Idempotent and self-correcting: re-running the backfill converges
-            // rather than leaving a half-derived edition behind.
-            unit = await tx.contentUnit.update({
-              where: { id: unit.id },
-              data: { isFreePreview },
+              data: {
+                editionId: edition.id,
+                unitKey,
+                isFreePreview: isFreePreviewByPosition(ch.order),
+              },
             });
           }
           unitIdByOrder.set(ch.order, unit.id);

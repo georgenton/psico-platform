@@ -42,6 +42,7 @@ import { ContentStudioService } from "./content-studio.service";
 import { ContentStudioAssetsService } from "./content-studio-assets.service";
 import { ChapterMediaAdminService } from "./chapter-media-admin.service";
 import { MediaUploadService } from "./media-upload.service";
+import { VideoUploadService } from "./video-upload.service";
 import { AUDIO_TRANSPORT_LIMIT } from "../shared/audio-upload";
 import { CurrentUser } from "../shared";
 import type { AuthenticatedUser } from "../auth";
@@ -58,6 +59,8 @@ import {
   ContentStudioMediaDraftRefDto,
   ContentStudioMediaPublishResponseDto,
   ContentStudioMediaUploadResponseDto,
+  ContentStudioVideoUploadIntentDto,
+  ContentStudioVideoUploadStatusDto,
   ContentStudioSaveResponseDto,
 } from "./dto/content-studio-response.dto";
 import {
@@ -65,6 +68,7 @@ import {
   PreviewQueryDto,
   UploadAudiobookDto,
   UploadPodcastEpisodeDto,
+  CreateVideoUploadIntentDto,
   PublishBookDto,
   SaveChapterDraftDto,
   UpdateMediaDraftDto,
@@ -91,6 +95,7 @@ export class ContentStudioController {
     private readonly assets: ContentStudioAssetsService,
     private readonly media: ChapterMediaAdminService,
     private readonly uploads: MediaUploadService,
+    private readonly video: VideoUploadService,
   ) {}
 
   @Get("books")
@@ -469,5 +474,55 @@ export class ContentStudioController {
   @ApiConflictResponse({ type: ErrorEnvelopeDto })
   publishMaster(@Param("draftId") draftId: string) {
     return this.uploads.publishStagedMaster(draftId);
+  }
+  // ── Chapter video (C3) ───────────────────────────────────────────────────
+  //
+  // The bytes do NOT come through here. The browser asks for a destination,
+  // posts the file straight to the provider, then asks whether it landed. See
+  // `VideoUploadService` for why proxying a video was rejected.
+
+  @Post("books/:bookSlug/chapters/:chapterOrder/media/video/upload-intent")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "createContentStudioVideoUploadIntent",
+    summary:
+      "Pide dónde subir un video de capítulo. Sin mediaKey crea uno nuevo; con mediaKey reemplaza el archivo de ese video.",
+  })
+  @ApiOkResponse({ type: ContentStudioVideoUploadIntentDto })
+  @ApiConflictResponse({ type: ErrorEnvelopeDto })
+  createVideoUploadIntent(
+    @Param("bookSlug") bookSlug: string,
+    @Param("chapterOrder", ParseIntPipe) chapterOrder: number,
+    @Body() dto: CreateVideoUploadIntentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.video.createUploadIntent(
+      bookSlug,
+      chapterOrder,
+      {
+        mediaKey: dto.mediaKey,
+        title: dto.title,
+        description: dto.description,
+      },
+      user.userId,
+    );
+  }
+
+  /**
+   * Poll while the file uploads and encodes. Once the provider reports it
+   * finished, this is also what attaches the video to the draft — so the draft
+   * only ever gains a source for a file that actually exists.
+   */
+  @Get("media/drafts/:draftId/video-status")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "getContentStudioVideoUploadStatus",
+    summary:
+      "Estado de una subida de video. Cuando el proveedor confirma, deja el video asociado al borrador.",
+  })
+  @ApiOkResponse({ type: ContentStudioVideoUploadStatusDto })
+  @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
+  getVideoUploadStatus(@Param("draftId") draftId: string) {
+    return this.video.getUploadStatus(draftId);
   }
 }

@@ -66,6 +66,13 @@ export interface AdminMediaCard {
    * cannot be told apart without this.
    */
   stagedMaster: boolean;
+  /**
+   * C3 — a video was allocated at the provider and its file has not arrived.
+   * Distinct from `sourceReady: false`, which is the ordinary state of a format
+   * that was merely announced: this one has an upload in flight, so the CMS
+   * offers "resume" rather than "add", and publish is refused.
+   */
+  awaitingUpload: boolean;
   /** The DB row to edit or publish, when there is one. */
   draftId: string | null;
 }
@@ -82,6 +89,7 @@ function toCard(
   provenance: MediaProvenance,
   editorialStatus: MediaEditorialState,
   draftId: string | null,
+  pendingVideoUid: string | null = null,
 ): AdminMediaCard {
   return {
     kind: def.kind,
@@ -113,6 +121,9 @@ function toCard(
       provenance === "DATABASE" &&
       editorialStatus === "DRAFT" &&
       def.source?.kind === "R2",
+    // The UID itself stays server-side; the browser learns only that an upload
+    // is outstanding, which is the whole of what the UI has to decide from.
+    awaitingUpload: pendingVideoUid !== null,
     draftId,
   };
 }
@@ -146,7 +157,13 @@ export class ChapterMediaAdminService {
       if (!def) continue;
       dbByKey.set(
         def.mediaKey,
-        toCard(def, "DATABASE", row.editorialStatus, row.id),
+        toCard(
+          def,
+          "DATABASE",
+          row.editorialStatus,
+          row.id,
+          row.pendingVideoUid,
+        ),
       );
     }
 
@@ -314,7 +331,13 @@ export class ChapterMediaAdminService {
   async getDraft(draftId: string) {
     const row = await this.requireDraftRow(draftId);
     const def = this.rebuildOrThrow(row.definitionJson);
-    return toCard(def, "DATABASE", row.editorialStatus, row.id);
+    return toCard(
+      def,
+      "DATABASE",
+      row.editorialStatus,
+      row.id,
+      row.pendingVideoUid,
+    );
   }
 
   /**
@@ -386,6 +409,16 @@ export class ChapterMediaAdminService {
       def.kind !== row.kind
     ) {
       throw new ConflictException({ code: "MEDIA_DEFINITION_IDENTITY_DRIFT" });
+    }
+
+    // C3 — an upload was started at the provider and its bytes never landed.
+    // Publishing now would put a card in front of readers that the editor
+    // believes is a video and that will never play. This is the "publish
+    // requires ready" gate, and it is deliberately a DATA check rather than a
+    // provider call: it cannot be skipped by a timeout, and it holds for every
+    // publish route rather than only the one that remembered to ask.
+    if (row.pendingVideoUid) {
+      throw new ConflictException({ code: "VIDEO_UPLOAD_INCOMPLETE" });
     }
 
     const updated = await this.prisma.chapterMediaVersion.update({

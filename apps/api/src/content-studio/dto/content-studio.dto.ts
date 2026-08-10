@@ -192,3 +192,37 @@ export class UploadPodcastEpisodeDto {
   @MaxLength(MEDIA_DESCRIPTION_MAX)
   description?: string;
 }
+
+/**
+ * C3 — asking for somewhere to put a chapter video.
+ *
+ * No file field: the browser never sends the bytes here. It asks for a
+ * destination, uploads straight to the provider, and comes back to ask whether
+ * it landed.
+ *
+ * No duration either, unlike the audio DTOs. The provider measures the file it
+ * actually received, so a typed number would be a guess competing with a fact.
+ */
+export class CreateVideoUploadIntentDto {
+  @ApiProperty({
+    required: false,
+    description:
+      "Presente para reemplazar un video existente; ausente para crear uno nuevo.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  mediaKey?: string;
+
+  @ApiProperty({ required: false, maxLength: MEDIA_TITLE_MAX })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MEDIA_TITLE_MAX)
+  title?: string;
+
+  @ApiProperty({ required: false, maxLength: MEDIA_DESCRIPTION_MAX })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MEDIA_DESCRIPTION_MAX)
+  description?: string;
+}

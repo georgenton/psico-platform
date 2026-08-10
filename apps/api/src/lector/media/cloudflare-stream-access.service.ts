@@ -101,7 +101,18 @@ export class CloudflareStreamAccessService {
       infer: true,
     });
     if (!accountId || !apiToken || !customerCode) return null;
-    return { accountId, apiToken, customerCode };
+    const code = normalizeCustomerCode(customerCode);
+    if (code === null) {
+      // Configured, but not a value that can become a hostname. Treating it as
+      // "not configured" is the honest outcome: the alternative is building
+      // `customer-<garbage>.cloudflarestream.com`, handing it to a browser, and
+      // turning a deployment mistake into a broken player nobody can diagnose.
+      this.logger.warn(
+        "Stream customer code is configured but is not a valid subdomain label",
+      );
+      return null;
+    }
+    return { accountId, apiToken, customerCode: code };
   }
 
   private async requestSignedToken(
@@ -175,6 +186,33 @@ export class CloudflareStreamAccessService {
     this.logger.warn(`Stream token request failed · reason=${reason}`);
     return new ServiceUnavailableException("MEDIA_PROVIDER_UNAVAILABLE");
   }
+}
+
+/**
+ * Reduce whatever was pasted into the env var to the bare subdomain code.
+ *
+ * Cloudflare shows this value in several shapes depending on where it was
+ * copied from — the bare code, `customer-<code>`, the player hostname, or a
+ * whole embed URL — and all four are the same fact. Accepting them costs a
+ * regex; rejecting them costs an operator an afternoon.
+ *
+ * What is NOT accepted is anything that cannot be a DNS label: uppercase, an
+ * underscore, a dot. Those are not a formatting variation of the code, they are
+ * a different value in the wrong variable. Returns `null` rather than repairing
+ * it, because a repaired guess would point playback at somebody else's account.
+ * Exported for the spec.
+ */
+export function normalizeCustomerCode(raw: string): string | null {
+  let value = raw.trim();
+  // A full embed URL, or just the hostname.
+  value = value.replace(/^https?:\/\//i, "").split("/")[0] ?? "";
+  value = value.replace(/\.cloudflarestream\.com$/i, "");
+  value = value.replace(/^customer-/i, "");
+  // Bounded by what a DNS label can hold: the host is `customer-<code>`, and a
+  // label caps at 63 characters. A floor beyond "not empty" would be invented —
+  // the character class is what actually distinguishes a code from a value that
+  // landed in the wrong variable.
+  return /^[a-z0-9]{1,54}$/.test(value) ? value : null;
 }
 
 /**

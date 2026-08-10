@@ -210,6 +210,12 @@ export class ContentStudioMediaCardDto {
   @ApiProperty({ description: "Si hay un archivo realmente asociado." })
   sourceReady!: boolean;
 
+  @ApiProperty({
+    description:
+      "Se pidió subir un video y el archivo todavía no llegó. No se puede publicar así.",
+  })
+  awaitingUpload!: boolean;
+
   @ApiProperty() hasTranscript!: boolean;
   @ApiProperty() hasPoster!: boolean;
   @ApiProperty() hasCaptions!: boolean;
@@ -276,4 +282,50 @@ export class ContentStudioMediaUploadResponseDto {
     description: "El máster quedó almacenado. Todavía sin publicar.",
   })
   sourceReady!: boolean;
+}
+
+/**
+ * Where to send a chapter video, and until when.
+ *
+ * The URL is one-time, carries no credential and expires on its own, which is
+ * what makes it safe to hand to a browser. The provider's identifier for the
+ * video is NOT here: the browser has no use for it, and a value in a response
+ * body is a value in a screenshot.
+ */
+export class ContentStudioVideoUploadIntentDto {
+  @ApiProperty() draftId!: string;
+  @ApiProperty() mediaKey!: string;
+  @ApiProperty() mediaVersion!: number;
+
+  @ApiProperty({
+    description: "URL de un solo uso para enviar el archivo directamente.",
+  })
+  uploadUrl!: string;
+
+  @ApiProperty({ description: "Cuándo deja de servir esa URL." })
+  expiresAt!: string;
+}
+
+/** How an in-flight video upload is doing, in our vocabulary rather than the provider's. */
+export class ContentStudioVideoUploadStatusDto {
+  @ApiProperty() draftId!: string;
+
+  @ApiProperty({
+    enum: ["AWAITING_UPLOAD", "PROCESSING", "READY", "ERROR"],
+    description:
+      "AWAITING_UPLOAD: el archivo aún no llegó. PROCESSING: llegó y se está procesando. READY: se puede publicar.",
+  })
+  state!: "AWAITING_UPLOAD" | "PROCESSING" | "READY" | "ERROR";
+
+  @ApiProperty({
+    description: "El video quedó asociado y ya se puede publicar.",
+  })
+  sourceReady!: boolean;
+
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description: "Medida por el proveedor sobre el archivo real.",
+  })
+  durationSec!: number | null;
 }

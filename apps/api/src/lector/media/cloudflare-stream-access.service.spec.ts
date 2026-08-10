@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CloudflareStreamAccessService,
   STREAM_TOKEN_TTL_SEC,
+  normalizeCustomerCode,
   readToken,
 } from "./cloudflare-stream-access.service";
 
@@ -212,5 +213,35 @@ describe("CloudflareStreamAccessService", () => {
     expect(serialized).not.toContain(CUSTOMER);
     expect(serialized).not.toContain("abcdef0123456789");
     expect(error.cause).toBeUndefined();
+  });
+});
+
+describe("normalizeCustomerCode", () => {
+  it("accepts the bare code", () => {
+    expect(normalizeCustomerCode("a1b2c3d4e5f6g7h8")).toBe("a1b2c3d4e5f6g7h8");
+  });
+
+  it("accepts the shapes Cloudflare actually shows an operator", () => {
+    // The same fact, copied from four different places in the dashboard.
+    expect(normalizeCustomerCode("customer-a1b2c3d4e5f6g7h8")).toBe(
+      "a1b2c3d4e5f6g7h8",
+    );
+    expect(
+      normalizeCustomerCode("customer-a1b2c3d4e5f6g7h8.cloudflarestream.com"),
+    ).toBe("a1b2c3d4e5f6g7h8");
+    expect(
+      normalizeCustomerCode(
+        "https://customer-a1b2c3d4e5f6g7h8.cloudflarestream.com/abc/iframe",
+      ),
+    ).toBe("a1b2c3d4e5f6g7h8");
+  });
+
+  it("rejects a value that cannot be a hostname, instead of repairing it", () => {
+    // Uppercase and underscores are not a formatting variation of the code —
+    // they mean a different value landed in the variable. Lowercasing it would
+    // point playback at whatever account that string happens to name.
+    expect(normalizeCustomerCode("Some_Other_Value")).toBeNull();
+    expect(normalizeCustomerCode("has spaces")).toBeNull();
+    expect(normalizeCustomerCode("")).toBeNull();
   });
 });

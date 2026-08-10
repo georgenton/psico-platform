@@ -27,6 +27,25 @@ export type MediaCard = S["ContentStudioMediaCardDto"];
 export type MediaDraftRef = S["ContentStudioMediaDraftRefDto"];
 export type MediaPublishResult = S["ContentStudioMediaPublishResponseDto"];
 export type MediaUploadResult = S["ContentStudioMediaUploadResponseDto"];
+export type VideoUploadIntent = S["ContentStudioVideoUploadIntentDto"];
+export type VideoUploadStatus = S["ContentStudioVideoUploadStatusDto"];
+
+/**
+ * How big a chapter video may be, mirrored for the file picker.
+ *
+ * The provider enforces its own limits and measures the duration itself; this
+ * only spares the editor starting a transfer that was never going to finish.
+ */
+export const VIDEO_ACCEPT =
+  "video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm";
+export const VIDEO_MAX_BYTES = 2 * 1024 * 1024 * 1024;
+
+/** The ingest states, as plain unions for the same reason as `MediaKind`. */
+export type VideoUploadState =
+  | "AWAITING_UPLOAD"
+  | "PROCESSING"
+  | "READY"
+  | "ERROR";
 
 /**
  * The audio the server actually accepts, mirrored for the file picker.
@@ -66,6 +85,7 @@ export type MediaCardOverrides = Partial<
   provenance?: MediaProvenance;
   editorialStatus?: MediaEditorialStatus;
   stagedMaster?: boolean;
+  awaitingUpload?: boolean;
 };
 
 export const MEDIA_KIND_LABEL: Record<string, string> = {

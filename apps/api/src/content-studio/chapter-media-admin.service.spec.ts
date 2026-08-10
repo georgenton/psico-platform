@@ -301,6 +301,22 @@ describe("publishing", () => {
     expect(prisma.chapterMediaVersion.update).not.toHaveBeenCalled();
   });
 
+  it("refuses a video whose file never arrived", async () => {
+    // C3 — an upload was started at the provider and abandoned. Publishing would
+    // put a card in front of readers that the editor believes is a video and
+    // that will never play. The check is on our own row, so no provider outage
+    // can turn it into a pass.
+    prisma.chapterMediaVersion.findUnique.mockResolvedValue({
+      ...draftRow,
+      pendingVideoUid: "bbbbbbbbbbbbbbbbbbbb",
+    });
+
+    await expect(service.publishDraft("row_9")).rejects.toMatchObject({
+      response: { code: "VIDEO_UPLOAD_INCOMPLETE" },
+    });
+    expect(prisma.chapterMediaVersion.update).not.toHaveBeenCalled();
+  });
+
   it("refuses to publish twice", async () => {
     prisma.chapterMediaVersion.findUnique.mockResolvedValue({
       ...draftRow,

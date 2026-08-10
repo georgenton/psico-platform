@@ -2689,6 +2689,12 @@ model ChapterMediaVersion {
   updatedAt       DateTime                    @updatedAt
   publishedAt     DateTime?
 
+  /// C3 — a Cloudflare Stream video allocated for this draft whose bytes have
+  /// not landed yet. Deliberately NOT the definition's `source`: a source means
+  /// playable, and this means "an upload is in flight". Cleared when the
+  /// provider confirms the upload finished, at which point the source is written.
+  pendingVideoUid String?
+
   createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   /// At most one draft and one published row per media key, which is what makes

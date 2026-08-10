@@ -115,6 +115,16 @@
               }
             }
           },
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "",
             "content": {
@@ -467,6 +477,9 @@
           }
         },
         "responses": {
+          "204": {
+            "description": ""
+          },
           "400": {
             "description": "",
             "content": {
@@ -529,6 +542,9 @@
           }
         },
         "responses": {
+          "200": {
+            "description": ""
+          },
           "400": {
             "description": "",
             "content": {
@@ -652,10 +668,89 @@
     "/api/books": {
       "get": {
         "operationId": "BooksController_list",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "view",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "catalogo",
+                "mis",
+                "recos",
+                "favoritos",
+                "guardados"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "recent",
+                "alpha",
+                "marina"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 60,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -706,6 +801,9 @@
           }
         },
         "responses": {
+          "201": {
+            "description": ""
+          },
           "400": {
             "description": "",
             "content": {
@@ -763,7 +861,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -812,7 +917,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -909,7 +1021,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -958,11 +1077,37 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "type": "number"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -1023,7 +1168,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -1081,7 +1233,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -1139,7 +1298,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -1197,7 +1363,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -1398,6 +1571,9 @@
           }
         },
         "responses": {
+          "201": {
+            "description": ""
+          },
           "400": {
             "description": "",
             "content": {
@@ -1589,7 +1765,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -1628,7 +1814,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -1725,7 +1918,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -1764,7 +1964,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1801,6 +2008,7 @@
             "bearer": []
           }
         ],
+        "summary": "Etapa 6 — receive the NUMERIC text features the client computed on-device\nfrom a decrypted reflection. The body has no text field by design; the\nwhitelist ValidationPipe strips anything extra (ADR 0007).",
         "tags": [
           "EmotionalMap"
         ]
@@ -1822,7 +2030,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1841,7 +2056,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -1890,7 +2112,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -1939,7 +2168,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -1986,7 +2222,14 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -2052,7 +2295,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -2167,7 +2417,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -2508,7 +2765,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -2542,7 +2809,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -2586,7 +2860,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -2630,7 +2911,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -2664,7 +2952,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -2695,10 +2990,29 @@
     "/api/subscriptions/invoices": {
       "get": {
         "operationId": "SubscriptionController_listInvoices",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Max number of invoices to fetch (1–50). Default 12 when omitted —\nmatches the row count of the Mi Plan invoice table.\n\nStripe returns newest-first; no cursor is exposed yet (single-page\nUX). When pagination is needed, add `starting_after`.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -2742,7 +3056,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -2776,7 +3097,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -2841,10 +3169,78 @@
     "/api/reflexiones/entries": {
       "get": {
         "operationId": "ReflexionesController_list",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mood",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "great",
+                "good",
+                "ok",
+                "low",
+                "hard"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -2901,7 +3297,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -2950,7 +3353,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -2999,7 +3409,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3057,7 +3474,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3123,7 +3547,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3179,7 +3610,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3247,7 +3685,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3306,7 +3751,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3355,7 +3807,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3393,6 +3852,7 @@
             "bearer": []
           }
         ],
+        "summary": "Which micro-checkin question to ask next (Mapa Emocional · Etapa 2).\n`item: null` when today's question was already answered.",
         "tags": [
           "Mood"
         ]
@@ -3414,7 +3874,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3452,6 +3919,7 @@
             "bearer": []
           }
         ],
+        "summary": "Persist one 0–4 checkin answer. Plain ordinal, no text (ADR 0007).",
         "tags": [
           "Mood"
         ]
@@ -3463,7 +3931,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3502,7 +3977,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3536,7 +4021,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3570,7 +4062,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3601,10 +4100,29 @@
     "/api/billing/invoices": {
       "get": {
         "operationId": "BillingController_listInvoices",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Max number of invoices to fetch (1–50). Default 12 when omitted —\nmatches the row count of the Mi Plan invoice table.\n\nStripe returns newest-first; no cursor is exposed yet (single-page\nUX). When pagination is needed, add `starting_after`.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3648,7 +4166,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3692,7 +4217,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3723,10 +4255,26 @@
     "/api/billing/return": {
       "get": {
         "operationId": "BillingController_getReturn",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "session_id",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3749,6 +4297,7 @@
             }
           }
         },
+        "summary": "Callback the user's browser hits after Stripe Checkout. The front\npasses back the `session_id` Stripe appended to `successUrl`.\n\nWe do NOT mutate the user's plan here — the Stripe webhook is the\ncanonical write path. This handler just confirms the result so the\nfront can show success/processing/failed immediately without polling.",
         "tags": [
           "Billing"
         ]
@@ -3770,7 +4319,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3814,7 +4370,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3848,7 +4411,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3916,7 +4486,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -3966,6 +4543,16 @@
         "operationId": "HealthController_integrationsReport",
         "parameters": [],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
           "401": {
             "description": "",
             "content": {
@@ -3999,6 +4586,16 @@
         "operationId": "HealthController_emotionalMapIdentity",
         "parameters": [],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
           "401": {
             "description": "",
             "content": {
@@ -4032,7 +4629,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -4081,7 +4685,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -4130,7 +4741,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -4169,7 +4787,14 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -4218,7 +4843,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -4267,7 +4899,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -4316,7 +4955,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -4365,7 +5011,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -4413,6 +5066,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
           "400": {
             "description": "",
             "content": {
@@ -4597,7 +5260,14 @@
         "parameters": [],
         "responses": {
           "202": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -4646,7 +5316,14 @@
         },
         "responses": {
           "202": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -4685,7 +5362,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -4996,7 +5680,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -5213,10 +5904,28 @@
     "/api/voz/transcribe": {
       "post": {
         "operationId": "VoiceController_transcribe",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "Optional language hint sent to the speech-to-text provider. Both\nWhisper and Deepgram accept ISO-639-1 codes (`\"es\"`, `\"en\"`) plus a\nfew extended tags (`\"es-419\"` for LATAM Spanish, recommended for\nEcuador users).\n\nCapped at 16 chars — defense against arbitrary attacker input\nreaching the third-party API. When omitted, the provider\nauto-detects (less accurate for short clips).",
+            "schema": {
+              "maxLength": 16,
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -5264,6 +5973,7 @@
             "bearer": []
           }
         ],
+        "summary": "Audio in (multipart `audio` field), transcript out. Plan-gated at the\nservice layer (FREE → 403 VOICE_REQUIRES_PRO; quota exhausted →\n402 VOICE_QUOTA_EXCEEDED) and rate-limited here to 10/min/user — voice\ntranscription is expensive both server-side and at the provider, so\nwe cap aggressively even for Pro users.",
         "tags": [
           "Voice"
         ]
@@ -5275,7 +5985,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -5323,6 +6040,7 @@
             "bearer": []
           }
         ],
+        "summary": "`/voz/usage` from docs/design/handoff/07-voz.md. v1 is informational —\nthe server already counted seconds on `/transcribe`. The client posts\nits own measurement so the server can cross-check and return the\nauthoritative remaining-minutes value back.",
         "tags": [
           "Voice"
         ]
@@ -5826,7 +6544,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -5877,7 +6602,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -5921,7 +6653,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -5972,7 +6711,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -6016,7 +6762,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -6123,7 +6876,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -6186,7 +6946,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -16385,6 +17152,8 @@
             "required": true,
             "in": "query",
             "schema": {
+              "minimum": 1,
+              "maximum": 10000,
               "example": 1,
               "type": "number"
             }
@@ -16415,6 +17184,9 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": ""
+          },
           "404": {
             "description": "",
             "content": {
@@ -16454,6 +17226,9 @@
           }
         },
         "responses": {
+          "200": {
+            "description": ""
+          },
           "409": {
             "description": "La versión ya está publicada y es inmutable.",
             "content": {
@@ -16495,6 +17270,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
           "404": {
             "description": "",
             "content": {
@@ -16527,6 +17312,9 @@
           }
         },
         "responses": {
+          "201": {
+            "description": ""
+          },
           "422": {
             "description": "",
             "content": {
@@ -16566,6 +17354,9 @@
           }
         ],
         "responses": {
+          "201": {
+            "description": ""
+          },
           "409": {
             "description": "",
             "content": {
@@ -16597,6 +17388,9 @@
           }
         ],
         "responses": {
+          "201": {
+            "description": ""
+          },
           "409": {
             "description": "",
             "content": {
@@ -16892,6 +17686,9 @@
               }
             }
           },
+          "201": {
+            "description": ""
+          },
           "404": {
             "description": "",
             "content": {
@@ -16957,6 +17754,9 @@
               }
             }
           },
+          "201": {
+            "description": ""
+          },
           "404": {
             "description": "",
             "content": {
@@ -17007,6 +17807,9 @@
                 }
               }
             }
+          },
+          "201": {
+            "description": ""
           },
           "409": {
             "description": "",
@@ -17114,6 +17917,9 @@
               }
             }
           },
+          "201": {
+            "description": ""
+          },
           "409": {
             "description": "",
             "content": {
@@ -17170,6 +17976,9 @@
                 }
               }
             }
+          },
+          "201": {
+            "description": ""
           },
           "409": {
             "description": "",
@@ -17302,6 +18111,9 @@
               }
             }
           },
+          "201": {
+            "description": ""
+          },
           "409": {
             "description": "",
             "content": {
@@ -17366,6 +18178,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentStudioMediaUploadResponseDto"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
                 }
               }
             }
@@ -17447,6 +18269,16 @@
               }
             }
           },
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
           "409": {
             "description": "",
             "content": {
@@ -17488,6 +18320,9 @@
               }
             }
           },
+          "201": {
+            "description": ""
+          },
           "409": {
             "description": "",
             "content": {
@@ -17505,13 +18340,144 @@
         ]
       }
     },
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/video/upload-intent": {
+      "post": {
+        "operationId": "createContentStudioVideoUploadIntent",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVideoUploadIntentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioVideoUploadIntentDto"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Pide dónde subir un video de capítulo. Sin mediaKey crea uno nuevo; con mediaKey reemplaza el archivo de ese video.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/content/media/drafts/{draftId}/video-status": {
+      "get": {
+        "operationId": "getContentStudioVideoUploadStatus",
+        "parameters": [
+          {
+            "name": "draftId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioVideoUploadStatusDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Estado de una subida de video. Cuando el proveedor confirma, deja el video asociado al borrador.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
     "/api/patrones": {
       "get": {
         "operationId": "PatronesController_getPatrones",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "30d",
+                "90d",
+                "1y"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -17554,6 +18520,16 @@
         "operationId": "PatronesController_regenerate",
         "parameters": [],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
           "400": {
             "description": "",
             "content": {
@@ -17616,7 +18592,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -17660,7 +18643,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -17717,7 +18707,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -17785,7 +18782,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -17890,7 +18894,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -17918,7 +18929,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -17960,10 +18978,68 @@
     "/api/pulso/reports/eco": {
       "get": {
         "operationId": "PulsoController_list",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "reason",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "HALLUCINATION",
+                "OFF_TONE",
+                "SENSITIVE_CONTENT",
+                "CRISIS_MISHANDLED",
+                "OTHER"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "open",
+              "enum": [
+                "open",
+                "resolved",
+                "all"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -18027,7 +19103,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -18081,7 +19164,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -18126,7 +19216,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -18171,7 +19268,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -18286,6 +19390,9 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": ""
+          },
           "400": {
             "description": "",
             "content": {
@@ -18357,6 +19464,9 @@
           }
         },
         "responses": {
+          "200": {
+            "description": ""
+          },
           "400": {
             "description": "",
             "content": {
@@ -18407,7 +19517,42 @@
     "/api/pulso/users": {
       "get": {
         "operationId": "PulsoController_listUsers",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Substring match on email or name (case-insensitive).",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "required": false,
+            "in": "query",
+            "description": "Filter by exact role.",
+            "schema": {
+              "enum": [
+                "USER",
+                "AUTHOR",
+                "PSYCHOLOGIST",
+                "ADMIN"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -18527,6 +19672,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
           "400": {
             "description": "",
             "content": {
@@ -18713,7 +19868,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -18793,7 +19955,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -18828,7 +19997,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -18860,10 +20036,123 @@
     "/api/terapia/therapists": {
       "get": {
         "operationId": "TerapiaController_listTherapists",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "motivo",
+            "required": false,
+            "in": "query",
+            "description": "Catalog ID of a primary motive (e.g. `\"anxiety\"`). Filters to\ntherapists who declare expertise in that motive. Max 32 chars\nfor opaque IDs.",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "name": "modalidad",
+            "required": false,
+            "in": "query",
+            "description": "Therapy modality the user wants: `\"INDIVIDUAL\"`, `\"COUPLE\"`, or\n`\"FAMILY\"`. Filters to therapists who offer that modality.\nPlugin emits the enum in OpenAPI.",
+            "schema": {
+              "enum": [
+                "INDIVIDUAL",
+                "COUPLE",
+                "FAMILY"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "genero",
+            "required": false,
+            "in": "query",
+            "description": "Catalog ID of a preferred therapist gender (e.g. `\"female\"`,\n`\"male\"`, `\"non-binary\"`). Surfaces in the design as \"preferencia\nde género del terapeuta\".",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "ISO-639-1 language code (e.g. `\"es\"`, `\"en\"`) the therapist\nspeaks. 2–8 chars to accept variants like `\"es-419\"`.",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 8,
+              "type": "string"
+            }
+          },
+          {
+            "name": "priceMin",
+            "required": false,
+            "in": "query",
+            "description": "Minimum session price in USD cents-resolved-to-units (0–10000).\nCombined with `priceMax` for ranges.",
+            "schema": {
+              "minimum": 0,
+              "maximum": 10000,
+              "type": "number"
+            }
+          },
+          {
+            "name": "priceMax",
+            "required": false,
+            "in": "query",
+            "description": "Maximum session price in USD (0–10000). Combined with `priceMin`\nfor ranges.",
+            "schema": {
+              "minimum": 0,
+              "maximum": 10000,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "description": "Sort order for the result set. Defaults to `\"rating\"`.",
+            "schema": {
+              "enum": [
+                "rating",
+                "price-asc",
+                "price-desc",
+                "popular"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (1-indexed). Default 1 via the `Transform` decorator\nthat coerces query string to number and applies the default.",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "description": "Items per page (1–100). Default 20.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -18907,7 +20196,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -18947,11 +20243,37 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "type": "number"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -18995,7 +20317,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -19035,11 +20364,29 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "days",
+            "required": false,
+            "in": "query",
+            "description": "How many calendar days forward to project (1–30). Default 14 when\nomitted — matches the 2-week therapist booking horizon in the\ndesign. The `Transform` decorator coerces the query string to a\nnumber and applies the default if absent.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 30,
+              "type": "number"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -19083,6 +20430,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
           "400": {
             "description": "",
             "content": {
@@ -19135,7 +20492,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -19187,7 +20551,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -19231,7 +20602,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -19285,7 +20663,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -19339,7 +20724,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -19371,10 +20763,31 @@
     "/api/terapia/sessions": {
       "get": {
         "operationId": "TerapiaController_listSessions",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "upcoming",
+                "past",
+                "all"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -19409,7 +20822,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -19463,7 +20886,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -19495,10 +20925,36 @@
     "/api/terapia/notifications": {
       "get": {
         "operationId": "TerapiaController_listNotifications",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "unread",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -19630,6 +21086,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
           "400": {
             "description": "",
             "content": {
@@ -19746,7 +21212,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -20059,7 +21532,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -20210,6 +21690,9 @@
           }
         },
         "responses": {
+          "200": {
+            "description": ""
+          },
           "400": {
             "description": "",
             "content": {
@@ -20419,6 +21902,9 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": ""
+          },
           "400": {
             "description": "",
             "content": {
@@ -20490,6 +21976,9 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": ""
+          },
           "400": {
             "description": "",
             "content": {
@@ -20708,7 +22197,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -20763,7 +22259,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -20931,118 +22434,774 @@
     "schemas": {
       "ErrorEnvelopeDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "description": "HTTP status code, e.g. 400, 401, 404, 422, 500."
+          },
+          "code": {
+            "type": "string",
+            "description": "Machine-readable error code (SCREAMING_SNAKE_CASE), e.g.\n`VALIDATION_ERROR`, `AUTH_INVALID_CREDENTIALS`, `RATE_LIMIT_EXCEEDED`.\nStable contract — clients branch on this, not `message`."
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable summary. Safe to surface to end-users."
+          },
+          "details": {
+            "type": "object",
+            "description": "Optional structured detail. For `VALIDATION_ERROR` this is the array of\nclass-validator constraint failures; for other codes it may carry\ndomain-specific context."
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "ISO-8601 server timestamp at error time."
+          },
+          "path": {
+            "type": "string",
+            "description": "Request path that produced the error, e.g. `/api/auth/login`."
+          }
+        },
+        "required": [
+          "statusCode",
+          "code",
+          "message",
+          "timestamp",
+          "path"
+        ]
       },
       "RegisterDeviceDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "EXPO",
+              "WEB"
+            ]
+          },
+          "token": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 2048,
+            "pattern": "/^(ExponentPushToken\\[|ExpoPushToken\\[|web:).+/"
+          },
+          "deviceLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "platform",
+          "token"
+        ]
       },
       "RegisterDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "The user's email address. Must be a valid RFC 5321 address. Used as\nthe unique login identifier and as the destination for verification\n+ password-reset emails.",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "description": "Password (8–72 characters). Bcrypt silently truncates anything past\n72 bytes, so the upper bound is enforced explicitly to surface that\ntruncation as a validation error instead of a silent confidence\ndowngrade.\n\nThe server hashes with bcrypt before persisting; the raw password\nnever reaches storage and never appears in any log.",
+            "minLength": 8,
+            "maxLength": 72
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name (2–100 chars). Shown in the UI and in transactional\nemails. Not used for authentication.",
+            "minLength": 2,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "name"
+        ]
+      },
+      "AuthUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable opaque user ID (UUID v4)."
+          },
+          "email": {
+            "type": "string",
+            "description": "Login email. Always lowercase as stored."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name shown in the UI and in transactional emails."
+          },
+          "role": {
+            "type": "string",
+            "description": "Authorization role: typically `\"USER\"`. Other values: `\"AUTHOR\"`,\n`\"PSYCHOLOGIST\"`, `\"ADMIN\"`. Frontend uses this to show admin /\nauthor surfaces."
+          },
+          "plan": {
+            "type": "string",
+            "description": "Active plan tier: `\"FREE\"`, `\"PRO\"`, `\"ANNUAL\"`, or `\"B2B\"`. Gates\nPro-only features in the UI; the API also re-enforces server-side."
+          },
+          "cryptoSalt": {
+            "type": "string",
+            "nullable": true,
+            "description": "base64url-encoded 16-byte Argon2id salt used by the client to derive\nthe E2E master key (ADR 0007 §A). NOT a secret — useless without the\npassword. `null` for legacy accounts created before Sprint S6-crypto;\nthe server backfills it on next login so this value stops being\n`null` for an account after one successful login."
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name",
+          "role",
+          "plan",
+          "cryptoSalt"
+        ]
       },
       "AuthResponseDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "Short-lived JWT (~15 min). Send as\n`Authorization: Bearer <token>` on every authenticated request."
+          },
+          "refreshToken": {
+            "type": "string",
+            "description": "Long-lived JWT (~30 days), single-use. POST to `/auth/refresh` to\nexchange for a new access+refresh pair. The presented refresh token\nis invalidated atomically on rotation."
+          },
+          "user": {
+            "description": "The authenticated user's public profile.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuthUserDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "user"
+        ]
       },
       "LoginDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "The email used at registration.",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "description": "The user's password. Never logged, never echoed back. The server\ncompares against the bcrypt hash and discards the plaintext after."
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
       },
       "RefreshDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
       },
       "ForgotPasswordDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": [
+          "email"
+        ]
       },
       "ResetPasswordDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Raw reset token from the email link, base64url 32–128 chars. The\nserver hashes (SHA-256) before lookup — the raw token only ever\ntouches the email and this request body.",
+            "pattern": "/^[a-zA-Z0-9_-]{32,128}$/"
+          },
+          "newPassword": {
+            "type": "string",
+            "description": "New password (8–72 characters). Bcrypt silently truncates anything\npast 72 bytes, so the upper bound is enforced explicitly to surface\nthat as a validation error.\n\nThe server hashes with bcrypt before persisting; raw plaintext never\ntouches storage or logs. The previous password hash is overwritten —\nthere is no history.",
+            "minLength": 8,
+            "maxLength": 72
+          }
+        },
+        "required": [
+          "token",
+          "newPassword"
+        ]
       },
       "VerifyEmailDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "/^[a-zA-Z0-9_-]{32,128}$/"
+          }
+        },
+        "required": [
+          "token"
+        ]
       },
       "OAuthGoogleDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "idToken": {
+            "type": "string",
+            "description": "Google ID token (JWT) obtained client-side from Google Identity\nServices (web) or Google Sign-In SDK (mobile). The backend verifies\nthe signature against Google's public keys via `google-auth-library`\n— no Passport redirect flow.\n\nTypical length: ~1000–1500 characters. The token is single-use from\nour perspective: we extract identity claims and discard.",
+            "minLength": 64
+          }
+        },
+        "required": [
+          "idToken"
+        ]
       },
       "CreateBookReviewDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "rating": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "rating",
+          "text"
+        ]
       },
       "CreateBookDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "URL slug for the book — must be lowercase kebab-case (matches\n`/^[a-z0-9]+(?:-[a-z0-9]+)*$/`). Used in `/dashboard/biblioteca/[slug]`\nand as the canonical identifier. Pick carefully: changing it later\nbreaks bookmarks and shared links.",
+            "pattern": "/^[a-z0-9]+(?:-[a-z0-9]+)*$/"
+          },
+          "title": {
+            "type": "string",
+            "description": "Display title. Shown in the book card, the detail header, and the\nreader chrome. No length cap because Spanish titles can run long\n(\"Familias Ensambladas: un manual para…\")."
+          },
+          "description": {
+            "type": "string",
+            "description": "Long-form description shown on the detail screen + meta tags. Plain\ntext; markdown not interpreted in v1."
+          },
+          "coverUrl": {
+            "type": "string",
+            "description": "R2 URL of the cover image. Optional — when omitted, the front uses\nthe `coverToken`-based gradient fallback.",
+            "format": "uri"
+          },
+          "plan": {
+            "type": "string",
+            "description": "Minimum plan tier required to access the book. `\"FREE\"` means the\nbook shows in the catalog for all users; higher tiers gate it\nbehind the paywall. Plugin emits the enum in OpenAPI.",
+            "enum": [
+              "FREE",
+              "PRO",
+              "ANNUAL",
+              "B2B"
+            ]
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "plan"
+        ]
       },
       "UpdateBookDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "isPublished": {
+            "type": "boolean",
+            "description": "Toggle catalog visibility. `false` hides the book from\n`GET /api/books` (the public list) without deleting it; admins can\nstill read the detail by direct slug. Use to soft-retire books or\nto stage new ones before launch."
+          }
+        }
       },
       "CreateChapterDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "order": {
+            "type": "number",
+            "description": "Display order within the book (1-indexed). Used as the chapter\nidentifier in `/dashboard/biblioteca/[slug]/lector/[order]`.\nCollision with an existing chapter returns 409 `ORDINAL_TAKEN`.",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string",
+            "description": "Display title of the chapter. Shown in the reader header + the\nchapter list on the book detail page."
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional short description shown in the chapter list (1-2 lines\npreview). Plain text."
+          },
+          "durationMinutes": {
+            "type": "number",
+            "description": "Optional estimated reading time in minutes. Used to roll up the\nbook's `durationMinutes` on the detail screen and to size session\nprogress. Author's best guess — server doesn't validate against\nactual content.",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "order",
+          "title"
+        ]
       },
       "UploadAudioDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "durationSeconds": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "title",
+          "durationSeconds"
+        ]
       },
       "MarkProgressDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          }
+        }
       },
       "UpdateUserMoodBodyDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "moodId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "moodId"
+        ]
       },
       "LogTextFeaturesDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "description": "Diary entry the features belong to; enables idempotent re-save upsert.",
+            "minLength": 10,
+            "maxLength": 64
+          },
+          "wordCount": {
+            "type": "number",
+            "description": "Tokens in the analyzed entry.",
+            "minimum": 5,
+            "maximum": 100000
+          },
+          "selfFocus": {
+            "type": "number",
+            "description": "First-person singular pronoun density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "positive": {
+            "type": "number",
+            "description": "Positive-affect word density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "negative": {
+            "type": "number",
+            "description": "Negative-affect word density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "insight": {
+            "type": "number",
+            "description": "Cognitive-insight marker density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "causal": {
+            "type": "number",
+            "description": "Causal-language density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "absolutist": {
+            "type": "number",
+            "description": "Absolutist word density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "social": {
+            "type": "number",
+            "description": "Social-reference density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "selfKind": {
+            "type": "number",
+            "description": "Self-kind talk density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "selfCritic": {
+            "type": "number",
+            "description": "Self-critical talk density in [0,1].",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "wordCount",
+          "selfFocus",
+          "positive",
+          "negative",
+          "insight",
+          "causal",
+          "absolutist",
+          "social",
+          "selfKind",
+          "selfCritic"
+        ]
+      },
+      "EcoScopeDto": {
+        "type": "object",
+        "properties": {
+          "bookSlug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "chapterOrder": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "bookSlug",
+          "chapterOrder"
+        ]
       },
       "SendEcoMessageDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "description": "Server-side ID of the thread the message belongs to. The user must\nown the thread or the service returns 404 (we do not 403 — would\nleak existence). Max length 128 to allow opaque IDs.",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "textPlaintext": {
+            "type": "string",
+            "description": "Ephemeral plaintext of the user's message. Server uses it for the\nLLM prompt + layer-1 crisis regex detection, then drops it. NEVER\npersists, NEVER logs, NEVER returns in any response. The privacy\nspec enforces this at CI time.\n\nHard cap 2000 chars (~500 tokens) to control LLM cost and stay\nunder the design's \"respuestas cortas\" voice.",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "textCiphertext": {
+            "type": "string",
+            "description": "XChaCha20-Poly1305 ciphertext of the same message, base64url-encoded.\nEncrypted client-side under the eco subkey (HKDF from master key\nwith `ECO_KEY_INFO`). Server persists as-is, decrypts never.\n\nFor replays / history reads, this is what the client decrypts\nlocally to render the message bubble.",
+            "maxLength": 4096,
+            "format": "base64"
+          },
+          "textNonce": {
+            "type": "string",
+            "description": "Fresh 24-byte XChaCha20 nonce paired with `textCiphertext`,\nbase64url-encoded (32 chars exactly). Must be a new random nonce on\nevery send — reuse under the same key breaks confidentiality.",
+            "maxLength": 32,
+            "format": "base64"
+          },
+          "intent": {
+            "type": "object",
+            "description": "Optional intent hint. `\"suggest\"` nudges Eco to recommend a book or\nexercise instead of free-form chat. v1 routes both through the same\nLLM call with the intent injected into the system prompt — explicit\ndispatch can come later if recommendation tuning needs it."
+          },
+          "scope": {
+            "description": "Fase H — optional reading context (reader dock/sheet handoff).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EcoScopeDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "threadId",
+          "textPlaintext",
+          "textCiphertext",
+          "textNonce"
+        ]
       },
       "ReportEcoMessageDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "reason": {
+            "type": "object",
+            "description": "Category of the issue. One of:\n- `HALLUCINATION` — Eco invented facts or sources\n- `OFF_TONE` — wrong register (too clinical, too casual, etc)\n- `SENSITIVE_CONTENT` — produced content that crosses safety lines\n- `CRISIS_MISHANDLED` — failed to detect or respond appropriately to a crisis signal\n- `OTHER` — falls outside the above (description in `comment`)\n\nPlugin emits the enum in OpenAPI from `@IsEnum`."
+          },
+          "comment": {
+            "type": "string",
+            "description": "Optional free-text explanation, up to 500 chars. Recommended when\n`reason === \"OTHER\"`. Stored as-is — the user is signaling intent,\nnot entering encrypted content.",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "reason"
+        ]
       },
       "ChatRequestDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "conversationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ]
       },
       "CreateCheckoutSessionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "billingPlan": {
+            "description": "Plan tier to purchase. Plugin emits the enum in OpenAPI.",
+            "enum": [
+              "PRO_MONTHLY",
+              "PRO_YEARLY",
+              "B2B"
+            ],
+            "type": "string"
+          },
+          "successUrl": {
+            "type": "string",
+            "description": "Where Stripe should redirect after successful payment. Stripe\nappends `?session_id=...` automatically. The front passes that to\n`/billing/return` to confirm.",
+            "format": "uri"
+          },
+          "cancelUrl": {
+            "type": "string",
+            "description": "Where Stripe should redirect if the user aborts payment. No state\nchange happens; the front can just return the user to the plan\npicker.",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "billingPlan",
+          "successUrl",
+          "cancelUrl"
+        ]
       },
       "CreatePortalSessionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "returnUrl": {
+            "type": "string",
+            "description": "Where Stripe should redirect after the user closes the portal.\nWeb: `/dashboard/plan`. Mobile: a Universal Link / deep link back\nto `(tabs)/plan`. The session is single-use — Stripe burns it\nwhen the user finishes.",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "returnUrl"
+        ]
       },
       "CancelSubscriptionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Optional free-text reason the user typed in the cancel modal.\nCapped at 480 chars (Stripe metadata cap). Not validated for\nsentiment / category — analytics teams categorize later.",
+            "maxLength": 480
+          }
+        }
       },
       "CreateDiaryEntryDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "mood": {
+            "type": "string",
+            "nullable": true,
+            "description": "Mood token from the shared `DIARY_MOODS` catalog (great / good / ok /\nlow / hard). Plaintext by design (patterns analytics). Server derives the\nnormalization columns; the client controls neither provenance nor\neligibility.\n\nPR-2B · **optional and null-capable**. A reflexion may carry no mood at\nall: an absent or explicit-`null` value both mean \"no pick\" → the server\nstores `mood = null` and marks it `not_selected` / ineligible. A present\nvalue MUST be canonical (`@ValidateIf` skips only when absent/null; a\nlegacy / unknown / empty token → 400). Eligibility additionally requires a\nmatching `moodSelectionVersion` attestation (see below) — a canonical mood\nwith no attestation is preserved but stays ineligible. The plugin\nauto-emits the enum in OpenAPI.",
+            "enum": [
+              "great",
+              "good",
+              "ok",
+              "low",
+              "hard"
+            ]
+          },
+          "moodSelectionVersion": {
+            "type": "string",
+            "description": "PR-2B · the client's versioned attestation that `mood` was an EXPLICIT\npick. The ONLY value a client may send is `explicit-v1`\n(`CLIENT_SELECTION_VERSIONS`); the server-owned attestations (`mood-log-v1`,\n`seed-v1`) are stamped by their own endpoints and rejected here. This is a\nversioned attestation, NOT a cryptographic proof — the server still derives\nprovenance/eligibility. Omit it (or send `null`) for a mood the composer\ndefaulted rather than the user tapping. Sending it without a `mood` is a\n400 (`MOOD_SELECTION_WITHOUT_MOOD`).",
+            "enum": [
+              "explicit-v1"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "description": "Origin of the entry. `\"free\"` for user-initiated, `\"prompted\"` for a\njournal-prompt response, `\"voz\"` for a voice-to-text dictation.\nDefault `\"free\"` if omitted.",
+            "enum": [
+              "free",
+              "prompted",
+              "voz"
+            ]
+          },
+          "promptId": {
+            "type": "string",
+            "description": "The `DiaryPrompt.id` the user is responding to, when `kind=\"prompted\"`.\nUp to 64 chars to allow opaque server-side identifiers.",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "textCiphertext": {
+            "type": "string",
+            "description": "The XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.\nEncrypted client-side under a per-user subkey derived via HKDF from\nthe master key. Server never decrypts. Bounded at ~1.4 MB ciphertext\n(≈1 MB plaintext) — anything bigger is a UI bug."
+          },
+          "textNonce": {
+            "type": "string",
+            "description": "The 24-byte XChaCha20 nonce that pairs with `textCiphertext`,\nbase64url-encoded. Must be unique per (key, write) — the client\ngenerates a fresh random nonce on every encryption (server doesn't\nenforce uniqueness; the client invariant is documented in ADR 0007 §C)."
+          },
+          "excerptCiphertext": {
+            "type": "string",
+            "description": "Optional preview ciphertext, used by the list view to render a short\nsnippet without decrypting the full body. Bounded the same way as\n`textCiphertext`. Short entries may omit it."
+          },
+          "excerptNonce": {
+            "type": "string",
+            "description": "The 24-byte XChaCha20 nonce for `excerptCiphertext`. Required IF\n`excerptCiphertext` is provided."
+          },
+          "tags": {
+            "description": "Up to 12 plain-text tags (each 1–32 chars). Plaintext by design — the\npatterns module clusters by tag for the weekly summary. Users should\nNOT include private info in tags (the UI nudges them toward\ncategorical labels like `trabajo` / `familia` / `sueño`).",
+            "maxItems": 12,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 32,
+              "minLength": 1
+            }
+          },
+          "audioUrl": {
+            "type": "string",
+            "description": "R2 signed URL for an attached voice recording. The audio itself is\nNOT stored long-term — the Voice module discards it post-transcription\n(07-voz.md). Persisted in the entry for replay during the active\nsession only.",
+            "format": "uri"
+          },
+          "audioDurationSec": {
+            "type": "number",
+            "description": "Duration in seconds of the attached voice recording, when present.",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "textCiphertext",
+          "textNonce"
+        ]
       },
       "UpdateDiaryEntryDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "mood": {
+            "type": "string",
+            "nullable": true,
+            "description": "New mood token from the shared `DIARY_MOODS` catalog. Server uses\nit for the patterns analytics — visible in plaintext by design.\nPlugin emits the enum in OpenAPI from `@IsIn`.\n\nPR-2B · null-capable, three-way. The service distinguishes the cases via\n`hasOwnProperty`, so the validator must let both `null` and a canonical\nstring through while still rejecting garbage:\n  - **absent** (property omitted) → leave the mood untouched.\n  - **`null`** → clear the mood (`not_selected`, ineligible).\n  - **canonical string** → set it (eligible only with `explicit-v1`).\n  - empty / legacy / unknown token → 400.\n`@ValidateIf(value !== undefined && value !== null)` skips validation for\nthe absent and null cases (both legitimate) and enforces `@IsIn` on any\npresent value.",
+            "enum": [
+              "great",
+              "good",
+              "ok",
+              "low",
+              "hard"
+            ]
+          },
+          "moodSelectionVersion": {
+            "type": "string",
+            "description": "PR-2B · client attestation that the new `mood` was an EXPLICIT pick. Only\n`explicit-v1` (`CLIENT_SELECTION_VERSIONS`) is accepted from a client; the\nserver-owned attestations are stamped elsewhere. Sending it without a\n`mood`, or alongside `mood: null`, is a 400 (`MOOD_SELECTION_WITHOUT_MOOD`).\nRe-saving the SAME canonical mood WITHOUT this attestation never degrades an\nalready-eligible row (the service preserves the existing normalization).",
+            "enum": [
+              "explicit-v1"
+            ]
+          },
+          "textCiphertext": {
+            "type": "string",
+            "description": "New XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.\nEncrypted client-side under the diary subkey derived via HKDF from\nthe master key. Server never decrypts.\n\nIf sent, `textNonce` MUST also be sent (paired write)."
+          },
+          "textNonce": {
+            "type": "string",
+            "description": "Fresh 24-byte XChaCha20 nonce paired with `textCiphertext`,\nbase64url-encoded. Must be a new random nonce — reusing the previous\nnonce under the same key catastrophically breaks confidentiality\n(XChaCha20 invariant).\n\nIf sent, `textCiphertext` MUST also be sent."
+          },
+          "excerptCiphertext": {
+            "type": "string",
+            "description": "New preview ciphertext for the list view. Same pairing rules as\n`textCiphertext`/`textNonce` — sending one requires sending the other."
+          },
+          "excerptNonce": {
+            "type": "string",
+            "description": "Fresh 24-byte XChaCha20 nonce paired with `excerptCiphertext`. Required\nif `excerptCiphertext` is sent."
+          },
+          "tags": {
+            "description": "Replacement tag set (up to 12, each 1–32 chars). Plaintext by\ndesign — used by the patterns module to cluster entries for the\nweekly summary. The UI nudges users to categorical labels (e.g.\n`trabajo` / `familia` / `sueño`) and explicitly NOT to put private\ninfo here.",
+            "maxItems": 12,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 32,
+              "minLength": 1
+            }
+          }
+        }
       },
       "ShareDiaryEntryDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "therapistId": {
+            "type": "string",
+            "description": "Stable ID of the therapist the entry is being shared with. The\ntherapist must already be in the user's verified therapist list\n(v2 — surface lives in TherapyModule).",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "ciphertextForTherapist": {
+            "type": "string",
+            "description": "XChaCha20-Poly1305 ciphertext of the plaintext entry, encrypted with\nthe ephemeralKey. base64url-encoded. Same bounds as Diary\nciphertext (`~1.4 MB` max)."
+          },
+          "wrappedKey": {
+            "type": "string",
+            "description": "The ephemeralKey wrapped with the shared secret from\n`ECDH(userPriv, therapistPub)`. Short blob (≤ 1 KB) — separate cap\nfrom `ciphertextForTherapist` so a malformed payload here can't\nbypass the body ciphertext size check."
+          },
+          "userOneShotPubKey": {
+            "type": "string",
+            "description": "X25519 public key the client generated SPECIFICALLY for this share.\n32 raw bytes → 43 base64url chars unpadded. Burned after this share\n— the therapist's app reads it to derive the shared secret, and the\nuser's app discards the matching private key."
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "Optional explicit expiry (ISO-8601). Server caps at 30 days from\nnow; default is 7 days when omitted. After expiry the share row is\ntombstoned by the sweeper job (v2) — the therapist can no longer\nread."
+          }
+        },
+        "required": [
+          "therapistId",
+          "ciphertextForTherapist",
+          "wrappedKey",
+          "userOneShotPubKey"
+        ]
       },
       "LogMoodDto": {
         "type": "object",
         "properties": {
           "mood": {
             "type": "string",
-            "description": "Mood token from the shared catalog.",
             "enum": [
               "great",
               "good",
@@ -21050,6 +23209,7 @@
               "low",
               "hard"
             ],
+            "description": "Mood token from the shared catalog.",
             "example": "good"
           }
         },
@@ -21059,91 +23219,597 @@
       },
       "LogCheckinDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "itemKey": {
+            "type": "string",
+            "description": "Which question was answered. Must be one of the CHECKIN_ITEMS keys from\n`@psico/types` (compile-time shared catalog; adding an item there is\nenough — no migration, the column is String).",
+            "enum": [
+              "claridad_nombrar",
+              "claridad_causa",
+              "compasion_amable",
+              "compasion_juicio",
+              "consciencia_presente",
+              "consciencia_pausa"
+            ]
+          },
+          "score": {
+            "type": "number",
+            "description": "Answer on the shared CHECKIN_SCALE: 0 = \"Para nada\" … 4 = \"Totalmente\".",
+            "minimum": 0,
+            "maximum": 4
+          }
+        },
+        "required": [
+          "itemKey",
+          "score"
+        ]
       },
       "PatchSubscriptionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "action": {
+            "type": "object",
+            "description": "What to do with the subscription:\n- `\"cancel\"` — mark cancel-at-period-end; the user keeps Pro\n  until the period closes\n- `\"reactivate\"` — undo a pending cancellation (no-op if not pending)\n- `\"switch-plan\"` — move to a different plan with proration. Currently\n  501 — server-side TODO.\n\nPlugin emits the enum in OpenAPI."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Free-text reason for cancellation (up to 480 chars). Captured for\nretention analytics; sent to Stripe metadata. Only meaningful when\n`action === \"cancel\"` — ignored for the other actions.",
+            "maxLength": 480
+          },
+          "newPlanId": {
+            "type": "string",
+            "description": "Target plan tier for `action: \"switch-plan\"`. Required for that\naction; ignored otherwise. Until the server implements the switch,\nthe request returns 501.",
+            "enum": [
+              "PRO_MONTHLY",
+              "PRO_YEARLY",
+              "B2B"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
       },
       "UpdateProfileDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "description": "Display first name shown in the home greeting and in transactional\nemails. 1–100 chars. The `name` field (legacy full display name) is\nnot editable here.",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "city": {
+            "type": "string",
+            "nullable": true,
+            "description": "Free-text city. Plaintext — used to size therapy listings by\nproximity. Pass `null` to clear. Max 100 chars.",
+            "maxLength": 100
+          },
+          "country": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO 3166-1 alpha-2 country code (exactly 2 chars, e.g. `\"EC\"`,\n`\"PE\"`). Used by `/terapia/crisis` to pick the right hotline. Pass\n`null` to clear — the service then falls back to a generic\ninternational list.",
+            "minLength": 2,
+            "maxLength": 2
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "R2 signed URL to the user's avatar image. Set by the avatar upload\nendpoint (`POST /user/avatar`); callers can also pass `null` to\nclear and revert to initials-based fallback.",
+            "format": "uri"
+          }
+        }
       },
       "UpdateTimezoneDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "timezone"
+        ]
       },
       "UpdatePreferencesDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "voicePreference": {
+            "type": "string",
+            "description": "Preferred narrator voice for audio chapters. Mirrors the\nonboarding step 3 choice. Plugin emits the enum in OpenAPI.",
+            "enum": [
+              "marina",
+              "tomas",
+              "none"
+            ]
+          },
+          "moodPrompts": {
+            "type": "boolean",
+            "description": "Whether the home screen should prompt for a mood ping in the\nmorning if not already pinged today. Disable for users who find\nthe nudges noisy."
+          },
+          "bestTime": {
+            "type": "string",
+            "description": "The time of day the user prefers to engage. Drives the inactive-nudge\nscheduler + future smart-reminder timing. `\"any\"` opts out of the\nheuristic.",
+            "enum": [
+              "morning",
+              "noon",
+              "evening",
+              "any"
+            ]
+          },
+          "weeklyGoalMinutes": {
+            "type": "number",
+            "description": "Self-set weekly reading goal in minutes (0–10080 = max 1 week). The\npatterns module surfaces progress against this in the weekly\nsummary email. 0 = no goal set; UI hides the progress bar.",
+            "minimum": 0,
+            "maximum": 10080
+          },
+          "theme": {
+            "type": "string",
+            "description": "UI theme preference. `\"system\"` follows OS dark-mode setting (web\n+ mobile); `\"light\"`/`\"dark\"` force the corresponding palette.\nClient renders the change instantly.",
+            "enum": [
+              "system",
+              "light",
+              "dark"
+            ]
+          },
+          "language": {
+            "type": "string",
+            "description": "UI language. v1 only has Spanish flavours: `\"es-419\"` (LATAM,\nneutral / Ecuadorian) and `\"es-ES\"` (peninsular). User input\nnormalized to the Ecuadorian \"tú\" register either way — this just\npicks copy tweaks.",
+            "enum": [
+              "es-419",
+              "es-ES"
+            ]
+          },
+          "ambient": {
+            "type": "string",
+            "description": "Ambient theme (Sprint B1). Re-skins the dashboard with a different\npalette + typography. All ambients are free regardless of plan — purely\ncosmetic, no functional gating.",
+            "enum": [
+              "calma",
+              "enfoque",
+              "energia",
+              "noche"
+            ]
+          }
+        }
       },
       "UpdateReaderPreferencesDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "font": {
+            "type": "string",
+            "enum": [
+              "serif",
+              "sans"
+            ]
+          },
+          "fontSize": {
+            "type": "number",
+            "minimum": 12,
+            "maximum": 28
+          },
+          "theme": {
+            "type": "string",
+            "enum": [
+              "system",
+              "light",
+              "sepia",
+              "dark"
+            ]
+          },
+          "lineHeight": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2.5
+          }
+        }
       },
       "UpdateNotificationsDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "dailyReminder": {
+            "type": "boolean",
+            "description": "If `true`, the inactive-nudge processor may push a daily reminder at\n`reminderTime` local. Also gates the weekly-digest push companion\n(the email itself is governed by `weeklyReport`)."
+          },
+          "reminderTime": {
+            "type": "string",
+            "description": "Local hour for daily/weekly notifications, format `HH:MM` 24h\n(e.g. `\"07:00\"`, `\"19:30\"`). Interpreted in the user's\n`Profile.timezone` (Sprint S53); legacy users without a timezone\nfall back to UTC.",
+            "pattern": "/^([01]\\d|2[0-3]):[0-5]\\d$/"
+          },
+          "streakReminders": {
+            "type": "boolean",
+            "description": "Push notifications celebrating streak milestones (3-day, 7-day,\n30-day, etc). Separate from `dailyReminder` so users can keep the\nhabit nudge but mute the celebrations."
+          },
+          "ecoReplies": {
+            "type": "boolean",
+            "description": "Push notifications when Eco posts a reply (e.g. async LLM finishes\na long generation). v1 SSE streams to the live tab, so this only\nfires for closed-app + Live Activities flows."
+          },
+          "terapiaReminders": {
+            "type": "boolean",
+            "description": "Push + email reminders for upcoming therapy sessions (24h, 1h before\nthe slot). Only firing while the user has at least one SCHEDULED\nsession."
+          },
+          "weeklyReport": {
+            "type": "boolean",
+            "description": "Monday-morning email digest summarising the prior week (entries\ncount, mood distribution, top tags, optional LLM-backed narrative\nif available). Push companion to the digest is gated by\n`dailyReminder` — the email itself flips with this flag alone."
+          }
+        }
       },
       "UpdatePrivacyDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "shareDiaryWithTherapist": {
+            "type": "boolean"
+          },
+          "anonymizedAnalytics": {
+            "type": "boolean"
+          },
+          "marketingEmail": {
+            "type": "boolean"
+          },
+          "localTextAnalysis": {
+            "type": "boolean",
+            "description": "Fase D (V2, decision L4) — consent for the on-device reflection text\nanalysis (TXT-L1). Setting it to false also deletes every derived\nnumeric row the user uploaded (consent cascade)."
+          }
+        }
       },
       "UpdateMoodDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "mood": {
+            "type": "string",
+            "description": "Wellness mood token (`great` / `good` / `meh` / `bad` / …). One of\n`WELLNESS_MOOD_IDS`. Unknown tokens are rejected with 400 by `@IsIn`.",
+            "enum": [
+              "great",
+              "good",
+              "calm",
+              "neutral",
+              "tired",
+              "anxious",
+              "sad",
+              "angry"
+            ]
+          }
+        },
+        "required": [
+          "mood"
+        ]
       },
       "EmailChangeRequestDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "newEmail": {
+            "type": "string",
+            "description": "Target email the user wants to switch to. Must be a valid RFC 5321\naddress and NOT already registered (409 `EMAIL_ALREADY_REGISTERED`\non conflict). Case is normalized server-side.",
+            "format": "email"
+          }
+        },
+        "required": [
+          "newEmail"
+        ]
       },
       "PasswordChangeDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "description": "The user's current password. Verified against the bcrypt hash\nbefore any write. Never logged."
+          },
+          "newPassword": {
+            "type": "string",
+            "description": "New password (8–72 chars). Bcrypt silently truncates anything past\n72 bytes, so the upper bound is enforced explicitly. Same rules as\nregister — picking weak passwords is the user's choice.",
+            "minLength": 8,
+            "maxLength": 72
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ]
+      },
+      "ReencryptedEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Server ID of the existing `DiaryEntry`. Must belong to the\nauthenticated user — service enforces ownership and throws\n400 ENTRY_NOT_OWNED if any ID in the array doesn't match.",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "textCiphertext": {
+            "type": "string",
+            "description": "New XChaCha20-Poly1305 ciphertext of the entry body, base64url-encoded.\nReplaces the entry's `textCiphertext` atomically inside the\ntransaction.",
+            "maxLength": 1400000,
+            "pattern": "BASE64URL"
+          },
+          "textNonce": {
+            "type": "string",
+            "description": "Fresh 24-byte XChaCha20 nonce for `textCiphertext`. Must be a new\nrandom value — reusing the old nonce under the new key would still\nbe fine cryptographically (different key) but loses the nonce-uniqueness\nhabit clients should keep.",
+            "minLength": 32,
+            "maxLength": 36,
+            "pattern": "BASE64URL"
+          },
+          "excerptCiphertext": {
+            "type": "string",
+            "description": "Optional re-encrypted preview ciphertext (used by the list view).\nRequired if the entry had an excerpt cipher before; the client\ndecides based on the existing entry.",
+            "maxLength": 1400000,
+            "pattern": "BASE64URL"
+          },
+          "excerptNonce": {
+            "type": "string",
+            "description": "Fresh nonce for `excerptCiphertext`. Required if `excerptCiphertext`\nis provided.",
+            "minLength": 32,
+            "maxLength": 36,
+            "pattern": "BASE64URL"
+          }
+        },
+        "required": [
+          "id",
+          "textCiphertext",
+          "textNonce"
+        ]
       },
       "PasswordChangeWithRekeyDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "description": "Current password (plaintext, used only to verify bcrypt match before\nthe rekey). Never logged. Not the same as `newPassword`.",
+            "minLength": 1
+          },
+          "newPassword": {
+            "type": "string",
+            "description": "New password (10–256 chars). Tighter min than register (which is 8)\nbecause rekey is a destructive operation — we nudge users toward a\npassword they actually remember.",
+            "minLength": 10,
+            "maxLength": 256
+          },
+          "newCryptoSalt": {
+            "type": "string",
+            "description": "Fresh 16-byte (or up to 21-byte) Argon2id salt the client generated\nfor the new master key, base64url-encoded (22–28 chars). Distinct\nfrom the old salt — the client throws away the old master key entirely\nand starts over.",
+            "minLength": 22,
+            "maxLength": 28,
+            "pattern": "BASE64URL"
+          },
+          "reencryptedEntries": {
+            "description": "Every active diary entry re-encrypted with the new diary subkey\n(HKDF from the new master key). Cap of 500 entries per request to\nkeep the transaction bounded; if the user has more, the UI chunks\nacross multiple requests.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReencryptedEntryDto"
+            }
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword",
+          "newCryptoSalt",
+          "reencryptedEntries"
+        ]
       },
       "DeleteRequestDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "password": {
+            "type": "string",
+            "description": "Current password — required to confirm intent. The 30-day cooldown\n+ email confirmation is the second factor. Verified against\nbcrypt; never logged."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Optional reason for leaving (up to 500 chars). Captured for\nretention analytics. Not surfaced anywhere user-facing.",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "password"
+        ]
       },
       "OnboardingStep1Dto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "motivosIds": {
+            "description": "Catalog IDs of the chosen motives. At least one required, max 5 —\npicking everything is signal for \"I don't know\" which we treat the\nsame as default.\n\nThe service validates each id exists in the `OnboardingMotivo`\ntable and returns 400 `MOTIVOS_NOT_FOUND` with the bad IDs.",
+            "minItems": 1,
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "motivosIds"
+        ]
       },
       "OnboardingStep2Dto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "moodId": {
+            "type": "string",
+            "description": "Catalog ID from `OnboardingMood` (separate vocabulary from\n`WELLNESS_MOODS` and `DIARY_MOODS`). Service validates the ID\nexists; unknown IDs return 400 `MOOD_NOT_FOUND` with the bad\nvalue echoed back for actionable error display."
+          }
+        },
+        "required": [
+          "moodId"
+        ]
       },
       "OnboardingStep3Dto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "description": "Display first name shown in the home greeting and the inactive-nudge\npush (e.g. \"Hola María, ¿cómo estás?\"). 2–40 chars. Disallows emoji,\nsymbols, control chars, and leading/trailing whitespace; permissive\nabout accented characters so `\"María José\"` works.\n\nPersisted to both `OnboardingState.firstName` (audit) and\n`User.firstName` (canonical).",
+            "minLength": 2,
+            "maxLength": 40,
+            "pattern": "/^[\\p{L}\\p{M}\\s'.-]+$/u"
+          },
+          "voicePreference": {
+            "type": "string",
+            "description": "Preferred narrator voice for audio playback:\n- `\"marina\"` — Marina Quintana voice (the anchor author's own)\n- `\"tomas\"` — Tomás voice (paired contributor)\n- `\"none\"` — opt out of audio entirely\n\nPersisted to `UserPreferences.voicePreference`. The audio file URL\nthe Lector serves picks the right track based on this preference.\nPlugin emits the enum in OpenAPI.",
+            "enum": [
+              "marina",
+              "tomas",
+              "none"
+            ]
+          }
+        },
+        "required": [
+          "firstName",
+          "voicePreference"
+        ]
       },
       "OnboardingCompleteDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "chosenBookId": {
+            "type": "string",
+            "nullable": true,
+            "description": "ID of the book the user chose to start with. `null` is valid — the\nuser finished onboarding without committing to a specific book\n(the \"terminar\" / skip-book option in step 4). When set, the\nchoice is mirrored to `OnboardingState.chosenBookId` for audit and\nthe front auto-starts that book on the next dashboard visit."
+          }
+        }
       },
       "OnboardingTourCompleteDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "stepsCompleted": {
+            "type": "number",
+            "description": "Number of tour steps the user actually saw before closing. `0` =\nskipped right after opening; the catalog max is 5 today but the\nupper bound is 20 to allow future growth without a contract bump.\n\n\"Terminar\" (clicked through all) sends `stepsCompleted = N` (total\ncatalog size); \"Saltar\" sends the current step index.",
+            "minimum": 0,
+            "maximum": 20
+          }
+        },
+        "required": [
+          "stepsCompleted"
+        ]
       },
       "LectorSessionHeartbeatDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "bookId": {
+            "type": "string",
+            "description": "ID of the `Book` the reading session belongs to. The service\nresolves the `chapterId` from `(bookId, chapterOrder)` for the\nupsert; an unknown pair returns 404.",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "chapterOrder": {
+            "type": "number",
+            "description": "Ordinal of the chapter being read (1-indexed). Combined with\n`bookId` to identify the active chapter.",
+            "minimum": 1,
+            "maximum": 999
+          },
+          "lastBlockId": {
+            "type": "string",
+            "description": "ID of the last `ChapterBlock` the user has scrolled past. Used to\nresume the session on next open (UI scrolls back to this block).",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "timeSpentDeltaSec": {
+            "type": "number",
+            "description": "Seconds since the previous heartbeat. Cap at 3600 in validation;\nservice further clamps to 60 to defend against suspend-and-resume\nspikes. The cumulative `timeSpentSec` on the row grows monotonically.",
+            "minimum": 0,
+            "maximum": 3600
+          },
+          "progressPct": {
+            "type": "number",
+            "description": "0.0–1.0 ratio of how far the user has scrolled through the chapter.\nServer clamps to [0, 1] and never lets the stored value decrease —\nonce 0.78 has been observed, the next heartbeat with 0.42 is silently\nignored (likely a UI bug / refresh / scroll-back). Use `complete`\nendpoint to set 1.0 explicitly.",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "bookId",
+          "chapterOrder",
+          "lastBlockId",
+          "timeSpentDeltaSec",
+          "progressPct"
+        ]
       },
       "CreateHighlightDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "blockKey": {
+            "type": "string",
+            "description": "Public stable block identity (Content Core, CC-6B). Preferred anchor for\nnew clients. Resolved server-side to the legacy binding; if `blockId` is\nalso sent they must correspond (else ANCHOR_IDENTITY_MISMATCH).",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "blockId": {
+            "type": "string",
+            "description": "Legacy ChapterBlock id — still accepted for backward compatibility. At\nleast one of `blockKey`/`blockId` is required (else ANCHOR_MISSING_TARGET).",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "blockVersionId": {
+            "type": "string",
+            "description": "Source text version the user read (CC-6C). REQUIRED for a Content Core\nwrite (`blockKey`) so the offsets validate against, and the quote is\ncaptured from, exactly that BlockVersion — not whatever is published at\nPOST time. Omitted for a legacy `blockId`-only write.",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "startOffset": {
+            "type": "number",
+            "description": "UTF-16 code-unit offset into the block's `content` where the\nhighlight starts. Inclusive. The service rejects with 400 if\n`startOffset >= endOffset` or if `endOffset` exceeds the actual\nblock length (the block is loaded server-side for verification).",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "endOffset": {
+            "type": "number",
+            "description": "UTF-16 code-unit offset into the block's `content` where the\nhighlight ends. Exclusive. Must satisfy `startOffset < endOffset`\nand be `≤ block.content.length`.",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "color": {
+            "type": "object",
+            "description": "Highlight color: `\"YELLOW\"` (default), `\"BLUE\"`, or `\"PINK\"`. The\nUI uses color to let users categorize visually (e.g. yellow = key\npassages, blue = quotes, pink = action items). Plugin emits the\nenum in OpenAPI."
+          },
+          "note": {
+            "type": "string",
+            "description": "Optional one-line note attached to the highlight (up to 280 chars).\nFor longer commentary, use the Annotations API instead — annotations\nare the right model for paragraph-length reflection.",
+            "minLength": 0,
+            "maxLength": 280
+          }
+        },
+        "required": [
+          "startOffset",
+          "endOffset"
+        ]
       },
       "CreateAnnotationDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "blockKey": {
+            "type": "string",
+            "description": "Public stable block identity (Content Core, CC-6B). Preferred anchor for\nnew clients; resolved server-side. If `blockId` is also sent they must\ncorrespond (else ANCHOR_IDENTITY_MISMATCH).",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "blockId": {
+            "type": "string",
+            "description": "Legacy ChapterBlock id — still accepted for backward compatibility. At\nleast one of `blockKey`/`blockId` is required (else ANCHOR_MISSING_TARGET).",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "text": {
+            "type": "string",
+            "description": "Annotation body. 1–4096 chars (~1000 words). Plaintext — annotations\nare NOT E2E encrypted because books are public content and the\nreflection here is contextual. Users who need privacy for personal\nreflection should use the Diary (which IS E2E).",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "text"
+        ]
       },
       "UpdateAnnotationDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "New annotation body. Same constraints as creation (1–4096 chars).",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "text"
+        ]
       },
       "ContentReadBlockDto": {
         "type": "object",
@@ -21687,9 +24353,9 @@
           },
           "meta": {
             "type": "object",
+            "nullable": true,
             "additionalProperties": true,
-            "description": "Metadatos del bloque. Forma libre: depende del kind y este vertical no la administra todavía.",
-            "nullable": true
+            "description": "Metadatos del bloque. Forma libre: depende del kind y este vertical no la administra todavía."
           }
         },
         "required": [
@@ -21762,10 +24428,12 @@
         "properties": {
           "kind": {
             "type": "string",
+            "maxLength": 40,
             "example": "PARAGRAPH"
           },
           "content": {
             "type": "string",
+            "maxLength": 100000,
             "description": "El texto del bloque."
           },
           "meta": {
@@ -21979,6 +24647,10 @@
             "type": "boolean",
             "description": "Si hay un archivo realmente asociado."
           },
+          "awaitingUpload": {
+            "type": "boolean",
+            "description": "Se pidió subir un video y el archivo todavía no llegó. No se puede publicar así."
+          },
           "hasTranscript": {
             "type": "boolean"
           },
@@ -22023,6 +24695,7 @@
           "chapters",
           "runtimeAvailability",
           "sourceReady",
+          "awaitingUpload",
           "hasTranscript",
           "hasPoster",
           "hasCaptions",
@@ -22116,7 +24789,8 @@
             "minimum": 0
           },
           "label": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           }
         },
         "required": [
@@ -22196,93 +24870,687 @@
           "sourceReady"
         ]
       },
+      "CreateVideoUploadIntentDto": {
+        "type": "object",
+        "properties": {
+          "mediaKey": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Presente para reemplazar un video existente; ausente para crear uno nuevo."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 400
+          }
+        }
+      },
+      "ContentStudioVideoUploadIntentDto": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "mediaKey": {
+            "type": "string"
+          },
+          "mediaVersion": {
+            "type": "number"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "description": "URL de un solo uso para enviar el archivo directamente."
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "Cuándo deja de servir esa URL."
+          }
+        },
+        "required": [
+          "draftId",
+          "mediaKey",
+          "mediaVersion",
+          "uploadUrl",
+          "expiresAt"
+        ]
+      },
+      "ContentStudioVideoUploadStatusDto": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "AWAITING_UPLOAD",
+              "PROCESSING",
+              "READY",
+              "ERROR"
+            ],
+            "description": "AWAITING_UPLOAD: el archivo aún no llegó. PROCESSING: llegó y se está procesando. READY: se puede publicar."
+          },
+          "sourceReady": {
+            "type": "boolean",
+            "description": "El video quedó asociado y ya se puede publicar."
+          },
+          "durationSec": {
+            "type": "number",
+            "nullable": true,
+            "description": "Medida por el proveedor sobre el archivo real."
+          }
+        },
+        "required": [
+          "draftId",
+          "state",
+          "sourceReady",
+          "durationSec"
+        ]
+      },
       "ShareWithTherapistDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "therapistId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "therapistId"
+        ]
       },
       "ConfirmResonanceDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "conceptKey": {
+            "type": "string",
+            "description": "Stable concept key (persisted; never renamed in the catalog).",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "conceptLabel": {
+            "type": "string",
+            "description": "Human label shown on the map (\"Mis resonancias\").",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "bookSlug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "chapterOrder": {
+            "type": "number",
+            "minimum": 1
+          },
+          "source": {
+            "type": "string",
+            "description": "Where the confirmation happened (provenance).",
+            "enum": [
+              "highlight",
+              "eco",
+              "exercise",
+              "guide"
+            ]
+          }
+        },
+        "required": [
+          "conceptKey",
+          "conceptLabel",
+          "bookSlug",
+          "chapterOrder",
+          "source"
+        ]
       },
       "UpdateResonanceDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "important": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "important"
+        ]
       },
       "MarkResolvedDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
       },
       "RejectAuthorRequestDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "feedback": {
+            "type": "string",
+            "description": "Editorial feedback shown to the author in the publication checklist UI.\nEmpty allowed (e.g. generic \"no apto\"), but ops should write something\nactionable.",
+            "minLength": 0,
+            "maxLength": 2000
+          }
+        }
       },
       "ChangeRoleDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "AUTHOR",
+              "PSYCHOLOGIST",
+              "ADMIN"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Optional reason captured for audit.",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "role"
+        ]
       },
       "RegisterLiveActivityDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "activityId": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 64
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "TERAPIA_SESSION",
+              "LECTOR_ACTIVE",
+              "ECO_ACTIVE"
+            ]
+          },
+          "pushToken": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 256,
+            "pattern": "/^[0-9a-fA-F]+$/"
+          },
+          "bundleId": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "activityId",
+          "kind",
+          "pushToken",
+          "bundleId"
+        ]
       },
       "CrisisLogDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "trigger": {
+            "type": "string",
+            "description": "Where the crisis surface was triggered from:\n- `ECO_SAFETY_LAYER` — Eco's layer-1 regex / layer-2 LLM sentinel\n  fired and we routed the user to the hotline.\n- `HOME_BUTTON` — explicit \"Necesito ayuda\" tile on the home screen.\n- `PROFILE_LINK` — link in the profile / settings menu.\n- `THERAPIST_SUGGESTION` — a therapist's reply suggested the\n  user contact a hotline.\n\nPlugin emits the enum in OpenAPI.",
+            "enum": [
+              "ECO_SAFETY_LAYER",
+              "HOME_BUTTON",
+              "PROFILE_LINK",
+              "THERAPIST_SUGGESTION"
+            ]
+          },
+          "contactedLineId": {
+            "type": "string",
+            "description": "Optional ID of the hotline the user tapped to call/visit from\nthe crisis screen's list. Useful to know which lines are\neffective for which countries. Up to 64 chars to allow opaque\ncatalog IDs.",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "country": {
+            "type": "string",
+            "description": "ISO 3166-1 alpha-2 country code, 2 chars. Inferred client-side\nfrom the user's profile / IP geolocation. Drives which set of\nhotlines was shown at the moment of the event.",
+            "minLength": 2,
+            "maxLength": 2
+          }
+        },
+        "required": [
+          "trigger"
+        ]
       },
       "CreateBookingDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "therapistId": {
+            "type": "string",
+            "description": "Stable opaque ID of the therapist (UUID). The client gets it from\nthe directory or detail screens.",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "slotIso": {
+            "type": "string",
+            "description": "ISO-8601 UTC timestamp of the slot start (e.g.\n`\"2026-06-15T14:30:00.000Z\"`). The server validates the slot\nexists in the therapist's published availability + isn't already\nbooked."
+          },
+          "modality": {
+            "type": "string",
+            "description": "Session modality: `\"INDIVIDUAL\"` (1 client), `\"COUPLE\"` (2), or\n`\"FAMILY\"` (3+). Affects the Stripe price + the video room\nconfiguration (S65).",
+            "enum": [
+              "INDIVIDUAL",
+              "COUPLE",
+              "FAMILY"
+            ]
+          },
+          "firstReasonId": {
+            "type": "string",
+            "description": "Optional ID from the catalog of first-time reasons (e.g.\n\"anxiety\", \"couples-counselling\"). Helps the therapist prep before\nthe first session. Subsequent bookings can omit it.",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "durationMin": {
+            "type": "number",
+            "description": "Session length in minutes (15–120). Defaults to the therapist's\ndefault if omitted. Must match an available slot length.",
+            "minimum": 15,
+            "maximum": 120
+          },
+          "successUrl": {
+            "type": "string",
+            "description": "Stripe Checkout success redirect URL. Not used in S64 (Stripe\nwiring lands in S65); when present, S65's StripeProvider passes it\nto `checkout.sessions.create`.",
+            "format": "uri"
+          },
+          "cancelUrl": {
+            "type": "string",
+            "description": "Stripe Checkout cancel redirect URL. Same v1 status as\n`successUrl` — passed through to Stripe in S65 when wired.",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "therapistId",
+          "slotIso",
+          "modality"
+        ]
       },
       "UpdateSessionPrepDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "intentionCiphertext": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 8192
+          },
+          "intentionNonce": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 64
+          },
+          "checkInMood": {
+            "type": "string",
+            "enum": [
+              "calmo",
+              "ansioso",
+              "triste",
+              "energico",
+              "cansado"
+            ]
+          },
+          "sharedEntryIds": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       },
       "SessionFeedbackDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "rating": {
+            "type": "number",
+            "description": "1–5 star rating of the session. Public to the therapist for\nreflection + Pulso aggregates. 1 = worst, 5 = best.",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "tags": {
+            "description": "Up to 8 categorical tags (e.g. `\"util\"`, `\"empatico\"`,\n`\"poca-conexion\"`) from a curated picker on the post-session\nscreen. Plaintext — same analytics-safe contract as Diary tags.",
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "noteCiphertext": {
+            "type": "string",
+            "description": "XChaCha20-Poly1305 ciphertext of the user's free-form note,\nbase64url-encoded. Encrypted client-side under the therapy subkey\nderived from the master key (ADR 0007 §A). Server never decrypts.\nRequired if `noteNonce` is provided.",
+            "minLength": 0,
+            "maxLength": 8192
+          },
+          "noteNonce": {
+            "type": "string",
+            "description": "24-byte XChaCha20 nonce paired with `noteCiphertext`,\nbase64url-encoded. Required if `noteCiphertext` is provided.\nServer enforces pairing → 400 `CIPHER_NONCE_PAIRING` on\nmismatch.",
+            "minLength": 0,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "rating"
+        ]
       },
       "TechnicalReportDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "issue": {
+            "type": "string",
+            "enum": [
+              "AUDIO_FAILED",
+              "VIDEO_FAILED",
+              "CONNECTION_DROPPED",
+              "THERAPIST_NO_SHOW",
+              "OTHER"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "issue",
+          "description"
+        ]
       },
       "UpdatePrescriptionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "completed": {
+            "type": "boolean"
+          }
+        }
       },
       "RescheduleSessionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "newSlotIso": {
+            "type": "string",
+            "description": "ISO-8601 UTC timestamp of the new slot start (e.g.\n`\"2026-06-20T15:00:00.000Z\"`). Must be a slot that exists in the\ntherapist's published availability + isn't already taken."
+          }
+        },
+        "required": [
+          "newSlotIso"
+        ]
       },
       "CancelSessionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "refundRequested": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reason"
+        ]
       },
       "RetryCheckoutDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "successUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "cancelUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "successUrl",
+          "cancelUrl"
+        ]
       },
       "CreateAuthorBookDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Draft title (2–120 chars). Editable later via `PATCH .../libros/:id`\nup until the book is published. Bound to author's choice — no\nuniqueness check, since drafts are private.",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "templateId": {
+            "type": "string",
+            "description": "Optional ID of a template to scaffold the book with. v1 templates\ninclude `\"emociones-12\"` (12-chapter emotion-mapping arc) and\n`\"familia-8\"` (8-chapter family-systems arc). When omitted the\nbook starts empty with a single placeholder chapter.",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "title"
+        ]
       },
       "UpdateAuthorBookDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "New title (2–120 chars). Same constraints as `CreateAuthorBookDto`.",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "subtitle": {
+            "type": "string",
+            "description": "Optional subtitle (up to 200 chars). Shown below the title on the\ncover and detail header. Often a clarifying second line —\n\"Un manual para…\" style.",
+            "maxLength": 200
+          },
+          "summary": {
+            "type": "string",
+            "description": "Long-form summary shown on the book detail screen. Up to 2000 chars\n(~400 words). Plain text — markdown not interpreted in v1.",
+            "maxLength": 2000
+          },
+          "cover": {
+            "type": "string",
+            "description": "Cover palette token used as fallback when no `coverArtUrl` is set.\nOne of `\"warm\"` / `\"cool\"` / `\"mixed\"` — drives the gradient the\nfront renders. Plugin emits the enum in OpenAPI.",
+            "enum": [
+              "warm",
+              "cool",
+              "mixed"
+            ]
+          },
+          "coverArtUrl": {
+            "type": "string",
+            "description": "R2 URL of a custom cover image. When present, takes precedence\nover `cover` (the palette token). Set via the cover-image upload\nendpoint, then this PATCH wires it.",
+            "maxLength": 500
+          },
+          "categoryId": {
+            "type": "string",
+            "description": "Optional `BookCategory.id` (max 64 chars). Shown in the catalog\nfilter chips on `Mi Biblioteca`. Service validates the ID exists\nin the category table.",
+            "maxLength": 64
+          },
+          "language": {
+            "type": "string",
+            "description": "ISO-639-1 language code (e.g. `\"es\"`, `\"en\"`). v1 only Spanish is\nsurfaced in the catalog, but author can mark drafts as English for\nfuture expansion.",
+            "maxLength": 8
+          }
+        }
+      },
+      "ChapterBlockDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "Block kind: `paragraph` (body text), `heading` (section anchor),\n`quote` (offset quote), `pause` (mindful pause), `exercise`\n(interactive prompt). Max 32 chars to allow future variants\nwithout breaking the schema.",
+            "maxLength": 32
+          },
+          "content": {
+            "type": "string",
+            "description": "Block plain-text content. Max 8000 chars per block — long\nparagraphs should be split into multiple blocks for better\nreading rhythm.",
+            "maxLength": 8000
+          },
+          "meta": {
+            "type": "object",
+            "description": "Optional kind-specific metadata. Examples:\n- `exercise`: `{ promptId, type: \"scale\" }`\n- `pause`: `{ durationSec: 30 }`\n\nServer does not validate the shape — it's the editor's\nresponsibility. Stored as Prisma `Json`."
+          }
+        },
+        "required": [
+          "kind",
+          "content"
+        ]
       },
       "UpdateChapterDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "New chapter title (up to 200 chars). Shown in the reader header\nand the chapters list.",
+            "maxLength": 200
+          },
+          "subtitle": {
+            "type": "string",
+            "description": "Optional subtitle (up to 300 chars). Shown below the title.",
+            "maxLength": 300
+          },
+          "blocks": {
+            "description": "Full block list. The server REPLACES the existing block array\nentirely (not a diff). Max 500 blocks per chapter — well above\nany organic content.\n\nIf you only want to update meta (title/locked/hidden) without\ntouching the body, omit this field.",
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChapterBlockDto"
+            }
+          },
+          "isLocked": {
+            "type": "boolean",
+            "description": "Whether the chapter is locked behind the book's plan tier. `true`\n= Pro readers only. `false` = all readers (default for chapter 1\nof each book per the funnel design)."
+          },
+          "isHidden": {
+            "type": "boolean",
+            "description": "Whether the chapter is hidden from the public reader. Used during\neditorial work-in-progress — author can edit without exposing\nhalf-done content. `false` = visible."
+          },
+          "expectedVersion": {
+            "type": "number",
+            "description": "Optimistic concurrency: the chapter version the client loaded\nwith. If a save happened in between, the server returns 409\n`CHAPTER_VERSION_CONFLICT` with the current version + the most\nrecent saved blocks so the editor can render a diff modal.\n\nOmit to opt out of conflict detection (last-write-wins).",
+            "minimum": 1
+          }
+        }
+      },
+      "StructureItemDto": {
+        "type": "object",
+        "properties": {
+          "n": {
+            "type": "number",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "subtitle": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "isLocked": {
+            "type": "boolean"
+          },
+          "isHidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "n"
+        ]
       },
       "UpdateStructureDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "chapters": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StructureItemDto"
+            }
+          }
+        },
+        "required": [
+          "chapters"
+        ]
       },
       "AuthorAiHelpDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "intent": {
+            "type": "string",
+            "description": "Which transform to apply. Plugin emits the enum in OpenAPI from\n`@IsIn`.",
+            "enum": [
+              "revisar",
+              "ejemplo",
+              "tono",
+              "simplificar"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "description": "Source text from the editor block (1–8000 chars). The LLM\nreceives this verbatim. Author keeps full control — server never\nautosaves the LLM output back into the book.",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "blockId": {
+            "type": "string",
+            "description": "Optional `AuthorBookChapterBlock.id` the text was selected from.\nUsed for the AI usage audit row + future per-block instrumentation.\nOmit if the helper is invoked over a free-form selection.",
+            "maxLength": 64
+          },
+          "context": {
+            "type": "string",
+            "description": "Optional chapter / book context (up to 1000 chars). Injected into\nthe system prompt as \"el lector ha leído hasta este punto\" so the\nLLM keeps tone consistent. Typically the chapter summary + the\nprevious block.",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "intent",
+          "text"
+        ]
       },
       "UpdatePayoutSettingsDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "bank_ec",
+              "paypal",
+              "payphone",
+              "manual"
+            ]
+          },
+          "details": {
+            "type": "object",
+            "description": "Detalles libres por método. Ejemplos:\n - bank_ec: { bankName, accountType: \"ahorros|corriente\", accountNumber, accountHolder }\n - paypal:  { email }\n - payphone: { phone, accountHolder }\n - manual:  { instructions }\nNada se valida server-side aquí — finanzas confirma manualmente\nantes de pagar. Cap 4000 chars en JSON.stringify para evitar spam."
+          },
+          "taxId": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "legalName": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "legalAddress": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "method"
+        ]
       }
     }
   }

@@ -14,6 +14,7 @@ import {
 } from "../../actions";
 import { MEDIA_KIND_LABEL, type MediaCard } from "../../contracts";
 import { MediaUploadPanel, mediaErrorCopy } from "./MediaUploadPanel";
+import { VideoUploadPanel } from "./VideoUploadPanel";
 
 /**
  * The chapter's three formats.
@@ -56,6 +57,7 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
   // file to the wrong thing.
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [addingEpisode, setAddingEpisode] = useState(false);
+  const [addingVideo, setAddingVideo] = useState(false);
 
   const reload = useCallback(async () => {
     const result = await listChapterMediaAction(bookSlug, chapterOrder);
@@ -201,7 +203,11 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
                     {AVAILABILITY_LABEL[card.runtimeAvailability]} ·{" "}
                     {EDITORIAL_LABEL[card.editorialStatus]} · v
                     {card.mediaVersion}
-                    {card.sourceReady ? " · archivo listo" : " · sin archivo"}
+                    {card.awaitingUpload
+                      ? " · esperando el archivo"
+                      : card.sourceReady
+                        ? " · archivo listo"
+                        : " · sin archivo"}
                   </p>
                 </div>
 
@@ -222,27 +228,27 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
                         : "Administrar en CMS"}
                     </button>
                   )}
-                  {/* Audio masters can be attached here. Video cannot — its
-                      upload is a different provider and a later block. */}
-                  {card.kind !== "VIDEO" && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setUploadingFor(
-                          uploadingFor === card.mediaKey ? null : card.mediaKey,
-                        )
-                      }
-                      className="rounded-full px-4 py-2 text-[13px] font-semibold"
-                      style={{
-                        background: "var(--color-warm-100)",
-                        color: "var(--color-warm-700)",
-                      }}
-                    >
-                      {card.sourceReady
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setUploadingFor(
+                        uploadingFor === card.mediaKey ? null : card.mediaKey,
+                      )
+                    }
+                    className="rounded-full px-4 py-2 text-[13px] font-semibold"
+                    style={{
+                      background: "var(--color-warm-100)",
+                      color: "var(--color-warm-700)",
+                    }}
+                  >
+                    {/* An abandoned video upload gets its own wording: "subir"
+                        would suggest the previous attempt is still somewhere. */}
+                    {card.awaitingUpload
+                      ? `Reintentar ${card.title}`
+                      : card.sourceReady
                         ? `Subir nueva versión de ${card.title}`
                         : `Subir ${MEDIA_KIND_LABEL[card.kind] ?? card.kind}`}
-                    </button>
-                  )}
+                  </button>
                   {card.editorialStatus === "DRAFT" &&
                     card.draftId &&
                     card.stagedMaster && (
@@ -260,7 +266,10 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
                     )}
                   {card.editorialStatus === "DRAFT" &&
                     card.draftId &&
-                    !card.stagedMaster && (
+                    !card.stagedMaster &&
+                    // The server refuses this anyway; offering the button would
+                    // just be an error the editor had to discover by pressing it.
+                    !card.awaitingUpload && (
                       <button
                         type="button"
                         onClick={() => void publish(card)}
@@ -276,7 +285,18 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
                 </div>
               </div>
 
-              {uploadingFor === card.mediaKey && (
+              {uploadingFor === card.mediaKey && card.kind === "VIDEO" && (
+                <VideoUploadPanel
+                  bookSlug={bookSlug}
+                  chapterOrder={chapterOrder}
+                  mediaKey={card.mediaKey}
+                  submitLabel="Subir video"
+                  onUploaded={afterUpload}
+                  onCancel={() => setUploadingFor(null)}
+                />
+              )}
+
+              {uploadingFor === card.mediaKey && card.kind !== "VIDEO" && (
                 <MediaUploadPanel
                   label={`${MEDIA_KIND_LABEL[card.kind] ?? card.kind} · ${card.title}`}
                   submitLabel="Subir archivo"
@@ -334,12 +354,19 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
               + Añadir episodio de podcast
             </button>
           )}
-          <span
-            className="text-[12px]"
-            style={{ color: "var(--color-warm-500)" }}
-          >
-            La subida de video llegará en la siguiente etapa.
-          </span>
+          {!addingVideo && (
+            <button
+              type="button"
+              onClick={() => setAddingVideo(true)}
+              className="rounded-full px-4 py-2 text-[13px] font-semibold"
+              style={{
+                background: "var(--color-warm-100)",
+                color: "var(--color-warm-700)",
+              }}
+            >
+              + Añadir video
+            </button>
+          )}
         </div>
       )}
 
@@ -350,6 +377,32 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
           onUploaded={afterUpload}
           onCancel={() => setAddingEpisode(false)}
         />
+      )}
+
+      {addingVideo && (
+        <div
+          className="mt-3 rounded-xl border border-dashed px-4 py-3"
+          style={{ borderColor: "var(--color-warm-300)" }}
+        >
+          <p
+            className="text-[11px] font-bold uppercase tracking-[0.6px]"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            Nuevo video del capítulo
+          </p>
+          {/* No mediaKey: a chapter may carry several videos, and omitting it is
+              what tells the server this is another one rather than a replacement. */}
+          <VideoUploadPanel
+            bookSlug={bookSlug}
+            chapterOrder={chapterOrder}
+            submitLabel="Añadir video"
+            onUploaded={async () => {
+              setAddingVideo(false);
+              await afterUpload();
+            }}
+            onCancel={() => setAddingVideo(false)}
+          />
+        </div>
       )}
 
       {missing.length > 0 && (

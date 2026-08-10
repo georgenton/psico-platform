@@ -506,3 +506,91 @@ describe("ContentStudioService — a bucket with no public base URL", () => {
     ).resolves.toBeTruthy();
   });
 });
+
+describe("ContentStudioService — inline formatting at the save boundary", () => {
+  const save = (blocks: Array<Record<string, unknown>>) =>
+    service.saveChapterDraft("libro", 1, {
+      expectedRevisionId: "r6",
+      blocks: blocks as never,
+    });
+
+  it("passes valid marks through untouched", async () => {
+    const meta = {
+      inlineMarks: [{ type: "UNDERLINE", startOffset: 11, endOffset: 23 }],
+    };
+    await save([
+      { kind: "PARAGRAPH", content: "Este texto es importante", meta },
+    ]);
+
+    expect(draft.saveUnitDraft.mock.calls[0]![1].blocks[0].meta).toEqual(meta);
+    // The decisive one: the text a reader receives never gains markup.
+    expect(draft.saveUnitDraft.mock.calls[0]![1].blocks[0].content).toBe(
+      "Este texto es importante",
+    );
+  });
+
+  it("leaves an unformatted block completely alone", async () => {
+    // The overwhelming majority of blocks. Validation must not touch them.
+    await save([{ kind: "PARAGRAPH", content: "Texto." }]);
+    // `null`, which is what the existing pipeline already normalizes absent
+    // metadata to — formatting must not change that either.
+    expect(draft.saveUnitDraft.mock.calls[0]![1].blocks[0].meta).toBeNull();
+  });
+
+  it.each([
+    ["an unsupported type", [{ type: "COLOR", startOffset: 0, endOffset: 4 }]],
+    [
+      "a range past the text",
+      [{ type: "BOLD", startOffset: 0, endOffset: 999 }],
+    ],
+    ["an empty range", [{ type: "BOLD", startOffset: 3, endOffset: 3 }]],
+    ["a negative offset", [{ type: "BOLD", startOffset: -1, endOffset: 4 }]],
+    ["a fractional offset", [{ type: "BOLD", startOffset: 0, endOffset: 2.5 }]],
+    ["not an array", { type: "BOLD" }],
+  ])("refuses %s, and writes nothing", async (_label, inlineMarks) => {
+    // Zero revisions, zero archived drafts, zero pointer movement — the whole
+    // reason this runs before `saveUnitDraft` rather than inside it.
+    await expect(
+      save([
+        { kind: "PARAGRAPH", content: "Texto corto.", meta: { inlineMarks } },
+      ]),
+    ).rejects.toMatchObject({
+      response: { code: "CONTENT_INLINE_MARKS_INVALID" },
+    });
+    expect(draft.saveUnitDraft).not.toHaveBeenCalled();
+  });
+
+  it("refuses inline marks on a block kind that has no text to format", async () => {
+    await expect(
+      save([
+        {
+          kind: "AUDIO",
+          content: "",
+          meta: {
+            inlineMarks: [{ type: "BOLD", startOffset: 0, endOffset: 1 }],
+          },
+        },
+      ]),
+    ).rejects.toMatchObject({
+      response: { code: "CONTENT_INLINE_MARKS_INVALID" },
+    });
+    expect(draft.saveUnitDraft).not.toHaveBeenCalled();
+  });
+
+  it("says nothing an editor cannot act on", async () => {
+    // Offsets and internal vocabulary stay server-side.
+    const err = await save([
+      {
+        kind: "PARAGRAPH",
+        content: "Texto.",
+        meta: {
+          inlineMarks: [{ type: "BOLD", startOffset: 0, endOffset: 999 }],
+        },
+      },
+    ]).catch((e: unknown) => e as { response: { message: string } });
+
+    expect(err.response.message).not.toMatch(
+      /offset|inlineMarks|OUT_OF_BOUNDS/i,
+    );
+  });
+});

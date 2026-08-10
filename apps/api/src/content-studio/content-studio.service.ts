@@ -5,7 +5,12 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { imageBlockInfo } from "@psico/types";
+import {
+  acceptsInlineMarks,
+  imageBlockInfo,
+  INLINE_MARKS_META_KEY,
+  validateInlineMarks,
+} from "@psico/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { isTrustedImageUrl } from "../shared/image-upload";
 import type { Env } from "../config";
@@ -113,6 +118,51 @@ export class ContentStudioService {
           code: "CONTENT_IMAGE_URL_NOT_ALLOWED",
           message:
             "La imagen debe haberse subido desde este panel. No se aceptan enlaces externos.",
+          index,
+        });
+      }
+    });
+  }
+
+  /**
+   * Inline formatting, checked with the same grammar the readers use.
+   *
+   * Only when present: a block without `inlineMarks` is the overwhelming
+   * majority and must stay untouched, and every other `meta` key round-trips
+   * unread — an IMAGE's alt text is not this method's business.
+   *
+   * STRICT here on purpose, while readers are lenient. A malformed mark that
+   * reaches storage is a defect we wrote; one already in storage is a chapter
+   * somebody is trying to read. Refusing the write and drawing the plain text
+   * are both the safe direction, they just point opposite ways.
+   *
+   * Runs BEFORE `saveUnitDraft`, so a rejected save mints no revision, archives
+   * no draft and moves no pointer.
+   */
+  private assertInlineMarksValid(
+    blocks: Array<{ kind: string; content: string; meta?: unknown }>,
+  ): void {
+    blocks.forEach((b, index) => {
+      const meta = (b.meta ?? null) as Record<string, unknown> | null;
+      const raw = meta?.[INLINE_MARKS_META_KEY];
+      if (raw === undefined || raw === null) return;
+
+      // Formatting belongs to text. An IMAGE carrying inline marks is a client
+      // bug, and accepting it would mean storing something no renderer reads.
+      if (!acceptsInlineMarks(b.kind)) {
+        throw new BadRequestException({
+          code: "CONTENT_INLINE_MARKS_INVALID",
+          message: "Este tipo de bloque no admite formato de texto.",
+          index,
+        });
+      }
+
+      if (validateInlineMarks(raw, b.content) !== null) {
+        // The specific problem stays server-side: it names offsets and internal
+        // vocabulary, and an editor cannot act on either.
+        throw new BadRequestException({
+          code: "CONTENT_INLINE_MARKS_INVALID",
+          message: "El formato del texto no es válido. Vuelve a aplicarlo.",
           index,
         });
       }
@@ -259,6 +309,7 @@ export class ContentStudioService {
     },
   ) {
     this.assertImageBlocksValid(input.blocks);
+    this.assertInlineMarksValid(input.blocks);
 
     const resolved = await this.resolveChapter(bookSlug, chapterOrder);
     const base = await this.readCurrentUnit(resolved);

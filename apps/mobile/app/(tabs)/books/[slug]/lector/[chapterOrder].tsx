@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FormattedBlockText } from "@/components/dashboard/lector/FormattedBlockText";
 import {
   ActivityIndicator,
   Alert,
@@ -812,7 +813,10 @@ function BlockView({
             block.kind === "QUOTE" && styles.blockTextQuote,
           ]}
         >
-          {block.content}
+          <FormattedBlockText
+            content={block.content}
+            meta={block.meta as Record<string, unknown> | null}
+          />
         </Text>
       </Pressable>
 

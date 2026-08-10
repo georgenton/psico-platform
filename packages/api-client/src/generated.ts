@@ -2508,6 +2508,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/audiobook/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sube un máster de audiolibro. Queda en borrador privado: el lector no lo oye hasta publicar. */
+        post: operations["uploadContentStudioAudiobook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/podcast/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sube el máster de un episodio. Sin mediaKey crea un episodio nuevo; con mediaKey reemplaza su máster. */
+        post: operations["uploadContentStudioPodcast"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/content/media/drafts/{draftId}/publish-master": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publica un máster subido. El audiolibro anterior se congela a sus bytes exactos antes de mover el puntero. */
+        post: operations["publishContentStudioMediaMaster"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/patrones": {
         parameters: {
             query?: never;
@@ -3804,6 +3855,8 @@ export interface components {
             provenance: ContentStudioMediaCardDtoProvenance;
             /** @enum {string} */
             editorialStatus: ContentStudioMediaCardDtoEditorialStatus;
+            /** @description El borrador tiene un máster subido desde Contenido; publicarlo pasa por la ruta de máster. */
+            stagedMaster: boolean;
             draftId: string | null;
         };
         ContentStudioChapterMediaResponseDto: {
@@ -3837,6 +3890,13 @@ export interface components {
             draftId: string;
             mediaKey: string;
             mediaVersion: number;
+        };
+        ContentStudioMediaUploadResponseDto: {
+            draftId: string;
+            mediaKey: string;
+            mediaVersion: number;
+            /** @description El máster quedó almacenado. Todavía sin publicar. */
+            sourceReady: boolean;
         };
         ShareWithTherapistDto: Record<string, never>;
         ConfirmResonanceDto: Record<string, never>;
@@ -12866,6 +12926,114 @@ export interface operations {
         };
     };
     publishContentStudioMediaDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draftId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStudioMediaPublishResponseDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    uploadContentStudioAudiobook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file?: string;
+                    durationSec?: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStudioMediaUploadResponseDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    uploadContentStudioPodcast: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file?: string;
+                    durationSec?: number;
+                    mediaKey?: string;
+                    title?: string;
+                    description?: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStudioMediaUploadResponseDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    publishContentStudioMediaMaster: {
         parameters: {
             query?: never;
             header?: never;

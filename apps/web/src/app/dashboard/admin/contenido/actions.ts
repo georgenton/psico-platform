@@ -8,6 +8,7 @@ import type {
   MediaCard,
   MediaDraftRef,
   MediaPublishResult,
+  MediaUploadResult,
   ChapterImageResult,
   CoverResult,
   ChapterPreview,
@@ -36,6 +37,12 @@ export interface ActionOutcome<T> {
   /** The draft moved. Do not retry; reload. */
   conflict?: boolean;
   error?: string;
+  /**
+   * The API envelope's machine-readable code, so the UI can say something
+   * specific. `message` is human copy that may change; this is what to switch
+   * on.
+   */
+  code?: string;
 }
 
 function bookPath(bookSlug: string): string {
@@ -48,6 +55,7 @@ function asOutcome<T>(err: unknown): ActionOutcome<T> {
   }
   return {
     ok: false,
+    code: err instanceof ApiError ? err.code : undefined,
     error:
       err instanceof ApiError
         ? err.message
@@ -249,6 +257,67 @@ export async function publishMediaDraftAction(
   try {
     const data = await serverFetch<MediaPublishResult>(
       `/pulso/content/media/drafts/${encodeURIComponent(draftId)}/publish`,
+      { method: "POST" },
+    );
+    revalidatePath(chapterPath(bookSlug, chapterOrder));
+    return { ok: true, data };
+  } catch (err) {
+    return asOutcome<MediaPublishResult>(err);
+  }
+}
+
+// ── Media masters (C2B) ─────────────────────────────────────────────────────
+//
+// Upload NEVER publishes. Bytes are staged privately and a reader hears nothing
+// until `publishMediaMasterAction` runs.
+
+export async function uploadAudiobookAction(
+  bookSlug: string,
+  chapterOrder: number,
+  form: FormData,
+): Promise<ActionOutcome<MediaUploadResult>> {
+  try {
+    const data = await serverFetch<MediaUploadResult>(
+      `/pulso/content/books/${encodeURIComponent(bookSlug)}/chapters/${chapterOrder}/media/audiobook/upload`,
+      { method: "POST", body: form },
+    );
+    revalidatePath(chapterPath(bookSlug, chapterOrder));
+    return { ok: true, data };
+  } catch (err) {
+    return asOutcome<MediaUploadResult>(err);
+  }
+}
+
+export async function uploadPodcastAction(
+  bookSlug: string,
+  chapterOrder: number,
+  form: FormData,
+): Promise<ActionOutcome<MediaUploadResult>> {
+  try {
+    const data = await serverFetch<MediaUploadResult>(
+      `/pulso/content/books/${encodeURIComponent(bookSlug)}/chapters/${chapterOrder}/media/podcast/upload`,
+      { method: "POST", body: form },
+    );
+    revalidatePath(chapterPath(bookSlug, chapterOrder));
+    return { ok: true, data };
+  } catch (err) {
+    return asOutcome<MediaUploadResult>(err);
+  }
+}
+
+/**
+ * Publish a staged master. For an audiobook the server also freezes the
+ * previous version to its exact bytes before moving the pointer — the editor
+ * never sees that, and does not need to.
+ */
+export async function publishMediaMasterAction(
+  draftId: string,
+  bookSlug: string,
+  chapterOrder: number,
+): Promise<ActionOutcome<MediaPublishResult>> {
+  try {
+    const data = await serverFetch<MediaPublishResult>(
+      `/pulso/content/media/drafts/${encodeURIComponent(draftId)}/publish-master`,
       { method: "POST" },
     );
     revalidatePath(chapterPath(bookSlug, chapterOrder));

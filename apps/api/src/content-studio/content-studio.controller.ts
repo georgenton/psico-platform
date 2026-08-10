@@ -41,6 +41,8 @@ import { RequiredRole, RolesGuard } from "../shared";
 import { ContentStudioService } from "./content-studio.service";
 import { ContentStudioAssetsService } from "./content-studio-assets.service";
 import { ChapterMediaAdminService } from "./chapter-media-admin.service";
+import { MediaUploadService } from "./media-upload.service";
+import { AUDIO_TRANSPORT_LIMIT } from "../shared/audio-upload";
 import { CurrentUser } from "../shared";
 import type { AuthenticatedUser } from "../auth";
 import {
@@ -55,11 +57,14 @@ import {
   ContentStudioMediaCardDto,
   ContentStudioMediaDraftRefDto,
   ContentStudioMediaPublishResponseDto,
+  ContentStudioMediaUploadResponseDto,
   ContentStudioSaveResponseDto,
 } from "./dto/content-studio-response.dto";
 import {
   CreateComingSoonMediaDto,
   PreviewQueryDto,
+  UploadAudiobookDto,
+  UploadPodcastEpisodeDto,
   PublishBookDto,
   SaveChapterDraftDto,
   UpdateMediaDraftDto,
@@ -85,6 +90,7 @@ export class ContentStudioController {
     private readonly studio: ContentStudioService,
     private readonly assets: ContentStudioAssetsService,
     private readonly media: ChapterMediaAdminService,
+    private readonly uploads: MediaUploadService,
   ) {}
 
   @Get("books")
@@ -356,5 +362,112 @@ export class ContentStudioController {
   @ApiConflictResponse({ type: ErrorEnvelopeDto })
   publishMediaDraft(@Param("draftId") draftId: string) {
     return this.media.publishDraft(draftId);
+  }
+
+  // ── Media masters (C2B) ──────────────────────────────────────────────────
+  //
+  // Bytes only. Upload NEVER publishes: the master is staged privately and a
+  // reader sees nothing until the explicit publish below.
+
+  @Post("books/:bookSlug/chapters/:chapterOrder/media/audiobook/upload")
+  @Header("Cache-Control", "private, no-store")
+  @UseInterceptors(
+    FileInterceptor("file", { limits: { fileSize: AUDIO_TRANSPORT_LIMIT } }),
+  )
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        file: { type: "string", format: "binary" },
+        durationSec: { type: "integer" },
+      },
+    },
+  })
+  @ApiOperation({
+    operationId: "uploadContentStudioAudiobook",
+    summary:
+      "Sube un máster de audiolibro. Queda en borrador privado: el lector no lo oye hasta publicar.",
+  })
+  @ApiOkResponse({ type: ContentStudioMediaUploadResponseDto })
+  @ApiConflictResponse({ type: ErrorEnvelopeDto })
+  uploadAudiobook(
+    @Param("bookSlug") bookSlug: string,
+    @Param("chapterOrder", ParseIntPipe) chapterOrder: number,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() dto: UploadAudiobookDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.uploads.uploadAudiobook(
+      bookSlug,
+      chapterOrder,
+      file,
+      dto.durationSec,
+      user.userId,
+    );
+  }
+
+  @Post("books/:bookSlug/chapters/:chapterOrder/media/podcast/upload")
+  @Header("Cache-Control", "private, no-store")
+  @UseInterceptors(
+    FileInterceptor("file", { limits: { fileSize: AUDIO_TRANSPORT_LIMIT } }),
+  )
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        file: { type: "string", format: "binary" },
+        durationSec: { type: "integer" },
+        mediaKey: { type: "string" },
+        title: { type: "string" },
+        description: { type: "string" },
+      },
+    },
+  })
+  @ApiOperation({
+    operationId: "uploadContentStudioPodcast",
+    summary:
+      "Sube el máster de un episodio. Sin mediaKey crea un episodio nuevo; con mediaKey reemplaza su máster.",
+  })
+  @ApiOkResponse({ type: ContentStudioMediaUploadResponseDto })
+  @ApiConflictResponse({ type: ErrorEnvelopeDto })
+  uploadPodcast(
+    @Param("bookSlug") bookSlug: string,
+    @Param("chapterOrder", ParseIntPipe) chapterOrder: number,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() dto: UploadPodcastEpisodeDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.uploads.uploadPodcast(
+      bookSlug,
+      chapterOrder,
+      file,
+      {
+        durationSec: dto.durationSec,
+        mediaKey: dto.mediaKey,
+        title: dto.title,
+        description: dto.description,
+      },
+      user.userId,
+    );
+  }
+
+  /**
+   * Publish a staged master. For an audiobook this also moves the `Audio`
+   * pointer — after freezing the previous version to the exact bytes it already
+   * resolved to, so an older version never starts playing the new recording.
+   */
+  @Post("media/drafts/:draftId/publish-master")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "publishContentStudioMediaMaster",
+    summary:
+      "Publica un máster subido. El audiolibro anterior se congela a sus bytes exactos antes de mover el puntero.",
+  })
+  @ApiOkResponse({ type: ContentStudioMediaPublishResponseDto })
+  @ApiConflictResponse({ type: ErrorEnvelopeDto })
+  publishMaster(@Param("draftId") draftId: string) {
+    return this.uploads.publishStagedMaster(draftId);
   }
 }

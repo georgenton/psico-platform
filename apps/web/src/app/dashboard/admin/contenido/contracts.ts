@@ -26,6 +26,20 @@ export type ChapterMediaList = S["ContentStudioChapterMediaResponseDto"];
 export type MediaCard = S["ContentStudioMediaCardDto"];
 export type MediaDraftRef = S["ContentStudioMediaDraftRefDto"];
 export type MediaPublishResult = S["ContentStudioMediaPublishResponseDto"];
+export type MediaUploadResult = S["ContentStudioMediaUploadResponseDto"];
+
+/**
+ * The audio the server actually accepts, mirrored for the file picker.
+ *
+ * Narrower than `/autor`'s eight on purpose: WAV is uncompressed and a
+ * chapter-length master would exceed the size limit, and OGG/WebM have no
+ * Safari support — which is most of this product's iOS audience. The server
+ * remains the authority; this only stops the editor picking something that was
+ * always going to be refused.
+ */
+export const AUDIO_ACCEPT =
+  "audio/mpeg,audio/mp3,audio/mp4,audio/m4a,audio/x-m4a,.mp3,.m4a";
+export const AUDIO_MAX_BYTES = 50 * 1024 * 1024;
 
 /**
  * The media enums as plain unions.
@@ -51,6 +65,7 @@ export type MediaCardOverrides = Partial<
   runtimeAvailability?: MediaRuntimeAvailability;
   provenance?: MediaProvenance;
   editorialStatus?: MediaEditorialStatus;
+  stagedMaster?: boolean;
 };
 
 export const MEDIA_KIND_LABEL: Record<string, string> = {

@@ -7,7 +7,7 @@ import type {
   LectorChapterLesson,
 } from "@psico/types";
 import type { projectReaderBlocks } from "@psico/types";
-import { BlockRenderer } from "./BlockRenderer";
+import { ReaderContentSurface } from "./ReaderContentSurface";
 import { EcoTopicCard } from "./EcoTopicCard";
 import { ChapterExercises } from "./exercises/ChapterExercises";
 
@@ -131,17 +131,16 @@ export function ReaderExperienceView({
             nueva.
           </div>
         )}
-        {blocks.map((b) => (
-          <BlockRenderer
-            key={b.id}
-            block={b}
-            highlights={highlightsByBlock.get(b.blockKey ?? b.id) ?? []}
-            annotationCount={annotationsByBlock.get(b.blockKey ?? b.id) ?? 0}
-            onAnnotateClick={onAnnotateBlock}
-            registerRef={registerRef}
-            flash={flashBlockId === b.id}
-          />
-        ))}
+        {/* The one block renderer, shared with Content Studio's draft preview.
+            A fragment, so this markup is exactly what it always was. */}
+        <ReaderContentSurface
+          blocks={blocks}
+          highlightsByBlock={highlightsByBlock}
+          annotationsByBlock={annotationsByBlock}
+          onAnnotateBlock={onAnnotateBlock}
+          registerRef={registerRef}
+          flashBlockId={flashBlockId}
+        />
 
         {/* Activities and exercises — one landing zone for the chapter home's
             row, so «3 en el capítulo» points at the three things it counted.

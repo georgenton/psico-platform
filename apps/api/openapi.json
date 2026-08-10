@@ -16481,6 +16481,37 @@
         ]
       }
     },
+    "/api/pulso/experiences/drafts/{id}/preview": {
+      "get": {
+        "operationId": "getExperienceDraftPreview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "El borrador tal como lo recibiría un lector, por el mismo mapper que usa discovery.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
     "/api/pulso/experiences/drafts": {
       "post": {
         "operationId": "createExperienceDraft",
@@ -16588,6 +16619,285 @@
           }
         },
         "summary": "Publica el borrador. Revalida contra la guía exacta del registro del servidor y lo vuelve inmutable.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/content/books": {
+      "get": {
+        "operationId": "listContentStudioBooks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Libros con su número de capítulos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioBookListResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Los libros del catálogo que un editor puede abrir.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/content/books/{bookSlug}": {
+      "get": {
+        "operationId": "getContentStudioBook",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioBookStateResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Estado editorial del libro: revisión publicada, borrador activo y capítulos con cambios.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}": {
+      "get": {
+        "operationId": "getContentStudioChapter",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioChapterResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "El capítulo como debe editarse: el borrador activo si existe, si no lo publicado. El revisionId devuelto es el token de concurrencia.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/draft": {
+      "put": {
+        "operationId": "saveContentStudioChapterDraft",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveChapterDraftDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioSaveResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "El borrador cambió; no se escribió nada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Guarda los BLOQUES del capítulo en el borrador del libro. No publica, y no renombra: título, resumen y duración se conservan desde la revisión base.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/preview": {
+      "get": {
+        "operationId": "previewContentStudioChapter",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "revisionId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioPreviewResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "El capítulo tal como quedaría, leído del borrador activo. Sólo lectura.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/content/books/{bookSlug}/publish": {
+      "post": {
+        "operationId": "publishContentStudioBook",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishBookDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioPublishResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Publica el borrador del LIBRO. El alcance es la edición completa, no un capítulo.",
         "tags": [
           "Pulso"
         ]
@@ -20607,6 +20917,373 @@
         },
         "required": [
           "definition"
+        ]
+      },
+      "ContentStudioBookSummaryDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "authorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "categoryLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "plan": {
+            "type": "string",
+            "description": "Plan mínimo para leerlo."
+          },
+          "isPublished": {
+            "type": "boolean"
+          },
+          "totalChapters": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "subtitle",
+          "authorName",
+          "categoryLabel",
+          "plan",
+          "isPublished",
+          "totalChapters"
+        ]
+      },
+      "ContentStudioBookListResponseDto": {
+        "type": "object",
+        "properties": {
+          "books": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentStudioBookSummaryDto"
+            }
+          }
+        },
+        "required": [
+          "books"
+        ]
+      },
+      "ContentStudioBookDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "authorName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "subtitle",
+          "authorName"
+        ]
+      },
+      "ContentStudioChapterRowDto": {
+        "type": "object",
+        "properties": {
+          "order": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string",
+            "description": "El título tal como está en la revisión que se edita — el borrador si existe, si no lo publicado."
+          },
+          "changed": {
+            "type": "boolean",
+            "description": "El borrador cambia este capítulo."
+          }
+        },
+        "required": [
+          "order",
+          "title",
+          "changed"
+        ]
+      },
+      "ContentStudioBookStateResponseDto": {
+        "type": "object",
+        "properties": {
+          "book": {
+            "$ref": "#/components/schemas/ContentStudioBookDto"
+          },
+          "publishedRevisionNumber": {
+            "type": "number",
+            "nullable": true
+          },
+          "draftRevisionId": {
+            "type": "string",
+            "nullable": true,
+            "description": "El borrador activo del LIBRO, o null si no hay ninguno."
+          },
+          "draftRevisionNumber": {
+            "type": "number",
+            "nullable": true
+          },
+          "changedUnitCount": {
+            "type": "number"
+          },
+          "chapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentStudioChapterRowDto"
+            }
+          }
+        },
+        "required": [
+          "book",
+          "publishedRevisionNumber",
+          "draftRevisionId",
+          "draftRevisionNumber",
+          "changedUnitCount",
+          "chapters"
+        ]
+      },
+      "ContentStudioBlockDto": {
+        "type": "object",
+        "properties": {
+          "blockKey": {
+            "type": "string",
+            "description": "Identidad pública y estable del bloque."
+          },
+          "kind": {
+            "type": "string",
+            "example": "PARAGRAPH"
+          },
+          "order": {
+            "type": "number"
+          },
+          "content": {
+            "type": "string"
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Metadatos del bloque. Forma libre: depende del kind y este vertical no la administra todavía.",
+            "nullable": true
+          }
+        },
+        "required": [
+          "blockKey",
+          "kind",
+          "order",
+          "content"
+        ]
+      },
+      "ContentStudioChapterResponseDto": {
+        "type": "object",
+        "properties": {
+          "bookSlug": {
+            "type": "string"
+          },
+          "chapterOrder": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "durationMinutes": {
+            "type": "number",
+            "nullable": true
+          },
+          "revisionId": {
+            "type": "string",
+            "description": "El token de concurrencia. Debe volver tal cual en el siguiente guardado."
+          },
+          "revisionNumber": {
+            "type": "number"
+          },
+          "revisionStatus": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "PUBLISHED"
+            ]
+          },
+          "changedUnitCount": {
+            "type": "number",
+            "description": "Capítulos que el borrador del libro cambia."
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentStudioBlockDto"
+            }
+          }
+        },
+        "required": [
+          "bookSlug",
+          "chapterOrder",
+          "title",
+          "summary",
+          "durationMinutes",
+          "revisionId",
+          "revisionNumber",
+          "revisionStatus",
+          "changedUnitCount",
+          "blocks"
+        ]
+      },
+      "ContentBlockInputDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "example": "PARAGRAPH"
+          },
+          "content": {
+            "type": "string",
+            "description": "El texto del bloque."
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Metadatos del bloque. Forma libre a propósito: un IMAGE o AUDIO trae metadatos que este vertical todavía no administra, y deben sobrevivir una edición de texto intactos."
+          }
+        },
+        "required": [
+          "kind",
+          "content"
+        ]
+      },
+      "SaveChapterDraftDto": {
+        "type": "object",
+        "properties": {
+          "expectedRevisionId": {
+            "type": "string",
+            "description": "La revisión que el editor cargó."
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentBlockInputDto"
+            }
+          }
+        },
+        "required": [
+          "expectedRevisionId",
+          "blocks"
+        ]
+      },
+      "ContentStudioSaveResponseDto": {
+        "type": "object",
+        "properties": {
+          "revisionId": {
+            "type": "string",
+            "description": "El nuevo token de concurrencia."
+          },
+          "revisionNumber": {
+            "type": "number"
+          },
+          "changedUnitCount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "revisionId",
+          "revisionNumber",
+          "changedUnitCount"
+        ]
+      },
+      "ContentStudioPreviewResponseDto": {
+        "type": "object",
+        "properties": {
+          "bookSlug": {
+            "type": "string"
+          },
+          "chapterOrder": {
+            "type": "number"
+          },
+          "revisionId": {
+            "type": "string"
+          },
+          "revisionNumber": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "durationMinutes": {
+            "type": "number",
+            "nullable": true
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentStudioBlockDto"
+            }
+          }
+        },
+        "required": [
+          "bookSlug",
+          "chapterOrder",
+          "revisionId",
+          "revisionNumber",
+          "title",
+          "summary",
+          "durationMinutes",
+          "blocks"
+        ]
+      },
+      "PublishBookDto": {
+        "type": "object",
+        "properties": {
+          "expectedDraftRevisionId": {
+            "type": "string",
+            "description": "El borrador que el editor está publicando."
+          }
+        },
+        "required": [
+          "expectedDraftRevisionId"
+        ]
+      },
+      "ContentStudioPublishResponseDto": {
+        "type": "object",
+        "properties": {
+          "revisionId": {
+            "type": "string"
+          },
+          "revisionNumber": {
+            "type": "number"
+          },
+          "changedUnitCountBeforePublish": {
+            "type": "number",
+            "description": "Cuántos capítulos cambiaba el borrador al publicarse."
+          }
+        },
+        "required": [
+          "revisionId",
+          "revisionNumber",
+          "changedUnitCountBeforePublish"
         ]
       },
       "ShareWithTherapistDto": {

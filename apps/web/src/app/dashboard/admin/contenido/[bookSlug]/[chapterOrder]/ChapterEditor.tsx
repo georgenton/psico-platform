@@ -1,5 +1,7 @@
 "use client";
 
+import { RichTextBlockEditor } from "./RichTextBlockEditor";
+
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import type { ChapterBlockKind, ChapterBlockSummary } from "@psico/types";
@@ -396,16 +398,18 @@ export function ChapterEditor({
                 onUpload={uploadImage}
               />
             ) : isEditableKind(b.kind) ? (
-              <textarea
-                value={b.content}
-                onChange={(e) => patchBlock(b.localId, e.target.value)}
-                aria-label={`${KIND_LABEL[b.kind] ?? b.kind} ${i + 1}`}
+              <RichTextBlockEditor
+                content={b.content}
+                meta={b.meta ?? null}
+                label={`${KIND_LABEL[b.kind] ?? b.kind} ${i + 1}`}
                 rows={b.kind === "PARAGRAPH" ? 6 : 3}
-                className="w-full resize-y rounded-lg border px-3 py-2 text-[14.5px] leading-[1.7]"
-                style={{
-                  borderColor: "var(--color-warm-200)",
-                  color: "var(--color-warm-800)",
+                // Text and marks move together: rebasing the marks and storing
+                // the text are one edit, not two.
+                onContentChange={(content, nextMeta) => {
+                  patchBlock(b.localId, content);
+                  patchMeta(b.localId, nextMeta ?? {});
                 }}
+                onMetaChange={(m) => patchMeta(b.localId, m ?? {})}
               />
             ) : (
               <div>

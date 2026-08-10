@@ -5,7 +5,14 @@ import type {
   HighlightColor,
   HighlightSummary,
 } from "@psico/types";
-import { imageBlockInfo, videoBlockInfo } from "@psico/types";
+import {
+  imageBlockInfo,
+  safeInlineMarks,
+  toInlineSegmentsForRange,
+  videoBlockInfo,
+  type InlineTextMark,
+  type InlineTextSegment,
+} from "@psico/types";
 import { VideoBlock } from "./VideoBlock";
 import { ImageBlock } from "./ImageBlock";
 
@@ -76,8 +83,14 @@ export function BlockRenderer({
   const isPause = block.kind === "PAUSE";
   const isExercise = block.kind === "EXERCISE";
 
-  // Rendered content with highlights overlaid.
-  const rendered = renderWithHighlights(block.content, highlights);
+  // Rendered content with highlights overlaid, and editorial formatting inside
+  // them. Marks are read leniently: bad metadata draws plain text rather than
+  // taking the chapter down.
+  const marks = safeInlineMarks(
+    block.meta as Record<string, unknown> | null,
+    block.content,
+  );
+  const rendered = renderWithHighlights(block.content, highlights, marks);
 
   const baseProps = {
     "data-block-id": block.id,
@@ -211,8 +224,9 @@ export function BlockRenderer({
 function renderWithHighlights(
   content: string,
   highlights: HighlightSummary[],
+  marks: readonly InlineTextMark[] = [],
 ): React.ReactNode {
-  if (highlights.length === 0) return content;
+  if (highlights.length === 0 && marks.length === 0) return content;
 
   // Sort by start; we walk left-to-right and skip overlapping ranges (v1
   // tolerates partial overlaps by ignoring the second one — proper interval
@@ -220,10 +234,18 @@ function renderWithHighlights(
   const sorted = [...highlights].sort((a, b) => a.startOffset - b.startOffset);
   const out: React.ReactNode[] = [];
   let cursor = 0;
+
+  // Highlights are cut FIRST, formatting second. Doing it the other way round
+  // would break one persisted Highlight into several <mark> elements the moment
+  // an editor bolded a word inside it — same pixels, but `data-highlight-id`
+  // would no longer identify one thing, and everything keyed off it (the note,
+  // the delete affordance) would be looking at fragments.
   for (const h of sorted) {
     if (h.startOffset < cursor || h.endOffset > content.length) continue;
     if (h.startOffset > cursor) {
-      out.push(content.slice(cursor, h.startOffset));
+      out.push(
+        ...formatted(content, marks, cursor, h.startOffset, `p-${cursor}`),
+      );
     }
     out.push(
       <mark
@@ -237,13 +259,61 @@ function renderWithHighlights(
         }}
         title={h.note ?? undefined}
       >
-        {content.slice(h.startOffset, h.endOffset)}
+        {formatted(content, marks, h.startOffset, h.endOffset, `h-${h.id}`)}
       </mark>,
     );
     cursor = h.endOffset;
   }
   if (cursor < content.length) {
-    out.push(content.slice(cursor));
+    out.push(
+      ...formatted(content, marks, cursor, content.length, `t-${cursor}`),
+    );
   }
   return out;
+}
+
+/**
+ * Editorial formatting for one slice of the block.
+ *
+ * Built from structured marks, never from parsed markup — there is no HTML in
+ * `content` to parse, which is the point. A segment with no formatting is
+ * returned as a bare string so unformatted text keeps producing exactly the DOM
+ * it produced before this feature existed.
+ */
+function formatted(
+  content: string,
+  marks: readonly InlineTextMark[],
+  from: number,
+  to: number,
+  keyPrefix: string,
+): React.ReactNode[] {
+  if (to <= from) return [];
+  if (marks.length === 0) return [content.slice(from, to)];
+
+  return toInlineSegmentsForRange(content, marks, from, to).map(
+    (segment, index) => {
+      if (!segment.bold && !segment.italic && !segment.underline) {
+        return segment.text;
+      }
+      return <FormattedSpan key={`${keyPrefix}-${index}`} segment={segment} />;
+    },
+  );
+}
+
+/**
+ * One run of formatted text.
+ *
+ * `<strong>` and `<em>` rather than styled spans: they carry the emphasis to a
+ * screen reader, which a CSS weight does not. Underline has no semantic element
+ * that means "underlined" — `<u>` is defined as an unarticulated annotation —
+ * so it is presentational, which is honest, because that is all it is.
+ */
+function FormattedSpan({ segment }: { segment: InlineTextSegment }) {
+  let node: React.ReactNode = segment.text;
+  if (segment.underline) {
+    node = <span style={{ textDecoration: "underline" }}>{node}</span>;
+  }
+  if (segment.italic) node = <em>{node}</em>;
+  if (segment.bold) node = <strong>{node}</strong>;
+  return <>{node}</>;
 }

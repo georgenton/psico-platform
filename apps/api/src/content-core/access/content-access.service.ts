@@ -3,6 +3,7 @@ import { PrismaService } from "../../prisma";
 import {
   type AccessDb,
   assertContentAccess,
+  isFreePreviewByPosition,
   resolveBookTarget,
   resolveUnitTarget,
   resolveWriteTarget,
@@ -36,7 +37,9 @@ export class ContentAccessService {
     assertContentAccess({
       userPlan: input.userPlan,
       bookPlan: book.plan,
-      chapterOrder: input.chapterOrder,
+      // `/api/lector` addresses chapters by position, so the legacy derivation
+      // applies here until that surface speaks unit keys.
+      isFreePreview: isFreePreviewByPosition(input.chapterOrder),
     });
   }
 
@@ -65,7 +68,7 @@ export class ContentAccessService {
     assertContentAccess({
       userPlan: input.userPlan,
       bookPlan: target.bookPlan,
-      chapterOrder: target.chapterOrder,
+      isFreePreview: target.isFreePreview,
     });
   }
 
@@ -83,7 +86,7 @@ export class ContentAccessService {
     assertContentAccess({
       userPlan: input.userPlan,
       bookPlan: target.bookPlan,
-      chapterOrder: target.chapterOrder,
+      isFreePreview: target.isFreePreview,
     });
   }
 
@@ -102,7 +105,9 @@ export class ContentAccessService {
     assertContentAccess({
       userPlan: input.userPlan,
       bookPlan,
-      chapterOrder: 1,
+      // Discovery metadata is visible for any book that has a free preview at
+      // all, which every book does; per-unit gating happens at the read.
+      isFreePreview: true,
     });
   }
 }

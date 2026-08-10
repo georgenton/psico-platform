@@ -5,7 +5,6 @@ import {
 } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { unitKeyFromLegacyChapterId } from "../lib/block-key";
-import { EDITION_KEY_SUFFIX } from "../read/content-read";
 
 /**
  * CC-6E — content access policy (pure, server-owned, single source of truth).
@@ -21,35 +20,72 @@ import { EDITION_KEY_SUFFIX } from "../read/content-read";
  * preview; any later chapter of a PRO book is denied to FREE. There is ONE copy
  * of this condition (`assertContentAccess`) — no surface re-implements it.
  *
- * Decisions are identical for `source=legacy` and `source=content-core`: both
- * resolve to the same `(bookId, bookPlan, chapterOrder)` via the legacy chapter
- * mapping (a Content Core unitKey is `uuidv5(Chapter.id)`), so there is no path
- * that falls back to a different source to dodge a 403.
+ * Decisions are identical for `source=legacy` and `source=content-core`, so
+ * there is no path that switches source to dodge a 403.
+ *
+ * ── #580 ──────────────────────────────────────────────────────────────────
+ *
+ * Access used to be answered entirely out of legacy rows: the editionKey was
+ * assumed to end in `-1e`, the prefix was assumed to be a `Book.slug`, the
+ * unitKey was assumed to be `uuidv5(Chapter.id)`, and "free" meant
+ * `Chapter.order === 1`. All four are true only while every unit came from a
+ * legacy Chapter — which stops being true the moment Content Studio can create
+ * one.
+ *
+ * Content Core now owns both facts itself: `Edition.accessPlan` and
+ * `ContentUnit.isFreePreview`. The legacy path survives as a fallback for
+ * editions the backfill has not derived yet, and only for those.
  */
 
-/** Where every content surface can resolve to for the entitlement decision. */
+/**
+ * Where every content surface resolves to for the entitlement decision.
+ *
+ * `bookId` is nullable since #580: a pure Content Core unit has no legacy Book
+ * row, and nothing in the gate ever read it — it is kept only for callers that
+ * already had it.
+ */
 export interface ContentEntitlementTarget {
-  bookId: string;
+  bookId: string | null;
   bookPlan: string;
-  chapterOrder: number;
+  isFreePreview: boolean;
 }
 
 /**
- * THE gate. The only place the FREE/PRO condition lives. A PRO book's chapters
- * beyond the first are denied to FREE; chapter 1 is always a free preview.
+ * THE gate. The only place the FREE/PRO condition lives.
+ *
+ * It now asks whether the unit IS the free preview rather than whether it sits
+ * first. Same decision for every book that exists today — the derivation below
+ * makes sure of that — but it no longer breaks when a chapter moves, which is
+ * what #580 is clearing the way for.
  */
 export function assertContentAccess(input: {
   userPlan: string;
   bookPlan: string;
-  chapterOrder: number;
+  isFreePreview: boolean;
 }): void {
   if (
     input.bookPlan === "PRO" &&
-    input.chapterOrder > 1 &&
+    !input.isFreePreview &&
     input.userPlan === "FREE"
   ) {
     throw new ForbiddenException("PRO_REQUIRED");
   }
+}
+
+/**
+ * The ONE place that turns a position into a preview designation.
+ *
+ * Legacy content has no designation — only an order — so the two have to be
+ * reconciled somewhere. Doing it here, once, is what stops `order === 1` from
+ * reappearing in the backfill, the ingest and the resolver as three independent
+ * copies that can drift.
+ *
+ * Used when deriving native metadata from existing books, and by the legacy
+ * fallback below. Pure-core authoring will set the designation directly and
+ * never call this.
+ */
+export function isFreePreviewByPosition(order: number): boolean {
+  return order === 1;
 }
 
 /**
@@ -91,12 +127,50 @@ export async function resolveUnitTarget(
   editionKey: string,
   unitKey: string,
 ): Promise<ContentEntitlementTarget> {
-  if (!editionKey.endsWith(EDITION_KEY_SUFFIX)) {
-    throw new NotFoundException("EDITION_NOT_FOUND");
+  // The edition is found by its KEY, not by parsing a suffix out of it. That
+  // single change is what lets an edition be called anything at all.
+  const edition = await db.edition.findUnique({
+    where: { editionKey },
+    select: { id: true, slug: true, accessPlan: true },
+  });
+  if (!edition) throw new NotFoundException("EDITION_NOT_FOUND");
+
+  if (edition.accessPlan !== null) {
+    // Native path: Content Core answers entirely from its own rows. No Book, no
+    // Chapter, no assumption about how the key is spelled.
+    const unit = await db.contentUnit.findFirst({
+      where: { editionId: edition.id, unitKey },
+      select: { isFreePreview: true },
+    });
+    if (!unit) throw new NotFoundException("UNIT_NOT_FOUND");
+    return {
+      bookId: null,
+      bookPlan: edition.accessPlan,
+      isFreePreview: unit.isFreePreview,
+    };
   }
-  const slug = editionKey.slice(0, -EDITION_KEY_SUFFIX.length);
+
+  return resolveUnitTargetFromLegacy(db, edition.slug, unitKey);
+}
+
+/**
+ * The transitional path, for editions the backfill has not derived yet.
+ *
+ * Deliberately identical to the pre-#580 behaviour, including the legacy
+ * `order === 1` rule, so an un-derived edition decides exactly what it decided
+ * before this change. It reads the edition's own `slug` rather than re-deriving
+ * one from the key — the suffix assumption is gone even here.
+ *
+ * DELETABLE once every Edition row has a non-null `accessPlan`. See the
+ * deprecation note in the PR body.
+ */
+async function resolveUnitTargetFromLegacy(
+  db: AccessDb,
+  editionSlug: string,
+  unitKey: string,
+): Promise<ContentEntitlementTarget> {
   const book = await db.book.findUnique({
-    where: { slug },
+    where: { slug: editionSlug },
     select: { id: true, plan: true },
   });
   if (!book) throw new NotFoundException("EDITION_NOT_FOUND");
@@ -111,7 +185,11 @@ export async function resolveUnitTarget(
   // A unit whose key doesn't map to a chapter of this book gets no access —
   // never fall back to a looser check to serve it.
   if (!chapter) throw new NotFoundException("UNIT_NOT_FOUND");
-  return { bookId: book.id, bookPlan: book.plan, chapterOrder: chapter.order };
+  return {
+    bookId: book.id,
+    bookPlan: book.plan,
+    isFreePreview: isFreePreviewByPosition(chapter.order),
+  };
 }
 
 /** Resolve the entitlement target from a legacy ChapterBlock id. */
@@ -131,7 +209,7 @@ async function resolveByLegacyBlockId(
   return {
     bookId: block.chapter.bookId,
     bookPlan: block.chapter.book.plan,
-    chapterOrder: block.chapter.order,
+    isFreePreview: isFreePreviewByPosition(block.chapter.order),
   };
 }
 

@@ -13,6 +13,7 @@ import {
   unitKeyFromLegacyChapterId,
 } from "./lib/block-key";
 import { contentHash } from "./lib/content-hash";
+import { isFreePreviewByPosition } from "./access/content-access";
 import { ingestBookConcepts } from "./concept-ingestion";
 import { ingestUnitExercises } from "./exercise-ingestion";
 
@@ -111,8 +112,11 @@ export async function backfillContentCore(
             slug: book.slug,
             label: "Primera edición",
             language: "es-419",
+            // #580 — Content Core's own copy of the plan. Derived here so an
+            // edition stops needing its Book row to answer entitlement.
+            accessPlan: book.plan,
           },
-          update: { slug: book.slug },
+          update: { slug: book.slug, accessPlan: book.plan },
         });
         stats.editions += 1;
 
@@ -140,13 +144,26 @@ export async function backfillContentCore(
           const unitKey = unitKeyFromLegacyChapterId(ch.id);
           chapterIdByOrder.set(ch.order, ch.id);
 
-          // 3. ContentUnit — identity only (editionId + unitKey), no drift possible.
+          // 3. ContentUnit — identity, plus the derived preview designation.
+          //
+          // #580: the unit sitting at chapter 1 today BECOMES the designated
+          // free preview, so nothing a reader can currently open changes. From
+          // here on the designation travels with the unit rather than with the
+          // position, which is what makes reordering safe later.
+          const isFreePreview = isFreePreviewByPosition(ch.order);
           let unit = await tx.contentUnit.findUnique({
             where: { editionId_unitKey: { editionId: edition.id, unitKey } },
           });
           if (!unit) {
             unit = await tx.contentUnit.create({
-              data: { editionId: edition.id, unitKey },
+              data: { editionId: edition.id, unitKey, isFreePreview },
+            });
+          } else if (unit.isFreePreview !== isFreePreview) {
+            // Idempotent and self-correcting: re-running the backfill converges
+            // rather than leaving a half-derived edition behind.
+            unit = await tx.contentUnit.update({
+              where: { id: unit.id },
+              data: { isFreePreview },
             });
           }
           unitIdByOrder.set(ch.order, unit.id);

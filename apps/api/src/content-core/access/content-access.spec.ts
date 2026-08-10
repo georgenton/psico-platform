@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { unitKeyFromLegacyChapterId } from "../lib/block-key";
 import {
   assertContentAccess,
+  isFreePreviewByPosition,
   resolveUnitTarget,
   resolveWriteTarget,
 } from "./content-access";
@@ -15,51 +16,54 @@ import {
  */
 
 describe("assertContentAccess — the single FREE/PRO gate", () => {
-  it("FREE user, PRO book, chapter 1 → allowed (free preview)", () => {
+  it("FREE user, PRO book, the designated preview → allowed", () => {
     expect(() =>
       assertContentAccess({
         userPlan: "FREE",
         bookPlan: "PRO",
-        chapterOrder: 1,
+        isFreePreview: true,
       }),
     ).not.toThrow();
   });
 
-  it("FREE user, PRO book, chapter 2 → PRO_REQUIRED (403)", () => {
-    expect(() =>
-      assertContentAccess({
-        userPlan: "FREE",
-        bookPlan: "PRO",
-        chapterOrder: 2,
-      }),
-    ).toThrow(ForbiddenException);
-    expect(() =>
-      assertContentAccess({
-        userPlan: "FREE",
-        bookPlan: "PRO",
-        chapterOrder: 2,
-      }),
-    ).toThrow(/PRO_REQUIRED/);
+  it("FREE user, PRO book, a gated unit → PRO_REQUIRED (403)", () => {
+    const gated = {
+      userPlan: "FREE",
+      bookPlan: "PRO",
+      isFreePreview: false,
+    };
+    expect(() => assertContentAccess(gated)).toThrow(ForbiddenException);
+    expect(() => assertContentAccess(gated)).toThrow(/PRO_REQUIRED/);
   });
 
-  it("PRO user, PRO book, chapter 2 → allowed", () => {
+  it("PRO user, PRO book, a gated unit → allowed", () => {
     expect(() =>
       assertContentAccess({
         userPlan: "PRO",
         bookPlan: "PRO",
-        chapterOrder: 2,
+        isFreePreview: false,
       }),
     ).not.toThrow();
   });
 
-  it("FREE user, FREE book, chapter 2 → allowed", () => {
+  it("FREE user, FREE book, a gated unit → allowed", () => {
     expect(() =>
       assertContentAccess({
         userPlan: "FREE",
         bookPlan: "FREE",
-        chapterOrder: 2,
+        isFreePreview: false,
       }),
     ).not.toThrow();
+  });
+});
+
+describe("isFreePreviewByPosition — the one legacy derivation", () => {
+  it("reads chapter 1 as the preview and nothing else", () => {
+    // #580: legacy content has only an order, so this is where an order becomes
+    // a designation. Exactly one copy of it exists, and this is it.
+    expect(isFreePreviewByPosition(1)).toBe(true);
+    expect(isFreePreviewByPosition(2)).toBe(false);
+    expect(isFreePreviewByPosition(7)).toBe(false);
   });
 });
 
@@ -74,6 +78,20 @@ const PRO_CH1 = "chap-pro-1-id";
 
 describe("resolveUnitTarget — same keys → same decision (dual-source parity)", () => {
   const base = {
+    // #580 — the resolver finds the edition by key first. `accessPlan: null`
+    // puts it on the legacy fallback, which is the path these cases pin.
+    edition: {
+      findUnique: async ({
+        where: { editionKey },
+      }: {
+        where: { editionKey: string };
+      }) =>
+        editionKey === "familias-ensambladas-1e"
+          ? { id: "ed-pro", slug: "familias-ensambladas", accessPlan: null }
+          : editionKey === "unknown-book-1e"
+            ? { id: "ed-x", slug: "unknown-book", accessPlan: null }
+            : null,
+    },
     book: {
       findUnique: async ({ where: { slug } }: { where: { slug: string } }) =>
         slug === "familias-ensambladas"
@@ -98,7 +116,9 @@ describe("resolveUnitTarget — same keys → same decision (dual-source parity)
     expect(target).toEqual({
       bookId: "book-pro",
       bookPlan: "PRO",
-      chapterOrder: 2,
+      // Chapter 2 is not the preview — same decision as before #580, now said
+      // in the vocabulary that survives reordering.
+      isFreePreview: false,
     });
   });
 
@@ -113,7 +133,7 @@ describe("resolveUnitTarget — same keys → same decision (dual-source parity)
       assertContentAccess({
         userPlan: "FREE",
         bookPlan: target.bookPlan,
-        chapterOrder: target.chapterOrder,
+        isFreePreview: target.isFreePreview,
       }),
     ).toThrow(ForbiddenException);
   });
@@ -122,6 +142,8 @@ describe("resolveUnitTarget — same keys → same decision (dual-source parity)
     await expect(
       resolveUnitTarget(db(base), "unknown-book-1e", "x"),
     ).rejects.toThrow(/EDITION_NOT_FOUND/);
+    // A key with no `-1e` is no longer rejected for its SHAPE — it is rejected
+    // because no edition has that key. That distinction is the issue.
     await expect(resolveUnitTarget(db(base), "no-suffix", "x")).rejects.toThrow(
       /EDITION_NOT_FOUND/,
     );
@@ -144,7 +166,9 @@ describe("resolveWriteTarget — legacy blockId and content-core blockKey agree"
     expect(target).toEqual({
       bookId: "book-pro",
       bookPlan: "PRO",
-      chapterOrder: 2,
+      // Chapter 2 is not the preview — same decision as before #580, now said
+      // in the vocabulary that survives reordering.
+      isFreePreview: false,
     });
   });
 
@@ -161,7 +185,9 @@ describe("resolveWriteTarget — legacy blockId and content-core blockKey agree"
     expect(target).toEqual({
       bookId: "book-pro",
       bookPlan: "PRO",
-      chapterOrder: 2,
+      // Chapter 2 is not the preview — same decision as before #580, now said
+      // in the vocabulary that survives reordering.
+      isFreePreview: false,
     });
   });
 

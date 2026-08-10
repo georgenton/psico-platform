@@ -2258,6 +2258,14 @@ model Edition {
   // The revision currently served to readers. CHECK (migration): it belongs to
   // this edition.
   publishedRevisionId String?  @unique
+  /// #580 — the plan a reader needs for this edition's gated units.
+  ///
+  /// Content Core's own copy of what `Book.plan` used to answer through the
+  /// legacy slug. NULLABLE on purpose: `null` means "not yet derived", which is
+  /// what tells the access resolver to fall back to the legacy book lookup. It
+  /// is not "free" — a default of FREE would silently give away a PRO book on
+  /// any edition the backfill has not reached yet.
+  accessPlan          Plan?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -2315,6 +2323,16 @@ model ContentUnit {
   id        String   @id @default(cuid())
   editionId String
   unitKey   String
+  /// #580 — this unit is the edition's free preview.
+  ///
+  /// A DESIGNATED unit, not a position. The legacy rule was "chapter 1 is free",
+  /// which means reordering chapters would silently change what a reader can
+  /// see without paying — an editorial action causing a pricing change. Naming
+  /// the unit survives reordering, which is the point of the whole issue.
+  ///
+  /// Derived on backfill from whatever sits at manifest order 1, so today's
+  /// behaviour is preserved exactly.
+  isFreePreview Boolean @default(false)
   createdAt DateTime @default(now())
 
   edition         Edition              @relation(fields: [editionId], references: [id], onDelete: Cascade)

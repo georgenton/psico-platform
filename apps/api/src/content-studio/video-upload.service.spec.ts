@@ -41,6 +41,7 @@ const stream = {
   createDirectUpload: vi.fn(),
   getStatus: vi.fn(),
   deleteVideo: vi.fn(),
+  uploadsAvailable: vi.fn(),
 } as unknown as CloudflareStreamUploadService;
 
 const service = new VideoUploadService(prisma, stream);
@@ -87,6 +88,7 @@ beforeEach(() => {
     expiresAt: "2026-08-09T12:00:00.000Z",
   });
   draft.create.mockResolvedValue({ id: "draft-new" });
+  (stream.uploadsAvailable as ReturnType<typeof vi.fn>).mockReturnValue(true);
 });
 
 describe("createUploadIntent — a brand-new video", () => {
@@ -303,5 +305,38 @@ describe("getUploadStatus", () => {
       sourceReady: false,
     });
     expect(draft.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("uploadsAvailable — offering the flow at all", () => {
+  it("refuses the intent when the provider cannot take uploads today", async () => {
+    // The button is hidden in the CMS, but that is a courtesy. This is the rule,
+    // and it fires BEFORE any provider call — so an editor who reaches the route
+    // another way gets a clean answer instead of a quota error phrased in
+    // somebody else's vocabulary.
+    (stream.uploadsAvailable as ReturnType<typeof vi.fn>).mockReturnValue(
+      false,
+    );
+
+    await expect(
+      service.createUploadIntent(
+        CHAPTER.bookSlug,
+        CHAPTER.chapterOrder,
+        { title: "Video", description: "Desc." },
+        "admin-1",
+      ),
+    ).rejects.toMatchObject({
+      response: { code: "VIDEO_UPLOAD_UNAVAILABLE" },
+    });
+
+    expect(stream.createDirectUpload).not.toHaveBeenCalled();
+    expect(draft.create).not.toHaveBeenCalled();
+  });
+
+  it("reports the capability without reaching the network", () => {
+    (stream.uploadsAvailable as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    expect(service.uploadsAvailable()).toBe(true);
+    expect(stream.createDirectUpload).not.toHaveBeenCalled();
+    expect(stream.getStatus).not.toHaveBeenCalled();
   });
 });

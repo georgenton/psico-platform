@@ -58,12 +58,15 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [addingEpisode, setAddingEpisode] = useState(false);
   const [addingVideo, setAddingVideo] = useState(false);
+  // Defaults to false: until the API says otherwise, do not offer the flow.
+  const [videoUploadAvailable, setVideoUploadAvailable] = useState(false);
 
   const reload = useCallback(async () => {
     const result = await listChapterMediaAction(bookSlug, chapterOrder);
     if (result.ok && result.data) {
       setCards(result.data.media);
       setMissing(result.data.missingKinds ?? []);
+      setVideoUploadAvailable(result.data.videoUploadAvailable === true);
       setError(null);
       return;
     }
@@ -228,27 +231,39 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
                         : "Administrar en CMS"}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setUploadingFor(
-                        uploadingFor === card.mediaKey ? null : card.mediaKey,
-                      )
-                    }
-                    className="rounded-full px-4 py-2 text-[13px] font-semibold"
-                    style={{
-                      background: "var(--color-warm-100)",
-                      color: "var(--color-warm-700)",
-                    }}
-                  >
-                    {/* An abandoned video upload gets its own wording: "subir"
+                  {(card.kind !== "VIDEO" || videoUploadAvailable) && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setUploadingFor(
+                          uploadingFor === card.mediaKey ? null : card.mediaKey,
+                        )
+                      }
+                      className="rounded-full px-4 py-2 text-[13px] font-semibold"
+                      style={{
+                        background: "var(--color-warm-100)",
+                        color: "var(--color-warm-700)",
+                      }}
+                    >
+                      {/* An abandoned video upload gets its own wording: "subir"
                         would suggest the previous attempt is still somewhere. */}
-                    {card.awaitingUpload
-                      ? `Reintentar ${card.title}`
-                      : card.sourceReady
-                        ? `Subir nueva versión de ${card.title}`
-                        : `Subir ${MEDIA_KIND_LABEL[card.kind] ?? card.kind}`}
-                  </button>
+                      {card.awaitingUpload
+                        ? `Reintentar ${card.title}`
+                        : card.sourceReady
+                          ? `Subir nueva versión de ${card.title}`
+                          : `Subir ${MEDIA_KIND_LABEL[card.kind] ?? card.kind}`}
+                    </button>
+                  )}
+                  {card.kind === "VIDEO" && !videoUploadAvailable && (
+                    // Truthful, and in the editor's own vocabulary: why the
+                    // provider cannot take a file is not their problem to read.
+                    <span
+                      className="text-[12.5px]"
+                      style={{ color: "var(--color-warm-500)" }}
+                    >
+                      Subida de video no disponible todavía
+                    </span>
+                  )}
                   {card.editorialStatus === "DRAFT" &&
                     card.draftId &&
                     card.stagedMaster && (
@@ -354,7 +369,7 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
               + Añadir episodio de podcast
             </button>
           )}
-          {!addingVideo && (
+          {!addingVideo && videoUploadAvailable && (
             <button
               type="button"
               onClick={() => setAddingVideo(true)}

@@ -271,11 +271,15 @@ export class ContentStudioController {
   })
   @ApiOkResponse({ type: ContentStudioChapterMediaResponseDto })
   @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
-  listMedia(
+  async listMedia(
     @Param("bookSlug") bookSlug: string,
     @Param("chapterOrder", ParseIntPipe) chapterOrder: number,
   ) {
-    return this.media.listForChapter(bookSlug, chapterOrder);
+    // Composed here rather than inside the media service, which is deliberately
+    // provider-free — it administers definitions and asks nobody anything. The
+    // capability is a fact about the environment, not about this chapter.
+    const list = await this.media.listForChapter(bookSlug, chapterOrder);
+    return { ...list, videoUploadAvailable: this.video.uploadsAvailable() };
   }
 
   /**

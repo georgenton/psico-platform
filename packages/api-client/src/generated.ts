@@ -4871,6 +4871,8 @@ export interface components {
             bookSlug: string;
             chapterOrder: number;
             media: components["schemas"]["ContentStudioMediaCardDto"][];
+            /** @description Si la subida de video puede ofrecerse hoy. En falso, el CMS muestra el estado real en vez de un botón que terminaría en error. */
+            videoUploadAvailable: boolean;
             /** @description Formatos que el capítulo no tiene. Sin esto el CMS sólo podría decir «no hay» sin ofrecer nada. */
             missingKinds: ContentStudioChapterMediaResponseDtoMissingKinds[];
         };

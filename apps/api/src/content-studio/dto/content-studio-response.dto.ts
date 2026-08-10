@@ -247,6 +247,12 @@ export class ContentStudioChapterMediaResponseDto {
   media!: ContentStudioMediaCardDto[];
 
   @ApiProperty({
+    description:
+      "Si la subida de video puede ofrecerse hoy. En falso, el CMS muestra el estado real en vez de un botón que terminaría en error.",
+  })
+  videoUploadAvailable!: boolean;
+
+  @ApiProperty({
     enum: ["AUDIOBOOK", "PODCAST", "VIDEO"],
     isArray: true,
     description:

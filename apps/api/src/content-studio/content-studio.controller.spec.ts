@@ -57,3 +57,89 @@ describe("Content Studio media routes are ADMIN-guarded", () => {
     expect(role).toBe("ADMIN");
   });
 });
+
+/**
+ * The role matrix, exercised rather than asserted from metadata.
+ *
+ * The test above pins that the class still CARRIES the guards; this one runs
+ * the guard the class carries against every role, for the routes that actually
+ * change something. Metadata can be right while the guard is wrong, and the
+ * failure mode — an AUTHOR editing a platform book — is not one to infer.
+ */
+describe("Content Studio role matrix", () => {
+  const WRITES = [
+    "saveDraft",
+    "uploadCover",
+    "uploadChapterImage",
+    "uploadAudiobook",
+    "uploadPodcast",
+    "createVideoUploadIntent",
+    "publishMediaDraft",
+  ] as const;
+
+  async function decide(role: string | null, handler: string) {
+    const { RolesGuard } = await import("../shared");
+    const { Reflector } = await import("@nestjs/core");
+    const { ContentStudioController } =
+      await import("./content-studio.controller");
+
+    const guard = new RolesGuard(new Reflector());
+    const ctx = {
+      getHandler: () =>
+        (
+          ContentStudioController.prototype as unknown as Record<
+            string,
+            () => void
+          >
+        )[handler],
+      getClass: () => ContentStudioController,
+      switchToHttp: () => ({
+        getRequest: () => (role === null ? {} : { user: { role } }),
+      }),
+    };
+    try {
+      return guard.canActivate(
+        ctx as unknown as Parameters<typeof guard.canActivate>[0],
+      );
+    } catch {
+      // The guard throws rather than returning false; either way it is a refusal.
+      return false;
+    }
+  }
+
+  it.each(WRITES)("names a handler that exists · %s", async (handler) => {
+    // Without this, a renamed or mistyped handler makes every row above test
+    // `undefined` and pass for the wrong reason.
+    const { ContentStudioController } =
+      await import("./content-studio.controller");
+    expect(
+      typeof (
+        ContentStudioController.prototype as unknown as Record<string, unknown>
+      )[handler],
+    ).toBe("function");
+  });
+
+  it.each(WRITES)("refuses a plain USER on %s", async (handler) => {
+    await expect(decide("USER", handler)).resolves.toBe(false);
+  });
+
+  it.each(WRITES)("refuses an AUTHOR on %s", async (handler) => {
+    // `/autor` is scoped to books a writer owns. These are platform books that
+    // nobody owns, so authorship grants nothing here.
+    await expect(decide("AUTHOR", handler)).resolves.toBe(false);
+  });
+
+  it.each(WRITES)("refuses a PSYCHOLOGIST on %s", async (handler) => {
+    await expect(decide("PSYCHOLOGIST", handler)).resolves.toBe(false);
+  });
+
+  it.each(WRITES)("allows an ADMIN on %s", async (handler) => {
+    await expect(decide("ADMIN", handler)).resolves.toBe(true);
+  });
+
+  it("refuses a request carrying no user at all", async () => {
+    // Belt and braces behind JwtAuthGuard: if the role check ever ran first,
+    // an anonymous request must still be a refusal and not an undefined read.
+    await expect(decide(null, "saveDraft")).resolves.toBe(false);
+  });
+});

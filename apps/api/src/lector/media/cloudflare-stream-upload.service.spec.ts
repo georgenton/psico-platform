@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CloudflareStreamUploadService,
   readDirectUpload,
   readStatus,
 } from "./cloudflare-stream-upload.service";
@@ -100,5 +101,46 @@ describe("readStatus", () => {
   it("rejects a body with no state at all", () => {
     expect(readStatus(ok({ status: {} }))).toBeNull();
     expect(readStatus({ success: true })).toBeNull();
+  });
+});
+
+describe("uploadsAvailable", () => {
+  const svc = (values: Record<string, string | undefined>) =>
+    new CloudflareStreamUploadService({
+      get: (k: string) => values[k],
+    } as unknown as ConstructorParameters<
+      typeof CloudflareStreamUploadService
+    >[0]);
+
+  const CREDS = {
+    CLOUDFLARE_STREAM_ACCOUNT_ID: "acc",
+    CLOUDFLARE_STREAM_API_TOKEN: "tok",
+  };
+
+  it("is false with no credentials at all", () => {
+    expect(svc({}).uploadsAvailable()).toBe(false);
+  });
+
+  it("is false with valid credentials but no capacity declared", () => {
+    // The state this account is actually in. Credentials verify perfectly and
+    // every allocation is still refused, so treating "configured" as "usable"
+    // is exactly the false promise this guard exists to prevent.
+    expect(svc(CREDS).uploadsAvailable()).toBe(false);
+    expect(svc(CREDS).isConfigured()).toBe(true);
+  });
+
+  it("is true only when capacity is explicitly declared", () => {
+    expect(
+      svc({
+        ...CREDS,
+        CLOUDFLARE_STREAM_UPLOADS_ENABLED: "true",
+      }).uploadsAvailable(),
+    ).toBe(true);
+  });
+
+  it("does not let the switch alone enable it", () => {
+    expect(
+      svc({ CLOUDFLARE_STREAM_UPLOADS_ENABLED: "true" }).uploadsAvailable(),
+    ).toBe(false);
   });
 });

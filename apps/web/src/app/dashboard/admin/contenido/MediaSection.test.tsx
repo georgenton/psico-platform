@@ -51,9 +51,19 @@ function card(over: MediaCardOverrides = {}): MediaCard {
   } as MediaCard;
 }
 
-const list = (media: MediaCard[], missingKinds: string[] = []) => ({
+const list = (
+  media: MediaCard[],
+  missingKinds: string[] = [],
+  videoUploadAvailable = true,
+) => ({
   ok: true,
-  data: { bookSlug: "eec", chapterOrder: 1, media, missingKinds },
+  data: {
+    bookSlug: "eec",
+    chapterOrder: 1,
+    media,
+    missingKinds,
+    videoUploadAvailable,
+  },
 });
 
 beforeEach(() => {
@@ -857,5 +867,103 @@ describe("chapter video (C3)", () => {
     });
     expect(actions.uploadAudiobookAction).not.toHaveBeenCalled();
     expect(actions.uploadPodcastAction).not.toHaveBeenCalled();
+  });
+});
+
+describe("video when the provider cannot take uploads", () => {
+  const videoCard = () =>
+    card({
+      kind: "VIDEO",
+      mediaKey: "eec-c1-video-v1",
+      title: "Video · capítulo 1",
+      sourceReady: false,
+      runtimeAvailability: "COMING_SOON",
+    });
+
+  it("keeps the card visible and says so plainly", async () => {
+    // The card is real editorial state and must not vanish because a provider
+    // is unprovisioned. What changes is the offer, not the truth.
+    actions.listChapterMediaAction.mockResolvedValue(
+      list([videoCard()], [], false),
+    );
+
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    expect(await screen.findByText("Video · capítulo 1")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Subida de video no disponible todavía/i),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no upload button an editor could press into an error", async () => {
+    actions.listChapterMediaAction.mockResolvedValue(
+      list([videoCard()], [], false),
+    );
+
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+    await screen.findByText("Video · capítulo 1");
+
+    expect(
+      screen.queryByRole("button", { name: /Subir Video/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /\+ Añadir video/i }),
+    ).not.toBeInTheDocument();
+    // Not a disabled button either: a greyed control still reads as "soon,
+    // maybe now", and there is nothing to wait for on this screen.
+    expect(actions.createVideoUploadIntentAction).not.toHaveBeenCalled();
+  });
+
+  it("never names the provider or the reason", async () => {
+    // "Cloudflare", "cuota" and "facturación" are our problems, not the
+    // editor's, and a screenshot of this page travels further than we expect.
+    actions.listChapterMediaAction.mockResolvedValue(
+      list([videoCard()], [], false),
+    );
+
+    const { container } = render(
+      <MediaSection bookSlug="eec" chapterOrder={1} />,
+    );
+    await screen.findByText("Video · capítulo 1");
+
+    const text = container.textContent ?? "";
+    for (const forbidden of [
+      "Cloudflare",
+      "Stream",
+      "cuota",
+      "quota",
+      "facturación",
+      "billing",
+      "capacidad",
+    ]) {
+      expect(text).not.toContain(forbidden);
+    }
+  });
+
+  it("still leaves audio uploads alone", async () => {
+    // The capability is about video. An unprovisioned video provider must not
+    // quietly take the audiobook uploader down with it.
+    actions.listChapterMediaAction.mockResolvedValue(
+      list(
+        [
+          videoCard(),
+          card({
+            kind: "AUDIOBOOK",
+            mediaKey: "eec-c1-audiobook-v1",
+            title: "Audiolibro",
+          }),
+        ],
+        [],
+        false,
+      ),
+    );
+
+    render(<MediaSection bookSlug="eec" chapterOrder={1} />);
+
+    expect(
+      await screen.findByRole("button", {
+        name: /Subir nueva versión de Audiolibro/i,
+      }),
+    ).toBeEnabled();
   });
 });

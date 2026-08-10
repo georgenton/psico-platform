@@ -109,55 +109,56 @@ model User {
 
   stripeCustomerId String? @unique
 
-  profile                 Profile?
-  refreshTokens           RefreshToken[]
-  progress                UserProgress[]
-  subscription            Subscription?
-  conversations           Conversation[]
-  preferences             UserPreferences?
-  readerPreferences       ReaderPreferences?
-  notificationSettings    NotificationSettings?
-  privacySettings         PrivacySettings?
-  achievements            UserAchievement[]
-  emailChangeRequests     EmailChangeRequest[]
-  dataExportRequests      DataExportRequest[]
-  authEvents              AuthEvent[]
-  passwordResetTokens     PasswordResetToken[]
-  emailVerificationTokens EmailVerificationToken[]
-  onboardingState         OnboardingState?
-  bookFavorites           BookFavorite[]
-  bookBookmarks           BookBookmark[]
-  bookReviews             BookReview[]
-  dismissedPrompts        DismissedReflectionPrompt[]
-  diaryEntries            DiaryEntry[]
-  sharedDiaryEntries      SharedDiaryEntry[]
-  billingUsageDays        BillingUsageDay[]
-  voiceTranscriptions     VoiceTranscription[]
-  ecoThreads              EcoThread[]
-  highlights              Highlight[]
-  annotations             Annotation[]
-  readingSessions         ReadingSession[]
-  weeklySummaries         WeeklySummary[]
-  deviceTokens            DeviceToken[]
-  emotionalMapSnapshots   EmotionalMapSnapshot[]
-  liveActivityTokens      LiveActivityToken[]         @relation("UserLiveActivityTokens")
-  therapistProfile        Therapist?                  @relation("UserAsTherapist")
-  therapistFavorites      TherapistFavorite[]
-  therapistReviews        TherapistReview[]
-  therapySessions         TherapySession[]
-  therapyPrescriptions    TherapyPrescription[]
-  therapyNotifications    TherapyNotification[]
-  crisisLogs              CrisisLog[]
-  therapyTechnicalReports TherapyTechnicalReport[]
-  authorBooks             AuthorBook[]                @relation("AuthorBookOwner")
-  moodLogs                MoodLog[]
-  checkinResponses        CheckinResponse[]
-  diaryTextFeatures       DiaryTextFeature[]
-  resonances              Resonance[]
-  learningEvents          LearningEvent[]
-  guideSessions           GuideSession[]
-  guideCommandReceipts    GuideCommandReceipt[]
+  profile                   Profile?
+  refreshTokens             RefreshToken[]
+  progress                  UserProgress[]
+  subscription              Subscription?
+  conversations             Conversation[]
+  preferences               UserPreferences?
+  readerPreferences         ReaderPreferences?
+  notificationSettings      NotificationSettings?
+  privacySettings           PrivacySettings?
+  achievements              UserAchievement[]
+  emailChangeRequests       EmailChangeRequest[]
+  dataExportRequests        DataExportRequest[]
+  authEvents                AuthEvent[]
+  passwordResetTokens       PasswordResetToken[]
+  emailVerificationTokens   EmailVerificationToken[]
+  onboardingState           OnboardingState?
+  bookFavorites             BookFavorite[]
+  bookBookmarks             BookBookmark[]
+  bookReviews               BookReview[]
+  dismissedPrompts          DismissedReflectionPrompt[]
+  diaryEntries              DiaryEntry[]
+  sharedDiaryEntries        SharedDiaryEntry[]
+  billingUsageDays          BillingUsageDay[]
+  voiceTranscriptions       VoiceTranscription[]
+  ecoThreads                EcoThread[]
+  highlights                Highlight[]
+  annotations               Annotation[]
+  readingSessions           ReadingSession[]
+  weeklySummaries           WeeklySummary[]
+  deviceTokens              DeviceToken[]
+  emotionalMapSnapshots     EmotionalMapSnapshot[]
+  liveActivityTokens        LiveActivityToken[]         @relation("UserLiveActivityTokens")
+  therapistProfile          Therapist?                  @relation("UserAsTherapist")
+  therapistFavorites        TherapistFavorite[]
+  therapistReviews          TherapistReview[]
+  therapySessions           TherapySession[]
+  therapyPrescriptions      TherapyPrescription[]
+  therapyNotifications      TherapyNotification[]
+  crisisLogs                CrisisLog[]
+  therapyTechnicalReports   TherapyTechnicalReport[]
+  authorBooks               AuthorBook[]                @relation("AuthorBookOwner")
+  moodLogs                  MoodLog[]
+  checkinResponses          CheckinResponse[]
+  diaryTextFeatures         DiaryTextFeature[]
+  resonances                Resonance[]
+  learningEvents            LearningEvent[]
+  guideSessions             GuideSession[]
+  guideCommandReceipts      GuideCommandReceipt[]
   chapterExperienceVersions ChapterExperienceVersion[]
+  chapterMediaVersions      ChapterMediaVersion[]
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -2641,24 +2642,66 @@ model GuideCommandReceipt {
 /// is what lets a GuideSession pin a version and still resolve it a month
 /// later.
 model ChapterExperienceVersion {
-  id               String          @id @default(cuid())
-  experienceKey    String
+  id                String                  @id @default(cuid())
+  experienceKey     String
   experienceVersion Int
-  bookSlug         String
-  chapterOrder     Int
-  status           ExperienceVersionStatus @default(DRAFT)
+  bookSlug          String
+  chapterOrder      Int
+  status            ExperienceVersionStatus @default(DRAFT)
   /// A full ChapterExperienceDefinition, validated before it is ever stored.
-  definitionJson   Json
-  createdByUserId  String
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  publishedAt      DateTime?
+  definitionJson    Json
+  createdByUserId   String
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  publishedAt       DateTime?
 
   createdBy User @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
 
   /// The pin is the identity. Two rows can never claim the same version.
   @@unique([experienceKey, experienceVersion])
   @@index([bookSlug, chapterOrder, status])
+}
+
+/// Content Studio (C2A) — an editorially-administered chapter media definition.
+///
+/// Two statuses live in this row and they mean different things. `editorialStatus`
+/// is the CMS lifecycle: whether this row may reach runtime at all. Inside
+/// `definitionJson`, the definition's own `status` keeps its existing runtime
+/// meaning — DRAFT is a public "Coming Soon", PUBLISHED is playable. So a CMS
+/// draft holding a runtime-PUBLISHED definition is still completely private.
+///
+/// Adopting a code-owned definition clones it at the SAME `mediaKey` and
+/// `mediaVersion`. That is the point: completion identity is `mediaKey +
+/// mediaVersion`, so moving authority from code to the CMS must not invent a
+/// second master for people who already listened.
+model ChapterMediaVersion {
+  id              String                      @id @default(cuid())
+  mediaKey        String
+  mediaVersion    Int
+  bookSlug        String
+  chapterOrder    Int
+  kind            String
+  editorialStatus ChapterMediaEditorialStatus @default(DRAFT)
+  /// A full ChapterMediaDefinition, validated before it is ever stored.
+  definitionJson  Json
+  createdByUserId String?
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+  publishedAt     DateTime?
+
+  createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  /// At most one draft and one published row per media key, which is what makes
+  /// `getExact` deterministic. It guards DUPLICATION, not mutation: a direct
+  /// UPDATE could still rewrite `definitionJson`. Refusing to edit a published
+  /// definition is an application rule, enforced in ChapterMediaAdminService.
+  @@unique([mediaKey, editorialStatus])
+  @@index([bookSlug, chapterOrder, kind, editorialStatus])
+}
+
+enum ChapterMediaEditorialStatus {
+  DRAFT
+  PUBLISHED
 }
 
 enum ExperienceVersionStatus {

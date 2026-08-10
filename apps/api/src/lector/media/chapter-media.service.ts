@@ -23,6 +23,7 @@ import { ContentAccessService } from "../../content-core/access/content-access.s
 import { unitKeyFromLegacyChapterId } from "../../content-core/lib/block-key";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { LectorService } from "../lector.service";
+import type { ChapterMediaDefinitionRepository } from "./chapter-media-definition.repository";
 import { CHAPTER_AUDIO_SIGNED_URL_TTL_SEC } from "../lector.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CloudflareStreamAccessService } from "./cloudflare-stream-access.service";
@@ -61,6 +62,10 @@ export const R2_MEDIA_SIGNED_URL_TTL_SEC = 60 * 60;
  * PostgreSQL against fixture definitions (an R2 podcast, a Stream video, a
  * second version) without those fixtures ever entering the productive list.
  * `LectorModule` binds it to `productionChapterMediaRegistry`.
+ *
+ * C2A: the binding is now a REPOSITORY rather than the registry itself, so the
+ * definitions may come from reviewed code, from Content Studio, or from both.
+ * This service is never told which — that is the point of the seam.
  */
 export const CHAPTER_MEDIA_REGISTRY = "CHAPTER_MEDIA_REGISTRY";
 
@@ -77,7 +82,7 @@ export class ChapterMediaService {
     private readonly catalog: LearningCatalogResolver,
     private readonly events: LearningEventRepository,
     @Inject(CHAPTER_MEDIA_REGISTRY)
-    private readonly registry: ChapterMediaCatalogRegistry,
+    private readonly registry: ChapterMediaDefinitionRepository,
   ) {}
 
   // ─── GET /api/lector/:bookIdOrSlug/:chapterOrder/media ───────────────────
@@ -111,7 +116,10 @@ export class ChapterMediaService {
       bookSlug: book.slug,
     });
 
-    const definitions = this.registry.forChapter(book.slug, chapterOrder);
+    const definitions = await this.registry.listPublicForChapter(
+      book.slug,
+      chapterOrder,
+    );
 
     // A `CHAPTER_AUDIO` source is a POINTER into the reader's own audio table,
     // not an object this catalog owns. The catalog can declare the audiobook
@@ -147,7 +155,7 @@ export class ChapterMediaService {
     userPlan: Plan,
     mediaKey: string,
   ): Promise<ChapterMediaAccessResponse> {
-    const def = this.requirePlayable(mediaKey);
+    const def = await this.requirePlayable(mediaKey);
     await this.assertEntitled(userId, userPlan, def);
 
     const [transcriptUrl, posterUrl] = await Promise.all([
@@ -231,7 +239,7 @@ export class ChapterMediaService {
     userPlan: Plan,
     mediaKey: string,
   ): Promise<{ created: boolean; replayed: boolean }> {
-    const def = this.requirePlayable(mediaKey);
+    const def = await this.requirePlayable(mediaKey);
 
     return this.prisma.$transaction(async (tx) => {
       const chapterId = await this.resolveChapterId(def, tx);
@@ -272,16 +280,19 @@ export class ChapterMediaService {
   // ─── internals ──────────────────────────────────────────────────────────
 
   /** Unknown key → 404. DRAFT or source-less → "not available yet". */
-  private requirePlayable(mediaKey: string): ChapterMediaDefinition {
-    let def: ChapterMediaDefinition;
+  private async requirePlayable(
+    mediaKey: string,
+  ): Promise<ChapterMediaDefinition> {
+    let def: ChapterMediaDefinition | null;
     try {
-      def = this.registry.getExact(mediaKey);
+      def = await this.registry.getExact(mediaKey);
     } catch (err) {
       if (err instanceof ChapterMediaCatalogError) {
         throw new NotFoundException("MEDIA_NOT_FOUND");
       }
       throw err;
     }
+    if (def === null) throw new NotFoundException("MEDIA_NOT_FOUND");
     if (def.status !== "PUBLISHED" || def.source === null) {
       throw new NotFoundException("MEDIA_NOT_AVAILABLE");
     }

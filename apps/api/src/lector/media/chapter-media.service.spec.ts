@@ -10,6 +10,7 @@ import {
   productionChapterMediaRegistry,
   validateChapterMediaDefinition,
 } from "./chapter-media.catalog";
+import { CodeChapterMediaDefinitionRepository } from "./chapter-media-definition.repository";
 import { chapterMediaCompletionIdempotencyKey } from "./chapter-media-idempotency";
 import { CHAPTER_AUDIO_SIGNED_URL_TTL_SEC } from "../lector.service";
 
@@ -100,7 +101,9 @@ function makeService(
     stream as never,
     catalog as never,
     events as never,
-    productionChapterMediaRegistry,
+    // C2A — the service takes the repository port; the production
+    // registry is what the code-owned half of it reads.
+    new CodeChapterMediaDefinitionRepository(productionChapterMediaRegistry),
   );
   return { service, prisma, storage, access, lector, stream, catalog, events };
 }

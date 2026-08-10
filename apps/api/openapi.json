@@ -17025,6 +17025,300 @@
         ]
       }
     },
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media": {
+      "get": {
+        "operationId": "listContentStudioChapterMedia",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioChapterMediaResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Audiolibro, podcast y video del capítulo, con su procedencia y su estado editorial.",
+        "tags": [
+          "Pulso"
+        ]
+      },
+      "post": {
+        "operationId": "createContentStudioChapterMedia",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateComingSoonMediaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioMediaDraftRefDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Anuncia un formato que el capítulo aún no tiene. Sin archivo: se publica como «En producción».",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/{mediaKey}/adopt": {
+      "post": {
+        "operationId": "adoptContentStudioChapterMedia",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "mediaKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioMediaDraftRefDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Pasa una definición de código al CMS sin cambiar su identidad ni lo que el lector ve.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/content/media/drafts/{draftId}": {
+      "get": {
+        "operationId": "getContentStudioMediaDraft",
+        "parameters": [
+          {
+            "name": "draftId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioMediaCardDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Pulso"
+        ]
+      },
+      "put": {
+        "operationId": "updateContentStudioMediaDraft",
+        "parameters": [
+          {
+            "name": "draftId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMediaDraftDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioMediaCardDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Edita la copia editorial. Identidad, origen y política de acceso los conserva el servidor.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/content/media/drafts/{draftId}/publish": {
+      "post": {
+        "operationId": "publishContentStudioMediaDraft",
+        "parameters": [
+          {
+            "name": "draftId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioMediaPublishResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "La definición del CMS pasa a ser la autoridad de esa pieza. Sin deploy y sin tocar el archivo.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
     "/api/patrones": {
       "get": {
         "operationId": "PatronesController_getPatrones",
@@ -21436,6 +21730,255 @@
           "revisionId",
           "revisionNumber",
           "changedUnitCountBeforePublish"
+        ]
+      },
+      "ContentStudioMediaChapterMarkDto": {
+        "type": "object",
+        "properties": {
+          "startSec": {
+            "type": "number"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "startSec",
+          "label"
+        ]
+      },
+      "ContentStudioMediaCardDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "AUDIOBOOK",
+              "PODCAST",
+              "VIDEO"
+            ]
+          },
+          "mediaKey": {
+            "type": "string"
+          },
+          "mediaVersion": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "durationSec": {
+            "type": "number",
+            "nullable": true
+          },
+          "chapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentStudioMediaChapterMarkDto"
+            }
+          },
+          "runtimeAvailability": {
+            "type": "string",
+            "enum": [
+              "COMING_SOON",
+              "AVAILABLE"
+            ],
+            "description": "Lo que el lector ve hoy."
+          },
+          "sourceReady": {
+            "type": "boolean",
+            "description": "Si hay un archivo realmente asociado."
+          },
+          "hasTranscript": {
+            "type": "boolean"
+          },
+          "hasPoster": {
+            "type": "boolean"
+          },
+          "hasCaptions": {
+            "type": "boolean"
+          },
+          "provenance": {
+            "type": "string",
+            "enum": [
+              "CODE",
+              "DATABASE"
+            ],
+            "description": "De dónde sale la definición vigente."
+          },
+          "editorialStatus": {
+            "type": "string",
+            "enum": [
+              "CODE_OWNED",
+              "DRAFT",
+              "PUBLISHED"
+            ]
+          },
+          "draftId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "kind",
+          "mediaKey",
+          "mediaVersion",
+          "title",
+          "description",
+          "durationSec",
+          "chapters",
+          "runtimeAvailability",
+          "sourceReady",
+          "hasTranscript",
+          "hasPoster",
+          "hasCaptions",
+          "provenance",
+          "editorialStatus",
+          "draftId"
+        ]
+      },
+      "ContentStudioChapterMediaResponseDto": {
+        "type": "object",
+        "properties": {
+          "bookSlug": {
+            "type": "string"
+          },
+          "chapterOrder": {
+            "type": "number"
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentStudioMediaCardDto"
+            }
+          },
+          "missingKinds": {
+            "type": "array",
+            "description": "Formatos que el capítulo no tiene. Sin esto el CMS sólo podría decir «no hay» sin ofrecer nada.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "AUDIOBOOK",
+                "PODCAST",
+                "VIDEO"
+              ]
+            }
+          }
+        },
+        "required": [
+          "bookSlug",
+          "chapterOrder",
+          "media",
+          "missingKinds"
+        ]
+      },
+      "ContentStudioMediaDraftRefDto": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "mediaKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "draftId",
+          "mediaKey"
+        ]
+      },
+      "CreateComingSoonMediaDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "AUDIOBOOK",
+              "PODCAST",
+              "VIDEO"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 400
+          }
+        },
+        "required": [
+          "kind",
+          "title",
+          "description"
+        ]
+      },
+      "MediaChapterMarkDto": {
+        "type": "object",
+        "properties": {
+          "startSec": {
+            "type": "number",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "startSec",
+          "label"
+        ]
+      },
+      "UpdateMediaDraftDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 400
+          },
+          "durationSec": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0
+          },
+          "chapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaChapterMarkDto"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "chapters"
+        ]
+      },
+      "ContentStudioMediaPublishResponseDto": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "mediaKey": {
+            "type": "string"
+          },
+          "mediaVersion": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "draftId",
+          "mediaKey",
+          "mediaVersion"
         ]
       },
       "ShareWithTherapistDto": {

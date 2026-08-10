@@ -41,7 +41,10 @@ interface Schema {
 
 interface Operation {
   operationId?: string;
-  requestBody?: { required?: boolean; content?: Record<string, { schema?: Schema }> };
+  requestBody?: {
+    required?: boolean;
+    content?: Record<string, { schema?: Schema }>;
+  };
   responses?: Record<string, { content?: Record<string, { schema?: Schema }> }>;
 }
 
@@ -71,9 +74,77 @@ function objects(schema: Schema | undefined): Schema[] {
 }
 
 describe("ratchet · chapter media OpenAPI surface", () => {
-  it("publishes exactly three operations, with the expected ids", () => {
+  it("keeps the ADMIN media surface out of the reader contract", () => {
+    // C2A administers DEFINITIONS. If an upload route ever appears here it must
+    // be a deliberate edit to this list, not a silent addition.
+    const adminOps = Object.entries(openapi.paths)
+      .filter(([p]) => p.startsWith("/api/pulso/") && p.includes("/media"))
+      .flatMap(([p, methods]) =>
+        Object.entries(methods).map(
+          ([method, op]) => `${method.toUpperCase()} ${p} → ${op.operationId}`,
+        ),
+      )
+      .sort();
+
+    // Methods and operationIds, not just paths: an upload would most likely
+    // arrive as a new POST on an existing path, which a path-only list would
+    // not notice.
+    expect(adminOps).toEqual(
+      [
+        "GET /api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media → listContentStudioChapterMedia",
+        "POST /api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media → createContentStudioChapterMedia",
+        "POST /api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/media/{mediaKey}/adopt → adoptContentStudioChapterMedia",
+        "GET /api/pulso/content/media/drafts/{draftId} → getContentStudioMediaDraft",
+        "PUT /api/pulso/content/media/drafts/{draftId} → updateContentStudioMediaDraft",
+        "POST /api/pulso/content/media/drafts/{draftId}/publish → publishContentStudioMediaDraft",
+      ].sort(),
+    );
+
+    // And the admin projection carries no provider fact either — the reason it
+    // is a projection rather than the definition itself.
+    const schemas = JSON.stringify(
+      (
+        openapi as unknown as {
+          components: { schemas: Record<string, unknown> };
+        }
+      ).components.schemas.ContentStudioMediaCardDto,
+    );
+    for (const forbidden of [
+      "objectKey",
+      "videoUid",
+      "accessPolicy",
+      "captionLanguage",
+      "posterObjectKey",
+      "transcriptObjectKey",
+    ]) {
+      expect(schemas).not.toContain(forbidden);
+    }
+  });
+
+  it("types the media draft's durationSec as a number, not an object", () => {
+    // Without an explicit `type: Number` on the DTO, Swagger emits an untyped
+    // schema and the generated client collapses this to `Record<string, never>`
+    // — a type nothing an editor could actually send will satisfy.
+    const schema = (
+      openapi as unknown as {
+        components: { schemas: Record<string, Schema> };
+      }
+    ).components.schemas.UpdateMediaDraftDto;
+
+    expect(schema.properties?.durationSec).toMatchObject({
+      type: "number",
+      nullable: true,
+    });
+  });
+
+  it("publishes exactly three READER operations, with the expected ids", () => {
+    // Scoped to `/api/lector` on purpose. C2A added an ADMIN media surface under
+    // `/api/pulso/content`, and the claim this ratchet exists to defend is about
+    // what a READER can reach: no listing endpoint, no generic media event, no
+    // upload. The admin surface gets its own pin below rather than a wider
+    // filter here, so neither can grow unnoticed.
     const paths = Object.keys(openapi.paths)
-      .filter((p) => p.includes("/media"))
+      .filter((p) => p.startsWith("/api/lector/") && p.includes("/media"))
       .sort();
     expect(paths).toEqual([ACCESS, COMPLETE, MANIFEST].sort());
 
@@ -241,7 +312,15 @@ describe("ratchet · chapter media OpenAPI surface", () => {
 
   it("the generated client types the two reads instead of erasing them", () => {
     const generated = readFileSync(
-      join(process.cwd(), "..", "..", "packages", "api-client", "src", "generated.ts"),
+      join(
+        process.cwd(),
+        "..",
+        "..",
+        "packages",
+        "api-client",
+        "src",
+        "generated.ts",
+      ),
       "utf8",
     );
 
@@ -254,7 +333,11 @@ describe("ratchet · chapter media OpenAPI surface", () => {
       const start = generated.indexOf(`${operationId}: {`);
       expect(start, operationId).toBeGreaterThan(-1);
       let depth = 0;
-      for (let i = generated.indexOf("{", start); i < generated.length; i += 1) {
+      for (
+        let i = generated.indexOf("{", start);
+        i < generated.length;
+        i += 1
+      ) {
         if (generated[i] === "{") depth += 1;
         else if (generated[i] === "}") {
           depth -= 1;

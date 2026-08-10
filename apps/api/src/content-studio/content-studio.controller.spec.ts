@@ -25,3 +25,35 @@ describe("Content Studio multipart limits", () => {
     expect(IMAGE_MAX_BYTES + 1 >= TRANSPORT_LIMITS.fileSize).toBe(true);
   });
 });
+
+/**
+ * The ADMIN media surface is ADMIN-only.
+ *
+ * The guards are class-level on ContentStudioController, so every media route
+ * inherits them — this pins that the class still carries them, because a
+ * refactor that moved a route to its own controller would silently drop them.
+ */
+describe("Content Studio media routes are ADMIN-guarded", () => {
+  it("carries JwtAuthGuard + RolesGuard and requires ADMIN", async () => {
+    const { ContentStudioController } =
+      await import("./content-studio.controller");
+    const { JwtAuthGuard } = await import("../auth/guards/jwt-auth.guard");
+    const { RolesGuard } = await import("../shared");
+
+    const guards = Reflect.getMetadata(
+      "__guards__",
+      ContentStudioController,
+    ) as unknown[] | undefined;
+    expect(guards).toEqual([JwtAuthGuard, RolesGuard]);
+
+    const { REQUIRED_ROLE_KEY } =
+      await import("../shared/decorators/required-role.decorator");
+    const role = Reflect.getMetadata(
+      REQUIRED_ROLE_KEY,
+      ContentStudioController,
+    );
+    // ADMIN, not AUTHOR: `/autor` is scoped to books a writer owns, and these
+    // are platform books nobody owns.
+    expect(role).toBe("ADMIN");
+  });
+});

@@ -1,10 +1,13 @@
 import { ApiProperty } from "@nestjs/swagger";
 import {
   IsArray,
+  IsIn,
+  IsInt,
   IsObject,
   IsOptional,
   IsString,
   MaxLength,
+  Min,
   ValidateNested,
 } from "class-validator";
 import { Type } from "class-transformer";
@@ -71,4 +74,75 @@ export class PreviewQueryDto {
   @ApiProperty()
   @IsString()
   revisionId!: string;
+}
+
+/**
+ * Chapter media — what an admin browser may send.
+ *
+ * Editorial copy only. `mediaKey`, `mediaVersion`, `kind`, `status`,
+ * `accessPolicy` and everything provider-shaped are absent by design: those
+ * decide what plays and who may play it, and the server carries them forward
+ * from the stored definition. Same rule as the chapter title in Block B2.
+ */
+/** Mirrors `validateChapterMediaDefinition`, so the boundary rejects what the
+ * domain would reject anyway — with a message that names the field. */
+export const MEDIA_TITLE_MAX = 160;
+export const MEDIA_DESCRIPTION_MAX = 400;
+
+export class MediaChapterMarkDto {
+  @ApiProperty({ minimum: 0 })
+  @IsInt()
+  @Min(0)
+  startSec!: number;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(120)
+  label!: string;
+}
+
+export class UpdateMediaDraftDto {
+  // The limits are the DOMAIN's, not looser ones. `validateChapterMediaDefinition`
+  // caps title at 160 and description at 400, so accepting more here would only
+  // move the rejection from a clear 400 to an opaque one deeper in.
+  @ApiProperty({ maxLength: MEDIA_TITLE_MAX })
+  @IsString()
+  @MaxLength(MEDIA_TITLE_MAX)
+  title!: string;
+
+  @ApiProperty({ maxLength: MEDIA_DESCRIPTION_MAX })
+  @IsString()
+  @MaxLength(MEDIA_DESCRIPTION_MAX)
+  description!: string;
+
+  // `type: Number` is load-bearing: without it Swagger emits an untyped schema
+  // and the generated client collapses this to `Record<string, never>`, which
+  // type-checks against nothing an editor could send.
+  @ApiProperty({ required: false, nullable: true, type: Number, minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  durationSec?: number | null;
+
+  @ApiProperty({ type: [MediaChapterMarkDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MediaChapterMarkDto)
+  chapters!: MediaChapterMarkDto[];
+}
+
+export class CreateComingSoonMediaDto {
+  @ApiProperty({ enum: ["AUDIOBOOK", "PODCAST", "VIDEO"] })
+  @IsIn(["AUDIOBOOK", "PODCAST", "VIDEO"])
+  kind!: "AUDIOBOOK" | "PODCAST" | "VIDEO";
+
+  @ApiProperty({ maxLength: MEDIA_TITLE_MAX })
+  @IsString()
+  @MaxLength(MEDIA_TITLE_MAX)
+  title!: string;
+
+  @ApiProperty({ maxLength: MEDIA_DESCRIPTION_MAX })
+  @IsString()
+  @MaxLength(MEDIA_DESCRIPTION_MAX)
+  description!: string;
 }

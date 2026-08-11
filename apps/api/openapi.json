@@ -24431,6 +24431,10 @@
           "ingested": {
             "type": "boolean",
             "description": "Está en la revisión que se edita. Falso solo para un capítulo legacy que Content Core nunca ingirió: se lista porque los lectores sí lo ven, pero no puede editarse todavía."
+          },
+          "editable": {
+            "type": "boolean",
+            "description": "Puede abrirse en el editor. Falso para un capítulo pendiente de sincronización, que se lista pero no tiene nada que editar."
           }
         },
         "required": [
@@ -24439,7 +24443,8 @@
           "changed",
           "isNewDraftChapter",
           "titleEditable",
-          "ingested"
+          "ingested",
+          "editable"
         ]
       },
       "ContentStudioBookStateResponseDto": {
@@ -24465,6 +24470,18 @@
             "type": "string",
             "description": "La revisión que se está editando (el borrador si existe, si no la publicada). Es el token que debe enviar una creación."
           },
+          "chapterCreationAvailable": {
+            "type": "boolean",
+            "description": "El servidor decide si el libro admite un capítulo nuevo ahora mismo. El cliente no lo deduce: la regla vive en el servidor."
+          },
+          "creationBlockedReason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "PENDING_SYNC"
+            ],
+            "description": "Por qué no se puede crear, cuando no se puede. Null cuando sí se puede."
+          },
           "changedUnitCount": {
             "type": "number"
           },
@@ -24481,6 +24498,8 @@
           "draftRevisionId",
           "draftRevisionNumber",
           "editingRevisionId",
+          "chapterCreationAvailable",
+          "creationBlockedReason",
           "changedUnitCount",
           "chapters"
         ]

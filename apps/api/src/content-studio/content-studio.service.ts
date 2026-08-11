@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
@@ -14,6 +15,7 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import {
   appendPlacement,
+  CONTENT_STRUCTURE_REQUIRES_SYNC,
   editionForBookSlug,
   hasPublishableContent,
   listEditorialChapters,
@@ -24,6 +26,7 @@ import {
 import { isTrustedImageUrl } from "../shared/image-upload";
 import type { Env } from "../config";
 import {
+  CONTENT_DRAFT_UNIT_ALREADY_PUBLISHED,
   describeEditionDraft,
   discardDraftUnit,
   publishDraftRevision,
@@ -212,6 +215,23 @@ export class ContentStudioService {
     });
     if (!book) throw new NotFoundException({ code: "BOOK_NOT_FOUND" });
 
+    // BEFORE anything is minted. Appending after the manifest is only safe once
+    // the book's readable structure is fully represented in it; otherwise the
+    // new chapter can land on a position a legacy row still answers for, and the
+    // reader — legacy first — would serve the old one forever while the editor
+    // believed they had published a new chapter.
+    const structure = await listEditorialChapters(this.prisma, {
+      bookId: book.id,
+      bookSlug,
+    });
+    if (!structure.chapterCreationAvailable) {
+      throw new UnprocessableEntityException({
+        code: CONTENT_STRUCTURE_REQUIRES_SYNC,
+        message:
+          "Hay capítulos pendientes de sincronizar antes de crear uno nuevo.",
+      });
+    }
+
     const edition = await editionForBookSlug(this.prisma, bookSlug);
     // Placement comes from the revision the EDITOR named, so a create races
     // against the same base its concurrency token describes.
@@ -300,28 +320,87 @@ export class ContentStudioService {
     }
   }
 
+  /**
+   * The books, with the chapter count Content Studio can actually see.
+   *
+   * Counting `Chapter` rows was right until a chapter could exist without one;
+   * it now goes stale the moment a native chapter is published, and the list
+   * would say 2 while the book page and the reader both said 3.
+   *
+   * The count is the EFFECTIVE EDITORIAL revision's — the active draft if there
+   * is one, else what is published. Content Studio is an editorial surface, so
+   * it should show the structure the editor is working on, including a chapter
+   * they created but have not published yet. The legacy count is the fallback
+   * only for a book Content Core does not serve.
+   *
+   * Four queries regardless of how many books there are: no per-book work.
+   */
   async listBooks() {
     const books = await this.prisma.book.findMany({
       orderBy: { title: "asc" },
       include: { author: true, category: true },
     });
-    const counts = await this.prisma.chapter.groupBy({
-      by: ["bookId"],
+
+    const [legacyCounts, editions] = await Promise.all([
+      this.prisma.chapter.groupBy({
+        by: ["bookId"],
+        _count: { _all: true },
+      }),
+      this.prisma.edition.findMany({
+        where: { slug: { in: books.map((b) => b.slug) } },
+        select: { id: true, slug: true, publishedRevisionId: true },
+      }),
+    ]);
+    const legacyByBook = new Map(
+      legacyCounts.map((c) => [c.bookId, c._count._all]),
+    );
+
+    // The active draft of each edition, in one query rather than one per book.
+    const drafts = await this.prisma.revision.findMany({
+      where: { editionId: { in: editions.map((e) => e.id) }, status: "DRAFT" },
+      orderBy: { number: "desc" },
+      select: { id: true, editionId: true },
+    });
+    const draftByEdition = new Map<string, string>();
+    for (const d of drafts) {
+      // `findMany` came back newest-first, so the first one wins.
+      if (!draftByEdition.has(d.editionId))
+        draftByEdition.set(d.editionId, d.id);
+    }
+
+    const effectiveByslug = new Map<string, string>();
+    for (const e of editions) {
+      const revisionId = draftByEdition.get(e.id) ?? e.publishedRevisionId;
+      if (revisionId) effectiveByslug.set(e.slug, revisionId);
+    }
+
+    const placed = await this.prisma.revisionUnit.groupBy({
+      by: ["revisionId"],
+      where: { revisionId: { in: [...effectiveByslug.values()] } },
       _count: { _all: true },
     });
-    const byBook = new Map(counts.map((c) => [c.bookId, c._count._all]));
+    const placedByRevision = new Map(
+      placed.map((p) => [p.revisionId, p._count._all]),
+    );
 
     return {
-      books: books.map((b) => ({
-        slug: b.slug,
-        title: b.title,
-        subtitle: b.subtitle ?? null,
-        authorName: b.author?.name ?? null,
-        categoryLabel: b.category?.label ?? null,
-        plan: b.plan,
-        isPublished: b.isPublished,
-        totalChapters: byBook.get(b.id) ?? 0,
-      })),
+      books: books.map((b) => {
+        const revisionId = effectiveByslug.get(b.slug);
+        const fromManifest = revisionId
+          ? (placedByRevision.get(revisionId) ?? 0)
+          : 0;
+        return {
+          slug: b.slug,
+          title: b.title,
+          subtitle: b.subtitle ?? null,
+          authorName: b.author?.name ?? null,
+          categoryLabel: b.category?.label ?? null,
+          plan: b.plan,
+          isPublished: b.isPublished,
+          totalChapters:
+            fromManifest > 0 ? fromManifest : (legacyByBook.get(b.id) ?? 0),
+        };
+      }),
     };
   }
 
@@ -339,10 +418,11 @@ export class ContentStudioService {
     // The chapter list comes from the manifest, titles included. Listing
     // `Chapter` rows would omit every chapter created here, and their titles go
     // stale the moment Content Studio renames one.
-    const { chapters, effective } = await listEditorialChapters(this.prisma, {
+    const structure = await listEditorialChapters(this.prisma, {
       bookId: book.id,
       bookSlug,
     });
+    const { chapters, effective } = structure;
 
     const changed = new Set(described.changedUnitKeys);
     return {
@@ -360,6 +440,12 @@ export class ContentStudioService {
       // have to invent one on a book that has no draft yet, and inventing it is
       // exactly what the token exists to prevent.
       editingRevisionId: effective.revisionId,
+      // The server's own conclusion about whether the book can take a new
+      // chapter. Sent so the button is right the first time, instead of the
+      // browser discovering a refusal after submitting — and so the rule has
+      // exactly one home.
+      chapterCreationAvailable: structure.chapterCreationAvailable,
+      creationBlockedReason: structure.creationBlockedReason,
       changedUnitCount: described.changedUnitKeys.length,
       chapters: chapters.map((c) => ({
         order: c.order,
@@ -368,6 +454,10 @@ export class ContentStudioService {
         isNewDraftChapter: c.isNewDraftChapter,
         titleEditable: c.titleEditable,
         ingested: c.ingested,
+        // Content Studio edits units, and an un-ingested chapter has none, so
+        // there is nothing for the editor to open. Said here rather than left
+        // as a link that 404s.
+        editable: c.ingested,
       })),
     };
   }
@@ -697,6 +787,15 @@ export class ContentStudioService {
       order: chapterOrder,
     });
     if (!target) throw new NotFoundException({ code: "CHAPTER_NOT_FOUND" });
+    // Readable, but not something this surface can edit: there is no unit
+    // behind it. A specific refusal beats `CONTENT_UNIT_NOT_FOUND` from two
+    // calls deeper, which reads like a bug rather than a state.
+    if (!target.ingested) {
+      throw new UnprocessableEntityException({
+        code: CONTENT_STRUCTURE_REQUIRES_SYNC,
+        message: "Este capítulo está pendiente de sincronización.",
+      });
+    }
 
     const edition = await this.editionForBook(bookSlug);
 
@@ -730,6 +829,15 @@ export class ContentStudioService {
     }
     if (message.includes("CONTENT_DRAFT_NOT_ACTIVE")) {
       return new ConflictException({ code: "CONTENT_DRAFT_NOT_ACTIVE" });
+    }
+    // The transactional guard fired: the unit was published between the
+    // service-level check and the lock. Same code the fast check uses, because
+    // to the editor it is the same situation.
+    if (message.includes(CONTENT_DRAFT_UNIT_ALREADY_PUBLISHED)) {
+      return new BadRequestException({
+        code: "CONTENT_CHAPTER_ALREADY_PUBLISHED",
+        message: "Este capítulo ya está publicado y no puede descartarse.",
+      });
     }
     if (message.includes("CONTENT_DRAFT_NOT_FOUND")) {
       return new NotFoundException({ code: "CONTENT_DRAFT_NOT_FOUND" });

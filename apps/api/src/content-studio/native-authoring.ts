@@ -142,20 +142,53 @@ export interface EditorialChapter {
 }
 
 /**
+ * The structure Content Studio is looking at, and what it may do to it.
+ *
+ * `chapters` is what to draw. The rest is what the SERVER concluded about the
+ * book's shape, so the browser never has to derive a rule by scanning rows.
+ */
+export interface EditorialStructure {
+  chapters: EditorialChapter[];
+  effective: EffectiveRevision;
+  /** Readable legacy chapters absent from the revision being edited. */
+  unsyncedLegacyCount: number;
+  /**
+   * A legacy chapter and a DIFFERENT unit both claim one position.
+   *
+   * Neither is repaired here. Guessing which one is "really" that chapter is
+   * exactly the position-as-identity mistake this file exists to avoid.
+   */
+  structureConflict: boolean;
+  /** Whether a chapter may be created right now. Server-owned; see below. */
+  chapterCreationAvailable: boolean;
+  /** Why not, as a code the UI turns into copy. Null when creation is fine. */
+  creationBlockedReason: "PENDING_SYNC" | null;
+}
+
+/**
  * The book's chapters as the EDITOR sees them.
  *
  * The MANIFEST decides the order. Deliberately not "legacy chapters, plus native
  * ones appended": that would give a book two competing orders, and the manifest
  * is the one a reader navigates.
  *
- * Legacy rows are consulted for two things only — whether a chapter's title is
- * still theirs, and whether one of them never made it into Content Core at all.
- * The second is the awkward case, and it is listed rather than hidden: see below.
+ * ── Legacy backing is an IDENTITY question ────────────────────────────────
+ *
+ * Whether a chapter still belongs to a `Chapter` row is decided by matching the
+ * unit's key against `unitKeyFromLegacyChapterId(chapter.id)` — never by
+ * comparing positions. Position is not identity; #648 and #649 removed that
+ * assumption from entitlement and from the reader, and reintroducing it here
+ * would let a native unit impersonate a legacy chapter simply by sitting where
+ * it used to be.
+ *
+ * The awkward cases are surfaced rather than smoothed over: a readable legacy
+ * chapter missing from the manifest is listed, and a position claimed by both a
+ * legacy chapter and a different unit is reported as a conflict.
  */
 export async function listEditorialChapters(
   db: Db,
   input: { bookId: string; bookSlug: string },
-): Promise<{ chapters: EditorialChapter[]; effective: EffectiveRevision }> {
+): Promise<EditorialStructure> {
   const edition = await editionForBookSlug(db, input.bookSlug);
   const effective = await effectiveEditorialRevision(db, edition.id, edition);
 
@@ -184,17 +217,20 @@ export async function listEditorialChapters(
       )
     : new Set<string>();
 
-  // Legacy chapters of this book — asked two things: which positions are still
-  // theirs, and whether any of them is missing from the manifest entirely.
+  // EVERY `Chapter` row of the book, not just published ones: the reader
+  // resolves a legacy chapter by `(bookId, order)` with no published filter, so
+  // any row here can answer for its position.
   const legacyChapters = await db.chapter.findMany({
     where: { bookId: input.bookId },
     orderBy: { order: "asc" },
     select: { id: true, order: true, title: true },
   });
-  const legacyOrders = new Set(legacyChapters.map((c) => c.order));
+  const legacyByUnitKey = new Map(
+    legacyChapters.map((c) => [unitKeyFromLegacyChapterId(c.id), c]),
+  );
 
   const chapters: EditorialChapter[] = entries.map((e) => {
-    const legacyBacked = legacyOrders.has(e.order);
+    const legacy = legacyByUnitKey.get(e.unit.unitKey) ?? null;
     return {
       order: e.order,
       title: e.unitVersion.title,
@@ -204,8 +240,9 @@ export async function listEditorialChapters(
       partNumber: e.partNumber,
       partTitle: e.partTitle,
       isNewDraftChapter: effective.isDraft && !publishedUnitIds.has(e.unit.id),
-      titleEditable: !legacyBacked,
-      mediaAdminAvailable: legacyBacked,
+      // Both from the SAME identity answer, so the two can never disagree.
+      titleEditable: legacy === null,
+      mediaAdminAvailable: legacy !== null,
     };
   });
 
@@ -213,28 +250,69 @@ export async function listEditorialChapters(
   // chapters from `Chapter` directly, so this one IS readable — leaving it out
   // of the editor would hide published content rather than merely fail to open
   // it. Listed, and honest about not being editable yet.
-  const placed = new Set(entries.map((e) => e.order));
+  const manifestKeys = new Set(entries.map((e) => e.unit.unitKey));
+  const manifestOrders = new Set(entries.map((e) => e.order));
+  let structureConflict = false;
+
   for (const c of legacyChapters) {
-    if (placed.has(c.order)) continue;
+    const derivedKey = unitKeyFromLegacyChapterId(c.id);
+    if (manifestKeys.has(derivedKey)) continue;
+
+    // Its position is already taken by something that is NOT it. Both rows are
+    // listed at that order — the truth is that two things claim it — and the
+    // conflict is reported so nothing downstream builds on the ambiguity.
+    if (manifestOrders.has(c.order)) structureConflict = true;
+
     chapters.push({
       order: c.order,
       title: c.title,
       // The key it WOULD have once ingested, so a `changed` lookup still lines
       // up rather than silently missing.
-      unitKey: unitKeyFromLegacyChapterId(c.id),
+      unitKey: derivedKey,
       contentUnitId: null,
       ingested: false,
       partNumber: null,
       partTitle: null,
       isNewDraftChapter: false,
       titleEditable: false,
-      mediaAdminAvailable: true,
+      // Nothing here can administer it either: Content Studio edits units, and
+      // this chapter has none yet.
+      mediaAdminAvailable: false,
     });
   }
-  chapters.sort((a, b) => a.order - b.order);
+  // Ties are broken toward the manifest so a conflicted position reads in a
+  // stable order rather than however the arrays happened to be built.
+  chapters.sort(
+    (a, b) => a.order - b.order || Number(b.ingested) - Number(a.ingested),
+  );
 
-  return { chapters, effective };
+  const unsyncedLegacyCount = chapters.filter((c) => !c.ingested).length;
+  // The rule lives here, once. A browser deriving it by scanning `ingested`
+  // would be re-implementing a safety check it cannot be trusted with.
+  const chapterCreationAvailable =
+    unsyncedLegacyCount === 0 && !structureConflict;
+
+  return {
+    chapters,
+    effective,
+    unsyncedLegacyCount,
+    structureConflict,
+    chapterCreationAvailable,
+    creationBlockedReason: chapterCreationAvailable ? null : "PENDING_SYNC",
+  };
 }
+
+/**
+ * The structural state a create is refused in.
+ *
+ * A readable legacy chapter that Content Core has not adopted still answers for
+ * its position, so appending after the manifest can land a new chapter exactly
+ * where that legacy one already is — and the reader, which tries legacy first,
+ * would serve the old chapter forever while the editor believed they had
+ * published a new one. Refused before anything is minted.
+ */
+export const CONTENT_STRUCTURE_REQUIRES_SYNC =
+  "CONTENT_STRUCTURE_REQUIRES_SYNC";
 
 export interface ResolvedEditorialChapter {
   unitKey: string;

@@ -84,6 +84,12 @@ export class ContentStudioChapterRowDto {
       "Está en la revisión que se edita. Falso solo para un capítulo legacy que Content Core nunca ingirió: se lista porque los lectores sí lo ven, pero no puede editarse todavía.",
   })
   ingested!: boolean;
+
+  @ApiProperty({
+    description:
+      "Puede abrirse en el editor. Falso para un capítulo pendiente de sincronización, que se lista pero no tiene nada que editar.",
+  })
+  editable!: boolean;
 }
 
 export class ContentStudioBookStateResponseDto {
@@ -108,6 +114,20 @@ export class ContentStudioBookStateResponseDto {
       "La revisión que se está editando (el borrador si existe, si no la publicada). Es el token que debe enviar una creación.",
   })
   editingRevisionId!: string;
+
+  @ApiProperty({
+    description:
+      "El servidor decide si el libro admite un capítulo nuevo ahora mismo. El cliente no lo deduce: la regla vive en el servidor.",
+  })
+  chapterCreationAvailable!: boolean;
+
+  @ApiProperty({
+    nullable: true,
+    enum: ["PENDING_SYNC"],
+    description:
+      "Por qué no se puede crear, cuando no se puede. Null cuando sí se puede.",
+  })
+  creationBlockedReason!: "PENDING_SYNC" | null;
 
   @ApiProperty() changedUnitCount!: number;
 

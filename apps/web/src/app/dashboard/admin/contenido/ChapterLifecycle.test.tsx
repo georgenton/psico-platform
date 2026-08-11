@@ -29,10 +29,25 @@ beforeEach(() => {
 });
 
 describe("creating a chapter", () => {
-  function open() {
-    render(<CreateChapterPanel bookSlug="eec" editingRevisionId="rev_6" />);
+  function open(available = true) {
+    render(
+      <CreateChapterPanel
+        bookSlug="eec"
+        editingRevisionId="rev_6"
+        available={available}
+      />,
+    );
     return userEvent.setup();
   }
+
+  it("offers nothing at all when the server says the book is not ready", () => {
+    open(false);
+
+    expect(
+      screen.queryByRole("button", { name: "+ Crear capítulo" }),
+    ).toBeNull();
+    expect(screen.getByText(/pendientes de sincronizar/i)).toBeInTheDocument();
+  });
 
   it("asks for nothing but a title", async () => {
     const user = open();

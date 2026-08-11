@@ -328,6 +328,15 @@ export async function readUnitTitlesAtRevision(
   return new Map(units.map((ru) => [ru.unit.unitKey, ru.unitVersion.title]));
 }
 
+/**
+ * The unit a discard was asked to drop is one readers can already open.
+ *
+ * Raised from inside the edition lock, so it means "published as of now" rather
+ * than "published when somebody last looked".
+ */
+export const CONTENT_DRAFT_UNIT_ALREADY_PUBLISHED =
+  "CONTENT_DRAFT_UNIT_ALREADY_PUBLISHED";
+
 export interface DiscardDraftUnitParams {
   editionId: string;
   expectedRevisionId: string;
@@ -347,8 +356,18 @@ export interface DiscardDraftUnitParams {
  * holding, so an editor discarding a chapter they regret does not lose the
  * edits they made to the rest of the book.
  *
- * The caller is responsible for refusing this on a published unit; from here it
- * would happily remove one, and the reader would lose a chapter.
+ * ── Never-published is checked HERE ───────────────────────────────────────
+ *
+ * A caller cannot hold this guarantee. Between its check and this transaction
+ * somebody else can publish the draft, and the unit the caller believed was
+ * unpublished is now a chapter readers can open. The `expectedRevisionId` check
+ * does not catch it: after that publish the published pointer IS the revision
+ * the caller named, so the optimistic check passes and the discard would
+ * quietly remove a live chapter.
+ *
+ * So the rule is enforced inside the lock, against the published revision as it
+ * stands at that moment. A service-level check is still worth having for a fast,
+ * friendly refusal — but this one is the authority.
  */
 export async function discardDraftUnit(
   prisma: PrismaClient,
@@ -366,6 +385,19 @@ export async function discardDraftUnit(
       // Same optimistic check as every other write, inside the lock.
       if (params.expectedRevisionId !== baseRevisionId) {
         throw new Error(CONTENT_DRAFT_CONFLICT);
+      }
+
+      // By unit identity, not position: the whole point is that this unit and
+      // no other is the one being dropped.
+      const published = await tx.revisionUnit.findFirst({
+        where: {
+          revisionId: publishedRevisionId,
+          unit: { unitKey: params.unitKey },
+        },
+        select: { id: true },
+      });
+      if (published) {
+        throw new Error(CONTENT_DRAFT_UNIT_ALREADY_PUBLISHED);
       }
 
       const entries = await tx.revisionUnit.findMany({

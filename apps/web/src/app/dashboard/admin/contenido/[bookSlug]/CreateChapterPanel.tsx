@@ -19,9 +19,16 @@ import { createChapterAction } from "../actions";
 export function CreateChapterPanel({
   bookSlug,
   editingRevisionId,
+  available,
 }: {
   bookSlug: string;
   editingRevisionId: string;
+  /**
+   * The server's answer, not a conclusion drawn here. Creating while the book
+   * still has chapters outside Content Core can put a new chapter where an old
+   * one already answers, and that judgement belongs on the server.
+   */
+  available: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -60,6 +67,17 @@ export function CreateChapterPanel({
     // somewhere to leave somebody.
     router.push(
       `/dashboard/admin/contenido/${bookSlug}/${result.data.chapterOrder}`,
+    );
+  }
+
+  if (!available) {
+    return (
+      <p
+        className="mt-5 text-[12.5px]"
+        style={{ color: "var(--color-warm-500)" }}
+      >
+        Hay capítulos pendientes de sincronizar antes de crear uno nuevo.
+      </p>
     );
   }
 

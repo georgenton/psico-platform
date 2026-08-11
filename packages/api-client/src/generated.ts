@@ -2402,6 +2402,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pulso/content/books/{bookSlug}/chapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Crea un capítulo al final del libro, solo en Content Core. No crea fila legacy ni toca Book.totalChapters. Queda en el borrador hasta publicar. */
+        post: operations["createContentStudioChapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Saca del borrador un capítulo que nunca se publicó. No borra nada: la unidad y las revisiones anteriores quedan intactas. */
+        post: operations["discardContentStudioChapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/preview": {
         parameters: {
             query?: never;
@@ -3805,29 +3839,9 @@ export interface components {
             isPublished?: boolean;
         };
         CreateChapterDto: {
-            /**
-             * @description Display order within the book (1-indexed). Used as the chapter
-             *     identifier in `/dashboard/biblioteca/[slug]/lector/[order]`.
-             *     Collision with an existing chapter returns 409 `ORDINAL_TAKEN`.
-             */
-            order: number;
-            /**
-             * @description Display title of the chapter. Shown in the reader header + the
-             *     chapter list on the book detail page.
-             */
+            /** @description La revisión que el editor cargó. */
+            expectedRevisionId: string;
             title: string;
-            /**
-             * @description Optional short description shown in the chapter list (1-2 lines
-             *     preview). Plain text.
-             */
-            description?: string;
-            /**
-             * @description Optional estimated reading time in minutes. Used to roll up the
-             *     book's `durationMinutes` on the detail screen and to size session
-             *     progress. Author's best guess — server doesn't validate against
-             *     actual content.
-             */
-            durationMinutes?: number;
         };
         UploadAudioDto: {
             title: string;
@@ -4761,6 +4775,14 @@ export interface components {
             title: string;
             /** @description El borrador cambia este capítulo. */
             changed: boolean;
+            /** @description Creado en Content Studio y todavía sin publicar: puede descartarse. */
+            isNewDraftChapter: boolean;
+            /** @description El título se administra aquí. Falso para capítulos que aún tienen fila legacy. */
+            titleEditable: boolean;
+            /** @description Está en la revisión que se edita. Falso solo para un capítulo legacy que Content Core nunca ingirió: se lista porque los lectores sí lo ven, pero no puede editarse todavía. */
+            ingested: boolean;
+            /** @description Puede abrirse en el editor. Falso para un capítulo pendiente de sincronización, que se lista pero no tiene nada que editar. */
+            editable: boolean;
         };
         ContentStudioBookStateResponseDto: {
             book: components["schemas"]["ContentStudioBookDto"];
@@ -4768,6 +4790,15 @@ export interface components {
             /** @description El borrador activo del LIBRO, o null si no hay ninguno. */
             draftRevisionId: string | null;
             draftRevisionNumber: number | null;
+            /** @description La revisión que se está editando (el borrador si existe, si no la publicada). Es el token que debe enviar una creación. */
+            editingRevisionId: string;
+            /** @description El servidor decide si el libro admite un capítulo nuevo ahora mismo. El cliente no lo deduce: la regla vive en el servidor. */
+            chapterCreationAvailable: boolean;
+            /**
+             * @description Por qué no se puede crear, cuando no se puede. Null cuando sí se puede.
+             * @enum {string|null}
+             */
+            creationBlockedReason: ContentStudioBookStateResponseDtoCreationBlockedReason;
             changedUnitCount: number;
             chapters: components["schemas"]["ContentStudioChapterRowDto"][];
         };
@@ -4796,6 +4827,12 @@ export interface components {
             revisionStatus: ContentStudioChapterResponseDtoRevisionStatus;
             /** @description Capítulos que el borrador del libro cambia. */
             changedUnitCount: number;
+            /** @description El título se administra aquí. Falso para capítulos que aún tienen fila legacy. */
+            titleEditable: boolean;
+            /** @description Este capítulo tiene panel de multimedia. Falso para capítulos nativos: el catálogo de medios sigue anclado al mundo legacy. */
+            mediaAdminAvailable: boolean;
+            /** @description Creado en Content Studio y todavía sin publicar: puede descartarse. */
+            isNewDraftChapter: boolean;
             blocks: components["schemas"]["ContentStudioBlockDto"][];
         };
         ContentBlockInputDto: {
@@ -4811,6 +4848,8 @@ export interface components {
         SaveChapterDraftDto: {
             /** @description La revisión que el editor cargó. */
             expectedRevisionId: string;
+            /** @description Nuevo título. Solo para capítulos creados en Content Studio (titleEditable). */
+            title?: string;
             blocks: components["schemas"]["ContentBlockInputDto"][];
         };
         ContentStudioSaveResponseDto: {
@@ -4818,6 +4857,18 @@ export interface components {
             revisionId: string;
             revisionNumber: number;
             changedUnitCount: number;
+        };
+        ContentStudioCreateChapterResponseDto: {
+            /** @description La posición en la que quedó el capítulo. */
+            chapterOrder: number;
+            /** @description El nuevo token de concurrencia. */
+            revisionId: string;
+            revisionNumber: number;
+            changedUnitCount: number;
+        };
+        DiscardChapterDto: {
+            /** @description El borrador del que se descarta el capítulo. */
+            expectedRevisionId: string;
         };
         ContentStudioPreviewResponseDto: {
             bookSlug: string;
@@ -14301,6 +14352,81 @@ export interface operations {
             };
         };
     };
+    createContentStudioChapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateChapterDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStudioCreateChapterResponseDto"];
+                };
+            };
+            /** @description El borrador cambió; no se escribió nada. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    discardContentStudioChapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscardChapterDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStudioSaveResponseDto"];
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description El borrador cambió; no se escribió nada. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     previewContentStudioChapter: {
         parameters: {
             query: {
@@ -18738,6 +18864,9 @@ export enum LearningUnitProgressItemDtoState {
     not_started = "not_started",
     opened = "opened",
     completed = "completed"
+}
+export enum ContentStudioBookStateResponseDtoCreationBlockedReason {
+    PENDING_SYNC = "PENDING_SYNC"
 }
 export enum ContentStudioChapterResponseDtoRevisionStatus {
     DRAFT = "DRAFT",

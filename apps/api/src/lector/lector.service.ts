@@ -116,39 +116,52 @@ export class LectorService {
 
     const blockIds = chapter.blocks.map((b) => b.id);
 
-    const [highlights, annotations, session, prefs, completedChapters] =
-      await Promise.all([
-        blockIds.length > 0
-          ? this.prisma.highlight.findMany({
-              where: { userId, blockId: { in: blockIds } },
-              orderBy: { createdAt: "asc" },
-            })
-          : Promise.resolve([]),
-        blockIds.length > 0
-          ? this.prisma.annotation.findMany({
-              where: { userId, blockId: { in: blockIds } },
-              orderBy: { createdAt: "asc" },
-            })
-          : Promise.resolve([]),
-        this.prisma.readingSession.upsert({
-          where: { userId_chapterId: { userId, chapterId: chapter.id } },
-          create: { userId, chapterId: chapter.id, lastSeenAt: new Date() },
-          update: {},
-        }),
-        this.prisma.readerPreferences.upsert({
-          where: { userId },
-          create: { userId },
-          update: {},
-        }),
-        // Status of each lesson is derived from UserProgress on the chapter
-        // (a chapter is `completed` when the user POSTs /complete). v1 keeps
-        // it simple: all lessons share the chapter status. Per-lesson status
-        // arrives with the lesson detail page in a future sprint.
-        this.prisma.userProgress.findFirst({
-          where: { userId, chapterId: chapter.id },
-          select: { completedAt: true },
-        }),
-      ]);
+    const [
+      highlights,
+      annotations,
+      session,
+      prefs,
+      completedChapters,
+      totalChapters,
+    ] = await Promise.all([
+      blockIds.length > 0
+        ? this.prisma.highlight.findMany({
+            where: { userId, blockId: { in: blockIds } },
+            orderBy: { createdAt: "asc" },
+          })
+        : Promise.resolve([]),
+      blockIds.length > 0
+        ? this.prisma.annotation.findMany({
+            where: { userId, blockId: { in: blockIds } },
+            orderBy: { createdAt: "asc" },
+          })
+        : Promise.resolve([]),
+      this.prisma.readingSession.upsert({
+        where: { userId_chapterId: { userId, chapterId: chapter.id } },
+        create: { userId, chapterId: chapter.id, lastSeenAt: new Date() },
+        update: {},
+      }),
+      this.prisma.readerPreferences.upsert({
+        where: { userId },
+        create: { userId },
+        update: {},
+      }),
+      // Status of each lesson is derived from UserProgress on the chapter
+      // (a chapter is `completed` when the user POSTs /complete). v1 keeps
+      // it simple: all lessons share the chapter status. Per-lesson status
+      // arrives with the lesson detail page in a future sprint.
+      this.prisma.userProgress.findFirst({
+        where: { userId, chapterId: chapter.id },
+        select: { completedAt: true },
+      }),
+      // A legacy chapter of a book that ALSO has native ones: the count the
+      // reader needs is the published manifest's, not `Book.totalChapters`,
+      // which stops moving the moment a chapter exists without a Chapter row.
+      readerTotalChapters(this.prisma, {
+        bookSlug: book.slug,
+        legacyTotal: book.totalChapters,
+      }),
+    ]);
 
     const chapterCompleted = completedChapters !== null;
 
@@ -159,7 +172,7 @@ export class LectorService {
         title: book.title,
         authorName: book.author?.name ?? null,
         cover: book.cover,
-        totalChapters: book.totalChapters,
+        totalChapters,
       },
       chapter: {
         id: chapter.id,
@@ -264,7 +277,10 @@ export class LectorService {
       unitKey: target.unitKey,
     });
 
-    const [session, prefs, progress, totalChapters] = await Promise.all([
+    // No `UserProgress` read here: on the legacy path it only drives per-lesson
+    // status, and a native chapter has no lessons yet. Completion still reaches
+    // the client through `session.completedAt`.
+    const [session, prefs, totalChapters] = await Promise.all([
       this.prisma.readingSession.upsert({
         where: {
           userId_contentUnitId: { userId, contentUnitId: target.contentUnitId },
@@ -280,10 +296,6 @@ export class LectorService {
         where: { userId },
         create: { userId },
         update: {},
-      }),
-      this.prisma.userProgress.findFirst({
-        where: { userId, contentUnitId: target.contentUnitId },
-        select: { completedAt: true },
       }),
       readerTotalChapters(this.prisma, {
         bookSlug: book.slug,
@@ -579,8 +591,22 @@ export class LectorService {
       }),
     ]);
 
+    // Where "next" lives is a question about the book's current structure, and
+    // a legacy chapter can be followed by a native one. Ask the manifest first;
+    // fall back to the legacy column only for a book Content Core does not
+    // serve yet, where the arithmetic is still the only answer available.
+    const [placedNext, total] = await Promise.all([
+      nextPlacedOrder(this.prisma, {
+        bookSlug: book.slug,
+        after: chapterOrder,
+      }),
+      readerTotalChapters(this.prisma, {
+        bookSlug: book.slug,
+        legacyTotal: book.totalChapters,
+      }),
+    ]);
     const nextChapter =
-      chapterOrder < book.totalChapters ? chapterOrder + 1 : null;
+      placedNext ?? (chapterOrder < total ? chapterOrder + 1 : null);
     return { ok: true, nextChapter };
   }
 

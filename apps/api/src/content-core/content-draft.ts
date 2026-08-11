@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { UnitPlacement } from "./lib/revision-manifest";
 import {
   CONTENT_DRAFT_CONFLICT,
@@ -7,6 +7,7 @@ import {
   CONTENT_DRAFT_NOT_FOUND,
   CONTENT_DRAFT_STALE,
   archiveRevisionTx,
+  nextRevisionNumberTx,
   assertUnitInputValid,
   findActiveDraftTx,
   lockEditionTx,
@@ -127,10 +128,25 @@ export interface PublishDraftResult {
  * underneath them they should be told, not have a different version shipped in
  * their name.
  */
+/**
+ * A last check, run inside the edition lock, immediately before the pointer
+ * moves.
+ *
+ * Exists so a caller can add a publication precondition that is genuinely
+ * atomic with the publish, without reimplementing the lifecycle around it. It
+ * receives the transaction, so whatever it reads is what the pointer move is
+ * about to be based on. Throwing refuses the publish and rolls back.
+ */
+export type AssertPublishable = (
+  tx: Prisma.TransactionClient,
+  context: { editionId: string; revisionId: string },
+) => Promise<void>;
+
 export async function publishDraftRevision(
   prisma: PrismaClient,
   editionId: string,
   revisionId: string,
+  assertPublishable?: AssertPublishable,
 ): Promise<PublishDraftResult> {
   return prisma.$transaction(
     async (tx) => {
@@ -171,6 +187,13 @@ export async function publishDraftRevision(
         where: { revisionId: revision.id },
       });
       if (unitCount === 0) throw new Error("INGEST_EMPTY_UNIT");
+
+      // Inside the lock, against the revision actually being published. A check
+      // made before this transaction could be true when it ran and false by the
+      // time the pointer moved.
+      if (assertPublishable) {
+        await assertPublishable(tx, { editionId, revisionId: revision.id });
+      }
 
       await publishRevisionTx(tx, editionId, revision.id);
 
@@ -325,4 +348,127 @@ export async function readUnitTitlesAtRevision(
     },
   });
   return new Map(units.map((ru) => [ru.unit.unitKey, ru.unitVersion.title]));
+}
+
+/**
+ * The unit a discard was asked to drop is one readers can already open.
+ *
+ * Raised from inside the edition lock, so it means "published as of now" rather
+ * than "published when somebody last looked".
+ */
+export const CONTENT_DRAFT_UNIT_ALREADY_PUBLISHED =
+  "CONTENT_DRAFT_UNIT_ALREADY_PUBLISHED";
+
+export interface DiscardDraftUnitParams {
+  editionId: string;
+  expectedRevisionId: string;
+  unitKey: string;
+}
+
+/**
+ * Drop a never-published unit from the active draft.
+ *
+ * Not a delete. The `ContentUnit`, its versions and every revision that ever
+ * referenced it stay exactly as they are — archived revisions must keep
+ * resolving, and a reader's history must keep meaning something. What this
+ * produces is the next draft snapshot, assembled from the current one minus
+ * that unit.
+ *
+ * Every other unit is carried forward at the version the draft was already
+ * holding, so an editor discarding a chapter they regret does not lose the
+ * edits they made to the rest of the book.
+ *
+ * ── Never-published is checked HERE ───────────────────────────────────────
+ *
+ * A caller cannot hold this guarantee. Between its check and this transaction
+ * somebody else can publish the draft, and the unit the caller believed was
+ * unpublished is now a chapter readers can open. The `expectedRevisionId` check
+ * does not catch it: after that publish the published pointer IS the revision
+ * the caller named, so the optimistic check passes and the discard would
+ * quietly remove a live chapter.
+ *
+ * So the rule is enforced inside the lock, against the published revision as it
+ * stands at that moment. A service-level check is still worth having for a fast,
+ * friendly refusal — but this one is the authority.
+ */
+export async function discardDraftUnit(
+  prisma: PrismaClient,
+  params: DiscardDraftUnitParams,
+): Promise<{ revisionId: string; revisionNumber: number }> {
+  return prisma.$transaction(
+    async (tx) => {
+      const { publishedRevisionId } = await lockEditionTx(tx, params.editionId);
+      if (!publishedRevisionId) {
+        throw new Error("INGEST_REQUIRES_BASE_REVISION");
+      }
+
+      const activeDraft = await findActiveDraftTx(tx, params.editionId);
+      const baseRevisionId = activeDraft?.id ?? publishedRevisionId;
+      // Same optimistic check as every other write, inside the lock.
+      if (params.expectedRevisionId !== baseRevisionId) {
+        throw new Error(CONTENT_DRAFT_CONFLICT);
+      }
+
+      // By unit identity, not position: the whole point is that this unit and
+      // no other is the one being dropped.
+      const published = await tx.revisionUnit.findFirst({
+        where: {
+          revisionId: publishedRevisionId,
+          unit: { unitKey: params.unitKey },
+        },
+        select: { id: true },
+      });
+      if (published) {
+        throw new Error(CONTENT_DRAFT_UNIT_ALREADY_PUBLISHED);
+      }
+
+      const entries = await tx.revisionUnit.findMany({
+        where: { revisionId: baseRevisionId },
+        orderBy: { order: "asc" },
+        select: {
+          unitId: true,
+          unitVersionId: true,
+          order: true,
+          partNumber: true,
+          partTitle: true,
+          unit: { select: { unitKey: true } },
+        },
+      });
+      const keep = entries.filter((e) => e.unit.unitKey !== params.unitKey);
+      if (keep.length === entries.length) {
+        throw new Error("CONTENT_DRAFT_UNIT_NOT_IN_REVISION");
+      }
+
+      const nextNumber = await nextRevisionNumberTx(tx, params.editionId);
+      const revision = await tx.revision.create({
+        data: {
+          editionId: params.editionId,
+          number: nextNumber,
+          status: "DRAFT",
+          note: "content-studio:discard",
+        },
+      });
+
+      // Orders are left exactly as they were rather than closed up. Renumbering
+      // would move every chapter after the discarded one, and positions are
+      // still what URLs and navigation use — a gap is harmless, a shift is not.
+      for (const e of keep) {
+        await tx.revisionUnit.create({
+          data: {
+            revisionId: revision.id,
+            unitId: e.unitId,
+            unitVersionId: e.unitVersionId,
+            order: e.order,
+            partNumber: e.partNumber,
+            partTitle: e.partTitle,
+          },
+        });
+      }
+
+      if (activeDraft) await archiveRevisionTx(tx, activeDraft.id);
+
+      return { revisionId: revision.id, revisionNumber: nextNumber };
+    },
+    { timeout: 30_000 },
+  );
 }

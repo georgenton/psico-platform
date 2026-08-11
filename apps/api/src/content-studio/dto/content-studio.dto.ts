@@ -1,4 +1,4 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsArray,
   IsIn,
@@ -6,6 +6,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  Length,
   MaxLength,
   Min,
   ValidateNested,
@@ -57,11 +58,45 @@ export class SaveChapterDraftDto {
   @IsString()
   expectedRevisionId!: string;
 
+  /**
+   * Only for a chapter Content Studio owns outright. Omitted means "leave the
+   * title alone"; sending one for a legacy-backed chapter is refused rather
+   * than ignored, so the editor never sees a rename that did not happen.
+   */
+  @ApiPropertyOptional({
+    description:
+      "Nuevo título. Solo para capítulos creados en Content Studio (titleEditable).",
+    maxLength: 200,
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  title?: string;
+
   @ApiProperty({ type: [ContentBlockInputDto] })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ContentBlockInputDto)
   blocks!: ContentBlockInputDto[];
+}
+
+/** Creating a chapter: a title and the revision the editor was looking at. */
+export class CreateChapterDto {
+  @ApiProperty({ description: "La revisión que el editor cargó." })
+  @IsString()
+  expectedRevisionId!: string;
+
+  @ApiProperty({ maxLength: 200 })
+  @IsString()
+  @Length(1, 200)
+  title!: string;
+}
+
+/** Discarding a chapter that was never published. */
+export class DiscardChapterDto {
+  @ApiProperty({ description: "El borrador del que se descarta el capítulo." })
+  @IsString()
+  expectedRevisionId!: string;
 }
 
 export class PublishBookDto {

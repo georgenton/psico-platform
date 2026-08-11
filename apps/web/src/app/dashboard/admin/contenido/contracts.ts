@@ -19,6 +19,7 @@ export type StudioBlock = S["ContentStudioBlockDto"];
 export type ChapterContent = S["ContentStudioChapterResponseDto"];
 export type ChapterPreview = S["ContentStudioPreviewResponseDto"];
 export type SaveResult = S["ContentStudioSaveResponseDto"];
+export type CreateChapterResult = S["ContentStudioCreateChapterResponseDto"];
 export type PublishResult = S["ContentStudioPublishResponseDto"];
 export type CoverResult = S["ContentStudioCoverResponseDto"];
 export type ChapterImageResult = S["ContentStudioChapterImageResponseDto"];

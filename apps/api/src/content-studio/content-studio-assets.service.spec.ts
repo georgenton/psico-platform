@@ -15,9 +15,10 @@ import type { StorageService } from "../storage/storage.service";
 function prismaMock() {
   return {
     book: { findUnique: vi.fn(), update: vi.fn() },
-    chapter: { findFirst: vi.fn() },
-    revision: { create: vi.fn(), update: vi.fn() },
-    edition: { update: vi.fn() },
+    chapter: { findFirst: vi.fn(), findMany: vi.fn() },
+    revision: { create: vi.fn(), update: vi.fn(), findFirst: vi.fn() },
+    edition: { update: vi.fn(), findFirst: vi.fn() },
+    revisionUnit: { findMany: vi.fn() },
   };
 }
 
@@ -40,7 +41,27 @@ beforeEach(() => {
     storage as unknown as StorageService,
   );
   prisma.book.findUnique.mockResolvedValue({ id: "book_1", slug: "libro" });
-  prisma.chapter.findFirst.mockResolvedValue({ id: "chapter_1", order: 3 });
+  // The chapter is resolved from the revision being edited, not from `Chapter`:
+  // an image belongs to a chapter that may have no legacy row at all.
+  prisma.edition.findFirst.mockResolvedValue({
+    id: "edition_a",
+    publishedRevisionId: "r5",
+  });
+  prisma.revision.findFirst.mockResolvedValue(null);
+  prisma.chapter.findMany.mockResolvedValue([]);
+  prisma.revisionUnit.findMany.mockImplementation(async (args: never) => {
+    const { select } = args as { select?: Record<string, unknown> };
+    if (select && "unitId" in select) return [];
+    return [
+      {
+        order: 3,
+        partNumber: null,
+        partTitle: null,
+        unit: { id: "unit_3", unitKey: "unit-3" },
+        unitVersion: { title: "Cap 3" },
+      },
+    ];
+  });
 });
 
 describe("cover upload — catalog metadata, not content", () => {
@@ -132,7 +153,8 @@ describe("chapter image upload — bytes only", () => {
 
   it("refuses a chapter that belongs to a different book", async () => {
     // An order on its own is not an identity — chapter 3 exists in many books.
-    prisma.chapter.findFirst.mockResolvedValue(null);
+    // The manifest is scoped to THIS book's edition, so order 99 is simply not
+    // in it.
 
     await expect(
       service.uploadChapterImage("libro", 99, PNG()),

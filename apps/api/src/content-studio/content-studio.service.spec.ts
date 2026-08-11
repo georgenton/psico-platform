@@ -8,6 +8,7 @@ import { ContentStudioService } from "./content-studio.service";
 import type { PrismaService } from "../prisma/prisma.service";
 import type { ConfigService } from "@nestjs/config";
 import type { Env } from "../config";
+import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
 
 /**
  * Content Studio — what the browser is NOT allowed to decide.
@@ -23,7 +24,7 @@ const draft = vi.hoisted(() => ({
   publishDraftRevision: vi.fn(),
   describeEditionDraft: vi.fn(),
   readUnitAtRevision: vi.fn(),
-  readUnitTitlesAtRevision: vi.fn(),
+  discardDraftUnit: vi.fn(),
 }));
 
 vi.mock("../content-core/content-draft", () => draft);
@@ -32,15 +33,49 @@ function prismaMock() {
   return {
     book: { findUnique: vi.fn(), findMany: vi.fn() },
     chapter: { findFirst: vi.fn(), findMany: vi.fn(), groupBy: vi.fn() },
-    edition: { findUnique: vi.fn() },
-    revision: { findUnique: vi.fn() },
+    edition: { findUnique: vi.fn(), findFirst: vi.fn() },
+    revision: { findUnique: vi.fn(), findFirst: vi.fn() },
+    revisionUnit: { findMany: vi.fn(), findFirst: vi.fn() },
   };
 }
 
 let prisma: ReturnType<typeof prismaMock>;
 let service: ContentStudioService;
 
-const EDITION = { id: "edition_a" };
+const EDITION = { id: "edition_a", publishedRevisionId: "r5" };
+/** The unit key the backfill gives a legacy chapter — derived, not invented. */
+const UNIT_1 = unitKeyFromLegacyChapterId("chapter_1");
+
+/**
+ * The book's manifest, per revision.
+ *
+ * The editorial surface reads chapters from here now, not from `Chapter`, so
+ * the fixture has to model a revision rather than a table of rows. Same book in
+ * both: one chapter, placed at order 1.
+ */
+function manifest(titleByRevision: Record<string, string>) {
+  prisma.revisionUnit.findMany.mockImplementation(async (args: never) => {
+    const { where, select } = args as {
+      where: { revisionId: string };
+      select?: Record<string, unknown>;
+    };
+    // The published-unit probe asks only for ids.
+    if (select && "unitId" in select) {
+      return where.revisionId === "r5" ? [{ unitId: "unit_1" }] : [];
+    }
+    const title = titleByRevision[where.revisionId];
+    if (!title) return [];
+    return [
+      {
+        order: 1,
+        partNumber: null,
+        partTitle: null,
+        unit: { id: "unit_1", unitKey: UNIT_1 },
+        unitVersion: { title },
+      },
+    ];
+  });
+}
 
 beforeEach(() => {
   // Hoisted module mocks accumulate calls across tests otherwise.
@@ -60,18 +95,14 @@ beforeEach(() => {
     subtitle: null,
     author: null,
   });
-  prisma.chapter.findFirst.mockResolvedValue({
-    id: "chapter_1",
-    order: 1,
-    title: "Cap 1",
-    partNumber: null,
-    partTitle: null,
-  });
   prisma.chapter.findMany.mockResolvedValue([
     { id: "chapter_1", order: 1, title: "Título viejo" },
   ]);
-  draft.readUnitTitlesAtRevision.mockResolvedValue(new Map());
   prisma.edition.findUnique.mockResolvedValue(EDITION);
+  prisma.edition.findFirst.mockResolvedValue(EDITION);
+  // An active draft, r6, on top of published r5.
+  prisma.revision.findFirst.mockResolvedValue({ id: "r6" });
+  manifest({ r5: "Cap 1", r6: "Cap 1" });
   draft.describeEditionDraft.mockResolvedValue({
     publishedRevisionId: "r5",
     publishedRevisionNumber: 5,
@@ -255,8 +286,7 @@ describe("ContentStudioService — reading a chapter", () => {
   });
 
   it("404s a chapter the book does not have", async () => {
-    prisma.chapter.findFirst.mockResolvedValue(null);
-
+    // Not in the manifest and not a legacy row either: no such chapter.
     await expect(service.getChapter("libro", 99)).rejects.toBeInstanceOf(
       NotFoundException,
     );
@@ -265,15 +295,29 @@ describe("ContentStudioService — reading a chapter", () => {
 
 describe("ContentStudioService — a text edit may not reshape the book", () => {
   it("carries the chapter's part through a save the browser never mentioned", async () => {
-    // Parts live on the legacy Chapter row. If a save sent nulls here, editing
-    // one paragraph would quietly flatten "Parte II" out of the book.
-    prisma.chapter.findFirst.mockResolvedValue({
-      id: "chapter_1",
-      order: 4,
-      title: "Cap 4",
-      partNumber: 2,
-      partTitle: "Parte II · Integrar",
+    // The part lives on the chapter's placement in the manifest. If a save sent
+    // nulls here, editing one paragraph would quietly flatten "Parte II" out of
+    // the book.
+    prisma.revisionUnit.findMany.mockImplementation(async (args: never) => {
+      const { where, select } = args as {
+        where: { revisionId: string };
+        select?: Record<string, unknown>;
+      };
+      if (select && "unitId" in select) return [];
+      if (where.revisionId !== "r6") return [];
+      return [
+        {
+          order: 4,
+          partNumber: 2,
+          partTitle: "Parte II · Integrar",
+          unit: { id: "unit_1", unitKey: UNIT_1 },
+          unitVersion: { title: "Cap 4" },
+        },
+      ];
     });
+    prisma.chapter.findMany.mockResolvedValue([
+      { id: "chapter_1", order: 4, title: "Cap 4" },
+    ]);
 
     await service.saveChapterDraft("libro", 4, {
       expectedRevisionId: "r6",
@@ -294,30 +338,29 @@ describe("ContentStudioService — the chapter list shows what is being edited",
     void unitKey;
     // The list must agree with the editor that produced it: `Chapter.title` is
     // the legacy row and goes stale the moment Content Studio renames a chapter.
-    draft.readUnitTitlesAtRevision.mockImplementation(async () => {
-      const { unitKeyFromLegacyChapterId } =
-        await import("../content-core/lib/block-key");
-      return new Map([
-        [unitKeyFromLegacyChapterId("chapter_1"), "Título nuevo"],
-      ]);
-    });
+    manifest({ r5: "Cap 1", r6: "Título nuevo" });
 
     const state = await service.getBookState("libro");
 
     expect(state.chapters[0]!.title).toBe("Título nuevo");
+    expect(state.chapters[0]!.ingested).toBe(true);
     // Read from the DRAFT, because that is what the editor is editing.
-    expect(draft.readUnitTitlesAtRevision).toHaveBeenCalledWith(
-      expect.anything(),
-      "r6",
-    );
+    expect(state.editingRevisionId).toBe("r6");
   });
 
-  it("falls back to the legacy title only for a chapter Content Core never saw", async () => {
-    draft.readUnitTitlesAtRevision.mockResolvedValue(new Map());
+  it("still lists a legacy chapter Content Core never ingested", async () => {
+    // Readers resolve legacy chapters straight from `Chapter`, so this one IS
+    // readable. Hiding it from the editor would be worse than showing it as
+    // something this phase cannot edit yet.
+    manifest({});
 
     const state = await service.getBookState("libro");
 
+    expect(state.chapters).toHaveLength(1);
     expect(state.chapters[0]!.title).toBe("Título viejo");
+    expect(state.chapters[0]!.ingested).toBe(false);
+    expect(state.chapters[0]!.titleEditable).toBe(false);
+    expect(state.chapters[0]!.isNewDraftChapter).toBe(false);
   });
 
   it("reads published titles when there is no draft", async () => {
@@ -328,21 +371,18 @@ describe("ContentStudioService — the chapter list shows what is being edited",
       draftRevisionNumber: null,
       changedUnitKeys: [],
     });
+    prisma.revision.findFirst.mockResolvedValue(null);
+    manifest({ r5: "Título publicado", r6: "Título en borrador" });
 
-    await service.getBookState("libro");
+    const state = await service.getBookState("libro");
 
-    expect(draft.readUnitTitlesAtRevision).toHaveBeenCalledWith(
-      expect.anything(),
-      "r5",
-    );
+    expect(state.chapters[0]!.title).toBe("Título publicado");
+    expect(state.editingRevisionId).toBe("r5");
   });
 });
 
 describe("ContentStudioService — a save is not a rename", () => {
-  it("takes the title from the base revision and ignores anything a caller sends", async () => {
-    // The editor does not administer titles yet — several surfaces still read
-    // the legacy `Chapter.title`. A field an admin could change through curl but
-    // not through the UI is a promise the product has not made.
+  it("carries title, summary and duration forward when the save mentions none", async () => {
     draft.readUnitAtRevision.mockResolvedValue({
       title: "El título publicado",
       summary: "Un resumen existente",
@@ -353,15 +393,27 @@ describe("ContentStudioService — a save is not a rename", () => {
     await service.saveChapterDraft("libro", 1, {
       expectedRevisionId: "r6",
       blocks: [{ kind: "PARAGRAPH", content: "Sólo cambia el texto." }],
-      // A caller who adds `title` here gets it stripped by the global
-      // whitelisting pipe; the service would ignore it regardless.
-      ...({ title: "Intento de renombrar" } as object),
     });
 
     const call = draft.saveUnitDraft.mock.calls[0]![1];
     expect(call.title).toBe("El título publicado");
     expect(call.summary).toBe("Un resumen existente");
     expect(call.durationMinutes).toBe(12);
+  });
+
+  it("refuses to rename a chapter whose title the legacy row still owns", async () => {
+    // Refused rather than ignored. Several surfaces still read `Chapter.title`,
+    // so accepting this quietly would show the editor a rename that only half
+    // happened — and ignoring it silently would show one that never happened.
+    await expect(
+      service.saveChapterDraft("libro", 1, {
+        expectedRevisionId: "r6",
+        title: "Intento de renombrar",
+        blocks: [{ kind: "PARAGRAPH", content: "Texto." }],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(draft.saveUnitDraft).not.toHaveBeenCalled();
   });
 
   it("reads the title from the ACTIVE DRAFT when there is one", async () => {

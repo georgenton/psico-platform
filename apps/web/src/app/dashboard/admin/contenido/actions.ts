@@ -14,6 +14,7 @@ import type {
   ChapterImageResult,
   CoverResult,
   ChapterPreview,
+  CreateChapterResult,
   SaveResult,
   PublishResult,
   StudioBlockInput,
@@ -70,6 +71,8 @@ export async function saveChapterDraftAction(
   chapterOrder: number,
   input: {
     expectedRevisionId: string;
+    /** Only sent for a chapter Content Studio owns — see `titleEditable`. */
+    title?: string;
     blocks: StudioBlockInput[];
   },
 ): Promise<ActionOutcome<SaveResult>> {
@@ -81,6 +84,53 @@ export async function saveChapterDraftAction(
     // The book page shows "N capítulos con cambios"; it just changed.
     revalidatePath(bookPath(bookSlug));
     return { ok: true, data: saved };
+  } catch (err) {
+    return asOutcome<SaveResult>(err);
+  }
+}
+
+/**
+ * Create a chapter at the end of the book.
+ *
+ * Nothing is chosen here. The position comes from the manifest and the identity
+ * is minted by the server; the editor supplies a title and the revision they
+ * were looking at, which is what makes two tabs creating at once a 409 rather
+ * than two chapters.
+ */
+export async function createChapterAction(
+  bookSlug: string,
+  input: { expectedRevisionId: string; title: string },
+): Promise<ActionOutcome<CreateChapterResult>> {
+  try {
+    const created = await serverFetch<CreateChapterResult>(
+      `/pulso/content/books/${encodeURIComponent(bookSlug)}/chapters`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+    revalidatePath(bookPath(bookSlug));
+    return { ok: true, data: created };
+  } catch (err) {
+    return asOutcome<CreateChapterResult>(err);
+  }
+}
+
+/**
+ * Take a never-published chapter back out of the draft.
+ *
+ * Not a delete, and the copy says so: the chapter stops being part of the next
+ * publish, and every revision that already referenced it is untouched.
+ */
+export async function discardChapterAction(
+  bookSlug: string,
+  chapterOrder: number,
+  expectedRevisionId: string,
+): Promise<ActionOutcome<SaveResult>> {
+  try {
+    const result = await serverFetch<SaveResult>(
+      `/pulso/content/books/${encodeURIComponent(bookSlug)}/chapters/${chapterOrder}/discard`,
+      { method: "POST", body: JSON.stringify({ expectedRevisionId }) },
+    );
+    revalidatePath(bookPath(bookSlug));
+    return { ok: true, data: result };
   } catch (err) {
     return asOutcome<SaveResult>(err);
   }

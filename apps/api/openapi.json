@@ -17599,6 +17599,119 @@
         ]
       }
     },
+    "/api/pulso/content/books/{bookSlug}/chapters": {
+      "post": {
+        "operationId": "createContentStudioChapter",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChapterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioCreateChapterResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "El borrador cambió; no se escribió nada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Crea un capítulo al final del libro, solo en Content Core. No crea fila legacy ni toca Book.totalChapters. Queda en el borrador hasta publicar.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/discard": {
+      "post": {
+        "operationId": "discardContentStudioChapter",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscardChapterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioSaveResponseDto"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": ""
+          },
+          "409": {
+            "description": "El borrador cambió; no se escribió nada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Saca del borrador un capítulo que nunca se publicó. No borra nada: la unidad y las revisiones anteriores quedan intactas.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
     "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/preview": {
       "get": {
         "operationId": "previewContentStudioChapter",
@@ -22751,27 +22864,18 @@
       "CreateChapterDto": {
         "type": "object",
         "properties": {
-          "order": {
-            "type": "number",
-            "description": "Display order within the book (1-indexed). Used as the chapter\nidentifier in `/dashboard/biblioteca/[slug]/lector/[order]`.\nCollision with an existing chapter returns 409 `ORDINAL_TAKEN`.",
-            "minimum": 1
+          "expectedRevisionId": {
+            "type": "string",
+            "description": "La revisión que el editor cargó."
           },
           "title": {
             "type": "string",
-            "description": "Display title of the chapter. Shown in the reader header + the\nchapter list on the book detail page."
-          },
-          "description": {
-            "type": "string",
-            "description": "Optional short description shown in the chapter list (1-2 lines\npreview). Plain text."
-          },
-          "durationMinutes": {
-            "type": "number",
-            "description": "Optional estimated reading time in minutes. Used to roll up the\nbook's `durationMinutes` on the detail screen and to size session\nprogress. Author's best guess — server doesn't validate against\nactual content.",
-            "minimum": 1
+            "minLength": 1,
+            "maxLength": 200
           }
         },
         "required": [
-          "order",
+          "expectedRevisionId",
           "title"
         ]
       },
@@ -24315,12 +24419,32 @@
           "changed": {
             "type": "boolean",
             "description": "El borrador cambia este capítulo."
+          },
+          "isNewDraftChapter": {
+            "type": "boolean",
+            "description": "Creado en Content Studio y todavía sin publicar: puede descartarse."
+          },
+          "titleEditable": {
+            "type": "boolean",
+            "description": "El título se administra aquí. Falso para capítulos que aún tienen fila legacy."
+          },
+          "ingested": {
+            "type": "boolean",
+            "description": "Está en la revisión que se edita. Falso solo para un capítulo legacy que Content Core nunca ingirió: se lista porque los lectores sí lo ven, pero no puede editarse todavía."
+          },
+          "editable": {
+            "type": "boolean",
+            "description": "Puede abrirse en el editor. Falso para un capítulo pendiente de sincronización, que se lista pero no tiene nada que editar."
           }
         },
         "required": [
           "order",
           "title",
-          "changed"
+          "changed",
+          "isNewDraftChapter",
+          "titleEditable",
+          "ingested",
+          "editable"
         ]
       },
       "ContentStudioBookStateResponseDto": {
@@ -24342,6 +24466,22 @@
             "type": "number",
             "nullable": true
           },
+          "editingRevisionId": {
+            "type": "string",
+            "description": "La revisión que se está editando (el borrador si existe, si no la publicada). Es el token que debe enviar una creación."
+          },
+          "chapterCreationAvailable": {
+            "type": "boolean",
+            "description": "El servidor decide si el libro admite un capítulo nuevo ahora mismo. El cliente no lo deduce: la regla vive en el servidor."
+          },
+          "creationBlockedReason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "PENDING_SYNC"
+            ],
+            "description": "Por qué no se puede crear, cuando no se puede. Null cuando sí se puede."
+          },
           "changedUnitCount": {
             "type": "number"
           },
@@ -24357,6 +24497,9 @@
           "publishedRevisionNumber",
           "draftRevisionId",
           "draftRevisionNumber",
+          "editingRevisionId",
+          "chapterCreationAvailable",
+          "creationBlockedReason",
           "changedUnitCount",
           "chapters"
         ]
@@ -24430,6 +24573,18 @@
             "type": "number",
             "description": "Capítulos que el borrador del libro cambia."
           },
+          "titleEditable": {
+            "type": "boolean",
+            "description": "El título se administra aquí. Falso para capítulos que aún tienen fila legacy."
+          },
+          "mediaAdminAvailable": {
+            "type": "boolean",
+            "description": "Este capítulo tiene panel de multimedia. Falso para capítulos nativos: el catálogo de medios sigue anclado al mundo legacy."
+          },
+          "isNewDraftChapter": {
+            "type": "boolean",
+            "description": "Creado en Content Studio y todavía sin publicar: puede descartarse."
+          },
           "blocks": {
             "type": "array",
             "items": {
@@ -24447,6 +24602,9 @@
           "revisionNumber",
           "revisionStatus",
           "changedUnitCount",
+          "titleEditable",
+          "mediaAdminAvailable",
+          "isNewDraftChapter",
           "blocks"
         ]
       },
@@ -24481,6 +24639,12 @@
             "type": "string",
             "description": "La revisión que el editor cargó."
           },
+          "title": {
+            "type": "string",
+            "description": "Nuevo título. Solo para capítulos creados en Content Studio (titleEditable).",
+            "minLength": 1,
+            "maxLength": 200
+          },
           "blocks": {
             "type": "array",
             "items": {
@@ -24511,6 +24675,43 @@
           "revisionId",
           "revisionNumber",
           "changedUnitCount"
+        ]
+      },
+      "ContentStudioCreateChapterResponseDto": {
+        "type": "object",
+        "properties": {
+          "chapterOrder": {
+            "type": "number",
+            "description": "La posición en la que quedó el capítulo."
+          },
+          "revisionId": {
+            "type": "string",
+            "description": "El nuevo token de concurrencia."
+          },
+          "revisionNumber": {
+            "type": "number"
+          },
+          "changedUnitCount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "chapterOrder",
+          "revisionId",
+          "revisionNumber",
+          "changedUnitCount"
+        ]
+      },
+      "DiscardChapterDto": {
+        "type": "object",
+        "properties": {
+          "expectedRevisionId": {
+            "type": "string",
+            "description": "El borrador del que se descarta el capítulo."
+          }
+        },
+        "required": [
+          "expectedRevisionId"
         ]
       },
       "ContentStudioPreviewResponseDto": {

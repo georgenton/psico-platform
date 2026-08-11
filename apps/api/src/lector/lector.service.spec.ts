@@ -73,6 +73,10 @@ function makePrisma(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     book: {
       findFirst: vi.fn().mockResolvedValue(freeBook),
+      // The heartbeat now checks for a NATIVE chapter before soft-failing, so a
+      // missing legacy chapter is no longer the end of the lookup. Null here
+      // means "no book, nothing native either" — the soft-fail path.
+      findUnique: vi.fn().mockResolvedValue(null),
     },
     chapter: {
       findUnique: vi.fn().mockResolvedValue(baseChapter),

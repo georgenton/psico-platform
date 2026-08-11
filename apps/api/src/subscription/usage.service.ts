@@ -118,9 +118,9 @@ export class UsageService {
     const byBook = new Map<string, number>();
     const totalChaptersByBook = new Map<string, number>();
     for (const row of progressInPeriod) {
-      const bookId = row.chapter.bookId;
+      const bookId = row.chapter!.bookId;
       byBook.set(bookId, (byBook.get(bookId) ?? 0) + 1);
-      totalChaptersByBook.set(bookId, row.chapter.book.totalChapters);
+      totalChaptersByBook.set(bookId, row.chapter!.book.totalChapters);
     }
     // To know if the book is COMPLETED (not just touched), we need the
     // historical chapter count — do one more lookup with all-time progress
@@ -137,13 +137,23 @@ export class UsageService {
       // Reduce to per-book chapter counts:
       const allTimeByBook = new Map<string, number>();
       const chapterToBook = await this.prisma.chapter.findMany({
-        where: { id: { in: allTimeProgress.map((r) => r.chapterId) } },
+        // Book completion counts legacy chapters; a native-only chapter has no
+        // Chapter row to map to a book, and the `chapter:` filter above already
+        // excludes those rows.
+        where: {
+          id: {
+            in: allTimeProgress
+              .map((r) => r.chapterId)
+              .filter((id): id is string => id !== null),
+          },
+        },
         select: { id: true, bookId: true },
       });
       const chapterBookMap = new Map(
         chapterToBook.map((c) => [c.id, c.bookId]),
       );
       for (const row of allTimeProgress) {
+        if (!row.chapterId) continue;
         const bookId = chapterBookMap.get(row.chapterId);
         if (!bookId) continue;
         allTimeByBook.set(bookId, (allTimeByBook.get(bookId) ?? 0) + 1);

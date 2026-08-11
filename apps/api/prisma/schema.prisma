@@ -585,14 +585,20 @@ model Exercise {
 model UserProgress {
   id          String   @id @default(cuid())
   userId      String
-  chapterId   String
+  /// Legacy identity — nullable for the same reason as `ReadingSession`.
+  chapterId   String?
+  /// Native identity. Completion follows the unit, so a reorder cannot mark a
+  /// different chapter read.
+  contentUnitId String?
   completedAt DateTime @default(now())
   score       Float?
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  contentUnit ContentUnit? @relation(fields: [contentUnitId], references: [id], onDelete: Cascade)
 
   @@unique([userId, chapterId])
+  @@unique([userId, contentUnitId])
   @@index([userId])
 }
 
@@ -727,9 +733,17 @@ model Annotation {
 // y `timeSpentSec`. `completedAt` se setea cuando el user llega al último
 // bloque (o presiona "Marcar como leído").
 model ReadingSession {
-  id           String    @id @default(cuid())
-  userId       String
-  chapterId    String
+  id String @id @default(cuid())
+  userId String
+  /// Legacy identity. NULLABLE since the native reader: a chapter that Content
+  /// Studio created has no Chapter row, and inventing one to satisfy this
+  /// column would be a lie the rest of the system would then believe.
+  chapterId String?
+  /// Native identity. Exactly one of `chapterId`/`contentUnitId` is set.
+  ///
+  /// Progress belongs to the UNIT, never to its position: reordering a book
+  /// must not hand somebody's 47% to a different chapter.
+  contentUnitId String?
   lastBlockId  String?
   progressPct  Float     @default(0)
   timeSpentSec Int       @default(0)
@@ -738,9 +752,11 @@ model ReadingSession {
   completedAt  DateTime?
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  contentUnit ContentUnit? @relation(fields: [contentUnitId], references: [id], onDelete: Cascade)
 
   @@unique([userId, chapterId])
+  @@unique([userId, contentUnitId])
   @@index([userId, lastSeenAt(sort: Desc)])
 }
 
@@ -2340,6 +2356,8 @@ model ContentUnit {
   blocks          ContentBlock[]
   manifestEntries RevisionUnit[]
   conceptLinks    ConceptLink[]
+  readingSessions ReadingSession[]
+  progress        UserProgress[]
 
   @@unique([editionId, unitKey])
   @@index([editionId])

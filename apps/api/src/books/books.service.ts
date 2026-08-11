@@ -224,7 +224,7 @@ export class BooksService {
             select: { chapter: { select: { bookId: true } } },
             distinct: ["chapterId"],
           })
-          .then((rows) => rows.map((r) => r.chapter.bookId))
+          .then((rows) => rows.map((r) => r.chapter!.bookId))
       : [];
 
     const rows = await this.prisma.book.findMany({

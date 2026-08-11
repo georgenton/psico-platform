@@ -7,6 +7,12 @@ import {
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";
 import { Plan } from "@prisma/client";
+import {
+  readerTotalChapters,
+  resolveNativeChapter,
+  resolveReaderChapter,
+  type NativeChapterTarget,
+} from "./reader-chapter-resolver";
 import type {
   LectorAudioMetadata,
   LectorAudioResponse,
@@ -71,6 +77,19 @@ export class LectorService {
     });
     if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
 
+    const target = await resolveReaderChapter(this.prisma, {
+      bookId: book.id,
+      bookSlug: book.slug,
+      order: chapterOrder,
+    });
+
+    // A chapter Content Core owns outright: no Chapter row, so nothing below
+    // can read one. Handled in its own method rather than by scattering null
+    // checks through the legacy path, which stays exactly as it was.
+    if (target.source === "content-core") {
+      return this.getNativeChapter(userId, userPlan, book, target);
+    }
+
     const chapter = await this.prisma.chapter.findUnique({
       where: { bookId_order: { bookId: book.id, order: chapterOrder } },
       include: {
@@ -79,6 +98,8 @@ export class LectorService {
         audios: { take: 1 },
       },
     });
+    // `resolveReaderChapter` just found it, so this is belt and braces rather
+    // than a real branch — but it keeps the query shape identical to before.
     if (!chapter) throw new NotFoundException("CHAPTER_NOT_FOUND");
 
     // CC-6E — the ONE content-access policy (shared with the Content Core read +
@@ -202,6 +223,114 @@ export class LectorService {
     };
   }
 
+  /**
+   * The envelope for a chapter that exists only in Content Core.
+   *
+   * Every field comes from the published snapshot. The optional extras are
+   * empty and say so truthfully rather than being faked:
+   *
+   *   lessons        — exercises are still a legacy-only concept
+   *   audioAvailable — `Chapter.audios` cannot exist without a Chapter
+   *   blocks         — clients read the text from the Content Core surface
+   *   highlights /   — marks live on the Content Core marks surface, keyed by
+   *   annotations      blockKey; the legacy arrays would only ever be empty
+   *
+   * A chapter with none of those extras is still a perfectly valid chapter.
+   */
+  private async getNativeChapter(
+    userId: string,
+    userPlan: Plan,
+    book: {
+      id: string;
+      slug: string;
+      title: string;
+      cover: string | null;
+      totalChapters: number;
+      author: { name: string } | null;
+    },
+    target: NativeChapterTarget,
+  ): Promise<LectorChapterResponse> {
+    // #580's gate, by unit identity. Never the legacy chapter-order path: a
+    // native unit has no order to look up and no Book row to consult.
+    await this.access.assertCanReadUnit({
+      userId,
+      userPlan,
+      editionKey: target.editionKey,
+      unitKey: target.unitKey,
+    });
+
+    const [session, prefs, progress, totalChapters] = await Promise.all([
+      this.prisma.readingSession.upsert({
+        where: {
+          userId_contentUnitId: { userId, contentUnitId: target.contentUnitId },
+        },
+        create: {
+          userId,
+          contentUnitId: target.contentUnitId,
+          lastSeenAt: new Date(),
+        },
+        update: {},
+      }),
+      this.prisma.readerPreferences.upsert({
+        where: { userId },
+        create: { userId },
+        update: {},
+      }),
+      this.prisma.userProgress.findFirst({
+        where: { userId, contentUnitId: target.contentUnitId },
+        select: { completedAt: true },
+      }),
+      readerTotalChapters(this.prisma, {
+        bookSlug: book.slug,
+        legacyTotal: book.totalChapters,
+      }),
+    ]);
+
+    return {
+      book: {
+        id: book.id,
+        slug: book.slug,
+        title: book.title,
+        authorName: book.author?.name ?? null,
+        cover: book.cover,
+        // Derived from the manifest, so a native chapter is actually reachable
+        // by navigation. `Book.totalChapters` is never written to.
+        totalChapters,
+      },
+      chapter: {
+        // The stable identity of a native chapter IS its unit. Putting a
+        // fabricated Chapter id here would be a lie every client then stores.
+        id: target.contentUnitId,
+        order: target.order,
+        title: target.title,
+        subtitle: target.summary,
+        durationMinutes: target.durationMinutes,
+        audioAvailable: false,
+        partNumber: target.partNumber,
+        partTitle: target.partTitle,
+      },
+      blocks: [],
+      lessons: [],
+      highlights: [],
+      annotations: [],
+      session: {
+        progressPct: session.progressPct,
+        lastBlockId: session.lastBlockId,
+        timeSpentSec: session.timeSpentSec,
+        startedAt: session.startedAt,
+        lastSeenAt: session.lastSeenAt,
+        completedAt: session.completedAt,
+      },
+      preferences: {
+        theme: prefs.theme as "system" | "light" | "sepia" | "dark",
+        font: prefs.font as "serif" | "sans",
+        fontSize: prefs.fontSize,
+        lineHeight: prefs.lineHeight,
+      },
+      contentUnitId: target.contentUnitId,
+    } as LectorChapterResponse;
+  }
+
   // ─── PATCH /api/lector/session ──────────────────────────────────────────
 
   async heartbeat(
@@ -216,9 +345,11 @@ export class LectorService {
     });
 
     if (!chapter) {
-      // The client could be sending an obsolete payload after a chapter was
-      // unpublished. Soft-fail: ack the request without persisting.
-      return { ok: true, progressPct: dto.progressPct };
+      // No legacy chapter at that position. Either the client is sending an
+      // obsolete payload after an unpublish, or this is a native chapter — the
+      // two are told apart by whether a native identity resolves, never by
+      // trusting one the client supplied.
+      return this.nativeHeartbeat(userId, dto);
     }
 
     // Guard 1: server caps time delta at 60 s. A tab waking from suspend
@@ -255,6 +386,119 @@ export class LectorService {
     return { ok: true, progressPct: session.progressPct };
   }
 
+  /**
+   * Heartbeat for a chapter that exists only in Content Core.
+   *
+   * The unit is resolved SERVER-side from the book plus the position, against
+   * the published manifest. A `contentUnitId` the browser sent would let a
+   * caller write progress into an edition they cannot read, so it is never the
+   * thing that decides where the write lands.
+   *
+   * The same soft-fail as the legacy path: an obsolete payload is acked rather
+   * than turned into an error a reader would see mid-page.
+   */
+  private async nativeHeartbeat(
+    userId: string,
+    dto: LectorSessionHeartbeatDto,
+  ): Promise<LectorSessionHeartbeatResponse> {
+    const book = await this.prisma.book.findUnique({
+      where: { id: dto.bookId },
+      select: { slug: true },
+    });
+    if (!book) return { ok: true, progressPct: dto.progressPct };
+
+    const target = await resolveNativeChapter(
+      this.prisma,
+      book.slug,
+      dto.chapterOrder,
+    );
+    if (!target) return { ok: true, progressPct: dto.progressPct };
+
+    const cappedDelta = Math.min(dto.timeSpentDeltaSec, 60);
+    const existing = await this.prisma.readingSession.findUnique({
+      where: {
+        userId_contentUnitId: { userId, contentUnitId: target.contentUnitId },
+      },
+      select: { progressPct: true, timeSpentSec: true },
+    });
+    const nextProgress = Math.max(existing?.progressPct ?? 0, dto.progressPct);
+    const nextTimeSpent = (existing?.timeSpentSec ?? 0) + cappedDelta;
+
+    const session = await this.prisma.readingSession.upsert({
+      where: {
+        userId_contentUnitId: { userId, contentUnitId: target.contentUnitId },
+      },
+      create: {
+        userId,
+        contentUnitId: target.contentUnitId,
+        lastBlockId: dto.lastBlockId,
+        progressPct: nextProgress,
+        timeSpentSec: nextTimeSpent,
+      },
+      update: {
+        lastBlockId: dto.lastBlockId,
+        progressPct: nextProgress,
+        timeSpentSec: nextTimeSpent,
+      },
+    });
+    return { ok: true, progressPct: session.progressPct };
+  }
+
+  /**
+   * Completion for a chapter that exists only in Content Core.
+   *
+   * Recorded against the UNIT, so a later reorder moves the chapter without
+   * moving what somebody finished. The streak side-effects of the legacy path
+   * are intentionally not duplicated here — they read legacy rows, and a native
+   * chapter has none; wiring them up is a separate, honest piece of work rather
+   * than something to approximate.
+   */
+  private async completeNativeChapter(
+    userId: string,
+    book: { id: string; slug: string; totalChapters: number },
+    chapterOrder: number,
+  ): Promise<LectorCompleteResponse> {
+    const target = await resolveNativeChapter(
+      this.prisma,
+      book.slug,
+      chapterOrder,
+    );
+    if (!target) throw new NotFoundException("CHAPTER_NOT_FOUND");
+
+    await this.prisma.$transaction([
+      this.prisma.readingSession.upsert({
+        where: {
+          userId_contentUnitId: { userId, contentUnitId: target.contentUnitId },
+        },
+        create: {
+          userId,
+          contentUnitId: target.contentUnitId,
+          progressPct: 1,
+          completedAt: new Date(),
+        },
+        update: { progressPct: 1, completedAt: new Date() },
+      }),
+      this.prisma.userProgress.upsert({
+        where: {
+          userId_contentUnitId: { userId, contentUnitId: target.contentUnitId },
+        },
+        create: { userId, contentUnitId: target.contentUnitId },
+        update: {},
+      }),
+    ]);
+
+    // "What comes next" is a navigation question, so it counts what the reader
+    // can actually navigate rather than the legacy column.
+    const total = await readerTotalChapters(this.prisma, {
+      bookSlug: book.slug,
+      legacyTotal: book.totalChapters,
+    });
+    return {
+      ok: true,
+      nextChapter: chapterOrder < total ? chapterOrder + 1 : null,
+    };
+  }
+
   // ─── POST /api/lector/:bookId/:chapterN/complete ───────────────────────
 
   async completeChapter(
@@ -264,7 +508,7 @@ export class LectorService {
   ): Promise<LectorCompleteResponse> {
     const book = await this.prisma.book.findFirst({
       where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
-      select: { id: true, totalChapters: true },
+      select: { id: true, slug: true, totalChapters: true },
     });
     if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
 
@@ -272,7 +516,9 @@ export class LectorService {
       where: { bookId_order: { bookId: book.id, order: chapterOrder } },
       select: { id: true },
     });
-    if (!chapter) throw new NotFoundException("CHAPTER_NOT_FOUND");
+    if (!chapter) {
+      return this.completeNativeChapter(userId, book, chapterOrder);
+    }
 
     // Persist three things in one transaction: mark session completed,
     // record UserProgress, push the streak counter on the user. We don't

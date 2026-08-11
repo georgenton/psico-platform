@@ -109,8 +109,8 @@ export class DailyUsageProcessor extends WorkerHost {
     const totalChaptersByBook = new Map<string, number>();
     for (const row of progressInWindow) {
       const userId = row.userId;
-      const bookId = row.chapter.bookId;
-      totalChaptersByBook.set(bookId, row.chapter.book.totalChapters);
+      const bookId = row.chapter!.bookId;
+      totalChaptersByBook.set(bookId, row.chapter!.book.totalChapters);
       const userBooks =
         candidateByUser.get(userId) ?? new Map<string, number>();
       userBooks.set(bookId, (userBooks.get(bookId) ?? 0) + 1);
@@ -131,7 +131,7 @@ export class DailyUsageProcessor extends WorkerHost {
       });
       const allTimeByBook = new Map<string, number>();
       for (const r of allTime) {
-        const bookId = r.chapter.bookId;
+        const bookId = r.chapter!.bookId;
         allTimeByBook.set(bookId, (allTimeByBook.get(bookId) ?? 0) + 1);
       }
       let completed = 0;

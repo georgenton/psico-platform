@@ -340,7 +340,8 @@ export class HomeService {
     // "Continue" = most recent UserProgress row. The chapter the user touched
     // most recently is the chapter shown.
     const latest = await this.prisma.userProgress.findFirst({
-      where: { userId },
+      // Legacy-shaped surface: see the note in ActivityService.
+      where: { userId, chapterId: { not: null } },
       orderBy: { completedAt: "desc" },
       include: {
         chapter: {
@@ -367,11 +368,11 @@ export class HomeService {
       this.prisma.userProgress.count({
         where: {
           userId,
-          chapter: { bookId: latest.chapter.book.id, isPublished: true },
+          chapter: { bookId: latest.chapter!.book.id, isPublished: true },
         },
       }),
       this.prisma.chapter.count({
-        where: { bookId: latest.chapter.book.id, isPublished: true },
+        where: { bookId: latest.chapter!.book.id, isPublished: true },
       }),
     ]);
 
@@ -381,12 +382,12 @@ export class HomeService {
         : 0;
 
     return {
-      bookId: latest.chapter.book.id,
-      title: latest.chapter.book.title,
-      author: latest.chapter.book.author?.name ?? "—",
-      cover: this.toCoverToken(latest.chapter.book.cover),
-      chapterN: latest.chapter.order,
-      chapterTitle: latest.chapter.title,
+      bookId: latest.chapter!.book.id,
+      title: latest.chapter!.book.title,
+      author: latest.chapter!.book.author?.name ?? "—",
+      cover: this.toCoverToken(latest.chapter!.book.cover),
+      chapterN: latest.chapter!.order,
+      chapterTitle: latest.chapter!.title,
       progressPct,
       lastReadAt: latest.completedAt,
     };
@@ -426,7 +427,7 @@ export class HomeService {
         select: { chapter: { select: { bookId: true } } },
       })
       .then((rows) =>
-        Array.from(new Set(rows.map((r) => r.chapter.bookId).filter(Boolean))),
+        Array.from(new Set(rows.map((r) => r.chapter!.bookId).filter(Boolean))),
       );
 
     const books = await this.prisma.book.findMany({

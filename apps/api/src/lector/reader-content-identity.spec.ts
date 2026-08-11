@@ -48,3 +48,47 @@ describe("the content read identity", () => {
     expect(legacy.contentUnitKey).not.toBe(legacy.readerRef.id);
   });
 });
+
+/**
+ * A stable legacy route must not round-trip through position.
+ *
+ * `c/:chapterId` used to resolve the chapter, take its current order, and then
+ * call the POSITIONAL reader with that number. Correct in a still structure —
+ * and a time-of-check/time-of-use gap in a moving one: between the two steps a
+ * different chapter can occupy that position, and the URL would name B while
+ * the reader served whoever replaced it.
+ *
+ * The envelope is now built from the chapter's own id, and the order is derived
+ * from the row that was fetched.
+ */
+describe("the legacy stable route", () => {
+  it("never re-enters the positional reader", async () => {
+    const src = await import("node:fs").then((fs) =>
+      fs.readFileSync(
+        new URL("./lector.service.ts", import.meta.url).pathname,
+        "utf8",
+      ),
+    );
+    // `getChapterByRef` must hand the chapter ID to the envelope builder. If
+    // this ever becomes `getChapter(..., target.order)` again, the race is back.
+    const byRef = src.slice(src.indexOf("async getChapterByRef"));
+    const body = byRef.slice(0, byRef.indexOf("\n  // ─── GET"));
+    expect(body).toContain("this.getLegacyChapter(");
+    expect(body).not.toMatch(/this\.getChapter\(/);
+    expect(body).not.toMatch(/target\.order/);
+  });
+
+  it("derives the order from the row it fetched, not from a caller", async () => {
+    const src = await import("node:fs").then((fs) =>
+      fs.readFileSync(
+        new URL("./lector.service.ts", import.meta.url).pathname,
+        "utf8",
+      ),
+    );
+    const builder = src.slice(src.indexOf("private async getLegacyChapter"));
+    // Scoped by book, found by id — a chapter from another book is never in hand.
+    expect(builder).toContain("where: { id: chapterId, bookId: book.id }");
+    // And the order comes from that row.
+    expect(builder).toContain("const chapterOrder = chapter.order;");
+  });
+});

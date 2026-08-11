@@ -101,17 +101,57 @@ export class LectorService {
       return this.getNativeChapter(userId, userPlan, book, target);
     }
 
-    const chapter = await this.prisma.chapter.findUnique({
-      where: { bookId_order: { bookId: book.id, order: chapterOrder } },
+    // Position located the chapter; from here on its ID carries it. Handing the
+    // order onward would let a structural change between these two lines serve
+    // whoever moved into that slot.
+    return this.getLegacyChapter(userId, userPlan, book, target.chapterId);
+  }
+
+  /**
+   * The legacy reader envelope, addressed by the chapter's own id.
+   *
+   * The ONE builder for a legacy-served chapter: both the positional route and
+   * the canonical `c/:chapterId` route arrive here, so there is a single place
+   * where the envelope, the entitlement decision and the write identity are
+   * decided.
+   *
+   * Taking the id rather than the order is what makes the stable route safe.
+   * Resolving an identity and then reading by the position it happened to hold
+   * is a time-of-check/time-of-use gap: between the two, a structural change
+   * could put a different chapter at that position, and the URL would name one
+   * chapter while the reader served another.
+   *
+   * The current order is derived HERE, from the row itself, and used only for
+   * what position is actually for — the entitlement rule, numbering, adjacency.
+   */
+  private async getLegacyChapter(
+    userId: string,
+    userPlan: Plan,
+    book: {
+      id: string;
+      slug: string;
+      title: string;
+      cover: string;
+      coverArtUrl: string | null;
+      totalChapters: number;
+      author: { name: string } | null;
+    },
+    chapterId: string,
+  ): Promise<LectorChapterResponse> {
+    // Scoped by book in the WHERE clause: a chapter id from another book is
+    // never in hand, let alone rendered.
+    const chapter = await this.prisma.chapter.findFirst({
+      where: { id: chapterId, bookId: book.id },
       include: {
         blocks: { orderBy: { order: "asc" } },
         exercises: { orderBy: { order: "asc" } },
         audios: { take: 1 },
       },
     });
-    // `resolveReaderChapter` just found it, so this is belt and braces rather
-    // than a real branch — but it keeps the query shape identical to before.
     if (!chapter) throw new NotFoundException("CHAPTER_NOT_FOUND");
+
+    // Derived from the row, never taken from the caller.
+    const chapterOrder = chapter.order;
 
     // CC-6E — the ONE content-access policy (shared with the Content Core read +
     // marks surfaces). First chapter is a free preview; later chapters of a PRO
@@ -771,10 +811,11 @@ export class LectorService {
       return this.getNativeChapter(userId, userPlan, book, native);
     }
 
-    // Legacy stays legacy. Resolved to its CURRENT position and handed to the
-    // existing positional path — which is what keeps the serving store, the
-    // content surface and the write identity exactly as they are.
-    return this.getChapter(userId, userPlan, bookIdOrSlug, target.order);
+    // Legacy stays legacy — and is read by its OWN id, never by the position it
+    // currently holds. Re-entering the positional reader would reopen the gap
+    // this route exists to close: a structural change between resolving B and
+    // reading position 2 would serve whoever moved into that slot.
+    return this.getLegacyChapter(userId, userPlan, book, target.chapterId);
   }
 
   // ─── GET /api/lector/:bookId/:chapterN/audio ───────────────────────────

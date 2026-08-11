@@ -1,6 +1,7 @@
 import { Image, StyleSheet, Text, View } from "react-native";
 import type { ImageBlockInfo } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
+import { assetUrl } from "@/lib/asset-url";
 
 /**
  * An illustration inside a chapter — the mobile half of the pair.
@@ -17,7 +18,7 @@ export function ImageBlock({ info }: { info: ImageBlockInfo }) {
   return (
     <View style={styles.wrap}>
       <Image
-        source={{ uri: info.imageUrl }}
+        source={{ uri: assetUrl(info.imageUrl) }}
         style={styles.image}
         resizeMode="contain"
         accessible

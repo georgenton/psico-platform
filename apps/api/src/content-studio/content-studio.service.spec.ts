@@ -443,7 +443,12 @@ describe("ContentStudioService — a save is not a rename", () => {
 });
 
 describe("ContentStudioService — images the server refuses to save", () => {
-  const TRUSTED = "https://assets.example.com/content/libro/chapter-1/a.png";
+  // A real pre-fix value: our own R2 base plus a key our uploader actually
+  // minted. The old check only compared origins, so ANY path on this host
+  // passed; the key must now be one we would sign, which is what stops this
+  // path from becoming a way to read the bucket.
+  const TRUSTED =
+    "https://assets.example.com/content/libro/chapter-1/images/0123456789abcdef.png";
 
   const save = (meta: Record<string, unknown>, content = "") =>
     service.saveChapterDraft("libro", 1, {
@@ -458,6 +463,28 @@ describe("ContentStudioService — images the server refuses to save", () => {
     await expect(
       save({ imageUrl: TRUSTED, alt: "Diagrama del ciclo predictivo" }),
     ).resolves.toBeTruthy();
+  });
+
+  it("accepts the asset path a fresh upload now returns", async () => {
+    await expect(
+      save({
+        imageUrl:
+          "/api/content-assets/content/libro/chapter-1/images/0123456789abcdef.png",
+        alt: "Diagrama",
+      }),
+    ).resolves.toBeTruthy();
+  });
+
+  it("refuses a made-up path even on our own host", async () => {
+    // Origin alone is not authority. A key we never minted is not one we will
+    // sign, and the same bucket holds audiobook masters.
+    await expect(
+      save({
+        imageUrl: "https://assets.example.com/audio/libro/cap-1.m4a",
+        alt: "Diagrama",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(draft.saveUnitDraft).not.toHaveBeenCalled();
   });
 
   it.each([

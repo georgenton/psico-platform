@@ -2,6 +2,8 @@
 
 import type { ImageBlockInfo } from "@psico/types";
 
+import { assetUrl } from "@/lib/asset-url";
+
 /**
  * An illustration inside a chapter.
  *
@@ -28,7 +30,7 @@ export function ImageBlock({
       className="reader-block reader-block-image my-7"
     >
       <img
-        src={info.imageUrl}
+        src={assetUrl(info.imageUrl)}
         alt={info.alt}
         loading="lazy"
         className="h-auto w-full max-w-full rounded-xl"

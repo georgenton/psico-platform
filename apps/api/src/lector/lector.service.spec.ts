@@ -124,7 +124,11 @@ function makePrisma(overrides: Partial<Record<string, unknown>> = {}) {
   } as unknown as ConstructorParameters<typeof LectorService>[0];
 }
 
-const config = {} as ConstructorParameters<typeof LectorService>[1];
+// The reader resolves image URLs on the way out now, so it reads the storage
+// base. Undefined models a private bucket with no public base configured.
+const config = {
+  get: () => undefined,
+} as unknown as ConstructorParameters<typeof LectorService>[1];
 const storage = {
   getSignedUrl: vi.fn(
     async (key: string) => `https://signed.example/${key}?sig=abc`,

@@ -7,6 +7,7 @@ import {
   type UploadedImageFile,
 } from "../shared/image-upload";
 import { resolveEditorialChapter } from "./native-authoring";
+import { contentAssetPath } from "../shared/content-asset";
 
 /**
  * Content Studio — uploading image bytes.
@@ -50,11 +51,12 @@ export class ContentStudioAssetsService {
       `catalog-books/${book.slug}/cover`,
       file.mimetype,
     );
-    const coverArtUrl = await this.storage.uploadFile(
-      file.buffer,
-      key,
-      file.mimetype,
-    );
+    // `putObject`, not `uploadFile`: the bucket is private, so the URL
+    // `uploadFile` returns points at an endpoint no browser can read. What we
+    // persist is the stable asset path, which resolves to a signed GET when it
+    // is actually fetched.
+    await this.storage.putObject(file.buffer, key, file.mimetype);
+    const coverArtUrl = contentAssetPath(key);
 
     await this.prisma.book.update({
       where: { id: book.id },
@@ -101,11 +103,8 @@ export class ContentStudioAssetsService {
       `content/${book.slug}/chapter-${chapter.order}/images`,
       file.mimetype,
     );
-    const imageUrl = await this.storage.uploadFile(
-      file.buffer,
-      key,
-      file.mimetype,
-    );
+    await this.storage.putObject(file.buffer, key, file.mimetype);
+    const imageUrl = contentAssetPath(key);
 
     this.logger.log(
       `chapter image uploaded book=${book.slug} chapter=${chapter.order} key=${key}`,

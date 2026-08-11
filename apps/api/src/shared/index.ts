@@ -16,3 +16,5 @@ export * from "./filters/http-exception.filter";
 export * from "./interceptors/idempotency.interceptor";
 export * from "./throttler/throttler.module";
 export * from "./throttler/redis-throttler.storage";
+
+export * from "./content-asset";

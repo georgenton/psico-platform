@@ -24,7 +24,10 @@ import {
   NEW_CHAPTER_SCAFFOLD,
   resolveEditorialChapter,
 } from "./native-authoring";
-import { isTrustedImageUrl } from "../shared/image-upload";
+import {
+  contentAssetKeyFrom,
+  withResolvedImageUrls,
+} from "../shared/content-asset";
 import type { Env } from "../config";
 import {
   CONTENT_DRAFT_UNIT_ALREADY_PUBLISHED,
@@ -126,11 +129,14 @@ export class ContentStudioService {
           index,
         });
       }
-      // No public base configured (a private bucket) means no image URL can be
-      // trusted, so every one is refused. Fail closed: the alternative is
-      // trusting whatever an ADMIN sends because we have nothing to compare it
-      // against.
-      if (!base || !isTrustedImageUrl(info.imageUrl, base)) {
+      // Accepted: our own asset path, and — for a block written before the
+      // private-bucket fix — an absolute URL on our own R2 base, whose key is
+      // recoverable. Refused: everything else, including a public-looking URL on
+      // a host we do not control.
+      //
+      // Fail closed when there is nothing to compare against: an ADMIN can send
+      // any string, and "we could not check" must never mean "allowed".
+      if (!contentAssetKeyFrom(info.imageUrl, base)) {
         // Deliberately says nothing about what IS allowed: the configured
         // origin is not something an error message should hand out.
         throw new BadRequestException({
@@ -510,7 +516,7 @@ export class ContentStudioService {
       titleEditable: resolved.titleEditable,
       mediaAdminAvailable: resolved.mediaAdminAvailable,
       isNewDraftChapter: resolved.isNewDraftChapter,
-      blocks: unit.blocks as ContentBlockView[],
+      blocks: this.resolveImages(unit.blocks as ContentBlockView[]),
     };
   }
 
@@ -630,7 +636,7 @@ export class ContentStudioService {
       title: unit.title,
       summary: unit.summary,
       durationMinutes: unit.durationMinutes,
-      blocks: unit.blocks as ContentBlockView[],
+      blocks: this.resolveImages(unit.blocks as ContentBlockView[]),
     };
   }
 
@@ -732,6 +738,20 @@ export class ContentStudioService {
         });
       }
     }
+  }
+
+  /**
+   * Turn stored image identities into something the editor can fetch.
+   *
+   * The bucket is private, so what is stored is never directly loadable. Applied
+   * on the way out of BOTH the editor read and the preview, because a preview
+   * that could not show an image would be the same bug wearing a different hat.
+   */
+  private resolveImages(blocks: ContentBlockView[]): ContentBlockView[] {
+    const base = this.config.get("R2_PUBLIC_URL", { infer: true }) as
+      | string
+      | undefined;
+    return withResolvedImageUrls(blocks, base);
   }
 
   /**

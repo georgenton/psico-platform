@@ -30,6 +30,7 @@ import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ContentAccessService } from "../content-core/access/content-access.service";
 import { resolveAnchorTarget } from "./anchor-resolver";
+import { withResolvedImageUrls } from "../shared/content-asset";
 import type { LectorSessionHeartbeatDto } from "./dto/heartbeat.dto";
 
 /**
@@ -187,13 +188,18 @@ export class LectorService {
         // exactly that, without it having to guess from the shape.
         contentUnitId: null,
       },
-      blocks: chapter.blocks.map((b) => ({
-        id: b.id,
-        order: b.order,
-        kind: b.kind,
-        content: b.content,
-        meta: (b.meta as Record<string, unknown> | null) ?? null,
-      })),
+      // Image URLs resolved on the way out: the bucket is private, so what is
+      // stored is an identity rather than something a browser can fetch.
+      blocks: withResolvedImageUrls(
+        chapter.blocks.map((b) => ({
+          id: b.id,
+          order: b.order,
+          kind: b.kind,
+          content: b.content,
+          meta: (b.meta as Record<string, unknown> | null) ?? null,
+        })),
+        this.config.get("R2_PUBLIC_URL", { infer: true }) as string | undefined,
+      ),
       lessons: chapter.exercises.map((e) => ({
         id: e.id,
         title: e.title,

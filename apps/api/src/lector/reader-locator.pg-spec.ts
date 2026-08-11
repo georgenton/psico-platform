@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { backfillContentCore } from "../content-core/backfill";
 import { publishDraftRevision } from "../content-core/content-draft";
 import { ContentAccessService } from "../content-core/access/content-access.service";
+import { BooksService } from "../books/books.service";
 import { LectorService } from "./lector.service";
 
 /**
@@ -30,6 +31,7 @@ suite("the read-only locator", () => {
   let prisma: PrismaClient;
   let pool: Pool;
   let lector: LectorService;
+  let books: BooksService;
   let bookId = "";
   const USER = "u-locator";
   const SLUG = "libro-locator";
@@ -67,6 +69,12 @@ suite("the read-only locator", () => {
       {} as never,
       new ContentAccessService(prisma as never) as never,
     );
+    books = new BooksService(
+      prisma as never,
+      {
+        get: () => undefined,
+      } as never,
+    );
 
     await prisma.user.create({
       data: { id: USER, email: "locator@test.local", name: "L" },
@@ -81,7 +89,9 @@ suite("the read-only locator", () => {
       [2, "Dos"],
     ] as const) {
       const ch = await prisma.chapter.create({
-        data: { bookId, order, title },
+        // Published, because that is what a book somebody can read looks
+        // like — and because book detail only lists published legacy rows.
+        data: { bookId, order, title, isPublished: true },
       });
       await prisma.chapterBlock.create({
         data: {
@@ -152,5 +162,36 @@ suite("the read-only locator", () => {
     await expect(
       lector.getLocator(USER, "FREE" as never, "no-such-book", 1),
     ).rejects.toThrow(/BOOK_NOT_FOUND/);
+  });
+
+  /**
+   * Book detail and the reader must name the same chapter.
+   *
+   * This book is the hard case: every position is claimed twice, because the
+   * backfill minted a unit for each legacy chapter and that revision is
+   * published. Two independent code paths decide which identity wins, and if
+   * they ever disagree the detail screen links somewhere the reader answers
+   * with different content.
+   */
+  it("book detail names each position exactly as the locator resolves it", async () => {
+    const detail = await books.getDetail(USER, SLUG);
+    expect(detail.chaptersList).toHaveLength(2);
+
+    for (const row of detail.chaptersList) {
+      const { readerRef } = await lector.getLocator(
+        USER,
+        "FREE" as never,
+        SLUG,
+        row.n,
+      );
+      expect(row.readerRef).toEqual(readerRef);
+    }
+
+    // And on this book that agreement is legacy — not both defaulting to
+    // native, which would make the assertion above pass vacuously.
+    expect(detail.chaptersList.map((c) => c.readerRef.kind)).toEqual([
+      "chapter",
+      "chapter",
+    ]);
   });
 });

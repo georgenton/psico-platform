@@ -37,6 +37,12 @@ import type { CreateBookReviewDto } from "./dto/create-review.dto";
 import { ConfigService } from "@nestjs/config";
 import type { Env } from "../config";
 import { resolveStoredCoverUrl } from "../shared/content-asset";
+import {
+  progressForEffectiveChapters,
+  resolveEffectiveChapters,
+  type EffectiveChapter,
+  type LegacyChapterRow,
+} from "./effective-chapters";
 
 // ─── Plan → tier mapping ─────────────────────────────────────────────────────
 //
@@ -310,11 +316,34 @@ export class BooksService {
     // The Prisma row carries a discriminated chapter type (with-progress vs
     // without-progress). Both shapes are accepted by our helpers — we
     // localize the cast here rather than thread generics through.
-    const looseBook = book as unknown as Parameters<
-      typeof this.buildChaptersList
-    >[0];
-    const chaptersList = this.buildChaptersList(looseBook, userId);
-    const userProgress = this.computeUserProgressSummary(looseBook, userId);
+    // The Prisma row carries a discriminated chapter shape (with-progress vs
+    // without). The effective-structure helper needs only the published legacy
+    // rows, so the cast is localized to that.
+    const looseBook = book as unknown as {
+      chapters?: LegacyChapterRow[];
+    };
+    // The chapter list is the book's EFFECTIVE readable structure, not its
+    // legacy rows: a chapter authored in Content Studio has no `Chapter` row and
+    // was invisible here. Legacy-first, exactly like the reader.
+    const effective = await resolveEffectiveChapters(this.prisma, {
+      bookId: book.id,
+      bookSlug: book.slug,
+      legacyChapters: looseBook.chapters ?? [],
+    });
+    const progressById = userId
+      ? await progressForEffectiveChapters(this.prisma, {
+          userId,
+          chapters: effective,
+        })
+      : new Map<string, { completedAt: Date | null }>();
+
+    const chaptersList = this.buildChaptersList(
+      book.plan,
+      effective,
+      progressById,
+      userId,
+    );
+    const userProgress = this.computeUserProgressSummary(chaptersList, userId);
 
     return {
       book: {
@@ -326,7 +355,9 @@ export class BooksService {
         coverArtUrl: this.coverUrl(book.coverArtUrl),
         summary: book.summary,
         description: book.description,
-        chapters: book.totalChapters,
+        // The effective list, not `Book.totalChapters` — that column counts
+        // legacy rows and goes stale the moment a native chapter is published.
+        chapters: effective.length,
         pages: book.pages,
         durationMinutes: book.durationMinutes,
         categoryId: book.categoryId,
@@ -724,22 +755,29 @@ export class BooksService {
     return value === "warm" || value === "mixed" ? value : "cool";
   }
 
+  /**
+   * The book-level summary, from the SAME effective rows the list shows.
+   *
+   * Previously computed from legacy chapters alone, which would have silently
+   * ignored every native chapter the moment they became visible.
+   */
   private computeUserProgressSummary(
-    book: {
-      chapters?: Array<{
-        progress?: Array<{ completedAt: Date | null }>;
-      }>;
-    },
+    chapters: ChapterListItem[],
     userId: string | null,
   ) {
     if (!userId) return null;
-    // The conditional Prisma include narrows the row so that .progress only
-    // exists when userId is set; we cast to the loose contract our helper
-    // consumes. The runtime shape is identical.
     return this.computeProgressFromChapters(
-      (book.chapters as Array<{
-        progress?: Array<{ completedAt: Date | null }>;
-      }>) ?? [],
+      chapters.map((c) => ({
+        progress:
+          c.userProgress.status === "not-started"
+            ? []
+            : [
+                {
+                  completedAt:
+                    c.userProgress.status === "completed" ? new Date() : null,
+                },
+              ],
+      })),
     );
   }
 
@@ -759,25 +797,23 @@ export class BooksService {
     return (book.bookmarks ?? []).length > 0;
   }
 
+  /**
+   * The rows the detail screen shows, from the effective structure.
+   *
+   * Each row's status comes from its OWN identity — a legacy chapter from its
+   * `chapterId` progress, a native one from its `contentUnitId` — so a native
+   * chapter cannot inherit the status of whatever legacy chapter used to sit at
+   * its position.
+   */
   private buildChaptersList(
-    book: {
-      plan: string;
-      chapters?: {
-        id: string;
-        order: number;
-        title: string;
-        durationMinutes: number | null;
-        partNumber?: number | null;
-        partTitle?: string | null;
-        progress?: { completedAt: Date | null }[];
-      }[];
-    },
+    plan: string,
+    effective: EffectiveChapter[],
+    progressById: Map<string, { completedAt: Date | null }>,
     userId: string | null,
   ): ChapterListItem[] {
-    const chapters = book.chapters ?? [];
-    const tier = PLAN_TO_TIER[book.plan] ?? "free";
-    return chapters.map((ch) => {
-      const progress = ch.progress?.[0];
+    const tier = PLAN_TO_TIER[plan] ?? "free";
+    return effective.map((ch) => {
+      const progress = userId ? progressById.get(ch.readerRef.id) : undefined;
       const status: ChapterListItem["userProgress"]["status"] = !userId
         ? "not-started"
         : !progress
@@ -787,14 +823,14 @@ export class BooksService {
             : "started";
       return {
         n: ch.order,
-        // These are legacy `Chapter` rows, which is also what they write
-        // progress by — so the stable identity is the chapter's own id.
-        readerRef: { kind: "chapter", id: ch.id },
+        readerRef: ch.readerRef,
         title: ch.title,
         durationMinutes: ch.durationMinutes,
-        lockedByTier: tier === "pro" && (PLAN_RANK[book.plan] ?? 0) > 0,
-        partNumber: ch.partNumber ?? null,
-        partTitle: ch.partTitle ?? null,
+        // Unchanged display rule: locked rows stay VISIBLE and locked. This
+        // list is a table of contents, not an entitlement filter.
+        lockedByTier: tier === "pro" && (PLAN_RANK[plan] ?? 0) > 0,
+        partNumber: ch.partNumber,
+        partTitle: ch.partTitle,
         userProgress: {
           status,
           progressPct:

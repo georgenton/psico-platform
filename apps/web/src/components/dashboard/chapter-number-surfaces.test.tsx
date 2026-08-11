@@ -41,6 +41,7 @@ const PAREJAS_PREFACE_TITLE = "Prefacio e introducción";
 function chapter(over: Partial<ChapterListItem>): ChapterListItem {
   return {
     n: 1,
+    readerRef: { kind: "chapter" as const, id: `ch-parejas-1` },
     title: "t",
     durationMinutes: 10,
     lockedByTier: false,
@@ -79,11 +80,16 @@ describe("PAREJAS_BOOK_DETAIL_DOES_NOT_SHOW_CHAPTER_2_FOR_EDITORIAL_CHAPTER_1", 
     expect(screen.queryByText("2")).toBeNull();
   });
 
-  it("ROUTE_ORDER_UNCHANGED — the link still carries the platform order", () => {
+  it("ROUTE_REACHES_THE_SAME_CHAPTER — now by stable identity, not position", () => {
+    // This pin was written for the numbering fix, to prove that changing the
+    // LABEL had not changed the LINK. Phase B.A changes the link deliberately:
+    // position located a chapter, identity names one, and a positional URL
+    // cannot survive a reorder. What the pin still protects is unchanged — the
+    // row links to THIS chapter, and no editorial number is displayed.
     render(<ChaptersList bookSlug="parejas-que-perduran" chapters={parejas} />);
     expect(screen.getByText(PAREJAS_CH1_TITLE).closest("a")).toHaveAttribute(
       "href",
-      "/dashboard/biblioteca/parejas-que-perduran/lector/2",
+      "/dashboard/biblioteca/parejas-que-perduran/lector/c/ch-parejas-1",
     );
   });
 

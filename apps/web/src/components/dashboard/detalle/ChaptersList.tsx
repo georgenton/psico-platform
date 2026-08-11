@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ChapterListItem } from "@psico/types";
+import { readerChapterPath } from "@psico/types";
 
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
 function partLabel(n: number): string {
@@ -98,7 +99,8 @@ export function ChaptersList({
                   }}
                 >
                   <Link
-                    href={`/dashboard/biblioteca/${bookSlug}/lector/${ch.n}`}
+                    // Stable identity, not position: this link survives the chapter moving.
+                    href={readerChapterPath(bookSlug, ch.readerRef)}
                     className="grid grid-cols-[40px_1fr_auto] items-center gap-4 px-5 py-3.5 transition-colors hover:bg-[var(--color-warm-50)]"
                   >
                     <span

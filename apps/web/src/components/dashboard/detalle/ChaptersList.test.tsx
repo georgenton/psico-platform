@@ -6,6 +6,7 @@ import { ChaptersList } from "./ChaptersList";
 function ch(over: Partial<ChapterListItem>): ChapterListItem {
   return {
     n: 1,
+    readerRef: { kind: "chapter" as const, id: `ch-1` },
     title: "Cap",
     durationMinutes: 10,
     lockedByTier: false,

@@ -191,7 +191,7 @@ export class LectorController {
     @CurrentUser() user: AuthenticatedUser,
     @Param("bookId") bookId: string,
     @Param("chapterOrder", ParseIntPipe) chapterOrder: number,
-  ): Promise<{ readerRef: ReaderChapterRef }> {
+  ): Promise<{ readerRef: ReaderChapterRef; bookSlug: string }> {
     return this.lector.getLocator(
       user.userId,
       user.plan as Plan,

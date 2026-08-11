@@ -763,6 +763,7 @@ export class BooksService {
     book: {
       plan: string;
       chapters?: {
+        id: string;
         order: number;
         title: string;
         durationMinutes: number | null;
@@ -786,6 +787,9 @@ export class BooksService {
             : "started";
       return {
         n: ch.order,
+        // These are legacy `Chapter` rows, which is also what they write
+        // progress by — so the stable identity is the chapter's own id.
+        readerRef: { kind: "chapter", id: ch.id },
         title: ch.title,
         durationMinutes: ch.durationMinutes,
         lockedByTier: tier === "pro" && (PLAN_RANK[book.plan] ?? 0) > 0,

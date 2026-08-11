@@ -1081,6 +1081,12 @@ export interface BookDetail {
 
 export interface ChapterListItem {
   n: number;
+  /**
+   * This chapter's stable identity (Phase B.A), decided by the server that
+   * knows which store serves it. Links are built from this, not from `n` —
+   * `n` locates a chapter, it does not identify one.
+   */
+  readerRef: ReaderChapterRef;
   title: string;
   durationMinutes: number | null;
   lockedByTier: boolean;

@@ -678,7 +678,7 @@ export class LectorService {
     userPlan: Plan,
     bookIdOrSlug: string,
     chapterOrder: number,
-  ): Promise<{ readerRef: ReaderChapterRef }> {
+  ): Promise<{ readerRef: ReaderChapterRef; bookSlug: string }> {
     const book = await this.prisma.book.findFirst({
       where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
       select: { id: true, slug: true },
@@ -715,7 +715,9 @@ export class LectorService {
       });
     }
 
-    return { readerRef: ref };
+    // The canonical slug travels back too: the caller may have addressed the
+    // book by id, and the canonical URL should carry the slug.
+    return { readerRef: ref, bookSlug: book.slug };
   }
 
   // ─── GET /api/lector/:bookId/ref/:kind/:id ─────────────────────────────

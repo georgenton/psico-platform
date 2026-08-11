@@ -768,6 +768,8 @@ export function LectorShell({
     token,
     bookId: book.id,
     chapterOrder: chapter.order,
+    // Stable identity from the envelope; null for legacy chapters.
+    contentUnitId: chapter.contentUnitId ?? null,
     onProgress: setProgressPct,
     read: () => ({
       lastBlockId: lastBlockIdRef.current,
@@ -1012,7 +1014,18 @@ export function LectorShell({
         `${apiBase}/lector/${encodeURIComponent(bookSlug)}/${chapter.order}/complete`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          // Complete the chapter that was OPENED. The route still carries the
+          // position, but a structural publish can move the chapter while this
+          // page is up, and completing by position would mark the wrong one.
+          body: JSON.stringify(
+            chapter.contentUnitId
+              ? { contentUnitId: chapter.contentUnitId }
+              : {},
+          ),
         },
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

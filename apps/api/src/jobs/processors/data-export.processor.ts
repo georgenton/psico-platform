@@ -174,6 +174,35 @@ export class DataExportProcessor extends WorkerHost {
               book: { select: { slug: true, title: true } },
             },
           },
+          // A native chapter has no Chapter row, and a person's reading history
+          // is theirs whether or not the chapter came from the legacy tables.
+          // Resolved through stable relationships — the unit and its edition —
+          // so a completed chapter that has since been unplaced or unpublished
+          // still exports rather than vanishing.
+          contentUnit: {
+            select: {
+              id: true,
+              unitKey: true,
+              edition: { select: { slug: true, editionKey: true } },
+              // The most recent PUBLISHED placement, and the version IT
+              // referenced. Never the newest ContentUnitVersion: that can be an
+              // unpublished draft, and a reader's export is not a place to hand
+              // out editorial work in progress.
+              //
+              // Using the last published placement rather than only the current
+              // one is what lets a completion survive its chapter being
+              // unpublished — the progress is real history and stays exportable.
+              manifestEntries: {
+                where: { revision: { status: "PUBLISHED" } },
+                orderBy: { revision: { number: "desc" } },
+                take: 1,
+                select: {
+                  order: true,
+                  unitVersion: { select: { title: true } },
+                },
+              },
+            },
+          },
         },
         orderBy: { completedAt: "asc" },
       }),
@@ -190,6 +219,23 @@ export class DataExportProcessor extends WorkerHost {
     ]);
 
     if (!user) throw new Error(`User ${userId} not found during export`);
+
+    // Book titles for the native rows, resolved once through the edition slug.
+    const nativeSlugs = [
+      ...new Set(
+        progress
+          .map((p) => p.contentUnit?.edition.slug)
+          .filter((slug): slug is string => Boolean(slug)),
+      ),
+    ];
+    const nativeBookTitles = new Map(
+      (
+        await this.prisma.book.findMany({
+          where: { slug: { in: nativeSlugs } },
+          select: { slug: true, title: true },
+        })
+      ).map((b) => [b.slug, b.title]),
+    );
 
     return {
       _meta: {
@@ -224,10 +270,26 @@ export class DataExportProcessor extends WorkerHost {
       notificationSettings: user.notificationSettings,
       privacySettings: user.privacySettings,
       progress: progress.map((p) => ({
-        chapterTitle: p.chapter.title,
-        chapterOrder: p.chapter.order,
-        bookSlug: p.chapter.book.slug,
-        bookTitle: p.chapter.book.title,
+        // Legacy and native entries share a shape so the export stays readable;
+        // each side fills it from whichever identity the row actually has.
+        chapterTitle:
+          p.chapter?.title ??
+          p.contentUnit?.manifestEntries[0]?.unitVersion.title ??
+          null,
+        // `null` when a native chapter is no longer placed in the published
+        // manifest. The completion is still real; only its position is gone.
+        chapterOrder:
+          p.chapter?.order ?? p.contentUnit?.manifestEntries[0]?.order ?? null,
+        bookSlug: p.chapter?.book.slug ?? p.contentUnit?.edition.slug ?? null,
+        // A slug is not a title. Book is still legacy-owned in this phase, so
+        // the edition's slug is the bridge to the real one; null is honest when
+        // there is no Book row rather than labelling a slug as a title.
+        bookTitle:
+          p.chapter?.book.title ??
+          (p.contentUnit
+            ? (nativeBookTitles.get(p.contentUnit.edition.slug) ?? null)
+            : null),
+        contentUnitId: p.contentUnitId,
         completedAt: p.completedAt,
         score: p.score,
       })),

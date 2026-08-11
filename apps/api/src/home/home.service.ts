@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { readerTotalChapters } from "../lector/reader-chapter-resolver";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import { EmotionalMapService } from "../emotional-map";
@@ -351,6 +352,7 @@ export class HomeService {
             book: {
               select: {
                 id: true,
+                slug: true,
                 title: true,
                 cover: true,
                 author: { select: { name: true } },
@@ -362,16 +364,42 @@ export class HomeService {
     });
     if (!latest) return null;
 
-    // Compute progress as completed-chapter share of the book.
+    // A native chapter has no Chapter row, so its book and title are resolved
+    // through the unit's edition instead. Somebody reading a chapter Content
+    // Studio created must still see it here — disappearing from "continue
+    // reading" is exactly the kind of silent hole a reader would notice and we
+    // would not.
+    const card = latest.chapter
+      ? {
+          bookId: latest.chapter.book.id,
+          bookSlug: latest.chapter.book.slug,
+          title: latest.chapter.book.title,
+          author: latest.chapter.book.author?.name ?? "—",
+          cover: this.toCoverToken(latest.chapter.book.cover),
+          chapterN: latest.chapter.order,
+          chapterTitle: latest.chapter.title,
+        }
+      : await this.nativeContinueCard(latest.contentUnitId);
+    if (!card) return null;
+
+    // Progress counts what the reader can actually navigate. For a book whose
+    // structure Content Core owns, that is the published manifest — the legacy
+    // chapter count goes stale the moment a native chapter exists.
     const [completedInBook, totalPublishedInBook] = await Promise.all([
       this.prisma.userProgress.count({
         where: {
           userId,
-          chapter: { bookId: latest.chapter.book.id, isPublished: true },
+          OR: [
+            { chapter: { bookId: card.bookId, isPublished: true } },
+            { contentUnit: { edition: { slug: card.bookSlug } } },
+          ],
         },
       }),
-      this.prisma.chapter.count({
-        where: { bookId: latest.chapter.book.id, isPublished: true },
+      readerTotalChapters(this.prisma, {
+        bookSlug: card.bookSlug,
+        legacyTotal: await this.prisma.chapter.count({
+          where: { bookId: card.bookId, isPublished: true },
+        }),
       }),
     ]);
 
@@ -381,14 +409,67 @@ export class HomeService {
         : 0;
 
     return {
-      bookId: latest.chapter.book.id,
-      title: latest.chapter.book.title,
-      author: latest.chapter.book.author?.name ?? "—",
-      cover: this.toCoverToken(latest.chapter.book.cover),
-      chapterN: latest.chapter.order,
-      chapterTitle: latest.chapter.title,
+      bookId: card.bookId,
+      title: card.title,
+      author: card.author,
+      cover: card.cover,
+      chapterN: card.chapterN,
+      chapterTitle: card.chapterTitle,
       progressPct,
       lastReadAt: latest.completedAt,
+    };
+  }
+
+  /**
+   * The continue-reading card for a chapter that exists only in Content Core.
+   *
+   * The Book row is still legacy-owned, and the edition's slug is the book's
+   * slug — so the card's cover and author come from the same place they always
+   * did, while the chapter's own title and position come from the unit.
+   */
+  private async nativeContinueCard(contentUnitId: string | null) {
+    if (!contentUnitId) return null;
+
+    const unit = await this.prisma.contentUnit.findUnique({
+      where: { id: contentUnitId },
+      select: {
+        edition: { select: { slug: true, publishedRevisionId: true } },
+      },
+    });
+    if (!unit?.edition.publishedRevisionId) return null;
+
+    // Metadata comes from the version the PUBLISHED manifest points at — never
+    // from the newest ContentUnitVersion. An editor working on a draft title
+    // has not published it, and a reader's Home is not where unpublished
+    // editorial work belongs.
+    const entry = await this.prisma.revisionUnit.findFirst({
+      where: {
+        revisionId: unit.edition.publishedRevisionId,
+        unitId: contentUnitId,
+      },
+      select: { order: true, unitVersion: { select: { title: true } } },
+    });
+    // Still real history, but not somewhere a reader can currently go. A card
+    // pointing at a chapter that is no longer published would be a dead link —
+    // and fabricating position 0 to fill the gap would be worse.
+    if (!entry) return null;
+
+    const book = await this.prisma.book.findUnique({
+      where: { slug: unit.edition.slug },
+      select: { id: true, title: true, cover: true, author: true },
+    });
+    // Pure-core BOOKS are a later block; with no Book row there is nothing
+    // truthful to put on the card.
+    if (!book) return null;
+
+    return {
+      bookId: book.id,
+      bookSlug: unit.edition.slug,
+      title: book.title,
+      author: book.author?.name ?? "—",
+      cover: this.toCoverToken(book.cover),
+      chapterN: entry.order,
+      chapterTitle: entry.unitVersion.title,
     };
   }
 
@@ -426,7 +507,13 @@ export class HomeService {
         select: { chapter: { select: { bookId: true } } },
       })
       .then((rows) =>
-        Array.from(new Set(rows.map((r) => r.chapter.bookId).filter(Boolean))),
+        Array.from(
+          new Set(
+            rows
+              .map((r) => r.chapter?.bookId)
+              .filter((id): id is string => Boolean(id)),
+          ),
+        ),
       );
 
     const books = await this.prisma.book.findMany({

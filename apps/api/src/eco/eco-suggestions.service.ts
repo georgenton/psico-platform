@@ -42,7 +42,9 @@ export class EcoSuggestionService {
     const now = new Date();
     const [reading, map, lastReflection, ecoCount] = await Promise.all([
       this.prisma.readingSession.findFirst({
-        where: { userId },
+        // Native-only chapters have no legacy Chapter to render here; this
+        // surface is legacy-shaped, so it asks only for rows that have one.
+        where: { userId, chapterId: { not: null } },
         orderBy: { lastSeenAt: "desc" },
         select: {
           progressPct: true,
@@ -79,10 +81,12 @@ export class EcoSuggestionService {
     return {
       reading: reading
         ? {
-            bookSlug: reading.chapter.book.slug,
-            bookTitle: reading.chapter.book.title,
-            chapterOrder: reading.chapter.order,
-            chapterTitle: reading.chapter.title,
+            // Non-null by the `chapterId: { not: null }` filter above, which
+            // Prisma's relation type cannot express.
+            bookSlug: reading.chapter!.book.slug,
+            bookTitle: reading.chapter!.book.title,
+            chapterOrder: reading.chapter!.order,
+            chapterTitle: reading.chapter!.title,
             progressPct: reading.progressPct,
             completedAt: reading.completedAt,
             lastActivityAt: reading.lastSeenAt,

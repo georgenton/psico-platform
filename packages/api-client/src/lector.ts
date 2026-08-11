@@ -40,10 +40,15 @@ export const lectorApi = {
   heartbeat: (payload: LectorSessionHeartbeatRequest) =>
     apiClient.patch<LectorSessionHeartbeatResponse>("/lector/session", payload),
 
-  complete: (bookId: string, chapterOrder: number) =>
+  /**
+   * `contentUnitId` is the chapter the reader actually opened. The route still
+   * carries the position, but a structural publish can move a chapter while a
+   * page is open — completing by position would mark the wrong one.
+   */
+  complete: (bookId: string, chapterOrder: number, contentUnitId?: string) =>
     apiClient.post<LectorCompleteResponse>(
       `/lector/${encodeURIComponent(bookId)}/${chapterOrder}/complete`,
-      {},
+      contentUnitId ? { contentUnitId } : {},
     ),
 
   // ─── GR-2 · chapter media ─────────────────────────────────────────────────

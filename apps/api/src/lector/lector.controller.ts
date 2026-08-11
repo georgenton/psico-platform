@@ -42,6 +42,7 @@ import { JwtAuthGuard } from "../auth";
 import type { AuthenticatedUser } from "../auth/strategies/jwt.strategy";
 import { CurrentUser } from "../shared/decorators/current-user.decorator";
 import { LectorSessionHeartbeatDto } from "./dto/heartbeat.dto";
+import { CompleteChapterDto } from "./dto/complete-chapter.dto";
 import { LectorService } from "./lector.service";
 import {
   MEDIA_INVALID_PAYLOAD,
@@ -202,7 +203,13 @@ export class LectorController {
     @CurrentUser() user: AuthenticatedUser,
     @Param("bookId") bookId: string,
     @Param("chapterOrder", ParseIntPipe) chapterOrder: number,
+    @Body() dto: CompleteChapterDto,
   ): Promise<LectorCompleteResponse> {
-    return this.lector.completeChapter(user.userId, bookId, chapterOrder);
+    return this.lector.completeChapter(
+      user.userId,
+      bookId,
+      chapterOrder,
+      dto?.contentUnitId,
+    );
   }
 }

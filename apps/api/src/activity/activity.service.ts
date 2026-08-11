@@ -44,7 +44,9 @@ export class ActivityService {
         take: PER_SOURCE_FETCH,
       }),
       this.prisma.readingSession.findMany({
-        where: { userId },
+        // Native-only chapters have no legacy Chapter to render here; this
+        // surface is legacy-shaped, so it asks only for rows that have one.
+        where: { userId, chapterId: { not: null } },
         select: {
           id: true,
           lastSeenAt: true,
@@ -97,13 +99,15 @@ export class ActivityService {
           id: `reading:${r.id}`,
           type: "reading",
           timestamp: r.lastSeenAt.toISOString(),
-          title: r.chapter.book.title,
+          // Non-null by the `chapterId: { not: null }` filter above, which
+          // Prisma's relation type cannot express.
+          title: r.chapter!.book.title,
           // The chapter by its title, not by `order`. The href below still
           // uses `order`, and must: that is what the route is keyed on. What
           // changed is only the claim — a reading sequence position is not
           // the book's own chapter number.
-          subtitle: `${r.chapter.title} · ${Math.round(r.progressPct)}%`,
-          href: `/dashboard/biblioteca/${r.chapter.book.slug}/lector/${r.chapter.order}`,
+          subtitle: `${r.chapter!.title} · ${Math.round(r.progressPct)}%`,
+          href: `/dashboard/biblioteca/${r.chapter!.book.slug}/lector/${r.chapter!.order}`,
         }),
       ),
       ...eco.map(

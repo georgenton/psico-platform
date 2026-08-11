@@ -1,4 +1,5 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
+import { completedBookCount } from "../../content-core/read/book-completion";
 import { Logger } from "@nestjs/common";
 import type { Job } from "bullmq";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -96,50 +97,44 @@ export class DailyUsageProcessor extends WorkerHost {
       where: { completedAt: { gte: day, lt: dayEnd } },
       select: {
         userId: true,
-        chapter: {
-          select: {
-            bookId: true,
-            book: { select: { totalChapters: true } },
-          },
-        },
+        chapter: { select: { book: { select: { id: true, slug: true } } } },
+        // Native completions identify their book through the edition. Skipping
+        // them would under-count a mixed book, which is the shape chapter
+        // authoring produces.
+        contentUnit: { select: { edition: { select: { slug: true } } } },
       },
     });
 
-    const candidateByUser = new Map<string, Map<string, number>>();
-    const totalChaptersByBook = new Map<string, number>();
+    // Which books each user touched today, from both identities.
+    const candidateByUser = new Map<string, Map<string, string>>();
     for (const row of progressInWindow) {
-      const userId = row.userId;
-      const bookId = row.chapter.bookId;
-      totalChaptersByBook.set(bookId, row.chapter.book.totalChapters);
-      const userBooks =
-        candidateByUser.get(userId) ?? new Map<string, number>();
-      userBooks.set(bookId, (userBooks.get(bookId) ?? 0) + 1);
-      candidateByUser.set(userId, userBooks);
+      const books =
+        candidateByUser.get(row.userId) ?? new Map<string, string>();
+      if (row.chapter) {
+        books.set(row.chapter.book.id, row.chapter.book.slug);
+      } else if (row.contentUnit) {
+        // Book stays legacy-owned in this phase; the edition slug bridges back.
+        const book = await this.prisma.book.findUnique({
+          where: { slug: row.contentUnit.edition.slug },
+          select: { id: true, slug: true },
+        });
+        if (book) books.set(book.id, book.slug);
+      }
+      candidateByUser.set(row.userId, books);
     }
 
-    // For each (user, book) candidate, look up all-time chapter completion
-    // counts. We batch the query per user so the WHERE IN clause stays small.
+    // Same definition of "completed" as the billing-period metric — one helper,
+    // so the two cannot drift into disagreeing.
     const booksCompletedByUser = new Map<string, number>();
     for (const [userId, books] of candidateByUser) {
       if (books.size === 0) continue;
-      const allTime = await this.prisma.userProgress.findMany({
-        where: {
+      booksCompletedByUser.set(
+        userId,
+        await completedBookCount(this.prisma, {
           userId,
-          chapter: { bookId: { in: [...books.keys()] } },
-        },
-        select: { chapter: { select: { bookId: true } } },
-      });
-      const allTimeByBook = new Map<string, number>();
-      for (const r of allTime) {
-        const bookId = r.chapter.bookId;
-        allTimeByBook.set(bookId, (allTimeByBook.get(bookId) ?? 0) + 1);
-      }
-      let completed = 0;
-      for (const [bookId, count] of allTimeByBook) {
-        const total = totalChaptersByBook.get(bookId) ?? 0;
-        if (total > 0 && count >= total) completed += 1;
-      }
-      booksCompletedByUser.set(userId, completed);
+          books: [...books].map(([id, slug]) => ({ id, slug })),
+        }),
+      );
     }
 
     // ── Aggregate the union of "users with activity today" ──────────────────

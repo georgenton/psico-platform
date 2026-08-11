@@ -30,7 +30,10 @@ import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ContentAccessService } from "../content-core/access/content-access.service";
 import { resolveAnchorTarget } from "./anchor-resolver";
-import { withResolvedImageUrls } from "../shared/content-asset";
+import {
+  resolveStoredCoverUrl,
+  withResolvedImageUrls,
+} from "../shared/content-asset";
 import type { LectorSessionHeartbeatDto } from "./dto/heartbeat.dto";
 
 /**
@@ -700,7 +703,20 @@ export class LectorService {
       title: chapter.title,
       subtitle: book.title,
       artist: book.author?.name ?? "Psico Platform",
-      artworkUrl: book.coverArtUrl ?? book.cover ?? "",
+      // The cover is a private-bucket object, so it is resolved like any other
+      // stored image. Falling back to the gradient token keeps the existing
+      // contract: clients already treat a non-URL value as a palette name.
+      artworkUrl:
+        (book.coverArtUrl
+          ? resolveStoredCoverUrl(
+              book.coverArtUrl,
+              this.config.get("R2_PUBLIC_URL", { infer: true }) as
+                | string
+                | undefined,
+            )
+          : null) ??
+        book.cover ??
+        "",
     };
 
     return {

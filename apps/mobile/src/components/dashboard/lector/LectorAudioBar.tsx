@@ -22,17 +22,26 @@ import type {
 } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 import { coverColor } from "../cover-colors";
+import { assetUrl } from "@/lib/asset-url";
 
 /**
  * The metadata.artworkUrl field can hold either:
- *   - a real PNG/JPG URL (http(s)://…) → render <Image>
+ *   - a reference to a real picture → render <Image>
  *   - a gradient token ("warm" | "cool" | "mixed") → solid color box
- * The distinction matters because RN <Image> with a non-URL string
- * will throw; the gradient case falls back to the same color helper
- * used by BookGridCard so the audio bar matches the book covers.
+ *
+ * A cover now arrives as an API-relative asset path, because covers live in a
+ * private bucket and are fetched through the asset route. So a leading slash is
+ * a picture too — testing only for "http" would quietly show a gradient for
+ * every book that actually has a cover.
+ *
+ * The distinction matters because RN <Image> with a palette name is not a URI;
+ * the gradient case falls back to the same colour helper BookGridCard uses, so
+ * the audio bar matches the book covers.
  */
-function isHttpUrl(s: string): boolean {
-  return s.startsWith("http://") || s.startsWith("https://");
+function isArtworkRef(s: string): boolean {
+  return (
+    s.startsWith("http://") || s.startsWith("https://") || s.startsWith("/")
+  );
 }
 
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5] as const;
@@ -319,9 +328,9 @@ export function LectorAudioBar({
             <View>
               {metadata ? (
                 <View style={styles.metaRow}>
-                  {isHttpUrl(metadata.artworkUrl) ? (
+                  {isArtworkRef(metadata.artworkUrl) ? (
                     <Image
-                      source={{ uri: metadata.artworkUrl }}
+                      source={{ uri: assetUrl(metadata.artworkUrl) }}
                       style={styles.artwork}
                       accessibilityLabel={`Portada de ${metadata.subtitle}`}
                     />

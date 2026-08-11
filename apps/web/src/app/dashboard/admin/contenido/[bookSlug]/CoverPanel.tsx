@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { uploadCoverAction } from "../actions";
+import { assetUrl } from "@/lib/asset-url";
 
 /**
  * The catalog cover.
@@ -67,7 +68,7 @@ export function CoverPanel({
           // Decorative here: the book's title is right beside it, so announcing
           // the image again would only repeat what a reader already has.
           <img
-            src={coverArtUrl}
+            src={assetUrl(coverArtUrl)}
             alt=""
             className="h-[132px] w-[92px] rounded-lg object-cover"
             style={{ background: "var(--color-warm-100)" }}

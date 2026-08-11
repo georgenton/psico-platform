@@ -53,14 +53,28 @@ export const CONTENT_ASSET_SIGNED_TTL_SEC = 5 * 60;
 /**
  * The only keys this route will ever sign.
  *
- * Full-shape matches of what `imageObjectKey` produces under the two prefixes
- * `ContentStudioAssetsService` writes. The filename is the 16-hex name the
- * server minted; an uploader's filename never reaches a key, so nothing here
- * has to tolerate arbitrary text.
+ * Full-shape matches of what our own uploaders mint. The filename is always a
+ * name the server chose; an uploader's filename never reaches a key, so nothing
+ * here has to tolerate arbitrary text.
+ *
+ * Three shapes, because three uploaders write public artwork:
+ *
+ *   catalog-books/  Content Studio cover        (`uploadCover`)
+ *   content/        Content Studio illustration (`uploadChapterImage`)
+ *   autor-books/    an author's own cover       (`AuthorUploadsService`)
+ *
+ * The third is not optional. Approving an author's book COPIES
+ * `AuthorBook.coverArtUrl` onto `Book.coverArtUrl`, so a catalog cover can be a
+ * key under that prefix — and leaving it out would make every approved author
+ * book lose its cover the moment reads started resolving through here.
+ *
+ * The book id segment is bounded and contains no separator or dot, so it cannot
+ * climb out of its directory whatever the id generator produces.
  */
 const ALLOWED_ASSET_KEY = [
   /^catalog-books\/[a-z0-9][a-z0-9-]*\/cover\/[0-9a-f]{16}\.(png|jpg|webp)$/,
   /^content\/[a-z0-9][a-z0-9-]*\/chapter-\d+\/images\/[0-9a-f]{16}\.(png|jpg|webp)$/,
+  /^autor-books\/[A-Za-z0-9_-]{8,64}\/cover-[0-9a-f]{16}\.(png|jpg|webp)$/,
 ];
 
 /** Is this a key the asset route may sign? */
@@ -71,6 +85,27 @@ export function isAllowedAssetKey(key: string): boolean {
   if (!key || key.includes("..") || key.includes("\\")) return false;
   if (key.startsWith("/")) return false;
   return ALLOWED_ASSET_KEY.some((re) => re.test(key));
+}
+
+/**
+ * Percent-decode without ever throwing.
+ *
+ * `decodeURIComponent` throws `URIError` on malformed input — a lone `%`, a
+ * truncated `%2`, an invalid `%ZZ`. These values arrive from two places we do
+ * not control: a stored row written long ago, and a URL segment a caller typed.
+ * An exception in either turns reading a chapter into a 500, so a value we
+ * cannot decode is simply a value we will not serve.
+ *
+ * Refusing the raw string on failure rather than falling back to it matters:
+ * the fallback would hand undecoded `%2e%2e` to the shape check, which is how
+ * encoded traversal gets past a validator.
+ */
+function safeDecode(value: string): string | null {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
 }
 
 /** The stable, non-expiring path a client can render or store. */
@@ -104,8 +139,8 @@ export function contentAssetKeyFrom(
   // (2) our own route
   const routePrefix = `${CONTENT_ASSET_ROUTE}/`;
   if (value.startsWith(routePrefix)) {
-    const key = decodeURIComponent(value.slice(routePrefix.length));
-    return isAllowedAssetKey(key) ? key : null;
+    const key = safeDecode(value.slice(routePrefix.length));
+    return key && isAllowedAssetKey(key) ? key : null;
   }
 
   // (3) an absolute URL — ours, or nobody's
@@ -125,10 +160,10 @@ export function contentAssetKeyFrom(
     const path = url.pathname;
     if (basePath && !path.startsWith(`${basePath}/`)) return null;
 
-    const key = decodeURIComponent(
+    const key = safeDecode(
       basePath ? path.slice(basePath.length + 1) : path.replace(/^\/+/, ""),
     );
-    return isAllowedAssetKey(key) ? key : null;
+    return key && isAllowedAssetKey(key) ? key : null;
   }
 
   // (1) a bare key
@@ -149,6 +184,32 @@ export function resolveStoredImageUrl(
 ): string | null {
   const key = contentAssetKeyFrom(stored, r2PublicBase);
   return key ? contentAssetPath(key) : null;
+}
+
+/**
+ * What a read surface should hand a client for a stored COVER.
+ *
+ * Deliberately more forgiving than the block-image rule, because covers have a
+ * looser history. `PATCH /autor/libros/:id` accepts any string for
+ * `coverArtUrl`, so a book can legitimately carry a cover hosted somewhere we
+ * do not control — and that cover has always loaded, because it was directly
+ * fetchable all along.
+ *
+ * So: resolve what is OURS to resolve, and leave anything else exactly as it
+ * was. Blanking a working third-party cover to enforce a rule about our own
+ * bucket would be breaking something to fix something adjacent.
+ *
+ * A bare key we would not sign still returns null — that is not a URL anybody
+ * could have been loading, so there is nothing to preserve.
+ */
+export function resolveStoredCoverUrl(
+  stored: string,
+  r2PublicBase: string | undefined,
+): string | null {
+  const ours = resolveStoredImageUrl(stored, r2PublicBase);
+  if (ours) return ours;
+  // Not ours, but already loadable: leave it alone.
+  return /^https?:\/\//i.test(stored.trim()) ? stored.trim() : null;
 }
 
 /** The shape every block surface shares, whatever else it carries. */

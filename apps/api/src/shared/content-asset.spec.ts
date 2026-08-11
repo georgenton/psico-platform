@@ -3,6 +3,7 @@ import {
   contentAssetKeyFrom,
   contentAssetPath,
   isAllowedAssetKey,
+  resolveStoredCoverUrl,
   resolveStoredImageUrl,
   withResolvedImageUrls,
 } from "./content-asset";
@@ -190,5 +191,141 @@ describe("resolveStoredImageUrl", () => {
       `/api/content-assets/${COVER}`,
     );
     expect(resolveStoredImageUrl("audio/libro/cap-1.m4a", R2_BASE)).toBeNull();
+  });
+});
+
+/**
+ * Malformed percent-encoding must fail closed.
+ *
+ * These values arrive from two places nobody validates for us: a row written
+ * long ago, and a URL segment a caller typed. `decodeURIComponent` throws on
+ * every one of them, and an exception here turns reading a chapter into a 500.
+ */
+describe("input that cannot be decoded", () => {
+  const MALFORMED = [
+    "%",
+    "%2",
+    "%ZZ",
+    "%E0%A4%A",
+    "content/libro/chapter-1/images/%ZZ.png",
+    "/api/content-assets/%ZZ",
+    "/api/content-assets/%",
+    `${R2_BASE}/%ZZ`,
+  ];
+
+  it.each(MALFORMED)("returns null instead of throwing · %s", (value) => {
+    expect(() => contentAssetKeyFrom(value, R2_BASE)).not.toThrow();
+    expect(contentAssetKeyFrom(value, R2_BASE)).toBeNull();
+  });
+
+  it("never throws from the read-surface rewriter either", () => {
+    const blocks = [{ kind: "IMAGE", meta: { imageUrl: "%ZZ", alt: "a" } }];
+    expect(() => withResolvedImageUrls(blocks, R2_BASE)).not.toThrow();
+    expect(
+      (
+        withResolvedImageUrls(blocks, R2_BASE)[0]!.meta as Record<
+          string,
+          unknown
+        >
+      ).imageUrl,
+    ).toBeUndefined();
+  });
+
+  it("refuses undecodable input rather than falling back to the raw string", () => {
+    // Falling back would hand `%2e%2e` to the shape check undecoded, which is
+    // exactly how encoded traversal gets past a validator.
+    expect(
+      contentAssetKeyFrom(
+        "/api/content-assets/%2e%2e%2faudio%2fx.m4a",
+        R2_BASE,
+      ),
+    ).toBeNull();
+    expect(
+      contentAssetKeyFrom("/api/content-assets/%2E%2E/audio/x.m4a", R2_BASE),
+    ).toBeNull();
+  });
+});
+
+/**
+ * The cover branch, and the third uploader nobody would think to look for.
+ *
+ * Approving an author's book copies `AuthorBook.coverArtUrl` onto
+ * `Book.coverArtUrl`, so a catalog cover can be a key an author's uploader
+ * minted. Leaving that shape out would make every approved author book lose its
+ * cover the moment reads resolved through here.
+ */
+describe("cover keys", () => {
+  const AUTHOR_COVER =
+    "autor-books/clxyz123abc456def789/cover-0123456789abcdef.jpg";
+
+  it("accepts a Content Studio cover", () => {
+    expect(isAllowedAssetKey(COVER)).toBe(true);
+    expect(resolveStoredImageUrl(COVER, R2_BASE)).toBe(
+      `/api/content-assets/${COVER}`,
+    );
+  });
+
+  it("accepts an author cover, which approval copies onto the catalog book", () => {
+    expect(isAllowedAssetKey(AUTHOR_COVER)).toBe(true);
+  });
+
+  it("rescues an author cover still stored as an absolute R2 URL", () => {
+    // The author uploader has not been converted, so this is what production
+    // holds today — and it is unreadable by a browser for the same reason.
+    expect(contentAssetKeyFrom(`${R2_BASE}/${AUTHOR_COVER}`, R2_BASE)).toBe(
+      AUTHOR_COVER,
+    );
+  });
+
+  it("does not let the author prefix widen into the rest of the bucket", () => {
+    expect(isAllowedAssetKey("autor-books/../audio/cap-1.m4a")).toBe(false);
+    expect(isAllowedAssetKey("autor-books/x/cover-0123456789abcdef.jpg")).toBe(
+      false, // book id too short to be one of ours
+    );
+    expect(
+      isAllowedAssetKey("autor-books/clxyz123abc456def789/master.m4a"),
+    ).toBe(false);
+    expect(
+      isAllowedAssetKey("autor-books/clxyz123abc456def789/cover-nothex.jpg"),
+    ).toBe(false);
+  });
+});
+
+/**
+ * Covers have a looser history than block images.
+ *
+ * `PATCH /autor/libros/:id` accepts any string for `coverArtUrl`, so a book can
+ * legitimately carry a cover hosted somewhere we do not control — and it has
+ * always loaded, because it was directly fetchable. Enforcing the bucket rule on
+ * it would break a working cover to fix an unrelated one.
+ */
+describe("resolveStoredCoverUrl", () => {
+  it("resolves our own storage like any other image", () => {
+    expect(resolveStoredCoverUrl(COVER, R2_BASE)).toBe(
+      `/api/content-assets/${COVER}`,
+    );
+    expect(resolveStoredCoverUrl(`${R2_BASE}/${COVER}`, R2_BASE)).toBe(
+      `/api/content-assets/${COVER}`,
+    );
+  });
+
+  it("leaves a third-party cover exactly as it was", () => {
+    expect(
+      resolveStoredCoverUrl("https://cdn.example.com/cover.png", R2_BASE),
+    ).toBe("https://cdn.example.com/cover.png");
+  });
+
+  it("still drops a bare key we would not sign", () => {
+    // Never a URL anybody could have loaded, so there is nothing to preserve.
+    expect(resolveStoredCoverUrl("audio/libro/cap-1.m4a", R2_BASE)).toBeNull();
+    expect(resolveStoredCoverUrl("%ZZ", R2_BASE)).toBeNull();
+  });
+
+  it("never signs a protected key just because it arrived as our URL", () => {
+    // Falls through to the passthrough branch as an opaque URL rather than
+    // becoming an asset path: it is not resolved, and it is not signed.
+    const value = `${R2_BASE}/media/libro/podcast.m4a`;
+    expect(resolveStoredCoverUrl(value, R2_BASE)).toBe(value);
+    expect(contentAssetKeyFrom(value, R2_BASE)).toBeNull();
   });
 });

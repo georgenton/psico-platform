@@ -205,6 +205,41 @@ suite("R2 · illustrating a chapter with no legacy row", () => {
     await storage.deleteObject(key);
   }, 120_000);
 
+  it("serves a COVER to an unauthenticated GET", async () => {
+    // The grammar has more than one branch, and the illustration branch passing
+    // says nothing about the cover branch. A cover that 404s in the catalog
+    // would be the same bug in a different place.
+    const result = await assets.uploadCover("libro-r2", {
+      mimetype: "image/jpeg",
+      size: JPEG.length,
+      buffer: JPEG,
+    } as never);
+
+    expect(result.coverArtUrl).toMatch(
+      /^\/api\/content-assets\/catalog-books\/libro-r2\/cover\/[0-9a-f]{16}\.jpg$/,
+    );
+
+    const key = result.coverArtUrl.replace("/api/content-assets/", "");
+    expect(isAllowedAssetKey(key)).toBe(true);
+
+    const signed = await storage.getSignedUrl(key, 300);
+    const res = await fetch(signed, { headers: {} });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+    const body = Buffer.from(await res.arrayBuffer());
+    expect(body[0]).toBe(0xff);
+    expect(body[1]).toBe(0xd8);
+
+    // And the catalog stored the same stable identity, not a bucket URL.
+    const book = await prisma.book.findUniqueOrThrow({
+      where: { slug: "libro-r2" },
+    });
+    expect(book.coverArtUrl).toBe(result.coverArtUrl);
+
+    await storage.deleteObject(key);
+  }, 120_000);
+
   it("creates no legacy row to hold an image", async () => {
     const book = await prisma.book.findUniqueOrThrow({
       where: { slug: "libro-r2" },

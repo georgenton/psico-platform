@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import type { BookListItem } from "@psico/types";
 import { coverGradient } from "../cover-gradients";
 import { relativeTime } from "@/lib/relative-time";
+import { assetUrl } from "@/lib/asset-url";
 
 /**
  * BookCard — grid card. Mirrors `web-card` from
@@ -64,7 +65,7 @@ export function BookCard({
         className="relative block h-44"
         style={{
           background: book.coverArtUrl
-            ? `url(${book.coverArtUrl}) center/cover`
+            ? `url(${assetUrl(book.coverArtUrl)}) center/cover`
             : coverGradient(book.cover),
         }}
         aria-label={`Ver detalle de ${book.title}`}

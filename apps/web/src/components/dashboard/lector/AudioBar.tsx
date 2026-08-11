@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LectorAudioResponse } from "@psico/types";
+import { assetUrl } from "@/lib/asset-url";
 
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5] as const;
 type SpeedRate = (typeof SPEED_OPTIONS)[number];
@@ -44,6 +45,11 @@ function fmtCountdown(ms: number): string {
  * search on the sorted transcript so it's O(log n) per `timeupdate` event
  * (~3 events/s).
  */
+/** A reference to a picture, as opposed to a gradient palette token. */
+function isArtworkRef(value: string): boolean {
+  return value.startsWith("http") || value.startsWith("/");
+}
+
 export function AudioBar({
   apiBase,
   token,
@@ -399,11 +405,14 @@ export function AudioBar({
             ) : data ? (
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-3">
-                  {/* Artwork: real PNG when coverArtUrl set, gradient
-                      fallback otherwise (same look as the book covers). */}
-                  {data.metadata.artworkUrl.startsWith("http") ? (
+                  {/* Artwork: a real picture when the book has a cover,
+                      gradient fallback otherwise (same look as the book
+                      covers). A cover now arrives as an API-relative asset
+                      path, so "starts with http" is no longer the whole test —
+                      a leading slash is a reference too, not a palette name. */}
+                  {isArtworkRef(data.metadata.artworkUrl) ? (
                     <img
-                      src={data.metadata.artworkUrl}
+                      src={assetUrl(data.metadata.artworkUrl)}
                       alt={`Portada de ${data.metadata.subtitle}`}
                       className="h-12 w-12 rounded-md object-cover"
                     />

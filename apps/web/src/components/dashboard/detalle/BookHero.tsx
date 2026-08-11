@@ -8,6 +8,7 @@ import type {
   BookUserProgressSummary,
 } from "@psico/types";
 import { coverGradient } from "../cover-gradients";
+import { assetUrl } from "@/lib/asset-url";
 
 /**
  * BookHero — top section of /dashboard/biblioteca/[idOrSlug].
@@ -89,7 +90,7 @@ export function BookHero({
           className="flex h-[340px] w-[240px] items-center justify-center rounded-2xl shadow-xl"
           style={{
             background: book.coverArtUrl
-              ? `url(${book.coverArtUrl}) center/cover`
+              ? `url(${assetUrl(book.coverArtUrl)}) center/cover`
               : coverGradient(book.cover),
           }}
           aria-hidden

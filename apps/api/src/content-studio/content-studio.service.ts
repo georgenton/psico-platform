@@ -26,6 +26,7 @@ import {
 } from "./native-authoring";
 import {
   contentAssetKeyFrom,
+  resolveStoredCoverUrl,
   withResolvedImageUrls,
 } from "../shared/content-asset";
 import type { Env } from "../config";
@@ -438,7 +439,17 @@ export class ContentStudioService {
         title: book.title,
         subtitle: book.subtitle ?? null,
         authorName: book.author?.name ?? null,
-        coverArtUrl: book.coverArtUrl ?? null,
+        // Resolved like every other stored image: the cover lives in the same
+        // private bucket, so the raw value is an identity rather than something
+        // the editor's browser can load.
+        coverArtUrl: book.coverArtUrl
+          ? resolveStoredCoverUrl(
+              book.coverArtUrl,
+              this.config.get("R2_PUBLIC_URL", { infer: true }) as
+                | string
+                | undefined,
+            )
+          : null,
       },
       publishedRevisionNumber: described.publishedRevisionNumber,
       draftRevisionId: described.draftRevisionId,

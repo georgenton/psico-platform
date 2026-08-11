@@ -10,6 +10,7 @@ import {
   saveUnitDraft,
 } from "../content-core/content-draft";
 import { ContentStudioAssetsService } from "./content-studio-assets.service";
+import { isAllowedAssetKey } from "../shared/content-asset";
 import { StorageService } from "../storage";
 
 /**
@@ -35,6 +36,15 @@ const DB = "r2_image_smoke_db";
 const hasDb = Boolean(process.env.TEST_DATABASE_URL);
 const optedIn = process.env.CONTENT_STUDIO_R2_SMOKE === "1";
 const suite = hasDb && optedIn ? describe : describe.skip;
+
+// A 1×1 JPEG. Smallest thing that is genuinely a JPEG — the format the
+// production canary actually uploaded.
+const JPEG = Buffer.from(
+  "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a" +
+    "HBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAA" +
+    "AAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+  "base64",
+);
 
 // A 1×1 PNG. The smallest thing that is genuinely a PNG.
 const PNG = Buffer.from(
@@ -115,27 +125,127 @@ suite("R2 · illustrating a chapter with no legacy row", () => {
     await admin.end();
   });
 
-  it("stores the bytes and scopes the key to that chapter", async () => {
+  /**
+   * The test the old smoke should have been.
+   *
+   * It proved a PUT succeeded and stopped there — which is exactly the gap the
+   * production canary fell into: bytes landed, and the browser could not read
+   * them. Nothing short of an unauthenticated GET that returns image bytes
+   * proves this feature works.
+   */
+  async function uploadAndFetch(mimetype: string, bytes: Buffer, ext: string) {
     const result = await assets.uploadChapterImage("libro-r2", 2, {
-      mimetype: "image/png",
-      size: PNG.length,
-      buffer: PNG,
+      mimetype,
+      size: bytes.length,
+      buffer: bytes,
     } as never);
 
+    // What is persisted is a stable path on our own API, not a bucket URL.
     expect(result.imageUrl).toMatch(
-      /\/content\/libro-r2\/chapter-2\/images\/[0-9a-f]{16}\.png$/,
+      new RegExp(
+        `^/api/content-assets/content/libro-r2/chapter-2/images/[0-9a-f]{16}\\.${ext}$`,
+      ),
     );
-    // No legacy row was needed, and none was created.
+
+    const key = result.imageUrl.replace("/api/content-assets/", "");
+    // The route's own decision, exercised rather than assumed.
+    expect(isAllowedAssetKey(key)).toBe(true);
+
+    // What the route would redirect to. Fetched with NO credentials and no
+    // Authorization header — a browser following a 302 sends neither.
+    const signed = await storage.getSignedUrl(key, 300);
+    const res = await fetch(signed, { headers: {} });
+
+    return { key, res };
+  }
+
+  it("serves a PNG to an unauthenticated GET", async () => {
+    const { key, res } = await uploadAndFetch("image/png", PNG, "png");
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/png");
+    const body = Buffer.from(await res.arrayBuffer());
+    expect(body.length).toBe(PNG.length);
+    // Really the bytes we uploaded, not an XML error document.
+    expect(body.subarray(0, 8)).toEqual(PNG.subarray(0, 8));
+
+    await storage.deleteObject(key);
+  }, 120_000);
+
+  it("serves a JPEG to an unauthenticated GET", async () => {
+    // The canary uploaded a JPG, so a PNG-only smoke would have missed the one
+    // format a real editor actually used.
+    const { key, res } = await uploadAndFetch("image/jpeg", JPEG, "jpg");
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+    const body = Buffer.from(await res.arrayBuffer());
+    expect(body.length).toBe(JPEG.length);
+    // SOI marker: this is a JPEG, not an error page with a 200.
+    expect(body[0]).toBe(0xff);
+    expect(body[1]).toBe(0xd8);
+
+    await storage.deleteObject(key);
+  }, 120_000);
+
+  it("proves the raw bucket URL is NOT publicly readable", async () => {
+    // The other half of the contract. If this ever starts returning 200 the
+    // bucket has been made public and protected media is exposed.
+    const { key } = await uploadAndFetch("image/png", PNG, "png");
+    // Built from the account and bucket rather than `R2_PUBLIC_URL`, which in a
+    // dev environment is a stub that resolves nowhere — and a DNS failure would
+    // "prove" the bucket is private for the wrong reason.
+    const origin = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+
+    const raw = await fetch(`${origin}/${process.env.R2_BUCKET_NAME}/${key}`, {
+      headers: {},
+    });
+    expect(raw.status).not.toBe(200);
+
+    await storage.deleteObject(key);
+  }, 120_000);
+
+  it("serves a COVER to an unauthenticated GET", async () => {
+    // The grammar has more than one branch, and the illustration branch passing
+    // says nothing about the cover branch. A cover that 404s in the catalog
+    // would be the same bug in a different place.
+    const result = await assets.uploadCover("libro-r2", {
+      mimetype: "image/jpeg",
+      size: JPEG.length,
+      buffer: JPEG,
+    } as never);
+
+    expect(result.coverArtUrl).toMatch(
+      /^\/api\/content-assets\/catalog-books\/libro-r2\/cover\/[0-9a-f]{16}\.jpg$/,
+    );
+
+    const key = result.coverArtUrl.replace("/api/content-assets/", "");
+    expect(isAllowedAssetKey(key)).toBe(true);
+
+    const signed = await storage.getSignedUrl(key, 300);
+    const res = await fetch(signed, { headers: {} });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+    const body = Buffer.from(await res.arrayBuffer());
+    expect(body[0]).toBe(0xff);
+    expect(body[1]).toBe(0xd8);
+
+    // And the catalog stored the same stable identity, not a bucket URL.
+    const book = await prisma.book.findUniqueOrThrow({
+      where: { slug: "libro-r2" },
+    });
+    expect(book.coverArtUrl).toBe(result.coverArtUrl);
+
+    await storage.deleteObject(key);
+  }, 120_000);
+
+  it("creates no legacy row to hold an image", async () => {
     const book = await prisma.book.findUniqueOrThrow({
       where: { slug: "libro-r2" },
     });
     expect(await prisma.chapter.count({ where: { bookId: book.id } })).toBe(1);
-
-    // Put back what it took. A smoke that leaves objects behind turns into
-    // litter in somebody's bucket, one run at a time.
-    const key = new URL(result.imageUrl).pathname.replace(/^\//, "");
-    await storage.deleteObject(key);
-  }, 120_000);
+  });
 });
 
 /** Reads the same env the app does, without booting Nest. */

@@ -79,7 +79,10 @@ suite("Content Core · CC-6E access parity (real PostgreSQL)", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     access = new ContentAccessService(prisma as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    read = new ContentReadService(prisma as any);
+    read = new ContentReadService(
+      prisma as any,
+      { get: () => undefined } as any,
+    );
 
     // A PRO book (2 chapters) + a FREE book (2 chapters), each backfilled to
     // Content Core so unitKeys/blockKeys exist for the read + write paths.

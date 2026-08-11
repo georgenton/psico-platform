@@ -33,6 +33,10 @@ import type { UpdateBookDto } from "./dto/update-book.dto";
 import type { ListBooksQueryDto } from "./dto/list-books-query.dto";
 import type { ListReviewsQueryDto } from "./dto/list-reviews-query.dto";
 import type { CreateBookReviewDto } from "./dto/create-review.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ConfigService } from "@nestjs/config";
+import type { Env } from "../config";
+import { resolveStoredCoverUrl } from "../shared/content-asset";
 
 // ─── Plan → tier mapping ─────────────────────────────────────────────────────
 //
@@ -59,7 +63,26 @@ const DETAIL_REVIEWS_PREVIEW = 5;
 
 @Injectable()
 export class BooksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService<Env, true>,
+  ) {}
+
+  /**
+   * A stored cover, turned into something a client can fetch.
+   *
+   * Covers live in the same private bucket as chapter illustrations, so the
+   * stored value is an identity rather than a loadable URL. Null when it is not
+   * ours to serve — every consumer already falls back to the gradient token, so
+   * a missing cover degrades instead of breaking.
+   */
+  private coverUrl(stored: string | null): string | null {
+    if (!stored) return null;
+    const base = this.config.get("R2_PUBLIC_URL", { infer: true }) as
+      | string
+      | undefined;
+    return resolveStoredCoverUrl(stored, base);
+  }
 
   // ─── List + filters ────────────────────────────────────────────────────────
 
@@ -300,7 +323,7 @@ export class BooksService {
         title: book.title,
         subtitle: book.subtitle,
         cover: this.toCoverToken(book.cover),
-        coverArtUrl: book.coverArtUrl,
+        coverArtUrl: this.coverUrl(book.coverArtUrl),
         summary: book.summary,
         description: book.description,
         chapters: book.totalChapters,
@@ -658,7 +681,7 @@ export class BooksService {
       authorId: row.authorId,
       authorName: author?.name ?? null,
       cover: this.toCoverToken(row.cover),
-      coverArtUrl: row.coverArtUrl,
+      coverArtUrl: this.coverUrl(row.coverArtUrl),
       categoryId: row.categoryId,
       categorySlug: category?.slug ?? null,
       chapters: row.totalChapters,

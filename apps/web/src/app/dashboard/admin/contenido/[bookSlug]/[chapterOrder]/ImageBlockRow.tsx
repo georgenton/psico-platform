@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { assetUrl } from "@/lib/asset-url";
 
 /**
  * One illustration, as the editor sees it.
@@ -37,6 +38,7 @@ export function ImageBlockRow({
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [replacing, setReplacing] = useState(false);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
 
   const imageUrl = str(meta.imageUrl);
   const alt = str(meta.alt);
@@ -47,22 +49,55 @@ export function ImageBlockRow({
     setReplacing(true);
     const url = await onUpload(file);
     setReplacing(false);
-    if (url) onMetaChange({ ...meta, imageUrl: url });
+    if (url) {
+      // A fresh upload deserves a fresh verdict; the previous failure was about
+      // a different file.
+      setThumbnailFailed(false);
+      onMetaChange({ ...meta, imageUrl: url });
+    }
     if (inputRef.current) inputRef.current.value = "";
   }
 
   return (
     <div className="flex flex-wrap gap-4">
-      {imageUrl && (
-        // Decorative in the EDITOR: the alt field right beside it carries the
-        // real description, and announcing a draft twice helps nobody.
-        <img
-          src={imageUrl}
-          alt=""
-          className="h-[110px] w-[150px] rounded-lg object-cover"
-          style={{ background: "var(--color-warm-100)" }}
-        />
-      )}
+      {imageUrl &&
+        (thumbnailFailed ? (
+          // An upload that stored bytes but cannot be displayed is exactly the
+          // bug this row used to hide: a coloured rectangle looked like an image
+          // that had simply not decoded, so an editor kept working and published
+          // a chapter whose figure nobody could see. Say what happened.
+          <div
+            role="status"
+            className="flex h-[110px] w-[150px] flex-col items-center justify-center rounded-lg px-2 text-center"
+            style={{
+              background: "var(--color-warm-100)",
+              border: "1px dashed var(--color-rose-300, #fda4af)",
+            }}
+          >
+            <span
+              className="text-[11.5px] font-semibold"
+              style={{ color: "var(--color-rose-700, #be123c)" }}
+            >
+              No pudimos mostrar esta imagen
+            </span>
+            <span
+              className="mt-1 text-[10.5px] leading-tight"
+              style={{ color: "var(--color-warm-600)" }}
+            >
+              Vuelve a subirla o avisa al equipo.
+            </span>
+          </div>
+        ) : (
+          // Decorative in the EDITOR: the alt field right beside it carries the
+          // real description, and announcing a draft twice helps nobody.
+          <img
+            src={assetUrl(imageUrl)}
+            alt=""
+            onError={() => setThumbnailFailed(true)}
+            className="h-[110px] w-[150px] rounded-lg object-cover"
+            style={{ background: "var(--color-warm-100)" }}
+          />
+        ))}
 
       <div className="min-w-[240px] flex-1 space-y-2">
         <label className="block">

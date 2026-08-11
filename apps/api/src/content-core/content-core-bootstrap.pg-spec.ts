@@ -351,7 +351,11 @@ suite("Content Core · new-book bootstrap (real PostgreSQL)", () => {
   it("13 · the book is visible in the library with its author and category", async () => {
     // readContentUnit proves the reader can resolve the text; this proves the
     // catalog surface the user actually lands on works too.
-    const books = new BooksService(prisma as unknown as PrismaService);
+    const books = new BooksService(
+      prisma as unknown as PrismaService,
+      // No public base: this suite is about catalog structure, not delivery.
+      { get: () => undefined } as never,
+    );
 
     const list = await books.list(null, {} as ListBooksQueryDto);
     const row = list.books.find((b) => b.slug === SLUG);

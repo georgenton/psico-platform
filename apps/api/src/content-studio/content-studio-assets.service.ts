@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import {
@@ -7,6 +12,7 @@ import {
   type UploadedImageFile,
 } from "../shared/image-upload";
 import { resolveEditorialChapter } from "./native-authoring";
+import { contentAssetPath, isAllowedAssetKey } from "../shared/content-asset";
 
 /**
  * Content Studio — uploading image bytes.
@@ -36,6 +42,30 @@ export class ContentStudioAssetsService {
     private readonly storage: StorageService,
   ) {}
 
+  /**
+   * Refuse to store bytes under a key we could never serve.
+   *
+   * The asset route signs only keys matching the shapes our uploaders mint, and
+   * the book slug is the one part of a key that comes from data rather than from
+   * this code. Every slug the platform generates satisfies the grammar — the
+   * generator is a kebab-case function — but "every slug today" is not a
+   * guarantee about every slug ever.
+   *
+   * Without this, an out-of-grammar slug would produce an upload that succeeds
+   * and an image that can never load: exactly the failure this whole change
+   * exists to remove, reintroduced one row at a time. Better to refuse at the
+   * only moment somebody is present to be told.
+   */
+  private assertServable(key: string): void {
+    if (isAllowedAssetKey(key)) return;
+    this.logger.error(`refusing to store an unservable asset key: ${key}`);
+    throw new BadRequestException({
+      code: "ASSET_KEY_NOT_SERVABLE",
+      message:
+        "No podemos almacenar una imagen para este libro. Avisa al equipo.",
+    });
+  }
+
   /** Replace the catalog cover. Immediate — no draft, no revision. */
   async uploadCover(bookSlug: string, file: UploadedImageFile | undefined) {
     assertUploadableImage(file);
@@ -50,11 +80,13 @@ export class ContentStudioAssetsService {
       `catalog-books/${book.slug}/cover`,
       file.mimetype,
     );
-    const coverArtUrl = await this.storage.uploadFile(
-      file.buffer,
-      key,
-      file.mimetype,
-    );
+    this.assertServable(key);
+    // `putObject`, not `uploadFile`: the bucket is private, so the URL
+    // `uploadFile` returns points at an endpoint no browser can read. What we
+    // persist is the stable asset path, which resolves to a signed GET when it
+    // is actually fetched.
+    await this.storage.putObject(file.buffer, key, file.mimetype);
+    const coverArtUrl = contentAssetPath(key);
 
     await this.prisma.book.update({
       where: { id: book.id },
@@ -101,11 +133,9 @@ export class ContentStudioAssetsService {
       `content/${book.slug}/chapter-${chapter.order}/images`,
       file.mimetype,
     );
-    const imageUrl = await this.storage.uploadFile(
-      file.buffer,
-      key,
-      file.mimetype,
-    );
+    this.assertServable(key);
+    await this.storage.putObject(file.buffer, key, file.mimetype);
+    const imageUrl = contentAssetPath(key);
 
     this.logger.log(
       `chapter image uploaded book=${book.slug} chapter=${chapter.order} key=${key}`,

@@ -845,6 +845,36 @@ export function LectorShell({
     }
     const optimisticId = `optimistic-${Date.now()}`;
     const blockKey = blockKeyById.get(selection.blockId);
+
+    // CC-6D — anchor by the unit's SOURCE, not the presence of a blockKey: a
+    // content-core write sends blockKey + the read version; a legacy write sends
+    // the legacy blockId.
+    //
+    // Built BEFORE the optimistic insert (#579): the helper refuses an anchor it
+    // cannot complete, and a refusal after the insert would leave a highlight
+    // tinted on screen that was never written anywhere.
+    let payload;
+    try {
+      payload = highlightWritePayload({
+        source: markSource,
+        blockKey: blockKey ?? null,
+        // The version the reader is LOOKING AT — read off the rendered block,
+        // never re-resolved after the selection and never "whatever is newest".
+        blockVersionId: blockVersionById.get(selection.blockId) ?? null,
+        legacyBlockId: selection.blockId,
+        startOffset: selection.startOffset,
+        endOffset: selection.endOffset,
+        color,
+      });
+    } catch {
+      // The same outcome a rejected POST already produces in this component:
+      // no highlight appears. Nothing was inserted yet, so there is nothing to
+      // roll back — which is exactly why the payload is built first.
+      setSelection(null);
+      window.getSelection()?.removeAllRanges();
+      return;
+    }
+
     const optimistic: HighlightSummary = {
       id: optimisticId,
       blockKey: blockKey ?? "",
@@ -856,18 +886,6 @@ export function LectorShell({
       createdAt: new Date(),
     };
     setHighlights((prev) => [...prev, optimistic]);
-    // CC-6D — anchor by the unit's SOURCE, not the presence of a blockKey: a
-    // content-core write sends blockKey + the read version; a legacy write sends
-    // the legacy blockId.
-    const payload = highlightWritePayload({
-      source: markSource,
-      blockKey: blockKey ?? null,
-      blockVersionId: blockVersionById.get(selection.blockId) ?? null,
-      legacyBlockId: selection.blockId,
-      startOffset: selection.startOffset,
-      endOffset: selection.endOffset,
-      color,
-    });
     setSelection(null);
     window.getSelection()?.removeAllRanges();
 

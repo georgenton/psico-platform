@@ -2501,6 +2501,26 @@ export interface LectorChapterResponse {
      */
     readerRef: ReaderChapterRef;
     /**
+     * The canonical CONTENT identity — which unit's text this chapter is.
+     *
+     * A third concept, and deliberately not folded into the other two:
+     *
+     *   readerRef       serving identity for the URL (legacy → Chapter.id)
+     *   contentUnitId   native WRITE identity, null for legacy
+     *   contentUnitKey  content READ identity, present for BOTH
+     *
+     * Clients read a chapter's text from Content Core by this key. Selecting it
+     * by ORDER instead — "the unit at position 3" — would put position back at
+     * the centre of a URL built to escape it: after a structural change a stable
+     * URL would name one chapter and render another's words.
+     *
+     * Present for a legacy chapter too. That does not make the legacy reader
+     * unit-first; the text still comes from `ChapterBlock` via the CC-6B read,
+     * and progress is still written by `Chapter.id`. It only gives that existing
+     * read a stable key instead of a position.
+     */
+    contentUnitKey: string;
+    /**
      * The Content Core unit this chapter IS, when it has no legacy Chapter row.
      *
      * The stable write identity. `order` locates a chapter for navigation, but a

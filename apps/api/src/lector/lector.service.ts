@@ -27,7 +27,10 @@ import type { Env } from "../config";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import { StorageService } from "../storage";
-import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
+import {
+  blockKeyFromLegacyId,
+  unitKeyFromLegacyChapterId,
+} from "../content-core/lib/block-key";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ContentAccessService } from "../content-core/access/content-access.service";
 import { resolveAnchorTarget } from "./anchor-resolver";
@@ -193,6 +196,10 @@ export class LectorService {
         // is known. A legacy chapter is identified by its Chapter row, which is
         // also what it writes progress by.
         readerRef: { kind: "chapter", id: chapter.id },
+        // The deterministic key the backfill gives this chapter's unit — the
+        // stable handle for the content read, derived server-side so no client
+        // reimplements the derivation.
+        contentUnitKey: unitKeyFromLegacyChapterId(chapter.id),
         // Legacy chapters keep writing by their Chapter id; null tells a client
         // exactly that, without it having to guess from the shape.
         contentUnitId: null,
@@ -343,6 +350,7 @@ export class LectorService {
         // Phase B.A — the same identity it already writes by, now also the one
         // its URL carries.
         readerRef: { kind: "unit", id: target.contentUnitId },
+        contentUnitKey: target.unitKey,
         // The stable write identity, stated in the contract rather than smuggled
         // past the type.
         contentUnitId: target.contentUnitId,

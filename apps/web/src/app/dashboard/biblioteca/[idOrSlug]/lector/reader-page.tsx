@@ -50,16 +50,20 @@ export async function readerMetadata(
  */
 async function resolveContentUnit(
   bookSlug: string,
-  order: number,
+  contentUnitKey: string,
 ): Promise<ContentUnitRead | null> {
   try {
+    // The manifest is still read — for the server-owned editionKey, which the
+    // browser must never fabricate from the slug.
     const manifest = await serverFetch<BookManifest>(
       `/content/books/${encodeURIComponent(bookSlug)}/manifest`,
     );
-    const mu = manifest.units.find((u) => u.order === order);
-    if (!mu) return null; // manifest inconsistency — fail closed, no legacy fallback.
+    // By KEY, never by order. Selecting "the unit at position 3" would put
+    // position back at the centre of a URL built to escape it: after a
+    // structural change the page would name one chapter and render another's
+    // words. The key comes from the envelope, decided by the server.
     return await serverFetch<ContentUnitRead>(
-      `/content/editions/${encodeURIComponent(manifest.editionKey)}/units/${encodeURIComponent(mu.unitKey)}`,
+      `/content/editions/${encodeURIComponent(manifest.editionKey)}/units/${encodeURIComponent(contentUnitKey)}`,
     );
   } catch (err) {
     if (isNextThrow(err)) throw err;
@@ -111,7 +115,7 @@ export async function renderReader(fetchChapter: ChapterFetch) {
   // Use the canonical book slug from the envelope (params.idOrSlug may be an id).
   const unit = await resolveContentUnit(
     chapter.book.slug,
-    chapter.chapter.order,
+    chapter.chapter.contentUnitKey,
   );
 
   // CC-6D: read marks SOURCE-AWARE. A content-core unit MUST read from the CC-6C

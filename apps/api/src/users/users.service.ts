@@ -8,6 +8,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
+import { completedBookCount } from "../content-core/read/book-completion";
 import { createHash, randomBytes } from "crypto";
 import type { Redis } from "ioredis";
 import * as bcrypt from "bcryptjs";
@@ -803,12 +804,9 @@ export class UsersService {
       this.prisma.userProgress.findMany({
         where: { userId },
         select: {
-          chapter: {
-            select: {
-              bookId: true,
-              book: { select: { totalChapters: true } },
-            },
-          },
+          chapter: { select: { book: { select: { id: true, slug: true } } } },
+          // Native completions reach their book through the edition.
+          contentUnit: { select: { edition: { select: { slug: true } } } },
         },
       }),
       this.prisma.user.findUnique({
@@ -821,24 +819,30 @@ export class UsersService {
       this.prisma.diaryEntry.count({ where: { userId } }),
     ]);
 
-    // booksCompleted: a book counts as completed iff the user has progress for
-    // every published chapter. Cheap-to-compute approximation: bookId →
-    // distinct chapter count equals book.totalChapters.
-    const byBook = new Map<string, { read: number; total: number }>();
+    // booksCompleted counts a book as finished when the reader has completed
+    // every chapter they can currently open. Both identities participate: a
+    // legacy chapter records progress against its Chapter, a native one against
+    // its ContentUnit, and a mixed book has some of each. Counting only the
+    // legacy half would call a book finished with a chapter still unread.
+    const candidates = new Map<string, { id: string; slug: string }>();
     for (const row of completedProgress) {
-      // Native progress has no legacy Chapter; this surface counts legacy
-      // books, so those rows are skipped rather than asserted away.
-      if (!row.chapter) continue;
-      const bookId = row.chapter.bookId;
-      const total = row.chapter.book.totalChapters;
-      const acc = byBook.get(bookId) ?? { read: 0, total };
-      acc.read += 1;
-      byBook.set(bookId, acc);
+      if (row.chapter) {
+        candidates.set(row.chapter.book.id, {
+          id: row.chapter.book.id,
+          slug: row.chapter.book.slug,
+        });
+      } else if (row.contentUnit) {
+        const book = await this.prisma.book.findUnique({
+          where: { slug: row.contentUnit.edition.slug },
+          select: { id: true, slug: true },
+        });
+        if (book) candidates.set(book.id, book);
+      }
     }
-    let booksCompleted = 0;
-    for (const { read, total } of byBook.values()) {
-      if (total > 0 && read >= total) booksCompleted += 1;
-    }
+    const booksCompleted = await completedBookCount(this.prisma, {
+      userId,
+      books: [...candidates.values()],
+    });
 
     // Minutes estimate: 12 min per completed chapter + 5 min per diary entry.
     // Conservative on purpose — overstating progress is worse than understating.

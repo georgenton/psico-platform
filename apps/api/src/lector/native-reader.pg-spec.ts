@@ -7,6 +7,10 @@ import { ForbiddenException, NotFoundException } from "@nestjs/common";
 
 import { LectorService } from "./lector.service";
 import { ContentAccessService } from "../content-core/access/content-access.service";
+import {
+  bookCompletion,
+  currentChapterCount,
+} from "../content-core/read/book-completion";
 
 /**
  * A chapter that exists only in Content Core, opened through the real reader.
@@ -613,6 +617,163 @@ suite("native reader · a chapter with no legacy Chapter row", () => {
       });
       expect(session.contentUnitId).toBeNull();
       expect(session.progressPct).toBeGreaterThanOrEqual(0.4);
+    });
+  });
+
+  describe("a mixed book counts what a reader can actually finish", () => {
+    // Book.totalChapters says 2. The published manifest has three units, one of
+    // them native-only. A legacy-only calculation reports 2/2 and calls the book
+    // finished while a whole chapter is still unread.
+    const READER = "user-mixed";
+    let mixedBookId = "";
+    let mixedUnitIds: string[] = [];
+
+    it("sets up 2 legacy chapters + 1 native, with a stale legacy total", async () => {
+      await prisma.user.create({
+        data: { id: READER, email: "mixed@test.local", name: "M" },
+      });
+      const book = await prisma.book.findUniqueOrThrow({
+        where: { id: bookId },
+      });
+      mixedBookId = book.id;
+      expect(book.totalChapters).toBe(2); // stale on purpose
+
+      const entries = await prisma.revisionUnit.findMany({
+        where: { revisionId: publishedRevisionId },
+        orderBy: { order: "asc" },
+        select: { unitId: true },
+      });
+      mixedUnitIds = entries.map((e) => e.unitId);
+      expect(mixedUnitIds.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it("is not complete while a native chapter is unread", async () => {
+      // Legacy chapters 1 and 2 done, native ones not.
+      const chapters = await prisma.chapter.findMany({ where: { bookId } });
+      for (const ch of chapters) {
+        await prisma.userProgress.create({
+          data: { userId: READER, chapterId: ch.id },
+        });
+      }
+
+      const result = await bookCompletion(prisma, {
+        userId: READER,
+        bookId: mixedBookId,
+        bookSlug: "libro-nativo",
+        legacyTotal: 2,
+      });
+
+      // The denominator is the manifest, not the stale column.
+      expect(result.requiredChapters).toBe(mixedUnitIds.length);
+      expect(result.requiredChapters).toBeGreaterThan(2);
+      expect(result.completed).toBe(false);
+    });
+
+    it("is complete once every current chapter is finished", async () => {
+      for (const unitId of mixedUnitIds) {
+        await prisma.userProgress.upsert({
+          where: {
+            userId_contentUnitId: { userId: READER, contentUnitId: unitId },
+          },
+          create: { userId: READER, contentUnitId: unitId },
+          update: {},
+        });
+      }
+
+      const result = await bookCompletion(prisma, {
+        userId: READER,
+        bookId: mixedBookId,
+        bookSlug: "libro-nativo",
+        legacyTotal: 2,
+      });
+      expect(result.completed).toBe(true);
+    });
+
+    it("keeps an unpublished chapter's completion as history, not as a requirement", async () => {
+      // Unplacing a completed chapter must not erase the progress, and must not
+      // keep counting it toward finishing the book as it now stands.
+      const orphan = await makeNativeUnit({
+        unitKey: "u-orphan",
+        title: "Retirado",
+        order: 60,
+        revisionId: publishedRevisionId,
+      });
+      await prisma.userProgress.create({
+        data: { userId: READER, contentUnitId: orphan },
+      });
+
+      const before = await bookCompletion(prisma, {
+        userId: READER,
+        bookId: mixedBookId,
+        bookSlug: "libro-nativo",
+      });
+
+      await prisma.revisionUnit.deleteMany({
+        where: { revisionId: publishedRevisionId, unitId: orphan },
+      });
+
+      const after = await bookCompletion(prisma, {
+        userId: READER,
+        bookId: mixedBookId,
+        bookSlug: "libro-nativo",
+      });
+
+      // The progress row survives — it is the reader's history.
+      expect(
+        await prisma.userProgress.count({ where: { contentUnitId: orphan } }),
+      ).toBe(1);
+      // And it stops being one of the chapters required to finish the book.
+      expect(after.requiredChapters).toBe(before.requiredChapters - 1);
+      expect(after.completedChapters).toBe(before.completedChapters - 1);
+    });
+
+    it("never counts a stale Book.totalChapters once a manifest exists", async () => {
+      const count = await currentChapterCount(prisma, {
+        bookId: mixedBookId,
+        bookSlug: "libro-nativo",
+        legacyTotal: 2,
+      });
+      expect(count).not.toBe(2);
+    });
+  });
+
+  describe("Home shows published metadata, never a draft", () => {
+    it("resolves the title through the published manifest entry", async () => {
+      // A newer version exists and is placed ONLY in a draft revision. Home must
+      // not show it.
+      const unit = await prisma.contentUnit.findFirstOrThrow({
+        where: { editionId, unitKey: "u-1" },
+      });
+      const draftVersion = await prisma.contentUnitVersion.create({
+        data: { unitId: unit.id, title: "Título borrador" },
+      });
+      const draftRev = await prisma.revision.create({
+        data: { editionId, number: 900, status: "DRAFT" },
+      });
+      await prisma.revisionUnit.create({
+        data: {
+          revisionId: draftRev.id,
+          unitId: unit.id,
+          unitVersionId: draftVersion.id,
+          order: 1,
+        },
+      });
+
+      const published = await prisma.revisionUnit.findFirstOrThrow({
+        where: { revisionId: publishedRevisionId, unitId: unit.id },
+        select: { unitVersion: { select: { title: true } } },
+      });
+      // The published placement still points at the original version.
+      expect(published.unitVersion.title).toBe("Uno");
+      expect(published.unitVersion.title).not.toBe("Título borrador");
+
+      // And the newest version by createdAt is the draft — which is exactly the
+      // trap the old `orderBy: createdAt desc` fell into.
+      const newest = await prisma.contentUnitVersion.findFirstOrThrow({
+        where: { unitId: unit.id },
+        orderBy: { createdAt: "desc" },
+      });
+      expect(newest.title).toBe("Título borrador");
     });
   });
 });

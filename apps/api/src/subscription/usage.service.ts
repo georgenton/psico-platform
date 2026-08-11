@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
+import { completedBookCount } from "../content-core/read/book-completion";
 import type IoRedis from "ioredis";
 import type { UsageResponse } from "@psico/types";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -83,9 +84,11 @@ export class UsageService {
           chapter: {
             select: {
               bookId: true,
-              book: { select: { totalChapters: true } },
+              book: { select: { id: true, slug: true } },
             },
           },
+          // A native completion identifies its book through the edition.
+          contentUnit: { select: { edition: { select: { slug: true } } } },
         },
       }),
       // Sprint S8: sum the user's voice transcription seconds in the period.
@@ -110,63 +113,35 @@ export class UsageService {
     const plan = user?.plan ?? "FREE";
     const quotas = PLAN_QUOTAS[plan];
 
-    // Mirror UsersService.computeStats: a book counts as completed in the
-    // period iff the user finished its LAST chapter within the window. The
-    // approximation here counts books where the user has progress for every
-    // chapter AND any of those progress rows landed in the period — which is
-    // close enough for billing-period UX and cheap to compute.
-    const byBook = new Map<string, number>();
-    const totalChaptersByBook = new Map<string, number>();
+    // Which books the reader touched in this period, from BOTH identities: a
+    // legacy chapter records progress against its Chapter, a native one against
+    // its ContentUnit. Skipping either would under-count on a mixed book, which
+    // is exactly the shape chapter authoring produces.
+    const candidates = new Map<string, { id: string; slug: string }>();
     for (const row of progressInPeriod) {
-      // Same reasoning as the daily rollup: a native completion has no legacy
-      // book to aggregate by. It is counted in `booksCompleted` only once
-      // Content Core owns the BOOK, not just the chapter.
-      if (!row.chapter) continue;
-      const bookId = row.chapter.bookId;
-      byBook.set(bookId, (byBook.get(bookId) ?? 0) + 1);
-      totalChaptersByBook.set(bookId, row.chapter.book.totalChapters);
-    }
-    // To know if the book is COMPLETED (not just touched), we need the
-    // historical chapter count — do one more lookup with all-time progress
-    // for these candidate books only.
-    let completedBooks = 0;
-    if (byBook.size > 0) {
-      const allTimeProgress = await this.prisma.userProgress.groupBy({
-        by: ["chapterId"],
-        where: {
-          userId,
-          chapter: { bookId: { in: [...byBook.keys()] } },
-        },
-      });
-      // Reduce to per-book chapter counts:
-      const allTimeByBook = new Map<string, number>();
-      const chapterToBook = await this.prisma.chapter.findMany({
-        // Book completion counts legacy chapters; a native-only chapter has no
-        // Chapter row to map to a book, and the `chapter:` filter above already
-        // excludes those rows.
-        where: {
-          id: {
-            in: allTimeProgress
-              .map((r) => r.chapterId)
-              .filter((id): id is string => id !== null),
-          },
-        },
-        select: { id: true, bookId: true },
-      });
-      const chapterBookMap = new Map(
-        chapterToBook.map((c) => [c.id, c.bookId]),
-      );
-      for (const row of allTimeProgress) {
-        if (!row.chapterId) continue;
-        const bookId = chapterBookMap.get(row.chapterId);
-        if (!bookId) continue;
-        allTimeByBook.set(bookId, (allTimeByBook.get(bookId) ?? 0) + 1);
-      }
-      for (const [bookId, allTimeCount] of allTimeByBook) {
-        const total = totalChaptersByBook.get(bookId) ?? 0;
-        if (total > 0 && allTimeCount >= total) completedBooks += 1;
+      if (row.chapter) {
+        candidates.set(row.chapter.book.id, {
+          id: row.chapter.book.id,
+          slug: row.chapter.book.slug,
+        });
+      } else if (row.contentUnit) {
+        // Book stays legacy-owned in this phase, so the edition's slug is the
+        // bridge back to it.
+        const book = await this.prisma.book.findUnique({
+          where: { slug: row.contentUnit.edition.slug },
+          select: { id: true, slug: true },
+        });
+        if (book) candidates.set(book.id, book);
       }
     }
+
+    // A book is complete when the reader has finished every chapter they can
+    // currently open — counted against the published manifest, never against a
+    // `Book.totalChapters` that goes stale the moment a native chapter exists.
+    const completedBooks = await completedBookCount(this.prisma, {
+      userId,
+      books: [...candidates.values()],
+    });
 
     const voiceSeconds = voiceAggregate._sum.durationSec ?? 0;
     const response: UsageResponse = {

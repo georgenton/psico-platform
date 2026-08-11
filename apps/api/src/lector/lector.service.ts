@@ -468,10 +468,10 @@ export class LectorService {
    * Completion for a chapter that exists only in Content Core.
    *
    * Recorded against the UNIT, so a later reorder moves the chapter without
-   * moving what somebody finished. The streak side-effects of the legacy path
-   * are intentionally not duplicated here — they read legacy rows, and a native
-   * chapter has none; wiring them up is a separate, honest piece of work rather
-   * than something to approximate.
+   * moving what somebody finished.
+   *
+   * Deliberately no streak side effect — because the legacy path has none
+   * either. Parity, not omission.
    */
   private async completeNativeChapter(
     userId: string,
@@ -550,10 +550,14 @@ export class LectorService {
       return this.completeNativeChapter(userId, book, chapterOrder);
     }
 
-    // Persist three things in one transaction: mark session completed,
-    // record UserProgress, push the streak counter on the user. We don't
-    // want a partial state where the session shows complete but the
-    // book progress doesn't.
+    // Two things in one transaction: mark the session completed and record
+    // UserProgress. We don't want a partial state where the session shows
+    // complete but the book progress doesn't.
+    //
+    // No streak side effect, despite what an older version of this comment
+    // said: `currentStreakDays` is only ever READ (Home), never written here or
+    // anywhere else triggered by completion. The native path below matches, so
+    // streak behaviour does not depend on which identity a chapter has.
     await this.prisma.$transaction([
       this.prisma.readingSession.upsert({
         where: { userId_chapterId: { userId, chapterId: chapter.id } },

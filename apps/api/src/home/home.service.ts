@@ -429,36 +429,37 @@ export class HomeService {
    */
   private async nativeContinueCard(contentUnitId: string | null) {
     if (!contentUnitId) return null;
+
     const unit = await this.prisma.contentUnit.findUnique({
       where: { id: contentUnitId },
       select: {
         edition: { select: { slug: true, publishedRevisionId: true } },
-        versions: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: { title: true },
-        },
       },
     });
-    if (!unit) return null;
+    if (!unit?.edition.publishedRevisionId) return null;
 
-    const [book, entry] = await Promise.all([
-      this.prisma.book.findUnique({
-        where: { slug: unit.edition.slug },
-        select: { id: true, title: true, cover: true, author: true },
-      }),
-      unit.edition.publishedRevisionId
-        ? this.prisma.revisionUnit.findFirst({
-            where: {
-              revisionId: unit.edition.publishedRevisionId,
-              unitId: contentUnitId,
-            },
-            select: { order: true },
-          })
-        : null,
-    ]);
-    // No Book row yet means the card has nothing to show a reader; pure-core
-    // BOOKS are a later block, and inventing a title here would be a guess.
+    // Metadata comes from the version the PUBLISHED manifest points at — never
+    // from the newest ContentUnitVersion. An editor working on a draft title
+    // has not published it, and a reader's Home is not where unpublished
+    // editorial work belongs.
+    const entry = await this.prisma.revisionUnit.findFirst({
+      where: {
+        revisionId: unit.edition.publishedRevisionId,
+        unitId: contentUnitId,
+      },
+      select: { order: true, unitVersion: { select: { title: true } } },
+    });
+    // Still real history, but not somewhere a reader can currently go. A card
+    // pointing at a chapter that is no longer published would be a dead link —
+    // and fabricating position 0 to fill the gap would be worse.
+    if (!entry) return null;
+
+    const book = await this.prisma.book.findUnique({
+      where: { slug: unit.edition.slug },
+      select: { id: true, title: true, cover: true, author: true },
+    });
+    // Pure-core BOOKS are a later block; with no Book row there is nothing
+    // truthful to put on the card.
     if (!book) return null;
 
     return {
@@ -467,9 +468,8 @@ export class HomeService {
       title: book.title,
       author: book.author?.name ?? "—",
       cover: this.toCoverToken(book.cover),
-      // Unplaced (unpublished) chapters still show, at their last known slot.
-      chapterN: entry?.order ?? 0,
-      chapterTitle: unit.versions[0]?.title ?? "",
+      chapterN: entry.order,
+      chapterTitle: entry.unitVersion.title,
     };
   }
 

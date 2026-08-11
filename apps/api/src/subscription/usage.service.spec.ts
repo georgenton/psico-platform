@@ -28,6 +28,8 @@ function makePrismaMock(opts: {
     chapter: { bookId: string; book: { totalChapters: number } };
   }>;
   allTimeProgress?: Array<{ chapterId: string }>;
+  completedPerBook?: number;
+  legacyChapterCount?: number;
   chapterToBook?: Array<{ id: string; bookId: string }>;
   voiceSecondsSum?: number;
 }) {
@@ -49,12 +51,20 @@ function makePrismaMock(opts: {
     diaryEntry: {
       count: vi.fn().mockResolvedValue(opts.diaryCount ?? 0),
     },
+    edition: { findFirst: vi.fn().mockResolvedValue(null) },
+    revisionUnit: { count: vi.fn().mockResolvedValue(0) },
     userProgress: {
       findMany: vi.fn().mockResolvedValue(opts.progressInPeriod ?? []),
       groupBy: vi.fn().mockResolvedValue(opts.allTimeProgress ?? []),
+      // Book completion now counts both identities through one helper.
+      count: vi.fn().mockResolvedValue(opts.completedPerBook ?? 0),
     },
     chapter: {
       findMany: vi.fn().mockResolvedValue(opts.chapterToBook ?? []),
+      // With no published edition, book completion falls back to counting
+      // legacy chapters — these cases model books that have no Content Core
+      // structure yet.
+      count: vi.fn().mockResolvedValue(opts.legacyChapterCount ?? 0),
     },
     voiceTranscription: {
       aggregate: vi.fn().mockResolvedValue({
@@ -200,14 +210,12 @@ describe("UsageService", () => {
       const prisma = makePrismaMock({
         hasActiveSub: true,
         plan: Plan.PRO,
+        // Book has 2 chapters; the reader finished both.
         progressInPeriod: [
-          { chapter: { bookId: "book-1", book: { totalChapters: 2 } } },
+          { chapter: { book: { id: "book-1", slug: "libro" } } },
         ],
-        allTimeProgress: [{ chapterId: "ch-1" }, { chapterId: "ch-2" }],
-        chapterToBook: [
-          { id: "ch-1", bookId: "book-1" },
-          { id: "ch-2", bookId: "book-1" },
-        ],
+        legacyChapterCount: 2,
+        completedPerBook: 2,
       });
       const redis = makeRedisMock();
       const service = new UsageService(prisma as never, redis as never);
@@ -221,14 +229,13 @@ describe("UsageService", () => {
       const prisma = makePrismaMock({
         hasActiveSub: true,
         plan: Plan.PRO,
+        // Book has 3 chapters; the reader finished 2. The numerator counts
+        // both identities now, so a partially-read mixed book still reads 0.
         progressInPeriod: [
-          { chapter: { bookId: "book-1", book: { totalChapters: 3 } } },
+          { chapter: { book: { id: "book-1", slug: "libro" } } },
         ],
-        allTimeProgress: [{ chapterId: "ch-1" }, { chapterId: "ch-2" }],
-        chapterToBook: [
-          { id: "ch-1", bookId: "book-1" },
-          { id: "ch-2", bookId: "book-1" },
-        ],
+        legacyChapterCount: 3,
+        completedPerBook: 1,
       });
       const redis = makeRedisMock();
       const service = new UsageService(prisma as never, redis as never);

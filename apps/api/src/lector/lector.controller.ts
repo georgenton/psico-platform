@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  NotFoundException,
   Param,
   ParseIntPipe,
   Patch,
@@ -55,6 +56,7 @@ import {
   CHAPTER_MEDIA_MANIFEST_RESPONSE,
 } from "./media/chapter-media.openapi";
 import { ChapterMediaService } from "./media/chapter-media.service";
+import { readerRefFromSegments } from "@psico/types";
 
 @ApiTags("Lector")
 @ApiBadRequestResponse({ type: ErrorEnvelopeDto })
@@ -165,6 +167,39 @@ export class LectorController {
     );
   }
 
+  /**
+   * The chapter by its STABLE identity (Phase B.A).
+   *
+   * Declared BEFORE `:bookId/:chapterOrder` because Express matches in order and
+   * `ref` would otherwise be read as a chapter number — the same reason
+   * `media/:mediaKey/access` sits above the parameterised routes.
+   *
+   * `kind` is constrained to the two identities the reader actually has; this is
+   * not a generic resource-by-id endpoint, and anything else is a 404 before a
+   * single row is read.
+   */
+  @Get(":bookId/ref/:kind/:id")
+  getChapterByRef(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("bookId") bookId: string,
+    @Param("kind") kind: string,
+    @Param("id") id: string,
+  ): Promise<LectorChapterResponse> {
+    const ref = readerRefFromSegments(kind, id);
+    if (!ref) throw new NotFoundException("CHAPTER_NOT_FOUND");
+    return this.lector.getChapterByRef(
+      user.userId,
+      user.plan as Plan,
+      bookId,
+      ref,
+    );
+  }
+
+  /**
+   * The chapter by POSITION — a locator, not an identity.
+   *
+   * Kept working for existing links. Clients navigate by the stable ref now.
+   */
   @Get(":bookId/:chapterOrder")
   getChapter(
     @CurrentUser() user: AuthenticatedUser,

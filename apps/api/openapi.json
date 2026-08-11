@@ -6521,6 +6521,73 @@
         ]
       }
     },
+    "/api/lector/{bookId}/ref/{kind}/{id}": {
+      "get": {
+        "operationId": "LectorController_getChapterByRef",
+        "parameters": [
+          {
+            "name": "bookId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "The chapter by its STABLE identity (Phase B.A).\n\nDeclared BEFORE `:bookId/:chapterOrder` because Express matches in order and\n`ref` would otherwise be read as a chapter number — the same reason\n`media/:mediaKey/access` sits above the parameterised routes.\n\n`kind` is constrained to the two identities the reader actually has; this is\nnot a generic resource-by-id endpoint, and anything else is a 404 before a\nsingle row is read.",
+        "tags": [
+          "Lector"
+        ]
+      }
+    },
     "/api/lector/{bookId}/{chapterOrder}": {
       "get": {
         "operationId": "LectorController_getChapter",
@@ -6574,6 +6641,7 @@
             }
           }
         },
+        "summary": "The chapter by POSITION — a locator, not an identity.\n\nKept working for existing links. Clients navigate by the stable ref now.",
         "tags": [
           "Lector"
         ]

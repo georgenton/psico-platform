@@ -80,6 +80,10 @@ function makePrisma(overrides: Partial<Record<string, unknown>> = {}) {
     },
     chapter: {
       findUnique: vi.fn().mockResolvedValue(baseChapter),
+      // Phase B.A — completion now names the NEXT chapter by its stable
+      // identity, which asks what currently sits at that position. Null here
+      // means "no legacy chapter there", so the Content Core lookup answers.
+      findFirst: vi.fn().mockResolvedValue(null),
     },
     // A book Content Core does not serve yet. The legacy reader now asks the
     // published manifest how many chapters there are and which one comes next,

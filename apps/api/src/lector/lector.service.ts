@@ -16,6 +16,7 @@ import {
   type NativeChapterTarget,
 } from "./reader-chapter-resolver";
 import type {
+  ReaderChapterRef,
   LectorAudioMetadata,
   LectorAudioResponse,
   LectorChapterResponse,
@@ -30,6 +31,7 @@ import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ContentAccessService } from "../content-core/access/content-access.service";
 import { resolveAnchorTarget } from "./anchor-resolver";
+import { resolveChapterByRef, resolveLocatorRef } from "./reader-chapter-ref";
 import {
   resolveStoredCoverUrl,
   withResolvedImageUrls,
@@ -187,6 +189,10 @@ export class LectorService {
         audioAvailable: chapter.audios.length > 0,
         partNumber: chapter.partNumber ?? null,
         partTitle: chapter.partTitle ?? null,
+        // Phase B.A — the stable identity, decided here where the serving store
+        // is known. A legacy chapter is identified by its Chapter row, which is
+        // also what it writes progress by.
+        readerRef: { kind: "chapter", id: chapter.id },
         // Legacy chapters keep writing by their Chapter id; null tells a client
         // exactly that, without it having to guess from the shape.
         contentUnitId: null,
@@ -334,6 +340,9 @@ export class LectorService {
         audioAvailable: false,
         partNumber: target.partNumber,
         partTitle: target.partTitle,
+        // Phase B.A — the same identity it already writes by, now also the one
+        // its URL carries.
+        readerRef: { kind: "unit", id: target.contentUnitId },
         // The stable write identity, stated in the contract rather than smuggled
         // past the type.
         contentUnitId: target.contentUnitId,
@@ -537,7 +546,13 @@ export class LectorService {
       bookSlug: book.slug,
       after: target.order,
     });
-    return { ok: true, nextChapter };
+    // The next chapter's identity, so a client never converts order → URL. That
+    // round trip is precisely what a reorder invalidates.
+    return {
+      ok: true,
+      nextChapter,
+      nextReaderRef: await this.refAtOrder(book, nextChapter),
+    };
   }
 
   // ─── POST /api/lector/:bookId/:chapterN/complete ───────────────────────
@@ -616,7 +631,78 @@ export class LectorService {
     ]);
     const nextChapter =
       placedNext ?? (chapterOrder < total ? chapterOrder + 1 : null);
-    return { ok: true, nextChapter };
+    return {
+      ok: true,
+      nextChapter,
+      nextReaderRef: await this.refAtOrder(book, nextChapter),
+    };
+  }
+
+  /**
+   * The stable identity of whatever currently sits at a position.
+   *
+   * Read-only. Used to name the NEXT chapter after completion, where the answer
+   * has to come from the structure as it is now rather than from arithmetic.
+   */
+  private async refAtOrder(
+    book: { id: string; slug: string },
+    order: number | null,
+  ): Promise<ReaderChapterRef | null> {
+    if (order === null) return null;
+    return resolveLocatorRef(this.prisma, {
+      bookId: book.id,
+      bookSlug: book.slug,
+      order,
+    });
+  }
+
+  // ─── GET /api/lector/:bookId/ref/:kind/:id ─────────────────────────────
+
+  /**
+   * The same chapter, addressed by its stable identity instead of its position.
+   *
+   * Converges on the SAME two envelope builders the positional route uses —
+   * `getNativeChapter` for a unit, the legacy path for a Chapter row. A second
+   * renderer would be two things to keep in agreement, and the whole point of a
+   * canonical URL is that it shows the same chapter the old one did.
+   *
+   * Position is derived here, never accepted: the ref carries no order, and the
+   * envelope's `order` is metadata for numbering and adjacency.
+   */
+  async getChapterByRef(
+    userId: string,
+    userPlan: Plan,
+    bookIdOrSlug: string,
+    ref: ReaderChapterRef,
+  ): Promise<LectorChapterResponse> {
+    const book = await this.prisma.book.findFirst({
+      where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
+      include: { author: true },
+    });
+    if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
+
+    const target = await resolveChapterByRef(this.prisma, {
+      bookId: book.id,
+      bookSlug: book.slug,
+      ref,
+    });
+    // One answer for "no such chapter", "not this book's chapter" and "not
+    // published": telling them apart would tell a caller which guess was warm.
+    if (!target) throw new NotFoundException("CHAPTER_NOT_FOUND");
+
+    if (target.kind === "unit") {
+      const native = await resolveNativeUnitById(this.prisma, {
+        bookSlug: book.slug,
+        contentUnitId: target.contentUnitId,
+      });
+      if (!native) throw new NotFoundException("CHAPTER_NOT_FOUND");
+      return this.getNativeChapter(userId, userPlan, book, native);
+    }
+
+    // Legacy stays legacy. Resolved to its CURRENT position and handed to the
+    // existing positional path — which is what keeps the serving store, the
+    // content surface and the write identity exactly as they are.
+    return this.getChapter(userId, userPlan, bookIdOrSlug, target.order);
   }
 
   // ─── GET /api/lector/:bookId/:chapterN/audio ───────────────────────────

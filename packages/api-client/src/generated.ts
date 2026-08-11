@@ -1783,6 +1783,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/lector/{bookId}/ref/{kind}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The chapter by its STABLE identity (Phase B.A).
+         *
+         *     Declared BEFORE `:bookId/:chapterOrder` because Express matches in order and
+         *     `ref` would otherwise be read as a chapter number — the same reason
+         *     `media/:mediaKey/access` sits above the parameterised routes.
+         *
+         *     `kind` is constrained to the two identities the reader actually has; this is
+         *     not a generic resource-by-id endpoint, and anything else is a 404 before a
+         *     single row is read.
+         */
+        get: operations["LectorController_getChapterByRef"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/lector/{bookId}/{chapterOrder}": {
         parameters: {
             query?: never;
@@ -1790,6 +1817,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * The chapter by POSITION — a locator, not an identity.
+         *
+         *     Kept working for existing links. Clients navigate by the stable ref now.
+         */
         get: operations["LectorController_getChapter"];
         put?: never;
         post?: never;
@@ -10069,6 +10101,45 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    LectorController_getChapterByRef: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: string;
+                kind: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

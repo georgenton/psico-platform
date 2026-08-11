@@ -167,31 +167,92 @@ export async function readerTotalChapters(
 }
 
 /**
- * Confirm a unit the CLIENT named really is this book's chapter at this
- * position, in the published manifest.
+ * Resolve a unit the CLIENT named, and prove it belongs here.
  *
- * The heartbeat carries an identity so a reorder mid-session cannot redirect
- * somebody's progress. That identity is never trusted as given: a caller who
- * guessed another edition's unit id would otherwise write progress into a book
- * they cannot even read.
+ * A reader's open tab carries the identity of the chapter it opened, so a
+ * structural publish cannot redirect their progress to whichever chapter moved
+ * into that position. Deliberately does NOT check that the unit still sits at
+ * the order the client sent — requiring that would recreate the very bug this
+ * exists to prevent.
+ *
+ * The identity is never trusted as given. A caller who guessed another
+ * edition's unit id, or a draft-only one, gets `null` and writes nothing.
  */
-export async function assertUnitInBook(
+export async function resolveNativeUnitById(
   db: Db,
   input: { bookSlug: string; contentUnitId: string },
-): Promise<boolean> {
+): Promise<NativeChapterTarget | null> {
   const edition = await db.edition.findFirst({
     where: { slug: input.bookSlug },
-    select: { id: true, publishedRevisionId: true },
+    select: { id: true, editionKey: true, publishedRevisionId: true },
   });
-  if (!edition?.publishedRevisionId) return false;
+  if (!edition?.publishedRevisionId) return null;
 
+  // Every condition matters. The unit must belong to THIS edition (not another
+  // book's), and must be in the CURRENTLY published revision (not a draft, not
+  // one that was unpublished). A caller who guessed an id gets nothing.
   const entry = await db.revisionUnit.findFirst({
     where: {
       revisionId: edition.publishedRevisionId,
       unitId: input.contentUnitId,
       unit: { editionId: edition.id },
     },
-    select: { id: true },
+    select: {
+      order: true,
+      partNumber: true,
+      partTitle: true,
+      unit: { select: { id: true, unitKey: true } },
+      unitVersion: {
+        select: { title: true, summary: true, durationMinutes: true },
+      },
+    },
   });
-  return entry !== null;
+  if (!entry) return null;
+
+  return {
+    source: "content-core",
+    chapterId: null,
+    contentUnitId: entry.unit.id,
+    // The unit's CURRENT position, deliberately — not whatever stale order the
+    // client sent. A write lands on the unit; navigation continues from where
+    // that unit actually is now.
+    order: entry.order,
+    unitKey: entry.unit.unitKey,
+    editionKey: edition.editionKey,
+    title: entry.unitVersion.title,
+    summary: entry.unitVersion.summary,
+    durationMinutes: entry.unitVersion.durationMinutes,
+    partNumber: entry.partNumber,
+    partTitle: entry.partTitle,
+  };
+}
+
+/**
+ * The next chapter a reader can actually navigate to, after this one.
+ *
+ * Not `order + 1`, and not a comparison against a count. Both assume manifest
+ * orders are dense and start at 1 — true for backfilled books today, and
+ * exactly the assumption reordering breaks. Asking the manifest for the next
+ * placed position is the same answer when orders are dense and the right one
+ * when they are not.
+ */
+export async function nextPlacedOrder(
+  db: Db,
+  input: { bookSlug: string; after: number },
+): Promise<number | null> {
+  const edition = await db.edition.findFirst({
+    where: { slug: input.bookSlug },
+    select: { publishedRevisionId: true },
+  });
+  if (!edition?.publishedRevisionId) return null;
+
+  const next = await db.revisionUnit.findFirst({
+    where: {
+      revisionId: edition.publishedRevisionId,
+      order: { gt: input.after },
+    },
+    orderBy: { order: "asc" },
+    select: { order: true },
+  });
+  return next?.order ?? null;
 }

@@ -2431,6 +2431,16 @@ export interface LectorChapterResponse {
     /** Book part this chapter belongs to (null for single-part books). */
     partNumber: number | null;
     partTitle: string | null;
+    /**
+     * The Content Core unit this chapter IS, when it has no legacy Chapter row.
+     *
+     * The stable write identity. `order` locates a chapter for navigation, but a
+     * reorder can move it out from under an open tab — so every write a reader
+     * makes (heartbeat, completion) must name the unit it actually opened, not
+     * the position it happened to be at. Null for legacy chapters, which keep
+     * writing by their Chapter id.
+     */
+    contentUnitId: string | null;
   };
   blocks: ChapterBlockSummary[];
   lessons: LectorChapterLesson[];
@@ -2456,6 +2466,14 @@ export interface LectorSessionHeartbeatRequest {
   timeSpentDeltaSec: number;
   /** 0–1 ratio. Server clamps; client computes from scroll position. */
   progressPct: number;
+  /**
+   * The Content Core unit the reader opened, for a native chapter.
+   *
+   * Optional and additive: legacy chapters send nothing and are resolved by
+   * position exactly as before. When present the server writes to THIS unit
+   * wherever it now sits, so a reorder cannot redirect somebody's progress.
+   */
+  contentUnitId?: string;
 }
 
 export interface LectorSessionHeartbeatResponse {

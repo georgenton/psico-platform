@@ -6709,6 +6709,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteChapterDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "",
@@ -23701,6 +23711,12 @@
             "minLength": 1,
             "maxLength": 64
           },
+          "contentUnitId": {
+            "type": "string",
+            "description": "The Content Core unit the reader actually opened, for a native chapter.\n\nOptional, so existing clients and every legacy chapter are unaffected. When\npresent it WINS over `chapterOrder`: a structural publish can move a chapter\nwhile somebody's tab is open, and resolving the write by position would\ncredit their progress to whichever chapter moved into that slot.\n\nNever trusted as given — the server checks the unit belongs to this book's\nedition and sits in the currently published revision before writing.",
+            "minLength": 1,
+            "maxLength": 64
+          },
           "timeSpentDeltaSec": {
             "type": "number",
             "description": "Seconds since the previous heartbeat. Cap at 3600 in validation;\nservice further clamps to 60 to defend against suspend-and-resume\nspikes. The cumulative `timeSpentSec` on the row grows monotonically.",
@@ -23721,6 +23737,17 @@
           "timeSpentDeltaSec",
           "progressPct"
         ]
+      },
+      "CompleteChapterDto": {
+        "type": "object",
+        "properties": {
+          "contentUnitId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Identidad estable del capítulo nativo que el lector abrió. Prevalece sobre la posición de la ruta."
+          }
+        }
       },
       "CreateHighlightDto": {
         "type": "object",

@@ -109,8 +109,13 @@ export class DailyUsageProcessor extends WorkerHost {
     const totalChaptersByBook = new Map<string, number>();
     for (const row of progressInWindow) {
       const userId = row.userId;
-      const bookId = row.chapter!.bookId;
-      totalChaptersByBook.set(bookId, row.chapter!.book.totalChapters);
+      // Native completions have no Chapter, so they carry no legacy book id to
+      // aggregate by. Skipping them keeps the daily rollup from crashing and
+      // from counting a book complete on a stale legacy chapter total; native
+      // book-completion metrics land with pure-core BOOK ownership.
+      if (!row.chapter) continue;
+      const bookId = row.chapter.bookId;
+      totalChaptersByBook.set(bookId, row.chapter.book.totalChapters);
       const userBooks =
         candidateByUser.get(userId) ?? new Map<string, number>();
       userBooks.set(bookId, (userBooks.get(bookId) ?? 0) + 1);
@@ -131,7 +136,8 @@ export class DailyUsageProcessor extends WorkerHost {
       });
       const allTimeByBook = new Map<string, number>();
       for (const r of allTime) {
-        const bookId = r.chapter!.bookId;
+        if (!r.chapter) continue;
+        const bookId = r.chapter.bookId;
         allTimeByBook.set(bookId, (allTimeByBook.get(bookId) ?? 0) + 1);
       }
       let completed = 0;

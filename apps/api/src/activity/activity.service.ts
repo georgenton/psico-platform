@@ -99,6 +99,8 @@ export class ActivityService {
           id: `reading:${r.id}`,
           type: "reading",
           timestamp: r.lastSeenAt.toISOString(),
+          // Non-null by the `chapterId: { not: null }` filter above, which
+          // Prisma's relation type cannot express.
           title: r.chapter!.book.title,
           // The chapter by its title, not by `order`. The href below still
           // uses `order`, and must: that is what the route is keyed on. What

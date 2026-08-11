@@ -1,4 +1,12 @@
-import { IsInt, IsNumber, IsString, Length, Max, Min } from "class-validator";
+import {
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Length,
+  Max,
+  Min,
+} from "class-validator";
 
 /**
  * Body for `PATCH /api/lector/session` — heartbeat fired every ~5 s by
@@ -40,6 +48,22 @@ export class LectorSessionHeartbeatDto {
   @IsString()
   @Length(1, 64)
   lastBlockId!: string;
+
+  /**
+   * The Content Core unit the reader actually opened, for a native chapter.
+   *
+   * Optional, so existing clients and every legacy chapter are unaffected. When
+   * present it WINS over `chapterOrder`: a structural publish can move a chapter
+   * while somebody's tab is open, and resolving the write by position would
+   * credit their progress to whichever chapter moved into that slot.
+   *
+   * Never trusted as given — the server checks the unit belongs to this book's
+   * edition and sits in the currently published revision before writing.
+   */
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  contentUnitId?: string;
 
   /**
    * Seconds since the previous heartbeat. Cap at 3600 in validation;

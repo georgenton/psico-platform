@@ -826,8 +826,11 @@ export class UsersService {
     // distinct chapter count equals book.totalChapters.
     const byBook = new Map<string, { read: number; total: number }>();
     for (const row of completedProgress) {
-      const bookId = row.chapter!.bookId;
-      const total = row.chapter!.book.totalChapters;
+      // Native progress has no legacy Chapter; this surface counts legacy
+      // books, so those rows are skipped rather than asserted away.
+      if (!row.chapter) continue;
+      const bookId = row.chapter.bookId;
+      const total = row.chapter.book.totalChapters;
       const acc = byBook.get(bookId) ?? { read: 0, total };
       acc.read += 1;
       byBook.set(bookId, acc);

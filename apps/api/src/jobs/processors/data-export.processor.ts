@@ -174,6 +174,29 @@ export class DataExportProcessor extends WorkerHost {
               book: { select: { slug: true, title: true } },
             },
           },
+          // A native chapter has no Chapter row, and a person's reading history
+          // is theirs whether or not the chapter came from the legacy tables.
+          // Resolved through stable relationships — the unit and its edition —
+          // so a completed chapter that has since been unplaced or unpublished
+          // still exports rather than vanishing.
+          contentUnit: {
+            select: {
+              id: true,
+              unitKey: true,
+              edition: { select: { slug: true, editionKey: true } },
+              versions: {
+                orderBy: { createdAt: "desc" },
+                take: 1,
+                select: { title: true },
+              },
+              manifestEntries: {
+                where: { revision: { status: "PUBLISHED" } },
+                orderBy: { revision: { number: "desc" } },
+                take: 1,
+                select: { order: true },
+              },
+            },
+          },
         },
         orderBy: { completedAt: "asc" },
       }),
@@ -224,10 +247,17 @@ export class DataExportProcessor extends WorkerHost {
       notificationSettings: user.notificationSettings,
       privacySettings: user.privacySettings,
       progress: progress.map((p) => ({
-        chapterTitle: p.chapter!.title,
-        chapterOrder: p.chapter!.order,
-        bookSlug: p.chapter!.book.slug,
-        bookTitle: p.chapter!.book.title,
+        // Legacy and native entries share a shape so the export stays readable;
+        // each side fills it from whichever identity the row actually has.
+        chapterTitle:
+          p.chapter?.title ?? p.contentUnit?.versions[0]?.title ?? null,
+        // `null` when a native chapter is no longer placed in the published
+        // manifest. The completion is still real; only its position is gone.
+        chapterOrder:
+          p.chapter?.order ?? p.contentUnit?.manifestEntries[0]?.order ?? null,
+        bookSlug: p.chapter?.book.slug ?? p.contentUnit?.edition.slug ?? null,
+        bookTitle: p.chapter?.book.title ?? p.contentUnit?.edition.slug ?? null,
+        contentUnitId: p.contentUnitId,
         completedAt: p.completedAt,
         score: p.score,
       })),

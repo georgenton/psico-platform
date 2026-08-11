@@ -81,6 +81,8 @@ export class EcoSuggestionService {
     return {
       reading: reading
         ? {
+            // Non-null by the `chapterId: { not: null }` filter above, which
+            // Prisma's relation type cannot express.
             bookSlug: reading.chapter!.book.slug,
             bookTitle: reading.chapter!.book.title,
             chapterOrder: reading.chapter!.order,

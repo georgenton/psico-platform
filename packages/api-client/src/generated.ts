@@ -4526,6 +4526,18 @@ export interface components {
              */
             lastBlockId: string;
             /**
+             * @description The Content Core unit the reader actually opened, for a native chapter.
+             *
+             *     Optional, so existing clients and every legacy chapter are unaffected. When
+             *     present it WINS over `chapterOrder`: a structural publish can move a chapter
+             *     while somebody's tab is open, and resolving the write by position would
+             *     credit their progress to whichever chapter moved into that slot.
+             *
+             *     Never trusted as given — the server checks the unit belongs to this book's
+             *     edition and sits in the currently published revision before writing.
+             */
+            contentUnitId?: string;
+            /**
              * @description Seconds since the previous heartbeat. Cap at 3600 in validation;
              *     service further clamps to 60 to defend against suspend-and-resume
              *     spikes. The cumulative `timeSpentSec` on the row grows monotonically.
@@ -4539,6 +4551,10 @@ export interface components {
              *     endpoint to set 1.0 explicitly.
              */
             progressPct: number;
+        };
+        CompleteChapterDto: {
+            /** @description Identidad estable del capítulo nativo que el lector abrió. Prevalece sobre la posición de la ruta. */
+            contentUnitId?: string;
         };
         CreateHighlightDto: {
             /**
@@ -10136,7 +10152,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteChapterDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {

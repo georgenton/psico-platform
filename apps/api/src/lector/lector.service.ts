@@ -8,8 +8,10 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { Plan } from "@prisma/client";
 import {
+  nextPlacedOrder,
   readerTotalChapters,
   resolveNativeChapter,
+  resolveNativeUnitById,
   resolveReaderChapter,
   type NativeChapterTarget,
 } from "./reader-chapter-resolver";
@@ -168,6 +170,9 @@ export class LectorService {
         audioAvailable: chapter.audios.length > 0,
         partNumber: chapter.partNumber ?? null,
         partTitle: chapter.partTitle ?? null,
+        // Legacy chapters keep writing by their Chapter id; null tells a client
+        // exactly that, without it having to guess from the shape.
+        contentUnitId: null,
       },
       blocks: chapter.blocks.map((b) => ({
         id: b.id,
@@ -244,7 +249,7 @@ export class LectorService {
       id: string;
       slug: string;
       title: string;
-      cover: string | null;
+      cover: string;
       totalChapters: number;
       author: { name: string } | null;
     },
@@ -308,6 +313,9 @@ export class LectorService {
         audioAvailable: false,
         partNumber: target.partNumber,
         partTitle: target.partTitle,
+        // The stable write identity, stated in the contract rather than smuggled
+        // past the type.
+        contentUnitId: target.contentUnitId,
       },
       blocks: [],
       lessons: [],
@@ -327,8 +335,7 @@ export class LectorService {
         fontSize: prefs.fontSize,
         lineHeight: prefs.lineHeight,
       },
-      contentUnitId: target.contentUnitId,
-    } as LectorChapterResponse;
+    };
   }
 
   // ─── PATCH /api/lector/session ──────────────────────────────────────────
@@ -337,6 +344,13 @@ export class LectorService {
     userId: string,
     dto: LectorSessionHeartbeatDto,
   ): Promise<LectorSessionHeartbeatResponse> {
+    // A native identity, when the client has one, decides the write outright.
+    // Position is where the reader NAVIGATED; the unit is what they opened, and
+    // a structural publish can separate the two while the tab is open.
+    if (dto.contentUnitId) {
+      return this.nativeHeartbeat(userId, dto, dto.contentUnitId);
+    }
+
     const chapter = await this.prisma.chapter.findUnique({
       where: {
         bookId_order: { bookId: dto.bookId, order: dto.chapterOrder },
@@ -400,6 +414,7 @@ export class LectorService {
   private async nativeHeartbeat(
     userId: string,
     dto: LectorSessionHeartbeatDto,
+    contentUnitId?: string,
   ): Promise<LectorSessionHeartbeatResponse> {
     const book = await this.prisma.book.findUnique({
       where: { id: dto.bookId },
@@ -407,11 +422,16 @@ export class LectorService {
     });
     if (!book) return { ok: true, progressPct: dto.progressPct };
 
-    const target = await resolveNativeChapter(
-      this.prisma,
-      book.slug,
-      dto.chapterOrder,
-    );
+    // With an identity: resolve THAT unit, wherever it now sits. Without one:
+    // fall back to the position, which is all an older client can offer.
+    const target = contentUnitId
+      ? await resolveNativeUnitById(this.prisma, {
+          bookSlug: book.slug,
+          contentUnitId,
+        })
+      : await resolveNativeChapter(this.prisma, book.slug, dto.chapterOrder);
+    // A unit from another book, a draft-only one, or one that has been
+    // unpublished resolves to nothing and writes nothing.
     if (!target) return { ok: true, progressPct: dto.progressPct };
 
     const cappedDelta = Math.min(dto.timeSpentDeltaSec, 60);
@@ -457,12 +477,14 @@ export class LectorService {
     userId: string,
     book: { id: string; slug: string; totalChapters: number },
     chapterOrder: number,
+    contentUnitId?: string,
   ): Promise<LectorCompleteResponse> {
-    const target = await resolveNativeChapter(
-      this.prisma,
-      book.slug,
-      chapterOrder,
-    );
+    const target = contentUnitId
+      ? await resolveNativeUnitById(this.prisma, {
+          bookSlug: book.slug,
+          contentUnitId,
+        })
+      : await resolveNativeChapter(this.prisma, book.slug, chapterOrder);
     if (!target) throw new NotFoundException("CHAPTER_NOT_FOUND");
 
     await this.prisma.$transaction([
@@ -487,16 +509,14 @@ export class LectorService {
       }),
     ]);
 
-    // "What comes next" is a navigation question, so it counts what the reader
-    // can actually navigate rather than the legacy column.
-    const total = await readerTotalChapters(this.prisma, {
+    // Navigation continues from where the unit ACTUALLY is now, not from the
+    // stale position the client was showing — and it asks the manifest what
+    // comes next rather than assuming positions are dense.
+    const nextChapter = await nextPlacedOrder(this.prisma, {
       bookSlug: book.slug,
-      legacyTotal: book.totalChapters,
+      after: target.order,
     });
-    return {
-      ok: true,
-      nextChapter: chapterOrder < total ? chapterOrder + 1 : null,
-    };
+    return { ok: true, nextChapter };
   }
 
   // ─── POST /api/lector/:bookId/:chapterN/complete ───────────────────────
@@ -505,12 +525,22 @@ export class LectorService {
     userId: string,
     bookIdOrSlug: string,
     chapterOrder: number,
+    contentUnitId?: string,
   ): Promise<LectorCompleteResponse> {
     const book = await this.prisma.book.findFirst({
       where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
       select: { id: true, slug: true, totalChapters: true },
     });
     if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
+
+    if (contentUnitId) {
+      return this.completeNativeChapter(
+        userId,
+        book,
+        chapterOrder,
+        contentUnitId,
+      );
+    }
 
     const chapter = await this.prisma.chapter.findUnique({
       where: { bookId_order: { bookId: book.id, order: chapterOrder } },

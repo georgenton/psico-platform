@@ -12,6 +12,12 @@ function buildPrisma() {
       findMany: vi.fn(),
       count: vi.fn(),
     },
+    edition: { findFirst: vi.fn().mockResolvedValue(null) },
+    revisionUnit: {
+      count: vi.fn().mockResolvedValue(0),
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+    contentUnit: { findUnique: vi.fn().mockResolvedValue(null) },
     chapter: { count: vi.fn() },
     conversation: { findFirst: vi.fn() },
     book: { findMany: vi.fn() },

@@ -118,9 +118,13 @@ export class UsageService {
     const byBook = new Map<string, number>();
     const totalChaptersByBook = new Map<string, number>();
     for (const row of progressInPeriod) {
-      const bookId = row.chapter!.bookId;
+      // Same reasoning as the daily rollup: a native completion has no legacy
+      // book to aggregate by. It is counted in `booksCompleted` only once
+      // Content Core owns the BOOK, not just the chapter.
+      if (!row.chapter) continue;
+      const bookId = row.chapter.bookId;
       byBook.set(bookId, (byBook.get(bookId) ?? 0) + 1);
-      totalChaptersByBook.set(bookId, row.chapter!.book.totalChapters);
+      totalChaptersByBook.set(bookId, row.chapter.book.totalChapters);
     }
     // To know if the book is COMPLETED (not just touched), we need the
     // historical chapter count — do one more lookup with all-time progress

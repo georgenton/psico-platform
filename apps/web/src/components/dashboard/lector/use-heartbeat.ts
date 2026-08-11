@@ -33,6 +33,14 @@ import { useEffect, useRef } from "react";
 interface HeartbeatPayload {
   bookId: string;
   chapterOrder: number;
+  /**
+   * The chapter the reader actually opened, for a Content Core-native chapter.
+   *
+   * The position can move under an open tab when a structural revision
+   * publishes; the unit cannot. Sent so the server writes progress to the
+   * chapter being read rather than to whichever one now occupies that slot.
+   */
+  contentUnitId?: string;
   /** Block currently in viewport — IntersectionObserver-resolved. */
   lastBlockId: string;
   progressPct: number;
@@ -43,6 +51,8 @@ interface Options {
   token: string;
   bookId: string;
   chapterOrder: number;
+  /** Null for legacy chapters, which the server resolves by position. */
+  contentUnitId?: string | null;
   /** Called with the latest progress every beat so the parent can show it. */
   onProgress?: (pct: number) => void;
   /** Reader exposes current block + progress via this getter. */
@@ -62,6 +72,7 @@ export function useHeartbeat({
   token,
   bookId,
   chapterOrder,
+  contentUnitId,
   onProgress,
   read,
   enabled = true,
@@ -125,6 +136,7 @@ export function useHeartbeat({
           body: JSON.stringify({
             bookId,
             chapterOrder,
+            ...(contentUnitId ? { contentUnitId } : {}),
             lastBlockId: snapshot.lastBlockId,
             timeSpentDeltaSec: deltaSec,
             progressPct: snapshot.progressPct,
@@ -146,5 +158,14 @@ export function useHeartbeat({
       cancelled = true;
       clearInterval(id);
     };
-  }, [apiBase, token, bookId, chapterOrder, onProgress, read, enabled]);
+  }, [
+    apiBase,
+    token,
+    bookId,
+    chapterOrder,
+    contentUnitId,
+    onProgress,
+    read,
+    enabled,
+  ]);
 }

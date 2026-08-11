@@ -431,4 +431,188 @@ suite("native reader · a chapter with no legacy Chapter row", () => {
       expect(session.progressPct).toBeCloseTo(0.25);
     });
   });
+
+  describe("a stale tab cannot write into another chapter", () => {
+    let staleUnitId = "";
+    let occupantUnitId = "";
+
+    it("sets up a reader on a chapter that is about to move", async () => {
+      staleUnitId = await makeNativeUnit({
+        unitKey: "u-stale",
+        title: "Se va a mover",
+        order: 30,
+        revisionId: publishedRevisionId,
+      });
+      occupantUnitId = await makeNativeUnit({
+        unitKey: "u-occupant",
+        title: "Ocupa el hueco",
+        order: 31,
+        revisionId: publishedRevisionId,
+      });
+
+      const opened = await open(30);
+      // The identity the client is told to write with, from the contract.
+      expect(opened.chapter.contentUnitId).toBe(staleUnitId);
+    });
+
+    it("heartbeats the unit it opened, not whoever now sits there", async () => {
+      // The reorder happens while the tab is open — nobody reopens anything.
+      await prisma.revisionUnit.updateMany({
+        where: { revisionId: publishedRevisionId, unitId: staleUnitId },
+        data: { order: 32 },
+      });
+      await prisma.revisionUnit.updateMany({
+        where: { revisionId: publishedRevisionId, unitId: occupantUnitId },
+        data: { order: 30 },
+      });
+
+      await lector.heartbeat(USER, {
+        bookId,
+        chapterOrder: 30, // stale: the tab still believes it is at 30
+        contentUnitId: staleUnitId, // but it knows WHAT it opened
+        progressPct: 0.6,
+        timeSpentDeltaSec: 20,
+        lastBlockId: null,
+      } as never);
+
+      const moved = await prisma.readingSession.findFirstOrThrow({
+        where: { userId: USER, contentUnitId: staleUnitId },
+      });
+      expect(moved.progressPct).toBeCloseTo(0.6);
+
+      // The chapter that moved INTO position 30 got nothing.
+      const occupant = await prisma.readingSession.findFirst({
+        where: { userId: USER, contentUnitId: occupantUnitId },
+      });
+      expect(occupant).toBeNull();
+    });
+
+    it("completes the unit it opened, and navigates from where that unit now is", async () => {
+      // Something further along, so "next" is a real answer rather than the end
+      // of the book — and so it is unmistakably not the stale view's `31`.
+      await makeNativeUnit({
+        unitKey: "u-after",
+        title: "Más adelante",
+        order: 40,
+        revisionId: publishedRevisionId,
+      });
+
+      const res = await lector.completeChapter(
+        USER,
+        "libro-nativo",
+        30, // stale position again
+        staleUnitId,
+      );
+
+      const done = await prisma.userProgress.findFirst({
+        where: { userId: USER, contentUnitId: staleUnitId },
+      });
+      expect(done).not.toBeNull();
+
+      const occupantDone = await prisma.userProgress.findFirst({
+        where: { userId: USER, contentUnitId: occupantUnitId },
+      });
+      expect(occupantDone).toBeNull();
+
+      // The unit is at 32 now, and the next PLACED chapter is 40. A stale
+      // positional computation would have said 31.
+      expect(res.nextChapter).toBe(40);
+    });
+  });
+
+  describe("a named identity is never taken on trust", () => {
+    it("refuses a unit from another book", async () => {
+      const otherWork = await prisma.work.create({
+        data: { workKey: "w-otro", title: "Otro", authorName: "A" },
+      });
+      const otherEdition = await prisma.edition.create({
+        data: {
+          workId: otherWork.id,
+          editionKey: "otro-1e",
+          slug: "otro",
+          label: "E",
+          accessPlan: "FREE",
+        },
+      });
+      const foreign = await prisma.contentUnit.create({
+        data: { editionId: otherEdition.id, unitKey: "u-foreign" },
+      });
+
+      await lector.heartbeat(USER, {
+        bookId,
+        chapterOrder: 1,
+        contentUnitId: foreign.id,
+        progressPct: 0.99,
+        timeSpentDeltaSec: 30,
+        lastBlockId: null,
+      } as never);
+
+      // Nothing written anywhere for that unit.
+      expect(
+        await prisma.readingSession.count({
+          where: { contentUnitId: foreign.id },
+        }),
+      ).toBe(0);
+    });
+
+    it("refuses a unit that exists only in a draft revision", async () => {
+      const draft = await prisma.revision.create({
+        data: { editionId, number: 99, status: "DRAFT" },
+      });
+      const draftOnly = await makeNativeUnit({
+        unitKey: "u-draft-only",
+        title: "Sólo borrador",
+        order: 50,
+        revisionId: draft.id,
+      });
+
+      await lector.heartbeat(USER, {
+        bookId,
+        chapterOrder: 50,
+        contentUnitId: draftOnly,
+        progressPct: 0.5,
+        timeSpentDeltaSec: 10,
+        lastBlockId: null,
+      } as never);
+
+      expect(
+        await prisma.readingSession.count({
+          where: { contentUnitId: draftOnly },
+        }),
+      ).toBe(0);
+    });
+
+    it("refuses an id that is not a unit at all", async () => {
+      await lector.heartbeat(USER, {
+        bookId,
+        chapterOrder: 1,
+        contentUnitId: "definitely-not-a-unit",
+        progressPct: 0.5,
+        timeSpentDeltaSec: 10,
+        lastBlockId: null,
+      } as never);
+      // Soft-fail, no write, no crash.
+      expect(
+        await prisma.readingSession.count({
+          where: { contentUnitId: "definitely-not-a-unit" },
+        }),
+      ).toBe(0);
+    });
+
+    it("leaves a legacy heartbeat with no identity exactly as it was", async () => {
+      await lector.heartbeat(USER, {
+        bookId,
+        chapterOrder: 1,
+        progressPct: 0.4,
+        timeSpentDeltaSec: 5,
+        lastBlockId: null,
+      } as never);
+
+      const session = await prisma.readingSession.findFirstOrThrow({
+        where: { userId: USER, chapterId: legacyChapter1Id },
+      });
+      expect(session.contentUnitId).toBeNull();
+      expect(session.progressPct).toBeGreaterThanOrEqual(0.4);
+    });
+  });
 });

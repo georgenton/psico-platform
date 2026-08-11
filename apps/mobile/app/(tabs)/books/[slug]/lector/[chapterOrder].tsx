@@ -283,6 +283,10 @@ export default function LectorScreen() {
       lastTickRef.current = now;
       try {
         const res = await lectorApi.heartbeat({
+          // Stable identity for a native chapter; absent for legacy ones.
+          ...(chapter.chapter.contentUnitId
+            ? { contentUnitId: chapter.chapter.contentUnitId }
+            : {}),
           bookId: chapter.book.id,
           chapterOrder: chapter.chapter.order,
           lastBlockId: lastBlockIdRef.current,
@@ -412,6 +416,9 @@ export default function LectorScreen() {
       const res = await lectorApi.complete(
         chapter.book.slug,
         chapter.chapter.order,
+        // Complete the chapter that was OPENED, not whoever occupies that
+        // position by the time the button is pressed.
+        chapter.chapter.contentUnitId ?? undefined,
       );
       if (res.nextChapter !== null) {
         router.replace(

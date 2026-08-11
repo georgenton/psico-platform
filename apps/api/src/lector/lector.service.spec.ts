@@ -81,6 +81,17 @@ function makePrisma(overrides: Partial<Record<string, unknown>> = {}) {
     chapter: {
       findUnique: vi.fn().mockResolvedValue(baseChapter),
     },
+    // A book Content Core does not serve yet. The legacy reader now asks the
+    // published manifest how many chapters there are and which one comes next,
+    // so these cases exercise the fallback: with no edition, `Book.totalChapters`
+    // and its arithmetic are still the only answers available.
+    edition: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+    revisionUnit: {
+      count: vi.fn().mockResolvedValue(0),
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
     highlight: {
       findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn(),

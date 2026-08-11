@@ -6,6 +6,7 @@ import {
   imageObjectKey,
   type UploadedImageFile,
 } from "../shared/image-upload";
+import { resolveEditorialChapter } from "./native-authoring";
 
 /**
  * Content Studio — uploading image bytes.
@@ -86,9 +87,13 @@ export class ContentStudioAssetsService {
     if (!book) throw new NotFoundException({ code: "BOOK_NOT_FOUND" });
 
     // The chapter must belong to THIS book — an order alone is not an identity.
-    const chapter = await this.prisma.chapter.findFirst({
-      where: { bookId: book.id, order: chapterOrder },
-      select: { id: true, order: true },
+    // Asked of the revision being edited, not of `Chapter`: a chapter created
+    // in Content Studio has no legacy row, and an editor who cannot illustrate
+    // the chapter they just wrote would be looking at an arbitrary limit.
+    const chapter = await resolveEditorialChapter(this.prisma, {
+      bookId: book.id,
+      bookSlug: book.slug,
+      order: chapterOrder,
     });
     if (!chapter) throw new NotFoundException({ code: "CHAPTER_NOT_FOUND" });
 

@@ -7,6 +7,7 @@ import {
   CONTENT_DRAFT_NOT_FOUND,
   CONTENT_DRAFT_STALE,
   archiveRevisionTx,
+  nextRevisionNumberTx,
   assertUnitInputValid,
   findActiveDraftTx,
   lockEditionTx,
@@ -325,4 +326,95 @@ export async function readUnitTitlesAtRevision(
     },
   });
   return new Map(units.map((ru) => [ru.unit.unitKey, ru.unitVersion.title]));
+}
+
+export interface DiscardDraftUnitParams {
+  editionId: string;
+  expectedRevisionId: string;
+  unitKey: string;
+}
+
+/**
+ * Drop a never-published unit from the active draft.
+ *
+ * Not a delete. The `ContentUnit`, its versions and every revision that ever
+ * referenced it stay exactly as they are — archived revisions must keep
+ * resolving, and a reader's history must keep meaning something. What this
+ * produces is the next draft snapshot, assembled from the current one minus
+ * that unit.
+ *
+ * Every other unit is carried forward at the version the draft was already
+ * holding, so an editor discarding a chapter they regret does not lose the
+ * edits they made to the rest of the book.
+ *
+ * The caller is responsible for refusing this on a published unit; from here it
+ * would happily remove one, and the reader would lose a chapter.
+ */
+export async function discardDraftUnit(
+  prisma: PrismaClient,
+  params: DiscardDraftUnitParams,
+): Promise<{ revisionId: string; revisionNumber: number }> {
+  return prisma.$transaction(
+    async (tx) => {
+      const { publishedRevisionId } = await lockEditionTx(tx, params.editionId);
+      if (!publishedRevisionId) {
+        throw new Error("INGEST_REQUIRES_BASE_REVISION");
+      }
+
+      const activeDraft = await findActiveDraftTx(tx, params.editionId);
+      const baseRevisionId = activeDraft?.id ?? publishedRevisionId;
+      // Same optimistic check as every other write, inside the lock.
+      if (params.expectedRevisionId !== baseRevisionId) {
+        throw new Error(CONTENT_DRAFT_CONFLICT);
+      }
+
+      const entries = await tx.revisionUnit.findMany({
+        where: { revisionId: baseRevisionId },
+        orderBy: { order: "asc" },
+        select: {
+          unitId: true,
+          unitVersionId: true,
+          order: true,
+          partNumber: true,
+          partTitle: true,
+          unit: { select: { unitKey: true } },
+        },
+      });
+      const keep = entries.filter((e) => e.unit.unitKey !== params.unitKey);
+      if (keep.length === entries.length) {
+        throw new Error("CONTENT_DRAFT_UNIT_NOT_IN_REVISION");
+      }
+
+      const nextNumber = await nextRevisionNumberTx(tx, params.editionId);
+      const revision = await tx.revision.create({
+        data: {
+          editionId: params.editionId,
+          number: nextNumber,
+          status: "DRAFT",
+          note: "content-studio:discard",
+        },
+      });
+
+      // Orders are left exactly as they were rather than closed up. Renumbering
+      // would move every chapter after the discarded one, and positions are
+      // still what URLs and navigation use — a gap is harmless, a shift is not.
+      for (const e of keep) {
+        await tx.revisionUnit.create({
+          data: {
+            revisionId: revision.id,
+            unitId: e.unitId,
+            unitVersionId: e.unitVersionId,
+            order: e.order,
+            partNumber: e.partNumber,
+            partTitle: e.partTitle,
+          },
+        });
+      }
+
+      if (activeDraft) await archiveRevisionTx(tx, activeDraft.id);
+
+      return { revisionId: revision.id, revisionNumber: nextNumber };
+    },
+    { timeout: 30_000 },
+  );
 }

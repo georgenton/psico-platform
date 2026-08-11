@@ -66,6 +66,24 @@ export class ContentStudioChapterRowDto {
 
   @ApiProperty({ description: "El borrador cambia este capítulo." })
   changed!: boolean;
+
+  @ApiProperty({
+    description:
+      "Creado en Content Studio y todavía sin publicar: puede descartarse.",
+  })
+  isNewDraftChapter!: boolean;
+
+  @ApiProperty({
+    description:
+      "El título se administra aquí. Falso para capítulos que aún tienen fila legacy.",
+  })
+  titleEditable!: boolean;
+
+  @ApiProperty({
+    description:
+      "Está en la revisión que se edita. Falso solo para un capítulo legacy que Content Core nunca ingirió: se lista porque los lectores sí lo ven, pero no puede editarse todavía.",
+  })
+  ingested!: boolean;
 }
 
 export class ContentStudioBookStateResponseDto {
@@ -84,6 +102,12 @@ export class ContentStudioBookStateResponseDto {
 
   @ApiProperty({ nullable: true, type: Number })
   draftRevisionNumber!: number | null;
+
+  @ApiProperty({
+    description:
+      "La revisión que se está editando (el borrador si existe, si no la publicada). Es el token que debe enviar una creación.",
+  })
+  editingRevisionId!: string;
 
   @ApiProperty() changedUnitCount!: number;
 
@@ -125,11 +149,41 @@ export class ContentStudioChapterResponseDto {
   @ApiProperty({ description: "Capítulos que el borrador del libro cambia." })
   changedUnitCount!: number;
 
+  @ApiProperty({
+    description:
+      "El título se administra aquí. Falso para capítulos que aún tienen fila legacy.",
+  })
+  titleEditable!: boolean;
+
+  @ApiProperty({
+    description:
+      "Este capítulo tiene panel de multimedia. Falso para capítulos nativos: el catálogo de medios sigue anclado al mundo legacy.",
+  })
+  mediaAdminAvailable!: boolean;
+
+  @ApiProperty({
+    description:
+      "Creado en Content Studio y todavía sin publicar: puede descartarse.",
+  })
+  isNewDraftChapter!: boolean;
+
   @ApiProperty({ type: [ContentStudioBlockDto] })
   blocks!: ContentStudioBlockDto[];
 }
 
 export class ContentStudioSaveResponseDto {
+  @ApiProperty({ description: "El nuevo token de concurrencia." })
+  revisionId!: string;
+
+  @ApiProperty() revisionNumber!: number;
+  @ApiProperty() changedUnitCount!: number;
+}
+
+/** Creating a chapter: where it landed, plus the new concurrency token. */
+export class ContentStudioCreateChapterResponseDto {
+  @ApiProperty({ description: "La posición en la que quedó el capítulo." })
+  chapterOrder!: number;
+
   @ApiProperty({ description: "El nuevo token de concurrencia." })
   revisionId!: string;
 

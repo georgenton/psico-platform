@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSessionUser, isNextThrow, serverFetch } from "@/lib/api.server";
 import type { BookState } from "../contracts";
 import { CoverPanel } from "./CoverPanel";
+import { CreateChapterPanel } from "./CreateChapterPanel";
 import { PublishBookPanel } from "./PublishBookPanel";
 
 export const metadata: Metadata = { title: "Pulso · Contenido del libro" };
@@ -102,6 +103,11 @@ export default async function ContentStudioBookPage({
         />
       )}
 
+      <CreateChapterPanel
+        bookSlug={params.bookSlug}
+        editingRevisionId={state.editingRevisionId}
+      />
+
       <ul className="mt-5 space-y-2">
         {state.chapters.map((c) => (
           <li
@@ -122,6 +128,8 @@ export default async function ContentStudioBookPage({
                 style={{ color: "var(--color-warm-500)" }}
               >
                 Cap. {c.order}
+                {c.isNewDraftChapter && " · nuevo"}
+                {!c.ingested && " · sin migrar"}
               </p>
               <p
                 className="truncate text-[14.5px] font-semibold"
@@ -131,16 +139,28 @@ export default async function ContentStudioBookPage({
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              {c.changed && (
+              {c.isNewDraftChapter ? (
                 <span
                   className="rounded-full px-2.5 py-1 text-[11px] font-bold"
                   style={{
-                    background: "var(--color-lavender-200)",
-                    color: "var(--color-lavender-800)",
+                    background: "var(--color-sage-100)",
+                    color: "var(--color-sage-700)",
                   }}
                 >
-                  Con cambios
+                  Sin publicar
                 </span>
+              ) : (
+                c.changed && (
+                  <span
+                    className="rounded-full px-2.5 py-1 text-[11px] font-bold"
+                    style={{
+                      background: "var(--color-lavender-200)",
+                      color: "var(--color-lavender-800)",
+                    }}
+                  >
+                    Con cambios
+                  </span>
+                )
               )}
               <Link
                 href={`/dashboard/admin/contenido/${params.bookSlug}/${c.order}`}

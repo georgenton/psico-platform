@@ -38,10 +38,12 @@ import {
  * because "we do not edit this yet" and "we lost this" must never look the same
  * to the person who wrote it.
  *
- * The title is READ-ONLY. Several surfaces still read the legacy `Chapter.title`
- * — the web and mobile reader headers, page metadata — so a rename here would
- * show up in some places and not others. The server owns it too, not just this
- * screen: the save request has no title field to send.
+ * The title is editable ONLY for a chapter Content Studio created. A chapter
+ * that still has a legacy `Chapter` row has its title read from there by
+ * surfaces this phase has not touched — reader headers, page metadata — so a
+ * rename would show up in some places and not others. The server decides which
+ * case this is and says so in `titleEditable`; it refuses a title it does not
+ * own rather than ignoring one, so the two screens cannot disagree.
  *
  * `revisionId` is the concurrency token. It comes from the load, goes back with
  * the save, and is replaced by whatever the save returns. On a 409 nothing local
@@ -96,6 +98,9 @@ export function ChapterEditor({
   const [blocks, setBlocks] = useState<EditorBlock[]>(() =>
     toEditorBlocks(initial.blocks),
   );
+  // Only meaningful when `titleEditable`; the server refuses it otherwise, so
+  // it is sent only in that case.
+  const [title, setTitle] = useState(initial.title);
   const [revisionId, setRevisionId] = useState(initial.revisionId);
   const [revisionNumber, setRevisionNumber] = useState(initial.revisionNumber);
   // State, not `initial`: after the first save the revision is a DRAFT, and a
@@ -212,10 +217,15 @@ export function ChapterEditor({
       return null;
     }
     setError(null);
+    if (initial.titleEditable && title.trim().length === 0) {
+      setError("El capítulo necesita un título.");
+      return null;
+    }
     const result = await saveChapterDraftAction(bookSlug, chapterOrder, {
       expectedRevisionId: revisionId,
-      // Content only. Order is the array's order; identity, title, summary and
-      // duration are the server's.
+      // The title travels only when this screen owns it. Order is the array's
+      // order; identity, summary and duration are the server's.
+      ...(initial.titleEditable ? { title: title.trim() } : {}),
       blocks: blocks.map((b) => ({
         kind: b.kind,
         content: b.content,
@@ -317,19 +327,48 @@ export function ChapterEditor({
           Cap. {chapterOrder} · revisión r{revisionNumber}{" "}
           {revisionStatus === "DRAFT" ? "(borrador)" : "(publicada)"}
         </p>
-        <h1
-          className="mt-2 text-[20px] font-bold"
-          style={{ color: "var(--color-warm-900)" }}
-        >
-          {initial.title}
-        </h1>
-        <p
-          className="mt-1.5 text-[12.5px]"
-          style={{ color: "var(--color-warm-500)" }}
-        >
-          El título y la estructura del capítulo se administrarán en una
-          siguiente etapa. Aquí puedes editar su contenido.
-        </p>
+        {initial.titleEditable ? (
+          <>
+            <label htmlFor="chapter-title" className="sr-only">
+              Título del capítulo
+            </label>
+            <input
+              id="chapter-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={200}
+              className="mt-2 w-full rounded-lg border px-3 py-2 text-[20px] font-bold"
+              style={{
+                borderColor: "var(--color-warm-300)",
+                background: "var(--color-warm-50)",
+                color: "var(--color-warm-900)",
+              }}
+            />
+            <p
+              className="mt-1.5 text-[12.5px]"
+              style={{ color: "var(--color-warm-500)" }}
+            >
+              El título se guarda con el contenido. La estructura del libro —
+              orden y partes — se administrará en una siguiente etapa.
+            </p>
+          </>
+        ) : (
+          <>
+            <h1
+              className="mt-2 text-[20px] font-bold"
+              style={{ color: "var(--color-warm-900)" }}
+            >
+              {initial.title}
+            </h1>
+            <p
+              className="mt-1.5 text-[12.5px]"
+              style={{ color: "var(--color-warm-500)" }}
+            >
+              El título y la estructura del capítulo se administrarán en una
+              siguiente etapa. Aquí puedes editar su contenido.
+            </p>
+          </>
+        )}
       </header>
 
       <ol className="space-y-3">

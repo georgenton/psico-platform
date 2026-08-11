@@ -30,6 +30,7 @@ import {
   ApiBody,
   ApiConsumes,
   ApiConflictResponse,
+  ApiCreatedResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -61,6 +62,7 @@ import {
   ContentStudioMediaUploadResponseDto,
   ContentStudioVideoUploadIntentDto,
   ContentStudioVideoUploadStatusDto,
+  ContentStudioCreateChapterResponseDto,
   ContentStudioSaveResponseDto,
 } from "./dto/content-studio-response.dto";
 import {
@@ -70,6 +72,8 @@ import {
   UploadPodcastEpisodeDto,
   CreateVideoUploadIntentDto,
   PublishBookDto,
+  CreateChapterDto,
+  DiscardChapterDto,
   SaveChapterDraftDto,
   UpdateMediaDraftDto,
 } from "./dto/content-studio.dto";
@@ -160,8 +164,55 @@ export class ContentStudioController {
   ) {
     return this.studio.saveChapterDraft(bookSlug, chapterOrder, {
       expectedRevisionId: dto.expectedRevisionId,
+      title: dto.title,
       blocks: dto.blocks,
     });
+  }
+
+  @Post("books/:bookSlug/chapters")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "createContentStudioChapter",
+    summary:
+      "Crea un capítulo al final del libro, solo en Content Core. No crea fila legacy ni toca Book.totalChapters. Queda en el borrador hasta publicar.",
+  })
+  @ApiCreatedResponse({ type: ContentStudioCreateChapterResponseDto })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description: "El borrador cambió; no se escribió nada.",
+  })
+  createChapter(
+    @Param("bookSlug") bookSlug: string,
+    @Body() dto: CreateChapterDto,
+  ) {
+    return this.studio.createChapter(bookSlug, {
+      expectedRevisionId: dto.expectedRevisionId,
+      title: dto.title,
+    });
+  }
+
+  @Post("books/:bookSlug/chapters/:chapterOrder/discard")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "discardContentStudioChapter",
+    summary:
+      "Saca del borrador un capítulo que nunca se publicó. No borra nada: la unidad y las revisiones anteriores quedan intactas.",
+  })
+  @ApiOkResponse({ type: ContentStudioSaveResponseDto })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description: "El borrador cambió; no se escribió nada.",
+  })
+  discardChapter(
+    @Param("bookSlug") bookSlug: string,
+    @Param("chapterOrder", ParseIntPipe) chapterOrder: number,
+    @Body() dto: DiscardChapterDto,
+  ) {
+    return this.studio.discardNewChapter(
+      bookSlug,
+      chapterOrder,
+      dto.expectedRevisionId,
+    );
   }
 
   @Get("books/:bookSlug/chapters/:chapterOrder/preview")

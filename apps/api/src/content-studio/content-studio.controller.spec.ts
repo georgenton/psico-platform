@@ -69,6 +69,8 @@ describe("Content Studio media routes are ADMIN-guarded", () => {
 describe("Content Studio role matrix", () => {
   const WRITES = [
     "saveDraft",
+    "createChapter",
+    "discardChapter",
     "uploadCover",
     "uploadChapterImage",
     "uploadAudiobook",

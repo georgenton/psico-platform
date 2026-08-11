@@ -36,6 +36,11 @@ function chapter(overrides: ChapterOverrides = {}): ChapterContent {
     revisionNumber: 6,
     revisionStatus: "DRAFT",
     changedUnitCount: 1,
+    // The ordinary case: a chapter that still has a legacy row, so this screen
+    // does not own its title.
+    titleEditable: false,
+    mediaAdminAvailable: true,
+    isNewDraftChapter: false,
     blocks: [
       {
         blockKey: "k1",
@@ -427,5 +432,75 @@ describe("ChapterEditor — the title is not ours to change yet", () => {
     expect(actions.saveChapterDraftAction.mock.calls[0]![2]).not.toHaveProperty(
       "title",
     );
+  });
+});
+
+/**
+ * The title, and who is allowed to change it.
+ *
+ * Two chapters can sit at the same URL shape and mean different things: one
+ * still has a legacy `Chapter` row that other surfaces read its title from, and
+ * one exists only in Content Core. The editor must not offer an edit it cannot
+ * honour, and must offer the one it can.
+ */
+describe("the chapter title", () => {
+  it("is read-only for a chapter the legacy row still names", async () => {
+    renderEditor(chapter({ titleEditable: false }));
+
+    expect(
+      screen.getByRole("heading", { name: "Cuando la calma no llega" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Título del capítulo")).toBeNull();
+  });
+
+  it("is editable for a chapter Content Studio created, and travels with the save", async () => {
+    const user = userEvent.setup();
+    actions.saveChapterDraftAction.mockResolvedValue({
+      ok: true,
+      data: { revisionId: "rev_7", revisionNumber: 7, changedUnitCount: 1 },
+    });
+    renderEditor(chapter({ titleEditable: true, title: "Sin título aún" }));
+
+    const input = screen.getByLabelText("Título del capítulo");
+    await user.clear(input);
+    await user.type(input, "  La mente que aprende  ");
+    await user.click(screen.getByRole("button", { name: /guardar borrador/i }));
+
+    await waitFor(() => {
+      expect(actions.saveChapterDraftAction).toHaveBeenCalled();
+    });
+    const [, , input_] = actions.saveChapterDraftAction.mock.calls[0]!;
+    // Trimmed, because a title with trailing spaces is a typo, not a decision.
+    expect(input_.title).toBe("La mente que aprende");
+  });
+
+  it("never sends a title the server does not own", async () => {
+    const user = userEvent.setup();
+    actions.saveChapterDraftAction.mockResolvedValue({
+      ok: true,
+      data: { revisionId: "rev_7", revisionNumber: 7, changedUnitCount: 1 },
+    });
+    renderEditor(chapter({ titleEditable: false }));
+
+    await user.click(screen.getByRole("button", { name: /guardar borrador/i }));
+
+    await waitFor(() => {
+      expect(actions.saveChapterDraftAction).toHaveBeenCalled();
+    });
+    const [, , input_] = actions.saveChapterDraftAction.mock.calls[0]!;
+    expect("title" in input_).toBe(false);
+  });
+
+  it("refuses to save a new chapter with no title, without calling the server", async () => {
+    const user = userEvent.setup();
+    renderEditor(chapter({ titleEditable: true }));
+
+    await user.clear(screen.getByLabelText("Título del capítulo"));
+    await user.click(screen.getByRole("button", { name: /guardar borrador/i }));
+
+    expect(
+      await screen.findByText("El capítulo necesita un título."),
+    ).toBeInTheDocument();
+    expect(actions.saveChapterDraftAction).not.toHaveBeenCalled();
   });
 });

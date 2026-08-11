@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSessionUser, isNextThrow, serverFetch } from "@/lib/api.server";
 import type { BookState, ChapterContent } from "../../contracts";
 import { ChapterEditor } from "./ChapterEditor";
+import { DiscardChapterPanel } from "./DiscardChapterPanel";
 import { MediaSection } from "./MediaSection";
 
 export const metadata: Metadata = { title: "Pulso · Editar capítulo" };
@@ -56,7 +57,28 @@ export default async function ContentStudioChapterPage({
           lifecycle and its own publish, and mixing the two would suggest one
           "Guardar borrador" covers both. */}
       <div className="mx-auto max-w-[860px]">
-        <MediaSection bookSlug={params.bookSlug} chapterOrder={order} />
+        {chapter.mediaAdminAvailable ? (
+          <MediaSection bookSlug={params.bookSlug} chapterOrder={order} />
+        ) : (
+          /* The media catalog is still keyed to the legacy chapter world, so a
+             chapter created here has nothing for it to administer. Saying so
+             beats a panel that loads and then errors. */
+          <p
+            className="mt-6 text-[12.5px]"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            El audio y el video de los capítulos nuevos se administrarán en una
+            siguiente etapa. El texto ya se publica con el libro.
+          </p>
+        )}
+
+        {chapter.isNewDraftChapter && (
+          <DiscardChapterPanel
+            bookSlug={params.bookSlug}
+            chapterOrder={order}
+            revisionId={chapter.revisionId}
+          />
+        )}
       </div>
     </>
   );

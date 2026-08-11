@@ -57,6 +57,7 @@ import {
 } from "./media/chapter-media.openapi";
 import { ChapterMediaService } from "./media/chapter-media.service";
 import { readerRefFromSegments } from "@psico/types";
+import type { ReaderChapterRef } from "@psico/types";
 
 @ApiTags("Lector")
 @ApiBadRequestResponse({ type: ErrorEnvelopeDto })
@@ -178,6 +179,27 @@ export class LectorController {
    * not a generic resource-by-id endpoint, and anything else is a 404 before a
    * single row is read.
    */
+  /**
+   * The stable identity of whatever is at a position — for redirecting.
+   *
+   * Deliberately not the reader: it returns an identity and nothing else, and
+   * writes nothing. Declared above `:bookId/:chapterOrder` for the same
+   * match-order reason as the ref route.
+   */
+  @Get(":bookId/locator/:chapterOrder")
+  getLocator(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("bookId") bookId: string,
+    @Param("chapterOrder", ParseIntPipe) chapterOrder: number,
+  ): Promise<{ readerRef: ReaderChapterRef }> {
+    return this.lector.getLocator(
+      user.userId,
+      user.plan as Plan,
+      bookId,
+      chapterOrder,
+    );
+  }
+
   @Get(":bookId/ref/:kind/:id")
   getChapterByRef(
     @CurrentUser() user: AuthenticatedUser,

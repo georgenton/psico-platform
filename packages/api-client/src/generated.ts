@@ -1783,7 +1783,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/lector/{bookId}/ref/{kind}/{id}": {
+    "/api/lector/{bookId}/locator/{chapterOrder}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1801,6 +1801,22 @@ export interface paths {
          *     not a generic resource-by-id endpoint, and anything else is a 404 before a
          *     single row is read.
          */
+        get: operations["LectorController_getLocator"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lector/{bookId}/ref/{kind}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
         get: operations["LectorController_getChapterByRef"];
         put?: never;
         post?: never;
@@ -10101,6 +10117,42 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    LectorController_getLocator: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: string;
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -656,6 +656,68 @@ export class LectorService {
     });
   }
 
+  // ─── GET /api/lector/:bookId/locator/:chapterOrder ─────────────────────
+
+  /**
+   * Which chapter currently sits at a position — identity only, nothing else.
+   *
+   * Exists so the web positional route can redirect without READING. The full
+   * reader read upserts a `ReadingSession` and `ReaderPreferences`; using it
+   * merely to discover where to send somebody would record that they started a
+   * chapter they only passed through, and would show up in their history and in
+   * Continue Reading.
+   *
+   * Entitlement is applied anyway, through the SAME authority the reader uses.
+   * Without it this would answer "what is chapter 7 of that PRO book?" for a
+   * FREE reader — a smaller disclosure than the chapter itself, but a stable id
+   * for content they cannot open is still content structure they were never
+   * shown. A caller learns nothing here they could not learn by navigating.
+   */
+  async getLocator(
+    userId: string,
+    userPlan: Plan,
+    bookIdOrSlug: string,
+    chapterOrder: number,
+  ): Promise<{ readerRef: ReaderChapterRef }> {
+    const book = await this.prisma.book.findFirst({
+      where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
+      select: { id: true, slug: true },
+    });
+    if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
+
+    const ref = await resolveLocatorRef(this.prisma, {
+      bookId: book.id,
+      bookSlug: book.slug,
+      order: chapterOrder,
+    });
+    // Nothing is at that position — including a draft-only unit, which
+    // `resolveNativeChapter` refuses because it reads the published revision.
+    if (!ref) throw new NotFoundException("CHAPTER_NOT_FOUND");
+
+    if (ref.kind === "chapter") {
+      await this.access.assertCanReadContent({
+        userId,
+        userPlan,
+        bookId: book.id,
+        chapterOrder,
+      });
+    } else {
+      const native = await resolveNativeUnitById(this.prisma, {
+        bookSlug: book.slug,
+        contentUnitId: ref.id,
+      });
+      if (!native) throw new NotFoundException("CHAPTER_NOT_FOUND");
+      await this.access.assertCanReadUnit({
+        userId,
+        userPlan,
+        editionKey: native.editionKey,
+        unitKey: native.unitKey,
+      });
+    }
+
+    return { readerRef: ref };
+  }
+
   // ─── GET /api/lector/:bookId/ref/:kind/:id ─────────────────────────────
 
   /**

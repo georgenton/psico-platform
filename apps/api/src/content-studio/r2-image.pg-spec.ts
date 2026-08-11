@@ -18,19 +18,23 @@ import { StorageService } from "../storage";
  *
  * The chapter-image path used to resolve through `Chapter`; it now resolves
  * through the manifest, and the only way to know that reaches storage rather
- * than merely type-checking is to send bytes. Runs only when both a scratch
- * database and R2 credentials are present, so CI — which has neither — skips it.
+ * than merely type-checking is to send bytes.
+ *
+ * OPT-IN, by an explicit flag rather than by sniffing for credentials. CI sets
+ * placeholder R2 values so the app can boot, and a "are the variables set?"
+ * guard reads those as real and tries to reach a bucket that does not exist.
+ * Talking to an external service is something a run should have to ask for:
+ *
+ *   CONTENT_STUDIO_R2_SMOKE=1 pnpm --filter @psico/api pg:locks
+ *
+ * Deletes the object it uploaded, because a smoke that leaves files behind
+ * becomes litter in somebody's bucket one run at a time.
  */
 
 const DB = "r2_image_smoke_db";
 const hasDb = Boolean(process.env.TEST_DATABASE_URL);
-const hasR2 = Boolean(
-  process.env.R2_ACCOUNT_ID &&
-  process.env.R2_ACCESS_KEY_ID &&
-  process.env.R2_SECRET_ACCESS_KEY &&
-  process.env.R2_BUCKET_NAME,
-);
-const suite = hasDb && hasR2 ? describe : describe.skip;
+const optedIn = process.env.CONTENT_STUDIO_R2_SMOKE === "1";
+const suite = hasDb && optedIn ? describe : describe.skip;
 
 // A 1×1 PNG. The smallest thing that is genuinely a PNG.
 const PNG = Buffer.from(

@@ -13,6 +13,7 @@ import {
   unitKeyFromLegacyChapterId,
 } from "./lib/block-key";
 import { contentHash } from "./lib/content-hash";
+import { isFreePreviewByPosition } from "./access/content-access";
 import { ingestBookConcepts } from "./concept-ingestion";
 import { ingestUnitExercises } from "./exercise-ingestion";
 
@@ -111,7 +112,17 @@ export async function backfillContentCore(
             slug: book.slug,
             label: "Primera edición",
             language: "es-419",
+            // #580 — Content Core's own copy of the plan, derived from legacy
+            // truth exactly once, on create.
+            accessPlan: book.plan,
           },
+          // Deliberately NOT re-syncing `accessPlan` on update. Legacy is the
+          // bootstrap source, not an ongoing authority: once an edition is
+          // native-owned, re-deriving from `Book.plan` here would silently undo
+          // an editorial decision on every backfill run. Adoption of an edition
+          // that predates the column is the migration's job, and re-adoption is
+          // `adoptLegacyEntitlementsTx`, which returns untouched when already
+          // owned.
           update: { slug: book.slug },
         });
         stats.editions += 1;
@@ -140,13 +151,24 @@ export async function backfillContentCore(
           const unitKey = unitKeyFromLegacyChapterId(ch.id);
           chapterIdByOrder.set(ch.order, ch.id);
 
-          // 3. ContentUnit — identity only (editionId + unitKey), no drift possible.
+          // 3. ContentUnit — identity, plus the initial preview designation.
+          //
+          // #580: on CREATE, the unit sitting at chapter 1 becomes the
+          // designated free preview, so nothing a reader can currently open
+          // changes. On a unit that already exists the designation is left
+          // exactly as it is — an editor may since have moved it, and this
+          // function is not entitled to move it back. Legacy initializes;
+          // Content Core owns.
           let unit = await tx.contentUnit.findUnique({
             where: { editionId_unitKey: { editionId: edition.id, unitKey } },
           });
           if (!unit) {
             unit = await tx.contentUnit.create({
-              data: { editionId: edition.id, unitKey },
+              data: {
+                editionId: edition.id,
+                unitKey,
+                isFreePreview: isFreePreviewByPosition(ch.order),
+              },
             });
           }
           unitIdByOrder.set(ch.order, unit.id);

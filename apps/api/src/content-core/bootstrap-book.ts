@@ -4,6 +4,7 @@ import {
   unitKeyFromLegacyChapterId,
 } from "./lib/block-key";
 import { contentHash } from "./lib/content-hash";
+import { isFreePreviewByPosition } from "./access/content-access";
 import {
   estimateDurationMinutes,
   type ParsedBlock,
@@ -449,6 +450,10 @@ export async function bootstrapBook(
       // The edition label doubles as the provenance marker: there is no
       // `sourceQuality` column and adding one for a test edition would be schema
       // churn for a transient state (§6 of the brief).
+      // The Book row below leaves `plan` unset, so it lands on the schema
+      // default. Content Core records the same value rather than inferring it.
+      const bookPlan = "FREE" as const;
+
       const book = await tx.book.create({
         data: {
           slug: manifest.slug,
@@ -482,6 +487,10 @@ export async function bootstrapBook(
           slug: manifest.slug,
           label: manifest.editionLabel,
           language: "es-419",
+          // #580 — mirrors the Book row this bootstrap creates. That row does
+          // not set `plan`, so it takes the schema default; naming it here keeps
+          // the two from drifting silently if the default ever changes.
+          accessPlan: bookPlan,
         },
       });
 
@@ -526,6 +535,9 @@ export async function bootstrapBook(
           data: {
             editionId: edition.id,
             unitKey: unitKeyFromLegacyChapterId(chapter.id),
+            // #580 — same derivation as the backfill, from the same helper, so a
+            // bootstrapped book and a backfilled one gate identically.
+            isFreePreview: isFreePreviewByPosition(ch.order),
           },
         });
         stats.units += 1;

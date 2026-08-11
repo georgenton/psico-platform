@@ -50,6 +50,15 @@ describe("CC-7.3 · learning HTTP surface (E2E)", () => {
         },
       },
     ]);
+    // #580 — the access resolver finds the edition by key. This fixture already
+    // claims the edition exists (see the relation above); it just never exposed
+    // it to `findUnique`. `accessPlan: null` keeps these cases on the legacy
+    // fallback, which is exactly the path they pinned before the change.
+    h.prisma.edition.findUnique.mockResolvedValue({
+      id: "ed-1",
+      slug: "libro",
+      accessPlan: null,
+    });
     h.prisma.revisionUnit.findUnique.mockResolvedValue({
       revision: { id: "rev-1", number: 1 },
     });

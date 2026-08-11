@@ -1062,3 +1062,105 @@ describe("LectorShell — guided reading", () => {
     expect(root.className).toContain("reader-guide-open");
   });
 });
+
+/**
+ * #579 — the write must name the version the reader actually read.
+ *
+ * The existing tests above prove the exact `blockVersionId` travels. These prove
+ * the other half: what happens when it is absent, and that the anchor is taken
+ * from the block ON SCREEN rather than from whatever is newest.
+ */
+describe("LectorShell — highlight version anchor (#579)", () => {
+  it("writes nothing, and leaves no phantom highlight, when a core block has no version", async () => {
+    // A content-core block with no `blockVersionId` cannot produce a valid
+    // anchor: the server refuses it with SOURCE_BLOCK_VERSION_REQUIRED. The
+    // shell must refuse BEFORE the optimistic insert, or the reader would see a
+    // tinted highlight that was never written anywhere.
+    const unit = buildUnit();
+    unit.blocks[0]!.blockVersionId = null;
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+
+    const { container } = renderShell({}, unit);
+
+    const blockEl = container.querySelector(
+      '[data-block-id="b-1"]',
+    ) as HTMLElement;
+    const textSpan = blockEl.querySelector(".reader-text") as HTMLElement;
+    const textNode = textSpan.firstChild as Text;
+    const range = document.createRange();
+    range.setStart(textNode, 0);
+    range.setEnd(textNode, 7);
+    const sel = window.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.dispatchEvent(new Event("selectionchange"));
+
+    const swatch = await screen.findByRole("button", {
+      name: /subrayar en amarillo/i,
+    });
+    fireEvent.click(swatch);
+
+    await waitFor(() => {
+      expect(
+        fetchSpy.mock.calls.some((c) => String(c[0]).endsWith("/highlights")),
+      ).toBe(false);
+    });
+    // No optimistic mark survives: nothing was inserted to roll back.
+    expect(container.querySelectorAll("mark").length).toBe(0);
+  });
+
+  it("anchors the version on screen, not a newer one that exists elsewhere", async () => {
+    // The rendered block is the authority. Even though "bv-2" also exists in
+    // this unit, a selection inside b-1 must carry b-1's own version.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          highlight: {
+            id: "h-1",
+            blockKey: "bk-1",
+            blockId: "b-1",
+            startOffset: 0,
+            endOffset: 7,
+            color: "YELLOW",
+            note: null,
+            createdAt: new Date().toISOString(),
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const { container } = renderShell();
+
+    const blockEl = container.querySelector(
+      '[data-block-id="b-1"]',
+    ) as HTMLElement;
+    const textSpan = blockEl.querySelector(".reader-text") as HTMLElement;
+    const textNode = textSpan.firstChild as Text;
+    const range = document.createRange();
+    range.setStart(textNode, 0);
+    range.setEnd(textNode, 7);
+    const sel = window.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.dispatchEvent(new Event("selectionchange"));
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /subrayar en amarillo/i }),
+    );
+
+    await waitFor(() => {
+      const call = fetchSpy.mock.calls.find((c) =>
+        String(c[0]).endsWith("/highlights"),
+      );
+      expect(call).toBeTruthy();
+      const body = JSON.parse((call![1] as RequestInit).body as string);
+      expect(body.blockVersionId).toBe("bv-1");
+      expect(body.blockVersionId).not.toBe("bv-2");
+      expect(body.blockKey).toBe("bk-1");
+    });
+  });
+});

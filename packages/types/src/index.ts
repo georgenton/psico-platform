@@ -2596,6 +2596,24 @@ export type ReaderMarkSource = ContentUnitRead["source"];
  * - `content-core`: anchor by `blockKey` + the source `blockVersionId` the reader
  *   saw (CC-6C). Never sends the legacy `blockId`.
  * - `legacy`: anchor by the legacy `blockId`. Never sends `blockKey`/`blockVersionId`.
+ *
+ * ── Why the version is not optional (#579) ────────────────────────────────
+ *
+ * A Content Core highlight is anchored to the exact text the reader selected
+ * from, which means the BlockVersion they had on screen — not "that block,
+ * whatever it says now". The server captures the quote from that version and
+ * validates the offsets against it, so a write that omits the version is not a
+ * slightly-weaker anchor; it is a write the server refuses
+ * (`SOURCE_BLOCK_VERSION_REQUIRED`).
+ *
+ * Building it anyway and letting the round-trip fail would turn a contract
+ * error into a network error, discovered late and reported to the reader as if
+ * something had gone wrong with their connection. Refusing here says what is
+ * actually missing, at the point where it is missing.
+ *
+ * Deliberately NOT derived and NOT defaulted: neither `blockKey` nor the newest
+ * published version is an acceptable substitute. Both would silently anchor the
+ * mark to text the reader never saw.
  */
 export function highlightWritePayload(input: {
   source: ReaderMarkSource;
@@ -2617,9 +2635,12 @@ export function highlightWritePayload(input: {
     if (!input.blockKey) {
       throw new Error("MARK_WRITE_MISSING_BLOCK_KEY");
     }
+    if (!input.blockVersionId) {
+      throw new Error("MARK_WRITE_MISSING_BLOCK_VERSION_ID");
+    }
     return {
       blockKey: input.blockKey,
-      ...(input.blockVersionId ? { blockVersionId: input.blockVersionId } : {}),
+      blockVersionId: input.blockVersionId,
       ...geometry,
     };
   }

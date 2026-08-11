@@ -82,6 +82,82 @@ describe("highlightWritePayload (CC-6D)", () => {
       }),
     ).toThrow("MARK_WRITE_MISSING_BLOCK_ID");
   });
+
+  it("#579: content-core without a blockVersionId THROWS", () => {
+    // Not a weaker anchor — a body the server refuses with
+    // SOURCE_BLOCK_VERSION_REQUIRED. Failing here says what is missing, instead
+    // of turning a contract error into a network error the reader is shown.
+    expect(() =>
+      highlightWritePayload({
+        source: "content-core",
+        blockKey: "bk-1",
+        blockVersionId: null,
+        legacyBlockId: "legacy-1",
+        startOffset: 0,
+        endOffset: 5,
+        color: "BLUE",
+      }),
+    ).toThrow("MARK_WRITE_MISSING_BLOCK_VERSION_ID");
+  });
+
+  it("#579: the missing-blockKey error still wins when BOTH are absent", () => {
+    // Order matters only so the message names the more fundamental problem.
+    expect(() =>
+      highlightWritePayload({
+        source: "content-core",
+        blockKey: null,
+        blockVersionId: null,
+        legacyBlockId: "legacy-1",
+        startOffset: 0,
+        endOffset: 5,
+        color: "PINK",
+      }),
+    ).toThrow("MARK_WRITE_MISSING_BLOCK_KEY");
+  });
+
+  it("#579: a legacy write is unaffected by the new requirement", () => {
+    // Legacy blocks have no BlockVersion behind them at all; requiring one
+    // would make every legacy highlight impossible.
+    const p = highlightWritePayload({
+      source: "legacy",
+      blockKey: null,
+      blockVersionId: null,
+      legacyBlockId: "legacy-1",
+      startOffset: 2,
+      endOffset: 9,
+      color: "YELLOW",
+    });
+    expect(p).toEqual({
+      blockId: "legacy-1",
+      startOffset: 2,
+      endOffset: 9,
+      color: "YELLOW",
+    });
+  });
+
+  it("#579: anchors the version the reader READ, not the one published since", () => {
+    // The reader opened V1. An editor published V2 while the tab stayed open.
+    // The selection still came from the text on screen, so the mark must point
+    // at V1 — migrating it to V2 would claim they highlighted words they never
+    // saw.
+    const readVersion = "bv-v1";
+    const publishedSince = "bv-v2";
+
+    const p = highlightWritePayload({
+      source: "content-core",
+      blockKey: "bk-stable",
+      blockVersionId: readVersion,
+      legacyBlockId: null,
+      startOffset: 10,
+      endOffset: 24,
+      color: "PINK",
+    });
+
+    expect(p.blockVersionId).toBe(readVersion);
+    expect(p.blockVersionId).not.toBe(publishedSince);
+    // The block identity is stable across versions; only the version moves.
+    expect(p.blockKey).toBe("bk-stable");
+  });
 });
 
 describe("annotationWritePayload (CC-6D)", () => {

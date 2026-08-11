@@ -4,6 +4,7 @@ import {
   listEditorialChapters,
   newNativeUnitKey,
   NEW_CHAPTER_SCAFFOLD,
+  relateLegacyToManifest,
 } from "./native-authoring";
 import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
 
@@ -225,5 +226,75 @@ describe("classifying a chapter", () => {
     expect(structure.chapterCreationAvailable).toBe(true);
     expect(structure.creationBlockedReason).toBeNull();
     expect(structure.unsyncedLegacyCount).toBe(0);
+  });
+});
+
+/**
+ * What counts as a conflict — the distinction the publish guard turns on.
+ *
+ * "Something is unsynced" and "two things claim one position" are different
+ * states, and only the second is unsafe to publish. Conflating them would
+ * freeze publication for a whole book over a chapter that shadows nothing.
+ */
+describe("relating legacy rows to a manifest", () => {
+  const key = unitKeyFromLegacyChapterId;
+
+  it("sees no conflict when an un-adopted chapter sits alone at its position", () => {
+    const r = relateLegacyToManifest(
+      [
+        { order: 1, unitKey: key("c1") },
+        { order: 2, unitKey: key("c2") },
+      ],
+      [
+        { id: "c1", order: 1, title: "Uno" },
+        { id: "c2", order: 2, title: "Dos" },
+        { id: "c3", order: 3, title: "Tres" },
+      ],
+    );
+
+    expect(r.unsynced.map((c) => c.id)).toEqual(["c3"]);
+    // Nothing else claims 3, so publishing the rest shadows nothing.
+    expect(r.structureConflict).toBe(false);
+  });
+
+  it("sees a conflict when a different unit already holds that position", () => {
+    const r = relateLegacyToManifest(
+      [
+        { order: 1, unitKey: key("c1") },
+        { order: 3, unitKey: "native-uuid" },
+      ],
+      [
+        { id: "c1", order: 1, title: "Uno" },
+        { id: "c3", order: 3, title: "Tres" },
+      ],
+    );
+
+    expect(r.structureConflict).toBe(true);
+  });
+
+  it("is clean when every legacy chapter is represented", () => {
+    const r = relateLegacyToManifest(
+      [
+        { order: 1, unitKey: key("c1") },
+        { order: 2, unitKey: "native-uuid" },
+      ],
+      [{ id: "c1", order: 1, title: "Uno" }],
+    );
+
+    expect(r.unsynced).toEqual([]);
+    expect(r.structureConflict).toBe(false);
+  });
+
+  it("matches by key even when the chapter has moved position", () => {
+    // The unit is at 5, the `Chapter` row says 1. Same identity, so it is
+    // adopted — and nothing about the mismatch makes it a conflict here.
+    const r = relateLegacyToManifest(
+      [{ order: 5, unitKey: key("c1") }],
+      [{ id: "c1", order: 1, title: "Uno" }],
+    );
+
+    expect(r.unsynced).toEqual([]);
+    expect(r.structureConflict).toBe(false);
+    expect(r.legacyByUnitKey.get(key("c1"))?.id).toBe("c1");
   });
 });

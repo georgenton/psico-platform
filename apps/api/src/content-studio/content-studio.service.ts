@@ -17,6 +17,7 @@ import {
   appendPlacement,
   CONTENT_STRUCTURE_REQUIRES_SYNC,
   editionForBookSlug,
+  structureConflictAtRevision,
   hasPublishableContent,
   listEditorialChapters,
   newNativeUnitKey,
@@ -648,11 +649,35 @@ export class ContentStudioService {
 
     await this.assertNewChaptersHaveContent(bookSlug, expectedDraftRevisionId);
 
+    const book = await this.prisma.book.findUnique({
+      where: { slug: bookSlug },
+      select: { id: true },
+    });
+    if (!book) throw new NotFoundException({ code: "BOOK_NOT_FOUND" });
+
     try {
       const published = await publishDraftRevision(
         this.prisma,
         edition.id,
         expectedDraftRevisionId,
+        // Inside the edition lock, against the exact revision being published.
+        //
+        // A draft where a unit sits at a position a `Chapter` row also answers
+        // for cannot go out: the reader tries legacy first, so publishing it
+        // would move the pointer, tell the editor the chapter is live, and
+        // serve the old chapter to every reader forever.
+        //
+        // Deliberately NOT "refuse whenever something is unsynced". An
+        // un-adopted chapter at a position nothing else claims shadows nothing,
+        // and freezing publication for the whole book over it would block
+        // ordinary text edits for no safety gained.
+        async (tx, ctx) => {
+          const conflict = await structureConflictAtRevision(tx, {
+            bookId: book.id,
+            revisionId: ctx.revisionId,
+          });
+          if (conflict) throw new Error(CONTENT_STRUCTURE_REQUIRES_SYNC);
+        },
       );
       return {
         revisionId: published.revisionId,
@@ -833,6 +858,13 @@ export class ContentStudioService {
     // The transactional guard fired: the unit was published between the
     // service-level check and the lock. Same code the fast check uses, because
     // to the editor it is the same situation.
+    if (message.includes(CONTENT_STRUCTURE_REQUIRES_SYNC)) {
+      return new UnprocessableEntityException({
+        code: CONTENT_STRUCTURE_REQUIRES_SYNC,
+        message:
+          "Hay capítulos pendientes de sincronizar antes de publicar estos cambios.",
+      });
+    }
     if (message.includes(CONTENT_DRAFT_UNIT_ALREADY_PUBLISHED)) {
       return new BadRequestException({
         code: "CONTENT_CHAPTER_ALREADY_PUBLISHED",

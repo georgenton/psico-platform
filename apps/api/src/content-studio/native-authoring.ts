@@ -142,6 +142,66 @@ export interface EditorialChapter {
 }
 
 /**
+ * How a revision's manifest and the book's legacy rows relate.
+ *
+ * The ONE place identity is compared. Both the editorial list and the publish
+ * guard call this, so there is a single answer to "is this unit that chapter?"
+ * — and it is always the derived key, never the position.
+ *
+ * Pure, so the rule can be exercised without a database.
+ */
+export function relateLegacyToManifest(
+  entries: Array<{ order: number; unitKey: string }>,
+  legacyChapters: Array<{ id: string; order: number; title: string }>,
+) {
+  const manifestKeys = new Set(entries.map((e) => e.unitKey));
+  const manifestOrders = new Set(entries.map((e) => e.order));
+
+  const legacyByUnitKey = new Map(
+    legacyChapters.map((c) => [unitKeyFromLegacyChapterId(c.id), c]),
+  );
+  const unsynced = legacyChapters.filter(
+    (c) => !manifestKeys.has(unitKeyFromLegacyChapterId(c.id)),
+  );
+  // A conflict is narrower than "something is unsynced": it is a position that
+  // TWO different things answer for. An unsynced chapter sitting at a position
+  // nothing else claims is merely not adopted yet.
+  const structureConflict = unsynced.some((c) => manifestOrders.has(c.order));
+
+  return { legacyByUnitKey, unsynced, structureConflict };
+}
+
+/**
+ * Does THIS revision's manifest collide with the book's legacy rows?
+ *
+ * Takes the revision explicitly rather than resolving one, so a publish can ask
+ * about the exact draft it was told to publish instead of whatever happens to
+ * be current. Safe to run inside a transaction: it only reads.
+ */
+export async function structureConflictAtRevision(
+  // Only the two tables it reads, so a transaction client satisfies it without
+  // pretending to be a whole PrismaClient.
+  db: Pick<PrismaClient, "revisionUnit" | "chapter">,
+  input: { bookId: string; revisionId: string },
+): Promise<boolean> {
+  const [entries, legacyChapters] = await Promise.all([
+    db.revisionUnit.findMany({
+      where: { revisionId: input.revisionId },
+      select: { order: true, unit: { select: { unitKey: true } } },
+    }),
+    db.chapter.findMany({
+      where: { bookId: input.bookId },
+      select: { id: true, order: true, title: true },
+    }),
+  ]);
+
+  return relateLegacyToManifest(
+    entries.map((e) => ({ order: e.order, unitKey: e.unit.unitKey })),
+    legacyChapters,
+  ).structureConflict;
+}
+
+/**
  * The structure Content Studio is looking at, and what it may do to it.
  *
  * `chapters` is what to draw. The rest is what the SERVER concluded about the
@@ -225,9 +285,11 @@ export async function listEditorialChapters(
     orderBy: { order: "asc" },
     select: { id: true, order: true, title: true },
   });
-  const legacyByUnitKey = new Map(
-    legacyChapters.map((c) => [unitKeyFromLegacyChapterId(c.id), c]),
+  const relation = relateLegacyToManifest(
+    entries.map((e) => ({ order: e.order, unitKey: e.unit.unitKey })),
+    legacyChapters,
   );
+  const { legacyByUnitKey, structureConflict } = relation;
 
   const chapters: EditorialChapter[] = entries.map((e) => {
     const legacy = legacyByUnitKey.get(e.unit.unitKey) ?? null;
@@ -249,26 +311,16 @@ export async function listEditorialChapters(
   // A legacy chapter the backfill never took in. The reader resolves legacy
   // chapters from `Chapter` directly, so this one IS readable — leaving it out
   // of the editor would hide published content rather than merely fail to open
-  // it. Listed, and honest about not being editable yet.
-  const manifestKeys = new Set(entries.map((e) => e.unit.unitKey));
-  const manifestOrders = new Set(entries.map((e) => e.order));
-  let structureConflict = false;
-
-  for (const c of legacyChapters) {
-    const derivedKey = unitKeyFromLegacyChapterId(c.id);
-    if (manifestKeys.has(derivedKey)) continue;
-
-    // Its position is already taken by something that is NOT it. Both rows are
-    // listed at that order — the truth is that two things claim it — and the
-    // conflict is reported so nothing downstream builds on the ambiguity.
-    if (manifestOrders.has(c.order)) structureConflict = true;
-
+  // it. Listed, and honest about not being editable yet. Where its position is
+  // already taken by something that is NOT it, both rows appear at that order:
+  // the truth is that two things claim it.
+  for (const c of relation.unsynced) {
     chapters.push({
       order: c.order,
       title: c.title,
       // The key it WOULD have once ingested, so a `changed` lookup still lines
       // up rather than silently missing.
-      unitKey: derivedKey,
+      unitKey: unitKeyFromLegacyChapterId(c.id),
       contentUnitId: null,
       ingested: false,
       partNumber: null,
@@ -286,7 +338,7 @@ export async function listEditorialChapters(
     (a, b) => a.order - b.order || Number(b.ingested) - Number(a.ingested),
   );
 
-  const unsyncedLegacyCount = chapters.filter((c) => !c.ingested).length;
+  const unsyncedLegacyCount = relation.unsynced.length;
   // The rule lives here, once. A browser deriving it by scanning `ingested`
   // would be re-implementing a safety check it cannot be trusted with.
   const chapterCreationAvailable =

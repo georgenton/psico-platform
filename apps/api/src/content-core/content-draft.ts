@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { UnitPlacement } from "./lib/revision-manifest";
 import {
   CONTENT_DRAFT_CONFLICT,
@@ -128,10 +128,25 @@ export interface PublishDraftResult {
  * underneath them they should be told, not have a different version shipped in
  * their name.
  */
+/**
+ * A last check, run inside the edition lock, immediately before the pointer
+ * moves.
+ *
+ * Exists so a caller can add a publication precondition that is genuinely
+ * atomic with the publish, without reimplementing the lifecycle around it. It
+ * receives the transaction, so whatever it reads is what the pointer move is
+ * about to be based on. Throwing refuses the publish and rolls back.
+ */
+export type AssertPublishable = (
+  tx: Prisma.TransactionClient,
+  context: { editionId: string; revisionId: string },
+) => Promise<void>;
+
 export async function publishDraftRevision(
   prisma: PrismaClient,
   editionId: string,
   revisionId: string,
+  assertPublishable?: AssertPublishable,
 ): Promise<PublishDraftResult> {
   return prisma.$transaction(
     async (tx) => {
@@ -172,6 +187,13 @@ export async function publishDraftRevision(
         where: { revisionId: revision.id },
       });
       if (unitCount === 0) throw new Error("INGEST_EMPTY_UNIT");
+
+      // Inside the lock, against the revision actually being published. A check
+      // made before this transaction could be true when it ran and false by the
+      // time the pointer moved.
+      if (assertPublishable) {
+        await assertPublishable(tx, { editionId, revisionId: revision.id });
+      }
 
       await publishRevisionTx(tx, editionId, revision.id);
 

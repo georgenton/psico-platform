@@ -8,6 +8,7 @@ import { backfillContentCore } from "../content-core/backfill";
 import {
   discardDraftUnit,
   publishDraftRevision,
+  readUnitAtRevision,
   saveUnitDraft,
 } from "../content-core/content-draft";
 import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
@@ -320,6 +321,147 @@ suite("Content Core structure · position is not identity", () => {
         response: { code: "CONTENT_STRUCTURE_REQUIRES_SYNC" },
       });
     });
+
+    it("refuses to PUBLISH the draft, and moves nothing", async () => {
+      // The one that matters most. Publishing here would move the pointer, tell
+      // the editor the chapter is live, and — because the reader tries legacy
+      // first — serve the OLD chapter at that position to everybody, forever.
+      const edition = await prisma.edition.findFirstOrThrow({
+        where: { slug: SLUG },
+      });
+      const before = await prisma.edition.findUniqueOrThrow({
+        where: { id: edition.id },
+      });
+      const draftBefore = await prisma.revision.findFirstOrThrow({
+        where: { editionId: edition.id, status: "DRAFT" },
+        orderBy: { number: "desc" },
+      });
+      const revisionsBefore = await prisma.revision.count({
+        where: { editionId: edition.id },
+      });
+
+      await expect(
+        studio.publishBook(SLUG, draftBefore.id),
+      ).rejects.toMatchObject({
+        response: { code: "CONTENT_STRUCTURE_REQUIRES_SYNC" },
+      });
+
+      // Pointer unmoved.
+      const after = await prisma.edition.findUniqueOrThrow({
+        where: { id: edition.id },
+      });
+      expect(after.publishedRevisionId).toBe(before.publishedRevisionId);
+      // Draft still active — the rollback did not archive it.
+      const draftAfter = await prisma.revision.findFirstOrThrow({
+        where: { editionId: edition.id, status: "DRAFT" },
+        orderBy: { number: "desc" },
+      });
+      expect(draftAfter.id).toBe(draftBefore.id);
+      expect(
+        await prisma.revision.count({ where: { editionId: edition.id } }),
+      ).toBe(revisionsBefore);
+    });
+
+    it("leaves the reader with the legacy chapter, not the native one", async () => {
+      const res = await lector.getChapter(
+        "u-structure",
+        "PRO" as never,
+        SLUG,
+        3,
+      );
+      // Legacy Y, exactly as before — native X never became reachable.
+      expect(res.chapter.title).toBe("Legacy en la 3");
+      expect(res.chapter.contentUnitId).toBeNull();
+    });
+
+    it("keeps the native unit out of the published manifest", async () => {
+      const edition = await prisma.edition.findFirstOrThrow({
+        where: { slug: SLUG },
+      });
+      const published = await prisma.edition.findUniqueOrThrow({
+        where: { id: edition.id },
+      });
+      expect(
+        await prisma.revisionUnit.count({
+          where: {
+            revisionId: published.publishedRevisionId as string,
+            unit: { unitKey: "native-at-three" },
+          },
+        }),
+      ).toBe(0);
+    });
+  });
+
+  // ── 2b. Un-adopted, but nothing collides: publishing stays allowed ───────
+
+  describe("an orphan legacy chapter that collides with nothing", () => {
+    const SLUG = "libro-huerfano-publicable";
+
+    beforeAll(async () => {
+      const made = await makeBook(SLUG, ["Uno", "Dos"]);
+      // Readable at order 3; the manifest holds only 1 and 2, and nothing else
+      // claims 3. Creating is refused, but this state shadows nothing.
+      const orphan = await prisma.chapter.create({
+        data: { bookId: made.book.id, order: 3, title: "Tres, sin migrar" },
+      });
+      await prisma.chapterBlock.create({
+        data: {
+          chapterId: orphan.id,
+          order: 0,
+          kind: "PARAGRAPH",
+          content: "Texto 3",
+        },
+      });
+    }, 120_000);
+
+    it("publishes an ordinary text edit to an existing chapter", async () => {
+      const book = await prisma.book.findUniqueOrThrow({
+        where: { slug: SLUG },
+      });
+      const structure = await listEditorialChapters(prisma, {
+        bookId: book.id,
+        bookSlug: SLUG,
+      });
+      // The precondition that must NOT become a publication freeze.
+      expect(structure.unsyncedLegacyCount).toBe(1);
+      expect(structure.structureConflict).toBe(false);
+      expect(structure.chapterCreationAvailable).toBe(false);
+
+      const chapter = await studio.getChapter(SLUG, 1);
+      const saved = await studio.saveChapterDraft(SLUG, 1, {
+        expectedRevisionId: chapter.revisionId,
+        blocks: [{ kind: "PARAGRAPH", content: "Texto corregido." }],
+      });
+
+      const published = await studio.publishBook(SLUG, saved.revisionId);
+      expect(published.revisionId).toBe(saved.revisionId);
+
+      // And the edit really went out: the published revision carries it.
+      //
+      // Read through Content Core rather than `LectorService`, because for a
+      // chapter that still has a `Chapter` row the legacy reader serves
+      // `ChapterBlock` — a pre-existing split between the two content surfaces,
+      // not something this guard changes.
+      const edition = await prisma.edition.findFirstOrThrow({
+        where: { slug: SLUG },
+      });
+      const after = await prisma.edition.findUniqueOrThrow({
+        where: { id: edition.id },
+      });
+      expect(after.publishedRevisionId).toBe(saved.revisionId);
+
+      const unit = await readUnitAtRevision(
+        prisma,
+        saved.revisionId,
+        (
+          await listEditorialChapters(prisma, {
+            bookId: book.id,
+            bookSlug: SLUG,
+          })
+        ).chapters[0]!.unitKey,
+      );
+      expect(unit!.blocks[0]!.content).toBe("Texto corregido.");
+    }, 120_000);
   });
 
   // ── 3. Discarding a unit that was published in the meantime ──────────────

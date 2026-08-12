@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useHeartbeat } from "./use-heartbeat";
+import type { ReaderChapterRef } from "@psico/types";
 
 /**
  * Tests for the useHeartbeat hook.
@@ -47,6 +48,7 @@ function mountHook(opts: {
   read?: () => { lastBlockId: string; progressPct: number } | null;
   onProgress?: (n: number) => void;
   enabled?: boolean;
+  readerRef?: ReaderChapterRef;
 }) {
   return renderHook(
     ({ enabled }: { enabled: boolean }) =>
@@ -55,6 +57,7 @@ function mountHook(opts: {
         token,
         bookId,
         chapterOrder,
+        readerRef: opts.readerRef ?? { kind: "chapter", id: "ch-1" },
         onProgress: opts.onProgress,
         read: opts.read ?? (() => ({ lastBlockId: "b-1", progressPct: 0.25 })),
         enabled,

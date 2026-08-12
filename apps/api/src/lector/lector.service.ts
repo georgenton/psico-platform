@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";
+import { assertSingleWriteIdentity } from "./write-identity";
 import { Plan } from "@prisma/client";
 import {
   nextPlacedOrder,
@@ -16,6 +17,7 @@ import {
   type NativeChapterTarget,
 } from "./reader-chapter-resolver";
 import type {
+  ReaderChapterRef,
   LectorAudioMetadata,
   LectorAudioResponse,
   LectorChapterResponse,
@@ -26,10 +28,14 @@ import type { Env } from "../config";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import { StorageService } from "../storage";
-import { blockKeyFromLegacyId } from "../content-core/lib/block-key";
+import {
+  blockKeyFromLegacyId,
+  unitKeyFromLegacyChapterId,
+} from "../content-core/lib/block-key";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ContentAccessService } from "../content-core/access/content-access.service";
 import { resolveAnchorTarget } from "./anchor-resolver";
+import { resolveChapterByRef, resolveLocatorRef } from "./reader-chapter-ref";
 import {
   resolveStoredCoverUrl,
   withResolvedImageUrls,
@@ -96,17 +102,57 @@ export class LectorService {
       return this.getNativeChapter(userId, userPlan, book, target);
     }
 
-    const chapter = await this.prisma.chapter.findUnique({
-      where: { bookId_order: { bookId: book.id, order: chapterOrder } },
+    // Position located the chapter; from here on its ID carries it. Handing the
+    // order onward would let a structural change between these two lines serve
+    // whoever moved into that slot.
+    return this.getLegacyChapter(userId, userPlan, book, target.chapterId);
+  }
+
+  /**
+   * The legacy reader envelope, addressed by the chapter's own id.
+   *
+   * The ONE builder for a legacy-served chapter: both the positional route and
+   * the canonical `c/:chapterId` route arrive here, so there is a single place
+   * where the envelope, the entitlement decision and the write identity are
+   * decided.
+   *
+   * Taking the id rather than the order is what makes the stable route safe.
+   * Resolving an identity and then reading by the position it happened to hold
+   * is a time-of-check/time-of-use gap: between the two, a structural change
+   * could put a different chapter at that position, and the URL would name one
+   * chapter while the reader served another.
+   *
+   * The current order is derived HERE, from the row itself, and used only for
+   * what position is actually for — the entitlement rule, numbering, adjacency.
+   */
+  private async getLegacyChapter(
+    userId: string,
+    userPlan: Plan,
+    book: {
+      id: string;
+      slug: string;
+      title: string;
+      cover: string;
+      coverArtUrl: string | null;
+      totalChapters: number;
+      author: { name: string } | null;
+    },
+    chapterId: string,
+  ): Promise<LectorChapterResponse> {
+    // Scoped by book in the WHERE clause: a chapter id from another book is
+    // never in hand, let alone rendered.
+    const chapter = await this.prisma.chapter.findFirst({
+      where: { id: chapterId, bookId: book.id },
       include: {
         blocks: { orderBy: { order: "asc" } },
         exercises: { orderBy: { order: "asc" } },
         audios: { take: 1 },
       },
     });
-    // `resolveReaderChapter` just found it, so this is belt and braces rather
-    // than a real branch — but it keeps the query shape identical to before.
     if (!chapter) throw new NotFoundException("CHAPTER_NOT_FOUND");
+
+    // Derived from the row, never taken from the caller.
+    const chapterOrder = chapter.order;
 
     // CC-6E — the ONE content-access policy (shared with the Content Core read +
     // marks surfaces). First chapter is a free preview; later chapters of a PRO
@@ -187,6 +233,14 @@ export class LectorService {
         audioAvailable: chapter.audios.length > 0,
         partNumber: chapter.partNumber ?? null,
         partTitle: chapter.partTitle ?? null,
+        // Phase B.A — the stable identity, decided here where the serving store
+        // is known. A legacy chapter is identified by its Chapter row, which is
+        // also what it writes progress by.
+        readerRef: { kind: "chapter", id: chapter.id },
+        // The deterministic key the backfill gives this chapter's unit — the
+        // stable handle for the content read, derived server-side so no client
+        // reimplements the derivation.
+        contentUnitKey: unitKeyFromLegacyChapterId(chapter.id),
         // Legacy chapters keep writing by their Chapter id; null tells a client
         // exactly that, without it having to guess from the shape.
         contentUnitId: null,
@@ -334,6 +388,10 @@ export class LectorService {
         audioAvailable: false,
         partNumber: target.partNumber,
         partTitle: target.partTitle,
+        // Phase B.A — the same identity it already writes by, now also the one
+        // its URL carries.
+        readerRef: { kind: "unit", id: target.contentUnitId },
+        contentUnitKey: target.unitKey,
         // The stable write identity, stated in the contract rather than smuggled
         // past the type.
         contentUnitId: target.contentUnitId,
@@ -365,6 +423,8 @@ export class LectorService {
     userId: string,
     dto: LectorSessionHeartbeatDto,
   ): Promise<LectorSessionHeartbeatResponse> {
+    assertSingleWriteIdentity(dto);
+
     // A native identity, when the client has one, decides the write outright.
     // Position is where the reader NAVIGATED; the unit is what they opened, and
     // a structural publish can separate the two while the tab is open.
@@ -372,6 +432,32 @@ export class LectorService {
       return this.nativeHeartbeat(userId, dto, dto.contentUnitId);
     }
 
+    // The legacy counterpart, and a MODE rather than a lookup preference.
+    //
+    // "A stable identity was supplied and did not resolve" and "no stable
+    // identity was supplied" are different states, and collapsing them is a
+    // fail-open bug: an id that is malformed, or belongs to another book, would
+    // fall through to the positional path and write to whatever native chapter
+    // now occupies that slot. A client that named a chapter gets that chapter
+    // or nothing.
+    //
+    // Scoped to the book, and deliberately NOT checked against
+    // `dto.chapterOrder`: the whole point is that a stale tab still carries the
+    // position this chapter used to have.
+    if (dto.chapterId) {
+      const named = await this.prisma.chapter.findFirst({
+        where: { id: dto.chapterId, bookId: dto.bookId },
+        select: { id: true },
+      });
+      // Soft-ack without writing, exactly as `nativeHeartbeat` does for a unit
+      // id it cannot resolve. A heartbeat is fire-and-forget; failing it loudly
+      // would not help a reader whose tab is already wrong.
+      if (!named) return { ok: true, progressPct: dto.progressPct };
+      return this.legacyHeartbeat(userId, dto, named.id);
+    }
+
+    // No stable identity: an old client. Position is all it can offer, and
+    // resolving by position is still correct for a book nobody moved.
     const chapter = await this.prisma.chapter.findUnique({
       where: {
         bookId_order: { bookId: dto.bookId, order: dto.chapterOrder },
@@ -387,6 +473,22 @@ export class LectorService {
       return this.nativeHeartbeat(userId, dto);
     }
 
+    return this.legacyHeartbeat(userId, dto, chapter.id);
+  }
+
+  /**
+   * The legacy session write, once a `Chapter` has been decided.
+   *
+   * Extracted so the two ways of arriving here — a client that named the
+   * chapter, and an old client resolved by position — write through exactly
+   * one code path. The guards below are the reason: they must not drift
+   * between the two.
+   */
+  private async legacyHeartbeat(
+    userId: string,
+    dto: LectorSessionHeartbeatDto,
+    chapterId: string,
+  ): Promise<LectorSessionHeartbeatResponse> {
     // Guard 1: server caps time delta at 60 s. A tab waking from suspend
     // could otherwise credit hours. The client should heartbeat every 5 s;
     // anything beyond a minute is either lag or fishy.
@@ -395,7 +497,7 @@ export class LectorService {
     // Guard 2: progress never decreases. The user can scroll back to reread
     // a block, but that doesn't subtract from "how much they've experienced".
     const existing = await this.prisma.readingSession.findUnique({
-      where: { userId_chapterId: { userId, chapterId: chapter.id } },
+      where: { userId_chapterId: { userId, chapterId } },
       select: { progressPct: true, timeSpentSec: true },
     });
 
@@ -403,10 +505,10 @@ export class LectorService {
     const nextTimeSpent = (existing?.timeSpentSec ?? 0) + cappedDelta;
 
     const session = await this.prisma.readingSession.upsert({
-      where: { userId_chapterId: { userId, chapterId: chapter.id } },
+      where: { userId_chapterId: { userId, chapterId } },
       create: {
         userId,
-        chapterId: chapter.id,
+        chapterId,
         lastBlockId: dto.lastBlockId,
         progressPct: nextProgress,
         timeSpentSec: nextTimeSpent,
@@ -537,7 +639,13 @@ export class LectorService {
       bookSlug: book.slug,
       after: target.order,
     });
-    return { ok: true, nextChapter };
+    // The next chapter's identity, so a client never converts order → URL. That
+    // round trip is precisely what a reorder invalidates.
+    return {
+      ok: true,
+      nextChapter,
+      nextReaderRef: await this.refAtOrder(book, nextChapter),
+    };
   }
 
   // ─── POST /api/lector/:bookId/:chapterN/complete ───────────────────────
@@ -547,7 +655,10 @@ export class LectorService {
     bookIdOrSlug: string,
     chapterOrder: number,
     contentUnitId?: string,
+    chapterId?: string,
   ): Promise<LectorCompleteResponse> {
+    assertSingleWriteIdentity({ chapterId, contentUnitId });
+
     const book = await this.prisma.book.findFirst({
       where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
       select: { id: true, slug: true, totalChapters: true },
@@ -563,13 +674,36 @@ export class LectorService {
       );
     }
 
-    const chapter = await this.prisma.chapter.findUnique({
-      where: { bookId_order: { bookId: book.id, order: chapterOrder } },
-      select: { id: true },
-    });
-    if (!chapter) {
-      return this.completeNativeChapter(userId, book, chapterOrder);
+    // The path still carries a position, for compatibility — but a tab open
+    // since before a restructure carries a STALE one. When the client names the
+    // chapter, that name wins and the position is never consulted.
+    //
+    // And when the name does not resolve, that is the end of it. Falling
+    // through to the positional path would complete whichever chapter now
+    // occupies that slot — a fail-open that is worse than an error, because
+    // the reader would be told a chapter they never opened is finished.
+    let chapter: { id: string; order: number } | null;
+    if (chapterId) {
+      chapter = await this.prisma.chapter.findFirst({
+        where: { id: chapterId, bookId: book.id },
+        select: { id: true, order: true },
+      });
+      if (!chapter) throw new NotFoundException("CHAPTER_NOT_FOUND");
+    } else {
+      // No stable identity: an old client, resolved by position as always.
+      chapter = await this.prisma.chapter.findUnique({
+        where: { bookId_order: { bookId: book.id, order: chapterOrder } },
+        select: { id: true, order: true },
+      });
+      if (!chapter) {
+        return this.completeNativeChapter(userId, book, chapterOrder);
+      }
     }
+
+    // Adjacency is a question about the book as it is NOW, so it is asked from
+    // the chapter's CURRENT order — the one on the row — not from whatever
+    // number the client's URL still says.
+    const currentOrder = chapter.order;
 
     // Two things in one transaction: mark the session completed and record
     // UserProgress. We don't want a partial state where the session shows
@@ -607,7 +741,7 @@ export class LectorService {
     const [placedNext, total] = await Promise.all([
       nextPlacedOrder(this.prisma, {
         bookSlug: book.slug,
-        after: chapterOrder,
+        after: currentOrder,
       }),
       readerTotalChapters(this.prisma, {
         bookSlug: book.slug,
@@ -615,8 +749,144 @@ export class LectorService {
       }),
     ]);
     const nextChapter =
-      placedNext ?? (chapterOrder < total ? chapterOrder + 1 : null);
-    return { ok: true, nextChapter };
+      placedNext ?? (currentOrder < total ? currentOrder + 1 : null);
+    return {
+      ok: true,
+      nextChapter,
+      nextReaderRef: await this.refAtOrder(book, nextChapter),
+    };
+  }
+
+  /**
+   * The stable identity of whatever currently sits at a position.
+   *
+   * Read-only. Used to name the NEXT chapter after completion, where the answer
+   * has to come from the structure as it is now rather than from arithmetic.
+   */
+  private async refAtOrder(
+    book: { id: string; slug: string },
+    order: number | null,
+  ): Promise<ReaderChapterRef | null> {
+    if (order === null) return null;
+    return resolveLocatorRef(this.prisma, {
+      bookId: book.id,
+      bookSlug: book.slug,
+      order,
+    });
+  }
+
+  // ─── GET /api/lector/:bookId/locator/:chapterOrder ─────────────────────
+
+  /**
+   * Which chapter currently sits at a position — identity only, nothing else.
+   *
+   * Exists so the web positional route can redirect without READING. The full
+   * reader read upserts a `ReadingSession` and `ReaderPreferences`; using it
+   * merely to discover where to send somebody would record that they started a
+   * chapter they only passed through, and would show up in their history and in
+   * Continue Reading.
+   *
+   * Entitlement is applied anyway, through the SAME authority the reader uses.
+   * Without it this would answer "what is chapter 7 of that PRO book?" for a
+   * FREE reader — a smaller disclosure than the chapter itself, but a stable id
+   * for content they cannot open is still content structure they were never
+   * shown. A caller learns nothing here they could not learn by navigating.
+   */
+  async getLocator(
+    userId: string,
+    userPlan: Plan,
+    bookIdOrSlug: string,
+    chapterOrder: number,
+  ): Promise<{ readerRef: ReaderChapterRef; bookSlug: string }> {
+    const book = await this.prisma.book.findFirst({
+      where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
+      select: { id: true, slug: true },
+    });
+    if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
+
+    const ref = await resolveLocatorRef(this.prisma, {
+      bookId: book.id,
+      bookSlug: book.slug,
+      order: chapterOrder,
+    });
+    // Nothing is at that position — including a draft-only unit, which
+    // `resolveNativeChapter` refuses because it reads the published revision.
+    if (!ref) throw new NotFoundException("CHAPTER_NOT_FOUND");
+
+    if (ref.kind === "chapter") {
+      await this.access.assertCanReadContent({
+        userId,
+        userPlan,
+        bookId: book.id,
+        chapterOrder,
+      });
+    } else {
+      const native = await resolveNativeUnitById(this.prisma, {
+        bookSlug: book.slug,
+        contentUnitId: ref.id,
+      });
+      if (!native) throw new NotFoundException("CHAPTER_NOT_FOUND");
+      await this.access.assertCanReadUnit({
+        userId,
+        userPlan,
+        editionKey: native.editionKey,
+        unitKey: native.unitKey,
+      });
+    }
+
+    // The canonical slug travels back too: the caller may have addressed the
+    // book by id, and the canonical URL should carry the slug.
+    return { readerRef: ref, bookSlug: book.slug };
+  }
+
+  // ─── GET /api/lector/:bookId/ref/:kind/:id ─────────────────────────────
+
+  /**
+   * The same chapter, addressed by its stable identity instead of its position.
+   *
+   * Converges on the SAME two envelope builders the positional route uses —
+   * `getNativeChapter` for a unit, the legacy path for a Chapter row. A second
+   * renderer would be two things to keep in agreement, and the whole point of a
+   * canonical URL is that it shows the same chapter the old one did.
+   *
+   * Position is derived here, never accepted: the ref carries no order, and the
+   * envelope's `order` is metadata for numbering and adjacency.
+   */
+  async getChapterByRef(
+    userId: string,
+    userPlan: Plan,
+    bookIdOrSlug: string,
+    ref: ReaderChapterRef,
+  ): Promise<LectorChapterResponse> {
+    const book = await this.prisma.book.findFirst({
+      where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
+      include: { author: true },
+    });
+    if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
+
+    const target = await resolveChapterByRef(this.prisma, {
+      bookId: book.id,
+      bookSlug: book.slug,
+      ref,
+    });
+    // One answer for "no such chapter", "not this book's chapter" and "not
+    // published": telling them apart would tell a caller which guess was warm.
+    if (!target) throw new NotFoundException("CHAPTER_NOT_FOUND");
+
+    if (target.kind === "unit") {
+      const native = await resolveNativeUnitById(this.prisma, {
+        bookSlug: book.slug,
+        contentUnitId: target.contentUnitId,
+      });
+      if (!native) throw new NotFoundException("CHAPTER_NOT_FOUND");
+      return this.getNativeChapter(userId, userPlan, book, native);
+    }
+
+    // Legacy stays legacy — and is read by its OWN id, never by the position it
+    // currently holds. Re-entering the positional reader would reopen the gap
+    // this route exists to close: a structural change between resolving B and
+    // reading position 2 would serve whoever moved into that slot.
+    return this.getLegacyChapter(userId, userPlan, book, target.chapterId);
   }
 
   // ─── GET /api/lector/:bookId/:chapterN/audio ───────────────────────────

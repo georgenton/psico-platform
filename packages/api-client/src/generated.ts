@@ -1783,6 +1783,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/lector/{bookId}/locator/{chapterOrder}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The chapter by its STABLE identity (Phase B.A).
+         *
+         *     Declared BEFORE `:bookId/:chapterOrder` because Express matches in order and
+         *     `ref` would otherwise be read as a chapter number — the same reason
+         *     `media/:mediaKey/access` sits above the parameterised routes.
+         *
+         *     `kind` is constrained to the two identities the reader actually has; this is
+         *     not a generic resource-by-id endpoint, and anything else is a 404 before a
+         *     single row is read.
+         */
+        get: operations["LectorController_getLocator"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lector/{bookId}/ref/{kind}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["LectorController_getChapterByRef"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/lector/{bookId}/{chapterOrder}": {
         parameters: {
             query?: never;
@@ -1790,6 +1833,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * The chapter by POSITION — a locator, not an identity.
+         *
+         *     Kept working for existing links. Clients navigate by the stable ref now.
+         */
         get: operations["LectorController_getChapter"];
         put?: never;
         post?: never;
@@ -4552,6 +4600,20 @@ export interface components {
              */
             contentUnitId?: string;
             /**
+             * @description The legacy `Chapter` the reader actually opened.
+             *
+             *     The native counterpart of `contentUnitId`, and additive for the same
+             *     reason: a stable URL is only half of reorder safety. A tab opened on
+             *     chapter B at position 2 keeps heartbeating "position 2" — so if B later
+             *     moves and another chapter takes that slot, the position resolves to the
+             *     wrong chapter and B's reading time lands on it.
+             *
+             *     When present, position is NOT consulted: the chapter is looked up by id
+             *     within the book, and its current order is read off the row. Clients that
+             *     send neither identity keep the positional behaviour they have always had.
+             */
+            chapterId?: string;
+            /**
              * @description Seconds since the previous heartbeat. Cap at 3600 in validation;
              *     service further clamps to 60 to defend against suspend-and-resume
              *     spikes. The cumulative `timeSpentSec` on the row grows monotonically.
@@ -4569,6 +4631,8 @@ export interface components {
         CompleteChapterDto: {
             /** @description Identidad estable del capítulo nativo que el lector abrió. Prevalece sobre la posición de la ruta. */
             contentUnitId?: string;
+            /** @description Identidad estable del capítulo legado que el lector abrió. Prevalece sobre la posición de la ruta. */
+            chapterId?: string;
         };
         CreateHighlightDto: {
             /**
@@ -10069,6 +10133,83 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    LectorController_getLocator: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: string;
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    LectorController_getChapterByRef: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: string;
+                kind: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

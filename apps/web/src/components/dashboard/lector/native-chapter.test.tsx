@@ -56,8 +56,10 @@ function nativeEnvelope(): LectorChapterResponse {
       audioAvailable: false,
       partNumber: 2,
       partTitle: "Parte II",
-      // The stable write identity.
+      // The stable write identity, and the server's statement of which
+      // structure serves this chapter.
       contentUnitId: UNIT_ID,
+      readerRef: { kind: "unit", id: UNIT_ID },
     },
     blocks: [],
     lessons: [],
@@ -210,10 +212,14 @@ describe("every write carries the stable identity", () => {
 });
 
 describe("a legacy chapter is unchanged", () => {
-  it("sends no identity, so the server resolves it by position as before", async () => {
+  it("sends its own stable identity — chapterId, never contentUnitId", async () => {
+    // Phase B.A: a legacy chapter is no longer completed by position either.
+    // A tab open since before a restructure still says "position 3", and that
+    // number now names a different chapter — so the client names the chapter.
     const legacy = nativeEnvelope();
     legacy.chapter.id = "chapter-legacy";
     legacy.chapter.contentUnitId = null;
+    legacy.chapter.readerRef = { kind: "chapter", id: "chapter-legacy" };
 
     render(
       <LectorShell
@@ -238,7 +244,12 @@ describe("a legacy chapter is unchanged", () => {
         String(c[0]).endsWith("/complete"),
       );
       const body = JSON.parse((call![1] as RequestInit).body as string);
+      // Exactly one identity, and the one that matches this chapter's
+      // structure. Sending both would name two different chapters.
+      expect(body.chapterId).toBe("chapter-legacy");
       expect(body.contentUnitId).toBeUndefined();
+      // And not the position: the path still carries it, the body does not.
+      expect(body.chapterOrder).toBeUndefined();
     });
   });
 });

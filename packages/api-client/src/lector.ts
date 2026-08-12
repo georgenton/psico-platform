@@ -8,12 +8,15 @@ import type {
   CreateHighlightResponse,
   LectorAudioResponse,
   LectorChapterResponse,
+  LectorLocatorResponse,
+  ReaderChapterRef,
   LectorCompleteResponse,
   LectorSessionHeartbeatRequest,
   LectorSessionHeartbeatResponse,
   UpdateAnnotationRequest,
   UpdateAnnotationResponse,
 } from "@psico/types";
+import { READER_REF_SEGMENT } from "@psico/types";
 import { apiClient } from "./client";
 
 /**
@@ -32,6 +35,34 @@ export const lectorApi = {
       `/lector/${encodeURIComponent(bookId)}/${chapterOrder}`,
     ),
 
+  /**
+   * A chapter by its STABLE identity (Phase B.A).
+   *
+   * `getChapter` above still works and still takes a position — old installed
+   * clients navigate that way, and the audio/media endpoints are position-based
+   * too. What changes is that NEW navigation never needs the round trip through
+   * a number that a restructure can reassign.
+   */
+  getChapterByRef: (bookIdOrSlug: string, ref: ReaderChapterRef) =>
+    apiClient.get<LectorChapterResponse>(
+      `/lector/${encodeURIComponent(bookIdOrSlug)}/ref/${
+        READER_REF_SEGMENT[ref.kind]
+      }/${encodeURIComponent(ref.id)}`,
+    ),
+
+  /**
+   * What identity currently sits at a position — and nothing else.
+   *
+   * For turning an old positional link into a canonical one. It writes no
+   * session, no preferences and no progress, which is why the full reader must
+   * not be used for this: passing through a chapter would look, in the user's
+   * own history, exactly like having read it.
+   */
+  getLocator: (bookIdOrSlug: string, chapterOrder: number) =>
+    apiClient.get<LectorLocatorResponse>(
+      `/lector/${encodeURIComponent(bookIdOrSlug)}/locator/${chapterOrder}`,
+    ),
+
   getAudio: (bookId: string, chapterOrder: number) =>
     apiClient.get<LectorAudioResponse>(
       `/lector/${encodeURIComponent(bookId)}/${chapterOrder}/audio`,
@@ -41,14 +72,22 @@ export const lectorApi = {
     apiClient.patch<LectorSessionHeartbeatResponse>("/lector/session", payload),
 
   /**
-   * `contentUnitId` is the chapter the reader actually opened. The route still
-   * carries the position, but a structural publish can move a chapter while a
-   * page is open — completing by position would mark the wrong one.
+   * Completing the chapter that was OPENED.
+   *
+   * The route still carries a position, but a structural publish can move a
+   * chapter while a page is up — so completing by position would mark the wrong
+   * one. `ref` names the chapter instead, and the body carries whichever stable
+   * identity matches its structure. Omitting `ref` keeps the old positional
+   * behaviour, for callers that have no ref to give.
    */
-  complete: (bookId: string, chapterOrder: number, contentUnitId?: string) =>
+  complete: (bookId: string, chapterOrder: number, ref?: ReaderChapterRef) =>
     apiClient.post<LectorCompleteResponse>(
       `/lector/${encodeURIComponent(bookId)}/${chapterOrder}/complete`,
-      contentUnitId ? { contentUnitId } : {},
+      ref
+        ? ref.kind === "unit"
+          ? { contentUnitId: ref.id }
+          : { chapterId: ref.id }
+        : {},
     ),
 
   // ─── GR-2 · chapter media ─────────────────────────────────────────────────

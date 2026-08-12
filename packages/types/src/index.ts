@@ -1081,6 +1081,12 @@ export interface BookDetail {
 
 export interface ChapterListItem {
   n: number;
+  /**
+   * This chapter's stable identity (Phase B.A), decided by the server that
+   * knows which store serves it. Links are built from this, not from `n` —
+   * `n` locates a chapter, it does not identify one.
+   */
+  readerRef: ReaderChapterRef;
   title: string;
   durationMinutes: number | null;
   lockedByTier: boolean;
@@ -1180,10 +1186,33 @@ export interface HomeGreeting {
 
 export interface HomeContinueBook {
   bookId: string;
+  /**
+   * The book's canonical slug (Phase B.A).
+   *
+   * Reader URLs are built from the slug, not the id. Home already knew it —
+   * it resolves the card through the book row either way — so surfacing it
+   * saves every client from having to look the book up again.
+   */
+  bookSlug: string;
   title: string;
   author: string;
   cover: CoverToken;
+  /**
+   * The chapter's position, for display only.
+   *
+   * Kept beside `readerRef` rather than replaced: it is what the card says out
+   * loud ("Capítulo 3"), and older installed clients still navigate by it.
+   */
   chapterN: number;
+  /**
+   * The STABLE identity of the chapter to resume (Phase B.A).
+   *
+   * Taken from the reading session itself — `chapterId` for a legacy chapter,
+   * `contentUnitId` for a native one — never re-derived from a position. A card
+   * written months ago therefore still resumes the same chapter after the book
+   * has been restructured, instead of whatever now sits at that number.
+   */
+  readerRef: ReaderChapterRef;
   chapterTitle: string;
   progressPct: number;
   lastReadAt: Date;
@@ -2412,6 +2441,63 @@ export interface LectorReadingSessionSnapshot {
   completedAt: Date | null;
 }
 
+/**
+ * A chapter's STABLE identity, as a URL can carry it (Phase B.A).
+ *
+ * Position locates a chapter; it does not identify one. A reorder moves what
+ * sits at position 3 without changing what that chapter IS, so a URL built on
+ * position cannot survive it — which is why reorder could not exist yet.
+ *
+ * Two forms, because the reader genuinely has two serving models:
+ *
+ *   unit    — a Content Core chapter, identified by its ContentUnit
+ *   chapter — a legacy-backed chapter, identified by its Chapter row
+ *
+ * The DISCRIMINATOR is the authority. Never infer the kind from the shape of
+ * the id: both are opaque strings, and a guess that happens to work today is a
+ * guess that breaks when an id generator changes.
+ *
+ * Deliberately NOT one form. The reader is legacy-first — when a `Chapter` row
+ * exists it serves `ChapterBlock` and writes progress by `Chapter.id`, even
+ * though the backfill also minted a ContentUnit. Collapsing these to a single
+ * unit-shaped URL would force every existing chapter onto the Content Core
+ * serving path: a change to reader source, content surface and write identity,
+ * wearing a routing change as a disguise.
+ */
+export type ReaderChapterRef =
+  | { kind: "unit"; id: string }
+  | { kind: "chapter"; id: string };
+
+/** The two discriminators, as the URL spells them. */
+export const READER_REF_SEGMENT = { unit: "u", chapter: "c" } as const;
+
+/**
+ * The canonical reader path for a chapter.
+ *
+ * One builder so the `u`/`c` rule is written once rather than in each of the
+ * six places that link to a chapter — every one of which would otherwise be a
+ * place to get it subtly wrong.
+ */
+export function readerChapterPath(
+  bookSlug: string,
+  ref: ReaderChapterRef,
+): string {
+  return `/dashboard/biblioteca/${encodeURIComponent(bookSlug)}/lector/${
+    READER_REF_SEGMENT[ref.kind]
+  }/${encodeURIComponent(ref.id)}`;
+}
+
+/** Parse a URL segment pair back into a ref. Null for anything else. */
+export function readerRefFromSegments(
+  kind: string,
+  id: string,
+): ReaderChapterRef | null {
+  if (!id) return null;
+  if (kind === READER_REF_SEGMENT.unit) return { kind: "unit", id };
+  if (kind === READER_REF_SEGMENT.chapter) return { kind: "chapter", id };
+  return null;
+}
+
 export interface LectorChapterResponse {
   book: {
     id: string;
@@ -2431,6 +2517,32 @@ export interface LectorChapterResponse {
     /** Book part this chapter belongs to (null for single-part books). */
     partNumber: number | null;
     partTitle: string | null;
+    /**
+     * This chapter's stable identity, decided by the server that knows which
+     * store served it. Clients build navigation from this instead of each
+     * re-deriving "native means u, legacy means c".
+     */
+    readerRef: ReaderChapterRef;
+    /**
+     * The canonical CONTENT identity — which unit's text this chapter is.
+     *
+     * A third concept, and deliberately not folded into the other two:
+     *
+     *   readerRef       serving identity for the URL (legacy → Chapter.id)
+     *   contentUnitId   native WRITE identity, null for legacy
+     *   contentUnitKey  content READ identity, present for BOTH
+     *
+     * Clients read a chapter's text from Content Core by this key. Selecting it
+     * by ORDER instead — "the unit at position 3" — would put position back at
+     * the centre of a URL built to escape it: after a structural change a stable
+     * URL would name one chapter and render another's words.
+     *
+     * Present for a legacy chapter too. That does not make the legacy reader
+     * unit-first; the text still comes from `ChapterBlock` via the CC-6B read,
+     * and progress is still written by `Chapter.id`. It only gives that existing
+     * read a stable key instead of a position.
+     */
+    contentUnitKey: string;
     /**
      * The Content Core unit this chapter IS, when it has no legacy Chapter row.
      *
@@ -2474,6 +2586,16 @@ export interface LectorSessionHeartbeatRequest {
    * wherever it now sits, so a reorder cannot redirect somebody's progress.
    */
   contentUnitId?: string;
+  /**
+   * The legacy `Chapter` the reader opened — the counterpart of
+   * `contentUnitId`, and the other half of reorder safety.
+   *
+   * A stable URL alone is not enough: a tab open on chapter B keeps sending
+   * B's ORIGINAL position, so once B moves, that number names a different
+   * chapter. Send exactly one stable identity; sending both is rejected
+   * rather than silently resolved one way.
+   */
+  chapterId?: string;
 }
 
 export interface LectorSessionHeartbeatResponse {
@@ -2526,10 +2648,31 @@ export interface LectorAudioResponse {
 
 // ─── Lector · complete ───────────────────────────────────────────────────────
 
+/**
+ * What currently sits at a position — the read-only locator's whole answer.
+ *
+ * Deliberately not a chapter: turning an old positional link into a canonical
+ * one must not look, in the reader's own history, like having opened it.
+ */
+export interface LectorLocatorResponse {
+  readerRef: ReaderChapterRef;
+  /** The book's canonical slug, so the caller builds the URL without a lookup. */
+  bookSlug: string;
+}
+
 export interface LectorCompleteResponse {
   ok: true;
   /** Order of the next chapter in the book, or null if this was the last. */
   nextChapter: number | null;
+  /**
+   * The next chapter's STABLE identity (Phase B.A), or null when this was the
+   * last one. Kept beside `nextChapter` rather than replacing it: the order is
+   * still what the UI says out loud, and older clients keep working.
+   *
+   * Sent so a client never has to turn identity back into a position just to
+   * navigate — the round trip through order is exactly what a reorder breaks.
+   */
+  nextReaderRef: ReaderChapterRef | null;
 }
 
 // ─── Highlights ──────────────────────────────────────────────────────────────

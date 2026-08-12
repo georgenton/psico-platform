@@ -14,6 +14,7 @@ import type { BookDetailResponse } from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { coverColor } from "@/components/dashboard/cover-colors";
 import { Colors, Radius, Spacing } from "@/theme";
+import { readerRoutePath } from "@/components/dashboard/lector/reader-route";
 
 /**
  * Book detail — mobile.
@@ -337,7 +338,12 @@ export default function BookDetailScreen() {
                       key={`row-${ch.n}-${idx}`}
                       onPress={() =>
                         router.push(
-                          `/books/${detail.book.slug}/lector/${ch.n}` as never,
+                          // The row's own identity, decided by the server.
+                          // `ch.n` numbers the row; it does not choose it.
+                          readerRoutePath(
+                            detail.book.slug,
+                            ch.readerRef,
+                          ) as never,
                         )
                       }
                       style={[

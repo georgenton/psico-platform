@@ -6,6 +6,7 @@ import { ChaptersList } from "./ChaptersList";
 function ch(over: Partial<ChapterListItem>): ChapterListItem {
   return {
     n: 1,
+    readerRef: { kind: "chapter" as const, id: `ch-1` },
     title: "Cap",
     durationMinutes: 10,
     lockedByTier: false,
@@ -54,5 +55,49 @@ describe("ChaptersList — part grouping", () => {
       <ChaptersList bookSlug="x" chapters={[ch({ n: 1 }), ch({ n: 2 })]} />,
     );
     expect(screen.queryByText(/Parte/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Phase B.A — the row links by identity, and the discriminator comes from the
+ * server. A mixed book proves the two forms coexist without either component or
+ * reader guessing which is which.
+ */
+describe("ChaptersList — stable hrefs", () => {
+  const row = (
+    n: number,
+    readerRef: { kind: "chapter" | "unit"; id: string },
+  ) => ({
+    n,
+    readerRef,
+    title: `Cap ${n}`,
+    durationMinutes: null,
+    lockedByTier: false,
+    partNumber: null,
+    partTitle: null,
+    userProgress: { status: "not-started" as const, progressPct: 0 },
+  });
+
+  it("links legacy by c/, native by u/, in a mixed book", () => {
+    render(
+      <ChaptersList
+        bookSlug="libro"
+        chapters={[
+          row(1, { kind: "chapter", id: "A" }),
+          row(2, { kind: "unit", id: "B" }),
+          row(3, { kind: "chapter", id: "C" }),
+        ]}
+      />,
+    );
+    const hrefs = [...document.querySelectorAll("a")].map((a) =>
+      a.getAttribute("href"),
+    );
+    expect(hrefs).toEqual([
+      "/dashboard/biblioteca/libro/lector/c/A",
+      "/dashboard/biblioteca/libro/lector/u/B",
+      "/dashboard/biblioteca/libro/lector/c/C",
+    ]);
+    // No positional link survives.
+    expect(hrefs.some((h) => /\/lector\/\d+$/.test(h ?? ""))).toBe(false);
   });
 });

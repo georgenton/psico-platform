@@ -93,7 +93,9 @@ describe("InicioV2", () => {
   it("renders the continue book card when one exists", () => {
     const home = buildHome({
       continueBook: {
-        bookId: "emociones-en-construccion",
+        bookId: "book-emociones",
+        bookSlug: "emociones-en-construccion",
+        readerRef: { kind: "unit", id: "unit-pausa" },
         title: "Emociones",
         chapterId: "c3",
         chapterN: 3,
@@ -108,10 +110,11 @@ describe("InicioV2", () => {
     expect(screen.getByText("Emociones")).toBeInTheDocument();
     expect(screen.getByText("La pausa")).toBeInTheDocument();
     expect(screen.queryByText(/Capítulo\s*\d/)).toBeNull();
-    // CTA link → lector route, which still uses the order
+    // CTA → the chapter's STABLE identity. Position 3 appears nowhere in the
+    // href, so restructuring the book cannot redirect this card.
     const link = screen.getByRole("link", { name: /Seguir leyendo/i });
     expect(link.getAttribute("href")).toBe(
-      "/dashboard/biblioteca/emociones-en-construccion/lector/3",
+      "/dashboard/biblioteca/emociones-en-construccion/lector/u/unit-pausa",
     );
   });
 

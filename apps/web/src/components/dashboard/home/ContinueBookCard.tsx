@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { HomeContinueBook } from "@psico/types";
+import { readerChapterPath } from "@psico/types";
 import { coverGradient } from "../cover-gradients";
 import { chapterHeading } from "../lector/chapter-label";
 
@@ -95,7 +96,10 @@ export function ContinueBookCard({ book }: { book: HomeContinueBook }) {
 
       {/* CTA */}
       <Link
-        href={`/dashboard/biblioteca/${book.bookId}/lector/${book.chapterN}`}
+        // Phase B.A — resumed by the chapter's stable identity, which the
+        // server took from the reading session itself. `chapterN` still names
+        // the chapter on screen, but it never decides where this link goes.
+        href={readerChapterPath(book.bookSlug, book.readerRef)}
         className="inline-flex items-center gap-1.5 self-start rounded-xl px-5 py-3 text-[13px] font-semibold text-white transition-colors sm:self-center"
         style={{ background: "var(--color-sage-400)" }}
       >

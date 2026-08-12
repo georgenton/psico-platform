@@ -38,18 +38,34 @@ describe("the mobile reader's write identity", () => {
   });
 
   it("sends the stable identity when completing a native chapter", async () => {
-    await lectorApi.complete("libro-nativo", 3, UNIT_ID);
+    await lectorApi.complete("libro-nativo", 3, {
+      kind: "unit",
+      id: UNIT_ID,
+    });
 
     const [url, body] = post.mock.calls[0]!;
     expect(String(url)).toContain("/lector/libro-nativo/3/complete");
     expect(body).toEqual({ contentUnitId: UNIT_ID });
   });
 
-  it("sends nothing extra for a legacy chapter", async () => {
+  it("sends the legacy chapter's own identity, not the position", async () => {
+    // Phase B.A: a legacy chapter is named too. A tab open across a
+    // restructure still carries the position it used to have, so resolving
+    // the write by position would complete whichever chapter took that slot.
+    await lectorApi.complete("libro-legacy", 1, {
+      kind: "chapter",
+      id: "ch-legacy",
+    });
+
+    const [, body] = post.mock.calls[0]!;
+    expect(body).toEqual({ chapterId: "ch-legacy" });
+  });
+
+  it("a caller with no ref keeps the old positional behaviour", async () => {
+    // Old installed clients send nothing, and must keep working.
     await lectorApi.complete("libro-legacy", 1);
 
     const [, body] = post.mock.calls[0]!;
-    // Legacy chapters keep being resolved by position, exactly as before.
     expect(body).toEqual({});
   });
 

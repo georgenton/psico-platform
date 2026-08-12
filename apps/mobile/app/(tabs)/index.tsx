@@ -17,6 +17,7 @@ import { CHECKIN_SCALE } from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { setEcoReaderHandoff } from "@/lib/eco/reader-handoff";
 import { Colors, Radius, Spacing } from "@/theme";
+import { readerRoutePath } from "@/components/dashboard/lector/reader-route";
 
 /**
  * Home (Inicio) — Sprint H1a · Mobile parity with design v2.
@@ -295,7 +296,12 @@ export default function HomeScreen() {
           style={[styles.mCard, styles.mContinueWrap]}
           onPress={() =>
             router.push(
-              `/(tabs)/books/${home.continueBook!.bookId}/lector/${home.continueBook!.chapterN}`,
+              // Resumed by the chapter's stable identity, taken from the
+              // reading session. `chapterN` is only what the card says.
+              `/(tabs)${readerRoutePath(
+                home.continueBook!.bookSlug,
+                home.continueBook!.readerRef,
+              )}` as never,
             )
           }
           accessibilityRole="button"

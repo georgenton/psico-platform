@@ -150,6 +150,7 @@ function buildInitial(
     },
     chapter: {
       id: "ch-1",
+      readerRef: { kind: "chapter", id: "ch-1" },
       order: 1,
       title: "El primer paso",
       description: "subtitle",
@@ -252,6 +253,7 @@ describe("LectorShell — header + blocks (from Content Core)", () => {
     const { container } = renderShell({
       chapter: {
         id: "ch-2",
+        readerRef: { kind: "chapter", id: "ch-2" },
         order: 2,
         title: "Cuando amar también sana",
         description: null,

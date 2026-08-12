@@ -6521,6 +6521,131 @@
         ]
       }
     },
+    "/api/lector/{bookId}/locator/{chapterOrder}": {
+      "get": {
+        "operationId": "LectorController_getLocator",
+        "parameters": [
+          {
+            "name": "bookId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "The chapter by its STABLE identity (Phase B.A).\n\nDeclared BEFORE `:bookId/:chapterOrder` because Express matches in order and\n`ref` would otherwise be read as a chapter number — the same reason\n`media/:mediaKey/access` sits above the parameterised routes.\n\n`kind` is constrained to the two identities the reader actually has; this is\nnot a generic resource-by-id endpoint, and anything else is a 404 before a\nsingle row is read.",
+        "tags": [
+          "Lector"
+        ]
+      }
+    },
+    "/api/lector/{bookId}/ref/{kind}/{id}": {
+      "get": {
+        "operationId": "LectorController_getChapterByRef",
+        "parameters": [
+          {
+            "name": "bookId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Lector"
+        ]
+      }
+    },
     "/api/lector/{bookId}/{chapterOrder}": {
       "get": {
         "operationId": "LectorController_getChapter",
@@ -6574,6 +6699,7 @@
             }
           }
         },
+        "summary": "The chapter by POSITION — a locator, not an identity.\n\nKept working for existing links. Clients navigate by the stable ref now.",
         "tags": [
           "Lector"
         ]
@@ -23821,6 +23947,12 @@
             "minLength": 1,
             "maxLength": 64
           },
+          "chapterId": {
+            "type": "string",
+            "description": "The legacy `Chapter` the reader actually opened.\n\nThe native counterpart of `contentUnitId`, and additive for the same\nreason: a stable URL is only half of reorder safety. A tab opened on\nchapter B at position 2 keeps heartbeating \"position 2\" — so if B later\nmoves and another chapter takes that slot, the position resolves to the\nwrong chapter and B's reading time lands on it.\n\nWhen present, position is NOT consulted: the chapter is looked up by id\nwithin the book, and its current order is read off the row. Clients that\nsend neither identity keep the positional behaviour they have always had.",
+            "minLength": 1,
+            "maxLength": 64
+          },
           "timeSpentDeltaSec": {
             "type": "number",
             "description": "Seconds since the previous heartbeat. Cap at 3600 in validation;\nservice further clamps to 60 to defend against suspend-and-resume\nspikes. The cumulative `timeSpentSec` on the row grows monotonically.",
@@ -23850,6 +23982,12 @@
             "minLength": 1,
             "maxLength": 64,
             "description": "Identidad estable del capítulo nativo que el lector abrió. Prevalece sobre la posición de la ruta."
+          },
+          "chapterId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Identidad estable del capítulo legado que el lector abrió. Prevalece sobre la posición de la ruta."
           }
         }
       },

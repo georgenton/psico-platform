@@ -84,6 +84,12 @@ const baseProBook = {
 
 function buildPrismaMock() {
   return {
+    // Book detail builds its chapter list from the EFFECTIVE readable
+    // structure. No published edition here → legacy rows are the whole list,
+    // which is the pre-existing behaviour these tests describe.
+    edition: { findFirst: vi.fn().mockResolvedValue(null) },
+    revisionUnit: { findMany: vi.fn().mockResolvedValue([]) },
+
     book: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
@@ -139,9 +145,14 @@ function buildPrismaMock() {
     chapter: {
       findFirst: vi.fn(),
       count: vi.fn(),
+      // Which positions a `Chapter` row occupies, published or not — the
+      // reader ignores `isPublished`, so the effective structure must too.
+      findMany: vi.fn().mockResolvedValue([]),
     },
     userProgress: {
-      findMany: vi.fn(),
+      // Detail batches progress by BOTH identities now, so this must resolve to
+      // an array rather than undefined.
+      findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn(),
       upsert: vi.fn(),
     },
@@ -435,6 +446,142 @@ describe("BooksService.getDetail", () => {
     expect(result.author?.licenseNumber).toBeNull();
     expect(result.author?.isVerified).toBe(false);
   });
+
+  /**
+   * Phase B.A — the detail screen describes the EFFECTIVE readable structure.
+   *
+   * A native chapter has no `Chapter` row, so every number the screen shows had
+   * to stop being derived from that table alone.
+   */
+  describe("effective structure", () => {
+    beforeEach(() => {
+      prisma.bookReview.groupBy.mockResolvedValue([]);
+      prisma.bookReview.findMany.mockResolvedValue([]);
+    });
+
+    const publishedNative = (
+      units: { order: number; id: string; title: string }[],
+    ) => {
+      prisma.edition.findFirst.mockResolvedValue({
+        publishedRevisionId: "rev-pub",
+      });
+      prisma.revisionUnit.findMany.mockResolvedValue(
+        units.map((u) => ({
+          order: u.order,
+          partNumber: null,
+          partTitle: null,
+          unit: { id: u.id },
+          unitVersion: { title: u.title, durationMinutes: null },
+        })),
+      );
+    };
+
+    it("lists native chapters and counts them", async () => {
+      prisma.book.findUnique.mockResolvedValue({
+        ...baseFreeBook,
+        chapters: [],
+      });
+      prisma.userProgress.findMany.mockResolvedValue([]);
+      publishedNative([
+        { order: 1, id: "u-1", title: "Nativo uno" },
+        { order: 2, id: "u-2", title: "Nativo dos" },
+      ]);
+
+      const out = await service.getDetail("user-1", "emociones");
+
+      expect(out.chaptersList.map((c) => c.readerRef)).toEqual([
+        { kind: "unit", id: "u-1" },
+        { kind: "unit", id: "u-2" },
+      ]);
+      // The count follows the list, not the stored `Book.totalChapters` (2 here
+      // by coincidence in the fixture, so make the divergence explicit).
+      expect(out.book.chapters).toBe(2);
+    });
+
+    it("counts what the book effectively offers, not the stored column", async () => {
+      prisma.book.findUnique.mockResolvedValue({
+        ...baseFreeBook,
+        chapters: [],
+      });
+      prisma.userProgress.findMany.mockResolvedValue([]);
+      publishedNative([{ order: 1, id: "u-1", title: "Solo uno" }]);
+
+      const out = await service.getDetail("user-1", "emociones");
+
+      // `totalChapters` on the fixture says 2. One chapter is readable.
+      expect(baseFreeBook.totalChapters).toBe(2);
+      expect(out.book.chapters).toBe(1);
+    });
+
+    it("never writes the stored chapter count while reading detail", async () => {
+      prisma.book.findUnique.mockResolvedValue({
+        ...baseFreeBook,
+        chapters: [],
+      });
+      prisma.userProgress.findMany.mockResolvedValue([]);
+      publishedNative([{ order: 1, id: "u-1", title: "Nativo" }]);
+
+      await service.getDetail("user-1", "emociones");
+
+      // Reading a screen must not repair data. `Book.totalChapters` still backs
+      // other surfaces; changing it here would be a silent migration.
+      expect(prisma.book.update).not.toHaveBeenCalled();
+    });
+
+    it("aggregates progress across both identities", async () => {
+      prisma.book.findUnique.mockResolvedValue({
+        ...baseFreeBook,
+        chapters: [
+          {
+            id: "ch-1",
+            order: 1,
+            title: "Legado",
+            durationMinutes: null,
+            progress: [],
+          },
+        ],
+      });
+      publishedNative([{ order: 2, id: "u-2", title: "Nativo" }]);
+      prisma.userProgress.findMany
+        .mockResolvedValueOnce([{ chapterId: "ch-1", completedAt: new Date() }])
+        .mockResolvedValueOnce([
+          { contentUnitId: "u-2", completedAt: new Date() },
+        ]);
+
+      const out = await service.getDetail("user-1", "emociones");
+
+      // Both finished — a mixed book can reach 100%, which it could not when
+      // only `Chapter` rows were counted.
+      expect(out.userProgress?.progressPct).toBe(100);
+      expect(out.userProgress?.lastChapterRead).toBe(2);
+    });
+
+    it("a legacy row wins the position it shares with a backfilled unit", async () => {
+      prisma.book.findUnique.mockResolvedValue({
+        ...baseFreeBook,
+        chapters: [
+          {
+            id: "ch-1",
+            order: 1,
+            title: "El original",
+            durationMinutes: null,
+            progress: [],
+          },
+        ],
+      });
+      prisma.userProgress.findMany.mockResolvedValue([]);
+      publishedNative([{ order: 1, id: "u-backfilled", title: "Copia" }]);
+
+      const out = await service.getDetail("user-1", "emociones");
+
+      expect(out.chaptersList).toHaveLength(1);
+      // Matches `resolveLocatorRef`, which tries the legacy row first.
+      expect(out.chaptersList[0].readerRef).toEqual({
+        kind: "chapter",
+        id: "ch-1",
+      });
+    });
+  });
 });
 
 // ─── BooksService — reviews ──────────────────────────────────────────────────
@@ -563,6 +710,12 @@ describe("BooksService.startBook", () => {
     prisma.book.findFirst.mockResolvedValue({ id: "book-1", slug: "test" });
     prisma.chapter.findFirst.mockResolvedValue({ id: "ch-1", order: 1 });
     prisma.userProgress.upsert.mockResolvedValue({});
+    // The detail aggregate now reads progress through a batched query keyed by
+    // identity, so the mock must return the row `startBook` just wrote —
+    // previously it arrived on the re-fetched book's include.
+    prisma.userProgress.findMany.mockResolvedValue([
+      { chapterId: "ch-1", completedAt: null },
+    ]);
     prisma.book.findUnique
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(baseFreeBook);

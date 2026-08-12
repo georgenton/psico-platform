@@ -79,7 +79,23 @@ function makePrisma(overrides: Partial<Record<string, unknown>> = {}) {
       findUnique: vi.fn().mockResolvedValue(null),
     },
     chapter: {
-      findUnique: vi.fn().mockResolvedValue(baseChapter),
+      // A positional lookup returns the chapter AT that position, so the row's
+      // `order` matches what was asked for. Completion now reads adjacency off
+      // the row rather than off the caller's (possibly stale) path, so a mock
+      // that always answered `order: 1` would make it look broken.
+      findUnique: vi.fn(
+        async (args?: { where?: { bookId_order?: { order?: number } } }) => ({
+          ...baseChapter,
+          order: args?.where?.bookId_order?.order ?? baseChapter.order,
+        }),
+      ),
+      // `findFirst` now serves two different questions, so the mock answers by
+      // the shape of the query rather than returning one row for both:
+      //   { id }    → the legacy envelope builder reading a chapter by its id
+      //   { order } → the locator asking what sits at a position
+      findFirst: vi.fn(async (args?: { where?: Record<string, unknown> }) =>
+        args?.where && "id" in args.where ? baseChapter : null,
+      ),
     },
     // A book Content Core does not serve yet. The legacy reader now asks the
     // published manifest how many chapters there are and which one comes next,
@@ -168,6 +184,13 @@ describe("LectorService.getChapter", () => {
       book: { findFirst: vi.fn().mockResolvedValue(proBook) } as never,
       chapter: {
         findUnique: vi.fn().mockResolvedValue({ ...baseChapter, order: 2 }),
+        // The envelope builder reads the chapter by id; the gate then runs on
+        // the order it finds there.
+        findFirst: vi.fn(async (args?: { where?: Record<string, unknown> }) =>
+          args?.where && "id" in args.where
+            ? { ...baseChapter, order: 2 }
+            : null,
+        ),
       } as never,
     });
     const svc = new LectorService(prisma, config, storage, makeAccess(true));
@@ -485,5 +508,64 @@ describe("LectorService.validateHighlightOffsets", () => {
     await expect(
       svc.validateHighlightOffsets("b-1", 0, 5),
     ).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * The stable legacy route reads the chapter it NAMES.
+ *
+ * The positional lookup is deliberately poisoned here: if the ref path ever
+ * consults it again, it returns the wrong chapter and this fails.
+ */
+describe("LectorService.getChapterByRef — legacy", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns the chapter the ref names, never the occupant of its position", async () => {
+    const WANTED = {
+      ...baseChapter,
+      id: "ch-B",
+      order: 3,
+      title: "Capítulo B",
+    };
+    const INTRUDER = { ...baseChapter, id: "ch-X", order: 3, title: "Otro" };
+
+    const prisma = makePrisma({
+      chapter: {
+        // What a positional read would find at order 3 — the wrong chapter.
+        findUnique: vi.fn().mockResolvedValue(INTRUDER),
+        findFirst: vi.fn(async (args?: { where?: Record<string, unknown> }) =>
+          args?.where && "id" in args.where ? WANTED : null,
+        ),
+      } as never,
+    });
+    const svc = new LectorService(prisma, config, storage, makeAccess());
+
+    const result = await svc.getChapterByRef("user-1", "FREE" as Plan, "any", {
+      kind: "chapter",
+      id: "ch-B",
+    });
+
+    expect(result.chapter.id).toBe("ch-B");
+    expect(result.chapter.title).toBe("Capítulo B");
+    // Identity in the URL, and the order derived from the row itself.
+    expect(result.chapter.readerRef).toEqual({ kind: "chapter", id: "ch-B" });
+    expect(result.chapter.order).toBe(3);
+  });
+
+  it("refuses a chapter id that belongs to another book", async () => {
+    const prisma = makePrisma({
+      chapter: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        findFirst: vi.fn().mockResolvedValue(null),
+      } as never,
+    });
+    const svc = new LectorService(prisma, config, storage, makeAccess());
+
+    await expect(
+      svc.getChapterByRef("user-1", "FREE" as Plan, "any", {
+        kind: "chapter",
+        id: "chapter-of-another-book",
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

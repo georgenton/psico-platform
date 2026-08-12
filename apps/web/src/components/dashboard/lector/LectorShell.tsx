@@ -13,6 +13,7 @@ import type {
   GuideSessionView,
   HighlightSummary,
   LectorChapterResponse,
+  LectorCompleteResponse,
 } from "@psico/types";
 import {
   reflectExerciseSeed,
@@ -22,6 +23,7 @@ import {
   chapterConcept,
   chapterExercises,
   projectReaderBlocks,
+  readerChapterPath,
   highlightWritePayload,
   annotationWritePayload,
   type ReaderMarkSource,
@@ -768,8 +770,9 @@ export function LectorShell({
     token,
     bookId: book.id,
     chapterOrder: chapter.order,
-    // Stable identity from the envelope; null for legacy chapters.
-    contentUnitId: chapter.contentUnitId ?? null,
+    // The envelope's own statement of which chapter this is and which
+    // structure serves it — the hook sends the matching write identity.
+    readerRef: chapter.readerRef,
     onProgress: setProgressPct,
     read: () => ({
       lastBlockId: lastBlockIdRef.current,
@@ -1038,20 +1041,22 @@ export function LectorShell({
           },
           // Complete the chapter that was OPENED. The route still carries the
           // position, but a structural publish can move the chapter while this
-          // page is up, and completing by position would mark the wrong one.
+          // page is up, and completing by position would mark the wrong one —
+          // for a legacy chapter just as much as a native one.
           body: JSON.stringify(
-            chapter.contentUnitId
-              ? { contentUnitId: chapter.contentUnitId }
-              : {},
+            chapter.readerRef.kind === "unit"
+              ? { contentUnitId: chapter.readerRef.id }
+              : { chapterId: chapter.readerRef.id },
           ),
         },
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = (await res.json()) as { nextChapter: number | null };
-      if (body.nextChapter !== null) {
-        router.push(
-          `/dashboard/biblioteca/${bookSlug}/lector/${body.nextChapter}`,
-        );
+      const body = (await res.json()) as LectorCompleteResponse;
+      // Navigate by identity, never by `body.nextChapter`. The order is what
+      // the next chapter is CALLED; the ref is which chapter it IS, and only
+      // one of those survives the book being restructured mid-session.
+      if (body.nextReaderRef) {
+        router.push(readerChapterPath(bookSlug, body.nextReaderRef));
       } else {
         router.push(`/dashboard/biblioteca/${bookSlug}`);
       }

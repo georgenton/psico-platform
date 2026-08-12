@@ -31,10 +31,17 @@ export function BookCard({
 
   const tierLabel = book.tierRequired === "free" ? "Gratuito" : "Pro";
   const ratingLabel = book.rating > 0 ? book.rating.toFixed(1) : "—";
-  const started = book.userProgress?.progressPct
-    ? book.userProgress.progressPct > 0
-    : false;
+  // Two different questions, previously answered by one number.
+  //
+  // "Has the reader opened this?" is whether there is a progress summary at
+  // all. "Is there a bar to draw?" is whether that summary is above zero. A
+  // book somebody started but has not finished a chapter of sits at 0% — real
+  // and common — and inferring `started` from the percentage told that reader
+  // to "Empezar" a book already on their shelf.
+  const started = book.userProgress !== null;
   const pct = book.userProgress?.progressPct ?? 0;
+  // An empty bar communicates nothing; the CTA already says where they are.
+  const showProgress = started && pct > 0;
 
   async function toggle(kind: "favorite" | "bookmark") {
     if (!token) return;
@@ -169,7 +176,7 @@ export function BookCard({
             </div>
           );
         })()}
-        {started && book.tierRequired !== "pro" ? (
+        {showProgress && book.tierRequired !== "pro" ? (
           <div className="mt-3 flex items-center gap-2">
             <div
               className="h-1 flex-1 overflow-hidden rounded-full"

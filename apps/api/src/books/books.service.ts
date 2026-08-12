@@ -38,11 +38,18 @@ import { ConfigService } from "@nestjs/config";
 import type { Env } from "../config";
 import { resolveStoredCoverUrl } from "../shared/content-asset";
 import {
+  loadEffectiveChapters,
   progressForEffectiveChapters,
   resolveEffectiveChapters,
+  sessionsForEffectiveChapters,
   type EffectiveChapter,
   type LegacyChapterRow,
 } from "./effective-chapters";
+import { readerBookIds } from "./library-membership";
+import {
+  resolveBookCardLifecycle,
+  type BookCardLifecycle,
+} from "./book-card-lifecycle";
 
 // ─── Plan → tier mapping ─────────────────────────────────────────────────────
 //
@@ -117,7 +124,14 @@ export class BooksService {
       return this.listFromUserPivot(userId, view, query, page, perPage, skip);
     }
 
-    const where = this.buildListWhere(userId, query, view);
+    // "Mis libros" needs the set of books the reader has opened, which cannot
+    // be expressed as a nested filter — a native chapter reaches its book
+    // through a slug match, not a foreign key. Resolved once, here.
+    const readerBooks =
+      view === "mis" && userId
+        ? await readerBookIds(this.prisma, userId)
+        : null;
+    const where = this.buildListWhere(userId, query, view, readerBooks);
     const orderBy = this.buildOrderBy(query.sort);
 
     const [rows, total, categories, authors] = await Promise.all([
@@ -133,8 +147,18 @@ export class BooksService {
       this.fetchAuthors(),
     ]);
 
+    // One batched pass for the whole page: structure, completions, sessions.
+    // Unauthenticated still resolves structure, because the chapter count is
+    // content metadata and has to be true whether or not anyone is signed in.
+    const lifecycle = await resolveBookCardLifecycle(this.prisma, {
+      userId,
+      books: rows,
+    });
+
     return {
-      books: rows.map((row) => this.toListItem(row, userId)),
+      books: rows.map((row) =>
+        this.toListItem(row, userId, lifecycle.get(row.id)),
+      ),
       pagination: { page, perPage, total } satisfies Pagination,
       categories,
       authors,
@@ -233,8 +257,16 @@ export class BooksService {
       .map((id) => byId.get(id))
       .filter((b): b is BookRow => b !== undefined);
 
+    // Favourites and saved books can perfectly well have been started.
+    const lifecycle = await resolveBookCardLifecycle(this.prisma, {
+      userId,
+      books: ordered,
+    });
+
     return {
-      books: ordered.map((row) => this.toListItem(row, userId)),
+      books: ordered.map((row) =>
+        this.toListItem(row, userId, lifecycle.get(row.id)),
+      ),
       pagination: { page, perPage, total } satisfies Pagination,
       categories,
       authors,
@@ -246,19 +278,11 @@ export class BooksService {
     // Lightweight algorithm: most recent published, excluding what the user
     // is currently reading. The personalized engine arrives with PatternsModule
     // in Sprint S11; for now this satisfies the UI contract.
-    const exclude = userId
-      ? await this.prisma.userProgress
-          .findMany({
-            where: { userId },
-            select: { chapter: { select: { bookId: true } } },
-            distinct: ["chapterId"],
-          })
-          .then((rows) =>
-            rows
-              .map((r) => r.chapter?.bookId)
-              .filter((id): id is string => Boolean(id)),
-          )
-      : [];
+    // "What the reader is already reading" — the same question "Mis libros"
+    // asks, so the same answer. It used to come from `UserProgress` alone,
+    // which only worked while Start wrote one; a started book would otherwise
+    // have started being recommended back to the person reading it.
+    const exclude = userId ? await readerBookIds(this.prisma, userId) : [];
 
     const rows = await this.prisma.book.findMany({
       where: { isPublished: true, id: { notIn: exclude } },
@@ -267,7 +291,20 @@ export class BooksService {
       include: this.bookCardInclude(userId),
     });
 
-    return { recos: rows.map((row) => this.toListItem(row, userId)) };
+    // Structure only, never reader state: `exclude` is exactly the set of
+    // books the reader has opened or finished and these rows are filtered by
+    // `notIn: exclude`, so a lifecycle lookup could only come back empty. The
+    // chapter count still has to be true, which is why this is not skipped
+    // entirely — passing `userId: null` fetches structure and nothing else.
+    const lifecycle = await resolveBookCardLifecycle(this.prisma, {
+      userId: null,
+      books: rows,
+    });
+    return {
+      recos: rows.map((row) =>
+        this.toListItem(row, userId, lifecycle.get(row.id)),
+      ),
+    };
   }
 
   /** GET /books/categories — public catalog. */
@@ -330,17 +367,28 @@ export class BooksService {
       bookSlug: book.slug,
       legacyChapters: looseBook.chapters ?? [],
     });
-    const progressById = userId
-      ? await progressForEffectiveChapters(this.prisma, {
-          userId,
-          chapters: effective,
-        })
-      : new Map<string, { completedAt: Date | null }>();
+    // Two tables, two questions. `UserProgress` answers "finished this?" —
+    // its `completedAt` is non-null, so a row there is a completion and
+    // nothing else. `ReadingSession` answers "opened this?", which is what
+    // starting a book and reading a page both write.
+    const [progressById, startedIds] = userId
+      ? await Promise.all([
+          progressForEffectiveChapters(this.prisma, {
+            userId,
+            chapters: effective,
+          }),
+          sessionsForEffectiveChapters(this.prisma, {
+            userId,
+            chapters: effective,
+          }),
+        ])
+      : [new Map<string, { completedAt: Date | null }>(), new Set<string>()];
 
     const chaptersList = this.buildChaptersList(
       book.plan,
       effective,
       progressById,
+      startedIds,
       userId,
     );
     const userProgress = this.computeUserProgressSummary(chaptersList, userId);
@@ -414,22 +462,36 @@ export class BooksService {
   ): Promise<CreateBookReviewResponse> {
     const book = await this.resolveBookIdOrThrow(bookIdOrSlug);
 
-    // Guard 1: must have completed every published chapter.
-    const publishedChapters = await this.prisma.chapter.count({
-      where: { bookId: book.id, isPublished: true },
-    });
-    if (publishedChapters === 0) {
+    // Guard 1: must have completed every chapter the book actually offers.
+    //
+    // Counting `Chapter` rows made a native book unreviewable — it has none,
+    // so the count was zero and every reader was told the book had nothing
+    // published. And on a mixed book the two counts described different sets:
+    // the requirement came from legacy rows while native completions could
+    // never satisfy it.
+    //
+    // The effective structure is the same one Book Detail lists and the reader
+    // serves, so "finish the book" means exactly the chapters somebody could
+    // have read. One effective chapter is one requirement — a position claimed
+    // by both structures resolves to a single row, so a backfilled unit behind
+    // a legacy chapter is never demanded twice.
+    const effective = await loadEffectiveChapters(this.prisma, book);
+    if (effective.length === 0) {
       throw new BadRequestException(
         "Cannot review a book with no published chapters",
       );
     }
-    const completedChapters = await this.prisma.userProgress.count({
-      where: {
-        userId,
-        chapter: { bookId: book.id, isPublished: true },
-      },
+    // Completion by each chapter's OWN identity — `chapterId` for legacy,
+    // `contentUnitId` for native. Read-only: eligibility never writes.
+    const completed = await progressForEffectiveChapters(this.prisma, {
+      userId,
+      chapters: effective,
     });
-    if (completedChapters < publishedChapters) {
+    // Every chapter, not a count comparison: counts can match while naming
+    // different chapters, and a `ReadingSession` must never stand in for a
+    // completion.
+    const finishedAll = effective.every((ch) => completed.has(ch.readerRef.id));
+    if (!finishedAll) {
       throw new ForbiddenException(
         "REVIEW_REQUIRES_COMPLETION: finish the book before posting a review",
       );
@@ -499,9 +561,14 @@ export class BooksService {
   /**
    * POST /books/:id/start — marks the book as "started" for the user.
    *
-   * We do not actually store a Book-level "started" record; instead we ensure
-   * a UserProgress row exists for chapter 1 (still not completed). The
-   * frontend reads `userProgress` and decides "Continuar leyendo" placement.
+   * There is no Book-level "started" record: starting a book means opening a
+   * `ReadingSession` on its first chapter, which is the same row the reader
+   * writes as somebody scrolls. The frontend reads `userProgress` from the
+   * detail aggregate and decides "Continuar leyendo" placement.
+   *
+   * It used to write `UserProgress` instead, and the docstring here said "still
+   * not completed" — but that table's `completedAt` is non-null with a default,
+   * so the row always meant finished. Opening a book claimed a completion.
    */
   async startBook(
     userId: string,
@@ -509,25 +576,45 @@ export class BooksService {
   ): Promise<StartBookResponse> {
     const book = await this.resolveBookIdOrThrow(bookIdOrSlug);
 
-    const firstChapter = await this.prisma.chapter.findFirst({
-      where: { bookId: book.id, isPublished: true },
-      orderBy: { order: "asc" },
-      select: { id: true, order: true },
-    });
-    if (!firstChapter) {
+    // The book's first chapter as a READER meets it, which is not the same as
+    // the first `Chapter` row: a book authored in Content Studio has none, and
+    // a mixed book may open on a native chapter.
+    const effective = await loadEffectiveChapters(this.prisma, book);
+    const first = effective[0];
+    if (!first) {
       throw new BadRequestException("Book has no published chapters yet");
     }
 
-    // Upsert a "started" marker. We reuse UserProgress; Sprint S6+ will refine
-    // its model to separate started vs completed cleanly. For S5 we simply
-    // ensure the row exists.
-    await this.prisma.userProgress.upsert({
-      where: {
-        userId_chapterId: { userId, chapterId: firstChapter.id },
-      },
-      create: { userId, chapterId: firstChapter.id },
-      update: {}, // no-op — preserve original completedAt
-    });
+    // Starting is a `ReadingSession`, not a `UserProgress`.
+    //
+    // `UserProgress.completedAt` is non-null with a default, so a row there
+    // says "finished" — writing one on Start told every surface the reader had
+    // completed a chapter they had not opened. `ReadingSession` is the table
+    // the reader itself writes as somebody scrolls, and it is what "started"
+    // has always meant.
+    //
+    // `update: {}` deliberately: calling Start again must not reset progress,
+    // time spent, or where the reader had got to.
+    if (first.readerRef.kind === "chapter") {
+      await this.prisma.readingSession.upsert({
+        where: {
+          userId_chapterId: { userId, chapterId: first.readerRef.id },
+        },
+        create: { userId, chapterId: first.readerRef.id },
+        update: {},
+      });
+    } else {
+      await this.prisma.readingSession.upsert({
+        where: {
+          userId_contentUnitId: {
+            userId,
+            contentUnitId: first.readerRef.id,
+          },
+        },
+        create: { userId, contentUnitId: first.readerRef.id },
+        update: {},
+      });
+    }
 
     const detail = await this.getDetail(userId, bookIdOrSlug);
     if (!detail.userProgress) {
@@ -589,32 +676,22 @@ export class BooksService {
             select: { id: true, createdAt: true },
           } as const)
         : (false as const),
-      chapters: userId
-        ? {
-            where: { isPublished: true },
-            orderBy: { order: "asc" as const },
-            select: {
-              id: true,
-              order: true,
-              title: true,
-              durationMinutes: true,
-              partNumber: true,
-              partTitle: true,
-              progress: { where: { userId }, select: { completedAt: true } },
-            },
-          }
-        : {
-            where: { isPublished: true },
-            orderBy: { order: "asc" as const },
-            select: {
-              id: true,
-              order: true,
-              title: true,
-              durationMinutes: true,
-              partNumber: true,
-              partTitle: true,
-            },
-          },
+      // The legacy half of the book's effective structure. No per-chapter
+      // `progress` any more: completion is read by identity, batched, by
+      // whichever resolver needs it — carrying it here would be a second,
+      // legacy-only answer to a question that now has an identity-aware one.
+      chapters: {
+        where: { isPublished: true },
+        orderBy: { order: "asc" as const },
+        select: {
+          id: true,
+          order: true,
+          title: true,
+          durationMinutes: true,
+          partNumber: true,
+          partTitle: true,
+        },
+      },
     };
   }
 
@@ -622,6 +699,7 @@ export class BooksService {
     userId: string | null,
     query: ListBooksQueryDto,
     view: "catalogo" | "mis" | "recos" | "favoritos" | "guardados",
+    readerBooks?: string[] | null,
   ) {
     const base: Record<string, unknown> = { isPublished: true };
     if (query.categoryId) base.categoryId = query.categoryId;
@@ -634,7 +712,10 @@ export class BooksService {
       ];
     }
     if (view === "mis" && userId) {
-      base.chapters = { some: { progress: { some: { userId } } } };
+      // Was `chapters.some.progress.some` — legacy completions only, which
+      // worked solely because Start used to write one. It now covers sessions
+      // and native chapters as well, resolved by `readerBookIds`.
+      base.id = { in: readerBooks ?? [] };
     }
     if (view === "favoritos" && userId) {
       base.favorites = { some: { userId } };
@@ -679,6 +760,7 @@ export class BooksService {
       categoryId: string | null;
     },
     userId: string | null,
+    lifecycle?: BookCardLifecycle,
   ): BookListItem {
     const author = row.author as
       | { id: string; name: string }
@@ -695,14 +777,9 @@ export class BooksService {
       (row.favorites as { id: string; createdAt: Date }[] | undefined) ?? [];
     const bookmarks =
       (row.bookmarks as { id: string; createdAt: Date }[] | undefined) ?? [];
-    const chapters =
-      (row.chapters as
-        | {
-            order: number;
-            durationMinutes: number | null;
-            progress?: { completedAt: Date | null }[];
-          }[]
-        | undefined) ?? [];
+    // The legacy chapter rows are no longer read here: the batched lifecycle
+    // resolver owns both the count and the progress, from the book's effective
+    // structure rather than its legacy half.
 
     return {
       id: row.id,
@@ -715,7 +792,10 @@ export class BooksService {
       coverArtUrl: this.coverUrl(row.coverArtUrl),
       categoryId: row.categoryId,
       categorySlug: category?.slug ?? null,
-      chapters: row.totalChapters,
+      // What the book currently OFFERS, not the stored column. Content Studio
+      // deliberately never touches `Book.totalChapters`, so on a native book
+      // that number is stale by design. Read-time truth — nothing is written.
+      chapters: lifecycle?.effectiveTotal ?? row.totalChapters,
       pages: row.pages,
       durationMinutes: row.durationMinutes,
       publishedOn: row.publishedAt,
@@ -728,7 +808,7 @@ export class BooksService {
         userId && favorites.length > 0 ? favorites[0].createdAt : null,
       bookmarkedAt:
         userId && bookmarks.length > 0 ? bookmarks[0].createdAt : null,
-      userProgress: userId ? this.computeProgressFromChapters(chapters) : null,
+      userProgress: userId ? (lifecycle?.userProgress ?? null) : null,
     };
   }
 
@@ -809,18 +889,27 @@ export class BooksService {
     plan: string,
     effective: EffectiveChapter[],
     progressById: Map<string, { completedAt: Date | null }>,
+    startedIds: Set<string>,
     userId: string | null,
   ): ChapterListItem[] {
     const tier = PLAN_TO_TIER[plan] ?? "free";
     return effective.map((ch) => {
       const progress = userId ? progressById.get(ch.readerRef.id) : undefined;
+      // Completion wins. A finished chapter also has a session behind it, and
+      // reporting that as merely "started" would walk somebody's progress
+      // backwards.
+      //
+      // The old rule was `progress.completedAt !== null ? completed :
+      // started`, which could only ever say "completed" — the column is
+      // non-null — so "started" was unreachable and a started chapter was
+      // shown as finished.
       const status: ChapterListItem["userProgress"]["status"] = !userId
         ? "not-started"
-        : !progress
-          ? "not-started"
-          : progress.completedAt !== null
-            ? "completed"
-            : "started";
+        : progress
+          ? "completed"
+          : startedIds.has(ch.readerRef.id)
+            ? "started"
+            : "not-started";
       return {
         n: ch.order,
         readerRef: ch.readerRef,

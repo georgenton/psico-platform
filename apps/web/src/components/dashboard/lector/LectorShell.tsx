@@ -13,6 +13,7 @@ import type {
   GuideSessionView,
   HighlightSummary,
   LectorChapterResponse,
+  LectorCompleteResponse,
 } from "@psico/types";
 import {
   reflectExerciseSeed,
@@ -22,6 +23,7 @@ import {
   chapterConcept,
   chapterExercises,
   projectReaderBlocks,
+  readerChapterPath,
   highlightWritePayload,
   annotationWritePayload,
   type ReaderMarkSource,
@@ -1047,11 +1049,12 @@ export function LectorShell({
         },
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = (await res.json()) as { nextChapter: number | null };
-      if (body.nextChapter !== null) {
-        router.push(
-          `/dashboard/biblioteca/${bookSlug}/lector/${body.nextChapter}`,
-        );
+      const body = (await res.json()) as LectorCompleteResponse;
+      // Navigate by identity, never by `body.nextChapter`. The order is what
+      // the next chapter is CALLED; the ref is which chapter it IS, and only
+      // one of those survives the book being restructured mid-session.
+      if (body.nextReaderRef) {
+        router.push(readerChapterPath(bookSlug, body.nextReaderRef));
       } else {
         router.push(`/dashboard/biblioteca/${bookSlug}`);
       }

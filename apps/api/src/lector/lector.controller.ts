@@ -57,7 +57,7 @@ import {
 } from "./media/chapter-media.openapi";
 import { ChapterMediaService } from "./media/chapter-media.service";
 import { readerRefFromSegments } from "@psico/types";
-import type { ReaderChapterRef } from "@psico/types";
+import type { LectorLocatorResponse, ReaderChapterRef } from "@psico/types";
 
 @ApiTags("Lector")
 @ApiBadRequestResponse({ type: ErrorEnvelopeDto })
@@ -191,7 +191,7 @@ export class LectorController {
     @CurrentUser() user: AuthenticatedUser,
     @Param("bookId") bookId: string,
     @Param("chapterOrder", ParseIntPipe) chapterOrder: number,
-  ): Promise<{ readerRef: ReaderChapterRef; bookSlug: string }> {
+  ): Promise<LectorLocatorResponse> {
     return this.lector.getLocator(
       user.userId,
       user.plan as Plan,

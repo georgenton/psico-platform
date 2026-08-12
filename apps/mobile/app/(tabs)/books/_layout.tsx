@@ -14,9 +14,16 @@ export default function BooksLayout() {
     >
       <Stack.Screen name="index" options={{ title: "Biblioteca" }} />
       <Stack.Screen name="[slug]" options={{ title: "Libro" }} />
+      {/* The canonical reader: a book and a chapter's stable identity. */}
+      <Stack.Screen
+        name="[slug]/lector/[kind]/[id]"
+        options={{ title: "Lector", headerBackTitle: "Volver" }}
+      />
+      {/* The positional route old links still use. It redirects rather than
+          renders, so it never shows a header of its own. */}
       <Stack.Screen
         name="[slug]/lector/[chapterOrder]"
-        options={{ title: "Lector", headerBackTitle: "Volver" }}
+        options={{ headerShown: false }}
       />
     </Stack>
   );

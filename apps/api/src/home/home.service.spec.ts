@@ -20,7 +20,9 @@ function buildPrisma() {
     contentUnit: { findUnique: vi.fn().mockResolvedValue(null) },
     chapter: { count: vi.fn() },
     conversation: { findFirst: vi.fn() },
-    book: { findMany: vi.fn() },
+    // `findUnique` is how the NATIVE continue-reading card reaches the Book
+    // row: a native chapter has no `Chapter` to borrow cover and author from.
+    book: { findMany: vi.fn(), findUnique: vi.fn().mockResolvedValue(null) },
     reflectionPrompt: { findFirst: vi.fn(), findUnique: vi.fn() },
     dismissedReflectionPrompt: { findMany: vi.fn(), upsert: vi.fn() },
     onboardingMood: { findUnique: vi.fn() },
@@ -168,6 +170,7 @@ describe("HomeService.getHome", () => {
         title: "Capítulo 2",
         book: {
           id: "book-1",
+          slug: "emociones",
           title: "Emociones",
           cover: "warm",
           author: { name: "Marina Quintana" },
@@ -190,7 +193,10 @@ describe("HomeService.getHome", () => {
         title: "Emociones",
         author: "Marina Quintana",
         cover: "warm",
+        bookSlug: "emociones",
         chapterN: 2,
+        // Identity off the session row, not the position beside it.
+        readerRef: { kind: "chapter", id: "ch-1" },
         chapterTitle: "Capítulo 2",
         progressPct: 50,
       }),
@@ -214,6 +220,7 @@ describe("HomeService.getHome", () => {
         title: "Cuando amar también sana",
         book: {
           id: "book-pqp",
+          slug: "parejas-que-perduran",
           title: "Parejas que perduran",
           cover: "warm",
           author: { name: "David Jaramillo" },
@@ -237,8 +244,157 @@ describe("HomeService.getHome", () => {
     // The CTA is untouched: only the sentence changed.
     expect(result.insightToday?.ctaHref).toBe("/dashboard/biblioteca");
     expect(result.insightToday?.ctaLabel).toBe("Seguir leyendo");
-    // And `chapterN` stays in the contract — the client routes with it.
+    // `chapterN` stays in the contract for display and for older installed
+    // clients. New navigation goes through `readerRef`.
     expect(result.continueBook?.chapterN).toBe(2);
+    expect(result.continueBook?.readerRef).toEqual({
+      kind: "chapter",
+      id: "ch-2",
+    });
+  });
+
+  /**
+   * Phase B.A — Continue Reading resumes a CHAPTER, not a position.
+   *
+   * The card is built from a reading session that may be months old. If its
+   * identity were re-derived from the chapter's current order, a book that has
+   * since been restructured would resume somebody into a different chapter —
+   * silently, and looking exactly like the right one.
+   */
+  describe("continue reading identity", () => {
+    const quiet = () => {
+      prisma.user.findUnique.mockResolvedValue({
+        ...fakeUserRow,
+        preferences: { weeklyGoalMinutes: 60 },
+      });
+      prisma.userProgress.findMany.mockResolvedValue([]);
+      prisma.userProgress.count.mockResolvedValue(1);
+      prisma.chapter.count.mockResolvedValue(2);
+      prisma.book.findMany.mockResolvedValue([]);
+      prisma.conversation.findFirst.mockResolvedValue(null);
+      prisma.dismissedReflectionPrompt.findMany.mockResolvedValue([]);
+      prisma.reflectionPrompt.findFirst.mockResolvedValue(null);
+    };
+
+    const legacySession = (order: number) => ({
+      completedAt: new Date("2026-03-15"),
+      contentUnitId: null,
+      chapter: {
+        id: "ch-stable",
+        order,
+        title: "Capítulo",
+        book: {
+          id: "book-1",
+          slug: "libro",
+          title: "Libro",
+          cover: "warm",
+          author: { name: "A" },
+        },
+      },
+    });
+
+    const nativeSession = () => ({
+      completedAt: new Date("2026-03-15"),
+      chapter: null,
+      contentUnitId: "unit-stable",
+    });
+
+    /** The published manifest currently places `unit-stable` at `order`. */
+    const nativePublishedAt = (order: number | null) => {
+      prisma.contentUnit.findUnique.mockResolvedValue({
+        edition: { slug: "libro", publishedRevisionId: "rev-pub" },
+      });
+      prisma.revisionUnit.findFirst.mockResolvedValue(
+        order === null ? null : { order, unitVersion: { title: "Nativo" } },
+      );
+      prisma.book.findUnique.mockResolvedValue({
+        id: "book-1",
+        title: "Libro",
+        cover: "warm",
+        author: { name: "A" },
+      });
+    };
+
+    it("a legacy session resumes by chapter id", async () => {
+      quiet();
+      prisma.userProgress.findFirst.mockResolvedValue(legacySession(2));
+
+      const out = await service.getHome("user-1");
+
+      expect(out.continueBook?.readerRef).toEqual({
+        kind: "chapter",
+        id: "ch-stable",
+      });
+      expect(out.continueBook?.bookSlug).toBe("libro");
+    });
+
+    it("a native session resumes by unit id", async () => {
+      quiet();
+      prisma.userProgress.findFirst.mockResolvedValue(nativeSession());
+      nativePublishedAt(2);
+
+      const out = await service.getHome("user-1");
+
+      expect(out.continueBook?.readerRef).toEqual({
+        kind: "unit",
+        id: "unit-stable",
+      });
+      expect(out.continueBook?.bookSlug).toBe("libro");
+    });
+
+    it("moving a legacy chapter does not change what Home resumes", async () => {
+      quiet();
+      prisma.userProgress.findFirst.mockResolvedValue(legacySession(1));
+      const before = (await service.getHome("user-1")).continueBook;
+
+      // Same chapter, different position.
+      prisma.userProgress.findFirst.mockResolvedValue(legacySession(7));
+      const after = (await service.getHome("user-1")).continueBook;
+
+      expect(after?.readerRef).toEqual(before?.readerRef);
+      // The number on the card follows the book; the link does not.
+      expect(before?.chapterN).toBe(1);
+      expect(after?.chapterN).toBe(7);
+    });
+
+    it("moving a native chapter does not change what Home resumes", async () => {
+      quiet();
+      prisma.userProgress.findFirst.mockResolvedValue(nativeSession());
+      nativePublishedAt(2);
+      const before = (await service.getHome("user-1")).continueBook;
+
+      nativePublishedAt(5);
+      const after = (await service.getHome("user-1")).continueBook;
+
+      expect(after?.readerRef).toEqual(before?.readerRef);
+      expect(before?.chapterN).toBe(2);
+      expect(after?.chapterN).toBe(5);
+    });
+
+    it("a retired native unit produces no card at all", async () => {
+      quiet();
+      prisma.userProgress.findFirst.mockResolvedValue(nativeSession());
+      // No longer in the published manifest.
+      nativePublishedAt(null);
+
+      const out = await service.getHome("user-1");
+
+      // Not a card pointing nowhere, and not a fabricated position — nothing.
+      expect(out.continueBook).toBeNull();
+    });
+
+    it("an unpublished edition produces no card either", async () => {
+      quiet();
+      prisma.userProgress.findFirst.mockResolvedValue(nativeSession());
+      prisma.contentUnit.findUnique.mockResolvedValue({
+        edition: { slug: "libro", publishedRevisionId: null },
+      });
+
+      const out = await service.getHome("user-1");
+
+      // Draft editorial work is not something a reader's Home may reveal.
+      expect(out.continueBook).toBeNull();
+    });
   });
 
   it("flags recos as locked when user is free and book is pro", async () => {

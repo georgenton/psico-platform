@@ -8,12 +8,15 @@ import type {
   CreateHighlightResponse,
   LectorAudioResponse,
   LectorChapterResponse,
+  LectorLocatorResponse,
+  ReaderChapterRef,
   LectorCompleteResponse,
   LectorSessionHeartbeatRequest,
   LectorSessionHeartbeatResponse,
   UpdateAnnotationRequest,
   UpdateAnnotationResponse,
 } from "@psico/types";
+import { READER_REF_SEGMENT } from "@psico/types";
 import { apiClient } from "./client";
 
 /**
@@ -30,6 +33,34 @@ export const lectorApi = {
   getChapter: (bookId: string, chapterOrder: number) =>
     apiClient.get<LectorChapterResponse>(
       `/lector/${encodeURIComponent(bookId)}/${chapterOrder}`,
+    ),
+
+  /**
+   * A chapter by its STABLE identity (Phase B.A).
+   *
+   * `getChapter` above still works and still takes a position — old installed
+   * clients navigate that way, and the audio/media endpoints are position-based
+   * too. What changes is that NEW navigation never needs the round trip through
+   * a number that a restructure can reassign.
+   */
+  getChapterByRef: (bookIdOrSlug: string, ref: ReaderChapterRef) =>
+    apiClient.get<LectorChapterResponse>(
+      `/lector/${encodeURIComponent(bookIdOrSlug)}/ref/${
+        READER_REF_SEGMENT[ref.kind]
+      }/${encodeURIComponent(ref.id)}`,
+    ),
+
+  /**
+   * What identity currently sits at a position — and nothing else.
+   *
+   * For turning an old positional link into a canonical one. It writes no
+   * session, no preferences and no progress, which is why the full reader must
+   * not be used for this: passing through a chapter would look, in the user's
+   * own history, exactly like having read it.
+   */
+  getLocator: (bookIdOrSlug: string, chapterOrder: number) =>
+    apiClient.get<LectorLocatorResponse>(
+      `/lector/${encodeURIComponent(bookIdOrSlug)}/locator/${chapterOrder}`,
     ),
 
   getAudio: (bookId: string, chapterOrder: number) =>

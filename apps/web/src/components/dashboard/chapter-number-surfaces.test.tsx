@@ -111,6 +111,8 @@ describe("PAREJAS_BOOK_DETAIL_DOES_NOT_SHOW_CHAPTER_2_FOR_EDITORIAL_CHAPTER_1", 
 describe("PAREJAS_HOME_CARDS_DO_NOT_SHOW_PLATFORM_ORDER", () => {
   const book: HomeContinueBook = {
     bookId: "b1",
+    bookSlug: "parejas-que-perduran",
+    readerRef: { kind: "chapter", id: "ch-parejas-1" },
     title: "Parejas que perduran",
     author: "David Jaramillo",
     cover: "cool",

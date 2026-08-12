@@ -1186,10 +1186,33 @@ export interface HomeGreeting {
 
 export interface HomeContinueBook {
   bookId: string;
+  /**
+   * The book's canonical slug (Phase B.A).
+   *
+   * Reader URLs are built from the slug, not the id. Home already knew it —
+   * it resolves the card through the book row either way — so surfacing it
+   * saves every client from having to look the book up again.
+   */
+  bookSlug: string;
   title: string;
   author: string;
   cover: CoverToken;
+  /**
+   * The chapter's position, for display only.
+   *
+   * Kept beside `readerRef` rather than replaced: it is what the card says out
+   * loud ("Capítulo 3"), and older installed clients still navigate by it.
+   */
   chapterN: number;
+  /**
+   * The STABLE identity of the chapter to resume (Phase B.A).
+   *
+   * Taken from the reading session itself — `chapterId` for a legacy chapter,
+   * `contentUnitId` for a native one — never re-derived from a position. A card
+   * written months ago therefore still resumes the same chapter after the book
+   * has been restructured, instead of whatever now sits at that number.
+   */
+  readerRef: ReaderChapterRef;
   chapterTitle: string;
   progressPct: number;
   lastReadAt: Date;
@@ -2614,6 +2637,18 @@ export interface LectorAudioResponse {
 }
 
 // ─── Lector · complete ───────────────────────────────────────────────────────
+
+/**
+ * What currently sits at a position — the read-only locator's whole answer.
+ *
+ * Deliberately not a chapter: turning an old positional link into a canonical
+ * one must not look, in the reader's own history, like having opened it.
+ */
+export interface LectorLocatorResponse {
+  readerRef: ReaderChapterRef;
+  /** The book's canonical slug, so the caller builds the URL without a lookup. */
+  bookSlug: string;
+}
 
 export interface LectorCompleteResponse {
   ok: true;

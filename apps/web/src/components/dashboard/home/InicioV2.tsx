@@ -4,6 +4,7 @@ import type { ActivityFeedItemType, HomeResponse } from "@psico/types";
 import { MapRadar } from "@/components/dashboard/mapa/MapRadar";
 import { EcoMomentSuggestions } from "@/components/dashboard/home/EcoMomentSuggestions";
 import { chapterHeading } from "@/components/dashboard/lector/chapter-label";
+import { readerChapterPath } from "@psico/types";
 import {
   IconArrowRight,
   IconBook,
@@ -268,7 +269,12 @@ export function InicioV2({ home }: { home: HomeResponse }) {
                 Este capítulo conecta con tu camino actual
               </span>
               <Link
-                href={`/dashboard/biblioteca/${continueBook.bookId}/lector/${continueBook.chapterN}`}
+                // Same server-owned ref as ContinueBookCard — the two Home
+                // surfaces must not disagree about where "seguir leyendo" goes.
+                href={readerChapterPath(
+                  continueBook.bookSlug,
+                  continueBook.readerRef,
+                )}
                 className="btn primary"
                 style={{ textDecoration: "none" }}
               >

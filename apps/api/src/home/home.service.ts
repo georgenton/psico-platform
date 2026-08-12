@@ -18,6 +18,7 @@ import type {
   HomeResponse,
   HomeShortcut,
   HomeStats,
+  ReaderChapterRef,
   HomeUser,
   InsightToday,
   UpdateUserMoodResponse,
@@ -377,6 +378,13 @@ export class HomeService {
           author: latest.chapter.book.author?.name ?? "—",
           cover: this.toCoverToken(latest.chapter.book.cover),
           chapterN: latest.chapter.order,
+          // Straight off the session row. Deriving it from `order` would mean
+          // a card written before a restructure resumes whatever now sits at
+          // that number — a different chapter, silently.
+          readerRef: {
+            kind: "chapter" as const,
+            id: latest.chapter.id,
+          } satisfies ReaderChapterRef,
           chapterTitle: latest.chapter.title,
         }
       : await this.nativeContinueCard(latest.contentUnitId);
@@ -410,10 +418,12 @@ export class HomeService {
 
     return {
       bookId: card.bookId,
+      bookSlug: card.bookSlug,
       title: card.title,
       author: card.author,
       cover: card.cover,
       chapterN: card.chapterN,
+      readerRef: card.readerRef,
       chapterTitle: card.chapterTitle,
       progressPct,
       lastReadAt: latest.completedAt,
@@ -469,6 +479,13 @@ export class HomeService {
       author: book.author?.name ?? "—",
       cover: this.toCoverToken(book.cover),
       chapterN: entry.order,
+      // The unit id, not the placement's order. `entry` was looked up to prove
+      // the unit is still in the published manifest and to read its title —
+      // its `order` is display, not identity.
+      readerRef: {
+        kind: "unit" as const,
+        id: contentUnitId,
+      } satisfies ReaderChapterRef,
       chapterTitle: entry.unitVersion.title,
     };
   }

@@ -45,7 +45,11 @@ import {
   type EffectiveChapter,
   type LegacyChapterRow,
 } from "./effective-chapters";
-import { readerBookIds } from "./library-membership";
+import {
+  readerBookIds,
+  sessionsForBookCards,
+  type BookSession,
+} from "./library-membership";
 
 // ─── Plan → tier mapping ─────────────────────────────────────────────────────
 //
@@ -143,8 +147,15 @@ export class BooksService {
       this.fetchAuthors(),
     ]);
 
+    // Only for the books on this page, and only when somebody is signed in.
+    const sessions = userId
+      ? await sessionsForBookCards(this.prisma, { userId, books: rows })
+      : new Map<string, BookSession>();
+
     return {
-      books: rows.map((row) => this.toListItem(row, userId)),
+      books: rows.map((row) =>
+        this.toListItem(row, userId, sessions.get(row.id)),
+      ),
       pagination: { page, perPage, total } satisfies Pagination,
       categories,
       authors,
@@ -243,8 +254,16 @@ export class BooksService {
       .map((id) => byId.get(id))
       .filter((b): b is BookRow => b !== undefined);
 
+    // Favourites and saved books can perfectly well have been started.
+    const sessions = await sessionsForBookCards(this.prisma, {
+      userId,
+      books: ordered,
+    });
+
     return {
-      books: ordered.map((row) => this.toListItem(row, userId)),
+      books: ordered.map((row) =>
+        this.toListItem(row, userId, sessions.get(row.id)),
+      ),
       pagination: { page, perPage, total } satisfies Pagination,
       categories,
       authors,
@@ -269,6 +288,10 @@ export class BooksService {
       include: this.bookCardInclude(userId),
     });
 
+    // No session hydration here on purpose: `exclude` is exactly the set of
+    // books the reader has opened or finished, and these rows are filtered by
+    // `notIn: exclude`. Every card here is by construction not-started, so the
+    // lookup could only ever come back empty.
     return { recos: rows.map((row) => this.toListItem(row, userId)) };
   }
 
@@ -735,6 +758,7 @@ export class BooksService {
       categoryId: string | null;
     },
     userId: string | null,
+    session?: BookSession,
   ): BookListItem {
     const author = row.author as
       | { id: string; name: string }
@@ -784,7 +808,37 @@ export class BooksService {
         userId && favorites.length > 0 ? favorites[0].createdAt : null,
       bookmarkedAt:
         userId && bookmarks.length > 0 ? bookmarks[0].createdAt : null,
-      userProgress: userId ? this.computeProgressFromChapters(chapters) : null,
+      userProgress: userId ? this.cardProgress(chapters, session) : null,
+    };
+  }
+
+  /**
+   * What a card should say about the reader's relationship to this book.
+   *
+   * Completions decide it when there are any — that summary carries real
+   * percentages and a completion date, and replacing it with a 0% "started"
+   * would walk somebody's progress backwards.
+   *
+   * Otherwise a `ReadingSession` means the book is open but nothing is
+   * finished yet. That case has to be representable: 0% is still started, and
+   * returning null instead is what made a freshly started book appear in
+   * "Mis libros" while its own card offered to start it.
+   *
+   * `startedAt` comes from the session itself, never `new Date()` — a card
+   * that claims every book was started just now is not telling the truth.
+   */
+  private cardProgress(
+    chapters: { progress?: { completedAt: Date | null }[] }[],
+    session?: BookSession,
+  ) {
+    const fromCompletions = this.computeProgressFromChapters(chapters);
+    if (fromCompletions) return fromCompletions;
+    if (!session) return null;
+    return {
+      startedAt: session.startedAt,
+      lastChapterRead: session.touchedChapters,
+      progressPct: 0,
+      completedAt: null,
     };
   }
 

@@ -298,6 +298,47 @@ suite("native book lifecycle", () => {
     ).toBe("completed");
   });
 
+  it("a started book's CARD says started, on both structures", async () => {
+    // Membership and the card have to agree. When only the membership query
+    // learned about sessions, a freshly started book appeared on the shelf
+    // with a card offering to start it.
+    const list = await books.list(USER, { view: "mis" } as never);
+
+    const legacy = list.books.find((b) => b.slug === "solo-legado");
+    const native = list.books.find((b) => b.slug === "solo-nativo");
+    expect(legacy?.userProgress).not.toBeNull();
+    expect(native?.userProgress).not.toBeNull();
+
+    // Started, not finished — and no completion was invented to say so.
+    expect(legacy!.userProgress!.completedAt).toBeNull();
+    expect(native!.userProgress!.completedAt).toBeNull();
+    expect(native!.userProgress!.progressPct).toBe(0);
+
+    // The timestamp is the session's own, not "now".
+    const session = await prisma.readingSession.findFirstOrThrow({
+      where: { userId: USER, contentUnitId: unitId["solo-nativo:1"] },
+    });
+    expect(native!.userProgress!.startedAt.toISOString()).toBe(
+      session.startedAt.toISOString(),
+    );
+  });
+
+  it("the started card survives outside «Mis libros»", async () => {
+    // The same book, seen through the plain catalogue.
+    const list = await books.list(USER, {} as never);
+    const native = list.books.find((b) => b.slug === "solo-nativo");
+
+    expect(native?.userProgress).not.toBeNull();
+    expect(native!.userProgress!.completedAt).toBeNull();
+  });
+
+  it("a book nobody opened has no progress summary", async () => {
+    const list = await books.list(USER, {} as never);
+    const untouched = list.books.find((b) => b.slug === "solo-borrador");
+
+    expect(untouched?.userProgress).toBeNull();
+  });
+
   it("a started book is still in «Mis libros»", async () => {
     // The regression this change could have caused: the view filtered on
     // `UserProgress`, which Start no longer writes.

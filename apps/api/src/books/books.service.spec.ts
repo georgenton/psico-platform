@@ -147,7 +147,14 @@ function buildPrismaMock() {
       count: vi.fn(),
       // Which positions a `Chapter` row occupies, published or not — the
       // reader ignores `isPublished`, so the effective structure must too.
+      // Also how the lifecycle methods load a book's legacy chapters.
       findMany: vi.fn().mockResolvedValue([]),
+    },
+    // Starting a book writes a session, not a completion; Book Detail reads
+    // both to tell "opened" from "finished".
+    readingSession: {
+      findMany: vi.fn().mockResolvedValue([]),
+      upsert: vi.fn().mockResolvedValue({}),
     },
     userProgress: {
       // Detail batches progress by BOTH identities now, so this must resolve to
@@ -606,18 +613,64 @@ describe("BooksService.createReview", () => {
 
   it("rejects review when user has not completed all chapters", async () => {
     prisma.book.findFirst.mockResolvedValue({ id: "book-1", slug: "test" });
-    prisma.chapter.count.mockResolvedValue(3);
-    prisma.userProgress.count.mockResolvedValue(2); // missing one
+    // Eligibility now comes from the EFFECTIVE structure and per-chapter
+    // completion, not from comparing two counts.
+    prisma.chapter.findMany.mockResolvedValue([
+      { id: "ch-1", order: 1, title: "Uno", durationMinutes: null },
+      { id: "ch-2", order: 2, title: "Dos", durationMinutes: null },
+      { id: "ch-3", order: 3, title: "Tres", durationMinutes: null },
+    ]);
+    prisma.userProgress.findMany.mockResolvedValue([
+      { chapterId: "ch-1", completedAt: new Date() },
+      { chapterId: "ch-2", completedAt: new Date() },
+    ]); // ch-3 missing
 
     await expect(
       service.createReview("user-1", "book-1", { rating: 5, text: "Bueno" }),
     ).rejects.toThrow(ForbiddenException);
   });
 
+  it("a STARTED chapter does not count as finished", async () => {
+    prisma.book.findFirst.mockResolvedValue({ id: "book-1", slug: "test" });
+    prisma.chapter.findMany.mockResolvedValue([
+      { id: "ch-1", order: 1, title: "Uno", durationMinutes: null },
+    ]);
+    // A reading session exists, but no completion. Starting a book must never
+    // be enough to review it.
+    prisma.readingSession.findMany.mockResolvedValue([{ chapterId: "ch-1" }]);
+    prisma.userProgress.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.createReview("user-1", "book-1", { rating: 5, text: "Bueno" }),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it("checking eligibility writes nothing", async () => {
+    prisma.book.findFirst.mockResolvedValue({ id: "book-1", slug: "test" });
+    prisma.chapter.findMany.mockResolvedValue([
+      { id: "ch-1", order: 1, title: "Uno", durationMinutes: null },
+    ]);
+    prisma.userProgress.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.createReview("user-1", "book-1", { rating: 5, text: "x" }),
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(prisma.bookReview.upsert).not.toHaveBeenCalled();
+    expect(prisma.userProgress.upsert).not.toHaveBeenCalled();
+    expect(prisma.readingSession.upsert).not.toHaveBeenCalled();
+  });
+
   it("upserts the review when user completed every chapter", async () => {
     prisma.book.findFirst.mockResolvedValue({ id: "book-1", slug: "test" });
-    prisma.chapter.count.mockResolvedValue(2);
-    prisma.userProgress.count.mockResolvedValue(2);
+    prisma.chapter.findMany.mockResolvedValue([
+      { id: "ch-1", order: 1, title: "Uno", durationMinutes: null },
+      { id: "ch-2", order: 2, title: "Dos", durationMinutes: null },
+    ]);
+    prisma.userProgress.findMany.mockResolvedValue([
+      { chapterId: "ch-1", completedAt: new Date() },
+      { chapterId: "ch-2", completedAt: new Date() },
+    ]);
     prisma.bookReview.upsert.mockResolvedValue({
       id: "review-1",
       rating: 5,
@@ -706,16 +759,13 @@ describe("BooksService.startBook", () => {
     );
   });
 
-  it("upserts UserProgress for chapter 1 and returns userProgress", async () => {
+  it("opens a ReadingSession for the first chapter — not a completion", async () => {
     prisma.book.findFirst.mockResolvedValue({ id: "book-1", slug: "test" });
-    prisma.chapter.findFirst.mockResolvedValue({ id: "ch-1", order: 1 });
-    prisma.userProgress.upsert.mockResolvedValue({});
-    // The detail aggregate now reads progress through a batched query keyed by
-    // identity, so the mock must return the row `startBook` just wrote —
-    // previously it arrived on the re-fetched book's include.
-    prisma.userProgress.findMany.mockResolvedValue([
-      { chapterId: "ch-1", completedAt: null },
+    prisma.chapter.findMany.mockResolvedValue([
+      { id: "ch-1", order: 1, title: "Uno", durationMinutes: null },
     ]);
+    prisma.readingSession.findMany.mockResolvedValue([{ chapterId: "ch-1" }]);
+    prisma.userProgress.findMany.mockResolvedValue([]);
     prisma.book.findUnique
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(baseFreeBook);
@@ -724,15 +774,60 @@ describe("BooksService.startBook", () => {
 
     const result = await service.startBook("user-1", "book-1");
 
-    expect(prisma.userProgress.upsert).toHaveBeenCalledWith(
+    expect(prisma.readingSession.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           userId_chapterId: { userId: "user-1", chapterId: "ch-1" },
         },
+        // Calling Start again must not reset progress or time spent.
+        update: {},
       }),
     );
+    // `UserProgress.completedAt` is non-null with a default, so writing there
+    // would tell every surface the reader finished a chapter they just opened.
+    expect(prisma.userProgress.upsert).not.toHaveBeenCalled();
     expect(result.ok).toBe(true);
     expect(result.userProgress).toBeDefined();
+  });
+
+  it("opens a native chapter's session by contentUnitId", async () => {
+    // A book authored in Content Studio has no `Chapter` row at all, so this
+    // used to fail outright with "no published chapters yet".
+    prisma.book.findFirst.mockResolvedValue({ id: "book-1", slug: "test" });
+    prisma.chapter.findMany.mockResolvedValue([]);
+    prisma.edition.findFirst.mockResolvedValue({
+      publishedRevisionId: "rev-pub",
+    });
+    prisma.revisionUnit.findMany.mockResolvedValue([
+      {
+        order: 1,
+        partNumber: null,
+        partTitle: null,
+        unit: { id: "unit-1" },
+        unitVersion: { title: "Nativo", durationMinutes: null },
+      },
+    ]);
+    prisma.readingSession.findMany.mockResolvedValue([
+      { contentUnitId: "unit-1" },
+    ]);
+    prisma.userProgress.findMany.mockResolvedValue([]);
+    prisma.book.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...baseFreeBook, chapters: [] });
+    prisma.bookReview.groupBy.mockResolvedValue([]);
+    prisma.bookReview.findMany.mockResolvedValue([]);
+
+    const result = await service.startBook("user-1", "book-1");
+
+    expect(prisma.readingSession.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId_contentUnitId: { userId: "user-1", contentUnitId: "unit-1" },
+        },
+      }),
+    );
+    expect(prisma.userProgress.upsert).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
   });
 });
 

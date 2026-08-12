@@ -189,3 +189,85 @@ export async function progressForEffectiveChapters(
   }
   return byId;
 }
+
+/**
+ * The effective structure for a book we have not already loaded chapters for.
+ *
+ * `getDetail` passes in the legacy rows it fetched anyway. The lifecycle
+ * methods — starting a book, checking review eligibility — have no such query
+ * to piggyback on, so this fetches exactly the fields the resolver needs and
+ * hands them to the same function.
+ *
+ * The point is that there is ONE answer to "what chapters does this book
+ * offer". A second algorithm here would drift from Book Detail, and the two
+ * would disagree about which chapter a reader must finish before reviewing.
+ */
+export async function loadEffectiveChapters(
+  db: Db & Pick<PrismaClient, "chapter">,
+  book: { id: string; slug: string },
+): Promise<EffectiveChapter[]> {
+  const legacyChapters = await db.chapter.findMany({
+    // Published only, matching the include Book Detail uses. An unpublished
+    // row still BLOCKS its position from going native — that rule lives in
+    // `resolveEffectiveChapters`, which reads occupancy separately.
+    where: { bookId: book.id, isPublished: true },
+    orderBy: { order: "asc" },
+    select: {
+      id: true,
+      order: true,
+      title: true,
+      durationMinutes: true,
+      partNumber: true,
+      partTitle: true,
+    },
+  });
+  return resolveEffectiveChapters(db, {
+    bookId: book.id,
+    bookSlug: book.slug,
+    legacyChapters,
+  });
+}
+
+/**
+ * Which of these chapters the user has STARTED.
+ *
+ * `UserProgress` cannot answer this: `completedAt` is non-null with a default,
+ * so a row there means finished, full stop. Started lives in `ReadingSession`,
+ * which is what the reader actually writes as somebody scrolls.
+ *
+ * Same batching and the same keying as `progressForEffectiveChapters` — two
+ * queries whatever the length of the book, each row keyed by its own identity
+ * so a native chapter cannot inherit the session of the legacy chapter whose
+ * position it took.
+ */
+export async function sessionsForEffectiveChapters(
+  db: Pick<PrismaClient, "readingSession">,
+  input: { userId: string; chapters: EffectiveChapter[] },
+): Promise<Set<string>> {
+  const chapterIds = input.chapters
+    .filter((c) => c.readerRef.kind === "chapter")
+    .map((c) => c.readerRef.id);
+  const unitIds = input.chapters
+    .filter((c) => c.readerRef.kind === "unit")
+    .map((c) => c.readerRef.id);
+
+  const [legacy, native] = await Promise.all([
+    chapterIds.length
+      ? db.readingSession.findMany({
+          where: { userId: input.userId, chapterId: { in: chapterIds } },
+          select: { chapterId: true },
+        })
+      : Promise.resolve([]),
+    unitIds.length
+      ? db.readingSession.findMany({
+          where: { userId: input.userId, contentUnitId: { in: unitIds } },
+          select: { contentUnitId: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const started = new Set<string>();
+  for (const s of legacy) if (s.chapterId) started.add(s.chapterId);
+  for (const s of native) if (s.contentUnitId) started.add(s.contentUnitId);
+  return started;
+}

@@ -2586,6 +2586,16 @@ export interface LectorSessionHeartbeatRequest {
    * wherever it now sits, so a reorder cannot redirect somebody's progress.
    */
   contentUnitId?: string;
+  /**
+   * The legacy `Chapter` the reader opened — the counterpart of
+   * `contentUnitId`, and the other half of reorder safety.
+   *
+   * A stable URL alone is not enough: a tab open on chapter B keeps sending
+   * B's ORIGINAL position, so once B moves, that number names a different
+   * chapter. Send exactly one stable identity; sending both is rejected
+   * rather than silently resolved one way.
+   */
+  chapterId?: string;
 }
 
 export interface LectorSessionHeartbeatResponse {

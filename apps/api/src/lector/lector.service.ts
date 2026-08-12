@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";
+import { assertSingleWriteIdentity } from "./write-identity";
 import { Plan } from "@prisma/client";
 import {
   nextPlacedOrder,
@@ -422,6 +423,8 @@ export class LectorService {
     userId: string,
     dto: LectorSessionHeartbeatDto,
   ): Promise<LectorSessionHeartbeatResponse> {
+    assertSingleWriteIdentity(dto);
+
     // A native identity, when the client has one, decides the write outright.
     // Position is where the reader NAVIGATED; the unit is what they opened, and
     // a structural publish can separate the two while the tab is open.
@@ -429,12 +432,21 @@ export class LectorService {
       return this.nativeHeartbeat(userId, dto, dto.contentUnitId);
     }
 
-    const chapter = await this.prisma.chapter.findUnique({
-      where: {
-        bookId_order: { bookId: dto.bookId, order: dto.chapterOrder },
-      },
-      select: { id: true },
-    });
+    // The legacy counterpart. Scoped to the book so an id from another book
+    // cannot be written through, but deliberately NOT checked against
+    // `dto.chapterOrder`: the whole point is that a stale tab still carries
+    // the position this chapter used to have.
+    const chapter = dto.chapterId
+      ? await this.prisma.chapter.findFirst({
+          where: { id: dto.chapterId, bookId: dto.bookId },
+          select: { id: true },
+        })
+      : await this.prisma.chapter.findUnique({
+          where: {
+            bookId_order: { bookId: dto.bookId, order: dto.chapterOrder },
+          },
+          select: { id: true },
+        });
 
     if (!chapter) {
       // No legacy chapter at that position. Either the client is sending an
@@ -610,7 +622,10 @@ export class LectorService {
     bookIdOrSlug: string,
     chapterOrder: number,
     contentUnitId?: string,
+    chapterId?: string,
   ): Promise<LectorCompleteResponse> {
+    assertSingleWriteIdentity({ chapterId, contentUnitId });
+
     const book = await this.prisma.book.findFirst({
       where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
       select: { id: true, slug: true, totalChapters: true },
@@ -626,13 +641,26 @@ export class LectorService {
       );
     }
 
-    const chapter = await this.prisma.chapter.findUnique({
-      where: { bookId_order: { bookId: book.id, order: chapterOrder } },
-      select: { id: true },
-    });
+    // The path still carries a position, for compatibility — but a tab open
+    // since before a restructure carries a STALE one. When the client names the
+    // chapter, that name wins and the position is never consulted.
+    const chapter = chapterId
+      ? await this.prisma.chapter.findFirst({
+          where: { id: chapterId, bookId: book.id },
+          select: { id: true, order: true },
+        })
+      : await this.prisma.chapter.findUnique({
+          where: { bookId_order: { bookId: book.id, order: chapterOrder } },
+          select: { id: true, order: true },
+        });
     if (!chapter) {
       return this.completeNativeChapter(userId, book, chapterOrder);
     }
+
+    // Adjacency is a question about the book as it is NOW, so it is asked from
+    // the chapter's CURRENT order — the one on the row — not from whatever
+    // number the client's URL still says.
+    const currentOrder = chapter.order;
 
     // Two things in one transaction: mark the session completed and record
     // UserProgress. We don't want a partial state where the session shows
@@ -670,7 +698,7 @@ export class LectorService {
     const [placedNext, total] = await Promise.all([
       nextPlacedOrder(this.prisma, {
         bookSlug: book.slug,
-        after: chapterOrder,
+        after: currentOrder,
       }),
       readerTotalChapters(this.prisma, {
         bookSlug: book.slug,
@@ -678,7 +706,7 @@ export class LectorService {
       }),
     ]);
     const nextChapter =
-      placedNext ?? (chapterOrder < total ? chapterOrder + 1 : null);
+      placedNext ?? (currentOrder < total ? currentOrder + 1 : null);
     return {
       ok: true,
       nextChapter,

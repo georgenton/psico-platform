@@ -6544,7 +6544,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "400": {
             "description": "",
@@ -23940,6 +23947,12 @@
             "minLength": 1,
             "maxLength": 64
           },
+          "chapterId": {
+            "type": "string",
+            "description": "The legacy `Chapter` the reader actually opened.\n\nThe native counterpart of `contentUnitId`, and additive for the same\nreason: a stable URL is only half of reorder safety. A tab opened on\nchapter B at position 2 keeps heartbeating \"position 2\" — so if B later\nmoves and another chapter takes that slot, the position resolves to the\nwrong chapter and B's reading time lands on it.\n\nWhen present, position is NOT consulted: the chapter is looked up by id\nwithin the book, and its current order is read off the row. Clients that\nsend neither identity keep the positional behaviour they have always had.",
+            "minLength": 1,
+            "maxLength": 64
+          },
           "timeSpentDeltaSec": {
             "type": "number",
             "description": "Seconds since the previous heartbeat. Cap at 3600 in validation;\nservice further clamps to 60 to defend against suspend-and-resume\nspikes. The cumulative `timeSpentSec` on the row grows monotonically.",
@@ -23969,6 +23982,12 @@
             "minLength": 1,
             "maxLength": 64,
             "description": "Identidad estable del capítulo nativo que el lector abrió. Prevalece sobre la posición de la ruta."
+          },
+          "chapterId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Identidad estable del capítulo legado que el lector abrió. Prevalece sobre la posición de la ruta."
           }
         }
       },

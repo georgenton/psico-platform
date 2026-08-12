@@ -72,14 +72,22 @@ export const lectorApi = {
     apiClient.patch<LectorSessionHeartbeatResponse>("/lector/session", payload),
 
   /**
-   * `contentUnitId` is the chapter the reader actually opened. The route still
-   * carries the position, but a structural publish can move a chapter while a
-   * page is open — completing by position would mark the wrong one.
+   * Completing the chapter that was OPENED.
+   *
+   * The route still carries a position, but a structural publish can move a
+   * chapter while a page is up — so completing by position would mark the wrong
+   * one. `ref` names the chapter instead, and the body carries whichever stable
+   * identity matches its structure. Omitting `ref` keeps the old positional
+   * behaviour, for callers that have no ref to give.
    */
-  complete: (bookId: string, chapterOrder: number, contentUnitId?: string) =>
+  complete: (bookId: string, chapterOrder: number, ref?: ReaderChapterRef) =>
     apiClient.post<LectorCompleteResponse>(
       `/lector/${encodeURIComponent(bookId)}/${chapterOrder}/complete`,
-      contentUnitId ? { contentUnitId } : {},
+      ref
+        ? ref.kind === "unit"
+          ? { contentUnitId: ref.id }
+          : { chapterId: ref.id }
+        : {},
     ),
 
   // ─── GR-2 · chapter media ─────────────────────────────────────────────────

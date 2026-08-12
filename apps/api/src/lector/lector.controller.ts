@@ -267,6 +267,7 @@ export class LectorController {
       bookId,
       chapterOrder,
       dto?.contentUnitId,
+      dto?.chapterId,
     );
   }
 }

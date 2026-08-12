@@ -770,8 +770,9 @@ export function LectorShell({
     token,
     bookId: book.id,
     chapterOrder: chapter.order,
-    // Stable identity from the envelope; null for legacy chapters.
-    contentUnitId: chapter.contentUnitId ?? null,
+    // The envelope's own statement of which chapter this is and which
+    // structure serves it — the hook sends the matching write identity.
+    readerRef: chapter.readerRef,
     onProgress: setProgressPct,
     read: () => ({
       lastBlockId: lastBlockIdRef.current,
@@ -1040,11 +1041,12 @@ export function LectorShell({
           },
           // Complete the chapter that was OPENED. The route still carries the
           // position, but a structural publish can move the chapter while this
-          // page is up, and completing by position would mark the wrong one.
+          // page is up, and completing by position would mark the wrong one —
+          // for a legacy chapter just as much as a native one.
           body: JSON.stringify(
-            chapter.contentUnitId
-              ? { contentUnitId: chapter.contentUnitId }
-              : {},
+            chapter.readerRef.kind === "unit"
+              ? { contentUnitId: chapter.readerRef.id }
+              : { chapterId: chapter.readerRef.id },
           ),
         },
       );

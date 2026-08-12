@@ -78,6 +78,7 @@ function buildInitial(): LectorChapterResponse {
     },
     chapter: {
       id: "ch-1",
+      readerRef: { kind: "chapter", id: "ch-1" },
       order: 1,
       title: "El primer paso",
       description: "subtitle",

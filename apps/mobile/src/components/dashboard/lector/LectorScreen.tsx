@@ -228,12 +228,17 @@ export function LectorScreen({
       // retired unit or integrity error shows unavailable, never legacy blocks).
       try {
         const manifest = await contentCoreApi.getManifest(data.book.slug);
-        const mu = manifest.units.find((u) => u.order === data.chapter.order);
-        if (!mu) {
+        // By the envelope's STABLE key, never by the chapter's current order.
+        // Selecting on `order` would mean a canonical URL that names chapter B
+        // renders whichever unit happens to occupy B's old position — the same
+        // defect the web loader had, and invisible until a book is restructured.
+        // The manifest is consulted only for the server-owned `editionKey`.
+        const unitKey = data.chapter.contentUnitKey;
+        if (!unitKey) {
           if (!cancelled) setContentError(true);
           return;
         }
-        const u = await contentCoreApi.getUnit(manifest.editionKey, mu.unitKey);
+        const u = await contentCoreApi.getUnit(manifest.editionKey, unitKey);
         if (cancelled) return;
         setUnit(u);
         lastBlockIdRef.current =
@@ -247,9 +252,11 @@ export function LectorScreen({
         // failure is surfaced; anything else shows the "unavailable" banner.
         if (shouldFetchUnitMarks(u.source)) {
           try {
+            // The SAME unit the text came from. Reading marks for a
+            // placement found by order would anchor them to another chapter.
             const m = await contentCoreApi.getUnitMarks(
               manifest.editionKey,
-              mu.unitKey,
+              unitKey,
             );
             if (!cancelled && m) {
               setHighlights(m.highlights);
@@ -298,10 +305,13 @@ export function LectorScreen({
       lastTickRef.current = now;
       try {
         const res = await lectorApi.heartbeat({
-          // Stable identity for a native chapter; absent for legacy ones.
-          ...(chapter.chapter.contentUnitId
-            ? { contentUnitId: chapter.chapter.contentUnitId }
-            : {}),
+          // Exactly one stable identity, chosen by what the server said this
+          // chapter is. `chapterOrder` below stays for context; it is not what
+          // the write resolves by, because a tab open across a restructure
+          // still carries the position the chapter used to have.
+          ...(chapter.chapter.readerRef.kind === "unit"
+            ? { contentUnitId: chapter.chapter.readerRef.id }
+            : { chapterId: chapter.chapter.readerRef.id }),
           bookId: chapter.book.id,
           chapterOrder: chapter.chapter.order,
           lastBlockId: lastBlockIdRef.current,
@@ -432,8 +442,8 @@ export function LectorScreen({
         chapter.book.slug,
         chapter.chapter.order,
         // Complete the chapter that was OPENED, not whoever occupies that
-        // position by the time the button is pressed.
-        chapter.chapter.contentUnitId ?? undefined,
+        // position by the time the button is pressed — legacy included.
+        chapter.chapter.readerRef,
       );
       // By identity, never by `res.nextChapter`: the order names the next
       // chapter, the ref IS it, and only the ref survives a restructure.

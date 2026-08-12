@@ -79,7 +79,16 @@ function makePrisma(overrides: Partial<Record<string, unknown>> = {}) {
       findUnique: vi.fn().mockResolvedValue(null),
     },
     chapter: {
-      findUnique: vi.fn().mockResolvedValue(baseChapter),
+      // A positional lookup returns the chapter AT that position, so the row's
+      // `order` matches what was asked for. Completion now reads adjacency off
+      // the row rather than off the caller's (possibly stale) path, so a mock
+      // that always answered `order: 1` would make it look broken.
+      findUnique: vi.fn(
+        async (args?: { where?: { bookId_order?: { order?: number } } }) => ({
+          ...baseChapter,
+          order: args?.where?.bookId_order?.order ?? baseChapter.order,
+        }),
+      ),
       // `findFirst` now serves two different questions, so the mock answers by
       // the shape of the query rather than returning one row for both:
       //   { id }    → the legacy envelope builder reading a chapter by its id

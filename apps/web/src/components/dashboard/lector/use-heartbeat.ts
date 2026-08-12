@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { ReaderChapterRef } from "@psico/types";
 
 /**
  * useHeartbeat — fires PATCH /api/lector/session every 5 s while the tab
@@ -41,6 +42,14 @@ interface HeartbeatPayload {
    * chapter being read rather than to whichever one now occupies that slot.
    */
   contentUnitId?: string;
+  /**
+   * The chapter the reader actually opened, for a legacy chapter.
+   *
+   * The counterpart of `contentUnitId`, and needed for the same reason: a
+   * stable URL does not help if the write still says "position 2", because
+   * that number names a different chapter once the book is rearranged.
+   */
+  chapterId?: string;
   /** Block currently in viewport — IntersectionObserver-resolved. */
   lastBlockId: string;
   progressPct: number;
@@ -51,8 +60,14 @@ interface Options {
   token: string;
   bookId: string;
   chapterOrder: number;
-  /** Null for legacy chapters, which the server resolves by position. */
-  contentUnitId?: string | null;
+  /**
+   * The chapter's stable identity, whichever structure serves it.
+   *
+   * Taken from the envelope's `readerRef` rather than inferred from whether
+   * `contentUnitId` is null — the server already states which structure owns
+   * this chapter, and guessing would be a second, quieter source of truth.
+   */
+  readerRef: ReaderChapterRef;
   /** Called with the latest progress every beat so the parent can show it. */
   onProgress?: (pct: number) => void;
   /** Reader exposes current block + progress via this getter. */
@@ -72,7 +87,7 @@ export function useHeartbeat({
   token,
   bookId,
   chapterOrder,
-  contentUnitId,
+  readerRef,
   onProgress,
   read,
   enabled = true,
@@ -136,7 +151,12 @@ export function useHeartbeat({
           body: JSON.stringify({
             bookId,
             chapterOrder,
-            ...(contentUnitId ? { contentUnitId } : {}),
+            // Exactly one stable identity, chosen by what the server said this
+            // chapter is. `chapterOrder` above stays for context and for the
+            // server's own fallback; it is not what the write resolves by.
+            ...(readerRef.kind === "unit"
+              ? { contentUnitId: readerRef.id }
+              : { chapterId: readerRef.id }),
             lastBlockId: snapshot.lastBlockId,
             timeSpentDeltaSec: deltaSec,
             progressPct: snapshot.progressPct,
@@ -163,7 +183,7 @@ export function useHeartbeat({
     token,
     bookId,
     chapterOrder,
-    contentUnitId,
+    readerRef,
     onProgress,
     read,
     enabled,

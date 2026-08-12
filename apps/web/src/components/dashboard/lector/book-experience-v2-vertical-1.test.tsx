@@ -201,6 +201,7 @@ function buildInitial(
     },
     chapter: {
       id: "ch-1",
+      readerRef: { kind: "chapter", id: "ch-1" },
       order: 1,
       title: "El cuerpo sabe antes que la mente",
       subtitle: null,

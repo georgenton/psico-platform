@@ -4600,6 +4600,20 @@ export interface components {
              */
             contentUnitId?: string;
             /**
+             * @description The legacy `Chapter` the reader actually opened.
+             *
+             *     The native counterpart of `contentUnitId`, and additive for the same
+             *     reason: a stable URL is only half of reorder safety. A tab opened on
+             *     chapter B at position 2 keeps heartbeating "position 2" — so if B later
+             *     moves and another chapter takes that slot, the position resolves to the
+             *     wrong chapter and B's reading time lands on it.
+             *
+             *     When present, position is NOT consulted: the chapter is looked up by id
+             *     within the book, and its current order is read off the row. Clients that
+             *     send neither identity keep the positional behaviour they have always had.
+             */
+            chapterId?: string;
+            /**
              * @description Seconds since the previous heartbeat. Cap at 3600 in validation;
              *     service further clamps to 60 to defend against suspend-and-resume
              *     spikes. The cumulative `timeSpentSec` on the row grows monotonically.
@@ -4617,6 +4631,8 @@ export interface components {
         CompleteChapterDto: {
             /** @description Identidad estable del capítulo nativo que el lector abrió. Prevalece sobre la posición de la ruta. */
             contentUnitId?: string;
+            /** @description Identidad estable del capítulo legado que el lector abrió. Prevalece sobre la posición de la ruta. */
+            chapterId?: string;
         };
         CreateHighlightDto: {
             /**
@@ -10142,7 +10158,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
             400: {
                 headers: {

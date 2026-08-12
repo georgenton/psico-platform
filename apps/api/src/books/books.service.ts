@@ -39,7 +39,7 @@ import type { Env } from "../config";
 import { resolveStoredCoverUrl } from "../shared/content-asset";
 import {
   loadEffectiveChapters,
-  continueRefForEffectiveChapters,
+  continueCandidateForEffectiveChapters,
   progressForEffectiveChapters,
   resolveEffectiveChapters,
   sessionsForEffectiveChapters,
@@ -385,12 +385,13 @@ export class BooksService {
         ])
       : [new Map<string, { completedAt: Date | null }>(), new Set<string>()];
 
-    const continueReaderRef = userId
-      ? await continueRefForEffectiveChapters(this.prisma, {
+    const continueCandidate = userId
+      ? await continueCandidateForEffectiveChapters(this.prisma, {
           userId,
           chapters: effective,
         })
       : null;
+    const continueReaderRef = continueCandidate?.readerRef ?? null;
 
     const chaptersList = this.buildChaptersList(
       book.plan,

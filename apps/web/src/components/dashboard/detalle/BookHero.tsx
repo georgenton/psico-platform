@@ -80,7 +80,21 @@ export function BookHero({
             `${apiBase}/books/${encodeURIComponent(idOrSlug)}/start`,
             { method: "POST", headers: { Authorization: `Bearer ${token}` } },
           );
-          ok = res.ok;
+          // A 2xx is not the same as a start. An empty body, a proxy's HTML
+          // error page, or `{ ok: false }` all arrive with a green status —
+          // and navigating on any of them would be the original bug wearing a
+          // different hat. The contract promises `{ ok: true, userProgress }`,
+          // so that is what gets checked.
+          if (res.ok) {
+            const body: unknown = await res.json().catch(() => null);
+            ok =
+              typeof body === "object" &&
+              body !== null &&
+              (body as { ok?: unknown }).ok === true &&
+              typeof (body as { userProgress?: unknown }).userProgress ===
+                "object" &&
+              (body as { userProgress?: unknown }).userProgress !== null;
+          }
         } catch {
           ok = false;
         }

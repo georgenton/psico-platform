@@ -73,6 +73,13 @@ function mount(opts: {
   );
 }
 
+/** A response that actually satisfies the Start contract. */
+const okStart = () =>
+  ({
+    ok: true,
+    json: async () => ({ ok: true, userProgress: { progressPct: 0 } }),
+  }) as unknown as Response;
+
 const cta = () =>
   screen.getByRole("button", { name: /Empezar|Seguir|Hazte Pro/i });
 
@@ -83,7 +90,7 @@ beforeEach(() => {
 
 describe("BookHero — starting a book", () => {
   it("a successful start opens the legacy first chapter by identity", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true } as Response);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(okStart());
     mount({});
 
     await userEvent.click(cta());
@@ -96,7 +103,7 @@ describe("BookHero — starting a book", () => {
   });
 
   it("a successful start opens a native first chapter by unit id", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true } as Response);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(okStart());
     mount({ first: NATIVE });
 
     await userEvent.click(cta());
@@ -127,6 +134,33 @@ describe("BookHero — starting a book", () => {
       ).toBeInTheDocument();
       // Nothing from the server reaches the reader.
       expect(screen.queryByText(/UserProgress|constraint|column/)).toBeNull();
+    });
+  }
+
+  // A green status is not a start. Each of these arrives as 2xx.
+  const badSuccess: [string, unknown][] = [
+    ["an empty body", undefined],
+    ["a body that is not an object", "OK"],
+    ["ok:false", { ok: false, userProgress: {} }],
+    ["a missing userProgress", { ok: true }],
+    ["a null userProgress", { ok: true, userProgress: null }],
+  ];
+  for (const [name, body] of badSuccess) {
+    it(`a 200 with ${name} does not open the reader`, async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue({
+        ok: true,
+        json: async () => {
+          if (body === undefined)
+            throw new SyntaxError("Unexpected end of JSON");
+          return body;
+        },
+      } as unknown as Response);
+      mount({});
+
+      await userEvent.click(cta());
+
+      await screen.findByRole("alert");
+      expect(push).not.toHaveBeenCalled();
     });
   }
 

@@ -306,3 +306,90 @@ export async function sessionsForEffectiveChapters(
   for (const s of native) if (s.contentUnitId) started.add(s.contentUnitId);
   return started;
 }
+
+/** Where a reader should resume, and what told us so. */
+export interface ContinueCandidate {
+  readerRef: ReaderChapterRef;
+  /** When that chapter was last seen (or completed, on the fallback path). */
+  at: Date;
+  /** Internal: which table answered. Not exposed publicly. */
+  source: "session" | "historical-completion";
+}
+
+/**
+ * The chapter a reader should resume, by identity.
+ *
+ * `ReadingSession` is the authority, because it is what "I was reading this"
+ * means — written when the reader opens a chapter and refreshed as they go.
+ * Recency is `lastSeenAt`, which only tells the truth because the reader now
+ * updates it on reopen.
+ *
+ * `UserProgress` is a fallback and nothing more. It answers "finished", not
+ * "was here", so consulting it first would resume the chapter somebody most
+ * recently COMPLETED rather than the one they are in. It exists here only for
+ * history predating sessions, where it is the sole surviving evidence.
+ *
+ * Scoped to the chapters the book CURRENTLY offers, so a session pointing at a
+ * retired unit is skipped rather than followed — a stale identity must not
+ * become a dead link.
+ *
+ * Never derived from a percentage, a chapter count, or a stored order: none of
+ * those name a chapter.
+ */
+export async function continueCandidateForEffectiveChapters(
+  db: Pick<PrismaClient, "readingSession" | "userProgress">,
+  input: { userId: string; chapters: EffectiveChapter[] },
+): Promise<ContinueCandidate | null> {
+  const chapterIds = input.chapters
+    .filter((c) => c.readerRef.kind === "chapter")
+    .map((c) => c.readerRef.id);
+  const unitIds = input.chapters
+    .filter((c) => c.readerRef.kind === "unit")
+    .map((c) => c.readerRef.id);
+  if (chapterIds.length === 0 && unitIds.length === 0) return null;
+
+  const scope = [
+    ...(chapterIds.length ? [{ chapterId: { in: chapterIds } }] : []),
+    ...(unitIds.length ? [{ contentUnitId: { in: unitIds } }] : []),
+  ];
+
+  const [session] = await db.readingSession.findMany({
+    where: { userId: input.userId, OR: scope },
+    orderBy: { lastSeenAt: "desc" },
+    take: 1,
+    select: { chapterId: true, contentUnitId: true, lastSeenAt: true },
+  });
+  if (session) {
+    const ref = refOf(session);
+    if (ref)
+      return { readerRef: ref, at: session.lastSeenAt, source: "session" };
+  }
+
+  // Only now, and only for rows that predate sessions entirely.
+  const [done] = await db.userProgress.findMany({
+    where: { userId: input.userId, OR: scope },
+    orderBy: { completedAt: "desc" },
+    take: 1,
+    select: { chapterId: true, contentUnitId: true, completedAt: true },
+  });
+  if (done) {
+    const ref = refOf(done);
+    if (ref) {
+      return {
+        readerRef: ref,
+        at: done.completedAt,
+        source: "historical-completion",
+      };
+    }
+  }
+  return null;
+}
+
+function refOf(row: {
+  chapterId: string | null;
+  contentUnitId: string | null;
+}): ReaderChapterRef | null {
+  if (row.chapterId) return { kind: "chapter", id: row.chapterId };
+  if (row.contentUnitId) return { kind: "unit", id: row.contentUnitId };
+  return null;
+}

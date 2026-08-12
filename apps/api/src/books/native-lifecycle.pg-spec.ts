@@ -5,6 +5,9 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { BooksService } from "./books.service";
+import { HomeService } from "../home/home.service";
+import { LectorService } from "../lector/lector.service";
+import { ContentAccessService } from "../content-core/access/content-access.service";
 
 /**
  * A book authored in Content Studio can be started, read, finished, reviewed.
@@ -32,6 +35,8 @@ suite("native book lifecycle", () => {
   let prisma: PrismaClient;
   let pool: Pool;
   let books: BooksService;
+  let home!: HomeService;
+  let lector!: LectorService;
 
   // legacy-only · native-only · mixed (legacy A, native B, legacy C)
   const bookId: Record<string, string> = {};
@@ -64,6 +69,20 @@ suite("native book lifecycle", () => {
       {
         get: () => undefined,
       } as never,
+    );
+    lector = new LectorService(
+      prisma as never,
+      { get: () => undefined } as never,
+      {} as never,
+      new ContentAccessService(prisma as never) as never,
+    );
+    // Only the continue card is exercised; its three collaborators are stubbed
+    // so a routing proof does not drag Redis and the map provider along.
+    home = new HomeService(
+      prisma as never,
+      { getForHome: async () => null } as never,
+      { feed: async () => ({ items: [] }) } as never,
+      { topForHome: async () => [] } as never,
     );
 
     await prisma.user.create({
@@ -186,6 +205,11 @@ suite("native book lifecycle", () => {
     // which would destroy the preconditions the review tests depend on.
     await makeBook("card-nativo", { native: [1, 2] });
     await makeBook("card-mixto", { legacy: [1, 3], native: [1, 2, 3] });
+    // Private to the native-reopen proof: it must not inherit completions or
+    // sessions from the fixtures the other assertions mutate.
+    await makeBook("reopen-nativo", { native: [1, 2] });
+    // Private to the clean-start proof, which begins from nothing at all.
+    await makeBook("canario-limpio", { native: [1, 2] });
   }, 300_000);
 
   afterAll(async () => {
@@ -446,6 +470,389 @@ suite("native book lifecycle", () => {
     });
     // Read-time truth, not a silent migration.
     expect(row.totalChapters).toBe(99);
+  });
+
+  // ── continue identity ────────────────────────────────────────────────────
+
+  it("continue resumes a LEGACY chapter by its own id", async () => {
+    const detail = await books.getDetail(USER, "solo-legado");
+    expect(detail.continueReaderRef).toEqual({
+      kind: "chapter",
+      id: chapterId["solo-legado:1"],
+    });
+  });
+
+  it("continue resumes a NATIVE chapter by its unit id", async () => {
+    const detail = await books.getDetail(USER, "solo-nativo");
+    expect(detail.continueReaderRef).toEqual({
+      kind: "unit",
+      id: unitId["solo-nativo:1"],
+    });
+  });
+
+  it("continue follows the most recent session, not a percentage", async () => {
+    // Open the second chapter later than the first.
+    await prisma.readingSession.create({
+      data: {
+        userId: USER,
+        chapterId: chapterId["solo-legado:2"],
+        lastSeenAt: new Date("2030-01-01T00:00:00.000Z"),
+      },
+    });
+
+    const detail = await books.getDetail(USER, "solo-legado");
+    expect(detail.continueReaderRef).toEqual({
+      kind: "chapter",
+      id: chapterId["solo-legado:2"],
+    });
+  });
+
+  it("a book nobody opened has nothing to continue", async () => {
+    const detail = await books.getDetail(USER, "solo-borrador");
+    expect(detail.continueReaderRef).toBeNull();
+  });
+
+  it("a RETIRED native unit never becomes the continue target", async () => {
+    // A real retirement, not a hypothetical: publish a revision that drops
+    // the unit somebody has an open session on. The previous version of this
+    // test asserted conditionally and could pass without proving its title.
+    const slug = "retirado";
+    const book = await prisma.book.create({
+      data: {
+        slug,
+        title: slug,
+        plan: "FREE",
+        totalChapters: 1,
+        isPublished: true,
+      },
+    });
+    const work = await prisma.work.create({
+      data: { workKey: "w-ret", title: slug, authorName: "A" },
+    });
+    const edition = await prisma.edition.create({
+      data: {
+        workId: work.id,
+        editionKey: "retirado-1e", // gitleaks:allow — a book slug
+        slug,
+        label: "Primera",
+        accessPlan: "FREE",
+      },
+    });
+    const mk = async (key: string) => {
+      const unit = await prisma.contentUnit.create({
+        data: { editionId: edition.id, unitKey: key, isFreePreview: true },
+      });
+      const version = await prisma.contentUnitVersion.create({
+        data: { unitId: unit.id, title: key },
+      });
+      return { unitId: unit.id, versionId: version.id };
+    };
+    const doomed = await mk("u-doomed");
+    const survivor = await mk("u-survivor");
+
+    const publish = async (
+      n: number,
+      units: { unitId: string; versionId: string }[],
+    ) => {
+      const rev = await prisma.revision.create({
+        data: {
+          editionId: edition.id,
+          number: n,
+          status: "PUBLISHED",
+          publishedAt: new Date(),
+        },
+      });
+      for (const [i, u] of units.entries()) {
+        await prisma.revisionUnit.create({
+          data: {
+            revisionId: rev.id,
+            unitId: u.unitId,
+            unitVersionId: u.versionId,
+            order: i + 1,
+          },
+        });
+      }
+      await prisma.edition.update({
+        where: { id: edition.id },
+        data: { publishedRevisionId: rev.id },
+      });
+    };
+
+    await publish(1, [doomed, survivor]);
+    await prisma.readingSession.create({
+      data: {
+        userId: USER,
+        contentUnitId: doomed.unitId,
+        // The most recent session anywhere, so it would win on recency alone.
+        lastSeenAt: new Date("2031-01-01T00:00:00.000Z"),
+      },
+    });
+    expect((await books.getDetail(USER, slug)).continueReaderRef).toEqual({
+      kind: "unit",
+      id: doomed.unitId,
+    });
+
+    // Retire it.
+    await publish(2, [survivor]);
+
+    const after = await books.getDetail(USER, slug);
+    expect(after.continueReaderRef?.id).not.toBe(doomed.unitId);
+    // Nothing else is open in this book, so there is nothing to resume.
+    expect(after.continueReaderRef).toBeNull();
+
+    // And it must not become the GLOBAL continue card either.
+    const card = (await home.getHome(USER)).continueBook;
+    expect(card?.readerRef?.id).not.toBe(doomed.unitId);
+
+    await prisma.readingSession.deleteMany({
+      where: { userId: USER, contentUnitId: doomed.unitId },
+    });
+    await prisma.book.delete({ where: { id: book.id } });
+  });
+
+  it("reopening a chapter makes it the one to continue", async () => {
+    // The recency fix. `lastSeenAt` is `@updatedAt`, and Prisma leaves it alone
+    // on an empty update — so before this, reopening A after B left B as the
+    // most recent session and Continue sent the reader to the wrong chapter.
+    const slug = "solo-legado";
+    const a = chapterId["solo-legado:1"];
+    const b = chapterId["solo-legado:2"];
+
+    // Open A, then B — through the real reader, not a direct row write.
+    await lector.getChapterByRef(USER, "FREE" as never, slug, {
+      kind: "chapter",
+      id: a,
+    });
+    await lector.getChapterByRef(USER, "FREE" as never, slug, {
+      kind: "chapter",
+      id: b,
+    });
+    expect((await books.getDetail(USER, slug)).continueReaderRef).toEqual({
+      kind: "chapter",
+      id: b,
+    });
+
+    const bBefore = await prisma.readingSession.findFirstOrThrow({
+      where: { userId: USER, chapterId: b },
+    });
+    const aBefore = await prisma.readingSession.findFirstOrThrow({
+      where: { userId: USER, chapterId: a },
+    });
+
+    // Go back to A.
+    await lector.getChapterByRef(USER, "FREE" as never, slug, {
+      kind: "chapter",
+      id: a,
+    });
+
+    const aAfter = await prisma.readingSession.findFirstOrThrow({
+      where: { userId: USER, chapterId: a },
+    });
+    expect(aAfter.lastSeenAt.getTime()).toBeGreaterThan(
+      aBefore.lastSeenAt.getTime(),
+    );
+    // Only recency moved.
+    expect(aAfter.progressPct).toBe(aBefore.progressPct);
+    expect(aAfter.timeSpentSec).toBe(aBefore.timeSpentSec);
+    expect(aAfter.startedAt.toISOString()).toBe(
+      aBefore.startedAt.toISOString(),
+    );
+    expect(aAfter.completedAt).toEqual(aBefore.completedAt);
+    // B untouched.
+    const bAfter = await prisma.readingSession.findFirstOrThrow({
+      where: { userId: USER, chapterId: b },
+    });
+    expect(bAfter.lastSeenAt.toISOString()).toBe(
+      bBefore.lastSeenAt.toISOString(),
+    );
+
+    // Both surfaces agree, and both now say A.
+    const detail = await books.getDetail(USER, slug);
+    expect(detail.continueReaderRef).toEqual({ kind: "chapter", id: a });
+    const card = (await home.getHome(USER)).continueBook;
+    expect(card?.readerRef).toEqual(detail.continueReaderRef);
+  });
+
+  it("reopening a NATIVE chapter makes it the one to continue", async () => {
+    // The legacy version of this proof exists above. Running it natively is
+    // not a formality: the two readers are different methods with their own
+    // upserts, and asserting one from the other would be an inference rather
+    // than a proof.
+    const slug = "reopen-nativo";
+    const a = unitId["reopen-nativo:1"];
+    const b = unitId["reopen-nativo:2"];
+    const open = (id: string) =>
+      lector.getChapterByRef(USER, "FREE" as never, slug, {
+        kind: "unit",
+        id,
+      });
+
+    await open(a);
+    await open(b);
+    expect((await books.getDetail(USER, slug)).continueReaderRef).toEqual({
+      kind: "unit",
+      id: b,
+    });
+
+    const aBefore = await prisma.readingSession.findFirstOrThrow({
+      where: { userId: USER, contentUnitId: a },
+    });
+    const bBefore = await prisma.readingSession.findFirstOrThrow({
+      where: { userId: USER, contentUnitId: b },
+    });
+
+    // Back to A — through the real reader, never a direct row write.
+    await open(a);
+
+    const aAfter = await prisma.readingSession.findFirstOrThrow({
+      where: { userId: USER, contentUnitId: a },
+    });
+    expect(aAfter.lastSeenAt.getTime()).toBeGreaterThan(
+      aBefore.lastSeenAt.getTime(),
+    );
+    // Only recency moved.
+    expect(aAfter.progressPct).toBe(aBefore.progressPct);
+    expect(aAfter.timeSpentSec).toBe(aBefore.timeSpentSec);
+    expect(aAfter.lastBlockId).toBe(aBefore.lastBlockId);
+    expect(aAfter.startedAt.toISOString()).toBe(
+      aBefore.startedAt.toISOString(),
+    );
+    expect(aAfter.completedAt).toEqual(aBefore.completedAt);
+    // B untouched.
+    const bAfter = await prisma.readingSession.findFirstOrThrow({
+      where: { userId: USER, contentUnitId: b },
+    });
+    expect(bAfter.lastSeenAt.toISOString()).toBe(
+      bBefore.lastSeenAt.toISOString(),
+    );
+
+    // Both surfaces agree, and both now say A.
+    const detail = await books.getDetail(USER, slug);
+    expect(detail.continueReaderRef).toEqual({ kind: "unit", id: a });
+    const card = (await home.getHome(USER)).continueBook;
+    expect(card?.readerRef).toEqual(detail.continueReaderRef);
+  });
+
+  it("HOME resumes a completion-only history too, not just Book Detail", async () => {
+    // A user who predates reading sessions entirely: the only evidence they
+    // ever read anything is a completion. Both surfaces must find it, and
+    // neither may write a session merely by being asked.
+    const OLD = "u-historico";
+    await prisma.user.create({
+      data: { id: OLD, email: "old@test.local", name: "O" },
+    });
+    const slug = "historico-home";
+    const book = await prisma.book.create({
+      data: {
+        slug,
+        title: slug,
+        plan: "FREE",
+        totalChapters: 2,
+        isPublished: true,
+      },
+    });
+    const ch = await prisma.chapter.create({
+      data: { bookId: book.id, order: 1, title: "Uno", isPublished: true },
+    });
+    await prisma.chapter.create({
+      data: { bookId: book.id, order: 2, title: "Dos", isPublished: true },
+    });
+    const done = await prisma.userProgress.create({
+      data: { userId: OLD, chapterId: ch.id },
+    });
+
+    // The precondition that makes this a fallback test at all.
+    expect(await prisma.readingSession.count({ where: { userId: OLD } })).toBe(
+      0,
+    );
+    const sessionsBefore = await prisma.readingSession.count();
+    const progressBefore = await prisma.userProgress.count();
+
+    const detail = await books.getDetail(OLD, slug);
+    expect(detail.continueReaderRef).toEqual({ kind: "chapter", id: ch.id });
+
+    const card = (await home.getHome(OLD)).continueBook;
+    expect(card?.readerRef).toEqual({ kind: "chapter", id: ch.id });
+    // The stored completion time, not "now".
+    expect(card?.lastReadAt.toISOString()).toBe(done.completedAt.toISOString());
+
+    // Reading is reading.
+    expect(await prisma.readingSession.count()).toBe(sessionsBefore);
+    expect(await prisma.userProgress.count()).toBe(progressBefore);
+  });
+
+  it("a CLEAN start shows up on Home immediately — the canary we wanted", async () => {
+    // A user with nothing at all, so nothing can be inherited from an earlier
+    // assertion. This is what the manual production canary could never be:
+    // opening the reader creates a session by itself, so only a start that is
+    // never followed by a reader open can prove Start did the work.
+    const FRESH = "u-canario";
+    await prisma.user.create({
+      data: { id: FRESH, email: "canario@test.local", name: "C" },
+    });
+    const slug = "canario-limpio";
+    const first = unitId["canario-limpio:1"];
+
+    expect(
+      await prisma.readingSession.count({ where: { userId: FRESH } }),
+    ).toBe(0);
+    expect(await prisma.userProgress.count({ where: { userId: FRESH } })).toBe(
+      0,
+    );
+
+    await books.startBook(FRESH, slug);
+
+    expect(
+      await prisma.readingSession.count({ where: { userId: FRESH } }),
+    ).toBe(1);
+    // Start registers that a book is open, never that a chapter is finished.
+    expect(await prisma.userProgress.count({ where: { userId: FRESH } })).toBe(
+      0,
+    );
+
+    const card = (await home.getHome(FRESH)).continueBook;
+    expect(card).not.toBeNull();
+    expect(card?.readerRef).toEqual({ kind: "unit", id: first });
+    expect(card?.progressPct).toBe(0);
+
+    const detail = await books.getDetail(FRESH, slug);
+    expect(detail.continueReaderRef).toEqual({ kind: "unit", id: first });
+    expect(detail.chaptersList[0]?.userProgress.status).toBe("started");
+
+    // And still no completion after all of that reading.
+    expect(await prisma.userProgress.count({ where: { userId: FRESH } })).toBe(
+      0,
+    );
+  });
+
+  it("a completion with no session still gives something to continue", async () => {
+    // History predating sessions: `UserProgress` is the only evidence left.
+    const slug = "historico";
+    const book = await prisma.book.create({
+      data: {
+        slug,
+        title: slug,
+        plan: "FREE",
+        totalChapters: 1,
+        isPublished: true,
+      },
+    });
+    const ch = await prisma.chapter.create({
+      data: { bookId: book.id, order: 1, title: "Uno", isPublished: true },
+    });
+    await prisma.userProgress.create({
+      data: { userId: USER, chapterId: ch.id },
+    });
+
+    const sessionsBefore = await prisma.readingSession.count();
+    const detail = await books.getDetail(USER, slug);
+
+    expect(detail.continueReaderRef).toEqual({ kind: "chapter", id: ch.id });
+    // Reading never writes.
+    expect(await prisma.readingSession.count()).toBe(sessionsBefore);
+
+    await prisma.userProgress.deleteMany({ where: { chapterId: ch.id } });
+    await prisma.book.delete({ where: { id: book.id } });
   });
 
   // ── review ───────────────────────────────────────────────────────────────

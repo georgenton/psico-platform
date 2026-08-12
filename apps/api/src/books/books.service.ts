@@ -39,6 +39,7 @@ import type { Env } from "../config";
 import { resolveStoredCoverUrl } from "../shared/content-asset";
 import {
   loadEffectiveChapters,
+  continueCandidateForEffectiveChapters,
   progressForEffectiveChapters,
   resolveEffectiveChapters,
   sessionsForEffectiveChapters,
@@ -384,6 +385,14 @@ export class BooksService {
         ])
       : [new Map<string, { completedAt: Date | null }>(), new Set<string>()];
 
+    const continueCandidate = userId
+      ? await continueCandidateForEffectiveChapters(this.prisma, {
+          userId,
+          chapters: effective,
+        })
+      : null;
+    const continueReaderRef = continueCandidate?.readerRef ?? null;
+
     const chaptersList = this.buildChaptersList(
       book.plan,
       effective,
@@ -421,6 +430,7 @@ export class BooksService {
       rating,
       reviews: reviewRows.map((r) => this.toReviewSummary(r)),
       userProgress,
+      continueReaderRef,
       isFavorite: this.computeIsFavorite(book, userId),
       isBookmarked: this.computeIsBookmarked(book, userId),
     };

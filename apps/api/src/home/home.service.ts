@@ -1,5 +1,8 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { readerTotalChapters } from "../lector/reader-chapter-resolver";
+import {
+  loadEffectiveChapters,
+  progressForEffectiveChapters,
+} from "../books/effective-chapters";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import { EmotionalMapService } from "../emotional-map";
@@ -339,82 +342,84 @@ export class HomeService {
   private async fetchContinueBook(
     userId: string,
   ): Promise<HomeContinueBook | null> {
-    // "Continue" = most recent UserProgress row. The chapter the user touched
-    // most recently is the chapter shown.
-    const latest = await this.prisma.userProgress.findFirst({
+    // "Continue" means the chapter somebody was READING, so it comes from
+    // `ReadingSession` — the row the reader writes on open and refreshes as
+    // they go. It used to come from the most recent `UserProgress`, which
+    // answers "finished" rather than "was here": after the lifecycle repair
+    // that made Start stop writing completions, a freshly started book had no
+    // completion at all, so Home offered nothing to continue.
+    const [session] = await this.prisma.readingSession.findMany({
       where: { userId },
-      orderBy: { completedAt: "desc" },
-      include: {
-        chapter: {
-          select: {
-            id: true,
-            order: true,
-            title: true,
-            book: {
-              select: {
-                id: true,
-                slug: true,
-                title: true,
-                cover: true,
-                author: { select: { name: true } },
-              },
-            },
-          },
-        },
-      },
+      orderBy: { lastSeenAt: "desc" },
+      take: 1,
+      select: { chapterId: true, contentUnitId: true, lastSeenAt: true },
     });
-    if (!latest) return null;
 
-    // A native chapter has no Chapter row, so its book and title are resolved
-    // through the unit's edition instead. Somebody reading a chapter Content
-    // Studio created must still see it here — disappearing from "continue
-    // reading" is exactly the kind of silent hole a reader would notice and we
-    // would not.
-    const card = latest.chapter
+    // Only when there is no session anywhere: history predating sessions, for
+    // which a completion is the sole surviving evidence.
+    const historical = session
+      ? []
+      : await this.prisma.userProgress.findMany({
+          where: { userId },
+          orderBy: { completedAt: "desc" },
+          take: 1,
+          select: {
+            chapterId: true,
+            contentUnitId: true,
+            completedAt: true,
+          },
+        });
+
+    const anchor: {
+      chapterId: string | null;
+      contentUnitId: string | null;
+      at: Date;
+    } | null = session
       ? {
-          bookId: latest.chapter.book.id,
-          bookSlug: latest.chapter.book.slug,
-          title: latest.chapter.book.title,
-          author: latest.chapter.book.author?.name ?? "—",
-          cover: this.toCoverToken(latest.chapter.book.cover),
-          chapterN: latest.chapter.order,
-          // Straight off the session row. Deriving it from `order` would mean
-          // a card written before a restructure resumes whatever now sits at
-          // that number — a different chapter, silently.
-          readerRef: {
-            kind: "chapter" as const,
-            id: latest.chapter.id,
-          } satisfies ReaderChapterRef,
-          chapterTitle: latest.chapter.title,
+          chapterId: session.chapterId,
+          contentUnitId: session.contentUnitId,
+          at: session.lastSeenAt,
         }
-      : await this.nativeContinueCard(latest.contentUnitId);
+      : historical[0]
+        ? {
+            chapterId: historical[0].chapterId,
+            contentUnitId: historical[0].contentUnitId,
+            at: historical[0].completedAt,
+          }
+        : null;
+    if (!anchor) return null;
+    const lastReadAt = anchor.at;
+
+    // Which book that identity belongs to.
+    const card = anchor.chapterId
+      ? await this.legacyContinueCard(anchor.chapterId)
+      : await this.nativeContinueCard(anchor.contentUnitId);
     if (!card) return null;
 
-    // Progress counts what the reader can actually navigate. For a book whose
-    // structure Content Core owns, that is the published manifest — the legacy
-    // chapter count goes stale the moment a native chapter exists.
-    const [completedInBook, totalPublishedInBook] = await Promise.all([
-      this.prisma.userProgress.count({
-        where: {
-          userId,
-          OR: [
-            { chapter: { bookId: card.bookId, isPublished: true } },
-            { contentUnit: { edition: { slug: card.bookSlug } } },
-          ],
-        },
-      }),
-      readerTotalChapters(this.prisma, {
-        bookSlug: card.bookSlug,
-        legacyTotal: await this.prisma.chapter.count({
-          where: { bookId: card.bookId, isPublished: true },
-        }),
-      }),
-    ]);
+    // The book's CURRENT structure decides whether that identity is still
+    // something a reader can open, and provides the denominator. A session on
+    // a chapter the book no longer offers is not a card — following it would
+    // be a dead link, and renumbering it would be a different chapter.
+    const effective = await loadEffectiveChapters(this.prisma, {
+      id: card.bookId,
+      slug: card.bookSlug,
+    });
+    const row = effective.find(
+      (c) =>
+        c.readerRef.kind === card.readerRef.kind &&
+        c.readerRef.id === card.readerRef.id,
+    );
+    if (!row) return null;
 
+    // One denominator for the whole product: the same effective structure the
+    // detail screen lists and the review gate requires.
+    const completed = await progressForEffectiveChapters(this.prisma, {
+      userId,
+      chapters: effective,
+    });
+    const done = effective.filter((c) => completed.has(c.readerRef.id)).length;
     const progressPct =
-      totalPublishedInBook > 0
-        ? Math.round((completedInBook / totalPublishedInBook) * 100)
-        : 0;
+      effective.length > 0 ? Math.round((done / effective.length) * 100) : 0;
 
     return {
       bookId: card.bookId,
@@ -422,11 +427,40 @@ export class HomeService {
       title: card.title,
       author: card.author,
       cover: card.cover,
-      chapterN: card.chapterN,
+      // Display only, and from the CURRENT structure — never an identity.
+      chapterN: row.order,
       readerRef: card.readerRef,
-      chapterTitle: card.chapterTitle,
+      chapterTitle: row.title,
       progressPct,
-      lastReadAt: latest.completedAt,
+      lastReadAt,
+    };
+  }
+
+  /** The card for a chapter a `Chapter` row still serves. */
+  private async legacyContinueCard(chapterId: string) {
+    const chapter = await this.prisma.chapter.findUnique({
+      where: { id: chapterId },
+      select: {
+        id: true,
+        book: {
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            cover: true,
+            author: { select: { name: true } },
+          },
+        },
+      },
+    });
+    if (!chapter) return null;
+    return {
+      bookId: chapter.book.id,
+      bookSlug: chapter.book.slug,
+      title: chapter.book.title,
+      author: chapter.book.author?.name ?? "—",
+      cover: this.toCoverToken(chapter.book.cover),
+      readerRef: { kind: "chapter" as const, id: chapter.id },
     };
   }
 

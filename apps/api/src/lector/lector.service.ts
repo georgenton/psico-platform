@@ -189,7 +189,13 @@ export class LectorService {
       this.prisma.readingSession.upsert({
         where: { userId_chapterId: { userId, chapterId: chapter.id } },
         create: { userId, chapterId: chapter.id, lastSeenAt: new Date() },
-        update: {},
+        // `lastSeenAt` is `@updatedAt`, and Prisma does not touch that on an
+        // EMPTY update — so reopening a chapter used to leave its recency
+        // frozen at whenever it was first read. "Continue" then resumed
+        // whichever chapter happened to be written last, not the one the
+        // reader was actually in. Nothing else is touched: progress, time
+        // spent, the last block and any completion all stay as they were.
+        update: { lastSeenAt: new Date() },
       }),
       this.prisma.readerPreferences.upsert({
         where: { userId },
@@ -353,7 +359,9 @@ export class LectorService {
           contentUnitId: target.contentUnitId,
           lastSeenAt: new Date(),
         },
-        update: {},
+        // Same truthful-recency refresh as the legacy reader above, and the
+        // same restraint: only `lastSeenAt`.
+        update: { lastSeenAt: new Date() },
       }),
       this.prisma.readerPreferences.upsert({
         where: { userId },

@@ -1130,6 +1130,18 @@ export interface BookDetailResponse {
   rating: BookRating;
   reviews: BookReviewSummary[];
   userProgress: BookUserProgressSummary | null;
+  /**
+   * Where "Seguir leyendo" should go — the chapter the reader was last in.
+   *
+   * Server-owned, and an identity rather than a number. The detail hero used to
+   * derive a chapter from a percentage (`ceil(pct/100 * chapters)`), which is
+   * not a chapter: it guesses a POSITION from how much of the book is done, and
+   * a position names different chapters at different times.
+   *
+   * Null when there is nothing to resume — nobody has opened the book, or every
+   * session it had points at a chapter the book no longer offers.
+   */
+  continueReaderRef: ReaderChapterRef | null;
   isFavorite: boolean;
   isBookmarked: boolean;
 }

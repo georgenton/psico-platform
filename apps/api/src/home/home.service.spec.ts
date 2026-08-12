@@ -12,13 +12,24 @@ function buildPrisma() {
       findMany: vi.fn(),
       count: vi.fn(),
     },
-    edition: { findFirst: vi.fn().mockResolvedValue(null) },
+    edition: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     revisionUnit: {
       count: vi.fn().mockResolvedValue(0),
       findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
     },
     contentUnit: { findUnique: vi.fn().mockResolvedValue(null) },
-    chapter: { count: vi.fn() },
+    // Continue now starts from `ReadingSession`, and the book's effective
+    // structure decides whether that identity is still openable.
+    chapter: {
+      count: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    readingSession: { findMany: vi.fn().mockResolvedValue([]) },
     conversation: { findFirst: vi.fn() },
     // `findUnique` is how the NATIVE continue-reading card reaches the Book
     // row: a native chapter has no `Chapter` to borrow cover and author from.
@@ -52,6 +63,91 @@ const fakeUserRow = {
 };
 
 // ─── HomeService.getHome ─────────────────────────────────────────────────────
+
+/**
+ * Continue now starts from `ReadingSession`. These helpers describe that
+ * authority: a session row, the book behind its identity, and the effective
+ * structure that decides whether the identity is still openable.
+ */
+function continueFromLegacy(
+  prisma: ReturnType<typeof buildPrismaMock>,
+  opts: { chapterId: string; order: number; title?: string },
+) {
+  prisma.readingSession.findMany.mockResolvedValue([
+    {
+      chapterId: opts.chapterId,
+      contentUnitId: null,
+      lastSeenAt: new Date("2026-03-15"),
+    },
+  ]);
+  prisma.chapter.findUnique.mockResolvedValue({
+    id: opts.chapterId,
+    book: {
+      id: "book-1",
+      slug: "libro",
+      title: "Libro",
+      cover: "warm",
+      author: { name: "A" },
+    },
+  });
+  prisma.chapter.findMany.mockResolvedValue([
+    {
+      id: opts.chapterId,
+      order: opts.order,
+      title: opts.title ?? "Capítulo",
+      durationMinutes: null,
+      partNumber: null,
+      partTitle: null,
+    },
+  ]);
+}
+
+function continueFromNative(
+  prisma: ReturnType<typeof buildPrismaMock>,
+  opts: { unitId: string; order: number | null },
+) {
+  prisma.readingSession.findMany.mockResolvedValue([
+    {
+      chapterId: null,
+      contentUnitId: opts.unitId,
+      lastSeenAt: new Date("2026-03-15"),
+    },
+  ]);
+  prisma.contentUnit.findUnique.mockResolvedValue({
+    edition: { slug: "libro", publishedRevisionId: "rev-pub" },
+  });
+  prisma.revisionUnit.findFirst.mockResolvedValue(
+    opts.order === null
+      ? null
+      : { order: opts.order, unitVersion: { title: "Nativo" } },
+  );
+  prisma.book.findUnique.mockResolvedValue({
+    id: "book-1",
+    title: "Libro",
+    cover: "warm",
+    author: { name: "A" },
+  });
+  prisma.edition.findMany.mockResolvedValue([
+    { slug: "libro", publishedRevisionId: "rev-pub" },
+  ]);
+  prisma.edition.findFirst.mockResolvedValue({
+    publishedRevisionId: "rev-pub",
+  });
+  prisma.chapter.findMany.mockResolvedValue([]);
+  prisma.revisionUnit.findMany.mockResolvedValue(
+    opts.order === null
+      ? []
+      : [
+          {
+            order: opts.order,
+            partNumber: null,
+            partTitle: null,
+            unit: { id: opts.unitId },
+            unitVersion: { title: "Nativo", durationMinutes: null },
+          },
+        ],
+  );
+}
 
 describe("HomeService.getHome", () => {
   let service: HomeService;
@@ -157,26 +253,46 @@ describe("HomeService.getHome", () => {
     expect(result.shortcuts).toHaveLength(4);
   });
 
-  it("computes continueBook from latest UserProgress", async () => {
+  it("computes continueBook from the latest ReadingSession", async () => {
     prisma.user.findUnique.mockResolvedValue({
       ...fakeUserRow,
       preferences: { weeklyGoalMinutes: 60 },
     });
-    prisma.userProgress.findFirst.mockResolvedValue({
-      completedAt: new Date("2026-03-15"),
-      chapter: {
+    prisma.readingSession.findMany.mockResolvedValue([
+      {
+        chapterId: "ch-1",
+        contentUnitId: null,
+        lastSeenAt: new Date("2026-03-15"),
+      },
+    ]);
+    prisma.chapter.findUnique.mockResolvedValue({
+      id: "ch-1",
+      book: {
+        id: "book-1",
+        slug: "emociones",
+        title: "Emociones",
+        cover: "warm",
+        author: { name: "Marina Quintana" },
+      },
+    });
+    prisma.chapter.findMany.mockResolvedValue([
+      {
         id: "ch-1",
         order: 2,
         title: "Capítulo 2",
-        book: {
-          id: "book-1",
-          slug: "emociones",
-          title: "Emociones",
-          cover: "warm",
-          author: { name: "Marina Quintana" },
-        },
+        durationMinutes: null,
+        partNumber: null,
+        partTitle: null,
       },
-    });
+      {
+        id: "ch-2",
+        order: 3,
+        title: "Capítulo 3",
+        durationMinutes: null,
+        partNumber: null,
+        partTitle: null,
+      },
+    ]);
     prisma.userProgress.findMany.mockResolvedValue([]);
     prisma.userProgress.count.mockResolvedValue(1);
     prisma.chapter.count.mockResolvedValue(2);
@@ -184,6 +300,11 @@ describe("HomeService.getHome", () => {
     prisma.conversation.findFirst.mockResolvedValue(null);
     prisma.dismissedReflectionPrompt.findMany.mockResolvedValue([]);
     prisma.reflectionPrompt.findFirst.mockResolvedValue(null);
+
+    // Last, so the generic `[]` default above does not win.
+    prisma.userProgress.findMany.mockResolvedValue([
+      { chapterId: "ch-1", completedAt: new Date() },
+    ]);
 
     const result = await service.getHome("user-1");
 
@@ -212,21 +333,41 @@ describe("HomeService.getHome", () => {
       currentStreakDays: 0, // let rule 1 fall through
       preferences: { weeklyGoalMinutes: 60 },
     });
-    prisma.userProgress.findFirst.mockResolvedValue({
-      completedAt: null,
-      chapter: {
+    prisma.readingSession.findMany.mockResolvedValue([
+      {
+        chapterId: "ch-2",
+        contentUnitId: null,
+        lastSeenAt: new Date("2026-03-15"),
+      },
+    ]);
+    prisma.chapter.findUnique.mockResolvedValue({
+      id: "ch-2",
+      book: {
+        id: "book-pqp",
+        slug: "parejas-que-perduran",
+        title: "Parejas que perduran",
+        cover: "warm",
+        author: { name: "David Jaramillo" },
+      },
+    });
+    prisma.chapter.findMany.mockResolvedValue([
+      {
         id: "ch-2",
         order: 2,
         title: "Cuando amar también sana",
-        book: {
-          id: "book-pqp",
-          slug: "parejas-que-perduran",
-          title: "Parejas que perduran",
-          cover: "warm",
-          author: { name: "David Jaramillo" },
-        },
+        durationMinutes: null,
+        partNumber: null,
+        partTitle: null,
       },
-    });
+      {
+        id: "ch-9",
+        order: 3,
+        title: "Otro",
+        durationMinutes: null,
+        partNumber: null,
+        partTitle: null,
+      },
+    ]);
     prisma.userProgress.findMany.mockResolvedValue([]);
     prisma.userProgress.count.mockResolvedValue(1);
     prisma.chapter.count.mockResolvedValue(2); // → progressPct 50, mid-book
@@ -234,6 +375,10 @@ describe("HomeService.getHome", () => {
     prisma.conversation.findFirst.mockResolvedValue(null);
     prisma.dismissedReflectionPrompt.findMany.mockResolvedValue([]);
     prisma.reflectionPrompt.findFirst.mockResolvedValue(null);
+
+    prisma.userProgress.findMany.mockResolvedValue([
+      { chapterId: "ch-2", completedAt: new Date() },
+    ]);
 
     const result = await service.getHome("user-1");
 
@@ -276,31 +421,15 @@ describe("HomeService.getHome", () => {
       prisma.reflectionPrompt.findFirst.mockResolvedValue(null);
     };
 
-    const legacySession = (order: number) => ({
-      completedAt: new Date("2026-03-15"),
-      contentUnitId: null,
-      chapter: {
-        id: "ch-stable",
-        order,
-        title: "Capítulo",
-        book: {
-          id: "book-1",
-          slug: "libro",
-          title: "Libro",
-          cover: "warm",
-          author: { name: "A" },
-        },
-      },
-    });
-
-    const nativeSession = () => ({
-      completedAt: new Date("2026-03-15"),
-      chapter: null,
-      contentUnitId: "unit-stable",
-    });
+    /** A legacy session, plus the book and structure behind its identity. */
+    const legacySession = (order: number) => {
+      continueFromLegacy(prisma, { chapterId: "ch-stable", order });
+      return null;
+    };
 
     /** The published manifest currently places `unit-stable` at `order`. */
     const nativePublishedAt = (order: number | null) => {
+      continueFromNative(prisma, { unitId: "unit-stable", order });
       prisma.contentUnit.findUnique.mockResolvedValue({
         edition: { slug: "libro", publishedRevisionId: "rev-pub" },
       });
@@ -317,7 +446,7 @@ describe("HomeService.getHome", () => {
 
     it("a legacy session resumes by chapter id", async () => {
       quiet();
-      prisma.userProgress.findFirst.mockResolvedValue(legacySession(2));
+      legacySession(2);
 
       const out = await service.getHome("user-1");
 
@@ -330,7 +459,6 @@ describe("HomeService.getHome", () => {
 
     it("a native session resumes by unit id", async () => {
       quiet();
-      prisma.userProgress.findFirst.mockResolvedValue(nativeSession());
       nativePublishedAt(2);
 
       const out = await service.getHome("user-1");
@@ -344,11 +472,11 @@ describe("HomeService.getHome", () => {
 
     it("moving a legacy chapter does not change what Home resumes", async () => {
       quiet();
-      prisma.userProgress.findFirst.mockResolvedValue(legacySession(1));
+      legacySession(1);
       const before = (await service.getHome("user-1")).continueBook;
 
       // Same chapter, different position.
-      prisma.userProgress.findFirst.mockResolvedValue(legacySession(7));
+      legacySession(7);
       const after = (await service.getHome("user-1")).continueBook;
 
       expect(after?.readerRef).toEqual(before?.readerRef);
@@ -359,7 +487,6 @@ describe("HomeService.getHome", () => {
 
     it("moving a native chapter does not change what Home resumes", async () => {
       quiet();
-      prisma.userProgress.findFirst.mockResolvedValue(nativeSession());
       nativePublishedAt(2);
       const before = (await service.getHome("user-1")).continueBook;
 
@@ -373,8 +500,6 @@ describe("HomeService.getHome", () => {
 
     it("a retired native unit produces no card at all", async () => {
       quiet();
-      prisma.userProgress.findFirst.mockResolvedValue(nativeSession());
-      // No longer in the published manifest.
       nativePublishedAt(null);
 
       const out = await service.getHome("user-1");
@@ -385,7 +510,7 @@ describe("HomeService.getHome", () => {
 
     it("an unpublished edition produces no card either", async () => {
       quiet();
-      prisma.userProgress.findFirst.mockResolvedValue(nativeSession());
+      nativePublishedAt(2);
       prisma.contentUnit.findUnique.mockResolvedValue({
         edition: { slug: "libro", publishedRevisionId: null },
       });

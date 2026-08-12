@@ -87,16 +87,22 @@ export default function BookDetailScreen() {
   const isLocked = book.tierRequired === "pro" && user.plan === "FREE";
   const userProgress = detail.userProgress;
   const pct = userProgress?.progressPct ?? 0;
-  const started = pct > 0;
+  // A book opened but not progressed sits at exactly 0%, so a percentage
+  // cannot answer "has this been started" — the summary's existence can.
+  const started = userProgress !== null;
+  const [startFailed, setStartFailed] = useState(false);
 
   async function handleStart() {
     if (!slug || isLocked) return;
     setStarting(true);
+    setStartFailed(false);
     try {
       await booksApi.start(slug);
       await load();
     } catch {
-      // Stays on the same screen; user can retry.
+      // Say so. Failing in silence leaves somebody tapping a button that looks
+      // like it did nothing — which is exactly what it did.
+      setStartFailed(true);
     } finally {
       setStarting(false);
     }
@@ -236,10 +242,17 @@ export default function BookDetailScreen() {
               : isLocked
                 ? "Hazte Pro para leer"
                 : started
-                  ? `Continuar capítulo ${Math.max(1, Math.ceil((pct / 100) * book.chapters))}`
-                  : "Empezar capítulo 1"}
+                  ? "Seguir leyendo"
+                  : "Empezar a leer"}
           </Text>
         </Pressable>
+        {startFailed ? (
+          // Fixed copy — the server's own words could carry ids or a database
+          // term, and none of that helps somebody who wants to read a book.
+          <Text style={styles.startError}>
+            No pudimos iniciar el libro. Inténtalo de nuevo.
+          </Text>
+        ) : null}
 
         {/* Bookmark + Favorite chips */}
         <View style={styles.actionsRow}>
@@ -747,6 +760,11 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: 14,
     fontWeight: "700",
+  },
+  startError: {
+    marginTop: Spacing.xs,
+    fontSize: 13,
+    color: Colors.rose?.[600] ?? "#b4405a",
   },
 
   section: {

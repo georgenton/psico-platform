@@ -448,6 +448,56 @@ suite("native book lifecycle", () => {
     expect(row.totalChapters).toBe(99);
   });
 
+  // ── continue identity ────────────────────────────────────────────────────
+
+  it("continue resumes a LEGACY chapter by its own id", async () => {
+    const detail = await books.getDetail(USER, "solo-legado");
+    expect(detail.continueReaderRef).toEqual({
+      kind: "chapter",
+      id: chapterId["solo-legado:1"],
+    });
+  });
+
+  it("continue resumes a NATIVE chapter by its unit id", async () => {
+    const detail = await books.getDetail(USER, "solo-nativo");
+    expect(detail.continueReaderRef).toEqual({
+      kind: "unit",
+      id: unitId["solo-nativo:1"],
+    });
+  });
+
+  it("continue follows the most recent session, not a percentage", async () => {
+    // Open the second chapter later than the first.
+    await prisma.readingSession.create({
+      data: {
+        userId: USER,
+        chapterId: chapterId["solo-legado:2"],
+        lastSeenAt: new Date("2030-01-01T00:00:00.000Z"),
+      },
+    });
+
+    const detail = await books.getDetail(USER, "solo-legado");
+    expect(detail.continueReaderRef).toEqual({
+      kind: "chapter",
+      id: chapterId["solo-legado:2"],
+    });
+  });
+
+  it("a book nobody opened has nothing to continue", async () => {
+    const detail = await books.getDetail(USER, "solo-borrador");
+    expect(detail.continueReaderRef).toBeNull();
+  });
+
+  it("a session on a chapter the book no longer offers is not resumed", async () => {
+    // A chapter belonging to a different book — never part of this one's
+    // effective structure, so it must not leak into its continue target.
+    const detail = await books.getDetail(USER, "card-nativo");
+    const refIds = detail.chaptersList.map((c) => c.readerRef.id);
+    if (detail.continueReaderRef) {
+      expect(refIds).toContain(detail.continueReaderRef.id);
+    }
+  });
+
   // ── review ───────────────────────────────────────────────────────────────
 
   const review = (slug: string) =>

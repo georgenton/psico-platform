@@ -6,7 +6,9 @@ import type {
   BookAuthorDetail,
   BookDetail,
   BookUserProgressSummary,
+  ReaderChapterRef,
 } from "@psico/types";
+import { readerChapterPath } from "@psico/types";
 import { coverGradient } from "../cover-gradients";
 import { assetUrl } from "@/lib/asset-url";
 
@@ -16,8 +18,14 @@ import { assetUrl } from "@/lib/asset-url";
  * Mirrors `web-hero` from docs/design/detalle/detalle.css. The CTA does two
  * things in one transition:
  *  1. POST /api/books/:idOrSlug/start to register the touch on the backend.
- *  2. Navigate to the reader at the right chapter (1 for new readers, the
- *     last touched chapter for returning ones).
+ *  2. Navigate to that chapter's canonical reader URL.
+ *
+ * Both halves used to be wrong. The start call's failure was swallowed and the
+ * reader opened anyway, so somebody whose start never registered saw the
+ * chapter open and the state they expected never appear. And the chapter to
+ * open was derived from a percentage — `ceil(pct/100 * chapters)` — which is a
+ * guess at a POSITION, and a position names different chapters at different
+ * times. Both targets are now server-owned `ReaderChapterRef`s.
  *
  * `isLocked` is computed by the page (server-side) so we can render the
  * paywall variant straight away — no client-side network call to know it.
@@ -30,6 +38,8 @@ export function BookHero({
   apiBase,
   token,
   idOrSlug,
+  firstReaderRef,
+  continueReaderRef,
 }: {
   book: BookDetail;
   author: BookAuthorDetail | null;
@@ -38,49 +48,61 @@ export function BookHero({
   apiBase: string;
   token: string | null;
   idOrSlug: string;
+  /** The book's first chapter, for somebody who has not opened it. */
+  firstReaderRef: ReaderChapterRef | null;
+  /** Where the reader left off. Null when there is nothing to resume. */
+  continueReaderRef: ReaderChapterRef | null;
 }) {
   const router = useRouter();
   const [starting, startTransition] = useTransition();
   const [started, setStarted] = useState(userProgress !== null);
+  const [failed, setFailed] = useState(false);
+  // Used for the progress readout only. A percentage is fine as a percentage;
+  // what it must never do is decide which chapter to open.
   const pct = userProgress?.progressPct ?? 0;
 
-  // Compute the chapter to open: completed → last chapter; in-progress →
-  // proportional to pct; not started → 1.
-  function resolveStartChapter(): number {
-    if (pct >= 100) return book.chapters;
-    if (started && pct > 0) {
-      return Math.max(1, Math.ceil((pct / 100) * book.chapters));
-    }
-    return 1;
-  }
+  // Resume where the reader was; otherwise open the book's first chapter.
+  // Both come from the server — nothing here converts a number into a chapter.
+  const target = (started ? continueReaderRef : null) ?? firstReaderRef;
 
   async function handleStart() {
-    if (!token || isLocked) return;
+    if (!token || isLocked || !target) return;
     startTransition(async () => {
-      try {
-        // Fire-and-track: POST /start so progress gets registered.
-        const res = await fetch(
-          `${apiBase}/books/${encodeURIComponent(idOrSlug)}/start`,
-          { method: "POST", headers: { Authorization: `Bearer ${token}` } },
-        );
-        if (res.ok) setStarted(true);
-      } catch {
-        // Silent — we still navigate to the reader. The user can also retry
-        // via the chapter list if start failed.
+      setFailed(false);
+
+      // Already started: navigating is not a state change, so there is nothing
+      // to register. Re-posting Start would only risk failing a journey that
+      // had no reason to touch the server at all.
+      if (!started) {
+        let ok = false;
+        try {
+          const res = await fetch(
+            `${apiBase}/books/${encodeURIComponent(idOrSlug)}/start`,
+            { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+          );
+          ok = res.ok;
+        } catch {
+          ok = false;
+        }
+        // Fail closed. Opening the reader on a failed start tells somebody the
+        // book is under way when the server does not think so — and the reader
+        // would then look identical to a successful start.
+        if (!ok) {
+          setFailed(true);
+          return;
+        }
+        setStarted(true);
       }
-      // Navigate to the reader regardless of the /start outcome. The reader
-      // itself does NOT depend on the start record — it reads chapter blocks
-      // directly. Worst case, the /start record syncs on the next visit.
-      const chapter = resolveStartChapter();
-      router.push(`/dashboard/biblioteca/${book.slug}/lector/${chapter}`);
+
+      router.push(readerChapterPath(book.slug, target));
     });
   }
 
   const ctaLabel = isLocked
     ? "Hazte Pro para leer"
     : started
-      ? `Continuar capítulo ${resolveStartChapter()}`
-      : "Empezar capítulo 1";
+      ? "Seguir leyendo"
+      : "Empezar a leer";
 
   return (
     <section className="grid gap-6 lg:grid-cols-[260px_1fr] lg:items-start">
@@ -230,6 +252,18 @@ export function BookHero({
           >
             {isLocked ? "🔒" : "▶"} {starting ? "Abriendo…" : ctaLabel}
           </button>
+          {failed ? (
+            // Fixed copy. The server's own words could carry ids, a URL, or a
+            // database term, and none of that helps somebody who just wants to
+            // read a book.
+            <p
+              role="alert"
+              className="text-[13px]"
+              style={{ color: "var(--color-rose-600, #b4405a)" }}
+            >
+              No pudimos iniciar el libro. Inténtalo de nuevo.
+            </p>
+          ) : null}
           {book.audioAvailable && !isLocked ? (
             <button
               type="button"

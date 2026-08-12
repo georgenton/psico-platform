@@ -306,3 +306,47 @@ export async function sessionsForEffectiveChapters(
   for (const s of native) if (s.contentUnitId) started.add(s.contentUnitId);
   return started;
 }
+
+/**
+ * The chapter a reader should resume, by identity.
+ *
+ * "Where I was" is the most recently seen `ReadingSession` among the chapters
+ * the book CURRENTLY offers — the same table Home resumes from, and the same
+ * effective structure every other surface here uses. A session pointing at a
+ * chapter the book no longer offers is skipped rather than followed, which is
+ * what keeps a retired unit from becoming a dead link.
+ *
+ * Deliberately not derived from a percentage, a chapter count, or a stored
+ * order: none of those name a chapter.
+ */
+export async function continueRefForEffectiveChapters(
+  db: Pick<PrismaClient, "readingSession">,
+  input: { userId: string; chapters: EffectiveChapter[] },
+): Promise<ReaderChapterRef | null> {
+  const chapterIds = input.chapters
+    .filter((c) => c.readerRef.kind === "chapter")
+    .map((c) => c.readerRef.id);
+  const unitIds = input.chapters
+    .filter((c) => c.readerRef.kind === "unit")
+    .map((c) => c.readerRef.id);
+  if (chapterIds.length === 0 && unitIds.length === 0) return null;
+
+  // One query, ordered by recency. `lastSeenAt` is `@updatedAt`, so it tracks
+  // the reader rather than when the row happened to be created.
+  const [latest] = await db.readingSession.findMany({
+    where: {
+      userId: input.userId,
+      OR: [
+        ...(chapterIds.length ? [{ chapterId: { in: chapterIds } }] : []),
+        ...(unitIds.length ? [{ contentUnitId: { in: unitIds } }] : []),
+      ],
+    },
+    orderBy: { lastSeenAt: "desc" },
+    take: 1,
+    select: { chapterId: true, contentUnitId: true },
+  });
+  if (!latest) return null;
+  if (latest.chapterId) return { kind: "chapter", id: latest.chapterId };
+  if (latest.contentUnitId) return { kind: "unit", id: latest.contentUnitId };
+  return null;
+}

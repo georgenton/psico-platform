@@ -83,6 +83,9 @@ export default async function BookDetailPage({ params }: { params: Params }) {
         apiBase={API_BASE}
         token={accessToken}
         idOrSlug={params.idOrSlug}
+        // Both identities decided by the server. The hero converts nothing.
+        firstReaderRef={detail.chaptersList[0]?.readerRef ?? null}
+        continueReaderRef={detail.continueReaderRef ?? null}
       />
 
       <BookActionsBar

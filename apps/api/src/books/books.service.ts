@@ -45,11 +45,11 @@ import {
   type EffectiveChapter,
   type LegacyChapterRow,
 } from "./effective-chapters";
+import { readerBookIds } from "./library-membership";
 import {
-  readerBookIds,
-  sessionsForBookCards,
-  type BookSession,
-} from "./library-membership";
+  resolveBookCardLifecycle,
+  type BookCardLifecycle,
+} from "./book-card-lifecycle";
 
 // ─── Plan → tier mapping ─────────────────────────────────────────────────────
 //
@@ -147,14 +147,17 @@ export class BooksService {
       this.fetchAuthors(),
     ]);
 
-    // Only for the books on this page, and only when somebody is signed in.
-    const sessions = userId
-      ? await sessionsForBookCards(this.prisma, { userId, books: rows })
-      : new Map<string, BookSession>();
+    // One batched pass for the whole page: structure, completions, sessions.
+    // Unauthenticated still resolves structure, because the chapter count is
+    // content metadata and has to be true whether or not anyone is signed in.
+    const lifecycle = await resolveBookCardLifecycle(this.prisma, {
+      userId,
+      books: rows,
+    });
 
     return {
       books: rows.map((row) =>
-        this.toListItem(row, userId, sessions.get(row.id)),
+        this.toListItem(row, userId, lifecycle.get(row.id)),
       ),
       pagination: { page, perPage, total } satisfies Pagination,
       categories,
@@ -255,14 +258,14 @@ export class BooksService {
       .filter((b): b is BookRow => b !== undefined);
 
     // Favourites and saved books can perfectly well have been started.
-    const sessions = await sessionsForBookCards(this.prisma, {
+    const lifecycle = await resolveBookCardLifecycle(this.prisma, {
       userId,
       books: ordered,
     });
 
     return {
       books: ordered.map((row) =>
-        this.toListItem(row, userId, sessions.get(row.id)),
+        this.toListItem(row, userId, lifecycle.get(row.id)),
       ),
       pagination: { page, perPage, total } satisfies Pagination,
       categories,
@@ -288,11 +291,20 @@ export class BooksService {
       include: this.bookCardInclude(userId),
     });
 
-    // No session hydration here on purpose: `exclude` is exactly the set of
-    // books the reader has opened or finished, and these rows are filtered by
-    // `notIn: exclude`. Every card here is by construction not-started, so the
-    // lookup could only ever come back empty.
-    return { recos: rows.map((row) => this.toListItem(row, userId)) };
+    // Structure only, never reader state: `exclude` is exactly the set of
+    // books the reader has opened or finished and these rows are filtered by
+    // `notIn: exclude`, so a lifecycle lookup could only come back empty. The
+    // chapter count still has to be true, which is why this is not skipped
+    // entirely — passing `userId: null` fetches structure and nothing else.
+    const lifecycle = await resolveBookCardLifecycle(this.prisma, {
+      userId: null,
+      books: rows,
+    });
+    return {
+      recos: rows.map((row) =>
+        this.toListItem(row, userId, lifecycle.get(row.id)),
+      ),
+    };
   }
 
   /** GET /books/categories — public catalog. */
@@ -664,32 +676,22 @@ export class BooksService {
             select: { id: true, createdAt: true },
           } as const)
         : (false as const),
-      chapters: userId
-        ? {
-            where: { isPublished: true },
-            orderBy: { order: "asc" as const },
-            select: {
-              id: true,
-              order: true,
-              title: true,
-              durationMinutes: true,
-              partNumber: true,
-              partTitle: true,
-              progress: { where: { userId }, select: { completedAt: true } },
-            },
-          }
-        : {
-            where: { isPublished: true },
-            orderBy: { order: "asc" as const },
-            select: {
-              id: true,
-              order: true,
-              title: true,
-              durationMinutes: true,
-              partNumber: true,
-              partTitle: true,
-            },
-          },
+      // The legacy half of the book's effective structure. No per-chapter
+      // `progress` any more: completion is read by identity, batched, by
+      // whichever resolver needs it — carrying it here would be a second,
+      // legacy-only answer to a question that now has an identity-aware one.
+      chapters: {
+        where: { isPublished: true },
+        orderBy: { order: "asc" as const },
+        select: {
+          id: true,
+          order: true,
+          title: true,
+          durationMinutes: true,
+          partNumber: true,
+          partTitle: true,
+        },
+      },
     };
   }
 
@@ -758,7 +760,7 @@ export class BooksService {
       categoryId: string | null;
     },
     userId: string | null,
-    session?: BookSession,
+    lifecycle?: BookCardLifecycle,
   ): BookListItem {
     const author = row.author as
       | { id: string; name: string }
@@ -775,14 +777,9 @@ export class BooksService {
       (row.favorites as { id: string; createdAt: Date }[] | undefined) ?? [];
     const bookmarks =
       (row.bookmarks as { id: string; createdAt: Date }[] | undefined) ?? [];
-    const chapters =
-      (row.chapters as
-        | {
-            order: number;
-            durationMinutes: number | null;
-            progress?: { completedAt: Date | null }[];
-          }[]
-        | undefined) ?? [];
+    // The legacy chapter rows are no longer read here: the batched lifecycle
+    // resolver owns both the count and the progress, from the book's effective
+    // structure rather than its legacy half.
 
     return {
       id: row.id,
@@ -795,7 +792,10 @@ export class BooksService {
       coverArtUrl: this.coverUrl(row.coverArtUrl),
       categoryId: row.categoryId,
       categorySlug: category?.slug ?? null,
-      chapters: row.totalChapters,
+      // What the book currently OFFERS, not the stored column. Content Studio
+      // deliberately never touches `Book.totalChapters`, so on a native book
+      // that number is stale by design. Read-time truth — nothing is written.
+      chapters: lifecycle?.effectiveTotal ?? row.totalChapters,
       pages: row.pages,
       durationMinutes: row.durationMinutes,
       publishedOn: row.publishedAt,
@@ -808,37 +808,7 @@ export class BooksService {
         userId && favorites.length > 0 ? favorites[0].createdAt : null,
       bookmarkedAt:
         userId && bookmarks.length > 0 ? bookmarks[0].createdAt : null,
-      userProgress: userId ? this.cardProgress(chapters, session) : null,
-    };
-  }
-
-  /**
-   * What a card should say about the reader's relationship to this book.
-   *
-   * Completions decide it when there are any — that summary carries real
-   * percentages and a completion date, and replacing it with a 0% "started"
-   * would walk somebody's progress backwards.
-   *
-   * Otherwise a `ReadingSession` means the book is open but nothing is
-   * finished yet. That case has to be representable: 0% is still started, and
-   * returning null instead is what made a freshly started book appear in
-   * "Mis libros" while its own card offered to start it.
-   *
-   * `startedAt` comes from the session itself, never `new Date()` — a card
-   * that claims every book was started just now is not telling the truth.
-   */
-  private cardProgress(
-    chapters: { progress?: { completedAt: Date | null }[] }[],
-    session?: BookSession,
-  ) {
-    const fromCompletions = this.computeProgressFromChapters(chapters);
-    if (fromCompletions) return fromCompletions;
-    if (!session) return null;
-    return {
-      startedAt: session.startedAt,
-      lastChapterRead: session.touchedChapters,
-      progressPct: 0,
-      completedAt: null,
+      userProgress: userId ? (lifecycle?.userProgress ?? null) : null,
     };
   }
 

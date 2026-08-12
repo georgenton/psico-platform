@@ -86,7 +86,10 @@ suite("native book lifecycle", () => {
           slug,
           title: slug,
           plan: "FREE",
-          totalChapters: 3,
+          // Deliberately WRONG. Content Studio never maintains this column, so
+          // a card that reads it is stale by design — these fixtures make that
+          // visible instead of letting a correct-by-luck number hide it.
+          totalChapters: 99,
           isPublished: true,
         },
       });
@@ -179,6 +182,10 @@ suite("native book lifecycle", () => {
     await makeBook("mixto", { legacy: [1, 3], native: [1, 2, 3] });
     // A native book whose only revision is a DRAFT — nothing to read yet.
     await makeBook("solo-borrador", { native: [1], publish: false });
+    // Private to the card-progress assertions: those complete a whole book,
+    // which would destroy the preconditions the review tests depend on.
+    await makeBook("card-nativo", { native: [1, 2] });
+    await makeBook("card-mixto", { legacy: [1, 3], native: [1, 2, 3] });
   }, 300_000);
 
   afterAll(async () => {
@@ -347,6 +354,98 @@ suite("native book lifecycle", () => {
     expect(slugs).toContain("solo-legado");
     expect(slugs).toContain("solo-nativo");
     expect(slugs).not.toContain("solo-borrador");
+  });
+
+  // ── card truth ───────────────────────────────────────────────────────────
+
+  /** The card for one book, from the plain authenticated catalogue. */
+  const card = async (slug: string) => {
+    const list = await books.list(USER, {} as never);
+    return list.books.find((b) => b.slug === slug);
+  };
+
+  it("counts what a book OFFERS, not the stored column", async () => {
+    // Every fixture carries `totalChapters: 99`.
+    expect((await card("solo-legado"))!.chapters).toBe(2);
+    expect((await card("solo-nativo"))!.chapters).toBe(2);
+    // Legacy 1 and 3, native 2 — three effective, and the contested position
+    // counted once rather than twice.
+    expect((await card("mixto"))!.chapters).toBe(3);
+  });
+
+  it("a draft-only book counts none of its unpublished chapters", async () => {
+    expect((await card("solo-borrador"))!.chapters).toBe(0);
+  });
+
+  it("a NATIVE card moves 0 → 50 → 100 as chapters are finished", async () => {
+    await books.startBook(USER, "card-nativo");
+    const started = await card("card-nativo");
+    expect(started!.userProgress!.progressPct).toBe(0);
+    expect(started!.userProgress!.completedAt).toBeNull();
+
+    const first = await prisma.userProgress.create({
+      data: { userId: USER, contentUnitId: unitId["card-nativo:1"] },
+    });
+    const half = await card("card-nativo");
+    // Before this repair the card read legacy rows only, so a native
+    // completion was invisible and this stayed at 0.
+    expect(half!.userProgress!.progressPct).toBe(50);
+    expect(half!.userProgress!.completedAt).toBeNull();
+
+    const last = await prisma.userProgress.create({
+      data: { userId: USER, contentUnitId: unitId["card-nativo:2"] },
+    });
+    const done = await card("card-nativo");
+    expect(done!.userProgress!.progressPct).toBe(100);
+    // The moment the final chapter was finished — stored, not read-time.
+    expect(done!.userProgress!.completedAt?.toISOString()).toBe(
+      last.completedAt.toISOString(),
+    );
+    expect(first.completedAt.getTime()).toBeLessThanOrEqual(
+      last.completedAt.getTime(),
+    );
+  });
+
+  it("a MIXED card divides by the EFFECTIVE total, not the legacy subset", async () => {
+    await prisma.userProgress.create({
+      data: { userId: USER, chapterId: chapterId["card-mixto:1"] },
+    });
+    // One of three, not one of two.
+    expect((await card("card-mixto"))!.userProgress!.progressPct).toBe(33);
+
+    await prisma.userProgress.create({
+      data: { userId: USER, contentUnitId: unitId["card-mixto:2"] },
+    });
+    expect((await card("card-mixto"))!.userProgress!.progressPct).toBe(67);
+
+    await prisma.userProgress.create({
+      data: { userId: USER, chapterId: chapterId["card-mixto:3"] },
+    });
+    const done = await card("card-mixto");
+    expect(done!.userProgress!.progressPct).toBe(100);
+    // Reaching 100 without ever completing position 1's backfilled TWIN is
+    // what proves the contested position is one requirement, not two.
+    const twin = await prisma.userProgress.findFirst({
+      where: { userId: USER, contentUnitId: unitId["card-mixto:1"] },
+    });
+    expect(twin).toBeNull();
+  });
+
+  it("an unauthenticated card still counts truthfully, with no reader state", async () => {
+    const list = await books.list(null, {} as never);
+    const native = list.books.find((b) => b.slug === "card-nativo");
+
+    expect(native!.chapters).toBe(2);
+    expect(native!.userProgress).toBeNull();
+  });
+
+  it("reading a card never writes the stored count", async () => {
+    await books.list(USER, {} as never);
+    const row = await prisma.book.findUniqueOrThrow({
+      where: { slug: "solo-nativo" },
+    });
+    // Read-time truth, not a silent migration.
+    expect(row.totalChapters).toBe(99);
   });
 
   // ── review ───────────────────────────────────────────────────────────────

@@ -432,21 +432,38 @@ export class LectorService {
       return this.nativeHeartbeat(userId, dto, dto.contentUnitId);
     }
 
-    // The legacy counterpart. Scoped to the book so an id from another book
-    // cannot be written through, but deliberately NOT checked against
-    // `dto.chapterOrder`: the whole point is that a stale tab still carries
-    // the position this chapter used to have.
-    const chapter = dto.chapterId
-      ? await this.prisma.chapter.findFirst({
-          where: { id: dto.chapterId, bookId: dto.bookId },
-          select: { id: true },
-        })
-      : await this.prisma.chapter.findUnique({
-          where: {
-            bookId_order: { bookId: dto.bookId, order: dto.chapterOrder },
-          },
-          select: { id: true },
-        });
+    // The legacy counterpart, and a MODE rather than a lookup preference.
+    //
+    // "A stable identity was supplied and did not resolve" and "no stable
+    // identity was supplied" are different states, and collapsing them is a
+    // fail-open bug: an id that is malformed, or belongs to another book, would
+    // fall through to the positional path and write to whatever native chapter
+    // now occupies that slot. A client that named a chapter gets that chapter
+    // or nothing.
+    //
+    // Scoped to the book, and deliberately NOT checked against
+    // `dto.chapterOrder`: the whole point is that a stale tab still carries the
+    // position this chapter used to have.
+    if (dto.chapterId) {
+      const named = await this.prisma.chapter.findFirst({
+        where: { id: dto.chapterId, bookId: dto.bookId },
+        select: { id: true },
+      });
+      // Soft-ack without writing, exactly as `nativeHeartbeat` does for a unit
+      // id it cannot resolve. A heartbeat is fire-and-forget; failing it loudly
+      // would not help a reader whose tab is already wrong.
+      if (!named) return { ok: true, progressPct: dto.progressPct };
+      return this.legacyHeartbeat(userId, dto, named.id);
+    }
+
+    // No stable identity: an old client. Position is all it can offer, and
+    // resolving by position is still correct for a book nobody moved.
+    const chapter = await this.prisma.chapter.findUnique({
+      where: {
+        bookId_order: { bookId: dto.bookId, order: dto.chapterOrder },
+      },
+      select: { id: true },
+    });
 
     if (!chapter) {
       // No legacy chapter at that position. Either the client is sending an
@@ -456,6 +473,22 @@ export class LectorService {
       return this.nativeHeartbeat(userId, dto);
     }
 
+    return this.legacyHeartbeat(userId, dto, chapter.id);
+  }
+
+  /**
+   * The legacy session write, once a `Chapter` has been decided.
+   *
+   * Extracted so the two ways of arriving here — a client that named the
+   * chapter, and an old client resolved by position — write through exactly
+   * one code path. The guards below are the reason: they must not drift
+   * between the two.
+   */
+  private async legacyHeartbeat(
+    userId: string,
+    dto: LectorSessionHeartbeatDto,
+    chapterId: string,
+  ): Promise<LectorSessionHeartbeatResponse> {
     // Guard 1: server caps time delta at 60 s. A tab waking from suspend
     // could otherwise credit hours. The client should heartbeat every 5 s;
     // anything beyond a minute is either lag or fishy.
@@ -464,7 +497,7 @@ export class LectorService {
     // Guard 2: progress never decreases. The user can scroll back to reread
     // a block, but that doesn't subtract from "how much they've experienced".
     const existing = await this.prisma.readingSession.findUnique({
-      where: { userId_chapterId: { userId, chapterId: chapter.id } },
+      where: { userId_chapterId: { userId, chapterId } },
       select: { progressPct: true, timeSpentSec: true },
     });
 
@@ -472,10 +505,10 @@ export class LectorService {
     const nextTimeSpent = (existing?.timeSpentSec ?? 0) + cappedDelta;
 
     const session = await this.prisma.readingSession.upsert({
-      where: { userId_chapterId: { userId, chapterId: chapter.id } },
+      where: { userId_chapterId: { userId, chapterId } },
       create: {
         userId,
-        chapterId: chapter.id,
+        chapterId,
         lastBlockId: dto.lastBlockId,
         progressPct: nextProgress,
         timeSpentSec: nextTimeSpent,
@@ -644,17 +677,27 @@ export class LectorService {
     // The path still carries a position, for compatibility — but a tab open
     // since before a restructure carries a STALE one. When the client names the
     // chapter, that name wins and the position is never consulted.
-    const chapter = chapterId
-      ? await this.prisma.chapter.findFirst({
-          where: { id: chapterId, bookId: book.id },
-          select: { id: true, order: true },
-        })
-      : await this.prisma.chapter.findUnique({
-          where: { bookId_order: { bookId: book.id, order: chapterOrder } },
-          select: { id: true, order: true },
-        });
-    if (!chapter) {
-      return this.completeNativeChapter(userId, book, chapterOrder);
+    //
+    // And when the name does not resolve, that is the end of it. Falling
+    // through to the positional path would complete whichever chapter now
+    // occupies that slot — a fail-open that is worse than an error, because
+    // the reader would be told a chapter they never opened is finished.
+    let chapter: { id: string; order: number } | null;
+    if (chapterId) {
+      chapter = await this.prisma.chapter.findFirst({
+        where: { id: chapterId, bookId: book.id },
+        select: { id: true, order: true },
+      });
+      if (!chapter) throw new NotFoundException("CHAPTER_NOT_FOUND");
+    } else {
+      // No stable identity: an old client, resolved by position as always.
+      chapter = await this.prisma.chapter.findUnique({
+        where: { bookId_order: { bookId: book.id, order: chapterOrder } },
+        select: { id: true, order: true },
+      });
+      if (!chapter) {
+        return this.completeNativeChapter(userId, book, chapterOrder);
+      }
     }
 
     // Adjacency is a question about the book as it is NOW, so it is asked from

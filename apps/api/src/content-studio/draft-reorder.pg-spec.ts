@@ -333,6 +333,11 @@ suite("Content Studio · reordering the draft manifest", () => {
     let draftRevisionId = "";
     let versionsBefore = 0;
     let blockVersionsBefore = 0;
+    let contentBlocksBefore: Array<{
+      id: string;
+      blockKey: string;
+      unitId: string;
+    }> = [];
     let baseManifest: Awaited<ReturnType<typeof manifestOf>> = [];
 
     beforeAll(async () => {
@@ -340,6 +345,10 @@ suite("Content Studio · reordering the draft manifest", () => {
       baseManifest = await manifestOf(baseRevisionId);
       versionsBefore = await prisma.contentUnitVersion.count();
       blockVersionsBefore = await prisma.blockVersion.count();
+      contentBlocksBefore = await prisma.contentBlock.findMany({
+        orderBy: { id: "asc" },
+        select: { id: true, blockKey: true, unitId: true },
+      });
 
       // The reader has been here: progress and a mark, so the assertions below
       // about not touching them have something to be about.
@@ -406,6 +415,17 @@ suite("Content Studio · reordering the draft manifest", () => {
       // The difference between moving a chapter and rewriting one.
       expect(await prisma.contentUnitVersion.count()).toBe(versionsBefore);
       expect(await prisma.blockVersion.count()).toBe(blockVersionsBefore);
+    });
+
+    it("leaves every ContentBlock identity exactly as it was", async () => {
+      // The anchor a reader's highlight resolves through. Not merely the same
+      // count — the same rows, with the same keys, on the same units.
+      expect(
+        await prisma.contentBlock.findMany({
+          orderBy: { id: "asc" },
+          select: { id: true, blockKey: true, unitId: true },
+        }),
+      ).toEqual(contentBlocksBefore);
     });
 
     it("does not touch Chapter.order or Book.totalChapters", async () => {

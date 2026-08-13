@@ -23,6 +23,7 @@ import {
 import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import type { Request } from "express";
 import type { AuthenticatedUser } from "../auth";
+import { OptionalJwtAuthGuard } from "../auth/guards/optional-jwt-auth.guard";
 import { JwtAuthGuard } from "../auth";
 import { CurrentUser, RequiredRole, RolesGuard } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -70,6 +71,10 @@ export class BooksController {
 
   // ─── List + filters ────────────────────────────────────────────────────────
 
+  // Public, and personalised when it can be. Without a guard the handler read
+  // `req.user` that nothing had populated, so a signed-in reader was served the
+  // anonymous catalogue.
+  @UseGuards(OptionalJwtAuthGuard)
   @Get()
   list(@Req() req: Request, @Query() query: ListBooksQueryDto) {
     const userId = (req.user as AuthenticatedUser | undefined)?.userId ?? null;
@@ -95,6 +100,7 @@ export class BooksController {
 
   // ─── Detail + reviews ──────────────────────────────────────────────────────
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(":idOrSlug")
   getDetail(@Req() req: Request, @Param("idOrSlug") idOrSlug: string) {
     const userId = (req.user as AuthenticatedUser | undefined)?.userId ?? null;

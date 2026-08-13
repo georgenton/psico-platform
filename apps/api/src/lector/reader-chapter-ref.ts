@@ -1,3 +1,4 @@
+import { NotFoundException } from "@nestjs/common";
 import type { ReaderChapterRef } from "@psico/types";
 import type { PrismaClient } from "@prisma/client";
 
@@ -6,6 +7,7 @@ import {
   resolveReaderChapter,
   resolveNativeUnitById,
 } from "./reader-chapter-resolver";
+import { resolveLegacyPlacement } from "./legacy-placement";
 
 /**
  * Resolving a chapter by its STABLE identity, and finding that identity from a
@@ -64,7 +66,22 @@ export async function resolveChapterByRef(
       select: { id: true, order: true },
     });
     if (!chapter) return null;
-    return { kind: "chapter", chapterId: chapter.id, order: chapter.order };
+
+    // The CURRENT position, from the published placement. Returning
+    // `chapter.order` here would put a stale number in this resolver's own
+    // contract even though a later caller happens to correct it — and a
+    // contract that is only right by accident downstream is not a contract.
+    const placement = await resolveLegacyPlacement(db as never, {
+      bookSlug: input.bookSlug,
+      chapter,
+    });
+    // Removed from the published structure: not a chapter a reader can reach.
+    if (placement.source === "adopted-unpublished") return null;
+    return {
+      kind: "chapter",
+      chapterId: chapter.id,
+      order: placement.order,
+    };
   }
 
   // `resolveNativeUnitById` (#649) already proves the unit belongs to this
@@ -104,8 +121,14 @@ export async function resolveLocatorRef(
   // for a chapter the structure has moved — and a locator that disagrees with
   // the reader is worse than no locator, because the redirect would land
   // somewhere the reader then serves differently.
+  // Only the expected "nothing is there" becomes null. A database or
+  // programming failure must not be reported as an empty position — that would
+  // turn an outage into a 404 and hide it.
   const target = await resolveReaderChapter(db as never, input).catch(
-    () => null,
+    (err: unknown) => {
+      if (err instanceof NotFoundException) return null;
+      throw err;
+    },
   );
   if (!target) return null;
   return target.source === "legacy"

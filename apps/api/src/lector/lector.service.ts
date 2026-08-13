@@ -486,12 +486,25 @@ export class LectorService {
     if (dto.chapterId) {
       const named = await this.prisma.chapter.findFirst({
         where: { id: dto.chapterId, bookId: dto.bookId },
-        select: { id: true },
+        select: { id: true, order: true, book: { select: { slug: true } } },
       });
       // Soft-ack without writing, exactly as `nativeHeartbeat` does for a unit
       // id it cannot resolve. A heartbeat is fire-and-forget; failing it loudly
       // would not help a reader whose tab is already wrong.
       if (!named) return { ok: true, progressPct: dto.progressPct };
+
+      // A chapter removed from the published structure is not current content,
+      // so a tab still beating against it writes nothing — the same soft-ack a
+      // retired native unit gets. Without this, a stale tab would keep
+      // accruing time on a chapter the book no longer offers.
+      const beatPlacement = await resolveLegacyPlacement(this.prisma, {
+        bookSlug: named.book.slug,
+        chapter: named,
+      });
+      if (beatPlacement.source === "adopted-unpublished") {
+        return { ok: true, progressPct: dto.progressPct };
+      }
+
       return this.legacyHeartbeat(userId, dto, named.id);
     }
 
@@ -747,10 +760,14 @@ export class LectorService {
       bookSlug: book.slug,
       chapter,
     });
-    const currentOrder =
-      completionPlacement.source === "adopted-unpublished"
-        ? chapter.order
-        : completionPlacement.order;
+    if (completionPlacement.source === "adopted-unpublished") {
+      // Adopted, then removed from the published structure. Not current
+      // readable content, so it is not completable either — the same answer
+      // the canonical read gives, and the same class as a retired native unit.
+      // Falling back to `chapter.order` here would revive it for writes.
+      throw new NotFoundException("CHAPTER_NOT_FOUND");
+    }
+    const currentOrder = completionPlacement.order;
 
     // Two things in one transaction: mark the session completed and record
     // UserProgress. We don't want a partial state where the session shows

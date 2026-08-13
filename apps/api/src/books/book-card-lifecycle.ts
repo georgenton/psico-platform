@@ -150,21 +150,14 @@ async function resolveStructure(
   db: Pick<Db, "edition" | "revisionUnit" | "chapter" | "contentUnit">,
   books: BookCardRow[],
 ): Promise<Map<string, EffectiveChapter[]>> {
-  const bookIds = books.map((b) => b.id);
   const slugs = books.map((b) => b.slug);
 
   // An edition is joined to its book by slug, and only its PUBLISHED revision
   // is structure — a draft is editorial work, not something a catalogue counts.
-  const [editions, occupancy] = await Promise.all([
-    db.edition.findMany({
-      where: { slug: { in: slugs } },
-      select: { id: true, slug: true, publishedRevisionId: true },
-    }),
-    db.chapter.findMany({
-      where: { bookId: { in: bookIds } },
-      select: { bookId: true, order: true },
-    }),
-  ]);
+  const editions = await db.edition.findMany({
+    where: { slug: { in: slugs } },
+    select: { id: true, slug: true, publishedRevisionId: true },
+  });
 
   // Which units each edition has adopted — the same question
   // `resolveEffectiveChapters` asks, batched across the page.
@@ -208,13 +201,6 @@ async function resolveStructure(
       list.push(r);
       placementsByRevision.set(r.revisionId, list);
     }
-  }
-
-  const occupiedByBook = new Map<string, number[]>();
-  for (const c of occupancy) {
-    const list = occupiedByBook.get(c.bookId) ?? [];
-    list.push(c.order);
-    occupiedByBook.set(c.bookId, list);
   }
 
   const structure = new Map<string, EffectiveChapter[]>();

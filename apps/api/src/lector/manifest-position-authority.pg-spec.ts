@@ -8,6 +8,7 @@ import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
 import { ContentAccessService } from "../content-core/access/content-access.service";
 import { BooksService } from "../books/books.service";
 import { LectorService } from "./lector.service";
+import { resolveChapterByRef } from "./reader-chapter-ref";
 
 /**
  * The published manifest decides where a chapter is. `Chapter.order` does not.
@@ -287,6 +288,333 @@ suite("published manifest is the position authority", () => {
     });
     // Physically unchanged throughout.
     expect(rows.map((r) => r.id)).toEqual([chapterId.A, chapterId.B]);
+  });
+
+  // ── a chapter removed from the published structure ──────────────────────
+
+  /**
+   * Adopted, then taken out. Not readable, and not writable either.
+   *
+   * The read already refused it. The writes did not: completion fell back to
+   * `chapter.order` and would have marked a chapter the book no longer offers
+   * as finished, while a stale tab kept accruing time against it. Retired
+   * native units have always failed closed; legacy ones must match.
+   */
+  describe("adopted but removed from the published revision", () => {
+    const GONE_SLUG = "libro-retirado";
+    let goneChapterId = "";
+    let survivorChapterId = "";
+    let goneBookId = "";
+
+    beforeAll(async () => {
+      const book = await prisma.book.create({
+        data: {
+          slug: GONE_SLUG,
+          title: "Retirado",
+          plan: "FREE",
+          totalChapters: 2,
+          isPublished: true,
+        },
+      });
+      goneBookId = book.id;
+      const work = await prisma.work.create({
+        data: { workKey: "w-ret", title: "Retirado", authorName: "A" },
+      });
+      const edition = await prisma.edition.create({
+        data: {
+          workId: work.id,
+          editionKey: "libro-retirado-1e", // gitleaks:allow — a book slug
+          slug: GONE_SLUG,
+          label: "Primera",
+          accessPlan: "FREE",
+        },
+      });
+
+      const made: { unitId: string; versionId: string; key: string }[] = [];
+      for (const [order, key] of [
+        [1, "gone"],
+        [2, "survivor"],
+      ] as const) {
+        const ch = await prisma.chapter.create({
+          data: {
+            bookId: book.id,
+            order,
+            title: `Cap ${key}`,
+            isPublished: true,
+          },
+        });
+        if (key === "gone") goneChapterId = ch.id;
+        else survivorChapterId = ch.id;
+        await prisma.chapterBlock.create({
+          data: {
+            chapterId: ch.id,
+            order: 0,
+            kind: "PARAGRAPH",
+            content: "T",
+          },
+        });
+        const unit = await prisma.contentUnit.create({
+          data: {
+            editionId: edition.id,
+            unitKey: unitKeyFromLegacyChapterId(ch.id),
+            isFreePreview: true,
+          },
+        });
+        const version = await prisma.contentUnitVersion.create({
+          data: { unitId: unit.id, title: `Cap ${key}` },
+        });
+        const cb = await prisma.contentBlock.create({
+          data: { unitId: unit.id, blockKey: `bk-ret-${key}` },
+        });
+        await prisma.blockVersion.create({
+          data: {
+            contentBlockId: cb.id,
+            unitVersionId: version.id,
+            order: 1,
+            kind: "PARAGRAPH",
+            content: "T",
+            contentHash: `h-ret-${key}`,
+          },
+        });
+        made.push({ unitId: unit.id, versionId: version.id, key });
+      }
+
+      const publishRet = async (n: number, keep: string[]) => {
+        const rev = await prisma.revision.create({
+          data: {
+            editionId: edition.id,
+            number: n,
+            status: "PUBLISHED",
+            publishedAt: new Date(),
+          },
+        });
+        let order = 1;
+        for (const m of made.filter((x) => keep.includes(x.key))) {
+          await prisma.revisionUnit.create({
+            data: {
+              revisionId: rev.id,
+              unitId: m.unitId,
+              unitVersionId: m.versionId,
+              order: order++,
+            },
+          });
+        }
+        await prisma.edition.update({
+          where: { id: edition.id },
+          data: { publishedRevisionId: rev.id },
+        });
+      };
+
+      // R1 has both; the reader opens the doomed chapter and leaves state.
+      await publishRet(1, ["gone", "survivor"]);
+      await lector.getChapterByRef(USER, "FREE" as never, GONE_SLUG, {
+        kind: "chapter",
+        id: goneChapterId,
+      });
+      // R2 drops it. Chapter row and Chapter.order stay exactly as they were.
+      await publishRet(2, ["survivor"]);
+    }, 120_000);
+
+    const goneSession = () =>
+      prisma.readingSession.findFirstOrThrow({
+        where: { userId: USER, chapterId: goneChapterId },
+      });
+
+    it("the canonical route refuses it", async () => {
+      await expect(
+        lector.getChapterByRef(USER, "FREE" as never, GONE_SLUG, {
+          kind: "chapter",
+          id: goneChapterId,
+        }),
+      ).rejects.toThrow(/CHAPTER_NOT_FOUND/);
+    });
+
+    it("its old slot now belongs to whoever the manifest puts there", async () => {
+      const { readerRef } = await lector.getLocator(
+        USER,
+        "FREE" as never,
+        GONE_SLUG,
+        1,
+      );
+      expect(readerRef).toEqual({ kind: "chapter", id: survivorChapterId });
+    });
+
+    it("a stale heartbeat writes nothing", async () => {
+      const before = await goneSession();
+
+      const res = await lector.heartbeat(USER, {
+        bookId: goneBookId,
+        chapterOrder: 1, // the position it used to hold
+        chapterId: goneChapterId,
+        lastBlockId: "b",
+        timeSpentDeltaSec: 60,
+        progressPct: 0.99,
+      });
+
+      // Soft-ack, same as a retired native unit — and not one column moved.
+      expect(res.ok).toBe(true);
+      const after = await goneSession();
+      expect(after.progressPct).toBe(before.progressPct);
+      expect(after.timeSpentSec).toBe(before.timeSpentSec);
+      expect(after.lastBlockId).toBe(before.lastBlockId);
+      expect(after.completedAt).toEqual(before.completedAt);
+    });
+
+    it("a stale completion is refused, and completes nothing", async () => {
+      const before = await goneSession();
+      const progressBefore = await prisma.userProgress.count({
+        where: { userId: USER, chapterId: goneChapterId },
+      });
+
+      await expect(
+        lector.completeChapter(USER, GONE_SLUG, 1, undefined, goneChapterId),
+      ).rejects.toThrow(/CHAPTER_NOT_FOUND/);
+
+      expect(
+        await prisma.userProgress.count({
+          where: { userId: USER, chapterId: goneChapterId },
+        }),
+      ).toBe(progressBefore);
+      const after = await goneSession();
+      expect(after.completedAt).toEqual(before.completedAt);
+      expect(after.progressPct).toBe(before.progressPct);
+      // And certainly not the chapter that took its place.
+      expect(
+        await prisma.userProgress.count({
+          where: { userId: USER, chapterId: survivorChapterId },
+        }),
+      ).toBe(0);
+    });
+
+    it("resolveChapterByRef itself returns null for it", async () => {
+      // Asserted on the resolver, not through a caller that might repair it.
+      const target = await resolveChapterByRef(prisma as never, {
+        bookId: goneBookId,
+        bookSlug: GONE_SLUG,
+        ref: { kind: "chapter", id: goneChapterId },
+      });
+      expect(target).toBeNull();
+    });
+  });
+
+  // ── an unsynced row cannot take a position the manifest names ───────────
+
+  describe("unsynced legacy collision", () => {
+    const COL_SLUG = "libro-colision";
+    let colBookId = "";
+    let colUnitId = "";
+
+    beforeAll(async () => {
+      const book = await prisma.book.create({
+        data: {
+          slug: COL_SLUG,
+          title: "Colisión",
+          plan: "FREE",
+          totalChapters: 2,
+          isPublished: true,
+        },
+      });
+      colBookId = book.id;
+      // A legacy chapter at position 2 that Content Core never adopted.
+      await prisma.chapter.create({
+        data: {
+          bookId: book.id,
+          order: 2,
+          title: "Sin sincronizar",
+          isPublished: true,
+        },
+      });
+
+      const work = await prisma.work.create({
+        data: { workKey: "w-col", title: "Colisión", authorName: "A" },
+      });
+      const edition = await prisma.edition.create({
+        data: {
+          workId: work.id,
+          editionKey: "libro-colision-1e", // gitleaks:allow — a book slug
+          slug: COL_SLUG,
+          label: "Primera",
+          accessPlan: "FREE",
+        },
+      });
+      const rev = await prisma.revision.create({
+        data: {
+          editionId: edition.id,
+          number: 1,
+          status: "PUBLISHED",
+          publishedAt: new Date(),
+        },
+      });
+      // A native unit — unrelated to that chapter — at the SAME position.
+      const unit = await prisma.contentUnit.create({
+        data: {
+          editionId: edition.id,
+          unitKey: "u-colision",
+          isFreePreview: true,
+        },
+      });
+      colUnitId = unit.id;
+      const version = await prisma.contentUnitVersion.create({
+        data: { unitId: unit.id, title: "Nativo" },
+      });
+      const cb = await prisma.contentBlock.create({
+        data: { unitId: unit.id, blockKey: "bk-col" },
+      });
+      await prisma.blockVersion.create({
+        data: {
+          contentBlockId: cb.id,
+          unitVersionId: version.id,
+          order: 1,
+          kind: "PARAGRAPH",
+          content: "T",
+          contentHash: "h-col",
+        },
+      });
+      await prisma.revisionUnit.create({
+        data: {
+          revisionId: rev.id,
+          unitId: unit.id,
+          unitVersionId: version.id,
+          order: 2,
+        },
+      });
+      await prisma.edition.update({
+        where: { id: edition.id },
+        data: { publishedRevisionId: rev.id },
+      });
+    }, 120_000);
+
+    it("the positional reader serves the manifest occupant", async () => {
+      const res = await lector.getChapter(USER, "FREE" as never, COL_SLUG, 2);
+      expect(res.chapter.readerRef).toEqual({ kind: "unit", id: colUnitId });
+    });
+
+    it("the locator agrees", async () => {
+      const { readerRef } = await lector.getLocator(
+        USER,
+        "FREE" as never,
+        COL_SLUG,
+        2,
+      );
+      expect(readerRef).toEqual({ kind: "unit", id: colUnitId });
+    });
+
+    it("Book Detail agrees — one occupant, not two", async () => {
+      // The bug this closes: the fallback used to overwrite the placement in
+      // this list while the reader still served the manifest, so the detail
+      // screen and the reader disagreed about what position 2 was.
+      const detail = await books.getDetail(USER, COL_SLUG);
+      const atTwo = detail.chaptersList.filter((c) => c.n === 2);
+      expect(atTwo).toHaveLength(1);
+      expect(atTwo[0].readerRef).toEqual({ kind: "unit", id: colUnitId });
+    });
+
+    it("the card's structure agrees too", async () => {
+      const list = await books.list(USER, {} as never);
+      const card = list.books.find((b) => b.slug === COL_SLUG);
+      // One chapter at position 2 — the unsynced row did not add a second.
+      expect(card?.chapters).toBe(1);
+    });
   });
 
   // ── entitlement follows identity, never position ────────────────────────

@@ -152,13 +152,16 @@ describe("resolveEffectiveChapters", () => {
     );
   });
 
-  it("a contested position yields ONE row, and it is the one the reader serves", async () => {
+  it("an UNSYNCED legacy row does not take a position the manifest names", async () => {
+    // Fallback means fallback. This row has no unit, so its own order is
+    // normally its only answer — but the published manifest already names
+    // position 1, and the reader resolves the manifest first. Letting the
+    // legacy row win here would make this list contradict the reader.
     const out = await resolveEffectiveChapters(
       db({
         publishedRevisionId: "rev-pub",
-        // The backfill minted a unit for the same position the legacy row holds.
-        placements: [placement(1, "u-backfilled", "Copia nativa")],
-        occupiedOrders: [1],
+        placements: [placement(1, "u-native", "Nativo")],
+        adoptedKeys: [],
       }),
       {
         bookId: "book-1",
@@ -167,11 +170,9 @@ describe("resolveEffectiveChapters", () => {
       },
     );
 
+    // One position, one occupant — and the one the reader serves.
     expect(out).toHaveLength(1);
-    // `resolveReaderChapter` tries the legacy row first, so listing `u/…` here
-    // would hand out a link that resolves to different content than it names.
-    expect(out[0].readerRef).toEqual({ kind: "chapter", id: "ch-1" });
-    expect(out[0].title).toBe("El original");
+    expect(out[0].readerRef).toEqual({ kind: "unit", id: "u-native" });
   });
   /**
    * Phase B.B, Model A: the published manifest owns position.

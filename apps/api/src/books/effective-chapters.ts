@@ -189,9 +189,11 @@ export function mergeEffectiveChapters(input: {
   }
 
   // Whatever the manifest did not account for. A chapter with no unit at all
-  // has never been adopted, so its own order is still the only answer there
-  // is — and it may legitimately occupy a position the manifest also names,
-  // which is a real structural conflict and stays visible rather than hidden.
+  // has never been adopted, so its own order is still the only answer there is
+  // — but only where the manifest is silent. Where both name a position, that
+  // is a genuine structural conflict, and the published manifest is the
+  // authority (Model A): letting the legacy row win here would make this list
+  // contradict the reader, which resolves the manifest first.
   //
   // A chapter that IS adopted but has no placement was taken out of the
   // published structure deliberately. It is not unsynced, and reviving it from
@@ -200,6 +202,11 @@ export function mergeEffectiveChapters(input: {
     if (placed.has(c.id)) continue;
     const key = unitKeyFromLegacyChapterId(c.id);
     if (input.adoptedUnitKeys.has(key)) continue;
+    // Fallback means fallback. If the published manifest already names this
+    // position, it keeps it — `byOrder.set` here would overwrite the placement
+    // and make this list disagree with the reader, which resolves the manifest
+    // first. One position, one occupant, and the same one everywhere.
+    if (byOrder.has(c.order)) continue;
     byOrder.set(c.order, {
       order: c.order,
       readerRef: { kind: "chapter", id: c.id },

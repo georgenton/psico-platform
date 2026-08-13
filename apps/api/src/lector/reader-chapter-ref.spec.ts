@@ -158,12 +158,35 @@ describe("resolving a position to an identity (for the redirect)", () => {
 
   it("is null when nothing occupies that position", async () => {
     expect(
-      await resolveLocatorRef(db(), {
-        bookId: "book-1",
-        bookSlug: "libro",
-        order: 99,
-      }),
+      await resolveLocatorRef(
+        db({
+          chapter: {
+            findFirst: vi.fn().mockResolvedValue(null),
+            findUnique: vi.fn().mockResolvedValue(null),
+            findMany: vi.fn().mockResolvedValue([]),
+          },
+        }),
+        {
+          bookId: "book-1",
+          bookSlug: "libro",
+          order: 99,
+        },
+      ),
     ).toBeNull();
+  });
+
+  it("an unexpected database failure is NOT reported as an empty position", async () => {
+    // The catch used to swallow everything, so an outage looked exactly like a
+    // chapter that is not there — and the redirect would 404 instead of erroring.
+    const boom = new Error("connection terminated unexpectedly");
+    await expect(
+      resolveLocatorRef(
+        db({
+          edition: { findFirst: vi.fn().mockRejectedValue(boom) },
+        }),
+        { bookId: "book-1", bookSlug: "libro", order: 1 },
+      ),
+    ).rejects.toThrow(/connection terminated/);
   });
 });
 

@@ -150,6 +150,11 @@ export async function resolveUnitTarget(
     };
   }
 
+  // `accessPlan === null` means Content Core has not taken this edition's
+  // entitlement over yet — and plan and preview transfer TOGETHER. Reading
+  // `isFreePreview` here would be reading a column that was never derived:
+  // it defaults to false, so every chapter of an un-migrated edition would
+  // silently lose its free preview. The migration is what flips ownership.
   return resolveUnitTargetFromLegacy(db, edition.slug, unitKey);
 }
 
@@ -201,16 +206,65 @@ async function resolveByLegacyBlockId(
     where: { id: blockId },
     select: {
       chapter: {
-        select: { order: true, bookId: true, book: { select: { plan: true } } },
+        select: {
+          id: true,
+          order: true,
+          bookId: true,
+          book: { select: { plan: true, slug: true } },
+        },
       },
     },
   });
   if (!block) throw new NotFoundException("BLOCK_NOT_FOUND");
+
+  // Preview follows the chapter's IDENTITY, not the number beside it. Reaching
+  // a chapter through one of its blocks must not produce a different answer
+  // from reaching it through its unit key — a caller choosing `blockId` over
+  // `blockKey` would otherwise get a different entitlement decision for the
+  // same content.
+  const unit = await adoptedUnitFor(db, {
+    bookSlug: block.chapter.book.slug,
+    chapterId: block.chapter.id,
+  });
+
   return {
     bookId: block.chapter.bookId,
     bookPlan: block.chapter.book.plan,
-    isFreePreview: isFreePreviewByPosition(block.chapter.order),
+    isFreePreview:
+      unit?.isFreePreview ?? isFreePreviewByPosition(block.chapter.order),
   };
+}
+
+/**
+ * The `ContentUnit` a legacy chapter was adopted as, if any.
+ *
+ * The one place that answers "has Content Core taken this chapter over", so a
+ * legacy block, a unit key and the reader cannot disagree about it. Adoption is
+ * an identity question — `uuidv5(chapter.id)` — never a positional one.
+ *
+ * Ownership is per EDITION, though: an edition whose `accessPlan` is still null
+ * has units that predate the column, whose `isFreePreview` defaults to false
+ * and was never derived from anything. Trusting it there would revoke the free
+ * preview of every un-migrated book.
+ */
+async function adoptedUnitFor(
+  db: AccessDb,
+  input: { bookSlug: string; chapterId: string },
+): Promise<{ isFreePreview: boolean } | null> {
+  const edition = await db.edition.findFirst({
+    where: { slug: input.bookSlug },
+    select: { id: true, accessPlan: true },
+  });
+  // Same ownership switch as `resolveUnitTarget`: until an edition is owned,
+  // its units' `isFreePreview` has never been derived and means nothing.
+  if (!edition || edition.accessPlan === null) return null;
+  return db.contentUnit.findFirst({
+    where: {
+      editionId: edition.id,
+      unitKey: unitKeyFromLegacyChapterId(input.chapterId),
+    },
+    select: { isFreePreview: true },
+  });
 }
 
 /**

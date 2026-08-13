@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
 import {
   progressForEffectiveChapters,
   resolveEffectiveChapters,
@@ -22,11 +23,12 @@ const placement = (
     partTitle: string | null;
     durationMinutes: number | null;
   }> = {},
+  unitKey = `key-${unitId}`,
 ) => ({
   order,
   partNumber: extra.partNumber ?? null,
   partTitle: extra.partTitle ?? null,
-  unit: { id: unitId },
+  unit: { id: unitId, unitKey },
   unitVersion: {
     title,
     durationMinutes: extra.durationMinutes ?? null,
@@ -45,17 +47,18 @@ const legacy = (order: number, id: string, title: string) => ({
 function db(opts: {
   publishedRevisionId?: string | null;
   placements?: ReturnType<typeof placement>[];
-  /** Positions a `Chapter` row occupies — published or not. */
-  occupiedOrders?: number[];
+  /** Unit keys this edition has adopted. */
+  adoptedKeys?: string[];
 }) {
   const revisionUnit = {
     findMany: vi.fn().mockResolvedValue(opts.placements ?? []),
   };
-  const chapter = {
+  const chapter = { findMany: vi.fn().mockResolvedValue([]) };
+  const contentUnit = {
     findMany: vi
       .fn()
       .mockResolvedValue(
-        (opts.occupiedOrders ?? []).map((order) => ({ order })),
+        (opts.adoptedKeys ?? []).map((unitKey) => ({ unitKey })),
       ),
   };
   const edition = {
@@ -64,10 +67,10 @@ function db(opts: {
       .mockResolvedValue(
         opts.publishedRevisionId === undefined
           ? null
-          : { publishedRevisionId: opts.publishedRevisionId },
+          : { id: "ed-1", publishedRevisionId: opts.publishedRevisionId },
       ),
   };
-  return { edition, revisionUnit, chapter } as never;
+  return { edition, revisionUnit, chapter, contentUnit } as never;
 }
 
 describe("resolveEffectiveChapters", () => {
@@ -171,29 +174,80 @@ describe("resolveEffectiveChapters", () => {
     expect(out[0].title).toBe("El original");
   });
   /**
-   * The gap the parity proof in `reader-locator.pg-spec.ts` found.
+   * Phase B.B, Model A: the published manifest owns position.
    *
-   * `Chapter.isPublished` defaults to false and the reader ignores the column
-   * entirely, so an unpublished legacy chapter still SERVES its position.
+   * This used to assert the opposite — that ANY `Chapter` row, published or
+   * not, suppressed a native placement at its order. That rule existed because
+   * positional resolution was legacy-first, so listing the native chapter would
+   * have handed out a link the reader answered differently.
+   *
+   * The reader now starts from the manifest, so the two agree the other way
+   * round: a published placement is served, and an UNPUBLISHED legacy row no
+   * longer shadows it. That is the intended change — an unpublished chapter was
+   * never something a reader should have been served in the first place.
    */
-  it("an unpublished legacy chapter still blocks its position from going native", async () => {
+  it("an unpublished, unadopted legacy row no longer shadows a placement", async () => {
     const out = await resolveEffectiveChapters(
       db({
         publishedRevisionId: "rev-pub",
         placements: [
-          placement(1, "u-1", "Copia"),
-          placement(2, "u-2", "Nativo real"),
+          placement(1, "u-1", "Nativo uno"),
+          placement(2, "u-2", "Nativo dos"),
         ],
-        // Position 1 has a `Chapter` row; detail's include dropped it because
-        // it is unpublished, so it is absent from `legacyChapters`.
-        occupiedOrders: [1],
+        adoptedKeys: [],
       }),
+      // The unpublished row is absent from what a reader can see, and it has
+      // no unit, so nothing links it to either placement.
       { bookId: "book-1", bookSlug: "libro", legacyChapters: [] },
     );
 
-    // Not listed as `u/u-1`: that link would open the legacy chapter's text.
-    // Not listed at all: an unpublished chapter is not catalogue material.
-    expect(out.map((c) => c.readerRef)).toEqual([{ kind: "unit", id: "u-2" }]);
+    expect(out.map((c) => c.readerRef)).toEqual([
+      { kind: "unit", id: "u-1" },
+      { kind: "unit", id: "u-2" },
+    ]);
+  });
+
+  it("an ADOPTED legacy chapter is placed by the manifest, not by its own order", async () => {
+    // The drift Model A exists for: the row still says 1, the manifest says 2.
+    const legacyRow = legacy(1, "ch-1", "El original");
+    const key = unitKeyFromLegacyChapterId("ch-1");
+    const out = await resolveEffectiveChapters(
+      db({
+        publishedRevisionId: "rev-pub",
+        placements: [
+          placement(1, "u-native", "Nativo"),
+          placement(2, "u-backing", "Copia", {}, key),
+        ],
+        adoptedKeys: [key],
+      }),
+      { bookId: "book-1", bookSlug: "libro", legacyChapters: [legacyRow] },
+    );
+
+    expect(out.map((c) => [c.order, c.readerRef.kind, c.readerRef.id])).toEqual(
+      [
+        [1, "unit", "u-native"],
+        // Its identity, at the manifest's position — and its stale order of 1
+        // did not suppress the native chapter now sitting there.
+        [2, "chapter", "ch-1"],
+      ],
+    );
+  });
+
+  it("an adopted chapter absent from the published structure is not revived", async () => {
+    const legacyRow = legacy(1, "ch-gone", "Retirado");
+    const key = unitKeyFromLegacyChapterId("ch-gone");
+    const out = await resolveEffectiveChapters(
+      db({
+        publishedRevisionId: "rev-pub",
+        placements: [placement(1, "u-1", "Nativo")],
+        // Adopted — but the published revision does not place it.
+        adoptedKeys: [key],
+      }),
+      { bookId: "book-1", bookSlug: "libro", legacyChapters: [legacyRow] },
+    );
+
+    // Not unsynced, so `Chapter.order` does not put it back in the book.
+    expect(out.map((c) => c.readerRef)).toEqual([{ kind: "unit", id: "u-1" }]);
   });
 });
 

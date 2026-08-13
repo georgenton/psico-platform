@@ -48,7 +48,12 @@ export interface BookCardLifecycle {
 
 type Db = Pick<
   PrismaClient,
-  "edition" | "revisionUnit" | "chapter" | "userProgress" | "readingSession"
+  | "edition"
+  | "revisionUnit"
+  | "chapter"
+  | "contentUnit"
+  | "userProgress"
+  | "readingSession"
 >;
 
 /** A book row as the card query already loaded it. */
@@ -142,7 +147,7 @@ export async function resolveBookCardLifecycle(
 
 /** The effective chapters of every book on the page, keyed by book id. */
 async function resolveStructure(
-  db: Pick<Db, "edition" | "revisionUnit" | "chapter">,
+  db: Pick<Db, "edition" | "revisionUnit" | "chapter" | "contentUnit">,
   books: BookCardRow[],
 ): Promise<Map<string, EffectiveChapter[]>> {
   const bookIds = books.map((b) => b.id);
@@ -153,13 +158,29 @@ async function resolveStructure(
   const [editions, occupancy] = await Promise.all([
     db.edition.findMany({
       where: { slug: { in: slugs } },
-      select: { slug: true, publishedRevisionId: true },
+      select: { id: true, slug: true, publishedRevisionId: true },
     }),
     db.chapter.findMany({
       where: { bookId: { in: bookIds } },
       select: { bookId: true, order: true },
     }),
   ]);
+
+  // Which units each edition has adopted — the same question
+  // `resolveEffectiveChapters` asks, batched across the page.
+  const adoptedByEdition = new Map<string, Set<string>>();
+  if (editions.length > 0) {
+    const units = await db.contentUnit.findMany({
+      where: { editionId: { in: editions.map((e) => e.id) } },
+      select: { editionId: true, unitKey: true },
+    });
+    for (const u of units) {
+      const set = adoptedByEdition.get(u.editionId) ?? new Set<string>();
+      set.add(u.unitKey);
+      adoptedByEdition.set(u.editionId, set);
+    }
+  }
+  const editionIdBySlug = new Map(editions.map((e) => [e.slug, e.id]));
 
   const revisionBySlug = new Map<string, string>();
   for (const e of editions) {
@@ -178,7 +199,7 @@ async function resolveStructure(
         order: true,
         partNumber: true,
         partTitle: true,
-        unit: { select: { id: true } },
+        unit: { select: { id: true, unitKey: true } },
         unitVersion: { select: { title: true, durationMinutes: true } },
       },
     });
@@ -205,7 +226,9 @@ async function resolveStructure(
         nativePlacements: revisionId
           ? (placementsByRevision.get(revisionId) ?? [])
           : [],
-        occupiedLegacyOrders: occupiedByBook.get(book.id) ?? [],
+        adoptedUnitKeys:
+          adoptedByEdition.get(editionIdBySlug.get(book.slug) ?? "") ??
+          new Set<string>(),
         // The rows the card query already loaded — published only, which is
         // what a reader can see.
         publishedLegacyRows: book.chapters ?? [],

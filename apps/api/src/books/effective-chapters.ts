@@ -1,5 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import type { ReaderChapterRef } from "@psico/types";
+import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
+import { legacyChaptersByUnitKey } from "../lector/legacy-placement";
 
 /**
  * The chapters a book CURRENTLY offers a reader.
@@ -44,7 +46,10 @@ import type { ReaderChapterRef } from "@psico/types";
  * before anyone published it is a leak, not a preview.
  */
 
-type Db = Pick<PrismaClient, "edition" | "revisionUnit" | "chapter">;
+type Db = Pick<
+  PrismaClient,
+  "edition" | "revisionUnit" | "chapter" | "contentUnit"
+>;
 
 /** A legacy chapter as the detail query already fetched it. */
 export interface LegacyChapterRow {
@@ -82,40 +87,43 @@ export async function resolveEffectiveChapters(
 ): Promise<EffectiveChapter[]> {
   const edition = await db.edition.findFirst({
     where: { slug: input.bookSlug },
-    select: { publishedRevisionId: true },
+    select: { id: true, publishedRevisionId: true },
   });
 
   let nativePlacements: NativePlacement[] = [];
-  let occupiedLegacyOrders: number[] = [];
+  let adoptedUnitKeys = new Set<string>();
 
-  if (edition?.publishedRevisionId) {
-    const [placements, occupancy] = await Promise.all([
-      db.revisionUnit.findMany({
-        where: { revisionId: edition.publishedRevisionId },
-        orderBy: { order: "asc" },
-        select: {
-          order: true,
-          partNumber: true,
-          partTitle: true,
-          unit: { select: { id: true } },
-          unitVersion: { select: { title: true, durationMinutes: true } },
-        },
-      }),
-      // Every position a `Chapter` row occupies, published or not — the reader
-      // does not distinguish, so neither can this. One indexed query.
-      db.chapter.findMany({
-        where: { bookId: input.bookId },
-        select: { order: true },
+  if (edition) {
+    const [placements, units] = await Promise.all([
+      edition.publishedRevisionId
+        ? db.revisionUnit.findMany({
+            where: { revisionId: edition.publishedRevisionId },
+            orderBy: { order: "asc" },
+            select: {
+              order: true,
+              partNumber: true,
+              partTitle: true,
+              unit: { select: { id: true, unitKey: true } },
+              unitVersion: { select: { title: true, durationMinutes: true } },
+            },
+          })
+        : Promise.resolve([]),
+      // Which chapters this edition has adopted at all. It is what separates a
+      // chapter that was never ingested from one deliberately removed from the
+      // published structure — two states that must not behave alike.
+      db.contentUnit.findMany({
+        where: { editionId: edition.id },
+        select: { unitKey: true },
       }),
     ]);
     nativePlacements = placements;
-    occupiedLegacyOrders = occupancy.map((c) => c.order);
+    adoptedUnitKeys = new Set(units.map((u) => u.unitKey));
   }
 
   return mergeEffectiveChapters({
     nativePlacements,
-    occupiedLegacyOrders,
     publishedLegacyRows: input.legacyChapters,
+    adoptedUnitKeys,
   });
 }
 
@@ -124,7 +132,7 @@ export interface NativePlacement {
   order: number;
   partNumber: number | null;
   partTitle: string | null;
-  unit: { id: string };
+  unit: { id: string; unitKey: string };
   unitVersion: { title: string; durationMinutes: number | null };
 }
 
@@ -138,16 +146,35 @@ export interface NativePlacement {
  */
 export function mergeEffectiveChapters(input: {
   nativePlacements: NativePlacement[];
-  /** Positions a `Chapter` row holds — published or not. */
-  occupiedLegacyOrders: number[];
   /** The legacy chapters a reader can actually see. */
   publishedLegacyRows: LegacyChapterRow[];
+  /** Every unit key this edition holds — how adoption is recognised. */
+  adoptedUnitKeys: Set<string>;
 }): EffectiveChapter[] {
   const byOrder = new Map<number, EffectiveChapter>();
-  const occupied = new Set(input.occupiedLegacyOrders);
+  const legacyByKey = legacyChaptersByUnitKey(input.publishedLegacyRows);
+  const placed = new Set<string>();
 
+  // The manifest decides every position it names.
   for (const p of input.nativePlacements) {
-    if (occupied.has(p.order)) continue;
+    const backing = legacyByKey.get(p.unit.unitKey);
+    if (backing) {
+      // Adopted legacy: the placement says WHERE, the Chapter row says WHICH
+      // identity serves it. Its own `order` is not consulted — that column is
+      // allowed to be stale, which is the whole point of Model A.
+      placed.add(backing.id);
+      byOrder.set(p.order, {
+        order: p.order,
+        readerRef: { kind: "chapter", id: backing.id },
+        // Title and duration stay legacy for a legacy-backed chapter; this
+        // change is about position, not metadata authority.
+        title: backing.title,
+        durationMinutes: backing.durationMinutes,
+        partNumber: p.partNumber,
+        partTitle: p.partTitle,
+      });
+      continue;
+    }
     byOrder.set(p.order, {
       order: p.order,
       readerRef: { kind: "unit", id: p.unit.id },
@@ -161,9 +188,18 @@ export function mergeEffectiveChapters(input: {
     });
   }
 
-  // Legacy last, so it overwrites at any position both claim — which is what
-  // the reader does when it serves that position.
+  // Whatever the manifest did not account for. A chapter with no unit at all
+  // has never been adopted, so its own order is still the only answer there
+  // is — and it may legitimately occupy a position the manifest also names,
+  // which is a real structural conflict and stays visible rather than hidden.
+  //
+  // A chapter that IS adopted but has no placement was taken out of the
+  // published structure deliberately. It is not unsynced, and reviving it from
+  // a stale number would put content back into a book somebody removed it from.
   for (const c of input.publishedLegacyRows) {
+    if (placed.has(c.id)) continue;
+    const key = unitKeyFromLegacyChapterId(c.id);
+    if (input.adoptedUnitKeys.has(key)) continue;
     byOrder.set(c.order, {
       order: c.order,
       readerRef: { kind: "chapter", id: c.id },

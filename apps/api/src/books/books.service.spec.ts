@@ -87,6 +87,9 @@ function buildPrismaMock() {
     // Book detail builds its chapter list from the EFFECTIVE readable
     // structure. No published edition here → legacy rows are the whole list,
     // which is the pre-existing behaviour these tests describe.
+    // Adoption is read from the edition's units — how an unsynced chapter is
+    // told apart from one removed from the published structure.
+    contentUnit: { findMany: vi.fn().mockResolvedValue([]) },
     edition: {
       findFirst: vi.fn().mockResolvedValue(null),
       // The page-batched card resolver reads editions by slug.

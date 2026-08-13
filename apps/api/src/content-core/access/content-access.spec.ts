@@ -78,9 +78,17 @@ const PRO_CH1 = "chap-pro-1-id";
 
 describe("resolveUnitTarget — same keys → same decision (dual-source parity)", () => {
   const base = {
+    // These editions have adopted nothing, so the resolver finds no unit and
+    // the positional fallback still answers — which is the path these cases
+    // pin. An edition WITH units keeps its own `isFreePreview` regardless of
+    // `accessPlan`; that is covered by the entitlement drift proof.
+    contentUnit: { findFirst: async () => null },
     // #580 — the resolver finds the edition by key first. `accessPlan: null`
     // puts it on the legacy fallback, which is the path these cases pin.
     edition: {
+      // No adoption in these fixtures, so a legacy block still answers from
+      // its position — the compatibility case these cases exist to pin.
+      findFirst: async () => null,
       findUnique: async ({
         where: { editionKey },
       }: {
@@ -155,12 +163,21 @@ describe("resolveUnitTarget — same keys → same decision (dual-source parity)
 
 describe("resolveWriteTarget — legacy blockId and content-core blockKey agree", () => {
   const chapterRow = {
-    chapter: { order: 2, bookId: "book-pro", book: { plan: "PRO" } },
+    chapter: {
+      id: "ch-pro-2",
+      order: 2,
+      bookId: "book-pro",
+      book: { plan: "PRO", slug: "familias-ensambladas" },
+    },
   };
 
   it("legacy blockId → the block's chapter", async () => {
     const target = await resolveWriteTarget(
-      db({ chapterBlock: { findUnique: async () => chapterRow } }),
+      db({
+        chapterBlock: { findUnique: async () => chapterRow },
+        // Nothing adopted, so the block still answers from its position.
+        edition: { findFirst: async () => null },
+      }),
       { blockId: "legacy-b" },
     );
     expect(target).toEqual({
@@ -179,6 +196,7 @@ describe("resolveWriteTarget — legacy blockId and content-core blockKey agree"
           findUnique: async () => ({ legacyBlockId: "legacy-b", unitId: "u" }),
         },
         chapterBlock: { findUnique: async () => chapterRow },
+        edition: { findFirst: async () => null },
       }),
       { blockKey: "bk-1" },
     );

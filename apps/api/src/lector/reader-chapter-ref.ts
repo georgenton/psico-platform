@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import {
   resolveNativeChapter,
+  resolveReaderChapter,
   resolveNativeUnitById,
 } from "./reader-chapter-resolver";
 
@@ -89,7 +90,7 @@ export async function resolveChapterByRef(
  * using it merely to discover where to redirect would record that somebody
  * started reading a chapter they were only passing through.
  *
- * Legacy-first, exactly like `resolveReaderChapter`: a `Chapter` row at this
+ * Manifest-first, exactly like `resolveReaderChapter`: the published placement
  * position answers for it, and only then is Content Core consulted. Getting
  * that order wrong here would send a reader to a different chapter than the
  * positional route serves today.
@@ -98,16 +99,16 @@ export async function resolveLocatorRef(
   db: Db,
   input: { bookId: string; bookSlug: string; order: number },
 ): Promise<ReaderChapterRef | null> {
-  const legacy = await db.chapter.findFirst({
-    where: { bookId: input.bookId, order: input.order },
-    select: { id: true },
-  });
-  if (legacy) return { kind: "chapter", id: legacy.id };
-
-  const native = await resolveNativeChapter(
-    db as never,
-    input.bookSlug,
-    input.order,
+  // Same authority as the reader itself: the published manifest says who
+  // occupies a position. Asking `Chapter` first would let a stale order answer
+  // for a chapter the structure has moved — and a locator that disagrees with
+  // the reader is worse than no locator, because the redirect would land
+  // somewhere the reader then serves differently.
+  const target = await resolveReaderChapter(db as never, input).catch(
+    () => null,
   );
-  return native ? { kind: "unit", id: native.contentUnitId } : null;
+  if (!target) return null;
+  return target.source === "legacy"
+    ? { kind: "chapter", id: target.chapterId }
+    : { kind: "unit", id: target.contentUnitId };
 }

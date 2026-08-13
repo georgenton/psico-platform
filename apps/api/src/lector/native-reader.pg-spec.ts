@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 
 import { LectorService } from "./lector.service";
+import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
 import { ContentAccessService } from "../content-core/access/content-access.service";
 import {
   bookCompletion,
@@ -47,6 +48,7 @@ suite("native reader · a chapter with no legacy Chapter row", () => {
   let publishedRevisionId = "";
   let nativeUnitId = "";
   let legacyChapter1Id = "";
+  let legacyChapter2Id = "";
   const USER = "user-native";
 
   /** Build a native unit and place it in the given revision. */
@@ -141,7 +143,10 @@ suite("native reader · a chapter with no legacy Chapter row", () => {
       data: { bookId, order: 1, title: "Uno" },
     });
     legacyChapter1Id = ch1.id;
-    await prisma.chapter.create({ data: { bookId, order: 2, title: "Dos" } });
+    const ch2 = await prisma.chapter.create({
+      data: { bookId, order: 2, title: "Dos" },
+    });
+    legacyChapter2Id = ch2.id;
 
     const work = await prisma.work.create({
       data: { workKey: "w-nativo", title: "Libro", authorName: "A" },
@@ -172,16 +177,19 @@ suite("native reader · a chapter with no legacy Chapter row", () => {
       data: { publishedRevisionId: revision.id },
     });
 
-    // Positions 1 and 2 mirror the legacy chapters; position 3 is native-only.
+    // Positions 1 and 2 mirror the legacy chapters, so their unit keys are
+    // DERIVED from the chapter ids — the adopted twins the backfill creates.
+    // A synthetic key would make them unrelated native units that merely share
+    // a position, which is a different fixture (Phase B.B, Model A).
     await makeNativeUnit({
-      unitKey: "u-1",
+      unitKey: unitKeyFromLegacyChapterId(legacyChapter1Id),
       title: "Uno",
       order: 1,
       revisionId: revision.id,
       isFreePreview: true,
     });
     await makeNativeUnit({
-      unitKey: "u-2",
+      unitKey: unitKeyFromLegacyChapterId(legacyChapter2Id),
       title: "Dos",
       order: 2,
       revisionId: revision.id,
@@ -741,8 +749,13 @@ suite("native reader · a chapter with no legacy Chapter row", () => {
     it("resolves the title through the published manifest entry", async () => {
       // A newer version exists and is placed ONLY in a draft revision. Home must
       // not show it.
+      // Position 1's unit is the ADOPTED twin of legacy chapter 1, so its key
+      // is derived rather than hand-written.
       const unit = await prisma.contentUnit.findFirstOrThrow({
-        where: { editionId, unitKey: "u-1" },
+        where: {
+          editionId,
+          unitKey: unitKeyFromLegacyChapterId(legacyChapter1Id),
+        },
       });
       const draftVersion = await prisma.contentUnitVersion.create({
         data: { unitId: unit.id, title: "Título borrador" },

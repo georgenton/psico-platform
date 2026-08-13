@@ -7,7 +7,10 @@ import {
   resolveReaderChapter,
   resolveNativeUnitById,
 } from "./reader-chapter-resolver";
-import { resolveLegacyPlacement } from "./legacy-placement";
+import {
+  isOutsidePublishedStructure,
+  resolveLegacyPlacement,
+} from "./legacy-placement";
 
 /**
  * Resolving a chapter by its STABLE identity, and finding that identity from a
@@ -76,7 +79,7 @@ export async function resolveChapterByRef(
       chapter,
     });
     // Removed from the published structure: not a chapter a reader can reach.
-    if (placement.source === "adopted-unpublished") return null;
+    if (isOutsidePublishedStructure(placement)) return null;
     return {
       kind: "chapter",
       chapterId: chapter.id,

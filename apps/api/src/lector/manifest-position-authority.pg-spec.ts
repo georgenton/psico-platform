@@ -609,6 +609,75 @@ suite("published manifest is the position authority", () => {
       expect(atTwo[0].readerRef).toEqual({ kind: "unit", id: colUnitId });
     });
 
+    it("the canonical route refuses it too — no surface disagrees", async () => {
+      // The one route that addresses by identity rather than position. It used
+      // to serve this chapter at its stale order 2 while the reader, the
+      // locator, Book Detail and the card all served the unit — the canonical
+      // link being the single surface that contradicted the rest.
+      const ch = await prisma.chapter.findFirstOrThrow({
+        where: { bookId: colBookId, order: 2 },
+      });
+      await expect(
+        lector.getChapterByRef(USER, "FREE" as never, COL_SLUG, {
+          kind: "chapter",
+          id: ch.id,
+        }),
+      ).rejects.toThrow(/CHAPTER_NOT_FOUND/);
+
+      // Asserted on the resolver itself, not only through its caller.
+      expect(
+        await resolveChapterByRef(prisma as never, {
+          bookId: colBookId,
+          bookSlug: COL_SLUG,
+          ref: { kind: "chapter", id: ch.id },
+        }),
+      ).toBeNull();
+    });
+
+    it("and it is not writable either", async () => {
+      const ch = await prisma.chapter.findFirstOrThrow({
+        where: { bookId: colBookId, order: 2 },
+      });
+      const before = await prisma.readingSession.count({
+        where: { userId: USER },
+      });
+
+      const beat = await lector.heartbeat(USER, {
+        bookId: colBookId,
+        chapterOrder: 2,
+        chapterId: ch.id,
+        lastBlockId: "b",
+        timeSpentDeltaSec: 60,
+        progressPct: 0.9,
+      });
+      expect(beat.ok).toBe(true);
+      // Soft-ack, and no session conjured for a chapter the book does not list.
+      expect(
+        await prisma.readingSession.count({ where: { userId: USER } }),
+      ).toBe(before);
+
+      await expect(
+        lector.completeChapter(USER, COL_SLUG, 2, undefined, ch.id),
+      ).rejects.toThrow(/CHAPTER_NOT_FOUND/);
+      // Same answer for an old client with no ids at all. Completing the unit
+      // on its behalf would be the fail-open the named path already refuses:
+      // marking finished a chapter the reader never opened.
+      await expect(lector.completeChapter(USER, COL_SLUG, 2)).rejects.toThrow(
+        /CHAPTER_NOT_FOUND/,
+      );
+      expect(
+        await prisma.userProgress.count({
+          where: { userId: USER, chapterId: ch.id },
+        }),
+      ).toBe(0);
+      // And emphatically not the unit that legitimately holds position 2.
+      expect(
+        await prisma.userProgress.count({
+          where: { userId: USER, contentUnitId: colUnitId },
+        }),
+      ).toBe(0);
+    });
+
     it("the card's structure agrees too", async () => {
       const list = await books.list(USER, {} as never);
       const card = list.books.find((b) => b.slug === COL_SLUG);

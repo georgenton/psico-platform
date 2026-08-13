@@ -7,7 +7,10 @@ import {
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";
 import { assertSingleWriteIdentity } from "./write-identity";
-import { resolveLegacyPlacement } from "./legacy-placement";
+import {
+  isOutsidePublishedStructure,
+  resolveLegacyPlacement,
+} from "./legacy-placement";
 import { Plan } from "@prisma/client";
 import {
   nextPlacedOrder,
@@ -159,7 +162,7 @@ export class LectorService {
       bookSlug: book.slug,
       chapter,
     });
-    if (placement.source === "adopted-unpublished") {
+    if (isOutsidePublishedStructure(placement)) {
       // Adopted, then taken out of the published structure. Not a chapter a
       // reader can currently open, and reviving it from a stale number would
       // put back content an editor deliberately removed.
@@ -501,7 +504,7 @@ export class LectorService {
         bookSlug: named.book.slug,
         chapter: named,
       });
-      if (beatPlacement.source === "adopted-unpublished") {
+      if (isOutsidePublishedStructure(beatPlacement)) {
         return { ok: true, progressPct: dto.progressPct };
       }
 
@@ -760,7 +763,7 @@ export class LectorService {
       bookSlug: book.slug,
       chapter,
     });
-    if (completionPlacement.source === "adopted-unpublished") {
+    if (isOutsidePublishedStructure(completionPlacement)) {
       // Adopted, then removed from the published structure. Not current
       // readable content, so it is not completable either — the same answer
       // the canonical read gives, and the same class as a retired native unit.

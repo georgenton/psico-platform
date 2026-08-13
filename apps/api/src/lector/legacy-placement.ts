@@ -33,6 +33,18 @@ import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
  *                        NOT the same as unsynced: reviving it from a stale
  *                        `Chapter.order` would put content back in a book an
  *                        editor deliberately took it out of.
+ *
+ *   displaced-legacy     never adopted, and the position it claims is already
+ *                        named by the published manifest. `Chapter.order` is
+ *                        the fallback answer, and a fallback does not get to
+ *                        overrule the thing it falls back FROM. Every list of
+ *                        the book excludes it, so serving it by id would make
+ *                        the canonical route the one surface that disagrees.
+ *
+ * The last two differ in how they got there and are worth telling apart when
+ * reading logs, but they mean the same thing to a caller: not part of the
+ * published structure. Ask `isOutsidePublishedStructure` rather than matching
+ * one of them and forgetting the other.
  */
 
 export type LegacyPlacement =
@@ -62,7 +74,32 @@ export type LegacyPlacement =
       chapterId: string;
       contentUnitId: string;
       unitKey: string;
+    }
+  | {
+      source: "displaced-legacy";
+      chapterId: string;
+      contentUnitId: null;
+      unitKey: string;
+      /** Who the manifest puts there instead. Kept for diagnosis. */
+      occupiedOrder: number;
     };
+
+/**
+ * Is this chapter absent from the book the reader can actually see?
+ *
+ * True for both "adopted then removed" and "never adopted, and outranked".
+ * Callers that serve or write content should refuse on this, not on one
+ * specific `source` — the two states arrive by different routes and a check
+ * that names only one silently permits the other.
+ */
+export function isOutsidePublishedStructure(
+  p: LegacyPlacement,
+): p is Extract<
+  LegacyPlacement,
+  { source: "adopted-unpublished" | "displaced-legacy" }
+> {
+  return p.source === "adopted-unpublished" || p.source === "displaced-legacy";
+}
 
 type Db = Pick<PrismaClient, "edition" | "contentUnit" | "revisionUnit">;
 
@@ -94,8 +131,27 @@ export async function resolveLegacyPlacement(
       })
     : null;
 
-  // Never adopted. The old column is still the truth for this chapter.
+  // Never adopted. The old column is still the truth for this chapter — unless
+  // the published manifest has already spoken for that position.
   if (!unit) {
+    if (edition?.publishedRevisionId) {
+      const occupant = await db.revisionUnit.findFirst({
+        where: {
+          revisionId: edition.publishedRevisionId,
+          order: input.chapter.order,
+        },
+        select: { order: true },
+      });
+      if (occupant) {
+        return {
+          source: "displaced-legacy",
+          chapterId: input.chapter.id,
+          contentUnitId: null,
+          unitKey,
+          occupiedOrder: occupant.order,
+        };
+      }
+    }
     return {
       source: "unsynced-legacy",
       chapterId: input.chapter.id,

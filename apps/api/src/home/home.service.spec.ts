@@ -21,7 +21,10 @@ function buildPrisma() {
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),
     },
-    contentUnit: { findUnique: vi.fn().mockResolvedValue(null) },
+    contentUnit: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
     // Continue now starts from `ReadingSession`, and the book's effective
     // structure decides whether that identity is still openable.
     chapter: {

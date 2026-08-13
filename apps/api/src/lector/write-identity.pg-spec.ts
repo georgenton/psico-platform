@@ -108,10 +108,11 @@ suite("stable write identity is fail-closed", () => {
       where: { id: edition.id },
       data: { publishedRevisionId: revision.id },
     });
-    for (const [order, key] of [
-      [1, "u-1"],
-      [2, "u-2"],
-    ] as const) {
+    // Only position 2 is native. The fixture's whole point is a MIXED book —
+    // legacy at 1, native at 2 — and under Model A that means the published
+    // manifest must be SILENT at 1, otherwise it owns that position and the
+    // legacy row there is displaced rather than served.
+    for (const [order, key] of [[2, "u-2"]] as const) {
       const unit = await prisma.contentUnit.create({
         data: { editionId: edition.id, unitKey: key, isFreePreview: true },
       });

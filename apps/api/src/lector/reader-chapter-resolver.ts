@@ -1,5 +1,9 @@
 import { NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
+import {
+  legacyChaptersByUnitKey,
+  resolveLegacyPlacement,
+} from "./legacy-placement";
 
 /**
  * Turning "chapter 3 of this book" into something the reader can open.
@@ -21,11 +25,16 @@ import type { PrismaClient } from "@prisma/client";
  *
  * ── Which source wins ─────────────────────────────────────────────────────
  *
- * Legacy first, deliberately. Every chapter in production today has a `Chapter`
- * row, and preserving their exact behaviour matters more than elegance: the
- * legacy branch is byte-for-byte what it was. The native branch is reached only
- * when there is genuinely no `Chapter` at that position — which today can only
- * be true of a unit nothing has created yet.
+ * The published MANIFEST decides which chapter sits at a position (Phase B.B,
+ * Model A). It used to be `Chapter` by `(bookId, order)` first, which was safe
+ * only while nothing could move a chapter: once reorder exists, a placement
+ * would say one thing and a stale `Chapter.order` another, and the stale column
+ * would win.
+ *
+ * A placement backed by a legacy chapter still resolves to that chapter's
+ * identity — the manifest says WHERE, the derived unit key says WHICH row
+ * serves it. Only a chapter with no `ContentUnit` at all falls back to
+ * `Chapter.order`, because for those it remains the only answer there is.
  *
  * Resolution always runs against the PUBLISHED revision. A structural draft is
  * not a chapter a reader can find.
@@ -70,22 +79,53 @@ export async function resolveReaderChapter(
   db: Db,
   input: { bookId: string; bookSlug: string; order: number },
 ): Promise<ReaderChapterTarget> {
+  const native = await resolveNativeChapter(db, input.bookSlug, input.order);
+
+  if (native) {
+    // The placement owns the position. If a legacy chapter backs this unit,
+    // that chapter's identity still serves it — matched by derived key, never
+    // by comparing the two orders.
+    const chapters = await db.chapter.findMany({
+      where: { bookId: input.bookId },
+      select: { id: true, order: true },
+    });
+    const backing = legacyChaptersByUnitKey(chapters).get(native.unitKey);
+    if (backing) {
+      return {
+        source: "legacy",
+        chapterId: backing.id,
+        contentUnitId: null,
+        // The manifest's order, not the row's — that column is now stale-able.
+        order: native.order,
+      };
+    }
+    return native;
+  }
+
+  // Nothing published at that position. A legacy row may still answer for it,
+  // but only if it was never adopted: an adopted chapter absent from the
+  // published structure was taken out of the book deliberately, and reviving
+  // it from a stale number would put it back.
   const legacy = await db.chapter.findUnique({
     where: { bookId_order: { bookId: input.bookId, order: input.order } },
     select: { id: true, order: true },
   });
   if (legacy) {
-    return {
-      source: "legacy",
-      chapterId: legacy.id,
-      contentUnitId: null,
-      order: legacy.order,
-    };
+    const placement = await resolveLegacyPlacement(db, {
+      bookSlug: input.bookSlug,
+      chapter: legacy,
+    });
+    if (placement.source === "unsynced-legacy") {
+      return {
+        source: "legacy",
+        chapterId: legacy.id,
+        contentUnitId: null,
+        order: placement.order,
+      };
+    }
   }
 
-  const native = await resolveNativeChapter(db, input.bookSlug, input.order);
-  if (!native) throw new NotFoundException("CHAPTER_NOT_FOUND");
-  return native;
+  throw new NotFoundException("CHAPTER_NOT_FOUND");
 }
 
 /**

@@ -78,7 +78,7 @@ describe("the legacy stable route", () => {
     expect(body).not.toMatch(/target\.order/);
   });
 
-  it("derives the order from the row it fetched, not from a caller", async () => {
+  it("derives the order from the published placement, never the caller or the row", async () => {
     const src = await import("node:fs").then((fs) =>
       fs.readFileSync(
         new URL("./lector.service.ts", import.meta.url).pathname,
@@ -88,7 +88,13 @@ describe("the legacy stable route", () => {
     const builder = src.slice(src.indexOf("private async getLegacyChapter"));
     // Scoped by book, found by id — a chapter from another book is never in hand.
     expect(builder).toContain("where: { id: chapterId, bookId: book.id }");
-    // And the order comes from that row.
-    expect(builder).toContain("const chapterOrder = chapter.order;");
+    // MANIFEST_POSITION_AUTHORITY_RATCHET (Phase B.B, Model A).
+    //
+    // The order used to come from `chapter.order`. That column is now allowed
+    // to go stale, so reading it here would report a position the book no
+    // longer has. It comes from the resolved placement — and still never from
+    // the caller, which was this test's original point.
+    expect(builder).toContain("const chapterOrder = placement.order;");
+    expect(builder).not.toContain("const chapterOrder = chapter.order;");
   });
 });

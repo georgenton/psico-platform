@@ -87,6 +87,9 @@ function buildPrismaMock() {
     // Book detail builds its chapter list from the EFFECTIVE readable
     // structure. No published edition here → legacy rows are the whole list,
     // which is the pre-existing behaviour these tests describe.
+    // Adoption is read from the edition's units — how an unsynced chapter is
+    // told apart from one removed from the published structure.
+    contentUnit: { findMany: vi.fn().mockResolvedValue([]) },
     edition: {
       findFirst: vi.fn().mockResolvedValue(null),
       // The page-batched card resolver reads editions by slug.
@@ -567,7 +570,10 @@ describe("BooksService.getDetail", () => {
       expect(out.userProgress?.lastChapterRead).toBe(2);
     });
 
-    it("a legacy row wins the position it shares with a backfilled unit", async () => {
+    it("an unsynced legacy row does not take a position the manifest names", async () => {
+      // Under Model A the published placement is the occupant, and Book Detail
+      // must say the same thing the reader does. The legacy row here has no
+      // unit, so its order is a fallback — and a fallback yields.
       prisma.book.findUnique.mockResolvedValue({
         ...baseFreeBook,
         chapters: [
@@ -581,15 +587,14 @@ describe("BooksService.getDetail", () => {
         ],
       });
       prisma.userProgress.findMany.mockResolvedValue([]);
-      publishedNative([{ order: 1, id: "u-backfilled", title: "Copia" }]);
+      publishedNative([{ order: 1, id: "u-native", title: "Nativo" }]);
 
       const out = await service.getDetail("user-1", "emociones");
 
       expect(out.chaptersList).toHaveLength(1);
-      // Matches `resolveLocatorRef`, which tries the legacy row first.
       expect(out.chaptersList[0].readerRef).toEqual({
-        kind: "chapter",
-        id: "ch-1",
+        kind: "unit",
+        id: "u-native",
       });
     });
   });

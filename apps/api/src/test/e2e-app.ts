@@ -113,6 +113,10 @@ function makePrismaMock() {
     },
     contentUnit: {
       findMany: fn(),
+      // Adoption lookups: whether a legacy chapter has a Content Core unit,
+      // which is what decides its free-preview authority.
+      findFirst: fn(),
+      findUnique: fn(),
     },
     revisionUnit: {
       findUnique: fn(),
@@ -129,6 +133,7 @@ function makePrismaMock() {
     },
     edition: {
       findUnique: fn(),
+      findFirst: fn(),
     },
     learningEvent: {
       createMany: fn(),

@@ -198,13 +198,19 @@ suite("native book lifecycle", () => {
 
     await makeBook("solo-legado", { legacy: [1, 2] });
     await makeBook("solo-nativo", { native: [1, 2] });
-    await makeBook("mixto", { legacy: [1, 3], native: [1, 2, 3] });
+    // Genuinely mixed under Model A: the published manifest names position 2
+    // and says nothing about 1 or 3, so the legacy rows fill those in. When a
+    // manifest DOES name a position an unsynced row also claims, the manifest
+    // wins — `colision` below.
+    await makeBook("mixto", { legacy: [1, 3], native: [2] });
     // A native book whose only revision is a DRAFT — nothing to read yet.
     await makeBook("solo-borrador", { native: [1], publish: false });
     // Private to the card-progress assertions: those complete a whole book,
     // which would destroy the preconditions the review tests depend on.
     await makeBook("card-nativo", { native: [1, 2] });
-    await makeBook("card-mixto", { legacy: [1, 3], native: [1, 2, 3] });
+    await makeBook("card-mixto", { legacy: [1, 3], native: [2] });
+    // An unsynced legacy chapter claiming a position the manifest names.
+    await makeBook("colision", { legacy: [1], native: [1] });
     // Private to the native-reopen proof: it must not inherit completions or
     // sessions from the fixtures the other assertions mutate.
     await makeBook("reopen-nativo", { native: [1, 2] });
@@ -253,8 +259,9 @@ suite("native book lifecycle", () => {
   });
 
   it("starting a MIXED book opens the first EFFECTIVE chapter", async () => {
-    // Position 1 is claimed by both structures; the reader serves legacy, so
-    // that is what "first chapter" means.
+    // First EFFECTIVE means first of the merged structure, not first of
+    // either half: position 1 is legacy here, and the native unit at 2 is not
+    // "first" merely because it is the first thing the manifest names.
     await books.startBook(USER, "mixto");
 
     const s = await prisma.readingSession.findFirst({
@@ -262,7 +269,7 @@ suite("native book lifecycle", () => {
     });
     expect(s).not.toBeNull();
     const wrong = await prisma.readingSession.findFirst({
-      where: { userId: USER, contentUnitId: unitId["mixto:1"] },
+      where: { userId: USER, contentUnitId: unitId["mixto:2"] },
     });
     expect(wrong).toBeNull();
   });
@@ -392,9 +399,10 @@ suite("native book lifecycle", () => {
     // Every fixture carries `totalChapters: 99`.
     expect((await card("solo-legado"))!.chapters).toBe(2);
     expect((await card("solo-nativo"))!.chapters).toBe(2);
-    // Legacy 1 and 3, native 2 — three effective, and the contested position
-    // counted once rather than twice.
+    // Legacy 1 and 3, native 2 — three effective, from two structures.
     expect((await card("mixto"))!.chapters).toBe(3);
+    // The collision counts ONCE: one position, one occupant.
+    expect((await card("colision"))!.chapters).toBe(1);
   });
 
   it("a draft-only book counts none of its unpublished chapters", async () => {
@@ -447,12 +455,23 @@ suite("native book lifecycle", () => {
     });
     const done = await card("card-mixto");
     expect(done!.userProgress!.progressPct).toBe(100);
-    // Reaching 100 without ever completing position 1's backfilled TWIN is
-    // what proves the contested position is one requirement, not two.
-    const twin = await prisma.userProgress.findFirst({
-      where: { userId: USER, contentUnitId: unitId["card-mixto:1"] },
-    });
-    expect(twin).toBeNull();
+    // Three completions for three positions — the denominator and the
+    // numerator are counting the same set of chapters.
+    expect(
+      await prisma.userProgress.count({
+        where: {
+          userId: USER,
+          OR: [
+            {
+              chapterId: {
+                in: [chapterId["card-mixto:1"], chapterId["card-mixto:3"]],
+              },
+            },
+            { contentUnitId: unitId["card-mixto:2"] },
+          ],
+        },
+      }),
+    ).toBe(3);
   });
 
   it("an unauthenticated card still counts truthfully, with no reader state", async () => {
@@ -904,14 +923,22 @@ suite("native book lifecycle", () => {
     expect(res.ok).toBe(true);
   });
 
-  it("a contested position is ONE requirement, not two", async () => {
-    // `mixto` position 1 has both a legacy chapter and a backfilled unit. The
-    // review above succeeded without a completion for `mixto:1`'s UNIT — if
-    // both were demanded it could not have.
-    const unitCompletion = await prisma.userProgress.findFirst({
-      where: { userId: USER, contentUnitId: unitId["mixto:1"] },
+  it("a contested position is ONE requirement — the manifest's occupant", async () => {
+    // `colision` position 1 is claimed by an unsynced legacy chapter AND named
+    // by the published manifest. Finishing the legacy row is not finishing the
+    // book, because the legacy row is not what the reader serves there.
+    await prisma.userProgress.create({
+      data: { userId: USER, chapterId: chapterId["colision:1"] },
     });
-    expect(unitCompletion).toBeNull();
+    await expect(review("colision")).rejects.toThrow(
+      /REVIEW_REQUIRES_COMPLETION/,
+    );
+
+    await prisma.userProgress.create({
+      data: { userId: USER, contentUnitId: unitId["colision:1"] },
+    });
+    const res = await review("colision");
+    expect(res.ok).toBe(true);
   });
 
   it("a DRAFT-only book cannot be reviewed", async () => {

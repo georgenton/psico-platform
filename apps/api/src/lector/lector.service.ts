@@ -7,6 +7,10 @@ import {
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";
 import { assertSingleWriteIdentity } from "./write-identity";
+import {
+  isOutsidePublishedStructure,
+  resolveLegacyPlacement,
+} from "./legacy-placement";
 import { Plan } from "@prisma/client";
 import {
   nextPlacedOrder,
@@ -151,18 +155,43 @@ export class LectorService {
     });
     if (!chapter) throw new NotFoundException("CHAPTER_NOT_FOUND");
 
-    // Derived from the row, never taken from the caller.
-    const chapterOrder = chapter.order;
+    // Where this chapter sits NOW. `Chapter.order` is only the answer for a
+    // chapter Content Core has never adopted — for the rest the published
+    // placement owns the position, and that column is allowed to go stale.
+    const placement = await resolveLegacyPlacement(this.prisma, {
+      bookSlug: book.slug,
+      chapter,
+    });
+    if (isOutsidePublishedStructure(placement)) {
+      // Adopted, then taken out of the published structure. Not a chapter a
+      // reader can currently open, and reviving it from a stale number would
+      // put back content an editor deliberately removed.
+      throw new NotFoundException("CHAPTER_NOT_FOUND");
+    }
+    const chapterOrder = placement.order;
 
     // CC-6E — the ONE content-access policy (shared with the Content Core read +
-    // marks surfaces). First chapter is a free preview; later chapters of a PRO
-    // book require an active subscription.
-    await this.access.assertCanReadContent({
-      userId,
-      userPlan,
-      bookId: book.id,
-      chapterOrder,
-    });
+    // marks surfaces).
+    //
+    // For an ADOPTED chapter the gate follows the unit's own `isFreePreview`,
+    // never its position: a chapter moved out of first place must not lose its
+    // free preview, and one moved into first place must not gain one. Only a
+    // chapter with no unit at all still falls back to the positional rule.
+    if (placement.source === "manifest") {
+      await this.access.assertCanReadUnit({
+        userId,
+        userPlan,
+        editionKey: placement.editionKey,
+        unitKey: placement.unitKey,
+      });
+    } else {
+      await this.access.assertCanReadContent({
+        userId,
+        userPlan,
+        bookId: book.id,
+        chapterOrder,
+      });
+    }
 
     const blockIds = chapter.blocks.map((b) => b.id);
 
@@ -232,13 +261,18 @@ export class LectorService {
       },
       chapter: {
         id: chapter.id,
-        order: chapter.order,
+        // The CURRENT position, from the published placement. `chapter.order`
+        // is the row's own number and is allowed to be stale once structure
+        // can move (Phase B.B, Model A).
+        order: chapterOrder,
         title: chapter.title,
         subtitle: chapter.description,
         durationMinutes: chapter.durationMinutes,
         audioAvailable: chapter.audios.length > 0,
-        partNumber: chapter.partNumber ?? null,
-        partTitle: chapter.partTitle ?? null,
+        // Structural metadata follows the placement for an adopted chapter;
+        // an unsynced one still answers from its own row.
+        partNumber: placement.partNumber ?? null,
+        partTitle: placement.partTitle ?? null,
         // Phase B.A — the stable identity, decided here where the serving store
         // is known. A legacy chapter is identified by its Chapter row, which is
         // also what it writes progress by.
@@ -455,12 +489,25 @@ export class LectorService {
     if (dto.chapterId) {
       const named = await this.prisma.chapter.findFirst({
         where: { id: dto.chapterId, bookId: dto.bookId },
-        select: { id: true },
+        select: { id: true, order: true, book: { select: { slug: true } } },
       });
       // Soft-ack without writing, exactly as `nativeHeartbeat` does for a unit
       // id it cannot resolve. A heartbeat is fire-and-forget; failing it loudly
       // would not help a reader whose tab is already wrong.
       if (!named) return { ok: true, progressPct: dto.progressPct };
+
+      // A chapter removed from the published structure is not current content,
+      // so a tab still beating against it writes nothing — the same soft-ack a
+      // retired native unit gets. Without this, a stale tab would keep
+      // accruing time on a chapter the book no longer offers.
+      const beatPlacement = await resolveLegacyPlacement(this.prisma, {
+        bookSlug: named.book.slug,
+        chapter: named,
+      });
+      if (isOutsidePublishedStructure(beatPlacement)) {
+        return { ok: true, progressPct: dto.progressPct };
+      }
+
       return this.legacyHeartbeat(userId, dto, named.id);
     }
 
@@ -708,10 +755,22 @@ export class LectorService {
       }
     }
 
-    // Adjacency is a question about the book as it is NOW, so it is asked from
-    // the chapter's CURRENT order — the one on the row — not from whatever
-    // number the client's URL still says.
-    const currentOrder = chapter.order;
+    // Adjacency is a question about the book as it is NOW — asked from the
+    // chapter's CURRENT position, not from the number the client's URL still
+    // says, and not from `Chapter.order`, which the published structure is
+    // allowed to leave behind (Phase B.B, Model A).
+    const completionPlacement = await resolveLegacyPlacement(this.prisma, {
+      bookSlug: book.slug,
+      chapter,
+    });
+    if (isOutsidePublishedStructure(completionPlacement)) {
+      // Adopted, then removed from the published structure. Not current
+      // readable content, so it is not completable either — the same answer
+      // the canonical read gives, and the same class as a retired native unit.
+      // Falling back to `chapter.order` here would revive it for writes.
+      throw new NotFoundException("CHAPTER_NOT_FOUND");
+    }
+    const currentOrder = completionPlacement.order;
 
     // Two things in one transaction: mark the session completed and record
     // UserProgress. We don't want a partial state where the session shows
@@ -822,12 +881,33 @@ export class LectorService {
     if (!ref) throw new NotFoundException("CHAPTER_NOT_FOUND");
 
     if (ref.kind === "chapter") {
-      await this.access.assertCanReadContent({
-        userId,
-        userPlan,
-        bookId: book.id,
-        chapterOrder,
+      // Same gate the canonical route applies: an adopted chapter's preview
+      // belongs to its unit, not to the position the caller asked about. The
+      // locator must not be a looser door than the reader it redirects to.
+      const chapter = await this.prisma.chapter.findFirst({
+        where: { id: ref.id, bookId: book.id },
+        select: { id: true, order: true },
       });
+      if (!chapter) throw new NotFoundException("CHAPTER_NOT_FOUND");
+      const placement = await resolveLegacyPlacement(this.prisma, {
+        bookSlug: book.slug,
+        chapter,
+      });
+      if (placement.source === "manifest") {
+        await this.access.assertCanReadUnit({
+          userId,
+          userPlan,
+          editionKey: placement.editionKey,
+          unitKey: placement.unitKey,
+        });
+      } else {
+        await this.access.assertCanReadContent({
+          userId,
+          userPlan,
+          bookId: book.id,
+          chapterOrder: chapter.order,
+        });
+      }
     } else {
       const native = await resolveNativeUnitById(this.prisma, {
         bookSlug: book.slug,

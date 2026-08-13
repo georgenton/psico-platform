@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ContentAccessService } from "../content-core/access/content-access.service";
 import { LectorService } from "./lector.service";
+import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
 
 /**
  * Finishing a chapter must hand back the NEXT chapter's identity.
@@ -129,8 +130,18 @@ suite("completion across a mixed book", () => {
       [2, "u-b", "B"],
       [3, "u-c", "C"],
     ] as const) {
+      // Positions 1 and 3 are legacy-backed, so their units carry the key
+      // DERIVED from the chapter id — which is what makes them the adopted
+      // twins the backfill would create, rather than unrelated native units
+      // that merely share a position (Phase B.B, Model A).
+      const backing =
+        order === 1 ? chapterAId : order === 3 ? chapterCId : null;
       const unit = await prisma.contentUnit.create({
-        data: { editionId: edition.id, unitKey: key, isFreePreview: true },
+        data: {
+          editionId: edition.id,
+          unitKey: backing ? unitKeyFromLegacyChapterId(backing) : key,
+          isFreePreview: true,
+        },
       });
       if (order === 2) unitBId = unit.id;
       const version = await prisma.contentUnitVersion.create({

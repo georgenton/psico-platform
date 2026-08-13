@@ -19,13 +19,11 @@ function db(over: Record<string, unknown> = {}) {
   return {
     chapter: { findFirst: vi.fn().mockResolvedValue(null) },
     edition: {
-      findFirst: vi
-        .fn()
-        .mockResolvedValue({
-          id: "ed",
-          editionKey: "libro-1e",
-          publishedRevisionId: "r2",
-        }),
+      findFirst: vi.fn().mockResolvedValue({
+        id: "ed",
+        editionKey: "libro-1e",
+        publishedRevisionId: "r2",
+      }),
     },
     revisionUnit: { findFirst: vi.fn().mockResolvedValue(null) },
     contentUnit: { findUnique: vi.fn().mockResolvedValue(null) },
@@ -123,8 +121,16 @@ describe("resolving a chapter by its stable identity", () => {
 });
 
 describe("resolving a position to an identity (for the redirect)", () => {
-  it("is legacy-first, exactly like the reader", async () => {
-    const chapter = { findFirst: vi.fn().mockResolvedValue({ id: "c9" }) };
+  it("falls back to an UNSYNCED legacy row when the manifest is silent", async () => {
+    // Phase B.B, Model A: the published placement decides who occupies a
+    // position. With no edition at all there is no placement, so a legacy row
+    // that was never adopted is still the only answer — which is exactly the
+    // compatibility case the fallback exists for.
+    const chapter = {
+      findFirst: vi.fn().mockResolvedValue({ id: "c9" }),
+      findUnique: vi.fn().mockResolvedValue({ id: "c9", order: 2 }),
+      findMany: vi.fn().mockResolvedValue([]),
+    };
     const ref = await resolveLocatorRef(db({ chapter }), {
       bookId: "book-1",
       bookSlug: "libro",
@@ -137,7 +143,11 @@ describe("resolving a position to an identity (for the redirect)", () => {
     // The full reader read upserts a ReadingSession. Using it merely to discover
     // where to send somebody would record a chapter they only passed through.
     const readingSession = { upsert: vi.fn() };
-    const chapter = { findFirst: vi.fn().mockResolvedValue({ id: "c9" }) };
+    const chapter = {
+      findFirst: vi.fn().mockResolvedValue({ id: "c9" }),
+      findUnique: vi.fn().mockResolvedValue({ id: "c9", order: 2 }),
+      findMany: vi.fn().mockResolvedValue([]),
+    };
     await resolveLocatorRef(db({ chapter, readingSession }) as never, {
       bookId: "book-1",
       bookSlug: "libro",
@@ -148,27 +158,61 @@ describe("resolving a position to an identity (for the redirect)", () => {
 
   it("is null when nothing occupies that position", async () => {
     expect(
-      await resolveLocatorRef(db(), {
-        bookId: "book-1",
-        bookSlug: "libro",
-        order: 99,
-      }),
+      await resolveLocatorRef(
+        db({
+          chapter: {
+            findFirst: vi.fn().mockResolvedValue(null),
+            findUnique: vi.fn().mockResolvedValue(null),
+            findMany: vi.fn().mockResolvedValue([]),
+          },
+        }),
+        {
+          bookId: "book-1",
+          bookSlug: "libro",
+          order: 99,
+        },
+      ),
     ).toBeNull();
+  });
+
+  it("an unexpected database failure is NOT reported as an empty position", async () => {
+    // The catch used to swallow everything, so an outage looked exactly like a
+    // chapter that is not there — and the redirect would 404 instead of erroring.
+    const boom = new Error("connection terminated unexpectedly");
+    await expect(
+      resolveLocatorRef(
+        db({
+          edition: { findFirst: vi.fn().mockRejectedValue(boom) },
+        }),
+        { bookId: "book-1", bookSlug: "libro", order: 1 },
+      ),
+    ).rejects.toThrow(/connection terminated/);
   });
 });
 
 describe("position is a locator, identity is not", () => {
   it("the same position resolves to whatever is there NOW", async () => {
     // Before: position 2 is chapter B.
-    const before = await resolveLocatorRef(
-      db({ chapter: { findFirst: vi.fn().mockResolvedValue({ id: "B" }) } }),
-      { bookId: "book-1", bookSlug: "libro", order: 2 },
-    );
+    // Unadopted rows, so the fallback answers and the mock stays honest about
+    // which chapter the position holds at each moment.
+    const at = (id: string) => ({
+      chapter: {
+        findFirst: vi.fn().mockResolvedValue({ id }),
+        findUnique: vi.fn().mockResolvedValue({ id, order: 2 }),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+    });
+    const before = await resolveLocatorRef(db(at("B")), {
+      bookId: "book-1",
+      bookSlug: "libro",
+      order: 2,
+    });
     // After a structural change: position 2 is chapter A.
-    const after = await resolveLocatorRef(
-      db({ chapter: { findFirst: vi.fn().mockResolvedValue({ id: "A" }) } }),
-      { bookId: "book-1", bookSlug: "libro", order: 2 },
-    );
+    const after = await resolveLocatorRef(db(at("A")), {
+      bookId: "book-1",
+      bookSlug: "libro",
+      order: 2,
+    });
 
     expect(before).toEqual({ kind: "chapter", id: "B" });
     // The positional URL does not remember that B used to be there.

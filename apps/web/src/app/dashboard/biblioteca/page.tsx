@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { BookListResponse } from "@psico/types";
 
-import { getAccessToken, serverFetch } from "@/lib/api.server";
+import { getAccessToken, isNextThrow, serverFetch } from "@/lib/api.server";
 import { BookCard } from "@/components/dashboard/biblioteca/BookCard";
 import { Filters } from "@/components/dashboard/biblioteca/Filters";
 import { Pagination } from "@/components/dashboard/biblioteca/Pagination";
@@ -38,13 +38,20 @@ export default async function BibliotecaPage({
   if (searchParams.page) qs.set("page", searchParams.page);
 
   const path = qs.toString() ? `/books?${qs.toString()}` : "/books";
+  // An ordinary fetch failure still shows an empty shelf rather than an error
+  // page. A Next redirect does NOT: `serverFetch` throws one when the session
+  // is rejected, and swallowing it would strand somebody on a blank catalogue
+  // instead of sending them to log in — with no way to tell the two apart.
   const data = await serverFetch<BookListResponse>(path).catch(
-    (): BookListResponse => ({
-      books: [],
-      pagination: { page: 1, perPage: 24, total: 0 },
-      categories: [],
-      authors: [],
-    }),
+    (err: unknown): BookListResponse => {
+      if (isNextThrow(err)) throw err;
+      return {
+        books: [],
+        pagination: { page: 1, perPage: 24, total: 0 },
+        categories: [],
+        authors: [],
+      };
+    },
   );
 
   const view = (searchParams.view ?? "catalogo") as

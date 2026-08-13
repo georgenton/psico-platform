@@ -26,7 +26,10 @@ export default defineConfig({
   test: {
     // `*.pg-spec.ts` plus the Guide HTTP/firewall E2E, which boot the real
     // Nest app against the SAME isolated PostgreSQL (CC-7.4D).
-    include: ["src/**/*.pg-spec.ts", "src/guide/guide-*.e2e-spec.ts"],
+    // `*.pg-spec.ts` plus the HTTP suites that boot a real app against a real
+    // database. The Guide pattern was the first; the books optional-auth suite
+    // uses it too, so the glob names the shape rather than one directory.
+    include: ["src/**/*.pg-spec.ts", "src/**/*.e2e-spec.ts"],
     setupFiles: ["./src/test/setup-env.ts"],
     // Every test runs two genuinely concurrent transactions, each waiting on the
     // other to commit. They must not be starved of a worker thread.

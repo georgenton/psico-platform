@@ -2467,6 +2467,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pulso/content/books/{bookSlug}/structure/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Reordena los capítulos del libro EN EL BORRADOR. No publica: los lectores siguen viendo la estructura publicada hasta que se publique el borrador. Sólo ADMIN.
+         * @description El cuerpo lleva las posiciones ACTUALES de la revisión indicada, en el orden deseado — no identidades. Deben aparecer todas exactamente una vez; las posiciones existentes se conservan (no se renumeran) y ningún capítulo puede cambiar de parte.
+         */
+        put: operations["reorderContentStudioChapters"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/discard": {
         parameters: {
             query?: never;
@@ -4863,7 +4883,17 @@ export interface components {
              * @enum {string|null}
              */
             creationBlockedReason: ContentStudioBookStateResponseDtoCreationBlockedReason;
+            /** @description El servidor decide si el libro admite reordenar ahora mismo. Requiere entitlement nativo (Edition.accessPlan) y estructura sincronizada. */
+            reorderAvailable: boolean;
+            /**
+             * @description Por qué no se puede reordenar, cuando no se puede. Null cuando sí se puede.
+             * @enum {string|null}
+             */
+            reorderBlockedReason: ContentStudioBookStateResponseDtoReorderBlockedReason;
             changedUnitCount: number;
+            /** @description El borrador cambia la FORMA del libro (algo se movió, o cambió el conjunto de capítulos), no sólo el texto. */
+            structureChanged: boolean;
+            /** @description En el orden del borrador activo si lo hay, si no en el publicado. El cliente no reconstruye el manifiesto. */
             chapters: components["schemas"]["ContentStudioChapterRowDto"][];
         };
         ContentStudioBlockDto: {
@@ -4929,6 +4959,26 @@ export interface components {
             revisionId: string;
             revisionNumber: number;
             changedUnitCount: number;
+        };
+        ReorderChaptersDto: {
+            /** @description La revisión que el editor cargó. */
+            expectedRevisionId: string;
+            /**
+             * @description Las posiciones actuales de esa revisión, en el orden deseado. Deben ser todas, exactamente una vez.
+             * @example [
+             *       3,
+             *       1,
+             *       2
+             *     ]
+             */
+            orderedChapterOrders: number[];
+        };
+        ContentStudioReorderResponseDto: {
+            /** @description El nuevo token de concurrencia. */
+            revisionId: string;
+            revisionNumber: number;
+            changedUnitCount: number;
+            structureChanged: boolean;
         };
         DiscardChapterDto: {
             /** @description El borrador del que se descarta el capítulo. */
@@ -14527,6 +14577,49 @@ export interface operations {
             };
         };
     };
+    reorderContentStudioChapters: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderChaptersDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentStudioReorderResponseDto"];
+                };
+            };
+            /** @description El borrador cambió; no se escribió nada. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description El libro no admite reordenar todavía: entitlement legacy, estructura sin sincronizar, o un movimiento entre partes. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     discardContentStudioChapter: {
         parameters: {
             query?: never;
@@ -19007,6 +19100,10 @@ export enum LearningUnitProgressItemDtoState {
     completed = "completed"
 }
 export enum ContentStudioBookStateResponseDtoCreationBlockedReason {
+    PENDING_SYNC = "PENDING_SYNC"
+}
+export enum ContentStudioBookStateResponseDtoReorderBlockedReason {
+    NATIVE_ENTITLEMENT_REQUIRED = "NATIVE_ENTITLEMENT_REQUIRED",
     PENDING_SYNC = "PENDING_SYNC"
 }
 export enum ContentStudioChapterResponseDtoRevisionStatus {

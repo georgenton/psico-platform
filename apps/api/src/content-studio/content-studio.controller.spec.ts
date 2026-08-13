@@ -71,6 +71,8 @@ describe("Content Studio role matrix", () => {
     "saveDraft",
     "createChapter",
     "discardChapter",
+    // Reordering is a structural write, so it is guarded exactly like the rest.
+    "reorderChapters",
     "uploadCover",
     "uploadChapterImage",
     "uploadAudiobook",

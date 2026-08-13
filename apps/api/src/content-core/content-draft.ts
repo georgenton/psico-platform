@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import type { UnitPlacement } from "./lib/revision-manifest";
+import { reorderManifest } from "./lib/manifest-reorder";
+import { validateManifest, type UnitPlacement } from "./lib/revision-manifest";
 import {
   CONTENT_DRAFT_CONFLICT,
   CONTENT_DRAFT_EDITION_MISMATCH,
@@ -211,11 +212,23 @@ export interface ChangedUnit {
 /**
  * Which units an active draft would actually change, and the draft itself.
  *
- * Derived by comparing `unitVersionId` per unit between the published manifest
- * and the draft's — no new column, no bookkeeping to drift. A draft that touched
- * a chapter and then restored it byte-for-byte still counts as changed, because
- * the matcher minted a new unit version; that is a conservative answer in the
- * safe direction.
+ * Derived by comparing the published manifest with the draft's — no new column,
+ * no bookkeeping to drift. A draft that touched a chapter and then restored it
+ * byte-for-byte still counts as changed, because the matcher minted a new unit
+ * version; that is a conservative answer in the safe direction.
+ *
+ * ── Changed means changed, including moved ───────────────────────────────
+ *
+ * `unitVersionId` alone was the whole test while every draft was a text edit.
+ * A reorder is not: it carries every unit forward at the SAME version and
+ * changes only where each one sits. Under the old rule a book whose chapters
+ * had all been rearranged reported `changedUnitCount = 0`, so Content Studio
+ * would have shown an editor a draft it described as empty — and the publish
+ * button would have looked like it did nothing.
+ *
+ * So placement counts too. A unit is changed when its version differs OR when
+ * its slot or its part differs, which is the honest reading of "what would
+ * publishing this draft do to the book".
  */
 export async function describeEditionDraft(
   prisma: PrismaClient,
@@ -226,6 +239,15 @@ export async function describeEditionDraft(
   draftRevisionId: string | null;
   draftRevisionNumber: number | null;
   changedUnitKeys: string[];
+  /**
+   * Whether the draft changes the book's SHAPE — a unit moved, or the set of
+   * units differs — as opposed to only its prose.
+   *
+   * Reported separately because the two are different editorial acts with
+   * different consequences, and a surface that wants to say "3 chapters moved"
+   * should not have to diff the manifests itself to find out.
+   */
+  structureChanged: boolean;
 }> {
   const edition = await prisma.edition.findUnique({
     where: { id: editionId },
@@ -253,6 +275,7 @@ export async function describeEditionDraft(
       draftRevisionId: draft?.id ?? null,
       draftRevisionNumber: draft?.number ?? null,
       changedUnitKeys: [],
+      structureChanged: false,
     };
   }
 
@@ -268,12 +291,35 @@ export async function describeEditionDraft(
   ]);
 
   const publishedByKey = new Map(
-    publishedUnits.map((ru) => [ru.unit.unitKey, ru.unitVersionId]),
+    publishedUnits.map((ru) => [ru.unit.unitKey, ru]),
   );
+  const moved = (ru: (typeof draftUnits)[number]) => {
+    const was = publishedByKey.get(ru.unit.unitKey);
+    // Never published, so publishing the draft would add it. Same answer the
+    // previous `!== unitVersionId` comparison gave for an absent unit.
+    if (!was) return true;
+    return (
+      was.order !== ru.order ||
+      was.partNumber !== ru.partNumber ||
+      was.partTitle !== ru.partTitle
+    );
+  };
+
   const changedUnitKeys = draftUnits
-    .filter((ru) => publishedByKey.get(ru.unit.unitKey) !== ru.unitVersionId)
+    .filter(
+      (ru) =>
+        publishedByKey.get(ru.unit.unitKey)?.unitVersionId !==
+          ru.unitVersionId || moved(ru),
+    )
     .map((ru) => ru.unit.unitKey)
     .sort();
+
+  // A unit the draft drops is a structural change too, and it appears in
+  // neither list above because it has no draft row to compare.
+  const draftKeys = new Set(draftUnits.map((ru) => ru.unit.unitKey));
+  const structureChanged =
+    draftUnits.some(moved) ||
+    publishedUnits.some((ru) => !draftKeys.has(ru.unit.unitKey));
 
   return {
     publishedRevisionId: published.id,
@@ -281,6 +327,7 @@ export async function describeEditionDraft(
     draftRevisionId: draft.id,
     draftRevisionNumber: draft.number,
     changedUnitKeys,
+    structureChanged,
   };
 }
 
@@ -348,6 +395,154 @@ export async function readUnitTitlesAtRevision(
     },
   });
   return new Map(units.map((ru) => [ru.unit.unitKey, ru.unitVersion.title]));
+}
+
+/**
+ * Reorder was asked for on an edition whose entitlement is still legacy.
+ *
+ * Raised inside the edition lock, because entitlement ownership is exactly the
+ * kind of thing a migration can flip between a service check and a write.
+ */
+export const CONTENT_REORDER_REQUIRES_NATIVE_ENTITLEMENT =
+  "CONTENT_REORDER_REQUIRES_NATIVE_ENTITLEMENT";
+
+export interface ReorderDraftManifestParams {
+  editionId: string;
+  expectedRevisionId: string;
+  /**
+   * The base revision's CURRENT order values, in the sequence the editor wants.
+   *
+   * Locators inside `expectedRevisionId` and nothing else — which is why the
+   * optimistic check has to pass before they are read as anything at all.
+   */
+  orderedCurrentOrders: number[];
+}
+
+/**
+ * Rearrange the chapters of the active draft.
+ *
+ * Mints the next snapshot rather than moving anything. Every `RevisionUnit` of
+ * the base is copied into a NEW draft revision at its final order, so no
+ * existing row is updated, no historical revision changes, and the temporary
+ * collisions that make an in-place reorder need parking positions never arise:
+ * the rows are inserted once, already correct.
+ *
+ * Content is untouched by construction — each unit is carried at the exact
+ * `unitVersionId` the base held, so no `ContentUnitVersion` and no
+ * `BlockVersion` is created, and a reader's highlights keep pointing at blocks
+ * that still exist and still say the same thing.
+ *
+ * ── Entitlement ownership is a precondition ──────────────────────────────
+ *
+ * An edition with `accessPlan = null` still answers "is this chapter free?"
+ * from `Chapter.order` (see `resolveUnitTargetFromLegacy`). Moving chapters
+ * while that is true would move the free preview along with position — a reader
+ * would lose access to the chapter they were reading and gain it to one they
+ * had not paid for. So reorder is refused there rather than made to work: the
+ * fix is to finish adopting the edition, not to teach reorder to compensate.
+ */
+export async function reorderDraftManifest(
+  prisma: PrismaClient,
+  params: ReorderDraftManifestParams,
+): Promise<{
+  revisionId: string;
+  revisionNumber: number;
+}> {
+  return prisma.$transaction(
+    async (tx) => {
+      const { publishedRevisionId } = await lockEditionTx(tx, params.editionId);
+      if (!publishedRevisionId) {
+        throw new Error("INGEST_REQUIRES_BASE_REVISION");
+      }
+
+      // Inside the lock, against the row the write is about to be based on.
+      const edition = await tx.edition.findUnique({
+        where: { id: params.editionId },
+        select: { accessPlan: true },
+      });
+      if (!edition || edition.accessPlan === null) {
+        throw new Error(CONTENT_REORDER_REQUIRES_NATIVE_ENTITLEMENT);
+      }
+
+      const activeDraft = await findActiveDraftTx(tx, params.editionId);
+
+      // A draft older than what is published was overtaken by an ingest while
+      // the editor was away; reordering on top of it would ship the old
+      // structure back out. Same rule, and the same reason, as `saveUnitDraft`.
+      if (activeDraft) {
+        const published = await tx.revision.findUnique({
+          where: { id: publishedRevisionId },
+          select: { number: true },
+        });
+        if (published && published.number > activeDraft.number) {
+          throw new Error(CONTENT_DRAFT_STALE);
+        }
+      }
+
+      const baseRevisionId = activeDraft?.id ?? publishedRevisionId;
+      // The payload's numbers only mean anything relative to THIS revision, so
+      // this check is what makes reading them safe rather than merely polite.
+      if (params.expectedRevisionId !== baseRevisionId) {
+        throw new Error(CONTENT_DRAFT_CONFLICT);
+      }
+
+      const entries = await tx.revisionUnit.findMany({
+        where: { revisionId: baseRevisionId },
+        orderBy: { order: "asc" },
+        select: {
+          unitId: true,
+          unitVersionId: true,
+          order: true,
+          partNumber: true,
+          partTitle: true,
+          unit: { select: { unitKey: true } },
+        },
+      });
+
+      const next = reorderManifest(entries, params.orderedCurrentOrders);
+      // The same invariant check every other mint runs. Redundant with the
+      // permutation rules above, and worth keeping: this is the check the
+      // database's own unique constraints mirror.
+      validateManifest(
+        next.map((e) => ({
+          unitKey: e.unit.unitKey,
+          unitVersionId: e.unitVersionId,
+          order: e.order,
+          partNumber: e.partNumber,
+          partTitle: e.partTitle,
+        })),
+      );
+
+      const nextNumber = await nextRevisionNumberTx(tx, params.editionId);
+      const revision = await tx.revision.create({
+        data: {
+          editionId: params.editionId,
+          number: nextNumber,
+          status: "DRAFT",
+          note: "content-studio:reorder",
+        },
+      });
+
+      for (const e of next) {
+        await tx.revisionUnit.create({
+          data: {
+            revisionId: revision.id,
+            unitId: e.unitId,
+            // Carried, not minted. This is what makes a reorder a reorder.
+            unitVersionId: e.unitVersionId,
+            order: e.order,
+            partNumber: e.partNumber,
+            partTitle: e.partTitle,
+          },
+        });
+      }
+
+      if (activeDraft) await archiveRevisionTx(tx, activeDraft.id);
+
+      return { revisionId: revision.id, revisionNumber: nextNumber };
+    },
+    { timeout: 30_000 },
+  );
 }
 
 /**

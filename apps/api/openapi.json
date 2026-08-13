@@ -17776,6 +17776,68 @@
         ]
       }
     },
+    "/api/pulso/content/books/{bookSlug}/structure/draft": {
+      "put": {
+        "description": "El cuerpo lleva las posiciones ACTUALES de la revisión indicada, en el orden deseado — no identidades. Deben aparecer todas exactamente una vez; las posiciones existentes se conservan (no se renumeran) y ningún capítulo puede cambiar de parte.",
+        "operationId": "reorderContentStudioChapters",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderChaptersDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentStudioReorderResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "El borrador cambió; no se escribió nada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "El libro no admite reordenar todavía: entitlement legacy, estructura sin sincronizar, o un movimiento entre partes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Reordena los capítulos del libro EN EL BORRADOR. No publica: los lectores siguen viendo la estructura publicada hasta que se publique el borrador. Sólo ADMIN.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
     "/api/pulso/content/books/{bookSlug}/chapters/{chapterOrder}/discard": {
       "post": {
         "operationId": "discardContentStudioChapter",
@@ -24620,10 +24682,28 @@
             ],
             "description": "Por qué no se puede crear, cuando no se puede. Null cuando sí se puede."
           },
+          "reorderAvailable": {
+            "type": "boolean",
+            "description": "El servidor decide si el libro admite reordenar ahora mismo. Requiere entitlement nativo (Edition.accessPlan) y estructura sincronizada."
+          },
+          "reorderBlockedReason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "NATIVE_ENTITLEMENT_REQUIRED",
+              "PENDING_SYNC"
+            ],
+            "description": "Por qué no se puede reordenar, cuando no se puede. Null cuando sí se puede."
+          },
           "changedUnitCount": {
             "type": "number"
           },
+          "structureChanged": {
+            "type": "boolean",
+            "description": "El borrador cambia la FORMA del libro (algo se movió, o cambió el conjunto de capítulos), no sólo el texto."
+          },
           "chapters": {
+            "description": "En el orden del borrador activo si lo hay, si no en el publicado. El cliente no reconstruye el manifiesto.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ContentStudioChapterRowDto"
@@ -24638,7 +24718,10 @@
           "editingRevisionId",
           "chapterCreationAvailable",
           "creationBlockedReason",
+          "reorderAvailable",
+          "reorderBlockedReason",
           "changedUnitCount",
+          "structureChanged",
           "chapters"
         ]
       },
@@ -24838,6 +24921,59 @@
           "revisionId",
           "revisionNumber",
           "changedUnitCount"
+        ]
+      },
+      "ReorderChaptersDto": {
+        "type": "object",
+        "properties": {
+          "expectedRevisionId": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "La revisión que el editor cargó."
+          },
+          "orderedChapterOrders": {
+            "minItems": 1,
+            "maxItems": 2000,
+            "example": [
+              3,
+              1,
+              2
+            ],
+            "description": "Las posiciones actuales de esa revisión, en el orden deseado. Deben ser todas, exactamente una vez.",
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 1
+            }
+          }
+        },
+        "required": [
+          "expectedRevisionId",
+          "orderedChapterOrders"
+        ]
+      },
+      "ContentStudioReorderResponseDto": {
+        "type": "object",
+        "properties": {
+          "revisionId": {
+            "type": "string",
+            "description": "El nuevo token de concurrencia."
+          },
+          "revisionNumber": {
+            "type": "number"
+          },
+          "changedUnitCount": {
+            "type": "number"
+          },
+          "structureChanged": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "revisionId",
+          "revisionNumber",
+          "changedUnitCount",
+          "structureChanged"
         ]
       },
       "DiscardChapterDto": {

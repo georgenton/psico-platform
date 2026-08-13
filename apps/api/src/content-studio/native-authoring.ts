@@ -96,7 +96,9 @@ export async function effectiveEditorialRevision(
 export async function editionForBookSlug(db: Db, bookSlug: string) {
   const edition = await db.edition.findFirst({
     where: { slug: bookSlug },
-    select: { id: true, publishedRevisionId: true },
+    // `accessPlan` decides whether Content Core owns this edition's
+    // entitlement, which is a precondition for moving chapters at all.
+    select: { id: true, publishedRevisionId: true, accessPlan: true },
   });
   if (!edition) {
     throw new NotFoundException({ code: "CONTENT_EDITION_NOT_FOUND" });
@@ -223,6 +225,18 @@ export interface EditorialStructure {
   chapterCreationAvailable: boolean;
   /** Why not, as a code the UI turns into copy. Null when creation is fine. */
   creationBlockedReason: "PENDING_SYNC" | null;
+  /**
+   * Whether the book's chapters may be rearranged right now.
+   *
+   * Strictly harder than creating one. Appending needs the structure to be
+   * synchronised; MOVING also needs Content Core to own entitlement, because an
+   * edition with `accessPlan = null` still decides "is this chapter free?" from
+   * `Chapter.order` — so moving chapters there would move the free preview with
+   * them.
+   */
+  reorderAvailable: boolean;
+  /** Why not. Null when reordering is fine. */
+  reorderBlockedReason: "NATIVE_ENTITLEMENT_REQUIRED" | "PENDING_SYNC" | null;
 }
 
 /**
@@ -341,8 +355,9 @@ export async function listEditorialChapters(
   const unsyncedLegacyCount = relation.unsynced.length;
   // The rule lives here, once. A browser deriving it by scanning `ingested`
   // would be re-implementing a safety check it cannot be trusted with.
-  const chapterCreationAvailable =
-    unsyncedLegacyCount === 0 && !structureConflict;
+  const structureSynced = unsyncedLegacyCount === 0 && !structureConflict;
+  const chapterCreationAvailable = structureSynced;
+  const nativeEntitlement = edition.accessPlan !== null;
 
   return {
     chapters,
@@ -351,6 +366,14 @@ export async function listEditorialChapters(
     structureConflict,
     chapterCreationAvailable,
     creationBlockedReason: chapterCreationAvailable ? null : "PENDING_SYNC",
+    reorderAvailable: structureSynced && nativeEntitlement,
+    // Entitlement first: it is the blocker an editor cannot clear by
+    // synchronising, so naming the other one would send them down a dead end.
+    reorderBlockedReason: !nativeEntitlement
+      ? "NATIVE_ENTITLEMENT_REQUIRED"
+      : structureSynced
+        ? null
+        : "PENDING_SYNC",
   };
 }
 

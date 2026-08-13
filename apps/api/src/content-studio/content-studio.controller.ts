@@ -34,6 +34,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiUnprocessableEntityResponse,
   ApiTags,
 } from "@nestjs/swagger";
 import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
@@ -64,6 +65,7 @@ import {
   ContentStudioVideoUploadStatusDto,
   ContentStudioCreateChapterResponseDto,
   ContentStudioSaveResponseDto,
+  ContentStudioReorderResponseDto,
 } from "./dto/content-studio-response.dto";
 import {
   CreateComingSoonMediaDto,
@@ -74,6 +76,7 @@ import {
   PublishBookDto,
   CreateChapterDto,
   DiscardChapterDto,
+  ReorderChaptersDto,
   SaveChapterDraftDto,
   UpdateMediaDraftDto,
 } from "./dto/content-studio.dto";
@@ -188,6 +191,35 @@ export class ContentStudioController {
     return this.studio.createChapter(bookSlug, {
       expectedRevisionId: dto.expectedRevisionId,
       title: dto.title,
+    });
+  }
+
+  @Put("books/:bookSlug/structure/draft")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "reorderContentStudioChapters",
+    summary:
+      "Reordena los capítulos del libro EN EL BORRADOR. No publica: los lectores siguen viendo la estructura publicada hasta que se publique el borrador. Sólo ADMIN.",
+    description:
+      "El cuerpo lleva las posiciones ACTUALES de la revisión indicada, en el orden deseado — no identidades. Deben aparecer todas exactamente una vez; las posiciones existentes se conservan (no se renumeran) y ningún capítulo puede cambiar de parte.",
+  })
+  @ApiOkResponse({ type: ContentStudioReorderResponseDto })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description: "El borrador cambió; no se escribió nada.",
+  })
+  @ApiUnprocessableEntityResponse({
+    type: ErrorEnvelopeDto,
+    description:
+      "El libro no admite reordenar todavía: entitlement legacy, estructura sin sincronizar, o un movimiento entre partes.",
+  })
+  reorderChapters(
+    @Param("bookSlug") bookSlug: string,
+    @Body() dto: ReorderChaptersDto,
+  ) {
+    return this.studio.reorderChapters(bookSlug, {
+      expectedRevisionId: dto.expectedRevisionId,
+      orderedChapterOrders: dto.orderedChapterOrders,
     });
   }
 

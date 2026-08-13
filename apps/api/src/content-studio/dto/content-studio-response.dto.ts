@@ -129,10 +129,44 @@ export class ContentStudioBookStateResponseDto {
   })
   creationBlockedReason!: "PENDING_SYNC" | null;
 
+  @ApiProperty({
+    description:
+      "El servidor decide si el libro admite reordenar ahora mismo. Requiere entitlement nativo (Edition.accessPlan) y estructura sincronizada.",
+  })
+  reorderAvailable!: boolean;
+
+  @ApiProperty({
+    nullable: true,
+    enum: ["NATIVE_ENTITLEMENT_REQUIRED", "PENDING_SYNC"],
+    description:
+      "Por qué no se puede reordenar, cuando no se puede. Null cuando sí se puede.",
+  })
+  reorderBlockedReason!: "NATIVE_ENTITLEMENT_REQUIRED" | "PENDING_SYNC" | null;
+
   @ApiProperty() changedUnitCount!: number;
 
-  @ApiProperty({ type: [ContentStudioChapterRowDto] })
+  @ApiProperty({
+    description:
+      "El borrador cambia la FORMA del libro (algo se movió, o cambió el conjunto de capítulos), no sólo el texto.",
+  })
+  structureChanged!: boolean;
+
+  @ApiProperty({
+    type: [ContentStudioChapterRowDto],
+    description:
+      "En el orden del borrador activo si lo hay, si no en el publicado. El cliente no reconstruye el manifiesto.",
+  })
   chapters!: ContentStudioChapterRowDto[];
+}
+
+/** Reordering: the new concurrency token, and what the draft now says. */
+export class ContentStudioReorderResponseDto {
+  @ApiProperty({ description: "El nuevo token de concurrencia." })
+  revisionId!: string;
+
+  @ApiProperty() revisionNumber!: number;
+  @ApiProperty() changedUnitCount!: number;
+  @ApiProperty() structureChanged!: boolean;
 }
 
 export class ContentStudioBlockDto {

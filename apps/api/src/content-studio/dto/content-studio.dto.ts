@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
+  ArrayMaxSize,
+  ArrayNotEmpty,
   IsArray,
   IsIn,
   IsInt,
@@ -97,6 +99,40 @@ export class DiscardChapterDto {
   @ApiProperty({ description: "El borrador del que se descarta el capítulo." })
   @IsString()
   expectedRevisionId!: string;
+}
+
+/**
+ * Rearranging the book's chapters.
+ *
+ * `orderedChapterOrders` carries the CURRENT order values of the revision named
+ * by `expectedRevisionId`, in the sequence the editor wants them. They are
+ * locators inside that exact revision — not identities — which is why the
+ * concurrency token is not optional here: read against any other revision the
+ * numbers would name different chapters.
+ *
+ * Shape only. That every current position appears exactly once, that nothing
+ * crosses a part boundary, and that the edition may be reordered at all are
+ * facts about the manifest, so they are decided where the manifest is — inside
+ * the transaction, not by a decorator.
+ */
+export class ReorderChaptersDto {
+  @ApiProperty({ description: "La revisión que el editor cargó." })
+  @IsString()
+  @MaxLength(200)
+  expectedRevisionId!: string;
+
+  @ApiProperty({
+    type: [Number],
+    example: [3, 1, 2],
+    description:
+      "Las posiciones actuales de esa revisión, en el orden deseado. Deben ser todas, exactamente una vez.",
+  })
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(2000)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  orderedChapterOrders!: number[];
 }
 
 export class PublishBookDto {

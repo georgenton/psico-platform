@@ -24,12 +24,19 @@ export default defineConfig({
     }),
   ],
   test: {
-    // `*.pg-spec.ts` plus the Guide HTTP/firewall E2E, which boot the real
-    // Nest app against the SAME isolated PostgreSQL (CC-7.4D).
-    // `*.pg-spec.ts` plus the HTTP suites that boot a real app against a real
-    // database. The Guide pattern was the first; the books optional-auth suite
-    // uses it too, so the glob names the shape rather than one directory.
-    include: ["src/**/*.pg-spec.ts", "src/**/*.e2e-spec.ts"],
+    // `*.pg-spec.ts`, plus the named E2E suites that boot the real Nest app
+    // against the SAME isolated PostgreSQL: the Guide HTTP/firewall suites
+    // (CC-7.4D) and the Books optional-auth HTTP boundary suite.
+    //
+    // Listed one by one rather than matched by `*.e2e-spec.ts`. A filename is
+    // not a promise of a database: an E2E written tomorrow against mocked
+    // Prisma would join this gate silently and change what PG_LOCKS means,
+    // which is the opposite of what a gate is for.
+    include: [
+      "src/**/*.pg-spec.ts",
+      "src/guide/guide-*.e2e-spec.ts",
+      "src/books/books-optional-auth.e2e-spec.ts",
+    ],
     setupFiles: ["./src/test/setup-env.ts"],
     // Every test runs two genuinely concurrent transactions, each waiting on the
     // other to commit. They must not be starved of a worker thread.

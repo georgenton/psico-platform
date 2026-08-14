@@ -1055,21 +1055,60 @@ describe("one structural action cannot release another's lock", () => {
     createGate.resolve({ ok: true });
   });
 
-  it("both finishing releases it exactly once", async () => {
-    // The other half of the claim: per-owner locks must not deadlock the entry
-    // when every owner has genuinely finished.
-    publishBookAction.mockResolvedValue({ ok: false, error: "no" });
-    createChapterAction.mockResolvedValue({ ok: false, error: "no" });
-    const u = userEvent.setup();
-    render(<BookStructurePanel {...withDraftProps()} />);
+  /**
+   * The other half of the claim, with both operations genuinely OVERLAPPING.
+   *
+   * Two deferred promises rather than two resolved ones: awaiting a settled
+   * mock finishes the first operation before the second begins, which proves
+   * "released after both ran" and says nothing about a lock held across two
+   * concurrent owners. Here the second starts while the first is still open,
+   * the first is released mid-flight, and the entry must STILL refuse.
+   *
+   * Run in both orders, because neither owner is privileged: whichever
+   * finishes first, the survivor is what keeps the page from moving.
+   */
+  it.each([
+    ["publish", "create"],
+    ["create", "publish"],
+  ] as const)(
+    "stays blocked until BOTH finish · %s then %s",
+    async (first, second) => {
+      const publishGate = deferred<{ ok: boolean }>();
+      const createGate = deferred<{ ok: boolean }>();
+      publishBookAction.mockReturnValue(publishGate.promise);
+      createChapterAction.mockReturnValue(createGate.promise);
+      const u = userEvent.setup();
+      render(<BookStructurePanel {...withDraftProps()} />);
 
-    await startPublish(u);
-    await startCreate(u);
+      // Both open at once — the state a single shared boolean cannot describe.
+      await startPublish(u);
+      await startCreate(u);
+      expect(publishBookAction).toHaveBeenCalledTimes(1);
+      expect(createChapterAction).toHaveBeenCalledTimes(1);
+      expect(reorderEntry()).toBeDisabled();
 
-    await waitFor(() => expect(reorderEntry()).toBeEnabled());
-    await u.click(reorderEntry()!);
-    expect(
-      screen.getByRole("button", { name: "Mover «A» abajo" }),
-    ).toBeInTheDocument();
-  });
+      const release = async (which: "publish" | "create") => {
+        if (which === "publish") publishGate.resolve({ ok: false });
+        else createGate.resolve({ ok: false });
+        // Let the resolved handler run before anything is asserted.
+        await waitFor(() => expect(reorderEntry()).toBeInTheDocument());
+      };
+
+      await release(first);
+      // One owner down, one still running. Releasing here is the bug.
+      expect(reorderEntry()).toBeDisabled();
+      await u.click(reorderEntry()!);
+      expect(screen.queryByRole("button", { name: /Mover «A»/ })).toBeNull();
+      expect(reorderChaptersAction).not.toHaveBeenCalled();
+
+      await release(second);
+
+      // Both finished: released, not deadlocked.
+      await waitFor(() => expect(reorderEntry()).toBeEnabled());
+      await u.click(reorderEntry()!);
+      expect(
+        screen.getByRole("button", { name: "Mover «A» abajo" }),
+      ).toBeInTheDocument();
+    },
+  );
 });

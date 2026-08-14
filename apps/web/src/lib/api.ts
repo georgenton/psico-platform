@@ -92,7 +92,10 @@ export async function apiFetch<T>(
       .catch(() => ({ message: response.statusText }))) as {
       message?: string;
       code?: string;
-      details?: Record<string, string[]>;
+      // Sin forma garantizada: es el cuerpo del servidor, casteado, no
+      // validado. Declararlo como registro por campo era exactamente la
+      // afirmación que hacía `.map()` parecer segura.
+      details?: unknown;
     };
     throw new ApiError(
       response.status,

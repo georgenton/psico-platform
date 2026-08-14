@@ -23,11 +23,52 @@ function clearAuthCookies() {
 
 // Validates that the redirect target is a relative path to prevent open
 // redirect attacks.
+/**
+ * Un origen que no puede existir, contra el que resolver destinos.
+ *
+ * `.invalid` está reservado por la RFC 2606, así que ningún DNS lo sirve nunca.
+ * Sirve de referencia sin codificar el dominio real: si un destino resuelve
+ * aquí, es relativo; si resuelve a cualquier otra cosa, nombra otro sitio.
+ */
+const SENTINEL_ORIGIN = "https://internal.invalid";
+
+/**
+ * El destino interno al que volver tras iniciar sesión, o `/dashboard`.
+ *
+ * Comprobar prefijos no basta. `"/\\evil.example/phish"` empieza por `/` y no
+ * por `//`, así que pasaba el filtro anterior — y el parser de URLs normaliza
+ * la barra invertida a `/`, de modo que el navegador lo resolvía como
+ * `https://evil.example/phish`. Un redirect abierto a partir de una cadena que
+ * "parecía" relativa.
+ *
+ * Así que la pregunta no se le hace al texto sino al mismo parser que usará el
+ * navegador: resolvemos contra un origen centinela y exigimos seguir en él.
+ *
+ * Se comprueba DOS veces, y la segunda no es redundante: normalizar `..` puede
+ * fabricar un `//host` que vuelve a ser protocol-relative, así que lo que se
+ * valida al final es exactamente la cadena que se emite.
+ */
 function safeRedirectTarget(from: string | null): string {
-  if (!from || !from.startsWith("/") || from.startsWith("//")) {
+  if (!from || !from.startsWith("/")) return "/dashboard";
+
+  let resolved: URL;
+  try {
+    resolved = new URL(from, SENTINEL_ORIGIN);
+  } catch {
+    // Entrada que ni siquiera parsea: no hay destino que conservar.
     return "/dashboard";
   }
-  return from;
+  if (resolved.origin !== SENTINEL_ORIGIN) return "/dashboard";
+
+  const target = `${resolved.pathname}${resolved.search}${resolved.hash}`;
+  try {
+    if (new URL(target, SENTINEL_ORIGIN).origin !== SENTINEL_ORIGIN) {
+      return "/dashboard";
+    }
+  } catch {
+    return "/dashboard";
+  }
+  return target;
 }
 
 // ── Actions ────────────────────────────────────────────────────────────────
@@ -122,9 +163,16 @@ export async function loginAction(
   // valida con `whitelist` + `forbidNonWhitelisted`, así que una propiedad de
   // más no se ignora, se rechaza — y el formulario acababa mostrando un error
   // de validación por un campo que el usuario nunca escribió.
-  const { from, ...credentials } = payload;
+  // Construido campo a campo, no por descarte. Un rest-spread quita `from`,
+  // pero no promete "sólo email y password": cualquier propiedad que llegue en
+  // runtime — un campo oculto del formulario, un contrato que crezca — viajaría
+  // igual, y `forbidNonWhitelisted` la rechazaría con el mismo 400 de antes.
+  const { email, password, from } = payload;
   try {
-    const { accessToken, refreshToken } = await authApi.login(credentials);
+    const { accessToken, refreshToken } = await authApi.login({
+      email,
+      password,
+    });
     setAuthCookies(accessToken, refreshToken);
   } catch (err) {
     if (err instanceof ApiError) {

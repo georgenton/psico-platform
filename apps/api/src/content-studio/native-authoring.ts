@@ -3,6 +3,12 @@ import { NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 
 import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
+// The adoption rule moved down to Content Core, where identity is defined, so
+// the reorder write can enforce it without Content Core importing this module.
+// Re-exported because it is still part of this module's vocabulary.
+import { relateLegacyToManifest } from "../content-core/lib/legacy-adoption";
+
+export { relateLegacyToManifest };
 
 /**
  * Creating a chapter that only Content Core knows about.
@@ -141,36 +147,6 @@ export interface EditorialChapter {
    * media panel that errored would not be.
    */
   mediaAdminAvailable: boolean;
-}
-
-/**
- * How a revision's manifest and the book's legacy rows relate.
- *
- * The ONE place identity is compared. Both the editorial list and the publish
- * guard call this, so there is a single answer to "is this unit that chapter?"
- * — and it is always the derived key, never the position.
- *
- * Pure, so the rule can be exercised without a database.
- */
-export function relateLegacyToManifest(
-  entries: Array<{ order: number; unitKey: string }>,
-  legacyChapters: Array<{ id: string; order: number; title: string }>,
-) {
-  const manifestKeys = new Set(entries.map((e) => e.unitKey));
-  const manifestOrders = new Set(entries.map((e) => e.order));
-
-  const legacyByUnitKey = new Map(
-    legacyChapters.map((c) => [unitKeyFromLegacyChapterId(c.id), c]),
-  );
-  const unsynced = legacyChapters.filter(
-    (c) => !manifestKeys.has(unitKeyFromLegacyChapterId(c.id)),
-  );
-  // A conflict is narrower than "something is unsynced": it is a position that
-  // TWO different things answer for. An unsynced chapter sitting at a position
-  // nothing else claims is merely not adopted yet.
-  const structureConflict = unsynced.some((c) => manifestOrders.has(c.order));
-
-  return { legacyByUnitKey, unsynced, structureConflict };
 }
 
 /**

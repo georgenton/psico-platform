@@ -8,6 +8,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { lockEditionForBookSlugTx } from "../content-core/revision-lifecycle";
 import { PrismaService } from "../prisma";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { JobsService } from "../jobs/jobs.service";
@@ -187,6 +188,14 @@ export class AuthorReviewService {
           });
 
       // 2. Replace chapters: wipe existing + recreate from AuthorBookChapter.
+      //
+      // This is the most destructive structural write there is — every
+      // `Chapter` row of the book, replaced. On a book Content Core serves,
+      // that changes which chapters are adopted, so it has to serialise
+      // against the reorder write, which decides that same question inside
+      // this lock. Republishing an author book is rare; taking the lock costs
+      // nothing and removes the one ordering nobody would have tested.
+      await lockEditionForBookSlugTx(tx, book.slug);
       await tx.chapter.deleteMany({ where: { bookId: book.id } });
       for (const ac of visibleChapters) {
         const chapter = await tx.chapter.create({
@@ -250,8 +259,7 @@ export class AuthorReviewService {
     // committed; even if the email enqueue fails, the publication stands.
     try {
       const rendered = authorPublicationApprovedEmail({
-        authorFirstName:
-          authorUser.firstName ?? authorUser.name ?? "hola",
+        authorFirstName: authorUser.firstName ?? authorUser.name ?? "hola",
         bookTitle: authorBook.title,
         bookSlug: result.slug,
         chapters: visibleChapters.length,

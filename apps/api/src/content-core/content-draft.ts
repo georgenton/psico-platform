@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { reorderManifest } from "./lib/manifest-reorder";
+import { reorderEligibilityAtRevision } from "./lib/legacy-adoption";
 import { validateManifest, type UnitPlacement } from "./lib/revision-manifest";
 import {
   CONTENT_DRAFT_CONFLICT,
@@ -406,6 +407,15 @@ export async function readUnitTitlesAtRevision(
 export const CONTENT_REORDER_REQUIRES_NATIVE_ENTITLEMENT =
   "CONTENT_REORDER_REQUIRES_NATIVE_ENTITLEMENT";
 
+/**
+ * The book's readable structure is not fully represented in the manifest.
+ *
+ * The same code Content Studio already uses for the create path, because to an
+ * editor it is the same situation: something has to be synchronised first.
+ */
+export const CONTENT_STRUCTURE_REQUIRES_SYNC =
+  "CONTENT_STRUCTURE_REQUIRES_SYNC";
+
 export interface ReorderDraftManifestParams {
   editionId: string;
   expectedRevisionId: string;
@@ -431,6 +441,16 @@ export interface ReorderDraftManifestParams {
  * `unitVersionId` the base held, so no `ContentUnitVersion` and no
  * `BlockVersion` is created, and a reader's highlights keep pointing at blocks
  * that still exist and still say the same thing.
+ *
+ * ── Its own preconditions, under its own lock ────────────────────────────
+ *
+ * Entitlement ownership and structural adoption are both checked HERE, against
+ * the exact base revision, inside the edition lock. A caller cannot hold either
+ * guarantee on this function's behalf: both are answers about rows the caller
+ * read before this transaction started, and both can change in between. A
+ * service-level copy is still worth having for a fast, friendly refusal — but
+ * this is the authority, and calling this function directly is not a way past
+ * it.
  *
  * ── Entitlement ownership is a precondition ──────────────────────────────
  *
@@ -458,7 +478,7 @@ export async function reorderDraftManifest(
       // Inside the lock, against the row the write is about to be based on.
       const edition = await tx.edition.findUnique({
         where: { id: params.editionId },
-        select: { accessPlan: true },
+        select: { accessPlan: true, slug: true },
       });
       if (!edition || edition.accessPlan === null) {
         throw new Error(CONTENT_REORDER_REQUIRES_NATIVE_ENTITLEMENT);
@@ -484,6 +504,28 @@ export async function reorderDraftManifest(
       // this check is what makes reading them safe rather than merely polite.
       if (params.expectedRevisionId !== baseRevisionId) {
         throw new Error(CONTENT_DRAFT_CONFLICT);
+      }
+
+      // Structural eligibility, against the EXACT revision about to be
+      // rearranged. The revision token above proves the manifest has not moved;
+      // it proves nothing about the `Chapter` table, and an unadopted legacy
+      // chapter is precisely a row the manifest cannot see.
+      //
+      // The book is found the way every other legacy resolution finds it — by
+      // the edition's own slug — rather than taken as a parameter, so there is
+      // no argument a caller could omit or get wrong in order to skip this.
+      const book = await tx.book.findUnique({
+        where: { slug: edition.slug },
+        select: { id: true },
+      });
+      if (book) {
+        const eligibility = await reorderEligibilityAtRevision(tx, {
+          bookId: book.id,
+          revisionId: baseRevisionId,
+        });
+        if (!eligibility.fullyAdopted || eligibility.structureConflict) {
+          throw new Error(CONTENT_STRUCTURE_REQUIRES_SYNC);
+        }
       }
 
       const entries = await tx.revisionUnit.findMany({

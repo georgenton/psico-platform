@@ -5,10 +5,14 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
-import { describeEditionDraft } from "../content-core/content-draft";
+import {
+  describeEditionDraft,
+  reorderDraftManifest,
+} from "../content-core/content-draft";
 import { ContentStudioService } from "./content-studio.service";
 import { LectorService } from "../lector/lector.service";
 import { BooksService } from "../books/books.service";
+import { ChaptersService } from "../chapters/chapters.service";
 import { ContentAccessService } from "../content-core/access/content-access.service";
 
 /**
@@ -224,6 +228,11 @@ suite("Content Studio · reordering the draft manifest", () => {
     const admin = new Pool({ connectionString: base });
     await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
     await admin.query(`CREATE DATABASE "${DB}"`);
+    // Set BEFORE Prisma connects, so every session inherits it. It is what
+    // makes the serialisation proof below deterministic: a writer that waits
+    // on the edition lock fails with a lock timeout instead of hanging, and
+    // one that never takes the lock sails straight through.
+    await admin.query(`ALTER DATABASE "${DB}" SET lock_timeout = '400ms'`);
     await admin.end();
 
     const url = new URL(base as string);
@@ -300,6 +309,18 @@ suite("Content Studio · reordering the draft manifest", () => {
         { key: "N", order: 2, native: true },
       ],
       unsyncedAt: [2],
+    });
+    await makeBook("carrera-1", {
+      units: [
+        { key: "A", order: 1 },
+        { key: "B", order: 2 },
+      ],
+    });
+    await makeBook("carrera-2", {
+      units: [
+        { key: "A", order: 1 },
+        { key: "B", order: 2 },
+      ],
     });
     await makeBook("partes", {
       units: [
@@ -741,6 +762,225 @@ suite("Content Studio · reordering the draft manifest", () => {
       const fine = await studio.getBookState("hueco");
       expect(fine.reorderAvailable).toBe(true);
       expect(fine.reorderBlockedReason).toBeNull();
+    });
+  });
+
+  // ── the other structural writers serialise against it ───────────────────
+
+  describe("a chapter write waits for the edition lock", () => {
+    let chapters: ChaptersService;
+
+    beforeAll(async () => {
+      chapters = new ChaptersService(prisma as never, {} as never);
+      await makeBook("serializa", { units: [{ key: "A", order: 1 }] });
+    }, 120_000);
+
+    it("blocks while a reorder holds the lock, and proceeds once it does not", async () => {
+      // `POST /api/books/:slug/chapters` creates a `Chapter` with no unit —
+      // an UNADOPTED chapter, which is exactly the state that makes a book
+      // ineligible to reorder. The reorder write decides that eligibility
+      // inside the edition lock, so this insert must not be able to land in
+      // the middle of it.
+      const holder = await pool.connect();
+      try {
+        await holder.query("BEGIN");
+        await holder.query(
+          `SELECT "id" FROM "Edition" WHERE "slug" = $1 FOR UPDATE`,
+          ["serializa"],
+        );
+
+        // Waits, then gives up — which it could only do by asking for the
+        // same row lock. Postgres decides this, not a timer in the test.
+        await expect(
+          chapters.create("serializa", { order: 2, title: "Dos" } as never),
+        ).rejects.toThrow(/lock timeout|55P03|canceling statement/i);
+
+        // And nothing was written while it was blocked.
+        expect(
+          await prisma.chapter.count({
+            where: { bookId: bookId["serializa"] },
+          }),
+        ).toBe(1);
+      } finally {
+        await holder.query("ROLLBACK");
+        holder.release();
+      }
+
+      // Lock released: the same call now succeeds. Proves the refusal above
+      // was contention and not some unrelated failure in the write.
+      await chapters.create("serializa", {
+        order: 2,
+        title: "Dos",
+      } as never);
+      expect(
+        await prisma.chapter.count({ where: { bookId: bookId["serializa"] } }),
+      ).toBe(2);
+    }, 60_000);
+  });
+
+  // ── the refusal belongs to the WRITE, not to one HTTP caller ─────────────
+
+  describe("the domain primitive owns the rule", () => {
+    /** Everything a reorder could possibly have written, for this edition. */
+    const structuralState = async (slug: string) => ({
+      revisions: await prisma.revision.findMany({
+        where: { editionId: editionId[slug] },
+        orderBy: { number: "asc" },
+        select: { id: true, number: true, status: true, note: true },
+      }),
+      units: await prisma.revisionUnit.findMany({
+        where: { revision: { editionId: editionId[slug] } },
+        orderBy: [{ revisionId: "asc" }, { order: "asc" }],
+        select: { revisionId: true, unitId: true, order: true },
+      }),
+      pointer: (
+        await prisma.edition.findUniqueOrThrow({
+          where: { id: editionId[slug] },
+        })
+      ).publishedRevisionId,
+    });
+
+    it("refuses an unsynced book when called directly, bypassing the service", async () => {
+      // The service check is a courtesy. If the only thing standing between an
+      // unadopted chapter and a reorder were `ContentStudioService`, then any
+      // other caller — a script, a job, the next endpoint someone writes —
+      // would be a way around a hard invariant.
+      const before = await structuralState("sin-sync");
+      const baseId = (
+        await prisma.edition.findUniqueOrThrow({
+          where: { id: editionId["sin-sync"] },
+        })
+      ).publishedRevisionId!;
+
+      await expect(
+        reorderDraftManifest(prisma as never, {
+          editionId: editionId["sin-sync"],
+          expectedRevisionId: baseId,
+          orderedCurrentOrders: [1],
+        }),
+      ).rejects.toThrow(/CONTENT_STRUCTURE_REQUIRES_SYNC/);
+
+      expect(await structuralState("sin-sync")).toEqual(before);
+    });
+
+    it("refuses a conflicted book when called directly", async () => {
+      const before = await structuralState("conflicto");
+      const baseId = (
+        await prisma.edition.findUniqueOrThrow({
+          where: { id: editionId["conflicto"] },
+        })
+      ).publishedRevisionId!;
+
+      await expect(
+        reorderDraftManifest(prisma as never, {
+          editionId: editionId["conflicto"],
+          expectedRevisionId: baseId,
+          orderedCurrentOrders: [2, 1],
+        }),
+      ).rejects.toThrow(/CONTENT_STRUCTURE_REQUIRES_SYNC/);
+
+      expect(await structuralState("conflicto")).toEqual(before);
+    });
+
+    // ── the window the revision token cannot cover ────────────────────────
+
+    /**
+     * A reorder whose eligibility changes after the service checked it.
+     *
+     * The service reads the book's structure BEFORE opening a transaction. The
+     * revision token catches a manifest that moved, but an unadopted `Chapter`
+     * row is invisible to it — the manifest is untouched, so the token still
+     * matches. The only thing that can catch it is the read inside the lock.
+     *
+     * Interleaved deterministically rather than with a sleep: the write lands
+     * on a separate committed statement, in the gap between the service's
+     * check and the transaction body, by intercepting `$transaction` itself.
+     */
+    const studioWithMutationBeforeTx = (mutate: () => Promise<unknown>) => {
+      let fired = false;
+      const proxy = new Proxy(prisma as object, {
+        get(target, prop, receiver) {
+          const value = Reflect.get(target, prop, receiver);
+          if (prop !== "$transaction") return value;
+          return async (...args: unknown[]) => {
+            if (!fired) {
+              fired = true;
+              await mutate();
+            }
+            return (value as (...a: unknown[]) => unknown).apply(target, args);
+          };
+        },
+      });
+      return new ContentStudioService(
+        proxy as never,
+        {
+          get: () => "https://assets.example.com",
+        } as never,
+      );
+    };
+
+    it("an unsynced chapter appearing after the precheck stops the write", async () => {
+      const before = await structuralState("carrera-1");
+      const baseId = await editingRevisionOf("carrera-1");
+
+      const racing = studioWithMutationBeforeTx(() =>
+        prisma.chapter.create({
+          data: {
+            bookId: bookId["carrera-1"],
+            // A slot the manifest says nothing about: unadopted, not conflicted.
+            order: 9,
+            title: "Aparecido",
+            isPublished: true,
+          },
+        }),
+      );
+
+      await expect(
+        racing.reorderChapters("carrera-1", {
+          expectedRevisionId: baseId,
+          orderedChapterOrders: [2, 1],
+        }),
+      ).rejects.toMatchObject({
+        status: 422,
+        response: { code: "CONTENT_STRUCTURE_REQUIRES_SYNC" },
+      });
+
+      // No revision, no RevisionUnit, no archive, no pointer move.
+      expect(await structuralState("carrera-1")).toEqual(before);
+    });
+
+    it("a colliding chapter appearing after the precheck stops the write", async () => {
+      const before = await structuralState("carrera-2");
+      const baseId = await editingRevisionOf("carrera-2");
+
+      const racing = studioWithMutationBeforeTx(async () => {
+        // Free the slot on the legacy side, then claim it with a row that is
+        // NOT the chapter the manifest has there — a genuine conflict.
+        await prisma.chapter.update({
+          where: { id: chapterId["carrera-2:B"] },
+          data: { order: 99 },
+        });
+        await prisma.chapter.create({
+          data: {
+            bookId: bookId["carrera-2"],
+            order: 2,
+            title: "Intruso",
+            isPublished: true,
+          },
+        });
+      });
+
+      await expect(
+        racing.reorderChapters("carrera-2", {
+          expectedRevisionId: baseId,
+          orderedChapterOrders: [2, 1],
+        }),
+      ).rejects.toMatchObject({
+        status: 422,
+        response: { code: "CONTENT_STRUCTURE_REQUIRES_SYNC" },
+      });
+
+      expect(await structuralState("carrera-2")).toEqual(before);
     });
   });
 

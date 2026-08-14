@@ -345,9 +345,12 @@ export class ContentStudioService {
    * through the ordinary publish button — there is no reorder-specific publish,
    * on purpose: the pointer move is the same atomic act it has always been.
    *
-   * The two refusals below are fast, friendly copies of rules the transaction
-   * enforces again inside the edition lock. Neither is the authority: a
-   * migration or an ingest can land between this check and the write.
+   * The refusal below is a fast, friendly copy of rules the transaction
+   * enforces again inside the edition lock — entitlement ownership AND full
+   * structural adoption, both against the exact base revision. Neither check
+   * here is the authority: a migration or an ingest can land between this
+   * check and the write, and the browser gets a clearer message if the answer
+   * is already known before a transaction is opened.
    */
   async reorderChapters(
     bookSlug: string,

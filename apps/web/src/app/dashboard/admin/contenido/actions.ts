@@ -17,6 +17,7 @@ import type {
   CreateChapterResult,
   SaveResult,
   PublishResult,
+  ReorderResult,
   StudioBlockInput,
 } from "./contracts";
 
@@ -86,6 +87,46 @@ export async function saveChapterDraftAction(
     return { ok: true, data: saved };
   } catch (err) {
     return asOutcome<SaveResult>(err);
+  }
+}
+
+/**
+ * Rearrange the book's chapters in the draft.
+ *
+ * The body is two fields and neither is an identity. `orderedChapterOrders`
+ * carries the CURRENT order values of the revision the page loaded, in the
+ * sequence the editor wants them — locators inside that exact revision, which
+ * is why `expectedRevisionId` is not optional. The server maps them to stable
+ * units itself, under the edition lock, after the optimistic check passes.
+ *
+ * Nothing about placement is sent: not the destination numbers, not the part a
+ * chapter belongs to. Both are the server's to decide, and offering either
+ * would be a decision the browser is not entitled to make.
+ *
+ * This does NOT publish. It mints a draft snapshot; the ordinary publish panel
+ * is still what a reader eventually sees.
+ */
+export async function reorderChaptersAction(
+  bookSlug: string,
+  input: { expectedRevisionId: string; orderedChapterOrders: number[] },
+): Promise<ActionOutcome<ReorderResult>> {
+  try {
+    const result = await serverFetch<ReorderResult>(
+      `/pulso/content/books/${encodeURIComponent(bookSlug)}/structure/draft`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          expectedRevisionId: input.expectedRevisionId,
+          orderedChapterOrders: input.orderedChapterOrders,
+        }),
+      },
+    );
+    // The page shows the chapter order, the changed count and whether the
+    // draft changes the book's shape; all three just moved.
+    revalidatePath(bookPath(bookSlug));
+    return { ok: true, data: result };
+  } catch (err) {
+    return asOutcome<ReorderResult>(err);
   }
 }
 

@@ -542,6 +542,11 @@ export class ContentStudioService {
       chapters: chapters.map((c) => ({
         order: c.order,
         title: c.title,
+        // Placement metadata, straight from the manifest entry. The reorder
+        // write refuses a move across a part boundary, so the editor is told
+        // where those boundaries are rather than discovering one from a 422.
+        partNumber: c.partNumber,
+        partTitle: c.partTitle,
         changed: changed.has(c.unitKey),
         isNewDraftChapter: c.isNewDraftChapter,
         titleEditable: c.titleEditable,

@@ -90,6 +90,17 @@ export class ContentStudioChapterRowDto {
       "Puede abrirse en el editor. Falso para un capítulo pendiente de sincronización, que se lista pero no tiene nada que editar.",
   })
   editable!: boolean;
+
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description:
+      "La parte del libro a la que pertenece, según la revisión que se edita. Metadato editorial de colocación — el reordenamiento no permite mover un capítulo entre partes, así que el editor necesita saber dónde está el límite.",
+  })
+  partNumber!: number | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  partTitle!: string | null;
 }
 
 export class ContentStudioBookStateResponseDto {

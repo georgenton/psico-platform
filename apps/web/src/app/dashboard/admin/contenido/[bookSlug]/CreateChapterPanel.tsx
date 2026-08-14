@@ -20,6 +20,9 @@ export function CreateChapterPanel({
   bookSlug,
   editingRevisionId,
   available,
+  disabled = false,
+  disabledReason,
+  onMutationLockChange,
 }: {
   bookSlug: string;
   editingRevisionId: string;
@@ -29,6 +32,26 @@ export function CreateChapterPanel({
    * one already answers, and that judgement belongs on the server.
    */
   available: boolean;
+  /**
+   * A local workflow interlock, separate from `available`. The server still
+   * decides whether the book CAN take a new chapter; this only stops one being
+   * created against a revision the page is no longer showing.
+   */
+  disabled?: boolean;
+  disabledReason?: string;
+  /**
+   * Tell the coordinator a structural operation is under way here.
+   *
+   * `busy` is private to this panel, so without this the page cannot know a
+   * create is in flight and would let an editor start rearranging chapters —
+   * work the create's own `router.push` then navigates away from.
+   *
+   * Held through SUCCESS: briefly re-enabling reorder between the response and
+   * the navigation would offer work this page is about to leave. If the
+   * navigation never completes, staying locked is the better failure, because
+   * the create has already committed.
+   */
+  onMutationLockChange?: (locked: boolean) => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -40,9 +63,15 @@ export function CreateChapterPanel({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (trimmed.length === 0 || busy) return;
+    // `disabled` is checked HERE, not only on the button. A form opened before
+    // the interlock began is still mounted and still submittable — by Enter in
+    // the input, or by any render path that leaves the control enabled — and a
+    // create against the revision this page loaded is exactly what the
+    // interlock exists to prevent.
+    if (disabled || trimmed.length === 0 || busy) return;
 
     setBusy(true);
+    onMutationLockChange?.(true);
     setError(null);
     const result = await createChapterAction(bookSlug, {
       expectedRevisionId: editingRevisionId,
@@ -50,6 +79,10 @@ export function CreateChapterPanel({
     });
     setBusy(false);
 
+    if (!result.ok || !result.data) {
+      // Nothing was created, so nothing is about to move under this page.
+      onMutationLockChange?.(false);
+    }
     if (result.conflict) {
       // Never retry a conflict: somebody else's edit is already in the draft
       // this page never saw.
@@ -84,8 +117,18 @@ export function CreateChapterPanel({
   if (!open) {
     return (
       <div className="mt-5">
+        {disabled && disabledReason && (
+          <p
+            className="mb-2 text-[12.5px]"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            {disabledReason}
+          </p>
+        )}
         <button
           type="button"
+          disabled={disabled}
+          title={disabled ? disabledReason : undefined}
           onClick={() => setOpen(true)}
           className="rounded-full px-4 py-2 text-[13px] font-semibold"
           style={{
@@ -122,11 +165,21 @@ export function CreateChapterPanel({
         Se añade al final del libro y queda en el borrador. Nadie lo ve hasta
         que publiques los cambios del libro.
       </p>
+      {disabled && disabledReason && (
+        <p
+          role="status"
+          className="mt-2 text-[12.5px] font-semibold"
+          style={{ color: "var(--color-warm-700)" }}
+        >
+          {disabledReason}
+        </p>
+      )}
       <input
         id="new-chapter-title"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         maxLength={200}
+        disabled={disabled || busy}
         autoFocus
         className="mt-3 w-full rounded-lg border px-3 py-2 text-[14px]"
         style={{
@@ -148,7 +201,8 @@ export function CreateChapterPanel({
       <div className="mt-3 flex items-center gap-3">
         <button
           type="submit"
-          disabled={trimmed.length === 0 || busy}
+          disabled={disabled || trimmed.length === 0 || busy}
+          title={disabled ? disabledReason : undefined}
           className="rounded-full px-4 py-2 text-[13px] font-semibold disabled:opacity-50"
           style={{
             background: "var(--color-lavender-600)",

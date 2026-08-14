@@ -24635,6 +24635,15 @@
           "editable": {
             "type": "boolean",
             "description": "Puede abrirse en el editor. Falso para un capítulo pendiente de sincronización, que se lista pero no tiene nada que editar."
+          },
+          "partNumber": {
+            "type": "number",
+            "nullable": true,
+            "description": "La parte del libro a la que pertenece, según la revisión que se edita. Metadato editorial de colocación — el reordenamiento no permite mover un capítulo entre partes, así que el editor necesita saber dónde está el límite."
+          },
+          "partTitle": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -24644,7 +24653,9 @@
           "isNewDraftChapter",
           "titleEditable",
           "ingested",
-          "editable"
+          "editable",
+          "partNumber",
+          "partTitle"
         ]
       },
       "ContentStudioBookStateResponseDto": {

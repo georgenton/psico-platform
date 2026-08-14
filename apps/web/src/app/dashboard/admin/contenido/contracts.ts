@@ -21,6 +21,7 @@ export type ChapterPreview = S["ContentStudioPreviewResponseDto"];
 export type SaveResult = S["ContentStudioSaveResponseDto"];
 export type CreateChapterResult = S["ContentStudioCreateChapterResponseDto"];
 export type PublishResult = S["ContentStudioPublishResponseDto"];
+export type ReorderResult = S["ContentStudioReorderResponseDto"];
 export type CoverResult = S["ContentStudioCoverResponseDto"];
 export type ChapterImageResult = S["ContentStudioChapterImageResponseDto"];
 export type ChapterMediaList = S["ContentStudioChapterMediaResponseDto"];

@@ -153,6 +153,22 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
    * arrives.
    */
   const [awaitingServerRefresh, setAwaitingServerRefresh] = useState(false);
+  /**
+   * A SIBLING structural operation is in flight, or has committed and this page
+   * has not yet seen its result.
+   *
+   * The interlock used to run one way only: a local reorder blocked Publish and
+   * Create, but neither blocked a reorder. Publishing while the editor started
+   * rearranging meant the publish's own `router.refresh()` landed on an unsaved
+   * arrangement and discarded it without a word; creating meant the same thing
+   * via `router.push`. Both panels own their pending flag privately, so this is
+   * the only place that can know either is happening — hence the callback.
+   *
+   * Released when a NEW server snapshot arrives, not when the action resolves:
+   * success and hydration are different moments, and the gap between them is
+   * precisely where the work was being lost.
+   */
+  const [siblingMutationLock, setSiblingMutationLock] = useState(false);
 
   // Read through refs so the reset below depends on the snapshot key ALONE.
   // Server props arrive as a fresh array every render, and keying on the array
@@ -186,6 +202,7 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
     initialOrder.current = chaptersRef.current.map((c) => c.order);
     setReorderMode(false);
     setAwaitingServerRefresh(false);
+    setSiblingMutationLock(false);
     setConflict(false);
     setFailure(null);
     // "Guardado en el borrador" is only true while there IS a draft. Once one
@@ -221,11 +238,21 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
   }
 
   /**
-   * Any structural operation against the hydration this page is holding is
-   * unsafe right now — either because the editor has moved rows and not saved,
-   * or because the server has accepted a move this page has not seen yet.
+   * The reorder SURFACE is up: rows are being rearranged, or a save has been
+   * accepted and this page is waiting to see it. Either way the hydration it
+   * holds is not something Publish, Create or an edit link may act on.
    */
-  const structuralInterlock = reorderMode || awaitingServerRefresh;
+  const reorderSurfaceActive = reorderMode || awaitingServerRefresh;
+
+  /**
+   * Whether a reorder may be STARTED — deliberately a wider condition, and
+   * deliberately not the same boolean.
+   *
+   * Folding the sibling lock into the surface flag would make a publish in
+   * flight render arrow controls, which is not what publishing means. One
+   * decides what is on screen; the other decides what may begin.
+   */
+  const reorderEntryBlocked = reorderSurfaceActive || siblingMutationLock;
 
   function swap(i: number, j: number) {
     if (!canSwap(i, j) || saving || awaitingServerRefresh) return;
@@ -307,8 +334,9 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
           changedCount={props.changedUnitCount}
           changedTitles={props.changedTitles}
           structureChanged={props.structureChanged}
-          disabled={structuralInterlock}
+          disabled={reorderSurfaceActive}
           disabledReason={interlockReason}
+          onMutationLockChange={setSiblingMutationLock}
         />
       )}
 
@@ -316,8 +344,9 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
         bookSlug={bookSlug}
         editingRevisionId={editingRevisionId}
         available={props.chapterCreationAvailable}
-        disabled={structuralInterlock}
+        disabled={reorderSurfaceActive}
         disabledReason={interlockReason}
+        onMutationLockChange={setSiblingMutationLock}
       />
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
@@ -329,16 +358,23 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
         </h2>
         {/* A one-chapter book has nothing to permute. Hiding the control is a
             usability call, not a safety one — the server still decides. */}
-        {!structuralInterlock && rows.length >= 2 && (
+        {!reorderSurfaceActive && rows.length >= 2 && (
           <button
             type="button"
             onClick={() => {
+              // Fail closed rather than trusting the disabled attribute alone:
+              // a sibling operation can start between render and click.
+              if (reorderEntryBlocked) return;
               // Local only: no request, no revision, nothing minted.
               setReorderMode(true);
               setSaved(false);
             }}
-            disabled={!reorderAvailable}
-            title={blockedCopy ?? undefined}
+            disabled={!reorderAvailable || reorderEntryBlocked}
+            title={
+              siblingMutationLock
+                ? "Espera a que termine la operación en curso."
+                : (blockedCopy ?? undefined)
+            }
             className="rounded-full px-4 py-2 text-[13px] font-semibold disabled:opacity-60"
             style={{
               background: "var(--color-lavender-100)",
@@ -350,7 +386,7 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
         )}
       </div>
 
-      {!structuralInterlock && blockedCopy && rows.length >= 2 && (
+      {!reorderSurfaceActive && blockedCopy && rows.length >= 2 && (
         <p
           className="mt-2 text-[12.5px]"
           style={{ color: "var(--color-warm-500)" }}
@@ -359,7 +395,7 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
         </p>
       )}
 
-      {structuralInterlock && (
+      {reorderSurfaceActive && (
         <div
           role="group"
           aria-label="Reordenar capítulos"
@@ -521,7 +557,7 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
                     )
                   )}
 
-                  {structuralInterlock ? (
+                  {reorderSurfaceActive ? (
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"

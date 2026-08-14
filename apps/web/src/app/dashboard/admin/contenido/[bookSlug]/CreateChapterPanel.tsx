@@ -22,6 +22,7 @@ export function CreateChapterPanel({
   available,
   disabled = false,
   disabledReason,
+  onMutationLockChange,
 }: {
   bookSlug: string;
   editingRevisionId: string;
@@ -38,6 +39,19 @@ export function CreateChapterPanel({
    */
   disabled?: boolean;
   disabledReason?: string;
+  /**
+   * Tell the coordinator a structural operation is under way here.
+   *
+   * `busy` is private to this panel, so without this the page cannot know a
+   * create is in flight and would let an editor start rearranging chapters —
+   * work the create's own `router.push` then navigates away from.
+   *
+   * Held through SUCCESS: briefly re-enabling reorder between the response and
+   * the navigation would offer work this page is about to leave. If the
+   * navigation never completes, staying locked is the better failure, because
+   * the create has already committed.
+   */
+  onMutationLockChange?: (locked: boolean) => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -57,6 +71,7 @@ export function CreateChapterPanel({
     if (disabled || trimmed.length === 0 || busy) return;
 
     setBusy(true);
+    onMutationLockChange?.(true);
     setError(null);
     const result = await createChapterAction(bookSlug, {
       expectedRevisionId: editingRevisionId,
@@ -64,6 +79,10 @@ export function CreateChapterPanel({
     });
     setBusy(false);
 
+    if (!result.ok || !result.data) {
+      // Nothing was created, so nothing is about to move under this page.
+      onMutationLockChange?.(false);
+    }
     if (result.conflict) {
       // Never retry a conflict: somebody else's edit is already in the draft
       // this page never saw.

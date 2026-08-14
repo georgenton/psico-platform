@@ -20,6 +20,18 @@ interface Props {
    */
   disabled?: boolean;
   disabledReason?: string;
+  /**
+   * Tell the coordinator a structural operation is under way here.
+   *
+   * `pending` is private to this panel, so without this the page cannot know a
+   * publish is in flight and would happily let an editor start rearranging
+   * chapters — work the publish's own `router.refresh()` then discards.
+   *
+   * Stays locked through SUCCESS on purpose: the refresh has been asked for but
+   * the new props have not arrived, and that gap is the whole hazard. The
+   * coordinator releases it when a new server snapshot lands.
+   */
+  onMutationLockChange?: (locked: boolean) => void;
 }
 
 /**
@@ -43,6 +55,7 @@ export function PublishBookPanel({
   structureChanged = false,
   disabled = false,
   disabledReason,
+  onMutationLockChange,
 }: Props) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
@@ -51,15 +64,20 @@ export function PublishBookPanel({
   const [error, setError] = useState<string | null>(null);
 
   async function publish() {
+    if (disabled || pending) return;
     setPending(true);
+    onMutationLockChange?.(true);
     setError(null);
     const result = await publishBookAction(bookSlug, draftRevisionId);
     setPending(false);
     if (result.ok) {
       setConfirming(false);
+      // Deliberately NOT released here. The refresh is requested, not arrived.
       router.refresh();
       return;
     }
+    // Nothing was published, so nothing is about to change underneath the page.
+    onMutationLockChange?.(false);
     if (result.conflict) setConflict(true);
     else setError(result.error ?? "No pudimos publicar.");
   }

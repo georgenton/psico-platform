@@ -767,3 +767,200 @@ describe("accessibility", () => {
     });
   });
 });
+
+/**
+ * The interlock runs BOTH ways.
+ *
+ * A local reorder already blocked Publish and Create. Neither blocked a
+ * reorder — and both of them end by moving the page underneath it: publish via
+ * `router.refresh()`, create via `router.push`. An editor who started
+ * rearranging while one was in flight lost the work with no warning at all.
+ *
+ * Every case here holds the sibling action open with a deferred promise, so the
+ * intermediate state is a real one rather than a timing guess.
+ */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
+const withDraftProps = (over: Partial<BookStructurePanelProps> = {}) =>
+  props({
+    draftRevisionId: "rev-10",
+    draftRevisionNumber: 10,
+    changedUnitCount: 1,
+    changedTitles: ["Cap. 1 · A"],
+    ...over,
+  });
+
+const reorderEntry = () =>
+  screen.queryByRole("button", { name: "Reordenar capítulos" });
+
+describe("a publish in flight blocks starting a reorder", () => {
+  it("stays blocked while the request is open", async () => {
+    const gate = deferred<{ ok: boolean }>();
+    publishBookAction.mockReturnValue(gate.promise);
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...withDraftProps()} />);
+
+    await u.click(
+      screen.getByRole("button", { name: "Publicar cambios del libro" }),
+    );
+    await u.click(screen.getByRole("button", { name: "Publicar" }));
+
+    // Mid-flight: the entry exists but must refuse.
+    expect(reorderEntry()).toBeDisabled();
+    await u.click(reorderEntry()!);
+    expect(screen.queryByRole("button", { name: /Mover «A»/ })).toBeNull();
+    expect(reorderChaptersAction).not.toHaveBeenCalled();
+
+    gate.resolve({ ok: true });
+  });
+
+  it("stays blocked after success, until the new snapshot arrives", async () => {
+    const gate = deferred<{ ok: boolean }>();
+    publishBookAction.mockReturnValue(gate.promise);
+    const u = userEvent.setup();
+    const { rerender } = render(<BookStructurePanel {...withDraftProps()} />);
+
+    await u.click(
+      screen.getByRole("button", { name: "Publicar cambios del libro" }),
+    );
+    await u.click(screen.getByRole("button", { name: "Publicar" }));
+    gate.resolve({ ok: true });
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+
+    // The refresh was ASKED for; the props have not arrived. Unlocking here is
+    // the exact window where a fresh arrangement gets silently reset.
+    expect(reorderEntry()).toBeDisabled();
+    await u.click(reorderEntry()!);
+    expect(screen.queryByRole("button", { name: /Mover «A»/ })).toBeNull();
+    expect(reorderChaptersAction).not.toHaveBeenCalled();
+
+    // Publishing does not mint a revision: same id, draft gone.
+    rerender(
+      <BookStructurePanel
+        {...props({ editingRevisionId: "rev-10", draftRevisionId: null })}
+      />,
+    );
+
+    expect(reorderEntry()).toBeEnabled();
+    await u.click(reorderEntry()!);
+    expect(
+      screen.getByRole("button", { name: "Mover «A» abajo" }),
+    ).toBeInTheDocument();
+  });
+
+  it("a failed publish releases the lock", async () => {
+    publishBookAction.mockResolvedValue({ ok: false, error: "no" });
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...withDraftProps()} />);
+
+    await u.click(
+      screen.getByRole("button", { name: "Publicar cambios del libro" }),
+    );
+    await u.click(screen.getByRole("button", { name: "Publicar" }));
+
+    await waitFor(() => expect(reorderEntry()).toBeEnabled());
+  });
+
+  it("a conflicted publish releases the lock", async () => {
+    publishBookAction.mockResolvedValue({ ok: false, conflict: true });
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...withDraftProps()} />);
+
+    await u.click(
+      screen.getByRole("button", { name: "Publicar cambios del libro" }),
+    );
+    await u.click(screen.getByRole("button", { name: "Publicar" }));
+
+    await waitFor(() => expect(reorderEntry()).toBeEnabled());
+  });
+});
+
+describe("a create in flight blocks starting a reorder", () => {
+  const openAndSubmit = async (u: ReturnType<typeof userEvent.setup>) => {
+    await u.click(screen.getByRole("button", { name: "+ Crear capítulo" }));
+    await u.type(screen.getByRole("textbox"), "Nuevo");
+    await u.click(screen.getByRole("button", { name: /Crear y editar/i }));
+  };
+
+  it("stays blocked while the request is open", async () => {
+    const gate = deferred<{ ok: boolean }>();
+    createChapterAction.mockReturnValue(gate.promise);
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...props()} />);
+
+    await openAndSubmit(u);
+
+    expect(reorderEntry()).toBeDisabled();
+    await u.click(reorderEntry()!);
+    expect(screen.queryByRole("button", { name: /Mover «A»/ })).toBeNull();
+    expect(reorderChaptersAction).not.toHaveBeenCalled();
+
+    gate.resolve({ ok: true });
+  });
+
+  it("stays blocked after success, through the navigation", async () => {
+    const gate = deferred<{ ok: boolean; data: { chapterOrder: number } }>();
+    createChapterAction.mockReturnValue(gate.promise);
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...props()} />);
+
+    await openAndSubmit(u);
+    gate.resolve({ ok: true, data: { chapterOrder: 4 } });
+    await waitFor(() => expect(createChapterAction).toHaveBeenCalledTimes(1));
+
+    // The page is leaving. Re-enabling reorder in the gap would offer work it
+    // is about to abandon — and if the navigation never lands, refusing is the
+    // better failure, because the chapter already exists.
+    expect(reorderEntry()).toBeDisabled();
+    await u.click(reorderEntry()!);
+    expect(screen.queryByRole("button", { name: /Mover «A»/ })).toBeNull();
+    expect(reorderChaptersAction).not.toHaveBeenCalled();
+  });
+
+  it("a failed create releases the lock", async () => {
+    createChapterAction.mockResolvedValue({ ok: false, error: "no" });
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...props()} />);
+    await openAndSubmit(u);
+
+    await waitFor(() => expect(reorderEntry()).toBeEnabled());
+  });
+
+  it("a conflicted create releases the lock", async () => {
+    createChapterAction.mockResolvedValue({ ok: false, conflict: true });
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...props()} />);
+    await openAndSubmit(u);
+
+    await waitFor(() => expect(reorderEntry()).toBeEnabled());
+  });
+});
+
+describe("a sibling operation is not a reorder", () => {
+  it("publishing does not put the list into reorder mode", async () => {
+    const gate = deferred<{ ok: boolean }>();
+    publishBookAction.mockReturnValue(gate.promise);
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...withDraftProps()} />);
+
+    await u.click(
+      screen.getByRole("button", { name: "Publicar cambios del libro" }),
+    );
+    await u.click(screen.getByRole("button", { name: "Publicar" }));
+
+    // Blocked from STARTING one, but the surface itself is untouched: no arrow
+    // controls, and the edit links a publish has no reason to remove.
+    expect(screen.queryByRole("button", { name: /Mover «/ })).toBeNull();
+    expect(
+      screen.getAllByRole("link", { name: "Editar capítulo" }),
+    ).toHaveLength(3);
+
+    gate.resolve({ ok: true });
+  });
+});

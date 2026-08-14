@@ -94,6 +94,29 @@ export async function lockEditionTx(
 }
 
 /**
+ * Lock the edition serving a book, when there is one.
+ *
+ * For writers that change a book's `Chapter` rows rather than its manifest.
+ * Those rows decide whether the book's structure is fully adopted, which is a
+ * precondition the reorder write evaluates inside this same lock — so a chapter
+ * appearing or disappearing has to serialise against it, or the check could be
+ * made true and then falsified before the write commits.
+ *
+ * Locks by the edition's slug, which is the same row `lockEditionTx` locks by
+ * id. Returns false for a book Content Core does not serve: there is no
+ * manifest to contradict, so there is nothing to serialise against.
+ */
+export async function lockEditionForBookSlugTx(
+  tx: Prisma.TransactionClient,
+  bookSlug: string,
+): Promise<boolean> {
+  const rows = await tx.$queryRaw<
+    Array<{ id: string }>
+  >`SELECT "id" FROM "Edition" WHERE "slug" = ${bookSlug} FOR UPDATE`;
+  return rows.length > 0;
+}
+
+/**
  * The next revision number for an edition.
  *
  * `previousPublished.number + 1` was safe while every revision was published the

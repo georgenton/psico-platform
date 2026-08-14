@@ -40,6 +40,10 @@ function makePrisma() {
     authorPublicationRequest: {
       update: vi.fn().mockResolvedValue({}),
     },
+    // Republishing replaces every `Chapter` row of the book, so it takes the
+    // edition lock to serialise against a reorder deciding, under that same
+    // lock, whether the book's structure is fully adopted.
+    $queryRaw: vi.fn().mockResolvedValue([]),
   };
   return {
     user: { findUnique: vi.fn() },
@@ -77,8 +81,16 @@ describe("AuthorReviewService", () => {
   beforeEach(() => {
     prisma = makePrisma();
     jobs = { enqueueEmail: vi.fn().mockResolvedValue(undefined) };
-    config = { get: vi.fn((key: string) => (key === "APP_URL" ? "https://app.test" : undefined)) };
-    svc = new AuthorReviewService(prisma as never, jobs as never, config as never);
+    config = {
+      get: vi.fn((key: string) =>
+        key === "APP_URL" ? "https://app.test" : undefined,
+      ),
+    };
+    svc = new AuthorReviewService(
+      prisma as never,
+      jobs as never,
+      config as never,
+    );
   });
 
   describe("listRequests", () => {
@@ -177,9 +189,27 @@ describe("AuthorReviewService", () => {
           status: "IN_REVIEW",
           authorUserId: "u1",
           chapters: [
-            { n: 1, title: "Cap 1", subtitle: null, isHidden: false, blocks: [] },
-            { n: 2, title: "Cap 2", subtitle: null, isHidden: true, blocks: [] },
-            { n: 3, title: "Cap 3", subtitle: null, isHidden: true, blocks: [] },
+            {
+              n: 1,
+              title: "Cap 1",
+              subtitle: null,
+              isHidden: false,
+              blocks: [],
+            },
+            {
+              n: 2,
+              title: "Cap 2",
+              subtitle: null,
+              isHidden: true,
+              blocks: [],
+            },
+            {
+              n: 3,
+              title: "Cap 3",
+              subtitle: null,
+              isHidden: true,
+              blocks: [],
+            },
           ],
         },
       });
@@ -303,6 +333,15 @@ describe("AuthorReviewService", () => {
       await svc.approve("r1", "admin1");
       expect(prisma._tx.book.create).not.toHaveBeenCalled();
       expect(prisma._tx.book.update).toHaveBeenCalled();
+      // The lock comes BEFORE the chapters are wiped, not after. Republishing
+      // an author book rewrites every `Chapter` row, and the reorder write
+      // decides eligibility from those rows inside this same edition lock —
+      // so the two have to serialise rather than interleave.
+      expect(prisma._tx.$queryRaw).toHaveBeenCalled();
+      const lockOrder = prisma._tx.$queryRaw.mock.invocationCallOrder[0]!;
+      const wipeOrder =
+        prisma._tx.chapter.deleteMany.mock.invocationCallOrder[0]!;
+      expect(lockOrder).toBeLessThan(wipeOrder);
     });
   });
 
@@ -318,9 +357,7 @@ describe("AuthorReviewService", () => {
       prisma.authorPublicationRequest.findUnique.mockResolvedValue({
         reviewState: "REJECTED",
       });
-      await expect(
-        svc.reject("r1", "admin1", "razon"),
-      ).rejects.toMatchObject({
+      await expect(svc.reject("r1", "admin1", "razon")).rejects.toMatchObject({
         response: expect.objectContaining({ code: "REQUEST_ALREADY_DECIDED" }),
       });
     });

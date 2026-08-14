@@ -7,6 +7,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";
 import { assertSingleWriteIdentity } from "./write-identity";
+import { publishedStructureHasMoved } from "../content-core/lib/published-structure-history";
 import {
   isOutsidePublishedStructure,
   resolveLegacyPlacement,
@@ -513,6 +514,20 @@ export class LectorService {
 
     // No stable identity: an old client. Position is all it can offer, and
     // resolving by position is still correct for a book nobody moved.
+    //
+    // Once a book HAS published a position move, that stops being true: the
+    // payload cannot distinguish "the chapter that was at 1 when I opened it"
+    // from "whatever is at 1 now". Soft-ack and write nothing, the same answer
+    // a retired unit gets — a heartbeat is fire-and-forget, and losing a few
+    // seconds of a stale tab's timer is the cheap side of this trade.
+    const beatBook = await this.prisma.book.findFirst({
+      where: { id: dto.bookId },
+      select: { slug: true },
+    });
+    if (beatBook && (await this.positionOnlyWritesUnsafe(beatBook.slug))) {
+      return { ok: true, progressPct: dto.progressPct };
+    }
+
     const chapter = await this.prisma.chapter.findUnique({
       where: {
         bookId_order: { bookId: dto.bookId, order: dto.chapterOrder },
@@ -539,6 +554,21 @@ export class LectorService {
    * one code path. The guards below are the reason: they must not drift
    * between the two.
    */
+  /**
+   * Can a payload carrying only a position still be trusted for this book?
+   *
+   * One question asked in both write paths so they cannot drift, and asked from
+   * the book id both of them already hold. Derived from published history — see
+   * `publishedStructureHasMoved` — so there is no flag to set and no book that
+   * moved before this code existed gets missed.
+   *
+   * Only ever reached by a client that sent NO stable identity, which current
+   * readers never do, so the extra read stays off the hot path.
+   */
+  private positionOnlyWritesUnsafe(bookSlug: string): Promise<boolean> {
+    return publishedStructureHasMoved(this.prisma, bookSlug);
+  }
+
   private async legacyHeartbeat(
     userId: string,
     dto: LectorSessionHeartbeatDto,
@@ -745,7 +775,17 @@ export class LectorService {
       });
       if (!chapter) throw new NotFoundException("CHAPTER_NOT_FOUND");
     } else {
-      // No stable identity: an old client, resolved by position as always.
+      // No stable identity: an old client, resolved by position as always —
+      // but only while position has meant one chapter for this book's whole
+      // published life. After a published move it means two things at once,
+      // and completion is not a write to guess at: marking the current
+      // occupant finished tells a reader they completed a chapter they never
+      // opened, and marking the historical one is a write to a position its
+      // owner no longer holds. Fail closed and let the client send an id.
+      if (await this.positionOnlyWritesUnsafe(book.slug)) {
+        throw new NotFoundException("CHAPTER_NOT_FOUND");
+      }
+
       chapter = await this.prisma.chapter.findUnique({
         where: { bookId_order: { bookId: book.id, order: chapterOrder } },
         select: { id: true, order: true },

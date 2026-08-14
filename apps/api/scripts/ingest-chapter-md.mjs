@@ -322,19 +322,36 @@ async function main() {
         continue;
       }
 
-      const chapter = await prisma.chapter.upsert({
-        where: { bookId_order: { bookId: book.id, order } },
-        create: { bookId: book.id, order, title, durationMinutes, isPublished: true, partNumber, partTitle },
-        update: { title, durationMinutes, isPublished: true, partNumber, partTitle },
-      });
-      await prisma.chapterBlock.deleteMany({ where: { chapterId: chapter.id } });
-      await prisma.chapterBlock.createMany({
-        data: blocks.map((b, i) => ({
-          chapterId: chapter.id,
-          order: i + 1,
-          kind: b.kind,
-          content: b.content,
-        })),
+      // One transaction per chapter, opened by taking the EDITION row lock.
+      //
+      // Upserting a chapter can CREATE one, and a chapter created here has no
+      // `ContentUnit` — so on a book Content Core serves it lands as UNADOPTED,
+      // which is exactly the state that makes the book ineligible to reorder.
+      // Content Studio's reorder decides that eligibility inside this same
+      // lock, so without it this write could land between the check and the
+      // commit and leave a published structure that does not account for this
+      // chapter. Same row, same lock as `lockEditionForBookSlugTx`.
+      //
+      // Locking by slug is a no-op for a book Content Core does not serve:
+      // there is no manifest to contradict, so there is nothing to serialise
+      // against.
+      const chapter = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "Edition" WHERE "slug" = ${BOOK_SLUG} FOR UPDATE`;
+        const ch = await tx.chapter.upsert({
+          where: { bookId_order: { bookId: book.id, order } },
+          create: { bookId: book.id, order, title, durationMinutes, isPublished: true, partNumber, partTitle },
+          update: { title, durationMinutes, isPublished: true, partNumber, partTitle },
+        });
+        await tx.chapterBlock.deleteMany({ where: { chapterId: ch.id } });
+        await tx.chapterBlock.createMany({
+          data: blocks.map((b, i) => ({
+            chapterId: ch.id,
+            order: i + 1,
+            kind: b.kind,
+            content: b.content,
+          })),
+        });
+        return ch;
       });
       console.log(`  ✓ persisted (chapter ${chapter.id})`);
     }

@@ -32,12 +32,21 @@ import {
 import type { Env } from "../config";
 import {
   CONTENT_DRAFT_UNIT_ALREADY_PUBLISHED,
+  CONTENT_REORDER_REQUIRES_NATIVE_ENTITLEMENT,
   describeEditionDraft,
   discardDraftUnit,
   publishDraftRevision,
   readUnitAtRevision,
+  reorderDraftManifest,
   saveUnitDraft,
 } from "../content-core/content-draft";
+import {
+  CONTENT_REORDER_ACROSS_PARTS_UNSUPPORTED,
+  CONTENT_REORDER_DUPLICATE_ORDER,
+  CONTENT_REORDER_EMPTY,
+  CONTENT_REORDER_INCOMPLETE,
+  CONTENT_REORDER_UNKNOWN_ORDER,
+} from "../content-core/lib/manifest-reorder";
 import { CONTENT_DRAFT_CONFLICT } from "../content-core/revision-lifecycle";
 
 /** Matches the chapter-title length the rest of the catalog already allows. */
@@ -329,6 +338,66 @@ export class ContentStudioService {
   }
 
   /**
+   * Rearrange the book's chapters in the draft.
+   *
+   * Does not publish. What it produces is the next draft snapshot, so readers
+   * keep getting the published structure until somebody publishes this one
+   * through the ordinary publish button — there is no reorder-specific publish,
+   * on purpose: the pointer move is the same atomic act it has always been.
+   *
+   * The refusal below is a fast, friendly copy of rules the transaction
+   * enforces again inside the edition lock — entitlement ownership AND full
+   * structural adoption, both against the exact base revision. Neither check
+   * here is the authority: a migration or an ingest can land between this
+   * check and the write, and the browser gets a clearer message if the answer
+   * is already known before a transaction is opened.
+   */
+  async reorderChapters(
+    bookSlug: string,
+    input: { expectedRevisionId: string; orderedChapterOrders: number[] },
+  ) {
+    const book = await this.prisma.book.findUnique({
+      where: { slug: bookSlug },
+      select: { id: true },
+    });
+    if (!book) throw new NotFoundException({ code: "BOOK_NOT_FOUND" });
+
+    const structure = await listEditorialChapters(this.prisma, {
+      bookId: book.id,
+      bookSlug,
+    });
+    if (!structure.reorderAvailable) {
+      throw new UnprocessableEntityException({
+        code:
+          structure.reorderBlockedReason === "NATIVE_ENTITLEMENT_REQUIRED"
+            ? CONTENT_REORDER_REQUIRES_NATIVE_ENTITLEMENT
+            : CONTENT_STRUCTURE_REQUIRES_SYNC,
+        message:
+          structure.reorderBlockedReason === "NATIVE_ENTITLEMENT_REQUIRED"
+            ? "Este libro todavía resuelve el acceso por posición. No puede reordenarse hasta migrar su entitlement."
+            : "Hay capítulos pendientes de sincronizar antes de reordenar.",
+      });
+    }
+
+    const edition = await editionForBookSlug(this.prisma, bookSlug);
+    try {
+      const reordered = await reorderDraftManifest(this.prisma, {
+        editionId: edition.id,
+        expectedRevisionId: input.expectedRevisionId,
+        orderedCurrentOrders: input.orderedChapterOrders,
+      });
+      const described = await describeEditionDraft(this.prisma, edition.id);
+      return {
+        ...reordered,
+        changedUnitCount: described.changedUnitKeys.length,
+        structureChanged: described.structureChanged,
+      };
+    } catch (err) {
+      throw this.mapDomainError(err);
+    }
+  }
+
+  /**
    * The books, with the chapter count Content Studio can actually see.
    *
    * Counting `Chapter` rows was right until a chapter could exist without one;
@@ -464,7 +533,12 @@ export class ContentStudioService {
       // exactly one home.
       chapterCreationAvailable: structure.chapterCreationAvailable,
       creationBlockedReason: structure.creationBlockedReason,
+      // Same contract as creation: the server owns the rule, so the control is
+      // right the first time instead of the browser learning it from a 422.
+      reorderAvailable: structure.reorderAvailable,
+      reorderBlockedReason: structure.reorderBlockedReason,
       changedUnitCount: described.changedUnitKeys.length,
+      structureChanged: described.structureChanged,
       chapters: chapters.map((c) => ({
         order: c.order,
         title: c.title,
@@ -900,6 +974,36 @@ export class ContentStudioService {
       return new BadRequestException({
         code: "CONTENT_CHAPTER_ALREADY_PUBLISHED",
         message: "Este capítulo ya está publicado y no puede descartarse.",
+      });
+    }
+    if (message.includes(CONTENT_REORDER_REQUIRES_NATIVE_ENTITLEMENT)) {
+      return new UnprocessableEntityException({
+        code: CONTENT_REORDER_REQUIRES_NATIVE_ENTITLEMENT,
+        message:
+          "Este libro todavía resuelve el acceso por posición. No puede reordenarse hasta migrar su entitlement.",
+      });
+    }
+    if (message.includes(CONTENT_REORDER_ACROSS_PARTS_UNSUPPORTED)) {
+      return new UnprocessableEntityException({
+        code: CONTENT_REORDER_ACROSS_PARTS_UNSUPPORTED,
+        message:
+          "Mover un capítulo a otra parte todavía no está soportado. Reordena dentro de su parte.",
+      });
+    }
+    // The request does not describe the revision it names: a position repeated,
+    // one that does not exist there, or one left out. All four are the same
+    // situation for the editor — the screen is out of date — but the codes stay
+    // distinct so a bug in the client is diagnosable.
+    if (
+      message.includes(CONTENT_REORDER_DUPLICATE_ORDER) ||
+      message.includes(CONTENT_REORDER_UNKNOWN_ORDER) ||
+      message.includes(CONTENT_REORDER_INCOMPLETE) ||
+      message.includes(CONTENT_REORDER_EMPTY)
+    ) {
+      return new BadRequestException({
+        code: message,
+        message:
+          "El orden enviado no corresponde a la revisión que se está editando. Recarga antes de reordenar.",
       });
     }
     if (message.includes("CONTENT_DRAFT_NOT_FOUND")) {

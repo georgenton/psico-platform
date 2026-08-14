@@ -8,6 +8,7 @@ import {
 import { PrismaService } from "../prisma";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { StorageService } from "../storage";
+import { lockEditionForBookSlugTx } from "../content-core/revision-lifecycle";
 import type { CreateChapterDto } from "./dto/create-chapter.dto";
 import type { UploadAudioDto } from "./dto/upload-audio.dto";
 
@@ -74,6 +75,13 @@ export class ChaptersService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      // A chapter created here has no `ContentUnit`, so on a book Content Core
+      // serves it lands as UNADOPTED — which is exactly the state that makes
+      // the book ineligible to be reordered. Taking the edition lock first is
+      // what stops this insert from landing between a reorder checking that
+      // eligibility and committing its new structure.
+      await lockEditionForBookSlugTx(tx, slug);
+
       const chapter = await tx.chapter.create({
         data: {
           bookId: book.id,

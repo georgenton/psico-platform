@@ -3,6 +3,12 @@ import { NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 
 import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
+// The adoption rule moved down to Content Core, where identity is defined, so
+// the reorder write can enforce it without Content Core importing this module.
+// Re-exported because it is still part of this module's vocabulary.
+import { relateLegacyToManifest } from "../content-core/lib/legacy-adoption";
+
+export { relateLegacyToManifest };
 
 /**
  * Creating a chapter that only Content Core knows about.
@@ -96,7 +102,9 @@ export async function effectiveEditorialRevision(
 export async function editionForBookSlug(db: Db, bookSlug: string) {
   const edition = await db.edition.findFirst({
     where: { slug: bookSlug },
-    select: { id: true, publishedRevisionId: true },
+    // `accessPlan` decides whether Content Core owns this edition's
+    // entitlement, which is a precondition for moving chapters at all.
+    select: { id: true, publishedRevisionId: true, accessPlan: true },
   });
   if (!edition) {
     throw new NotFoundException({ code: "CONTENT_EDITION_NOT_FOUND" });
@@ -139,36 +147,6 @@ export interface EditorialChapter {
    * media panel that errored would not be.
    */
   mediaAdminAvailable: boolean;
-}
-
-/**
- * How a revision's manifest and the book's legacy rows relate.
- *
- * The ONE place identity is compared. Both the editorial list and the publish
- * guard call this, so there is a single answer to "is this unit that chapter?"
- * — and it is always the derived key, never the position.
- *
- * Pure, so the rule can be exercised without a database.
- */
-export function relateLegacyToManifest(
-  entries: Array<{ order: number; unitKey: string }>,
-  legacyChapters: Array<{ id: string; order: number; title: string }>,
-) {
-  const manifestKeys = new Set(entries.map((e) => e.unitKey));
-  const manifestOrders = new Set(entries.map((e) => e.order));
-
-  const legacyByUnitKey = new Map(
-    legacyChapters.map((c) => [unitKeyFromLegacyChapterId(c.id), c]),
-  );
-  const unsynced = legacyChapters.filter(
-    (c) => !manifestKeys.has(unitKeyFromLegacyChapterId(c.id)),
-  );
-  // A conflict is narrower than "something is unsynced": it is a position that
-  // TWO different things answer for. An unsynced chapter sitting at a position
-  // nothing else claims is merely not adopted yet.
-  const structureConflict = unsynced.some((c) => manifestOrders.has(c.order));
-
-  return { legacyByUnitKey, unsynced, structureConflict };
 }
 
 /**
@@ -223,6 +201,18 @@ export interface EditorialStructure {
   chapterCreationAvailable: boolean;
   /** Why not, as a code the UI turns into copy. Null when creation is fine. */
   creationBlockedReason: "PENDING_SYNC" | null;
+  /**
+   * Whether the book's chapters may be rearranged right now.
+   *
+   * Strictly harder than creating one. Appending needs the structure to be
+   * synchronised; MOVING also needs Content Core to own entitlement, because an
+   * edition with `accessPlan = null` still decides "is this chapter free?" from
+   * `Chapter.order` — so moving chapters there would move the free preview with
+   * them.
+   */
+  reorderAvailable: boolean;
+  /** Why not. Null when reordering is fine. */
+  reorderBlockedReason: "NATIVE_ENTITLEMENT_REQUIRED" | "PENDING_SYNC" | null;
 }
 
 /**
@@ -341,8 +331,9 @@ export async function listEditorialChapters(
   const unsyncedLegacyCount = relation.unsynced.length;
   // The rule lives here, once. A browser deriving it by scanning `ingested`
   // would be re-implementing a safety check it cannot be trusted with.
-  const chapterCreationAvailable =
-    unsyncedLegacyCount === 0 && !structureConflict;
+  const structureSynced = unsyncedLegacyCount === 0 && !structureConflict;
+  const chapterCreationAvailable = structureSynced;
+  const nativeEntitlement = edition.accessPlan !== null;
 
   return {
     chapters,
@@ -351,6 +342,14 @@ export async function listEditorialChapters(
     structureConflict,
     chapterCreationAvailable,
     creationBlockedReason: chapterCreationAvailable ? null : "PENDING_SYNC",
+    reorderAvailable: structureSynced && nativeEntitlement,
+    // Entitlement first: it is the blocker an editor cannot clear by
+    // synchronising, so naming the other one would send them down a dead end.
+    reorderBlockedReason: !nativeEntitlement
+      ? "NATIVE_ENTITLEMENT_REQUIRED"
+      : structureSynced
+        ? null
+        : "PENDING_SYNC",
   };
 }
 

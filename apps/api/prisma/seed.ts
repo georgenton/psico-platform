@@ -7,10 +7,40 @@ import {
   MOOD_SEED_CATALOG,
   MOTIVO_SEED_CATALOG,
 } from "../src/onboarding/constants";
+import { lockEditionForBookSlugTx } from "../src/content-core/revision-lifecycle";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
+
+/**
+ * A seeded chapter, written under the EDITION row lock.
+ *
+ * This seed has no production refusal of its own: it is `ts-node prisma/seed.ts`
+ * pointed at whatever `DATABASE_URL` says, so an operator can run it against
+ * production from a shell. (Measured, not assumed: `prisma migrate deploy` —
+ * what Railway's `preDeployCommand` runs — did NOT chain it on a fresh
+ * database, so the automatic path is `db seed` or a direct invocation.)
+ *
+ * Its `create` branch can therefore add a `Chapter` row to a book Content Core
+ * already serves, and a chapter with no `ContentUnit` is UNADOPTED: exactly
+ * the state that makes a book ineligible to be reordered.
+ *
+ * Content Studio's reorder decides that eligibility inside this same lock, so
+ * taking it here is what stops a seeded chapter from landing between the check
+ * and the commit. Today's seed data would only ever hit the `update` branch on
+ * an adopted book, but that is a fact about the data, not about the code — and
+ * adding a sixth seeded chapter should not quietly become a structural race.
+ */
+function upsertChapterLocked(
+  bookSlug: string,
+  args: Parameters<typeof prisma.chapter.upsert>[0],
+) {
+  return prisma.$transaction(async (tx) => {
+    await lockEditionForBookSlugTx(tx, bookSlug);
+    return tx.chapter.upsert(args);
+  });
+}
 
 async function main() {
   // PR-2A · escape hatch for the real-migration test (mood-normalization-
@@ -108,7 +138,7 @@ async function main() {
     },
   });
 
-  await prisma.chapter.upsert({
+  await upsertChapterLocked(book1.slug, {
     where: { bookId_order: { bookId: book1.id, order: 1 } },
     create: {
       bookId: book1.id,
@@ -127,7 +157,7 @@ async function main() {
     },
   });
 
-  await prisma.chapter.upsert({
+  await upsertChapterLocked(book1.slug, {
     where: { bookId_order: { bookId: book1.id, order: 2 } },
     create: {
       bookId: book1.id,
@@ -182,7 +212,7 @@ async function main() {
     },
   });
 
-  await prisma.chapter.upsert({
+  await upsertChapterLocked(book2.slug, {
     where: { bookId_order: { bookId: book2.id, order: 1 } },
     create: {
       bookId: book2.id,
@@ -199,7 +229,7 @@ async function main() {
     },
   });
 
-  await prisma.chapter.upsert({
+  await upsertChapterLocked(book2.slug, {
     where: { bookId_order: { bookId: book2.id, order: 2 } },
     create: {
       bookId: book2.id,
@@ -216,7 +246,7 @@ async function main() {
     },
   });
 
-  await prisma.chapter.upsert({
+  await upsertChapterLocked(book2.slug, {
     where: { bookId_order: { bookId: book2.id, order: 3 } },
     create: {
       bookId: book2.id,

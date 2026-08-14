@@ -1,4 +1,7 @@
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
@@ -53,6 +56,8 @@ interface UnitSpec {
 suite("Content Studio · reordering the draft manifest", () => {
   let prisma: PrismaClient;
   let pool: Pool;
+  /** The suite's own database, for subprocesses that connect themselves. */
+  let dbUrl = "";
   let studio: ContentStudioService;
   let lector: LectorService;
   let books: BooksService;
@@ -246,6 +251,7 @@ suite("Content Studio · reordering the draft manifest", () => {
       },
       stdio: "inherit",
     });
+    dbUrl = url.toString();
     pool = new Pool({ connectionString: url.toString() });
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
@@ -816,6 +822,80 @@ suite("Content Studio · reordering the draft manifest", () => {
         await prisma.chapter.count({ where: { bookId: bookId["serializa"] } }),
       ).toBe(2);
     }, 60_000);
+
+    it("the manuscript ingest script waits for it too", async () => {
+      // `scripts/ingest-chapter-md.mjs` upserts `Chapter` rows, and its own
+      // usage line offers a Railway shell — so it is production-capable
+      // against an adopted book. Its production refusal keys on PSICO_ENV,
+      // which says where the process is running, not which database it is
+      // pointed at, so it is not what keeps this safe. The lock is.
+      //
+      // Driven as the real subprocess rather than a reimplementation of it,
+      // because what is being proved is that THIS script takes the lock.
+      const md = join(tmpdir(), `reorder-ingest-${process.pid}.md`);
+      writeFileSync(
+        md,
+        "Capítulo de prueba\n\nUn párrafo cualquiera para que el parser tenga algo que hacer.\n",
+        "utf8",
+      );
+      const run = () =>
+        spawnSync(
+          "node",
+          [
+            "scripts/ingest-chapter-md.mjs",
+            "--file",
+            md,
+            "--order",
+            "7",
+            "--book",
+            "serializa",
+          ],
+          {
+            cwd: API_DIR,
+            encoding: "utf8",
+            env: {
+              ...process.env,
+              DATABASE_URL: dbUrl,
+              ALLOW_LEGACY_DESTRUCTIVE_INGEST: "on",
+              PSICO_ENV: "test",
+            },
+          },
+        );
+
+      const holder = await pool.connect();
+      let blocked;
+      try {
+        await holder.query("BEGIN");
+        await holder.query(
+          `SELECT "id" FROM "Edition" WHERE "slug" = $1 FOR UPDATE`,
+          ["serializa"],
+        );
+        blocked = run();
+      } finally {
+        await holder.query("ROLLBACK");
+        holder.release();
+      }
+
+      expect(blocked.status).not.toBe(0);
+      expect(`${blocked.stdout}${blocked.stderr}`).toMatch(
+        /lock timeout|55P03|canceling statement/i,
+      );
+      expect(
+        await prisma.chapter.count({
+          where: { bookId: bookId["serializa"], order: 7 },
+        }),
+      ).toBe(0);
+
+      // Released: the same command now lands, so the refusal above was
+      // contention and not the script being broken.
+      const after = run();
+      expect(after.status).toBe(0);
+      expect(
+        await prisma.chapter.count({
+          where: { bookId: bookId["serializa"], order: 7 },
+        }),
+      ).toBe(1);
+    }, 120_000);
   });
 
   // ── the refusal belongs to the WRITE, not to one HTTP caller ─────────────

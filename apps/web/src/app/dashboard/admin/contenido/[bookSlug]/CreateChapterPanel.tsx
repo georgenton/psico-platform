@@ -49,7 +49,12 @@ export function CreateChapterPanel({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (trimmed.length === 0 || busy) return;
+    // `disabled` is checked HERE, not only on the button. A form opened before
+    // the interlock began is still mounted and still submittable — by Enter in
+    // the input, or by any render path that leaves the control enabled — and a
+    // create against the revision this page loaded is exactly what the
+    // interlock exists to prevent.
+    if (disabled || trimmed.length === 0 || busy) return;
 
     setBusy(true);
     setError(null);
@@ -141,11 +146,21 @@ export function CreateChapterPanel({
         Se añade al final del libro y queda en el borrador. Nadie lo ve hasta
         que publiques los cambios del libro.
       </p>
+      {disabled && disabledReason && (
+        <p
+          role="status"
+          className="mt-2 text-[12.5px] font-semibold"
+          style={{ color: "var(--color-warm-700)" }}
+        >
+          {disabledReason}
+        </p>
+      )}
       <input
         id="new-chapter-title"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         maxLength={200}
+        disabled={disabled || busy}
         autoFocus
         className="mt-3 w-full rounded-lg border px-3 py-2 text-[14px]"
         style={{
@@ -167,7 +182,8 @@ export function CreateChapterPanel({
       <div className="mt-3 flex items-center gap-3">
         <button
           type="submit"
-          disabled={trimmed.length === 0 || busy}
+          disabled={disabled || trimmed.length === 0 || busy}
+          title={disabled ? disabledReason : undefined}
           className="rounded-full px-4 py-2 text-[13px] font-semibold disabled:opacity-50"
           style={{
             background: "var(--color-lavender-600)",

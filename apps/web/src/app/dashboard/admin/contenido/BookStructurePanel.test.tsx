@@ -75,15 +75,21 @@ const props = (
 const enterReorder = async (u: ReturnType<typeof userEvent.setup>) =>
   u.click(screen.getByRole("button", { name: "Reordenar capítulos" }));
 
+/** Scoped to the chapter list: the publish panel renders a list of its own. */
+const chapterRows = () =>
+  within(screen.getByRole("list", { name: "Capítulos" })).getAllByRole(
+    "listitem",
+  );
+
 const titlesInOrder = () =>
-  screen
-    .getAllByRole("listitem")
-    .map((li) => within(li).getByText(/^[A-Z]$/).textContent);
+  chapterRows().map((li) => within(li).getByText(/^[A-Z]$/).textContent);
 
 const slotsInOrder = () =>
-  screen
-    .getAllByRole("listitem")
-    .map((li) => within(li).getByText(/^Cap\. \d+/).textContent);
+  chapterRows().map((li) => within(li).getByText(/^Cap\. \d+/).textContent);
+
+/** The reorder controls, which also have a "Cancelar" button. */
+const reorderPanel = () =>
+  within(screen.getByRole("group", { name: "Reordenar capítulos" }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -478,6 +484,245 @@ describe("interlocks while an unsaved order exists", () => {
     expect(
       screen.getByText(/también cambia el orden o la estructura/i),
     ).toBeInTheDocument();
+  });
+});
+
+describe("the window between a saved reorder and the refreshed props", () => {
+  /**
+   * The server has taken the reorder; this page has not seen the result.
+   *
+   * Every row still carries the order it had in the OLD revision while the
+   * server has already moved the chapters, so a row can read "Cap. 1" with a
+   * `c.order` of 4 behind it. Anything structural offered here acts on that
+   * stale hydration — an edit link would open whoever holds 4 NOW.
+   */
+  const withDraft = () =>
+    props({
+      draftRevisionId: "d-1",
+      draftRevisionNumber: 11,
+      changedUnitCount: 2,
+      changedTitles: ["Cap. 1 · A"],
+    });
+
+  const saveAndStopBeforeRefresh = async (
+    u: ReturnType<typeof userEvent.setup>,
+  ) => {
+    await u.click(
+      screen.getByRole("button", { name: "Publicar cambios del libro" }),
+    );
+    await enterReorder(u);
+    await u.click(screen.getByRole("button", { name: "Mover «A» abajo" }));
+    await u.click(screen.getByRole("button", { name: "Guardar orden" }));
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+  };
+
+  it("stays fully interlocked until the new snapshot arrives", async () => {
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...withDraft()} />);
+    await saveAndStopBeforeRefresh(u);
+
+    // No route can be built from a locally displayed slot.
+    expect(screen.queryByRole("link", { name: "Editar capítulo" })).toBeNull();
+    // The confirmation was already open before the save; it must be inert too.
+    expect(screen.getByRole("button", { name: "Publicar" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "+ Crear capítulo" }),
+    ).toBeDisabled();
+    // No way to start a second reorder session against the same stale rows.
+    expect(
+      screen.queryByRole("button", { name: "Reordenar capítulos" }),
+    ).toBeNull();
+    expect(
+      reorderPanel().getByRole("button", { name: "Guardar orden" }),
+    ).toBeDisabled();
+    expect(
+      reorderPanel().getByRole("button", { name: "Cancelar" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Mover «A» arriba" }),
+    ).toBeDisabled();
+    expect(
+      await screen.findByText(/Aún no está publicado/i),
+    ).toBeInTheDocument();
+  });
+
+  it("cannot be talked into a second save on the superseded revision", async () => {
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...withDraft()} />);
+    await saveAndStopBeforeRefresh(u);
+
+    await u.click(
+      reorderPanel().getByRole("button", { name: "Guardar orden" }),
+    );
+    await u.click(screen.getByRole("button", { name: "Publicar" }));
+    await u.click(screen.getByRole("button", { name: "+ Crear capítulo" }));
+
+    expect(reorderChaptersAction).toHaveBeenCalledTimes(1);
+    expect(publishBookAction).not.toHaveBeenCalled();
+    expect(createChapterAction).not.toHaveBeenCalled();
+  });
+
+  it("unlocks once the server snapshot actually lands", async () => {
+    const u = userEvent.setup();
+    const { rerender } = render(<BookStructurePanel {...withDraft()} />);
+    await saveAndStopBeforeRefresh(u);
+
+    rerender(
+      <BookStructurePanel
+        {...withDraft()}
+        editingRevisionId="rev-11"
+        draftRevisionId="rev-11"
+        chapters={[chapter(1, "B"), chapter(2, "A"), chapter(3, "C")]}
+      />,
+    );
+
+    // Rows come from the server, and the stale arrangement is gone.
+    expect(titlesInOrder()).toEqual(["B", "A", "C"]);
+    expect(
+      screen.getAllByRole("link", { name: "Editar capítulo" }),
+    ).toHaveLength(3);
+    // The confirmation was opened before the save and is still open, so what
+    // changed is that its button can act again.
+    expect(screen.getByRole("button", { name: "Publicar" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "+ Crear capítulo" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Reordenar capítulos" }),
+    ).toBeEnabled();
+    // A draft still exists, so the notice is still true.
+    expect(screen.getByText(/Aún no está publicado/i)).toBeInTheDocument();
+  });
+});
+
+describe("a create form opened before the interlock", () => {
+  const openCreateForm = async (u: ReturnType<typeof userEvent.setup>) => {
+    await u.click(screen.getByRole("button", { name: "+ Crear capítulo" }));
+    await u.type(screen.getByRole("textbox"), "Capítulo nuevo");
+  };
+
+  it("is disabled once reorder mode begins, and says why", async () => {
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...props()} />);
+    await openCreateForm(u);
+    expect(
+      screen.getByRole("button", { name: "Crear y editar" }),
+    ).toBeEnabled();
+
+    await enterReorder(u);
+
+    const submit = screen.getByRole("button", { name: "Crear y editar" });
+    expect(submit).toBeDisabled();
+    expect(screen.getByRole("textbox")).toBeDisabled();
+    expect(
+      screen.getAllByText(/Guarda o cancela el reordenamiento/i).length,
+    ).toBeGreaterThan(0);
+
+    await u.click(submit);
+    // Enter in the field is the path a disabled BUTTON alone would not block.
+    await u.type(screen.getByRole("textbox"), "{Enter}");
+    expect(createChapterAction).not.toHaveBeenCalled();
+  });
+
+  it("stays disabled while a saved reorder waits for the server", async () => {
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...props()} />);
+    await openCreateForm(u);
+    await enterReorder(u);
+    await u.click(screen.getByRole("button", { name: "Mover «A» abajo" }));
+    await u.click(screen.getByRole("button", { name: "Guardar orden" }));
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+
+    expect(
+      screen.getByRole("button", { name: "Crear y editar" }),
+    ).toBeDisabled();
+    await u.click(screen.getByRole("button", { name: "Crear y editar" }));
+    expect(createChapterAction).not.toHaveBeenCalled();
+  });
+});
+
+describe("publishing keeps the revision id, so rows must still rehydrate", () => {
+  /**
+   * Content Core flips the SAME revision from DRAFT to PUBLISHED and points the
+   * edition at it, so `editingRevisionId` is identical either side of a
+   * publish. Only the draft disappearing tells the page that anything happened.
+   */
+  const draftProps = () =>
+    props({
+      editingRevisionId: "rev-11",
+      draftRevisionId: "rev-11",
+      draftRevisionNumber: 11,
+      changedUnitCount: 1,
+      changedTitles: ["Cap. 1 · A"],
+      chapters: [
+        chapter(1, "A", { changed: true, isNewDraftChapter: true }),
+        chapter(2, "B"),
+        chapter(3, "C"),
+      ],
+    });
+
+  const publishedProps = () =>
+    props({
+      editingRevisionId: "rev-11", // unchanged, on purpose
+      draftRevisionId: null,
+      draftRevisionNumber: null,
+      changedUnitCount: 0,
+      changedTitles: [],
+      chapters: [
+        chapter(1, "A", { changed: false, isNewDraftChapter: false }),
+        chapter(2, "B"),
+        chapter(3, "C"),
+      ],
+    });
+
+  it("drops the draft badges when the draft is published", () => {
+    const { rerender } = render(<BookStructurePanel {...draftProps()} />);
+    expect(screen.getByText("Sin publicar")).toBeInTheDocument();
+
+    rerender(<BookStructurePanel {...publishedProps()} />);
+
+    expect(screen.queryByText("Sin publicar")).toBeNull();
+    expect(screen.queryByText("Con cambios")).toBeNull();
+    expect(slotsInOrder()).toEqual(["Cap. 1", "Cap. 2", "Cap. 3"]);
+    expect(titlesInOrder()).toEqual(["A", "B", "C"]);
+  });
+
+  it("stops claiming the order is unpublished once it is", async () => {
+    const u = userEvent.setup();
+    const { rerender } = render(<BookStructurePanel {...draftProps()} />);
+
+    await enterReorder(u);
+    await u.click(screen.getByRole("button", { name: "Mover «A» abajo" }));
+    await u.click(screen.getByRole("button", { name: "Guardar orden" }));
+    // The reorder's own refresh lands: a new draft, so the notice is true.
+    rerender(
+      <BookStructurePanel
+        {...draftProps()}
+        editingRevisionId="rev-12"
+        draftRevisionId="rev-12"
+      />,
+    );
+    expect(screen.getByText(/Aún no está publicado/i)).toBeInTheDocument();
+
+    // Then it is published — same revision id, draft gone.
+    rerender(
+      <BookStructurePanel
+        {...publishedProps()}
+        editingRevisionId="rev-12"
+        draftRevisionId={null}
+      />,
+    );
+    expect(screen.queryByText(/Aún no está publicado/i)).toBeNull();
+
+    // And it cannot come back over some later, unrelated draft.
+    rerender(
+      <BookStructurePanel
+        {...draftProps()}
+        editingRevisionId="rev-13"
+        draftRevisionId="rev-13"
+      />,
+    );
+    expect(screen.queryByText(/Aún no está publicado/i)).toBeNull();
   });
 });
 

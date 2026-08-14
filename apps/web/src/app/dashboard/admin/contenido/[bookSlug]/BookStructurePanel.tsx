@@ -107,12 +107,12 @@ const partOf = (c: PartTuple): PartTuple => ({
 const samePart = (a: PartTuple, b: PartTuple) =>
   a.partNumber === b.partNumber && a.partTitle === b.partTitle;
 
-function buildRows(chapters: ChapterRow[], revisionId: string): LocalRow[] {
+function buildRows(chapters: ChapterRow[], snapshotKey: string): LocalRow[] {
   return chapters.map((chapter, index) => ({
-    // Includes the hydration token and the initial index so a book whose rows
+    // Includes the hydration key and the initial index so a book whose rows
     // legitimately collide on `order` — a structural conflict, which the server
     // reports as not reorderable — still gets distinct React keys.
-    clientKey: `${revisionId}:${index}:${chapter.order}`,
+    clientKey: `${snapshotKey}:${index}:${chapter.order}`,
     sourceOrder: chapter.order,
     chapter,
   }));
@@ -129,34 +129,70 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
   } = props;
 
   const [rows, setRows] = useState<LocalRow[]>(() =>
-    buildRows(chapters, editingRevisionId),
+    buildRows(
+      chapters,
+      `${editingRevisionId}|${props.draftRevisionId ?? "none"}`,
+    ),
   );
   const [reorderMode, setReorderMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  /**
+   * The server took the reorder and this page has not seen the result yet.
+   *
+   * Between those two moments every row still carries the order it had in the
+   * OLD revision, while the server has already moved the chapters. Acting on
+   * that hydration would open the wrong chapter: a row can be showing "Cap. 1"
+   * while its `c.order` still says 4, and an edit link built from it would
+   * navigate to whoever holds 4 now.
+   *
+   * So this is not "the save finished" — it is "the old hydration is not
+   * answerable any more", and it stays true until a new server snapshot
+   * arrives.
+   */
+  const [awaitingServerRefresh, setAwaitingServerRefresh] = useState(false);
 
-  // Read through a ref so the reset below depends on the revision token ALONE.
-  // Server props arrive as a fresh array every render, and keying on it would
-  // throw away an editor's arrangement on any unrelated re-render.
+  // Read through refs so the reset below depends on the snapshot key ALONE.
+  // Server props arrive as a fresh array every render, and keying on the array
+  // would throw away an editor's arrangement on any unrelated re-render.
   const chaptersRef = useRef(chapters);
   chaptersRef.current = chapters;
+  const draftRef = useRef(props.draftRevisionId);
+  draftRef.current = props.draftRevisionId;
 
-  // A successful reorder mints a new revision, so the token changes and every
-  // local `sourceOrder` from the old one is stale by definition. Re-hydrating
-  // here is what stops that staleness from surviving the refresh.
-  useEffect(() => {
-    setRows(buildRows(chaptersRef.current, editingRevisionId));
-    setReorderMode(false);
-    setConflict(false);
-    setFailure(null);
-  }, [editingRevisionId]);
+  /**
+   * Which server snapshot these rows describe.
+   *
+   * The revision id alone is not enough. Publishing does not mint another
+   * revision — Content Core flips the SAME row from DRAFT to PUBLISHED and
+   * points the edition at it — so `editingRevisionId` is identical before and
+   * after, while every chapter's `changed` and `isNewDraftChapter` flip and the
+   * draft disappears. Keyed on the revision alone, the list would keep showing
+   * "Con cambios" on a book that has just been published.
+   *
+   * `draftRevisionId` is what distinguishes active-draft R11 from published
+   * R11, so the pair is the smallest honest description of the snapshot.
+   */
+  const serverSnapshot = `${editingRevisionId}|${props.draftRevisionId ?? "none"}`;
 
   const initialOrder = useRef<number[]>(chapters.map((c) => c.order));
+
   useEffect(() => {
+    // Both hydrations together: rows and the sequence they are compared
+    // against must never describe different server snapshots.
+    setRows(buildRows(chaptersRef.current, serverSnapshot));
     initialOrder.current = chaptersRef.current.map((c) => c.order);
-  }, [editingRevisionId]);
+    setReorderMode(false);
+    setAwaitingServerRefresh(false);
+    setConflict(false);
+    setFailure(null);
+    // "Guardado en el borrador" is only true while there IS a draft. Once one
+    // is published the sentence stops being true, and a stale success notice
+    // must not be able to reappear over some later, unrelated draft.
+    if (draftRef.current === null) setSaved(false);
+  }, [serverSnapshot]);
 
   /**
    * The slots, and what each one's part was.
@@ -184,8 +220,15 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
     );
   }
 
+  /**
+   * Any structural operation against the hydration this page is holding is
+   * unsafe right now — either because the editor has moved rows and not saved,
+   * or because the server has accepted a move this page has not seen yet.
+   */
+  const structuralInterlock = reorderMode || awaitingServerRefresh;
+
   function swap(i: number, j: number) {
-    if (!canSwap(i, j) || saving) return;
+    if (!canSwap(i, j) || saving || awaitingServerRefresh) return;
     setRows((current) => {
       const next = [...current];
       const a = next[i]!;
@@ -198,15 +241,19 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
   }
 
   function cancel() {
+    // Never offered once the server has taken the reorder: there is nothing
+    // local left to abandon, and "Cancelar" must not look like it can undo a
+    // draft that already exists.
+    if (awaitingServerRefresh) return;
     // Writes nothing. Restores exactly what the server said.
-    setRows(buildRows(chaptersRef.current, editingRevisionId));
+    setRows(buildRows(chaptersRef.current, serverSnapshot));
     setReorderMode(false);
     setFailure(null);
     setConflict(false);
   }
 
   async function save() {
-    if (!dirty || saving || !reorderAvailable) return;
+    if (!dirty || saving || !reorderAvailable || awaitingServerRefresh) return;
     setSaving(true);
     setFailure(null);
     setConflict(false);
@@ -219,11 +266,11 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
 
     if (result.ok) {
       setSaved(true);
-      // Out of reorder mode immediately. Every local `sourceOrder` describes
-      // the revision that was just superseded, so staying in a mode that lets
-      // the editor keep moving rows would be inviting a save against a token
-      // the server has already moved past.
-      setReorderMode(false);
+      // NOT "reorder mode off". The rows on screen still describe the revision
+      // the server has just superseded, so unlocking Publish, Create and the
+      // edit links here would expose exactly the stale hydration this state
+      // exists to fence off. The lock lifts when a new snapshot arrives.
+      setAwaitingServerRefresh(true);
       // No fabricated next state: the server just minted a revision, and the
       // refresh is what tells us what it says.
       router.refresh();
@@ -244,9 +291,11 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
     : ((reorderBlockedReason && BLOCKED_COPY[reorderBlockedReason]) ??
       "Este libro no puede reordenarse ahora mismo.");
 
-  const interlockReason = reorderMode
-    ? "Guarda o cancela el reordenamiento antes de continuar."
-    : undefined;
+  const interlockReason = awaitingServerRefresh
+    ? "Estamos cargando el nuevo orden del servidor."
+    : reorderMode
+      ? "Guarda o cancela el reordenamiento antes de continuar."
+      : undefined;
 
   return (
     <>
@@ -258,7 +307,7 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
           changedCount={props.changedUnitCount}
           changedTitles={props.changedTitles}
           structureChanged={props.structureChanged}
-          disabled={reorderMode}
+          disabled={structuralInterlock}
           disabledReason={interlockReason}
         />
       )}
@@ -267,7 +316,7 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
         bookSlug={bookSlug}
         editingRevisionId={editingRevisionId}
         available={props.chapterCreationAvailable}
-        disabled={reorderMode}
+        disabled={structuralInterlock}
         disabledReason={interlockReason}
       />
 
@@ -280,7 +329,7 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
         </h2>
         {/* A one-chapter book has nothing to permute. Hiding the control is a
             usability call, not a safety one — the server still decides. */}
-        {!reorderMode && rows.length >= 2 && (
+        {!structuralInterlock && rows.length >= 2 && (
           <button
             type="button"
             onClick={() => {
@@ -301,7 +350,7 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
         )}
       </div>
 
-      {!reorderMode && blockedCopy && rows.length >= 2 && (
+      {!structuralInterlock && blockedCopy && rows.length >= 2 && (
         <p
           className="mt-2 text-[12.5px]"
           style={{ color: "var(--color-warm-500)" }}
@@ -310,8 +359,10 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
         </p>
       )}
 
-      {reorderMode && (
+      {structuralInterlock && (
         <div
+          role="group"
+          aria-label="Reordenar capítulos"
           className="mt-3 rounded-2xl border px-5 py-4"
           style={{
             borderColor: "var(--color-lavender-300)",
@@ -332,7 +383,9 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
             <button
               type="button"
               onClick={save}
-              disabled={!dirty || saving || !reorderAvailable}
+              disabled={
+                !dirty || saving || !reorderAvailable || awaitingServerRefresh
+              }
               className="rounded-full px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
               style={{ background: "var(--color-lavender-600)" }}
             >
@@ -341,7 +394,7 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
             <button
               type="button"
               onClick={cancel}
-              disabled={saving}
+              disabled={saving || awaitingServerRefresh}
               className="rounded-full px-4 py-2 text-[13px] font-semibold"
               style={{ color: "var(--color-warm-600)" }}
             >
@@ -383,7 +436,11 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
         </p>
       )}
 
-      {saved && !reorderMode && (
+      {/* True while the server is being re-read (the reorder just created a
+          draft, so the sentence holds) and afterwards only while a draft still
+          exists. Once one is published the sentence stops being true, and the
+          hydration effect clears `saved` so it cannot reappear later. */}
+      {saved && (awaitingServerRefresh || props.draftRevisionId !== null) && (
         <p
           role="status"
           className="mt-3 text-[13px] font-semibold"
@@ -393,7 +450,7 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
         </p>
       )}
 
-      <ul className="mt-3 space-y-2">
+      <ul aria-label="Capítulos" className="mt-3 space-y-2">
         {rows.map((row, index) => {
           const c = row.chapter;
           const displayOrder = slotOrders[index] ?? row.sourceOrder;
@@ -464,12 +521,16 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
                     )
                   )}
 
-                  {reorderMode ? (
+                  {structuralInterlock ? (
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => swap(index, index - 1)}
-                        disabled={saving || !canSwap(index, index - 1)}
+                        disabled={
+                          saving ||
+                          awaitingServerRefresh ||
+                          !canSwap(index, index - 1)
+                        }
                         aria-label={`Mover «${c.title}» arriba`}
                         title={
                           index > 0 && !canSwap(index, index - 1)
@@ -487,7 +548,11 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
                       <button
                         type="button"
                         onClick={() => swap(index, index + 1)}
-                        disabled={saving || !canSwap(index, index + 1)}
+                        disabled={
+                          saving ||
+                          awaitingServerRefresh ||
+                          !canSwap(index, index + 1)
+                        }
                         aria-label={`Mover «${c.title}» abajo`}
                         title={
                           index < rows.length - 1 && !canSwap(index, index + 1)

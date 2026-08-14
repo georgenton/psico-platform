@@ -51,13 +51,44 @@ function safeRedirectTarget(from: string | null): string {
  *   - cualquier otro `ApiError` → mensaje genérico con el código entre
  *     paréntesis para que tú lo veas si reportas el bug.
  */
+/**
+ * Las líneas legibles de un `VALIDATION_ERROR`, sea cual sea la forma que llegue.
+ *
+ * El detalle que la API produce de verdad es un `string[]`: el filtro global
+ * reenvía el array de class-validator tal cual. El lector anterior daba por
+ * hecho `Record<string, string[]>` y llamaba a `.map()` sobre cada valor, así
+ * que con la forma real recibía un string y lanzaba `TypeError` — dentro del
+ * manejador de errores, convirtiendo un 400 explicable en un 500 opaco.
+ *
+ * Las dos formas admitidas se discriminan explícitamente. Cualquier otra cosa
+ * devuelve la lista vacía y el mensaje genérico se encarga: es mejor decir
+ * menos que inventar texto a partir de una estructura que no reconocemos, y
+ * desde luego mejor que volver a lanzar.
+ */
+function validationDetailLines(details: unknown): string[] {
+  // Forma real de class-validator: ["email must be an email", …].
+  if (Array.isArray(details)) {
+    return details.filter((d): d is string => typeof d === "string");
+  }
+  // Forma por campo. La API no la emite hoy para VALIDATION_ERROR, pero es la
+  // que el tipo declaraba y hay cobertura que la fija, así que se mantiene
+  // tolerada — no anunciada como contrato.
+  if (details !== null && typeof details === "object") {
+    return Object.entries(details as Record<string, unknown>).flatMap(
+      ([field, constraints]) =>
+        Array.isArray(constraints)
+          ? constraints
+              .filter((c): c is string => typeof c === "string")
+              .map((c) => `${field}: ${c}`)
+          : [],
+    );
+  }
+  return [];
+}
+
 function authErrorMessage(err: ApiError): string {
   if (err.status === 400 && err.code === "VALIDATION_ERROR") {
-    const detailLines = err.details
-      ? Object.entries(err.details).flatMap(([field, constraints]) =>
-          constraints.map((c) => `${field}: ${c}`),
-        )
-      : [];
+    const detailLines = validationDetailLines(err.details);
     if (detailLines.length > 0) {
       return `Revisa los datos del formulario: ${detailLines.join("; ")}.`;
     }
@@ -86,8 +117,14 @@ function authErrorMessage(err: ApiError): string {
 export async function loginAction(
   payload: LoginPayload & { from?: string },
 ): Promise<{ error: string } | undefined> {
+  // `from` es a dónde volver, no quién eres. Separarlo aquí es lo que impide
+  // que un dato de navegación viaje dentro del cuerpo de `/auth/login`: la API
+  // valida con `whitelist` + `forbidNonWhitelisted`, así que una propiedad de
+  // más no se ignora, se rechaza — y el formulario acababa mostrando un error
+  // de validación por un campo que el usuario nunca escribió.
+  const { from, ...credentials } = payload;
   try {
-    const { accessToken, refreshToken } = await authApi.login(payload);
+    const { accessToken, refreshToken } = await authApi.login(credentials);
     setAuthCookies(accessToken, refreshToken);
   } catch (err) {
     if (err instanceof ApiError) {
@@ -99,7 +136,7 @@ export async function loginAction(
         "No pudimos conectar con el servidor. Revisa tu conexión e intenta de nuevo.",
     };
   }
-  redirect(safeRedirectTarget(payload.from ?? null));
+  redirect(safeRedirectTarget(from ?? null));
 }
 
 export async function registerAction(

@@ -123,6 +123,99 @@ describe("loginAction — error mapping", () => {
   });
 });
 
+/**
+ * El 500 de `/login?from=…`.
+ *
+ * Dos defectos encadenados, ambos preexistentes a B.B3. `loginAction` recibe
+ * `from` para saber a dónde volver, pero lo enviaba tal cual dentro del cuerpo
+ * de `/auth/login`. La API valida con `whitelist` + `forbidNonWhitelisted`, así
+ * que rechazaba la petición por una propiedad que nunca fue una credencial.
+ *
+ * El segundo defecto convertía ese 400 en un 500: class-validator devuelve
+ * `details` como `string[]`, y el lector asumía `Record<string, string[]>`, de
+ * modo que `Object.entries` entregaba un string donde esperaba un array y
+ * `.map` lanzaba `TypeError: t.map is not a function` — dentro del manejador de
+ * errores, que es el peor sitio para lanzar otra excepción.
+ */
+describe("loginAction — `from` es navegación, no una credencial", () => {
+  it("envía a la API exclusivamente email y password", async () => {
+    loginMock.mockResolvedValue({ accessToken: "a", refreshToken: "r" });
+
+    await expect(
+      loginAction({
+        email: "a@b.c",
+        password: "x",
+        from: "/dashboard/admin/contenido",
+      }),
+    ).rejects.toBe(redirectError);
+
+    // La aserción que faltaba: no basta con que el login funcione, tiene que
+    // enviarse el cuerpo que el contrato de autenticación admite.
+    expect(loginMock).toHaveBeenCalledTimes(1);
+    const body = loginMock.mock.calls[0]![0] as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(["email", "password"]);
+    expect(body).not.toHaveProperty("from");
+    // Y el destino sigue llegando a la navegación.
+    expect(redirectMock).toHaveBeenCalledWith("/dashboard/admin/contenido");
+  });
+
+  it("sin `from`, el cuerpo sigue siendo el mismo", async () => {
+    loginMock.mockResolvedValue({ accessToken: "a", refreshToken: "r" });
+    await expect(loginAction({ email: "a@b.c", password: "x" })).rejects.toBe(
+      redirectError,
+    );
+    expect(loginMock.mock.calls[0]![0]).toEqual({
+      email: "a@b.c",
+      password: "x",
+    });
+  });
+
+  it("un `from` externo no se convierte en redirect válido", async () => {
+    loginMock.mockResolvedValue({ accessToken: "a", refreshToken: "r" });
+    for (const hostil of [
+      "https://evil.example/phish",
+      "//evil.example/phish",
+      "javascript:alert(1)",
+    ]) {
+      redirectMock.mockClear();
+      await expect(
+        loginAction({ email: "a@b.c", password: "x", from: hostil }),
+      ).rejects.toBe(redirectError);
+      expect(redirectMock).toHaveBeenCalledWith("/dashboard");
+    }
+  });
+});
+
+describe("loginAction — formas reales de ApiError.details", () => {
+  it("acepta el string[] que devuelve class-validator sin lanzar", async () => {
+    // La forma que produce de verdad `forbidNonWhitelisted`, y la que hacía
+    // estallar el manejador.
+    loginMock.mockRejectedValue(
+      new ApiError(400, "Validation failed", "VALIDATION_ERROR", [
+        "property from should not exist",
+        "email must be an email",
+      ]),
+    );
+
+    const result = await loginAction({ email: "no", password: "x" });
+
+    expect(result?.error).toContain("property from should not exist");
+    expect(result?.error).toContain("email must be an email");
+    // Legible, sin índices numéricos filtrados del array.
+    expect(result?.error).not.toMatch(/\b0:/);
+  });
+
+  it("una forma no reconocida cae al mensaje genérico, no a una excepción", async () => {
+    for (const raro of [42, "texto suelto", { email: 7 }, [], null]) {
+      loginMock.mockRejectedValue(
+        new ApiError(400, "Validation failed", "VALIDATION_ERROR", raro),
+      );
+      const result = await loginAction({ email: "a@b.c", password: "x" });
+      expect(result?.error).toBe("Revisa los datos del formulario.");
+    }
+  });
+});
+
 describe("registerAction — error mapping", () => {
   it("returns the email-already-registered message on 409", async () => {
     registerMock.mockRejectedValue(

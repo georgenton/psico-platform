@@ -816,8 +816,6 @@ describe("a publish in flight blocks starting a reorder", () => {
     await u.click(reorderEntry()!);
     expect(screen.queryByRole("button", { name: /Mover «A»/ })).toBeNull();
     expect(reorderChaptersAction).not.toHaveBeenCalled();
-
-    gate.resolve({ ok: true });
   });
 
   it("stays blocked after success, until the new snapshot arrives", async () => {
@@ -900,8 +898,6 @@ describe("a create in flight blocks starting a reorder", () => {
     await u.click(reorderEntry()!);
     expect(screen.queryByRole("button", { name: /Mover «A»/ })).toBeNull();
     expect(reorderChaptersAction).not.toHaveBeenCalled();
-
-    gate.resolve({ ok: true });
   });
 
   it("stays blocked after success, through the navigation", async () => {
@@ -960,8 +956,6 @@ describe("a sibling operation is not a reorder", () => {
     expect(
       screen.getAllByRole("link", { name: "Editar capítulo" }),
     ).toHaveLength(3);
-
-    gate.resolve({ ok: true });
   });
 });
 
@@ -1006,8 +1000,6 @@ describe("one structural action cannot release another's lock", () => {
     await u.click(reorderEntry()!);
     expect(screen.queryByRole("button", { name: /Mover «A»/ })).toBeNull();
     expect(reorderChaptersAction).not.toHaveBeenCalled();
-
-    publishGate.resolve({ ok: true });
   });
 
   it("a failed publish does not unlock a create still in flight", async () => {
@@ -1026,8 +1018,6 @@ describe("one structural action cannot release another's lock", () => {
     await u.click(reorderEntry()!);
     expect(screen.queryByRole("button", { name: /Mover «A»/ })).toBeNull();
     expect(reorderChaptersAction).not.toHaveBeenCalled();
-
-    createGate.resolve({ ok: true });
   });
 
   it("a new server snapshot does not unlock a create still in flight", async () => {
@@ -1051,8 +1041,6 @@ describe("one structural action cannot release another's lock", () => {
     await u.click(reorderEntry()!);
     expect(screen.queryByRole("button", { name: /Mover «A»/ })).toBeNull();
     expect(reorderChaptersAction).not.toHaveBeenCalled();
-
-    createGate.resolve({ ok: true });
   });
 
   /**
@@ -1111,4 +1099,180 @@ describe("one structural action cannot release another's lock", () => {
       ).toBeInTheDocument();
     },
   );
+});
+
+/**
+ * A browser newer than the API answering it.
+ *
+ * `partNumber` and `partTitle` ship in this PR, and web and API deploy through
+ * independent pipelines — so for the length of a rolling deploy the page can
+ * legitimately render against a response that omits both. The generated
+ * contract describes the NEW API and is right to require them, so these
+ * fixtures cast at the test boundary rather than weakening it.
+ *
+ * The distinction being defended: `null`/`null` is the server SAYING the book
+ * has no parts, and its chapters may be rearranged. Absent properties are the
+ * server not saying anything, which cannot be read as permission.
+ */
+const legacyChapter = (
+  order: number,
+  title: string,
+  part: Partial<Pick<ChapterRow, "partNumber" | "partTitle">> = {},
+): ChapterRow => {
+  const { partNumber: _n, partTitle: _t, ...rest } = chapter(order, title);
+  // Deliberately omitted, not set to undefined-typed nulls: this is what an
+  // older API's JSON actually produces.
+  return { ...rest, ...part } as ChapterRow;
+};
+
+describe("an API that predates the part projection", () => {
+  it("renders no part heading at all", () => {
+    render(
+      <BookStructurePanel
+        {...props({
+          chapters: [
+            legacyChapter(1, "A"),
+            legacyChapter(2, "B"),
+            legacyChapter(3, "C"),
+          ],
+        })}
+      />,
+    );
+
+    // Neither the undefined interpolation nor a bare, meaningless heading.
+    expect(screen.queryByText(/Parte undefined/i)).toBeNull();
+    expect(screen.queryByText(/^Parte\s*$/i)).toBeNull();
+    expect(screen.queryByText(/^Parte\b/i)).toBeNull();
+    expect(titlesInOrder()).toEqual(["A", "B", "C"]);
+  });
+
+  it("offers no movement it cannot prove is safe, and writes nothing", async () => {
+    const u = userEvent.setup();
+    render(
+      <BookStructurePanel
+        {...props({
+          chapters: [
+            legacyChapter(1, "A"),
+            legacyChapter(2, "B"),
+            legacyChapter(3, "C"),
+          ],
+        })}
+      />,
+    );
+
+    // Reorder mode still opens — availability is the server's answer, and it
+    // said yes. What cannot be proven is the individual gesture.
+    await enterReorder(u);
+    const down = screen.getByRole("button", { name: "Mover «A» abajo" });
+    expect(down).toBeDisabled();
+
+    await u.click(down);
+    expect(titlesInOrder()).toEqual(["A", "B", "C"]);
+    expect(
+      reorderPanel().getByRole("button", { name: "Guardar orden" }),
+    ).toBeDisabled();
+    expect(reorderChaptersAction).not.toHaveBeenCalled();
+
+    // And the editor is not trapped: leaving is always available.
+    await u.click(reorderPanel().getByRole("button", { name: "Cancelar" }));
+    expect(
+      screen.getByRole("button", { name: "Reordenar capítulos" }),
+    ).toBeInTheDocument();
+  });
+
+  it("half a tuple is still not enough", async () => {
+    // A response carrying one property and not the other proves nothing about
+    // where a part begins or ends.
+    const u = userEvent.setup();
+    render(
+      <BookStructurePanel
+        {...props({
+          chapters: [
+            legacyChapter(1, "A", { partNumber: 1 }),
+            legacyChapter(2, "B", { partNumber: 1 }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.queryByText(/^Parte\b/i)).toBeNull();
+    await enterReorder(u);
+    expect(
+      screen.getByRole("button", { name: "Mover «A» abajo" }),
+    ).toBeDisabled();
+    await u.click(screen.getByRole("button", { name: "Mover «A» abajo" }));
+    expect(titlesInOrder()).toEqual(["A", "B"]);
+    expect(reorderChaptersAction).not.toHaveBeenCalled();
+  });
+
+  it("the inverse half is not enough either", async () => {
+    const u = userEvent.setup();
+    render(
+      <BookStructurePanel
+        {...props({
+          chapters: [
+            legacyChapter(1, "A", { partTitle: "Parte I" }),
+            legacyChapter(2, "B", { partTitle: "Parte I" }),
+          ],
+        })}
+      />,
+    );
+
+    await enterReorder(u);
+    expect(
+      screen.getByRole("button", { name: "Mover «A» abajo" }),
+    ).toBeDisabled();
+    expect(reorderChaptersAction).not.toHaveBeenCalled();
+  });
+
+  it("an explicit null/null book is untouched by any of this", async () => {
+    // The current API's way of saying "no parts". Rearranging must stay
+    // ordinary — failing closed on missing data must not fail closed on data
+    // that is present and says nothing to prevent.
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...props()} />);
+
+    expect(screen.queryByText(/^Parte\b/i)).toBeNull();
+    await enterReorder(u);
+    await u.click(screen.getByRole("button", { name: "Mover «A» abajo" }));
+    expect(titlesInOrder()).toEqual(["B", "A", "C"]);
+
+    await u.click(
+      reorderPanel().getByRole("button", { name: "Guardar orden" }),
+    );
+    expect(reorderChaptersAction).toHaveBeenCalledWith("libro", {
+      expectedRevisionId: "rev-10",
+      orderedChapterOrders: [2, 1, 3],
+    });
+  });
+
+  it("a fully described book keeps its parts, its headings and its boundary", async () => {
+    const u = userEvent.setup();
+    render(
+      <BookStructurePanel
+        {...props({
+          chapters: [
+            chapter(1, "A", { partNumber: 1, partTitle: "Parte I" }),
+            chapter(2, "B", { partNumber: 1, partTitle: "Parte I" }),
+            chapter(3, "C", { partNumber: 2, partTitle: "Parte II" }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Parte 1 · Parte I")).toBeInTheDocument();
+    expect(screen.getByText("Parte 2 · Parte II")).toBeInTheDocument();
+
+    await enterReorder(u);
+    // Inside the part: allowed.
+    await u.click(screen.getByRole("button", { name: "Mover «A» abajo" }));
+    expect(titlesInOrder()).toEqual(["B", "A", "C"]);
+    // Across the boundary: still refused.
+    expect(
+      screen.getByRole("button", { name: "Mover «A» abajo" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Mover «C» arriba" }),
+    ).toBeDisabled();
+  });
 });

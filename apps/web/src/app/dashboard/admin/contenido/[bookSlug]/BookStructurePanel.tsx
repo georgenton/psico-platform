@@ -98,14 +98,40 @@ const FAILURE_COPY: Record<string, string> = {
 const GENERIC_FAILURE =
   "No pudimos guardar el nuevo orden. Inténtalo de nuevo o recarga la página.";
 
-const partOf = (c: PartTuple): PartTuple => ({
-  partNumber: c.partNumber,
-  partTitle: c.partTitle,
-});
+/**
+ * A chapter's part, or `null` when the response does not say.
+ *
+ * Three states, not two. `null`/`null` is a real tuple — it is what "this book
+ * has no parts" looks like, and chapters in it may be freely rearranged. A
+ * MISSING property is a different thing entirely: an API that predates this
+ * projection omits both, and the two deploy through independent pipelines, so
+ * a browser can genuinely be newer than the server answering it.
+ *
+ * Collapsing the second case into the first would compare `undefined` with
+ * `undefined`, call every pair same-part, and quietly disable the cross-part
+ * guard for the length of a deployment window. So incomplete metadata is not
+ * coerced to "no parts" — it is reported as unknown, and unknown fails closed.
+ */
+const partOf = (c: {
+  partNumber?: number | null;
+  partTitle?: string | null;
+}): PartTuple | null =>
+  c.partNumber === undefined || c.partTitle === undefined
+    ? null
+    : { partNumber: c.partNumber, partTitle: c.partTitle };
 
-/** `null`/`null` is a real tuple — it is what "this book has no parts" is. */
-const samePart = (a: PartTuple, b: PartTuple) =>
-  a.partNumber === b.partNumber && a.partTitle === b.partTitle;
+/**
+ * Do these two placements belong to the same part?
+ *
+ * `false` whenever either side is unknown. A move is only offered when the
+ * browser can PROVE it stays inside a part, never when it merely cannot prove
+ * otherwise.
+ */
+const samePart = (a: PartTuple | null, b: PartTuple | null) =>
+  a !== null &&
+  b !== null &&
+  a.partNumber === b.partNumber &&
+  a.partTitle === b.partTitle;
 
 function buildRows(chapters: ChapterRow[], snapshotKey: string): LocalRow[] {
   return chapters.map((chapter, index) => ({
@@ -228,8 +254,10 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
   const originalAt = new Map(
     chaptersRef.current.map((c) => [c.order, partOf(c)]),
   );
-  const slotPart = (index: number): PartTuple =>
-    originalAt.get(slotOrders[index]!) ?? { partNumber: null, partTitle: null };
+  // A slot with no resolvable occupant is unknown, not part-less: the fallback
+  // has to fail closed for the same reason the missing-property case does.
+  const slotPart = (index: number): PartTuple | null =>
+    originalAt.get(slotOrders[index]!) ?? null;
 
   const dirty =
     rows.map((r) => r.sourceOrder).join(",") !== initialOrder.current.join(",");
@@ -506,10 +534,16 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
         {rows.map((row, index) => {
           const c = row.chapter;
           const displayOrder = slotOrders[index] ?? row.sourceOrder;
-          const prevPart = index === 0 ? null : slotPart(index - 1);
+          // A heading needs a part the response actually stated. `undefined`
+          // is not "no part" — it is "the server did not say", and rendering
+          // it would print `Parte` with nothing after it. The first-row case
+          // is `index === 0`, kept apart from a previous slot that is merely
+          // unknown, which is now also `null`.
+          const thisPart = partOf(c);
           const showPartHeading =
-            c.partNumber !== null &&
-            (prevPart === null || !samePart(slotPart(index), prevPart));
+            thisPart !== null &&
+            thisPart.partNumber !== null &&
+            (index === 0 || !samePart(slotPart(index), slotPart(index - 1)));
 
           return (
             <li key={row.clientKey}>

@@ -30,11 +30,18 @@ export class ApiError extends Error {
      */
     public readonly code?: string,
     /**
-     * Per-field validation details when the API returns
-     * `VALIDATION_ERROR`. Shape matches the class-validator output:
-     * `{ field: ["constraint"] }`. Undefined for other errors.
+     * El detalle estructurado que acompañe al error, sin forma garantizada.
+     *
+     * Estaba tipado como `Record<string, string[]>`, y era falso: para
+     * `VALIDATION_ERROR` el filtro de la API reenvía el array de
+     * class-validator, o sea un `string[]`. Como el cuerpo se castea sin
+     * validar, el tipo no protegía nada — solo autorizaba a llamar `.map()`
+     * sobre algo que en producción era un string.
+     *
+     * `unknown` obliga a discriminar en quien lo lea. Hoy ese sitio es uno
+     * solo: `validationDetailLines` en `actions/auth.ts`.
      */
-    public readonly details?: Record<string, string[]>,
+    public readonly details?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
@@ -85,7 +92,10 @@ export async function apiFetch<T>(
       .catch(() => ({ message: response.statusText }))) as {
       message?: string;
       code?: string;
-      details?: Record<string, string[]>;
+      // Sin forma garantizada: es el cuerpo del servidor, casteado, no
+      // validado. Declararlo como registro por campo era exactamente la
+      // afirmación que hacía `.map()` parecer segura.
+      details?: unknown;
     };
     throw new ApiError(
       response.status,

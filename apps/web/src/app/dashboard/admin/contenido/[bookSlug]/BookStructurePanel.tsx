@@ -168,7 +168,8 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
    * success and hydration are different moments, and the gap between them is
    * precisely where the work was being lost.
    */
-  const [siblingMutationLock, setSiblingMutationLock] = useState(false);
+  const [publishMutating, setPublishMutating] = useState(false);
+  const [createMutating, setCreateMutating] = useState(false);
 
   // Read through refs so the reset below depends on the snapshot key ALONE.
   // Server props arrive as a fresh array every render, and keying on the array
@@ -202,7 +203,12 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
     initialOrder.current = chaptersRef.current.map((c) => c.order);
     setReorderMode(false);
     setAwaitingServerRefresh(false);
-    setSiblingMutationLock(false);
+    // Only the PUBLISH lock. A new snapshot is exactly the fence publishing is
+    // designed around — but it says nothing about a create that is still in
+    // flight, and clearing that one here would re-offer reorder to an editor
+    // whose page is about to navigate away. Create releases its own lock, or
+    // holds it.
+    setPublishMutating(false);
     setConflict(false);
     setFailure(null);
     // "Guardado en el borrador" is only true while there IS a draft. Once one
@@ -252,6 +258,16 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
    * flight render arrow controls, which is not what publishing means. One
    * decides what is on screen; the other decides what may begin.
    */
+  /**
+   * One slot per owner, deliberately not one shared boolean.
+   *
+   * Publish and Create do not disable each other, so both can be in flight at
+   * once — and with a single flag the FIRST of them to fail would write
+   * `false` while the other was still running, re-offering reorder over a page
+   * that is still about to move. Each panel writes its own slot; the entry is
+   * blocked while either is set.
+   */
+  const siblingMutationLock = publishMutating || createMutating;
   const reorderEntryBlocked = reorderSurfaceActive || siblingMutationLock;
 
   function swap(i: number, j: number) {
@@ -336,7 +352,7 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
           structureChanged={props.structureChanged}
           disabled={reorderSurfaceActive}
           disabledReason={interlockReason}
-          onMutationLockChange={setSiblingMutationLock}
+          onMutationLockChange={setPublishMutating}
         />
       )}
 
@@ -346,7 +362,7 @@ export function BookStructurePanel(props: BookStructurePanelProps) {
         available={props.chapterCreationAvailable}
         disabled={reorderSurfaceActive}
         disabledReason={interlockReason}
-        onMutationLockChange={setSiblingMutationLock}
+        onMutationLockChange={setCreateMutating}
       />
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">

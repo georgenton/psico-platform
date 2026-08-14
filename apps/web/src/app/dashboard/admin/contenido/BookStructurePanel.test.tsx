@@ -964,3 +964,112 @@ describe("a sibling operation is not a reorder", () => {
     gate.resolve({ ok: true });
   });
 });
+
+/**
+ * Two owners, two locks.
+ *
+ * Publish and Create do not disable each other, so both can be in flight at
+ * once. Held in ONE boolean, whichever finished first wrote `false` and
+ * re-offered reorder while the other was still running — and a snapshot
+ * arriving cleared it wholesale, including a create that was still pending.
+ *
+ * The page is about to move in both of those situations. Offering a reorder
+ * into it is how the work gets silently discarded, which is the whole reason
+ * the lock exists.
+ */
+describe("one structural action cannot release another's lock", () => {
+  const startPublish = async (u: ReturnType<typeof userEvent.setup>) => {
+    await u.click(
+      screen.getByRole("button", { name: "Publicar cambios del libro" }),
+    );
+    await u.click(screen.getByRole("button", { name: "Publicar" }));
+  };
+  const startCreate = async (u: ReturnType<typeof userEvent.setup>) => {
+    await u.click(screen.getByRole("button", { name: "+ Crear capítulo" }));
+    await u.type(screen.getByRole("textbox"), "Nuevo");
+    await u.click(screen.getByRole("button", { name: /Crear y editar/i }));
+  };
+
+  it("a failed create does not unlock a publish still in flight", async () => {
+    const publishGate = deferred<{ ok: boolean }>();
+    publishBookAction.mockReturnValue(publishGate.promise);
+    createChapterAction.mockResolvedValue({ ok: false, error: "no" });
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...withDraftProps()} />);
+
+    await startPublish(u);
+    await startCreate(u);
+    await waitFor(() => expect(createChapterAction).toHaveBeenCalledTimes(1));
+
+    // The create is over; the publish is not, and its refresh is still coming.
+    expect(reorderEntry()).toBeDisabled();
+    await u.click(reorderEntry()!);
+    expect(screen.queryByRole("button", { name: /Mover «A»/ })).toBeNull();
+    expect(reorderChaptersAction).not.toHaveBeenCalled();
+
+    publishGate.resolve({ ok: true });
+  });
+
+  it("a failed publish does not unlock a create still in flight", async () => {
+    const createGate = deferred<{ ok: boolean }>();
+    createChapterAction.mockReturnValue(createGate.promise);
+    publishBookAction.mockResolvedValue({ ok: false, conflict: true });
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...withDraftProps()} />);
+
+    await startCreate(u);
+    await startPublish(u);
+    await waitFor(() => expect(publishBookAction).toHaveBeenCalledTimes(1));
+
+    // The publish is over; the create is not, and it is about to navigate.
+    expect(reorderEntry()).toBeDisabled();
+    await u.click(reorderEntry()!);
+    expect(screen.queryByRole("button", { name: /Mover «A»/ })).toBeNull();
+    expect(reorderChaptersAction).not.toHaveBeenCalled();
+
+    createGate.resolve({ ok: true });
+  });
+
+  it("a new server snapshot does not unlock a create still in flight", async () => {
+    const createGate = deferred<{ ok: boolean }>();
+    createChapterAction.mockReturnValue(createGate.promise);
+    const u = userEvent.setup();
+    const { rerender } = render(<BookStructurePanel {...withDraftProps()} />);
+
+    await startCreate(u);
+    await waitFor(() => expect(createChapterAction).toHaveBeenCalledTimes(1));
+
+    // A snapshot is the fence PUBLISHING is designed around. It says nothing
+    // about a create that has not answered yet.
+    rerender(
+      <BookStructurePanel
+        {...props({ editingRevisionId: "rev-10", draftRevisionId: null })}
+      />,
+    );
+
+    expect(reorderEntry()).toBeDisabled();
+    await u.click(reorderEntry()!);
+    expect(screen.queryByRole("button", { name: /Mover «A»/ })).toBeNull();
+    expect(reorderChaptersAction).not.toHaveBeenCalled();
+
+    createGate.resolve({ ok: true });
+  });
+
+  it("both finishing releases it exactly once", async () => {
+    // The other half of the claim: per-owner locks must not deadlock the entry
+    // when every owner has genuinely finished.
+    publishBookAction.mockResolvedValue({ ok: false, error: "no" });
+    createChapterAction.mockResolvedValue({ ok: false, error: "no" });
+    const u = userEvent.setup();
+    render(<BookStructurePanel {...withDraftProps()} />);
+
+    await startPublish(u);
+    await startCreate(u);
+
+    await waitFor(() => expect(reorderEntry()).toBeEnabled());
+    await u.click(reorderEntry()!);
+    expect(
+      screen.getByRole("button", { name: "Mover «A» abajo" }),
+    ).toBeInTheDocument();
+  });
+});

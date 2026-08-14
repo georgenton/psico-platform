@@ -11,6 +11,15 @@ interface Props {
   draftRevisionNumber: number;
   changedCount: number;
   changedTitles: string[];
+  /** The draft moves chapters, not only their prose. */
+  structureChanged?: boolean;
+  /**
+   * Another structural operation is in progress on this page — a local
+   * rearrangement that has not been saved. Publishing now would ship the
+   * revision the page loaded while the editor is looking at a different one.
+   */
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 /**
@@ -31,6 +40,9 @@ export function PublishBookPanel({
   draftRevisionNumber,
   changedCount,
   changedTitles,
+  structureChanged = false,
+  disabled = false,
+  disabledReason,
 }: Props) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
@@ -91,11 +103,14 @@ export function PublishBookPanel({
             style={{ color: "var(--color-warm-700)" }}
           >
             Hay cambios sin publicar en este libro.
+            {disabled && disabledReason ? ` ${disabledReason}` : ""}
           </p>
           <button
             type="button"
             onClick={() => setConfirming(true)}
-            className="rounded-full px-4 py-2 text-[13px] font-semibold text-white"
+            disabled={disabled}
+            title={disabled ? disabledReason : undefined}
+            className="rounded-full px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
             style={{ background: "var(--color-lavender-600)" }}
           >
             Publicar cambios del libro
@@ -115,6 +130,14 @@ export function PublishBookPanel({
           >
             Capítulos con cambios: {changedCount}.
           </p>
+          {structureChanged && (
+            <p
+              className="mt-1 text-[13px] font-semibold"
+              style={{ color: "var(--color-lavender-700)" }}
+            >
+              Este borrador también cambia el orden o la estructura del libro.
+            </p>
+          )}
           {changedTitles.length > 0 && (
             <ul
               className="mt-2 list-disc pl-5 text-[13px]"
@@ -134,7 +157,8 @@ export function PublishBookPanel({
             <button
               type="button"
               onClick={publish}
-              disabled={pending}
+              disabled={pending || disabled}
+              title={disabled ? disabledReason : undefined}
               className="rounded-full px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
               style={{ background: "var(--color-lavender-600)" }}
             >

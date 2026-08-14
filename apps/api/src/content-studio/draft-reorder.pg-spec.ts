@@ -1364,6 +1364,62 @@ suite("Content Studio · reordering the draft manifest", () => {
     });
   });
 
+  // ── the editorial read projection carries placement metadata ────────────
+
+  describe("Book State exposes the manifest's part metadata", () => {
+    it("a book with no parts reports the null/null tuple", async () => {
+      // null/null is a real tuple, not missing data: it is what "this book has
+      // no parts" looks like, and the reorder UI compares tuples.
+      const state = await studio.getBookState("sin-plan");
+      expect(state.chapters.map((c) => [c.partNumber, c.partTitle])).toEqual([
+        [null, null],
+        [null, null],
+      ]);
+    });
+
+    it("a book with parts reports each chapter's own part", async () => {
+      const state = await studio.getBookState("partes");
+      expect(
+        state.chapters.map((c) => [c.order, c.partNumber, c.partTitle]),
+      ).toEqual([
+        [1, 1, "Parte I"],
+        [2, 1, "Parte I"],
+        [3, 2, "Parte II"],
+        [4, 2, "Parte II"],
+      ]);
+    });
+
+    it("adds placement metadata and no internal identity", async () => {
+      // The projection may say WHERE a chapter sits. It may not hand the
+      // browser anything it could use to address a unit, a revision row or a
+      // legacy chapter directly — reorder sends positions precisely so that
+      // resolving identity stays on the server.
+      const state = await studio.getBookState("partes");
+      const keys = Object.keys(state.chapters[0]!).sort();
+      expect(keys).toEqual(
+        [
+          "changed",
+          "editable",
+          "ingested",
+          "isNewDraftChapter",
+          "order",
+          "partNumber",
+          "partTitle",
+          "title",
+          "titleEditable",
+        ].sort(),
+      );
+      const serialised = JSON.stringify(state.chapters);
+      for (const forbidden of [
+        unitId["partes:A"],
+        editionId["partes"],
+        chapterId["partes:A"],
+      ]) {
+        expect(serialised).not.toContain(forbidden);
+      }
+    });
+  });
+
   // ── R — entitlement belongs to the chapter, not to the position ──────────
 
   it("the free preview stays with the chapter that has it", async () => {

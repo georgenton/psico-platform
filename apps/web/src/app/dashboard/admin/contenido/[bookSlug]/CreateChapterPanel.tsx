@@ -20,6 +20,8 @@ export function CreateChapterPanel({
   bookSlug,
   editingRevisionId,
   available,
+  disabled = false,
+  disabledReason,
 }: {
   bookSlug: string;
   editingRevisionId: string;
@@ -29,6 +31,13 @@ export function CreateChapterPanel({
    * one already answers, and that judgement belongs on the server.
    */
   available: boolean;
+  /**
+   * A local workflow interlock, separate from `available`. The server still
+   * decides whether the book CAN take a new chapter; this only stops one being
+   * created against a revision the page is no longer showing.
+   */
+  disabled?: boolean;
+  disabledReason?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -84,8 +93,18 @@ export function CreateChapterPanel({
   if (!open) {
     return (
       <div className="mt-5">
+        {disabled && disabledReason && (
+          <p
+            className="mb-2 text-[12.5px]"
+            style={{ color: "var(--color-warm-500)" }}
+          >
+            {disabledReason}
+          </p>
+        )}
         <button
           type="button"
+          disabled={disabled}
+          title={disabled ? disabledReason : undefined}
           onClick={() => setOpen(true)}
           className="rounded-full px-4 py-2 text-[13px] font-semibold"
           style={{

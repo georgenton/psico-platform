@@ -162,9 +162,6 @@ Sin esto, «una ACTIVE por lineage» quedaría ambiguo justo donde más importa.
   contra v1. Es la regla de 0019 §6 y no cambia.
 - **Publicar o descubrir `X@v2` no cancela ni reescribe `X@v1` en silencio.**
   Publicar no es un acto del lector.
-- El Home de capítulo **puede ofrecer continuar** la sesión ACTIVE del mismo
-  `guideKey`, usando **la versión fijada de esa sesión**, no la última
-  publicada.
 - **Completar no cruza versiones**: completar `X@v1` no puede afirmar que
   `X@v2` fue completada.
 - **Si el lector arranca `X@v2` de forma explícita**, el servidor cancela la
@@ -173,27 +170,74 @@ Sin esto, «una ACTIVE por lineage» quedaría ambiguo justo donde más importa.
   resoluble por su pin exacto y por su identidad de sesión.
 - **Ningún otro lineage de Guide se ve afectado** por nada de lo anterior.
 
+### Recuperación versionada — obligatoria, no opcional
+
+Cuando la Experiencia publicada actual usa **el mismo `guideKey`** que una
+sesión ACTIVE fijada a una versión anterior:
+
+- El Home de capítulo **debe ofrecer continuar esa sesión ACTIVE, usando su
+  versión fijada**. No es una opción de diseño: sin esto el lector ve «empezar»
+  sobre un recorrido que tiene a medias, que es el defecto de #639 con otra
+  cara.
+- **No debe arrancar la versión nueva en silencio.**
+- **No debe marcar la versión nueva como completada** porque una versión
+  anterior se completara.
+- **Arrancar la versión nueva exige una acción explícita del lector**, y solo
+  entonces ejecuta el reemplazo documentado dentro del mismo lineage.
+- **El futuro endpoint de estado debe distinguir** la recuperación por lineage
+  (hay una ACTIVE de este `guideKey`, fijada a otra versión) de la finalización
+  de una versión exacta (esta versión concreta fue completada). Colapsar ambas
+  en un solo estado vuelve a hacer indistinguibles cosas que el lector sí
+  distingue.
+
+Este ADR **no** diseña la UI final: no fija copy, ni disposición, ni
+etiquetas. Fija que la recuperación existe y qué no puede hacer.
+
 ### Orden de operaciones del START
 
-Dentro de UNA transacción, en este orden exacto:
+Orden normativo, implementable tal cual:
 
 ```
-1. revisar receipt          (replay / conflicto)
-2. LINEAGE_START_LOCK       guide:start:<userId>:<guideKey>
-3. resolver catálogo y contexto exactos   (guideKey@guideVersion, ancla)
-4. buscar la ACTIVE del MISMO lineage     (determinista, nunca global)
-5. autocancelar esa ACTIVE                (solo si NO es replay)
-6. crear sesión + receipt + evento        (misma tx, misma key)
+ 1. validación cerrada y canonicalización del comando   (HTTP/parser, sin DB)
+ 2. abrir la transacción
+ 3. LINEAGE_START_LOCK = guide:start:<userId>:<guideKey>
+ 4. resolver guideKey@guideVersion, contexto editorial y ancla   (en la tx)
+ 5. construir la ValidatedGuideStartSemantics completa, propiedad del servidor
+ 6. inspeccionar el receipt   (bajo el lock de lineage)
+ 7. si es replay: devolver la sesión original y salir
+       — sin re-chequeo de entitlement, sin autocancel, sin sesión,
+         sin receipt, sin evento
+ 8. aplicar el gate de entitlement   (comando nuevo)
+ 9. buscar la ACTIVE del MISMO guideKey   (determinista, nunca global)
+10. si existe: tomar su SESSION_MUTATION_LOCK, releerla y autocancelar
+       — solo esa sesión del mismo lineage
+11. crear sesión + receipt + evento, atómicamente
+12. devolver el snapshot derivado por el servidor
 ```
 
-El receipt se inspecciona **antes** de cualquier efecto. **Un replay exacto
-devuelve la sesión original y no cancela nada**: ni una segunda cancelación, ni
-una segunda sesión, ni un segundo receipt, ni un segundo evento. Es la garantía
-de 0019 §6, conservada palabra por palabra y ahora acotada al lineage.
+**Por qué los pasos 4–6 van en ese orden y no al revés.**
+`ValidatedGuideStartSemantics` incluye `editionId` y `unitId`, que **resuelve el
+servidor**. Las semantics no existen antes del paso 4, así que inspeccionar el
+receipt antes sería imposible: no habría nada con qué comparar. Y la inspección
+debe ocurrir **bajo el lock de lineage**: dos START concurrentes del mismo
+lineage con la misma `idempotencyKey` que la hicieran fuera del lock podrían
+observar ambos `absent`.
 
-El paso (3) va **después** del lock y **antes** de la búsqueda de la ACTIVE:
-resolver el catálogo primero evitaría el lock, y buscar la ACTIVE antes de saber
-qué lineage se está arrancando no tendría sentido.
+**Qué significa exactamente «el receipt antes de cualquier efecto»** — y qué no:
+
+- Significa **antes de las escrituras irreversibles**: autocancel, sesión,
+  receipt, evento.
+- **Tomar un advisory lock y leer catálogo o contexto no son efectos
+  persistentes.** No dejan rastro y son reversibles con la transacción.
+- El receipt sigue inspeccionado **antes de toda transición de estado
+  irreversible**, que es la garantía que 0019 §6 quería dar.
+- **El orden de locks no cambia:** `LINEAGE_START_LOCK → SESSION_MUTATION_LOCK`.
+- **Un replay se decide bajo el lock de lineage y nunca vuelve a autocancelar**:
+  ni una segunda cancelación, ni una segunda sesión, ni un segundo receipt, ni
+  un segundo evento.
+
+**Los fingerprints de receipt no cambian.** Este orden describe cuándo se
+construyen y se comparan las semantics, no de qué se componen.
 
 ---
 
@@ -230,11 +274,58 @@ sesión contra las demás.
 | 3   | Mismo user, `guideKey` distintos                  | **Ambas pueden quedar ACTIVE.** Ningún lock compartido, ninguna cancelación cruzada.                 |
 | 4   | Replay exacto de receipt                          | Cero cancelaciones, cero sesiones, cero receipts, cero eventos adicionales.                          |
 | 5   | Cancelar o completar la Guide A                   | La Guide B **permanece intacta**.                                                                    |
+| 6   | `guideKey` distintos, **misma `idempotencyKey`**  | **A lo sumo una transacción commitea** (ver abajo); la perdedora devuelve el conflicto canónico.     |
 
 Las filas 2–6 de la matriz de 0019 §7 (accepts del mismo step, pasos fuera de
 orden, último step vs complete, cancel vs step, complete vs complete) **siguen
 vigentes sin cambio**: todas se serializan por `SESSION_MUTATION_LOCK`, que este
 ADR no toca.
+
+### La carrera de idempotencia entre lineages
+
+Acotar el START lock al lineage significa, **por diseño**, que dos `guideKey`
+distintos **no se serializan**. Eso abre un escenario que hay que documentar en
+vez de descubrirlo en producción: mismo usuario, Guides A y B, START
+concurrentes, **la misma `idempotencyKey`**, semantics distintas.
+
+Ninguno de los dos locks de lineage protege aquí. Quien lo cierra es una
+autoridad **transversal que ya existe** y que este ADR no modifica: la
+constraint `UNIQUE(userId, idempotencyKey)` sobre `GuideCommandReceipt`, más el
+patrón `createMany(skipDuplicates)` → **relectura** de la fila almacenada →
+**comparación semántica estructural** dentro de la transacción de quien llama.
+
+La traza es esta. Ambas inspecciones ven `absent`, porque ninguna ha commiteado.
+Ambas crean su sesión. Al insertar el receipt, la segunda **se bloquea** sobre el
+índice único hasta que la primera resuelve. La primera commitea; la segunda
+salta el duplicado (`count = 0`), **relee** la fila almacenada y encuentra
+semantics que no son las suyas.
+
+Resultado exigido, y que el comportamiento actual ya produce:
+
+- **A lo sumo una transacción commitea.**
+- La ganadora crea su sesión, su receipt y su evento.
+- La perdedora observa semantics distintas y devuelve el **contrato de conflicto
+  de idempotencia ya existente**; su sesión y su evento recién creados
+  **revierten con la transacción**, porque el error se lanza dentro de ella.
+- **No queda un segundo receipt ni una sesión huérfana.**
+
+Este ADR **no introduce ningún lock adicional** para esto: el mecanismo
+transversal es suficiente y añadir uno acoplaría lineages que la decisión de §2
+quiere desacoplados.
+
+### Requisitos de prueba para C.0A / pg-specs
+
+Cuatro escenarios, obligatorios antes de relajar el índice:
+
+1. **`guideKey` distintos + `idempotencyKey` distintas** → ambos START tienen
+   éxito y **ambas sesiones quedan ACTIVE**. Es la prueba de #639.
+2. **`guideKey` distintos + misma `idempotencyKey`** → **exactamente una**
+   commitea; la otra devuelve el conflicto canónico; queda **un** receipt, **un**
+   evento y **una** sesión.
+3. **Mismo `guideKey` + misma `idempotencyKey`** → una creación y **un replay
+   exacto**, sin segunda cancelación.
+4. **Mismo `guideKey` + versiones distintas + keys distintas** → el START
+   explícito posterior reemplaza **solo** a la ACTIVE del mismo lineage.
 
 ---
 

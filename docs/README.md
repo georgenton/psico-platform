@@ -11,7 +11,7 @@ contradicen, gana el marcado aquí como autoridad canónica.
 
 ```
 DOCS_CANONICAL_INDEX=docs/README.md
-ADR_RANGE=0001..0021
+ADR_RANGE=0001..0022
 ADR_DUPLICATE_NUMBERS=none
 ```
 
@@ -61,6 +61,7 @@ documento la contradiga en materia de presentación multimodal, manda esa.
 | Rollout piloto (off · pilot · on)                                                            | [`product/guide-v1-pilot-rollout.md`](product/guide-v1-pilot-rollout.md)                                                                                    |
 | Ejercicios de la primera unidad                                                              | [`product/exercise-content-first-guide-unit.md`](product/exercise-content-first-guide-unit.md)                                                              |
 | Procedencia de sesiones y pasos                                                              | [`adr/0019-guide-session-step-source.md`](adr/0019-guide-session-step-source.md)                                                                            |
+| Alcance de la sesión ACTIVE (lineage de Guide) — supersede parcialmente 0019                 | [`adr/0022-guide-lineage-active-scope.md`](adr/0022-guide-lineage-active-scope.md)                                                                          |
 | Despliegue y verificación en producción                                                      | [`operations/cc7-production-runbook.md`](operations/cc7-production-runbook.md) · [`operations/cc7-production-smoke.md`](operations/cc7-production-smoke.md) |
 | Snapshot histórico de preparación (pre-deploy)                                               | [`operations/cc7-production-readiness.md`](operations/cc7-production-readiness.md)                                                                          |
 
@@ -109,7 +110,7 @@ documento la contradiga en materia de presentación multimodal, manda esa.
 | Multi-rol sin multi-tenant                | [`adr/0011-multi-rol-sin-multi-tenant.md`](adr/0011-multi-rol-sin-multi-tenant.md)                                     |
 | Live Activities vía APNs                  | [`adr/0012-live-activities-via-apns-strategy.md`](adr/0012-live-activities-via-apns-strategy.md)                       |
 | Invalidación de tokens por revisión       | [`adr/0015-auth-revision-token-invalidation.md`](adr/0015-auth-revision-token-invalidation.md)                         |
-| Índice completo de decisiones             | [`adr/`](adr/) — 0001…0019                                                                                             |
+| Índice completo de decisiones             | [`adr/`](adr/) — 0001…0022                                                                                             |
 | Cifrado E2E del Diario y Eco              | [`adr/0007-e2e-encryption-diario-eco.md`](adr/0007-e2e-encryption-diario-eco.md)                                       |
 | OpenAPI como fuente de verdad del cliente | [`adr/0013-openapi-as-source-of-truth.md`](adr/0013-openapi-as-source-of-truth.md)                                     |
 | Roadmap de infraestructura                | [`ROADMAP.md`](ROADMAP.md)                                                                                             |

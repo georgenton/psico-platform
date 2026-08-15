@@ -300,6 +300,50 @@ Ambas crean su sesión. Al insertar el receipt, la segunda **se bloquea** sobre 
 salta el duplicado (`count = 0`), **relee** la fila almacenada y encuentra
 semantics que no son las suyas.
 
+### El nivel de aislamiento es parte del contrato, no del entorno
+
+```
+GUIDE_COMMAND_TRANSACTION_ISOLATION=READ COMMITTED
+```
+
+El paso «relee y encuentra semantics ajenas» **solo ocurre bajo READ
+COMMITTED**, donde cada sentencia toma una instantánea nueva y por tanto ve la
+fila que la ganadora acaba de commitear. Bajo REPEATABLE READ la perdedora
+seguiría fallando cerrado, pero **releería su instantánea original, no
+encontraría la fila y devolvería un fallo de almacenamiento en lugar del
+conflicto canónico**. El contrato normativo cambiaría de forma sin que nadie
+tocara una línea de código.
+
+Hoy el código **no fija ningún `isolationLevel`**, así que hereda el default de
+la sesión/servidor. **Un contrato normativo no puede depender en silencio de
+configuración mutable de base de datos**: un cambio de parámetro en el motor, o
+un pooler con otro default, bastaría para romperlo.
+
+Por eso C.0A debe hacer una de estas dos cosas **antes** de apoyarse en el
+resultado canónico:
+
+**Preferida** — pedir `ReadCommitted` explícitamente en la transacción del
+comando Guide, mediante la opción de transacción soportada por Prisma,
+**conservando la transacción atómica única** que cubre sesión, receipt y evento.
+Verificado localmente contra el runner de este proyecto (Prisma 7.8 +
+`PrismaPg`): el override se admite y **aplica de verdad** — pedir
+`RepeatableRead` devuelve `repeatable read`, luego no se ignora.
+
+**Aceptable solo si el aislamiento explícito por transacción no estuviera
+técnicamente disponible** — afirmar el nivel de la sesión/servidor al arrancar y
+**fallar cerrado** si no es READ COMMITTED.
+
+**No basta con confiar en los defaults de Railway o Postgres.**
+
+Lo que esto **no** cambia: el esquema del receipt · la versión ni la fórmula del
+fingerprint · la constraint única · la autoridad de replay/conflicto · la
+atomicidad de la transacción.
+
+**Alcance de lo verificado, con precisión:** el default se comprobó en el
+**runner local**. **La configuración de producción no se consultó.** La
+implementación en runtime hará explícito el contrato de aislamiento **antes** de
+habilitar multi-ACTIVE.
+
 Resultado exigido, y que el comportamiento actual ya produce:
 
 - **A lo sumo una transacción commitea.**
@@ -315,17 +359,27 @@ quiere desacoplados.
 
 ### Requisitos de prueba para C.0A / pg-specs
 
-Cuatro escenarios, obligatorios antes de relajar el índice:
+Obligatorios antes de relajar el índice:
 
 1. **`guideKey` distintos + `idempotencyKey` distintas** → ambos START tienen
    éxito y **ambas sesiones quedan ACTIVE**. Es la prueba de #639.
 2. **`guideKey` distintos + misma `idempotencyKey`** → **exactamente una**
-   commitea; la otra devuelve el conflicto canónico; queda **un** receipt, **un**
-   evento y **una** sesión.
+   commitea; la otra devuelve el conflicto canónico.
 3. **Mismo `guideKey` + misma `idempotencyKey`** → una creación y **un replay
    exacto**, sin segunda cancelación.
 4. **Mismo `guideKey` + versiones distintas + keys distintas** → el START
    explícito posterior reemplaza **solo** a la ACTIVE del mismo lineage.
+
+Y, por el contrato de aislamiento:
+
+5. **Afirmar que la transacción corre bajo READ COMMITTED** — la aserción
+   directa, no inferida del entorno.
+6. **Sin huérfanos** tras la carrera del escenario 2: ni sesión, ni receipt, ni
+   evento sobrantes.
+7. **Sonda de contraste bajo REPEATABLE READ**, que demuestre _por qué_ existe
+   el requisito explícito: el mismo escenario deja de producir el conflicto
+   canónico. **Es una sonda de contraste, no un camino de producción
+   soportado.**
 
 ---
 
@@ -344,6 +398,9 @@ revisión de C.0B.
   en el suelo de rollback** antes de relajar el índice.
 - **C.0A debe eliminar toda lectura global arbitraria de la sesión activa** y
   tolerar N lineages ACTIVE **mientras el índice global antiguo sigue en pie**.
+- **C.0A debe además hacer explícito el contrato de aislamiento** de la
+  transacción del comando Guide (§7). Sin eso, el resultado canónico de la
+  carrera entre lineages queda colgando del default del motor.
 - **Ninguna sesión existente se borra, se reescribe ni se cancela en masa.** El
   invariante nuevo es más permisivo que el actual: los datos ya son compatibles.
 - **El índice por lineage debe establecerse antes de retirar el índice global.**
@@ -454,16 +511,16 @@ Explícitamente fuera de alcance de este ADR:
 
 ## 13. Orden de implementación (fuera de este PR)
 
-| Fase      | Contenido                                                 | Esquema | Rollback                   |
-| --------- | --------------------------------------------------------- | ------- | -------------------------- |
-| **C.0D**  | Este ADR — solo documentación                             | no      | trivial                    |
-| **C.0A**  | Código tolerante a multi-ACTIVE; índice global intacto    | no      | **suelo de rollback**      |
-| **C.0B1** | Añadir índice por lineage; el global permanece            | sí      | retirar el nuevo           |
-| **C.0B2** | Retirar el índice global + START por lineage              | sí      | a C.0A, **no** a `eac804f` |
-| **C.1**   | Endpoint aditivo de estado por Experience                 | no      | limpio                     |
-| **C.3**   | Reserva de binding segura ante concurrencia               | no      | limpio                     |
-| **C.2**   | La web consume estados independientes                     | no      | limpio                     |
-| **C.4**   | Selección de Guide en el CMS — **bloqueada por producto** | no      | limpio                     |
-| **C.5**   | Verificación en producción (solo lectura)                 | —       | —                          |
+| Fase      | Contenido                                                                                                        | Esquema | Rollback                   |
+| --------- | ---------------------------------------------------------------------------------------------------------------- | ------- | -------------------------- |
+| **C.0D**  | Este ADR — solo documentación                                                                                    | no      | trivial                    |
+| **C.0A**  | Tolerancia a multi-ACTIVE **+ contrato explícito de aislamiento** de la transacción Guide; índice global intacto | no      | **suelo de rollback**      |
+| **C.0B1** | Añadir índice por lineage; el global permanece                                                                   | sí      | retirar el nuevo           |
+| **C.0B2** | Retirar el índice global + START por lineage                                                                     | sí      | a C.0A, **no** a `eac804f` |
+| **C.1**   | Endpoint aditivo de estado por Experience                                                                        | no      | limpio                     |
+| **C.3**   | Reserva de binding segura ante concurrencia                                                                      | no      | limpio                     |
+| **C.2**   | La web consume estados independientes                                                                            | no      | limpio                     |
+| **C.4**   | Selección de Guide en el CMS — **bloqueada por producto**                                                        | no      | limpio                     |
+| **C.5**   | Verificación en producción (solo lectura)                                                                        | —       | —                          |
 
 Cada fase requiere su propia autorización explícita.

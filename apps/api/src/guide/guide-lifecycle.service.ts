@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import type {
@@ -34,9 +35,9 @@ import {
 } from "../learning/learning-event-builders";
 import type { ValidatedLearningEvent } from "../learning/validated-learning-event";
 import {
-  globalStartLockKey,
-  lineageStartLockKey,
+  c0aStartLockKeys,
   readGuideActiveCapability,
+  type GuideActiveCapability,
 } from "./guide-active-capability";
 import { productionGuideRegistry } from "./guide-catalog";
 import { toGuideCompletionSummary } from "./guide-completion-summary";
@@ -197,12 +198,45 @@ export class GuideLifecycleService {
     private readonly events: LearningEventRepository,
   ) {}
 
+  /** Operational signal only — never a decision input. */
+  private readonly logger = new Logger("GuideLifecycle");
+
   // ─── Shared primitives ───────────────────────────────────────────────────
 
   /**
    * The ONLY raw SQL in the lifecycle: a transaction-scoped advisory lock. It
    * writes no row, so the single-writer ratchets stay intact.
    */
+  /**
+   * Say out loud that the schema is in a state we tolerate but did not expect.
+   *
+   * `degraded` is the whole reason authority and health are separate values:
+   * a half-built or leftover-invalid lineage index does NOT stop START, which
+   * is correct — and would therefore be completely invisible without this. A
+   * failed `CREATE INDEX CONCURRENTLY` leaves its index behind, so the state
+   * can persist for days with nothing on fire.
+   *
+   * Three properties, in order of importance:
+   *
+   *   - it CANNOT change the outcome. Everything is inside a catch, so a
+   *     broken logger degrades observability and nothing else;
+   *   - it carries only the closed enum values. No index name, no SQL, no
+   *     predicate, no pg message, no userId and no guideKey — an operator
+   *     needs to know the schema is odd, not who was reading at the time;
+   *   - it is emitted per occurrence. Deduplicating would mean remembering
+   *     the authority between transactions, and a remembered authority is the
+   *     feature flag this design refuses to have.
+   */
+  private reportDegradedCapability(capability: GuideActiveCapability): void {
+    try {
+      this.logger.warn(
+        `GUIDE_ACTIVE_CAPABILITY_DEGRADED effectiveMode=${capability.effectiveMode} globalHealth=${capability.globalHealth} lineageHealth=${capability.lineageHealth}`,
+      );
+    } catch {
+      // Telemetry is never load-bearing.
+    }
+  }
+
   private async lock(tx: Tx, key: string): Promise<void> {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 42))`;
   }
@@ -530,16 +564,16 @@ export class GuideLifecycleService {
     return mapGuideErrors(() =>
       this.prisma.$transaction(
         async (tx) => {
-          // C.0A — BOTH start locks, always in this order. The global one is
-          // what a pre-C.0A instance also takes, so the two serialize during a
-          // rolling deploy; the lineage one is what the future lineage-only
-          // instance will take, so THAT pair serializes too. Dropping either
-          // half leaves a version pair sharing no lock at all.
-          await this.lock(tx, globalStartLockKey(user.userId));
-          await this.lock(
-            tx,
-            lineageStartLockKey(user.userId, command.guideKey),
-          );
+          // C.0A — BOTH start locks, from ONE authority, walked in order.
+          // The global key is what a pre-C.0A instance also takes, so the two
+          // serialize during a rolling deploy; the lineage key is what the
+          // future lineage-only instance will take, so THAT pair serializes
+          // too. Dropping either half leaves a version pair sharing no lock.
+          // Inlining the keys here would let production and the mixed-fleet
+          // pg-spec drift apart while both kept passing.
+          for (const key of c0aStartLockKeys(user.userId, command.guideKey)) {
+            await this.lock(tx, key);
+          }
 
           // (1) Catalog + context, both on THIS transaction's snapshot.
           const definition = productionGuideRegistry.getExact(
@@ -583,6 +617,7 @@ export class GuideLifecycleService {
           // invariant the DATABASE is currently enforcing, read here rather
           // than configured, because the partial unique index IS the rule.
           const capability = await readGuideActiveCapability(tx);
+          if (capability.degraded) this.reportDegradedCapability(capability);
           if (capability.effectiveMode === "FAIL_CLOSED") {
             // No authority means we cannot tell a global world from a lineage
             // one, and the two disagree about what to cancel. Refuse before the

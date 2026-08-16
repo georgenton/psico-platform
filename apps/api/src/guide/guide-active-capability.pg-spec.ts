@@ -68,7 +68,16 @@ suite("C.0A · ACTIVE capability against real PostgreSQL", () => {
         WHERE i.indrelid = 'public."GuideSession"'::regclass
           AND i.indpred IS NOT NULL`,
     );
-    for (const r of rows) await pool.query(`DROP INDEX "${r.relname}"`);
+    // Postgres escapes the identifier via `quote_ident`, and the escaped
+    // result is what goes into the statement. A controlled test database is
+    // not a reason to interpolate a name we read back from the catalog.
+    for (const r of rows) {
+      const { rows: quoted } = await pool.query<{ q: string }>(
+        `SELECT quote_ident($1) AS q`,
+        [r.relname],
+      );
+      await pool.query(`DROP INDEX ${quoted[0]!.q}`);
+    }
   };
 
   const createGlobal = () =>
@@ -77,6 +86,19 @@ suite("C.0A · ACTIVE capability against real PostgreSQL", () => {
     );
 
   const clearSessions = () => pool.query(`DELETE FROM "GuideSession"`);
+
+  /**
+   * The lineage-only world, from scratch.
+   *
+   * Every uniqueness test below builds its own rows. Sharing state across
+   * tests makes each one pass only in file order — and a spec that cannot be
+   * run with `-t` is a spec whose failure message you cannot trust.
+   */
+  const lineageWorld = async () => {
+    await resetIndexes();
+    await clearSessions();
+    await pool.query(LINEAGE_DDL);
+  };
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
@@ -98,13 +120,25 @@ suite("C.0A · ACTIVE capability against real PostgreSQL", () => {
     });
   }, 240_000);
 
+  // Same explicit budget as `beforeAll`: dropping a database can wait on
+  // connections closing, and a teardown that times out reads as a flake in a
+  // suite whose assertions all passed. Each step is guarded so a failure in
+  // one does not strand the rest.
   afterAll(async () => {
-    if (prisma) await prisma.$disconnect();
-    if (pool) await pool.end();
+    try {
+      if (prisma) await prisma.$disconnect();
+    } catch {
+      /* fall through — the database drop below is what matters */
+    }
+    try {
+      if (pool) await pool.end();
+    } catch {
+      /* idem */
+    }
     const admin = new Pool({ connectionString: base });
     await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
     await admin.end();
-  });
+  }, 240_000);
 
   // ── The four schema states, walked in deployment order ───────────────────
 
@@ -139,9 +173,7 @@ suite("C.0A · ACTIVE capability against real PostgreSQL", () => {
   // ── The uniqueness the lineage index actually enforces ────────────────────
 
   it("X@v1 blocks a second X@v1", async () => {
-    await resetIndexes();
-    await clearSessions();
-    await pool.query(LINEAGE_DDL);
+    await lineageWorld();
     await insertSession("gs-x1", "guia-x", 1);
     await expect(insertSession("gs-x1b", "guia-x", 1)).rejects.toMatchObject({
       code: "23505",
@@ -152,20 +184,26 @@ suite("C.0A · ACTIVE capability against real PostgreSQL", () => {
     // The invariant a `(userId, guideKey, guideVersion)` index would silently
     // break: two versions of ONE curated intervention would both be live, and
     // the reader would have no way to tell which one counts.
-    await expect(insertSession("gs-x2", "guia-x", 2)).rejects.toMatchObject({
+    await lineageWorld();
+    await insertSession("gs-x2a", "guia-x", 1);
+    await expect(insertSession("gs-x2b", "guia-x", 2)).rejects.toMatchObject({
       code: "23505",
     });
   });
 
   it("a different lineage may be ACTIVE at the same time", async () => {
+    await lineageWorld();
+    await insertSession("gs-y0", "guia-x", 1);
     await expect(insertSession("gs-y1", "guia-y", 1)).resolves.toBeDefined();
   });
 
   it("X@v2 fits once X@v1 is no longer ACTIVE", async () => {
+    await lineageWorld();
+    await insertSession("gs-x3a", "guia-x", 1);
     await pool.query(
-      `UPDATE "GuideSession" SET "status"='CANCELLED'::"GuideSessionStatus", "cancelledAt"=now(), "currentStepKey"=NULL WHERE "id"='gs-x1'`,
+      `UPDATE "GuideSession" SET "status"='CANCELLED'::"GuideSessionStatus", "cancelledAt"=now(), "currentStepKey"=NULL WHERE "id"='gs-x3a'`,
     );
-    await expect(insertSession("gs-x2b", "guia-x", 2)).resolves.toBeDefined();
+    await expect(insertSession("gs-x3b", "guia-x", 2)).resolves.toBeDefined();
   });
 
   // ── What must never be mistaken for lineage authority ────────────────────

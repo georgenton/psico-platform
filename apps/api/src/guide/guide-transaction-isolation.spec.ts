@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { c0aStartLockKeys } from "./guide-active-capability";
+
 /**
  * C.0A — ratchet: every Guide command transaction STATES its isolation level.
  *
@@ -82,15 +84,13 @@ describe("ratchet · the arbitrary ACTIVE read is gone", () => {
 });
 
 describe("ratchet · both start locks, in order", () => {
-  it("START takes the global compatibility lock before the lineage lock", () => {
-    const src = source();
-    const global = src.indexOf("globalStartLockKey(user.userId)");
-    const lineage = src.indexOf("lineageStartLockKey(user.userId");
-    expect(global).toBeGreaterThan(-1);
-    expect(lineage).toBeGreaterThan(-1);
+  it("the acquisition order is global then lineage", () => {
     // Order is the deadlock-freedom argument: every actor acquires along the
-    // same total order, so no pair can build a wait cycle.
-    expect(global).toBeLessThan(lineage);
+    // same total order, so no pair can build a wait cycle. It is asserted on
+    // the shared authority now, because that is what `start()` walks.
+    const [first, second] = c0aStartLockKeys("u-1", "g-1");
+    expect(first).toBe("guide:start:u-1");
+    expect(second).toBe("guide:start:u-1:g-1");
   });
 
   it("the capability is read per transaction, never cached", () => {
@@ -99,5 +99,95 @@ describe("ratchet · both start locks, in order", () => {
     // A cached authority is a feature flag re-invented: it can disagree with
     // the schema, which is the one thing this design refuses to allow.
     expect(src).not.toMatch(/capabilityCache|cachedCapability/);
+  });
+});
+
+describe("ratchet · the start-lock sequence has ONE authority", () => {
+  const capability = () =>
+    readFileSync(
+      join(process.cwd(), "src/guide/guide-active-capability.ts"),
+      "utf8",
+    );
+
+  it("start() walks c0aStartLockKeys instead of inlining the keys", () => {
+    // A test that rebuilds the sequence by hand proves the hand-built list
+    // behaves; it says nothing about production. Iterating the shared
+    // authority is what makes the mixed-fleet pg-spec evidence about `start()`.
+    const src = source();
+    expect(src).toMatch(/c0aStartLockKeys\(user\.userId, command\.guideKey\)/);
+    expect(src).not.toMatch(/this\.lock\(tx, globalStartLockKey\(/);
+    expect(src).not.toMatch(/this\.lock\(tx, lineageStartLockKey\(/);
+  });
+
+  it("the mixed-fleet pg-spec models V1 with that same authority", () => {
+    const spec = readFileSync(
+      join(process.cwd(), "src/guide/guide-rolling-deploy-locks.pg-spec.ts"),
+      "utf8",
+    );
+    expect(spec).toMatch(
+      /const V1 = \(guideKey: string\) => \[\s*\.\.\.c0aStartLockKeys/,
+    );
+  });
+
+  it("the authority yields global then lineage, and nothing else", () => {
+    const src = capability();
+    expect(src).toMatch(
+      /c0aStartLockKeys[\s\S]*?globalStartLockKey\(userId\),\s*lineageStartLockKey\(userId, guideKey\),/,
+    );
+  });
+
+  it("the dual-v1 marker names the protocol this sequence implements", () => {
+    // The marker is what the C.0B2 drain gate reads. If the sequence gained a
+    // third lock or lost one, `dual-v1` would be a false claim about a
+    // deployed box — so the two live in one module and are pinned together.
+    expect(capability()).toMatch(
+      /GUIDE_START_LOCK_PROTOCOL = "dual-v1" as const/,
+    );
+    expect([...c0aStartLockKeys("u", "g")]).toHaveLength(2);
+  });
+});
+
+describe("ratchet · the degraded capability is reported", () => {
+  it("start() emits the signal when the schema is odd", () => {
+    // Authority and health are separate values precisely so a degraded state
+    // keeps serving. Consuming only `effectiveMode` would make that state
+    // invisible, and a leftover invalid index can persist for days.
+    const src = source();
+    expect(src).toMatch(/capability\.degraded/);
+    expect(src).toMatch(/GUIDE_ACTIVE_CAPABILITY_DEGRADED/);
+  });
+
+  it("the signal carries closed enum values only", () => {
+    const src = source();
+    const line =
+      src.match(/`GUIDE_ACTIVE_CAPABILITY_DEGRADED[^`]*`/)?.[0] ?? "";
+    expect(line).toContain("effectiveMode=");
+    expect(line).toContain("globalHealth=");
+    expect(line).toContain("lineageHealth=");
+    // No actor, no catalog key, no statement.
+    expect(line).not.toMatch(/userId|guideKey|SELECT|pg_index/);
+  });
+
+  it("telemetry cannot break the command", () => {
+    // Everything the reporter does is inside a catch: a broken logger must
+    // degrade observability and nothing else.
+    const src = source();
+    const body =
+      src.match(/private reportDegradedCapability[\s\S]*?\n {2}\}/)?.[0] ?? "";
+    expect(body).toMatch(/try \{/);
+    expect(body).toMatch(/\} catch \{/);
+  });
+});
+
+describe("ratchet · the capability query is not unsafe-raw", () => {
+  it("uses the tagged template, so nothing can be interpolated", () => {
+    const src = readFileSync(
+      join(process.cwd(), "src/guide/guide-active-capability.ts"),
+      "utf8",
+    );
+    // The call, not the word: the comment above it names the unsafe variant
+    // precisely to say why it is not used.
+    expect(src).not.toMatch(/\$queryRawUnsafe\(/);
+    expect(src).toMatch(/\$queryRaw<IndexRow\[\]>`/);
   });
 });

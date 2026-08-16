@@ -44,6 +44,26 @@ export const globalStartLockKey = (userId: string): string =>
 export const lineageStartLockKey = (userId: string, guideKey: string): string =>
   `guide:start:${userId}:${guideKey}`;
 
+/**
+ * THE start-lock sequence of the `dual-v1` protocol, in acquisition order.
+ *
+ * Single authority on purpose. A test that rebuilds the same list by hand
+ * proves that the hand-built list behaves — not that production uses it, which
+ * is the only claim worth making. `start()` iterates this, the pg-spec models
+ * V1 with this, and the negative controls mutate THIS, so removing a lock or
+ * reversing the order breaks the guarantee everywhere at once.
+ *
+ * The order is the deadlock argument: every actor acquires along the total
+ * order `global < lineage < session`, so no pair can build a wait cycle.
+ */
+export const c0aStartLockKeys = (
+  userId: string,
+  guideKey: string,
+): readonly string[] => [
+  globalStartLockKey(userId),
+  lineageStartLockKey(userId, guideKey),
+];
+
 export type GuideActiveCapabilityHealth =
   | "HEALTHY"
   | "ABSENT"
@@ -104,32 +124,6 @@ interface IndexRow {
   predicate: string | null;
 }
 
-/**
- * Partial indexes on `GuideSession`, described structurally.
- *
- * The table is resolved by explicit OID rather than by name against
- * `current_schema()`: a changed `search_path` would otherwise silently point
- * the whole check at a different table.
- */
-const CAPABILITY_SQL = `
-SELECT
-  i.indisunique, i.indisvalid, i.indisready, i.indislive,
-  i.indnatts, i.indnkeyatts,
-  (i.indexprs IS NOT NULL) AS has_expressions,
-  am.amname,
-  (SELECT array_agg(a.attname::text ORDER BY k.ord)
-     FROM unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord)
-     JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum) AS cols,
-  (SELECT bool_and(a.attnotnull)
-     FROM unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord)
-     JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum) AS keys_not_null,
-  pg_get_expr(i.indpred, i.indrelid) AS predicate
-FROM pg_index i
-JOIN pg_class ic ON ic.oid = i.indexrelid
-JOIN pg_am am ON am.oid = ic.relam
-WHERE i.indrelid = 'public."GuideSession"'::regclass
-  AND i.indpred IS NOT NULL`;
-
 type Shape = "GLOBAL" | "LINEAGE" | "NOT_OURS";
 
 /**
@@ -173,7 +167,28 @@ const healthy = (row: IndexRow) =>
 export async function readGuideActiveCapability(
   tx: Prisma.TransactionClient,
 ): Promise<GuideActiveCapability> {
-  const rows = (await tx.$queryRawUnsafe(CAPABILITY_SQL)) as IndexRow[];
+  // `$queryRaw` with a template literal, not `$queryRawUnsafe`: the statement
+  // is fully static, so there is nothing to interpolate and nothing a caller
+  // could inject. Using the tagged form makes that structural rather than a
+  // promise in a comment.
+  const rows = await tx.$queryRaw<IndexRow[]>`
+SELECT
+  i.indisunique, i.indisvalid, i.indisready, i.indislive,
+  i.indnatts, i.indnkeyatts,
+  (i.indexprs IS NOT NULL) AS has_expressions,
+  am.amname,
+  (SELECT array_agg(a.attname::text ORDER BY k.ord)
+     FROM unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord)
+     JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum) AS cols,
+  (SELECT bool_and(a.attnotnull)
+     FROM unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord)
+     JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum) AS keys_not_null,
+  pg_get_expr(i.indpred, i.indrelid) AS predicate
+FROM pg_index i
+JOIN pg_class ic ON ic.oid = i.indexrelid
+JOIN pg_am am ON am.oid = ic.relam
+WHERE i.indrelid = 'public."GuideSession"'::regclass
+  AND i.indpred IS NOT NULL`;
 
   let globalHealth: GuideActiveCapabilityHealth = "ABSENT";
   let lineageHealth: GuideActiveCapabilityHealth = "ABSENT";

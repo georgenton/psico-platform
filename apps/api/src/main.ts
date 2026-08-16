@@ -155,6 +155,32 @@ async function bootstrap(): Promise<void> {
 
   // ── 5. Listen ─────────────────────────────────────────────────────────────
   const port = process.env.PORT ?? 3001;
+  // ── Guide START lock protocol ─────────────────────────────────────────────
+  // C.0A — stated BEFORE the first request is accepted. The line is what the
+  // C.0B2 gate reads to establish that no pre-C.0A instance is still serving,
+  // so emitting it after `listen()` would leave a window in which this replica
+  // takes traffic while claiming nothing.
+  //
+  // It is evidence of PROTOCOL, not of correctness: it says which lock
+  // sequence this binary speaks. That the sequence is right is what the specs
+  // are for.
+  //
+  // Deliberately a log and not an endpoint — operational detail, and no public
+  // surface needs to grow to carry it. One line per boot per replica, so
+  // `railway logs` shows the whole fleet rather than whichever replica a load
+  // balancer happened to pick. Nothing here is a secret: a protocol name, a
+  // commit SHA and a replica id.
+  //
+  // `RAILWAY_GIT_COMMIT_SHA` and `RAILWAY_REPLICA_ID` are Railway's documented
+  // variables, present only on a deployed box. Locally there are none, and a
+  // missing value must never keep the process from starting — it is reported
+  // as `unknown`/`local` rather than guessed.
+  new Logger("Bootstrap").log(
+    `GUIDE_START_LOCK_PROTOCOL=${GUIDE_START_LOCK_PROTOCOL} ` +
+      `BUILD_SHA=${process.env.RAILWAY_GIT_COMMIT_SHA ?? "unknown"} ` +
+      `REPLICA=${process.env.RAILWAY_REPLICA_ID ?? "local"}`,
+  );
+
   await app.listen(port);
   console.log(`API running on http://localhost:${port}`);
   console.log(`  Routes mounted under /api/*`);
@@ -214,31 +240,6 @@ async function bootstrap(): Promise<void> {
     console.warn(
       `Could not publish the emotional-map identity: ${(err as Error).message}`,
     );
-  }
-
-  // ── 8. Guide START lock protocol ──────────────────────────────────────────
-  // C.0A — every replica states which lock protocol it speaks, so the C.0B2
-  // gate can be PROVEN rather than inferred. A commit SHA only says which
-  // source was built; it does not say the running process takes both start
-  // locks, and one request through a load balancer says nothing about the
-  // other replicas. This line is emitted once per boot per replica, so
-  // `railway logs` shows the whole fleet.
-  //
-  // Deliberately a log and not an endpoint: it is operational detail, and no
-  // public surface needs to grow to carry it. Nothing here is a secret —
-  // a protocol name, a commit SHA and a replica id.
-  try {
-    // `RAILWAY_GIT_COMMIT_SHA` is Railway's documented git variable, present
-    // only for GitHub-triggered deploys. Locally there is none, and a missing
-    // SHA must never keep the process from starting: it is reported as
-    // `unknown` rather than guessed.
-    const sha = process.env.RAILWAY_GIT_COMMIT_SHA ?? "unknown";
-    const replica = process.env.RAILWAY_REPLICA_ID ?? "local";
-    new Logger("Bootstrap").log(
-      `GUIDE_START_LOCK_PROTOCOL=${GUIDE_START_LOCK_PROTOCOL} BUILD_SHA=${sha} REPLICA=${replica}`,
-    );
-  } catch {
-    // Non-fatal — the marker is observability, not a contract.
   }
 }
 

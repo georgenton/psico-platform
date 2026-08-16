@@ -46,8 +46,9 @@ const TRIPLE = {
   cols: ["userId", "guideKey", "guideVersion"],
 };
 
+/** The tagged-template form: `$queryRaw` receives the strings array. */
 const tx = (rows: unknown[]) =>
-  ({ $queryRawUnsafe: vi.fn().mockResolvedValue(rows) }) as never;
+  ({ $queryRaw: vi.fn().mockResolvedValue(rows) }) as never;
 
 describe("guide ACTIVE capability · authority", () => {
   it("no partial index at all fails closed", async () => {

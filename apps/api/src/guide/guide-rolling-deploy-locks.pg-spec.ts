@@ -5,6 +5,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  c0aStartLockKeys,
   globalStartLockKey,
   lineageStartLockKey,
 } from "./guide-active-capability";
@@ -75,11 +76,12 @@ suite("C.0A · start locks across a rolling deploy", () => {
     });
   }
 
+  // V0 and V2 are modelled — neither exists in this tree, one is history and
+  // one is the future. V1 is NOT modelled: it is the very function `start()`
+  // iterates, so a passing test says production serialises, not that a
+  // hand-copied list would.
   const V0 = () => [globalStartLockKey(U)];
-  const V1 = (guideKey: string) => [
-    globalStartLockKey(U),
-    lineageStartLockKey(U, guideKey),
-  ];
+  const V1 = (guideKey: string) => [...c0aStartLockKeys(U, guideKey)];
   const V2 = (guideKey: string) => [lineageStartLockKey(U, guideKey)];
 
   /**
@@ -142,13 +144,23 @@ suite("C.0A · start locks across a rolling deploy", () => {
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
   }, 240_000);
 
+  // Explicit budget, matching `beforeAll`: this suite holds transactions open
+  // on purpose, so teardown can genuinely wait on connections draining.
   afterAll(async () => {
-    if (prisma) await prisma.$disconnect();
-    if (pool) await pool.end();
+    try {
+      if (prisma) await prisma.$disconnect();
+    } catch {
+      /* fall through */
+    }
+    try {
+      if (pool) await pool.end();
+    } catch {
+      /* idem */
+    }
     const admin = new Pool({ connectionString: base });
     await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
     await admin.end();
-  });
+  }, 240_000);
 
   it("V0 and V1 serialise — the compatibility lock is shared", async () => {
     // The C.0A rollout window. Without the global key in V1, a pre-C.0A
@@ -181,23 +193,55 @@ suite("C.0A · start locks across a rolling deploy", () => {
     expect(await canProceedConcurrently(V0(), V2(GUIDE_A))).toBe(true);
   });
 
-  it("the lineage lock alone would NOT cover the V0 window", async () => {
-    // Negative control for "drop the global lock from C.0A": the pair that
-    // this file exists to protect stops serialising.
-    const withoutGlobal = (guideKey: string) => [
-      lineageStartLockKey(U, guideKey),
-    ];
-    expect(await canProceedConcurrently(V0(), withoutGlobal(GUIDE_A))).toBe(
-      true,
-    );
+  it("the canonical sequence is exactly the two keys, in order", async () => {
+    // The negative controls for "drop a lock" live in the AUTHORITY, not
+    // here: mutating `c0aStartLockKeys` breaks the pairs above, because V1 is
+    // that function. This pins the shape so a silent third key or a swap is
+    // visible in one place.
+    expect([...c0aStartLockKeys(U, GUIDE_A)]).toEqual([
+      globalStartLockKey(U),
+      lineageStartLockKey(U, GUIDE_A),
+    ]);
   });
 
-  it("the global lock alone would NOT cover the V2 window", async () => {
-    // Negative control for "drop the lineage lock from C.0A".
-    const withoutLineage = () => [globalStartLockKey(U)];
-    expect(await canProceedConcurrently(withoutLineage(), V2(GUIDE_A))).toBe(
-      true,
-    );
+  it("a mutate holding ONLY the session lock makes START wait, not cycle", async () => {
+    // The schedule that could actually deadlock if the order were free: a
+    // `mutate()` command holds the session lock and wants nothing else, while
+    // START holds both start locks and then reaches for that same session to
+    // autocancel it. START waits; `mutate` never waits on a start lock, so it
+    // can finish — and when it does, START proceeds. Wait, not cycle.
+    const sessionKey = `guide:session:${U}:s-mutate`;
+
+    const mutateIn = deferred();
+    const releaseMutate = deferred();
+    const mutate = versionStart([sessionKey], {
+      entered: mutateIn.resolve,
+      release: releaseMutate.promise,
+    });
+    await mutateIn.promise;
+
+    const startIn = deferred();
+    const releaseStart = deferred();
+    const start = versionStart([...V1(GUIDE_A), sessionKey], {
+      entered: startIn.resolve,
+      release: releaseStart.promise,
+    });
+
+    // START holds global + lineage and is now blocked on the session lock.
+    const gotEarly = await Promise.race([
+      startIn.promise.then(() => true),
+      new Promise<boolean>((r) => setTimeout(() => r(false), 600)),
+    ]);
+    expect(gotEarly).toBe(false);
+
+    // `mutate` is not waiting on anything START holds, so it commits freely.
+    releaseMutate.resolve();
+    await mutate;
+
+    // And START gets in — it was waiting, not deadlocked.
+    await startIn.promise;
+    releaseStart.resolve();
+    await start;
   });
 
   it("holding both keys is deadlock-free against a session-lock holder", async () => {

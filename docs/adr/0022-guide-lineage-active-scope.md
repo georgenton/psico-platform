@@ -554,7 +554,9 @@ ningún lock lo impida. De ahí las reglas:
   terminal, ventana de overlap + draining cumplida) **más** el marcador de
   protocolo que cada réplica emite al arrancar. Un SHA dice qué fuente se
   compiló, no que el proceso tome ambos locks; y una petición al balanceador no
-  habla por las demás réplicas.
+  habla por las demás réplicas. El marcador es evidencia de **qué protocolo
+  habla** ese binario, no prueba de que los locks sean correctos: eso lo
+  demuestran los specs.
 - **C.0B3 termina** verificando que V1 quedó drenado.
 
 El orden de locks es total —`GLOBAL_COMPAT_START_LOCK → LINEAGE_START_LOCK →

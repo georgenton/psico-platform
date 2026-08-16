@@ -99,10 +99,9 @@ no el esquema.
 ejecutar START es el servicio API (`GuideLifecycleService` no se exporta de
 `GuideModule`; el worker no lo importa; ningún script lo instancia). La
 evidencia combina metadatos de Railway —deployment activo por servicio, SHA,
-deployments previos en estado terminal, ventana `RAILWAY_DEPLOYMENT_OVERLAP_SECONDS`
-
-- `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` cumplida— **con el marcador que cada
-  réplica emite al arrancar**:
+deployments previos en estado terminal, y la ventana de overlap más draining
+(`RAILWAY_DEPLOYMENT_OVERLAP_SECONDS` y `RAILWAY_DEPLOYMENT_DRAINING_SECONDS`)
+ya cumplida— **con el marcador que cada réplica emite al arrancar**:
 
 ```
 GUIDE_START_LOCK_PROTOCOL=dual-v1 BUILD_SHA=<sha> REPLICA=<id>

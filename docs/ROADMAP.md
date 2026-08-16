@@ -75,6 +75,41 @@ Ver [docs/design/handoff/INDEX.md](design/handoff/INDEX.md) para el mapeo exacto
 | 7   | ✅ **E2E full-circle del re-encrypt del Diario** — cubierto con `sprint-e2e-rekey-lectorshell` (1 test que pasa por cripto real + HTTP real).                                                 |
 | 8   | **Sunset 2026-08-31 del path `/api/subscriptions/*` legacy** — eliminar el doble exposure cuando cierre la ventana 90d (Sprint S11).                                                          |
 | 9   | **Migración de tests E2E API a Postgres real (testcontainers)** — actualmente usan mock de Prisma. No captura bugs de queries reales.                                                         |
+| 10  | **Issue #639 — Experiencias independientes.** Ver la secuencia por fases abajo. Autoridad de diseño: [ADR 0022](adr/0022-guide-lineage-active-scope.md).                                      |
+
+#### Issue #639 — secuencia de despliegue
+
+Cada fase necesita su propia autorización. El orden **no** es negociable: lo
+impone qué locks comparten dos binarios que conviven durante un rolling deploy,
+no el esquema.
+
+| Fase      | Qué                                                           | Puerta previa                                   |
+| --------- | ------------------------------------------------------------- | ----------------------------------------------- |
+| **C.0A**  | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                               |
+| **C.0B1** | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A en toda la flota                           |
+| **C.0B2** | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)          |
+| **C.0B3** | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir |
+
+- **V0 y V2 nunca coexisten** — no comparten ningún lock de START.
+- **V1 y V2 sí coexisten**: ambos toman el lock de lineage. Esa convivencia es
+  la función del puente, no un efecto colateral tolerado.
+- **C.0B3 termina** verificando que V1 quedó drenado.
+
+**Prueba de drenaje exigida antes de C.0B2.** El único runtime capaz de
+ejecutar START es el servicio API (`GuideLifecycleService` no se exporta de
+`GuideModule`; el worker no lo importa; ningún script lo instancia). La
+evidencia combina metadatos de Railway —deployment activo por servicio, SHA,
+deployments previos en estado terminal, ventana `RAILWAY_DEPLOYMENT_OVERLAP_SECONDS`
+
+- `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` cumplida— **con el marcador que cada
+  réplica emite al arrancar**:
+
+```
+GUIDE_START_LOCK_PROTOCOL=dual-v1 BUILD_SHA=<sha> REPLICA=<id>
+```
+
+El SHA por sí solo no basta: dice qué fuente se compiló, no que el proceso tome
+ambos locks. Y una petición al balanceador no habla por las demás réplicas.
 
 ### 🟢 Polish y mejoras incrementales (priorizado por impacto)
 

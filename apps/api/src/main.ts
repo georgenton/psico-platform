@@ -18,6 +18,7 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./shared";
 import { assertEmotionalMapConfigured } from "./emotional-map/cache-identity";
+import { GUIDE_START_LOCK_PROTOCOL } from "./guide/guide-active-capability";
 
 async function bootstrap(): Promise<void> {
   // PR-0.1 — refuse to boot with a missing/malformed epoch, or with a critical
@@ -213,6 +214,31 @@ async function bootstrap(): Promise<void> {
     console.warn(
       `Could not publish the emotional-map identity: ${(err as Error).message}`,
     );
+  }
+
+  // ── 8. Guide START lock protocol ──────────────────────────────────────────
+  // C.0A — every replica states which lock protocol it speaks, so the C.0B2
+  // gate can be PROVEN rather than inferred. A commit SHA only says which
+  // source was built; it does not say the running process takes both start
+  // locks, and one request through a load balancer says nothing about the
+  // other replicas. This line is emitted once per boot per replica, so
+  // `railway logs` shows the whole fleet.
+  //
+  // Deliberately a log and not an endpoint: it is operational detail, and no
+  // public surface needs to grow to carry it. Nothing here is a secret —
+  // a protocol name, a commit SHA and a replica id.
+  try {
+    // `RAILWAY_GIT_COMMIT_SHA` is Railway's documented git variable, present
+    // only for GitHub-triggered deploys. Locally there is none, and a missing
+    // SHA must never keep the process from starting: it is reported as
+    // `unknown` rather than guessed.
+    const sha = process.env.RAILWAY_GIT_COMMIT_SHA ?? "unknown";
+    const replica = process.env.RAILWAY_REPLICA_ID ?? "local";
+    new Logger("Bootstrap").log(
+      `GUIDE_START_LOCK_PROTOCOL=${GUIDE_START_LOCK_PROTOCOL} BUILD_SHA=${sha} REPLICA=${replica}`,
+    );
+  } catch {
+    // Non-fatal — the marker is observability, not a contract.
   }
 }
 

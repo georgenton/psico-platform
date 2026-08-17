@@ -86,7 +86,8 @@ no el esquema.
 | Fase      | Qué                                                           | Puerta previa                                   |
 | --------- | ------------------------------------------------------------- | ----------------------------------------------- |
 | **C.0A**  | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                               |
-| **C.0B1** | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A en toda la flota                           |
+| **C.0A1** | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                 |
+| **C.0B1** | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs   |
 | **C.0B2** | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)          |
 | **C.0B3** | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir |
 
@@ -94,6 +95,61 @@ no el esquema.
 - **V1 y V2 sí coexisten**: ambos toman el lock de lineage. Esa convivencia es
   la función del puente, no un efecto colateral tolerado.
 - **C.0B3 termina** verificando que V1 quedó drenado.
+
+#### C.0A1 — contrato de despliegue
+
+Hasta esta fase, el preDeploy del API era
+`migrate:deploy && prisma db seed`: **cada despliegue de producción reejecutaba
+el seed completo**. No es una lectura — borra y reinserta
+`TherapistAvailability`, reescribe `Journey.publishedAt` a la hora del
+despliegue y fuerza `isActive`/`isPublished` a los valores del fichero,
+revirtiendo en silencio lo que operaciones o contenido hubieran cambiado.
+
+Contrato vigente:
+
+- **El API es el único migrador.** El worker **nunca** ejecuta `migrate:deploy`.
+  Dos migradores concurrentes no se encolan: el advisory lock de Prisma expira a
+  los 10 s (no configurable) y el par acaba con uno en deadlock, un índice
+  INVALID y toda migración posterior bloqueada por P3009 — reproducido en
+  PostgreSQL 18.4.
+- **El seed no forma parte de ningún despliegue.** Es una operación
+  administrativa que exige `ALLOW_PRODUCTION_BOOTSTRAP_SEED=1` para una única
+  invocación, nunca una variable persistente de Railway.
+- **`apps/api/railway.json` se eliminó**: declaraba NIXPACKS y un preDeploy sin
+  seed mientras producción usaba RAILPACK y sí sembraba.
+- **Las configuraciones versionadas** viven en `apps/api/railway.api.json` y
+  `apps/api/railway.worker.json`, y reproducen la configuración efectiva.
+
+**Los servicios todavía NO están enlazados a esos ficheros.** El ratchet del
+repositorio comprueba los ficheros, no el dashboard:
+
+```
+REPO_CONFIG_RATCHET=true
+EFFECTIVE_RAILWAY_BINDING_VERIFIED=false
+```
+
+Enlazarlos es una operación posterior y autorizada aparte: fijar
+`railwayConfigFile` a `/apps/api/railway.api.json` y
+`/apps/api/railway.worker.json`, y después releer la configuración efectiva por
+GraphQL para confirmar que coincide con lo versionado. Ojo: la configuración en
+código **sobrescribe** al dashboard, así que enlazar sin que los ficheros sean
+fieles cambiaría producción.
+
+**Registro corregido del despliegue de C.0A.** El informe original decía
+«sin escrituras en producción». Era falso:
+
+```
+PRODUCTION_SEED_EXECUTED=true
+PRODUCTION_DB_WRITE_COMMAND_EXECUTED=true
+PRODUCTION_SEMANTIC_DATA_MUTATIONS=>0
+EXACT_CHANGED_ROW_COUNT=unknown  (no reconstruible sin baseline previo)
+PREVIOUS_PRODUCTION_WRITES_REPORT_ACCURATE=false
+```
+
+**Deuda del seed, separada de C.0A1:** retirar el `deleteMany` de
+`TherapistAvailability`; dejar de reescribir `Journey.publishedAt` en la rama
+`update`; y separar bootstrap, catálogos versionados, contenido editorial y
+configuración operativa, que hoy conviven en un solo fichero.
 
 **Prueba de drenaje exigida antes de C.0B2.** El único runtime capaz de
 ejecutar START es el servicio API (`GuideLifecycleService` no se exporta de

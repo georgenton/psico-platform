@@ -8,6 +8,7 @@ import {
   MOTIVO_SEED_CATALOG,
 } from "../src/onboarding/constants";
 import { lockEditionForBookSlugTx } from "../src/content-core/revision-lifecycle";
+import { assertSeedAllowed } from "./seed-guard";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -52,6 +53,12 @@ async function main() {
     console.log("↩︎ PRISMA_SKIP_SEED=1 — skipping seed (schema-only run).");
     return;
   }
+
+  // C.0A1 — refuse a production run without explicit, single-invocation
+  // authorization. FIRST, before any Prisma call: a refusal should not even
+  // open a connection. The skip above stays ahead of it so pg-specs keep
+  // working as a no-op without needing production authorization.
+  assertSeedAllowed();
 
   console.log("🌱 Seeding database...\n");
 

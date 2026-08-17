@@ -88,6 +88,9 @@ const WORKER_EXPECTED: RailwayServiceConfig = {
   },
   deploy: {
     startCommand: "pnpm --filter @psico/api start:worker",
+    // Declared null, not omitted — see the probe note in the schema module.
+    preDeployCommand: null,
+    healthcheckPath: null,
     restartPolicyType: "ON_FAILURE",
     restartPolicyMaxRetries: 10,
     sleepApplication: false,
@@ -103,22 +106,20 @@ describe("deploy contract · the files are exactly the approved contract", () =>
     expect(parsed(workerPath)).toEqual(WORKER_EXPECTED);
   });
 
-  it("the worker's file declares no pre-deploy", () => {
-    // What this asserts, exactly: the FILE contains no pre-deploy. It does NOT
-    // assert that the worker cannot inherit one from the dashboard.
+  it("the worker DECLARES null rather than staying silent", () => {
+    // Measured, not assumed. On a throwaway service, a field written as
+    // `null` shows up in the deployment's `fileServiceManifest` and in
+    // `propertyFileMapping` — the per-property map of "which JSON path did
+    // this come from". An omitted field shows up in neither, so it
+    // contributes nothing and the resolved value comes from the dashboard.
     //
-    // Railway merges file and dashboard on every deployment, and the official
-    // documentation states only that code overrides dashboard values "when
-    // present" — it does not define what an omitted field does, nor whether
-    // `null` clears an existing value. The schema accepts string, a
-    // single-element array, and null, but accepting null is not the same as
-    // documenting that null unsets.
-    //
-    // Today there is nothing to inherit: the worker's effective
-    // `preDeployCommand` is unset. The authoritative "no pre-deploy"
-    // representation is an open question (see ROADMAP), and choosing `[]` or
-    // `null` on a guess would be worse than saying so.
-    expect("preDeployCommand" in parsed(workerPath).deploy).toBe(false);
+    // Declaring is therefore never worse than omitting, and is the only form
+    // that puts the field under this file's authority at all.
+    const deploy = parsed(workerPath).deploy;
+    expect("preDeployCommand" in deploy).toBe(true);
+    expect(deploy.preDeployCommand).toBeNull();
+    expect("healthcheckPath" in deploy).toBe(true);
+    expect(deploy.healthcheckPath).toBeNull();
   });
 });
 

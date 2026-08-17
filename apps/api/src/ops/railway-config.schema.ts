@@ -65,8 +65,21 @@ const DeployBlock = z
     // string OR a one-element array, not a list of steps. `.min(1)` alone
     // allowed a second entry through, which is the same "and then also run
     // this" that put `prisma db seed` in the deployment path to begin with.
-    preDeployCommand: z.array(SingleCommand).min(1).max(1).optional(),
-    healthcheckPath: z.string().startsWith("/").optional(),
+    //
+    // `null` is a DECLARATION, not an omission. Measured against a throwaway
+    // Railway service: a field written as `null` appears in the deployment's
+    // `fileServiceManifest` AND in `propertyFileMapping` (which maps each
+    // resolved property to the JSON path it came from), while an omitted
+    // field appears in neither. So the worker declares `null` rather than
+    // staying silent — silence contributes nothing and leaves the field to
+    // whatever the dashboard holds.
+    preDeployCommand: z
+      .array(SingleCommand)
+      .min(1)
+      .max(1)
+      .nullable()
+      .optional(),
+    healthcheckPath: z.string().startsWith("/").nullable().optional(),
     restartPolicyType: z.enum(["ALWAYS", "ON_FAILURE", "NEVER"]),
     restartPolicyMaxRetries: z.number().int().nonnegative(),
     // Governable from config-as-code (it is in the official `deploy` schema),

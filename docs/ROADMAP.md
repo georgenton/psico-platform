@@ -127,34 +127,41 @@ cada deployment y el fichero solo sobrescribe los valores que declara. Un campo
 omitido **no** vuelve a su default — conserva el del dashboard. Por eso todo
 campo efectivo queda clasificado, sin categoría implícita:
 
-| Campo                                                                                       | Autoridad                                                     | Por qué                                                                                                                                                                       |
-| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `builder`, `buildCommand`, `watchPatterns`                                                  | `CODE_OWNED`                                                  | declarados en el fichero                                                                                                                                                      |
-| `startCommand`; `preDeployCommand` (API)                                                    | `CODE_OWNED`                                                  | declarados                                                                                                                                                                    |
-| `healthcheckPath` (API), `restartPolicyType`, `restartPolicyMaxRetries`, `sleepApplication` | `CODE_OWNED`                                                  | declarados; `sleepApplication` está en el schema oficial bajo `deploy`                                                                                                        |
-| `preDeployCommand` (worker)                                                                 | **`DASHBOARD_OWNED` · sin resolver**                          | el fichero lo **omite**, y omitir no impide heredar. Hoy el valor efectivo está vacío, así que no hay exposición real — pero el contrato **no** garantiza que no aparezca uno |
-| `healthcheckPath` (worker)                                                                  | **`DASHBOARD_OWNED` · sin resolver**                          | idéntico: el worker no tiene listener HTTP y el fichero no puede impedir hoy que herede un healthcheck                                                                        |
-| `rootDirectory`                                                                             | `DASHBOARD_OWNED`                                             | no existe en el schema oficial de Config-as-Code                                                                                                                              |
-| `railwayConfigFile`                                                                         | `DASHBOARD_OWNED`                                             | es el puntero al propio fichero                                                                                                                                               |
-| `cronSchedule`, `numReplicas`, `region`, `healthcheckTimeout`                               | `NOT_APPLICABLE` · **sin valor efectivo hoy, no garantizado** | ninguno está declarado; si el dashboard fijara uno, el fichero no lo impediría                                                                                                |
+| Campo                                                                                       | Autoridad                            | Por qué                                                                            |
+| ------------------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------- |
+| `builder`, `buildCommand`, `watchPatterns`                                                  | `CODE_OWNED`                         | declarados                                                                         |
+| `startCommand`; `preDeployCommand` (API)                                                    | `CODE_OWNED`                         | declarados                                                                         |
+| `healthcheckPath` (API), `restartPolicyType`, `restartPolicyMaxRetries`, `sleepApplication` | `CODE_OWNED`                         | declarados                                                                         |
+| `preDeployCommand` (worker), `healthcheckPath` (worker)                                     | `CODE_OWNED`                         | declarados **como `null`**, no omitidos — medido: `null` contribuye, la omisión no |
+| `rootDirectory`                                                                             | `DASHBOARD_OWNED`                    | no existe en el schema oficial de Config-as-Code                                   |
+| `railwayConfigFile`                                                                         | `DASHBOARD_OWNED`                    | es el puntero al propio fichero                                                    |
+| `cronSchedule`, `numReplicas`, `region`, `healthcheckTimeout`                               | `NOT_APPLICABLE` · **no declarados** | sin valor efectivo hoy; el fichero no los gobierna                                 |
 
-**Cuestión abierta — representación autoritativa de «sin preDeploy».** El schema
-oficial acepta `string`, un array de **un solo elemento** (`maxItems: 1`) y
-`null`. La documentación dice que la configuración en código sobrescribe al
-dashboard _cuando está presente_, pero **no** define qué hace un campo omitido
-ni si `null` limpia un valor existente. La forma del schema
-(`anyOf[{not:{}}, …, null]`, típica de un `Option<Option<T>>`) sugiere que
-Railway distingue «ausente» de «null» — pero es una inferencia sobre el
-generador del schema, no documentación.
+**Resuelto por medición** (servicio desechable, eliminado tras la prueba):
 
-```
-BLOCKED_NEEDS_NON_PRODUCTION_RAILWAY_PROBE=true
-```
+| Variante en `railway.json` | `fileServiceManifest` | `propertyFileMapping` | resuelto      |
+| -------------------------- | --------------------- | --------------------- | ------------- |
+| campo **omitido**          | no aparece            | no aparece            | del dashboard |
+| `preDeployCommand: null`   | **aparece** (`null`)  | **aparece**           | `null`        |
+| `preDeployCommand: []`     | **aparece** (`[]`)    | **aparece**           | `[]`          |
 
-Elegir `[]` o `null` por intuición sería peor que declararlo sin resolver.
-Resolverlo requiere una sonda en un servicio **no productivo**: fijar un
-preDeploy por dashboard, enlazar un fichero con cada variante y observar el
-`serviceManifest` resuelto del deployment.
+Dos hechos que esto establece. Primero, **el fichero no escribe en la
+configuración almacenada**: tras desplegar un fichero que declaraba preDeploy y
+healthcheck, la `serviceInstance` seguía en `null` — fichero y dashboard son
+almacenes distintos que se combinan en cada deployment. Segundo, **`null` es una
+declaración y la omisión no lo es**: `propertyFileMapping` mapea cada propiedad
+resuelta a la ruta JSON de la que vino, y solo los campos escritos aparecen ahí.
+
+Por eso el worker declara `preDeployCommand: null` y `healthcheckPath: null` en
+lugar de callarlos: callar no contribuye nada y deja el campo al dashboard.
+
+**Límite honesto:** no llegué a observar el paso final —que `null` sobrescriba un
+valor **no nulo** ya almacenado—, porque no conseguí fijar uno: `railway api`
+rechaza `serviceInstanceUpdate` y el fichero no escribe en la instancia. Lo que
+sí está medido es que `null` se contribuye y la omisión no; combinado con la
+regla documentada de que el código sobrescribe al dashboard, declarar `null`
+**nunca es peor** que omitir, y es la única forma que pone el campo bajo la
+autoridad del fichero.
 
 **Cinco estados distintos, que no deben confundirse:**
 

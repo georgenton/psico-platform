@@ -49,27 +49,45 @@ describe("docs ratchet · the merge model is stated correctly", () => {
   });
 });
 
-describe("docs ratchet · omitted fields are not claimed as CODE_OWNED", () => {
-  it("the worker's pre-deploy and healthcheck are marked unresolved", () => {
-    // Omission does not prevent inheritance, and the authoritative "clear"
-    // representation is still an open question. Calling either CODE_OWNED
-    // would promise a guarantee the file does not deliver.
+describe("docs ratchet · the measured semantics are recorded", () => {
+  it("records that an omitted field contributes nothing", () => {
+    // The probe's core finding. Without it, "the file omits it" reads as a
+    // guarantee, which is exactly the mistake this replaced.
+    expect(text()).toMatch(/campo \*\*omitido\*\*.*no aparece/s);
+  });
+
+  it("records that null IS a declaration", () => {
     const src = text();
-    const rows = src
+    expect(src).toContain("propertyFileMapping");
+    expect(src).toMatch(/`null` es una\s*\n?declaración/);
+  });
+
+  it("records that the file does not write into the stored config", () => {
+    expect(text()).toMatch(
+      /el fichero no escribe en la\s*\n?configuración almacenada/,
+    );
+  });
+
+  it("keeps the honest limit — the override of a non-null value was not observed", () => {
+    // The one step the probe could not reach. Dropping this sentence would
+    // turn a sound argument into an overstated claim.
+    expect(text()).toMatch(
+      /no llegué a observar el paso final|Límite honesto/i,
+    );
+  });
+
+  it("the worker's fields are CODE_OWNED because they are DECLARED", () => {
+    const rows = text()
       .split("\n")
-      .filter((l) => l.includes("(worker)") && l.startsWith("|"));
-    expect(rows.length).toBeGreaterThanOrEqual(2);
+      .filter((l) => l.startsWith("|") && l.includes("(worker)"));
+    expect(rows.length).toBeGreaterThanOrEqual(1);
     for (const row of rows) {
-      expect(row).toContain("DASHBOARD_OWNED");
-      expect(row).not.toMatch(/`CODE_OWNED`/);
+      expect(row).toContain("CODE_OWNED");
+      expect(row).toMatch(/null/);
     }
   });
 
-  it("the open question is recorded as blocked, not guessed", () => {
-    expect(text()).toContain("BLOCKED_NEEDS_NON_PRODUCTION_RAILWAY_PROBE=true");
-  });
-
-  it("NOT_APPLICABLE is qualified as 'no value today', not guaranteed", () => {
-    expect(text()).toMatch(/NOT_APPLICABLE`? · \*\*sin valor efectivo hoy/);
+  it("NOT_APPLICABLE stays qualified as not governed by the file", () => {
+    expect(text()).toMatch(/NOT_APPLICABLE`? · \*\*no declarados\*\*/);
   });
 });

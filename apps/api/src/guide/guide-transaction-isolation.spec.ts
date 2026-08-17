@@ -191,3 +191,36 @@ describe("ratchet · the capability query is not unsafe-raw", () => {
     expect(src).toMatch(/\$queryRaw<IndexRow\[\]>`/);
   });
 });
+
+describe("ratchet · the advisory-lock mechanism itself", () => {
+  it("uses pg_advisory_xact_lock over hashtextextended with seed 42", () => {
+    // Sharing the KEY STRING with V0 is only half the guarantee. Two versions
+    // also have to hash it the same way and take the same kind of lock: a
+    // different function, a different seed, or a session-scoped lock instead
+    // of a transaction-scoped one, and the mixed fleet silently stops
+    // serialising while every string still matches.
+    //
+    // A source ratchet rather than a moved helper: the point is that changing
+    // any of these three is a deliberate protocol change, not a refactor.
+    const src = source();
+    expect(src).toMatch(
+      /pg_advisory_xact_lock\(hashtextextended\(\$\{key\}, 42\)\)/,
+    );
+    // Transaction-scoped only: a session lock would outlive the transaction
+    // and leak across pooled connections.
+    expect(src).not.toMatch(/pg_advisory_lock\(/);
+    expect(src).not.toMatch(/pg_try_advisory/);
+  });
+
+  it("the mixed-fleet pg-spec locks the same way", () => {
+    // If the spec hashed differently it would prove serialisation between two
+    // things neither of which is production.
+    const spec = readFileSync(
+      join(process.cwd(), "src/guide/guide-rolling-deploy-locks.pg-spec.ts"),
+      "utf8",
+    );
+    expect(spec).toMatch(
+      /pg_advisory_xact_lock\(hashtextextended\(\$1, 42\)\)/,
+    );
+  });
+});

@@ -204,10 +204,6 @@ export class GuideLifecycleService {
   // ─── Shared primitives ───────────────────────────────────────────────────
 
   /**
-   * The ONLY raw SQL in the lifecycle: a transaction-scoped advisory lock. It
-   * writes no row, so the single-writer ratchets stay intact.
-   */
-  /**
    * Say out loud that the schema is in a state we tolerate but did not expect.
    *
    * `degraded` is the whole reason authority and health are separate values:
@@ -237,6 +233,15 @@ export class GuideLifecycleService {
     }
   }
 
+  /**
+   * The ONLY raw SQL in the lifecycle: a transaction-scoped advisory lock. It
+   * writes no row, so the single-writer ratchets stay intact.
+   *
+   * `hashtextextended(key, 42)` and the xact-scoped variant are part of the
+   * protocol, not an implementation detail: two versions of this service only
+   * serialize against each other if they hash the SAME string the SAME way
+   * and take the same kind of lock.
+   */
   private async lock(tx: Tx, key: string): Promise<void> {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 42))`;
   }
@@ -545,15 +550,22 @@ export class GuideLifecycleService {
   /**
    * Start a session of an EXACT `guideKey@guideVersion`.
    *
-   * Everything runs in ONE transaction holding `guide:start:<userId>`:
+   * Everything runs in ONE transaction, holding BOTH start locks in the
+   * canonical order `GLOBAL_COMPAT → LINEAGE` (`c0aStartLockKeys`), with the
+   * SESSION lock nested underneath only when there is something to autocancel:
+   *
    *   1. load the pinned definition and resolve ALL its targets on `tx`, which
    *      is what pins `editionId`/`unitId` into the START semantics;
    *   2. receipt inspection — a replay returns the ORIGINAL session, applying
    *      nothing (in particular it never autocancels a second time);
    *   3. entitlement, on the same snapshot;
-   *   4. autocancel of the user's other ACTIVE session, under its OWN session
-   *      lock (nested, never reversed). It creates NO receipt and emits NO
-   *      event;
+   *   4. read from the SCHEMA which ACTIVE invariant is in force, and close
+   *      what this start replaces accordingly: under GLOBAL the user's single
+   *      ACTIVE session (its cardinality proved, not assumed), under LINEAGE
+   *      only an ACTIVE session of the SAME `guideKey`. Either way it happens
+   *      under that session's OWN lock (nested, never reversed), creates NO
+   *      receipt and emits NO event. With no usable invariant, nothing is
+   *      written at all;
    *   5. create the session, append the receipt, emit `guide_session_started`
    *      with the command's own idempotency key.
    */

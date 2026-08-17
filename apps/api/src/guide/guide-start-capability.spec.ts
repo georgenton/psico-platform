@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GuideLifecycleService } from "./guide-lifecycle.service";
+import { GuideLifecycleError } from "./guide-errors";
 import { EEC_C1_BODY_BEFORE_MIND_GUIDE } from "./guide-catalog";
 import type * as CapabilityModuleNs from "./guide-active-capability";
 import {
@@ -63,21 +64,29 @@ const activeRow = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-/** Records the order of every collaborator call the branch may make. */
+/**
+ * ONE trace for everything START does, in the order it does it.
+ *
+ * Locks, reads and writes recorded in separate arrays cannot answer the
+ * question that matters: did the locks happen BEFORE the receipt, was the
+ * capability read BEFORE the first write, was the autocancel BEFORE the
+ * create. A single ordered list makes each of those a prefix assertion.
+ */
 function makeService(over: { capability?: unknown; active?: unknown } = {}) {
-  const calls: string[] = [];
+  const trace: string[] = [];
   const track =
     <T>(name: string, value: T) =>
     async (...args: unknown[]) => {
-      calls.push(name);
+      trace.push(name);
       void args;
       return value;
     };
 
-  const lockKeys: string[] = [];
   const tx = {
+    // The advisory lock goes through the same trace as everything else, so a
+    // lock that drifts after the receipt is visible as an out-of-place entry.
     $executeRaw: vi.fn(async (strings: unknown, key: unknown) => {
-      lockKeys.push(String(key));
+      trace.push(`lock:${String(key)}`);
       return 1;
     }),
   };
@@ -108,7 +117,7 @@ function makeService(over: { capability?: unknown; active?: unknown } = {}) {
     track("appendReceipt", { created: true, replayed: false, receipt: {} }),
   );
   const appendEvent = vi.fn(track("appendEvent", {}));
-  const inspectValidated = vi.fn(track("inspect", { state: "absent" }));
+  const inspectValidated = vi.fn(track("inspectReceipt", { state: "absent" }));
   const listAccepted = vi.fn(track("listAccepted", []));
 
   const service = new GuideLifecycleService(
@@ -137,19 +146,20 @@ function makeService(over: { capability?: unknown; active?: unknown } = {}) {
     { appendValidated: appendEvent } as never,
   );
 
-  readCapability.mockResolvedValue(
-    (over.capability ?? {
-      effectiveMode: "GLOBAL",
-      globalHealth: "HEALTHY",
-      lineageHealth: "ABSENT",
-      degraded: false,
-    }) as GuideActiveCapability,
-  );
+  const capabilityValue = (over.capability ?? {
+    effectiveMode: "GLOBAL",
+    globalHealth: "HEALTHY",
+    lineageHealth: "ABSENT",
+    degraded: false,
+  }) as GuideActiveCapability;
+  readCapability.mockImplementation(async () => {
+    trace.push("readCapability");
+    return capabilityValue;
+  });
 
   return {
     service,
-    calls,
-    lockKeys,
+    trace,
     activeOwnCardinality,
     findActiveOwnForGuideKey,
     cancelActive,
@@ -163,10 +173,43 @@ function makeService(over: { capability?: unknown; active?: unknown } = {}) {
 const run = async (service: GuideLifecycleService) => {
   try {
     await service.start(USER, COMMAND);
-    return { threw: false as const };
+    return { threw: false as const, err: undefined };
   } catch (err) {
     return { threw: true as const, err };
   }
+};
+
+const LOCKS = c0aStartLockKeys(USER.userId, COMMAND.guideKey).map(
+  (k) => `lock:${k}`,
+);
+
+/**
+ * The prefix every START shares before it can decide anything: both locks, the
+ * editorial context, the receipt verdict, the entitlement gate, the capability.
+ * Nothing may be written before all of it has happened.
+ */
+const NORMATIVE_PREFIX = [
+  ...LOCKS,
+  "resolveContext",
+  "inspectReceipt",
+  "gate",
+  "readCapability",
+];
+
+/** The writes a successful START performs, in the only acceptable order. */
+const effectsOf = (trace: string[]) =>
+  trace.filter((e) =>
+    ["cancelActive", "createActive", "appendReceipt", "appendEvent"].includes(
+      e,
+    ),
+  );
+
+/** A sanitized Guide failure, never a raw driver error. */
+const expectCanonicalStorageFailure = (err: unknown) => {
+  expect(err).toBeInstanceOf(GuideLifecycleError);
+  expect((err as GuideLifecycleError).code).toBe("GUIDE_STORAGE_FAILURE");
+  // `message === code`: no value, no pg text, ever embedded.
+  expect((err as GuideLifecycleError).message).toBe("GUIDE_STORAGE_FAILURE");
 };
 
 beforeEach(() => {
@@ -174,41 +217,77 @@ beforeEach(() => {
   readCapability.mockReset();
 });
 
-describe("START · the lock sequence is production's own", () => {
-  it("takes the canonical keys, in canonical order, before anything else", async () => {
-    const h = makeService();
-    await run(h.service);
+describe("START · one ordered trace, not four separate claims", () => {
+  it("locks, context, receipt, gate and capability all precede any write", async () => {
+    const h = makeService({ active: activeRow({ id: "old-1" }) });
+    const out = await run(h.service);
 
+    expect(out.threw).toBe(false);
+    // The prefix is exact: a lock that drifts after the receipt, or a
+    // capability read that lands after the first write, changes this list.
+    expect(h.trace.slice(0, NORMATIVE_PREFIX.length)).toEqual(NORMATIVE_PREFIX);
     // Not a list rebuilt here: the same authority the pg-spec models V1 with.
-    expect(h.lockKeys).toEqual([
-      ...c0aStartLockKeys(USER.userId, COMMAND.guideKey),
+    expect(h.trace.slice(0, 2)).toEqual(LOCKS);
+  });
+
+  it("writes happen in exactly one order", async () => {
+    const h = makeService({ active: activeRow({ id: "old-1" }) });
+    const out = await run(h.service);
+
+    expect(out.threw).toBe(false);
+    expect(effectsOf(h.trace)).toEqual([
+      "cancelActive",
+      "createActive",
+      "appendReceipt",
+      "appendEvent",
     ]);
-    // Both locks are held before the capability read and any write.
-    expect(h.calls.indexOf("resolveContext")).toBeGreaterThan(-1);
-    expect(h.lockKeys).toHaveLength(2);
   });
 });
 
 describe("START · GLOBAL authority", () => {
-  it("proves cardinality and never asks the lineage question", async () => {
+  it("proves cardinality, never asks the lineage question, and completes", async () => {
     const h = makeService();
-    await run(h.service);
+    const out = await run(h.service);
 
+    expect(out.threw).toBe(false);
     expect(h.activeOwnCardinality).toHaveBeenCalledTimes(1);
     expect(h.findActiveOwnForGuideKey).not.toHaveBeenCalled();
   });
 
-  it("SINGLE autocancels that one session, then creates", async () => {
-    const h = makeService({ active: activeRow({ id: "old-1" }) });
-    await run(h.service);
+  it("with no prior session it still creates and confirms one", async () => {
+    const h = makeService();
+    const out = await run(h.service);
 
-    expect(h.cancelActive).toHaveBeenCalledTimes(1);
-    expect(h.calls.indexOf("cancelActive")).toBeLessThan(
-      h.calls.indexOf("createActive"),
-    );
+    expect(out.threw).toBe(false);
+    expect(h.cancelActive).not.toHaveBeenCalled();
+    expect(h.createActive).toHaveBeenCalledTimes(1);
+    expect(h.appendReceipt).toHaveBeenCalledTimes(1);
+    expect(h.appendEvent).toHaveBeenCalledTimes(1);
+    expect(effectsOf(h.trace)).toEqual([
+      "createActive",
+      "appendReceipt",
+      "appendEvent",
+    ]);
   });
 
-  it("MULTIPLE fails closed and writes NOTHING", async () => {
+  it("SINGLE autocancels that one session, then creates", async () => {
+    const h = makeService({ active: activeRow({ id: "old-1" }) });
+    const out = await run(h.service);
+
+    expect(out.threw).toBe(false);
+    expect(h.cancelActive).toHaveBeenCalledTimes(1);
+    expect(h.createActive).toHaveBeenCalledTimes(1);
+    expect(h.appendReceipt).toHaveBeenCalledTimes(1);
+    expect(h.appendEvent).toHaveBeenCalledTimes(1);
+    expect(effectsOf(h.trace)).toEqual([
+      "cancelActive",
+      "createActive",
+      "appendReceipt",
+      "appendEvent",
+    ]);
+  });
+
+  it("MULTIPLE fails closed with the canonical error and writes NOTHING", async () => {
     // The global index promises at most one ACTIVE row. Two means schema and
     // code disagree, and a global autocancel would then close a lineage the
     // reader never touched.
@@ -216,10 +295,15 @@ describe("START · GLOBAL authority", () => {
     const out = await run(h.service);
 
     expect(out.threw).toBe(true);
+    expectCanonicalStorageFailure(out.err);
     expect(h.cancelActive).not.toHaveBeenCalled();
     expect(h.createActive).not.toHaveBeenCalled();
     expect(h.appendReceipt).not.toHaveBeenCalled();
     expect(h.appendEvent).not.toHaveBeenCalled();
+    // Inspecting the receipt is a normative READ that precedes every branch —
+    // it is not the same thing as writing one.
+    expect(h.trace).toContain("inspectReceipt");
+    expect(effectsOf(h.trace)).toEqual([]);
   });
 });
 
@@ -234,11 +318,17 @@ describe("START · GLOBAL + LINEAGE present", () => {
       },
       active: activeRow({ id: "old-1" }),
     });
-    await run(h.service);
+    const out = await run(h.service);
 
+    expect(out.threw).toBe(false);
     expect(h.activeOwnCardinality).toHaveBeenCalledTimes(1);
     expect(h.findActiveOwnForGuideKey).not.toHaveBeenCalled();
-    expect(h.cancelActive).toHaveBeenCalledTimes(1);
+    expect(effectsOf(h.trace)).toEqual([
+      "cancelActive",
+      "createActive",
+      "appendReceipt",
+      "appendEvent",
+    ]);
   });
 });
 
@@ -252,8 +342,9 @@ describe("START · LINEAGE authority", () => {
 
   it("asks only about the requested guide", async () => {
     const h = makeService({ capability: lineage });
-    await run(h.service);
+    const out = await run(h.service);
 
+    expect(out.threw).toBe(false);
     expect(h.findActiveOwnForGuideKey).toHaveBeenCalledWith(
       USER.userId,
       COMMAND.guideKey,
@@ -267,11 +358,24 @@ describe("START · LINEAGE authority", () => {
     // repository is asked about X, so B cannot be returned and cannot be
     // cancelled — the guarantee lives in the query, not in a later filter.
     const h = makeService({ capability: lineage });
-    await run(h.service);
+    const out = await run(h.service);
 
+    expect(out.threw).toBe(false);
     const [, askedGuideKey] = h.findActiveOwnForGuideKey.mock.calls[0] ?? [];
     expect(askedGuideKey).toBe(COMMAND.guideKey);
     expect(h.cancelActive).not.toHaveBeenCalled();
+  });
+
+  it("with no prior session it still creates and confirms one", async () => {
+    const h = makeService({ capability: lineage });
+    const out = await run(h.service);
+
+    expect(out.threw).toBe(false);
+    expect(effectsOf(h.trace)).toEqual([
+      "createActive",
+      "appendReceipt",
+      "appendEvent",
+    ]);
   });
 
   it("cancels the same lineage before creating the new session", async () => {
@@ -279,17 +383,20 @@ describe("START · LINEAGE authority", () => {
       capability: lineage,
       active: activeRow({ id: "x-v1" }),
     });
-    await run(h.service);
+    const out = await run(h.service);
 
-    expect(h.cancelActive).toHaveBeenCalledTimes(1);
-    expect(h.calls.indexOf("cancelActive")).toBeLessThan(
-      h.calls.indexOf("createActive"),
-    );
+    expect(out.threw).toBe(false);
+    expect(effectsOf(h.trace)).toEqual([
+      "cancelActive",
+      "createActive",
+      "appendReceipt",
+      "appendEvent",
+    ]);
   });
 });
 
 describe("START · FAIL_CLOSED", () => {
-  it("writes nothing at all", async () => {
+  it("returns the canonical error and writes nothing at all", async () => {
     const h = makeService({
       capability: {
         effectiveMode: "FAIL_CLOSED",
@@ -301,10 +408,12 @@ describe("START · FAIL_CLOSED", () => {
     const out = await run(h.service);
 
     expect(out.threw).toBe(true);
+    expectCanonicalStorageFailure(out.err);
     expect(h.cancelActive).not.toHaveBeenCalled();
     expect(h.createActive).not.toHaveBeenCalled();
     expect(h.appendReceipt).not.toHaveBeenCalled();
     expect(h.appendEvent).not.toHaveBeenCalled();
+    expect(effectsOf(h.trace)).toEqual([]);
   });
 
   it("refuses BEFORE consulting any active session", async () => {
@@ -316,10 +425,13 @@ describe("START · FAIL_CLOSED", () => {
         degraded: false,
       },
     });
-    await run(h.service);
+    const out = await run(h.service);
 
+    expect(out.threw).toBe(true);
     expect(h.activeOwnCardinality).not.toHaveBeenCalled();
     expect(h.findActiveOwnForGuideKey).not.toHaveBeenCalled();
+    // It got as far as reading the capability, and no further.
+    expect(h.trace).toEqual(NORMATIVE_PREFIX);
   });
 });
 
@@ -331,18 +443,22 @@ describe("START · degraded is reported and changes nothing", () => {
     degraded: true,
   };
 
-  it("emits the sanitized signal", async () => {
-    const h = makeService({ capability: degraded });
-    const warn = vi
+  const spyLogger = (service: GuideLifecycleService, impl?: () => void) =>
+    vi
       .spyOn(
-        (h.service as unknown as { logger: { warn: (m: string) => void } })
+        (service as unknown as { logger: { warn: (m: string) => void } })
           .logger,
         "warn",
       )
-      .mockImplementation(() => undefined);
+      .mockImplementation(impl ?? (() => undefined));
 
-    await run(h.service);
+  it("emits the sanitized signal and still completes", async () => {
+    const h = makeService({ capability: degraded });
+    const warn = spyLogger(h.service);
 
+    const out = await run(h.service);
+
+    expect(out.threw).toBe(false);
     expect(warn).toHaveBeenCalledTimes(1);
     const line = String(warn.mock.calls[0]?.[0] ?? "");
     expect(line).toContain("GUIDE_ACTIVE_CAPABILITY_DEGRADED");
@@ -352,13 +468,7 @@ describe("START · degraded is reported and changes nothing", () => {
 
   it("carries no user data, no index name, no SQL", async () => {
     const h = makeService({ capability: degraded });
-    const warn = vi
-      .spyOn(
-        (h.service as unknown as { logger: { warn: (m: string) => void } })
-          .logger,
-        "warn",
-      )
-      .mockImplementation(() => undefined);
+    const warn = spyLogger(h.service);
 
     await run(h.service);
 
@@ -368,36 +478,34 @@ describe("START · degraded is reported and changes nothing", () => {
     expect(line).not.toMatch(/SELECT|pg_index|CREATE INDEX|GuideSession_/);
   });
 
-  it("still completes the GLOBAL path — telemetry is not load-bearing", async () => {
+  it("a logger that THROWS does not fail START", async () => {
+    // Telemetry is not load-bearing: the command must succeed in full, not
+    // merely reach the create.
     const h = makeService({
       capability: degraded,
       active: activeRow({ id: "old-1" }),
     });
-    vi.spyOn(
-      (h.service as unknown as { logger: { warn: (m: string) => void } })
-        .logger,
-      "warn",
-    ).mockImplementation(() => {
+    spyLogger(h.service, () => {
       throw new Error("logger down");
     });
 
-    await run(h.service);
+    const out = await run(h.service);
 
-    expect(h.cancelActive).toHaveBeenCalledTimes(1);
-    expect(h.createActive).toHaveBeenCalledTimes(1);
+    expect(out.threw).toBe(false);
+    expect(effectsOf(h.trace)).toEqual([
+      "cancelActive",
+      "createActive",
+      "appendReceipt",
+      "appendEvent",
+    ]);
   });
 
   it("stays quiet when nothing is degraded", async () => {
     const h = makeService();
-    const warn = vi
-      .spyOn(
-        (h.service as unknown as { logger: { warn: (m: string) => void } })
-          .logger,
-        "warn",
-      )
-      .mockImplementation(() => undefined);
+    const warn = spyLogger(h.service);
 
-    await run(h.service);
+    const out = await run(h.service);
+    expect(out.threw).toBe(false);
     expect(warn).not.toHaveBeenCalled();
   });
 });

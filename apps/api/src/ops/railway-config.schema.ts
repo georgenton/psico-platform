@@ -5,11 +5,18 @@ import { z } from "zod";
  *
  * Provenance and scope, stated so nobody has to guess:
  *
- *   - Source: Railway's config-as-code reference (the `build` / `deploy` key
- *     split and field names are taken from it, not from a hand-written guess).
- *   - Deliberately NOT fetched from `railway.schema.json` at test time: a CI
- *     job that depends on a remote download fails when the network does, and
- *     a schema that can change under us is not a ratchet.
+ *   - Source: Railway's official schema, fetched once from
+ *     `https://railway.com/railway.schema.json` (301 →
+ *     `backboard.railway.app`), sha256 `38d35a7de8d6fa51…`, on 2026-08-17.
+ *     Both files were validated against it with `ajv --spec=draft7`: valid.
+ *   - This is a POLICY schema, not a compatibility proof. It says what WE
+ *     allow; the official document says what Railway accepts. The two are
+ *     recorded separately (LOCAL_POLICY_SCHEMA_VALIDATION vs
+ *     OFFICIAL_RAILWAY_SCHEMA_VALIDATION) because passing this one says
+ *     nothing about the other.
+ *   - Deliberately NOT fetched at test time: a CI job that depends on a remote
+ *     download fails when the network does, and a schema that can change under
+ *     us is not a ratchet.
  *   - Deliberately a SUBSET. It covers exactly the fields these two files
  *     govern. `.strict()` is the point: a key Railway supports but we have not
  *     approved — `cronSchedule`, `dockerfilePath`, `overlapSeconds`,
@@ -57,6 +64,9 @@ const DeployBlock = z
     healthcheckPath: z.string().startsWith("/").optional(),
     restartPolicyType: z.enum(["ALWAYS", "ON_FAILURE", "NEVER"]),
     restartPolicyMaxRetries: z.number().int().nonnegative(),
+    // Governable from config-as-code (it is in the official `deploy` schema),
+    // so it is declared rather than left to a default we merely assume.
+    sleepApplication: z.boolean(),
   })
   .strict();
 

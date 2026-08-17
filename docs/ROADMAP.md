@@ -120,20 +120,56 @@ Contrato vigente:
 - **Las configuraciones versionadas** viven en `apps/api/railway.api.json` y
   `apps/api/railway.worker.json`, y reproducen la configuración efectiva.
 
-**Los servicios todavía NO están enlazados a esos ficheros.** El ratchet del
-repositorio comprueba los ficheros, no el dashboard:
+**Los servicios todavía NO están enlazados a esos ficheros.**
+
+Config-as-Code **no reemplaza el dashboard**: Railway combina ambas fuentes en
+cada deployment y el fichero solo sobrescribe los valores que declara. Un campo
+omitido **no** vuelve a su default — conserva el del dashboard. Por eso todo
+campo efectivo queda clasificado, sin categoría implícita:
+
+| Campo                                                                   | Autoridad                                                                                              |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `builder`, `buildCommand`, `watchPatterns`                              | `CODE_OWNED`                                                                                           |
+| `startCommand`, `preDeployCommand`                                      | `CODE_OWNED`                                                                                           |
+| `healthcheckPath` (API), `restartPolicyType`, `restartPolicyMaxRetries` | `CODE_OWNED`                                                                                           |
+| `sleepApplication`                                                      | `CODE_OWNED` — está en el schema oficial bajo `deploy`, así que se declara en vez de asumir su default |
+| `rootDirectory`                                                         | `DASHBOARD_OWNED` — no existe en el schema oficial de Config-as-Code                                   |
+| `railwayConfigFile`                                                     | `DASHBOARD_OWNED` por necesidad: es el puntero al propio fichero                                       |
+| `healthcheckTimeout`, `cronSchedule`, `numReplicas`, `region`           | `NOT_APPLICABLE` — sin valor efectivo hoy                                                              |
+
+**Cinco estados distintos, que no deben confundirse:**
 
 ```
-REPO_CONFIG_RATCHET=true
-EFFECTIVE_RAILWAY_BINDING_VERIFIED=false
+REPO_CONFIG_RATCHET=true                     ya cierto
+RAILWAY_CONFIG_PATHS_BOUND=false             las rutas quedan configuradas
+CONFIG_SOURCE_USED_BY_API_DEPLOYMENT=false   un deployment consumió el fichero
+CONFIG_SOURCE_USED_BY_WORKER_DEPLOYMENT=false
+DEPLOYED_CONFIG_MATCHES_REPO=false           y coincide con el commit desplegado
 ```
 
-Enlazarlos es una operación posterior y autorizada aparte: fijar
-`railwayConfigFile` a `/apps/api/railway.api.json` y
-`/apps/api/railway.worker.json`, y después releer la configuración efectiva por
-GraphQL para confirmar que coincide con lo versionado. Ojo: la configuración en
-código **sobrescribe** al dashboard, así que enlazar sin que los ficheros sean
-fieles cambiaría producción.
+Enlazar solo demuestra el segundo. **Los tres últimos exigen al menos un
+deployment por servicio y evidencia en su configuración resuelta**: releer
+`serviceInstance` después del binding no prueba que un deployment haya
+consumido el fichero.
+
+Orden operativo futuro, cada paso con autorización propia:
+
+1. fusionar el código bajo la configuración seedless actual;
+2. verificar ese deployment;
+3. enlazar `railwayConfigFile` a `/apps/api/railway.api.json` y
+   `/apps/api/railway.worker.json`;
+4. realizar o esperar deployments explícitamente autorizados;
+5. verificar **en cada deployment** que la configuración provino del fichero y
+   coincide con el commit desplegado.
+
+**Diferencia deliberada pendiente de aplicar por binding:** los `watchPatterns`
+versionados corrigen un cierre de dependencias incompleto en el dashboard. Hoy
+el API observa `apps/api/**` y `packages/**`, y el worker solo `apps/api/**`
+— pero `packages/types/tsconfig.json` extiende `@psico/typescript-config`, y
+ambos builds corren `pnpm install --frozen-lockfile`. Los ficheros añaden
+`config/**`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `package.json` y `.npmrc`
+a ambos, más `turbo.json` solo al API, que es el único que construye con Turbo.
+Hasta el binding, el dashboard sigue con el cierre incompleto.
 
 **Registro corregido del despliegue de C.0A.** El informe original decía
 «sin escrituras en producción». Era falso:

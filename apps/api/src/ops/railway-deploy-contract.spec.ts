@@ -47,7 +47,17 @@ const API_EXPECTED: RailwayServiceConfig = {
     builder: "RAILPACK",
     buildCommand:
       "pnpm install --frozen-lockfile && pnpm turbo run build --filter=@psico/api",
-    watchPatterns: ["apps/api/**", "packages/**"],
+    watchPatterns: [
+      "apps/api/**",
+      "packages/**",
+      "config/**",
+      ".npmrc",
+      "package.json",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      // Only the API builds through Turbo; the worker calls pnpm directly.
+      "turbo.json",
+    ],
   },
   deploy: {
     startCommand: "node apps/api/dist/main",
@@ -55,6 +65,7 @@ const API_EXPECTED: RailwayServiceConfig = {
     healthcheckPath: "/health",
     restartPolicyType: "ON_FAILURE",
     restartPolicyMaxRetries: 10,
+    sleepApplication: false,
   },
 };
 
@@ -65,12 +76,21 @@ const WORKER_EXPECTED: RailwayServiceConfig = {
     builder: "RAILPACK",
     buildCommand:
       "pnpm install --frozen-lockfile && pnpm --filter @psico/api... build",
-    watchPatterns: ["apps/api/**"],
+    watchPatterns: [
+      "apps/api/**",
+      "packages/**",
+      "config/**",
+      ".npmrc",
+      "package.json",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+    ],
   },
   deploy: {
     startCommand: "pnpm --filter @psico/api start:worker",
     restartPolicyType: "ON_FAILURE",
     restartPolicyMaxRetries: 10,
+    sleepApplication: false,
   },
 };
 
@@ -221,5 +241,86 @@ describe("deploy contract · the dead config is gone", () => {
   it("the replacements exist", () => {
     expect(existsSync(apiPath)).toBe(true);
     expect(existsSync(workerPath)).toBe(true);
+  });
+});
+
+describe("deploy contract · the watch patterns close the build graph", () => {
+  /**
+   * What can change either artifact, established from the real graph rather
+   * than from intuition:
+   *
+   *   apps/api/**        the service source itself
+   *   packages/**        `@psico/types` is imported by 96 production files;
+   *                      `@psico/crypto` is in the build set via `...`
+   *   config/**          `packages/types/tsconfig.json` EXTENDS
+   *                      `@psico/typescript-config/base.json`, and `tsup --dts`
+   *                      emits declarations through it — so a change there
+   *                      changes the types artifact the API compiles against
+   *   pnpm-lock.yaml     both builds run `pnpm install --frozen-lockfile`
+   *   pnpm-workspace.yaml which packages exist at all
+   *   package.json       pins `packageManager: pnpm@10.33.2`
+   *   .npmrc             hoisting and peer-dependency resolution
+   *   turbo.json         API ONLY — it builds via `turbo run build`; the
+   *                      worker calls `pnpm --filter @psico/api... build`
+   */
+  const REQUIRED_BOTH = [
+    "apps/api/**",
+    "packages/**",
+    "config/**",
+    ".npmrc",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+  ];
+
+  it.each([
+    ["api", apiPath],
+    ["worker", workerPath],
+  ])("%s watches every input that can change its artifact", (_n, path) => {
+    const patterns = parsed(path).build.watchPatterns;
+    for (const required of REQUIRED_BOTH) {
+      expect(patterns).toContain(required);
+    }
+  });
+
+  it("only the API watches turbo.json, and that difference is earned", () => {
+    // The two may differ only where the commands actually differ.
+    expect(parsed(apiPath).build.watchPatterns).toContain("turbo.json");
+    expect(parsed(workerPath).build.watchPatterns).not.toContain("turbo.json");
+    expect(parsed(apiPath).build.buildCommand).toContain("turbo run build");
+    expect(parsed(workerPath).build.buildCommand).not.toContain("turbo");
+  });
+
+  it("the sets differ by exactly that one entry", () => {
+    const a = new Set(parsed(apiPath).build.watchPatterns);
+    const w = new Set(parsed(workerPath).build.watchPatterns);
+    const onlyApi = [...a].filter((p) => !w.has(p));
+    const onlyWorker = [...w].filter((p) => !a.has(p));
+    expect(onlyApi).toEqual(["turbo.json"]);
+    expect(onlyWorker).toEqual([]);
+  });
+
+  it("watches nothing that cannot change the artifact", () => {
+    // A web-only or docs-only change must not redeploy either service.
+    const forbidden = ["apps/web/**", "apps/mobile/**", "docs/**", "**"];
+    for (const path of [apiPath, workerPath]) {
+      for (const p of parsed(path).build.watchPatterns) {
+        expect(forbidden).not.toContain(p);
+      }
+    }
+  });
+
+  it("the order is canonical: workspaces first, then root inputs sorted", () => {
+    // Railway does not treat order as significant, but a fixed order makes a
+    // diff readable and keeps two people from reshuffling the same list.
+    const canonical = (patterns: readonly string[]) => {
+      const globs = patterns.filter((p) => p.endsWith("/**"));
+      const roots = patterns.filter((p) => !p.endsWith("/**"));
+      return [...globs, ...[...roots].sort()];
+    };
+    for (const path of [apiPath, workerPath]) {
+      const patterns = parsed(path).build.watchPatterns;
+      expect(patterns).toEqual(canonical(patterns));
+    }
   });
 });

@@ -118,7 +118,12 @@ Contrato vigente:
 - **`apps/api/railway.json` se eliminó**: declaraba NIXPACKS y un preDeploy sin
   seed mientras producción usaba RAILPACK y sí sembraba.
 - **Las configuraciones versionadas** viven en `apps/api/railway.api.json` y
-  `apps/api/railway.worker.json`, y reproducen la configuración efectiva.
+  `apps/api/railway.worker.json`. Reproducen los campos efectivos **restantes**,
+  con dos diferencias deliberadas: los `watchPatterns` son un **hardening
+  distinto** del dashboard —cierran el grafo de build que hoy queda abierto— y
+  `preDeployCommand: null` con `healthcheckPath: null` en el worker son
+  **declaraciones nuevas**, no reflejo de lo existente. Ninguna de esas
+  diferencias entra en vigor hasta que **un deployment consuma los ficheros**.
 
 **Los servicios todavía NO están enlazados a esos ficheros.**
 
@@ -155,13 +160,26 @@ resuelta a la ruta JSON de la que vino, y solo los campos escritos aparecen ahí
 Por eso el worker declara `preDeployCommand: null` y `healthcheckPath: null` en
 lugar de callarlos: callar no contribuye nada y deja el campo al dashboard.
 
-**Límite honesto:** no llegué a observar el paso final —que `null` sobrescriba un
-valor **no nulo** ya almacenado—, porque no conseguí fijar uno: `railway api`
-rechaza `serviceInstanceUpdate` y el fichero no escribe en la instancia. Lo que
-sí está medido es que `null` se contribuye y la omisión no; combinado con la
-regla documentada de que el código sobrescribe al dashboard, declarar `null`
-**nunca es peor** que omitir, y es la única forma que pone el campo bajo la
-autoridad del fichero.
+**Qué está probado y qué está derivado** — la distinción importa, porque el
+último eslabón no se observó:
+
+```
+NULL_IS_FILE_CONTRIBUTION=proven
+FILE_VALUE_PRECEDENCE_OVER_DASHBOARD=documented
+NULL_OVER_NON_NULL_DASHBOARD_OBSERVED=false
+NULL_CLEAR_BEHAVIOR=derived_from_provenance_plus_documented_precedence
+```
+
+Que `null` es una contribución del fichero está **medido**. Que una propiedad
+presente en código prevalece sobre el dashboard está **documentado** por
+Railway. Que `null` por tanto _limpia_ un valor del dashboard es una
+**derivación** de ambas cosas, **no una observación**: nunca llegué a fijar un
+valor no nulo con el que chocar, porque `railway api` rechaza
+`serviceInstanceUpdate` y el fichero no escribe en la instancia.
+
+Aun así la decisión no depende de ese eslabón: declarar `null` **nunca es peor**
+que omitir —la omisión provablemente no contribuye nada— y es la única forma que
+pone el campo bajo la autoridad del fichero.
 
 **Cinco estados distintos, que no deben confundirse:**
 
@@ -195,6 +213,79 @@ Orden operativo futuro, cada paso con autorización propia:
 4. realizar o esperar deployments explícitamente autorizados;
 5. verificar **en cada deployment** que la configuración provino del fichero y
    coincide con el commit desplegado.
+
+#### C.0A1 — plan productivo en dos ondas
+
+C.0A1 **no** queda completa con el merge, ni con configurar los config paths.
+Termina cuando **ambos deployments hayan consumido sus ficheros** y la
+configuración resuelta coincida con el commit desplegado.
+
+##### Onda 1 — merge bajo la configuración de dashboard actual
+
+Preflight: PR abierta y en el HEAD auditado · 0 commits detrás · mergeable/CLEAN
+· checks terminales · 0 hilos · el API con **solo** `migrate:deploy` · el worker
+**sin** preDeploy ni healthcheck · `ALLOW_PRODUCTION_BOOTSTRAP_SEED` **no**
+persistida en ninguno de los dos · 0 migraciones nuevas en la PR · 0 migraciones
+pendientes en producción (solo lectura) · registrar SHA de `main` y los
+deployments de retorno de API, worker y Vercel.
+
+Después: merge commit → monitorizar API, worker, Vercel y Release hasta estado
+terminal → verificar en logs que el preDeploy del API ejecutó `migrate:deploy` y
+aplicó **0** → verificar que **el seed no aparece** → smoke anónimo de solo
+lectura.
+
+**Efectos en producción, dichos por adelantado.** Esta onda **sí despliega API y
+worker**, porque la PR toca `apps/api/**` y ambos observan esa ruta. Vercel
+**también** producirá un deployment de producción aunque la web no cambie: es su
+comportamiento con cualquier push a `main`, ya observado. El binding todavía no
+ocurre, así que **los ficheros no gobiernan nada en esta onda** — el despliegue
+usa la configuración del dashboard, que ya es seedless.
+
+##### Onda 2 — binding y verificación real
+
+Solo si la onda 1 quedó sana. Enlazar `railwayConfigFile` a
+`/apps/api/railway.api.json` y `/apps/api/railway.worker.json`.
+
+Después hay que **comprobar si el binding por sí solo crea un deployment**. Si
+no lo crea, ejecutar un redeploy controlado de ambos servicios sobre el SHA ya
+fusionado — no sobre otro commit. Y en cada deployment inspeccionar
+`serviceManifest`, `fileServiceManifest` y `propertyFileMapping` para demostrar:
+
+- los `watchPatterns` nuevos **provienen del fichero** (aparecen en
+  `propertyFileMapping`, no solo en el resuelto);
+- API `preDeployCommand = ["pnpm --filter @psico/api migrate:deploy"]`;
+- worker `preDeployCommand = null`;
+- worker `healthcheckPath = null`;
+- `sleepApplication = false` en ambos;
+- **ninguna** configuración menciona el seed.
+
+Cierre con smoke anónimo de solo lectura. Hasta aquí:
+
+```
+RAILWAY_CONFIG_PATHS_BOUND=true
+CONFIG_SOURCE_USED_BY_API_DEPLOYMENT=true
+CONFIG_SOURCE_USED_BY_WORKER_DEPLOYMENT=true
+DEPLOYED_CONFIG_MATCHES_REPO=true
+```
+
+##### Rollback
+
+- **Onda 1** — restaurar los deployments de retorno registrados en Railway (API
+  y worker) y el de producción en Vercel. **Sin revertir Git**: la PR aporta 0
+  migraciones y el preflight habrá demostrado 0 pendientes, así que **no hay
+  rollback de base de datos** que hacer ni que proponer.
+- **Binding** — devolver `railwayConfigFile = None` en el servicio afectado. Eso
+  restituye la autoridad del dashboard, que sigue intacta porque el fichero
+  nunca escribe en ella.
+- **API sana y worker fallido** — desenlazar **solo** el worker y restaurar su
+  deployment previo. El API queda como esté; son servicios independientes y el
+  worker no atiende tráfico.
+- **El binding resuelve una configuración distinta de la esperada** — desenlazar
+  ambos antes de investigar. Una configuración resuelta que no coincide con el
+  fichero significa que no entendemos la fusión, y operar sobre esa base sería
+  peor que quedarse con el dashboard.
+- Tras cualquier rollback: releer la configuración efectiva, comprobar salud y
+  reportar la causa exacta.
 
 **Diferencia deliberada pendiente de aplicar por binding:** los `watchPatterns`
 versionados corrigen un cierre de dependencias incompleto en el dashboard. Hoy

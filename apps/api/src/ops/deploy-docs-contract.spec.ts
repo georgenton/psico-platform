@@ -68,12 +68,39 @@ describe("docs ratchet · the measured semantics are recorded", () => {
     );
   });
 
-  it("keeps the honest limit — the override of a non-null value was not observed", () => {
-    // The one step the probe could not reach. Dropping this sentence would
-    // turn a sound argument into an overstated claim.
-    expect(text()).toMatch(
-      /no llegué a observar el paso final|Límite honesto/i,
+  it("separates what was measured from what was derived", () => {
+    // The probe measured that null is a file contribution. Railway DOCUMENTS
+    // that a present property wins over the dashboard. That null therefore
+    // clears a dashboard value follows from both — it was never observed,
+    // because no non-null stored value could be set to collide with. Losing
+    // any one of these four lines turns a sound argument into an overstated
+    // claim.
+    const src = text();
+    expect(src).toContain("NULL_IS_FILE_CONTRIBUTION=proven");
+    expect(src).toContain("FILE_VALUE_PRECEDENCE_OVER_DASHBOARD=documented");
+    expect(src).toContain("NULL_OVER_NON_NULL_DASHBOARD_OBSERVED=false");
+    expect(src).toContain(
+      "NULL_CLEAR_BEHAVIOR=derived_from_provenance_plus_documented_precedence",
     );
+  });
+
+  it("never calls the unobserved link measured or proven", () => {
+    // The passage about clearing a dashboard value must read as a derivation.
+    // "Medido" or "probado" there would simply be false.
+    const src = text();
+    const claim = src.slice(src.indexOf("NULL_CLEAR_BEHAVIOR")).slice(0, 900);
+    expect(claim).toMatch(/derivación/i);
+    expect(claim).toMatch(/no una observación/i);
+  });
+
+  it("does not claim the files merely reproduce the effective config", () => {
+    // They do not: the watch patterns are deliberate hardening, and the
+    // worker's nulls are new declarations.
+    const src = text();
+    expect(src).not.toMatch(/y reproducen la configuración efectiva\./);
+    expect(src).toMatch(/hardening/);
+    expect(src).toMatch(/declaraciones nuevas/);
+    expect(src).toMatch(/un deployment consuma los ficheros/);
   });
 
   it("the worker's fields are CODE_OWNED because they are DECLARED", () => {

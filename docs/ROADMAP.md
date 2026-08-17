@@ -86,7 +86,8 @@ no el esquema.
 | Fase      | Qué                                                           | Puerta previa                                   |
 | --------- | ------------------------------------------------------------- | ----------------------------------------------- |
 | **C.0A**  | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                               |
-| **C.0B1** | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A en toda la flota                           |
+| **C.0A1** | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                 |
+| **C.0B1** | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs   |
 | **C.0B2** | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)          |
 | **C.0B3** | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir |
 
@@ -94,6 +95,283 @@ no el esquema.
 - **V1 y V2 sí coexisten**: ambos toman el lock de lineage. Esa convivencia es
   la función del puente, no un efecto colateral tolerado.
 - **C.0B3 termina** verificando que V1 quedó drenado.
+
+#### C.0A1 — contrato de despliegue
+
+Hasta esta fase, el preDeploy del API era
+`migrate:deploy && prisma db seed`: **cada despliegue de producción reejecutaba
+el seed completo**. No es una lectura — borra y reinserta
+`TherapistAvailability`, reescribe `Journey.publishedAt` a la hora del
+despliegue y fuerza `isActive`/`isPublished` a los valores del fichero,
+revirtiendo en silencio lo que operaciones o contenido hubieran cambiado.
+
+Contrato vigente:
+
+- **El API es el único migrador.** El worker **nunca** ejecuta `migrate:deploy`.
+  Dos migradores concurrentes no se encolan: el advisory lock de Prisma expira a
+  los 10 s (no configurable) y el par acaba con uno en deadlock, un índice
+  INVALID y toda migración posterior bloqueada por P3009 — reproducido en
+  PostgreSQL 18.4.
+- **El seed no forma parte de ningún despliegue.** Es una operación
+  administrativa que exige `ALLOW_PRODUCTION_BOOTSTRAP_SEED=1` para una única
+  invocación, nunca una variable persistente de Railway.
+- **`apps/api/railway.json` se eliminó**: declaraba NIXPACKS y un preDeploy sin
+  seed mientras producción usaba RAILPACK y sí sembraba.
+- **Las configuraciones versionadas** viven en `apps/api/railway.api.json` y
+  `apps/api/railway.worker.json`. Reproducen los campos efectivos **restantes**,
+  con dos diferencias deliberadas: los `watchPatterns` son un **hardening
+  distinto** del dashboard —cierran el grafo de build que hoy queda abierto— y
+  `preDeployCommand: null` con `healthcheckPath: null` en el worker son
+  **declaraciones nuevas**, no reflejo de lo existente. Ninguna de esas
+  diferencias entra en vigor hasta que **un deployment consuma los ficheros**.
+
+**Los servicios todavía NO están enlazados a esos ficheros.**
+
+Config-as-Code **no reemplaza el dashboard**: Railway combina ambas fuentes en
+cada deployment y el fichero solo sobrescribe los valores que declara. Un campo
+omitido **no** vuelve a su default — conserva el del dashboard. Por eso todo
+campo efectivo queda clasificado, sin categoría implícita:
+
+| Campo                                                                                       | Autoridad                            | Por qué                                                                            |
+| ------------------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------- |
+| `builder`, `buildCommand`, `watchPatterns`                                                  | `CODE_OWNED`                         | declarados                                                                         |
+| `startCommand`; `preDeployCommand` (API)                                                    | `CODE_OWNED`                         | declarados                                                                         |
+| `healthcheckPath` (API), `restartPolicyType`, `restartPolicyMaxRetries`, `sleepApplication` | `CODE_OWNED`                         | declarados                                                                         |
+| `preDeployCommand` (worker), `healthcheckPath` (worker)                                     | `CODE_OWNED`                         | declarados **como `null`**, no omitidos — medido: `null` contribuye, la omisión no |
+| `rootDirectory`                                                                             | `DASHBOARD_OWNED`                    | no existe en el schema oficial de Config-as-Code                                   |
+| `railwayConfigFile`                                                                         | `DASHBOARD_OWNED`                    | es el puntero al propio fichero                                                    |
+| `cronSchedule`, `numReplicas`, `region`, `healthcheckTimeout`                               | `NOT_APPLICABLE` · **no declarados** | sin valor efectivo hoy; el fichero no los gobierna                                 |
+
+**Resuelto por medición** (servicio desechable, eliminado tras la prueba):
+
+| Variante en `railway.json` | `fileServiceManifest` | `propertyFileMapping` | resuelto      |
+| -------------------------- | --------------------- | --------------------- | ------------- |
+| campo **omitido**          | no aparece            | no aparece            | del dashboard |
+| `preDeployCommand: null`   | **aparece** (`null`)  | **aparece**           | `null`        |
+| `preDeployCommand: []`     | **aparece** (`[]`)    | **aparece**           | `[]`          |
+
+Dos hechos que esto establece. Primero, **el fichero no escribe en la
+configuración almacenada**: tras desplegar un fichero que declaraba preDeploy y
+healthcheck, la `serviceInstance` seguía en `null` — fichero y dashboard son
+almacenes distintos que se combinan en cada deployment. Segundo, **`null` es una
+declaración y la omisión no lo es**: `propertyFileMapping` mapea cada propiedad
+resuelta a la ruta JSON de la que vino, y solo los campos escritos aparecen ahí.
+
+Por eso el worker declara `preDeployCommand: null` y `healthcheckPath: null` en
+lugar de callarlos: callar no contribuye nada y deja el campo al dashboard.
+
+**Qué está probado y qué está derivado** — la distinción importa, porque el
+último eslabón no se observó:
+
+```
+NULL_IS_FILE_CONTRIBUTION=proven
+FILE_VALUE_PRECEDENCE_OVER_DASHBOARD=documented
+NULL_OVER_NON_NULL_DASHBOARD_OBSERVED=false
+NULL_CLEAR_BEHAVIOR=derived_from_provenance_plus_documented_precedence
+```
+
+Que `null` es una contribución del fichero está **medido**. Que una propiedad
+presente en código prevalece sobre el dashboard está **documentado** por
+Railway. Que `null` por tanto _limpia_ un valor del dashboard es una
+**derivación** de ambas cosas, **no una observación**: nunca llegué a fijar un
+valor no nulo con el que chocar, porque `railway api` rechaza
+`serviceInstanceUpdate` y el fichero no escribe en la instancia.
+
+Aun así la decisión no depende de ese eslabón: declarar `null` **nunca es peor**
+que omitir —la omisión provablemente no contribuye nada— y es la única forma que
+pone el campo bajo la autoridad del fichero.
+
+**Cinco estados distintos, que no deben confundirse:**
+
+```
+REPO_CONFIG_RATCHET=true                     ya cierto
+RAILWAY_CONFIG_PATHS_BOUND=false             las rutas quedan configuradas
+CONFIG_SOURCE_USED_BY_API_DEPLOYMENT=false   un deployment consumió el fichero
+CONFIG_SOURCE_USED_BY_WORKER_DEPLOYMENT=false
+DEPLOYED_CONFIG_MATCHES_REPO=false           y coincide con el commit desplegado
+```
+
+Enlazar solo demuestra el segundo. **Los tres últimos exigen al menos un
+deployment por servicio y evidencia en su configuración resuelta**: releer
+`serviceInstance` después del binding no prueba que un deployment haya
+consumido el fichero.
+
+La evidencia existe y es concreta: `deployment.meta.serviceManifest` registra la
+configuración **resuelta** de cada deployment (bloques `build` y `deploy`
+completos), y `meta.fileServiceManifest` junto con `meta.propertyFileMapping`
+están hoy **vacíos** en el deployment activo del API — coherente con que no hay
+fichero enlazado. La verificación posterior al binding consiste en comprobar que
+dejan de estarlo y que el `serviceManifest` coincide con el fichero del commit
+desplegado.
+
+Orden operativo futuro, cada paso con autorización propia:
+
+1. fusionar el código bajo la configuración seedless actual;
+2. verificar ese deployment;
+3. enlazar `railwayConfigFile` **primero solo en el worker**
+   (`/apps/api/railway.worker.json`) y verificarlo;
+4. enlazar el API (`/apps/api/railway.api.json`) **solo con el worker sano**;
+5. realizar o esperar deployments explícitamente autorizados;
+6. verificar **en cada deployment** que la configuración provino del fichero y
+   coincide con el commit desplegado.
+
+#### C.0A1 — plan productivo en dos ondas
+
+C.0A1 **no** queda completa con el merge, ni con configurar los config paths.
+Termina cuando **ambos deployments hayan consumido sus ficheros** y la
+configuración resuelta coincida con el commit desplegado.
+
+##### Onda 1 — merge bajo la configuración de dashboard actual
+
+Preflight: PR abierta y en el HEAD auditado · 0 commits detrás · mergeable/CLEAN
+· checks terminales · 0 hilos · el API con **solo** `migrate:deploy` · el worker
+**sin** preDeploy ni healthcheck · `ALLOW_PRODUCTION_BOOTSTRAP_SEED` **no**
+persistida en ninguno de los dos · 0 migraciones nuevas en la PR · 0 migraciones
+pendientes en producción (solo lectura) · registrar SHA de `main` y los
+deployments de retorno de API, worker y Vercel.
+
+Después: merge commit → monitorizar API, worker, Vercel y Release hasta estado
+terminal → verificar en logs que el preDeploy del API ejecutó `migrate:deploy` y
+aplicó **0** → verificar que **el seed no aparece** → smoke anónimo de solo
+lectura.
+
+**Efectos en producción, dichos por adelantado.** Esta onda **sí despliega API y
+worker**, porque la PR toca `apps/api/**` y ambos observan esa ruta. Vercel
+**también** producirá un deployment de producción aunque la web no cambie: es su
+comportamiento con cualquier push a `main`, ya observado. El binding todavía no
+ocurre, así que **los ficheros no gobiernan nada en esta onda** — el despliegue
+usa la configuración del dashboard, que ya es seedless.
+
+##### Onda 2 — binding secuencial y verificación real
+
+Solo si la onda 1 quedó sana. **Los dos servicios no se enlazan a la vez.** El
+worker va primero como canario: no atiende tráfico y no toca la base de datos,
+así que si el modelo de fusión no se comporta como creemos, lo descubrimos donde
+nadie lo nota. El API se toca **después**, y solo con el worker sano.
+
+Cada subpaso produce **exactamente un deployment verificable** para su servicio:
+
+```
+WAVE_2_WORKER_FIRST=true
+WAVE_2_API_AFTER_WORKER_HEALTHY=true
+WAVE_2_WORKER_DEPLOYMENTS_EXPECTED=1
+WAVE_2_API_DEPLOYMENTS_EXPECTED=1
+WAVE_2_MANUAL_REDEPLOYS_EXPECTED=0_or_1_per_service
+```
+
+El binding puede generar ese deployment por sí solo o no; si no lo genera, se
+inicia un redeploy manual sobre el SHA ya fusionado. Lo que **nunca** es correcto
+es reportar «0 deployments en la onda 2 porque el binding los disparó»: el
+deployment existe y es justamente el que hay que verificar. Lo que sí puede ser
+0 es el número de **redeploys manuales**.
+
+###### Onda 2A — worker (canario)
+
+1. Enlazar únicamente `/apps/api/railway.worker.json`.
+2. Comprobar si el binding generó un deployment.
+3. Si no lo generó, redesplegar el worker sobre el SHA fusionado — no sobre otro
+   commit.
+4. Verificar en **ese** deployment `serviceManifest`, `fileServiceManifest` y
+   `propertyFileMapping`: los `watchPatterns` nuevos provienen del fichero,
+   `preDeployCommand = null`, `healthcheckPath = null`, `sleepApplication =
+false`, ninguna mención del seed; y en logs, arranque limpio del worker con
+   sus processors registrados.
+5. Ante cualquier divergencia: desenlazar **solo** el worker, restaurar su
+   deployment previo y detenerse.
+6. **Gate terminal:** no se pasa al API hasta que el worker esté sano y
+   verificado. Un worker «probablemente bien» no habilita la onda 2B.
+
+###### Onda 2B — API
+
+1. Enlazar `/apps/api/railway.api.json`.
+2. Comprobar si el binding generó un deployment.
+3. Si no lo generó, redesplegar el API sobre el mismo SHA fusionado.
+4. Verificar en **ese** deployment que el preDeploy ejecuta **solo**
+   `migrate:deploy`, aplica **0** migraciones y **nunca** ejecuta el seed; y que
+   la configuración resuelta trae del fichero los `watchPatterns` (incluido
+   `turbo.json`, exclusivo del API), `preDeployCommand = ["pnpm --filter
+@psico/api migrate:deploy"]`, `healthcheckPath = "/health"` y
+   `sleepApplication = false`.
+5. Comprobar `/health` y cerrar con smoke anónimo de solo lectura.
+6. Ante divergencia: desenlazar el API, restaurar su deployment previo y
+   detenerse.
+
+C.0A1 termina **solo** cuando ambos subpasos están cerrados:
+
+```
+RAILWAY_CONFIG_PATHS_BOUND=true
+CONFIG_SOURCE_USED_BY_API_DEPLOYMENT=true
+CONFIG_SOURCE_USED_BY_WORKER_DEPLOYMENT=true
+DEPLOYED_CONFIG_MATCHES_REPO=true
+```
+
+##### Rollback — dos niveles que no se confunden
+
+Restaurar un deployment anterior **no** revierte el código: `main` sigue
+apuntando al commit nuevo, producción ejecuta un artefacto viejo, y cualquier
+push o redeploy posterior vuelve a publicar el HEAD defectuoso. Por eso el
+rollback operativo y la reconciliación de fuente son cosas distintas y se
+autorizan por separado.
+
+**Nivel 1 · Rollback operativo inmediato** — autorizable dentro de cada onda,
+sin consulta adicional:
+
+- **Onda 1** — restaurar los deployments de retorno registrados en Railway (API
+  y worker) y el de producción en Vercel.
+- **Binding** — devolver `railwayConfigFile = None` en el servicio afectado. Eso
+  restituye la autoridad del dashboard, que sigue intacta porque el fichero
+  nunca escribe en ella.
+- **API sana y worker fallido** — desenlazar **solo** el worker y restaurar su
+  deployment previo. El API queda como esté; son servicios independientes y el
+  worker no atiende tráfico.
+- **El binding resuelve una configuración distinta de la esperada** — desenlazar
+  el servicio afectado (y cualquiera enlazado antes) y **detenerse** a
+  investigar. Una configuración resuelta que no coincide con el fichero
+  significa que no entendemos la fusión, y operar sobre esa base sería peor que
+  quedarse con el dashboard.
+- Tras cualquiera: releer la configuración efectiva, comprobar salud, reportar
+  la causa exacta y registrar `SOURCE_RUNTIME_DIVERGENCE=true`.
+
+**Sin rollback de base de datos.** La PR aporta 0 migraciones y el preflight
+habrá demostrado 0 pendientes, así que no hay ninguno que hacer ni que proponer.
+
+**Nivel 2 · Reconciliación de fuente** — nunca automática:
+
+- preparar un revert commit o una PR de revert;
+- ejecutar CI sobre ella;
+- **solicitar autorización** antes de fusionarla;
+- **no declarar cerrado el incidente** mientras `main` y producción no vuelvan a
+  coincidir.
+
+Un rollback operativo con `SOURCE_RUNTIME_DIVERGENCE=true` es una **mitigación
+completada, no un incidente cerrado**. Y no se pausa el autodeploy ni se revierte
+Git sin autorización independiente: ambas cosas cambian el comportamiento del
+repositorio, no solo el de un deployment.
+
+**Diferencia deliberada pendiente de aplicar por binding:** los `watchPatterns`
+versionados corrigen un cierre de dependencias incompleto en el dashboard. Hoy
+el API observa `apps/api/**` y `packages/**`, y el worker solo `apps/api/**`
+— pero `packages/types/tsconfig.json` extiende `@psico/typescript-config`, y
+ambos builds corren `pnpm install --frozen-lockfile`. Los ficheros añaden
+`config/**`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `package.json` y `.npmrc`
+a ambos, más `turbo.json` solo al API, que es el único que construye con Turbo.
+Hasta el binding, el dashboard sigue con el cierre incompleto.
+
+**Registro corregido del despliegue de C.0A.** El informe original decía
+«sin escrituras en producción». Era falso:
+
+```
+PRODUCTION_SEED_EXECUTED=true
+PRODUCTION_DB_WRITE_COMMAND_EXECUTED=true
+PRODUCTION_SEMANTIC_DATA_MUTATIONS=>0
+EXACT_CHANGED_ROW_COUNT=unknown  (no reconstruible sin baseline previo)
+PREVIOUS_PRODUCTION_WRITES_REPORT_ACCURATE=false
+```
+
+**Deuda del seed, separada de C.0A1:** retirar el `deleteMany` de
+`TherapistAvailability`; dejar de reescribir `Journey.publishedAt` en la rama
+`update`; y separar bootstrap, catálogos versionados, contenido editorial y
+configuración operativa, que hoy conviven en un solo fichero.
 
 **Prueba de drenaje exigida antes de C.0B2.** El único runtime capaz de
 ejecutar START es el servicio API (`GuideLifecycleService` no se exporta de

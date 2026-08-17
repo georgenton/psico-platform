@@ -2,111 +2,198 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import {
+  RailwayServiceConfigSchema,
+  type RailwayServiceConfig,
+} from "./railway-config.schema";
+
 /**
- * C.0A1 — the deployment contract, versioned.
+ * C.0A1 — the deployment contract, versioned and EXACT.
  *
  * Two facts made this necessary. Railway ran `migrate:deploy && prisma db seed`
  * on every API deploy, so a schema change and a rewrite of curated content
- * shipped together and a failure could not be attributed to either. And
- * `apps/api/railway.json` — the only deployment config in the repository —
- * was not the configuration Railway used: it declared NIXPACKS and a
- * seedless pre-deploy while production ran RAILPACK and seeded. Anyone reading
- * the repo was reading fiction.
+ * shipped as one step and a failure could not be attributed to either. And
+ * `apps/api/railway.json` — the repository's only deployment config — was not
+ * the configuration Railway used: it declared NIXPACKS and a seedless
+ * pre-deploy while production ran RAILPACK and seeded.
+ *
+ * Assertions here are EQUALITY, not `toContain`. "Contains migrate:deploy" is
+ * satisfied by `migrate:deploy && anything-else`, which is exactly the shape
+ * this phase exists to remove.
  *
  * SCOPE, stated plainly:
  *
  *   REPO_CONFIG_RATCHET=true
  *   EFFECTIVE_RAILWAY_BINDING_VERIFIED=false
  *
- * This file checks the files in the repository. It CANNOT check what Railway
- * is configured to use — the services are not linked to these paths yet, and
- * linking is a separate authorized operation. Until then the effective config
- * lives in the dashboard and is verified out-of-band (see the runbook).
+ * These are the files in the repository. They are NOT yet what Railway reads —
+ * the services are not linked to these paths, and linking is a separate
+ * authorized step. Until then the effective config lives in the dashboard and
+ * is compared out-of-band (see the runbook).
  */
 
 const API_DIR = process.cwd();
 const apiPath = join(API_DIR, "railway.api.json");
 const workerPath = join(API_DIR, "railway.worker.json");
 
-interface RailwayConfig {
-  build?: {
-    builder?: string;
-    buildCommand?: string;
-    watchPatterns?: string[];
-  };
-  deploy?: {
-    startCommand?: string;
-    preDeployCommand?: string[];
-    healthcheckPath?: string;
-    restartPolicyType?: string;
-    restartPolicyMaxRetries?: number;
-  };
-}
+const raw = (p: string) => readFileSync(p, "utf8");
+const parsed = (p: string): RailwayServiceConfig =>
+  RailwayServiceConfigSchema.parse(JSON.parse(raw(p)));
 
-const read = (p: string): RailwayConfig =>
-  JSON.parse(readFileSync(p, "utf8")) as RailwayConfig;
+/** The approved API contract, field for field. */
+const API_EXPECTED: RailwayServiceConfig = {
+  $schema: "https://railway.com/railway.schema.json",
+  build: {
+    builder: "RAILPACK",
+    buildCommand:
+      "pnpm install --frozen-lockfile && pnpm turbo run build --filter=@psico/api",
+    watchPatterns: ["apps/api/**", "packages/**"],
+  },
+  deploy: {
+    startCommand: "node apps/api/dist/main",
+    preDeployCommand: ["pnpm --filter @psico/api migrate:deploy"],
+    healthcheckPath: "/health",
+    restartPolicyType: "ON_FAILURE",
+    restartPolicyMaxRetries: 10,
+  },
+};
 
-const api = () => read(apiPath);
-const worker = () => read(workerPath);
+/** The approved worker contract. No pre-deploy at all. */
+const WORKER_EXPECTED: RailwayServiceConfig = {
+  $schema: "https://railway.com/railway.schema.json",
+  build: {
+    builder: "RAILPACK",
+    buildCommand:
+      "pnpm install --frozen-lockfile && pnpm --filter @psico/api... build",
+    watchPatterns: ["apps/api/**"],
+  },
+  deploy: {
+    startCommand: "pnpm --filter @psico/api start:worker",
+    restartPolicyType: "ON_FAILURE",
+    restartPolicyMaxRetries: 10,
+  },
+};
 
-/** Every way the seed could be spelled into a deploy step. */
-const SEED_MARKERS = ["db seed", "prisma seed", "seed.ts", "seed:"];
+describe("deploy contract · the files are exactly the approved contract", () => {
+  it("the API config matches field for field", () => {
+    expect(parsed(apiPath)).toEqual(API_EXPECTED);
+  });
 
-const preDeployText = (c: RailwayConfig) =>
-  (c.deploy?.preDeployCommand ?? []).join(" ");
+  it("the worker config matches field for field", () => {
+    expect(parsed(workerPath)).toEqual(WORKER_EXPECTED);
+  });
+
+  it("the worker declares no pre-deploy key at all", () => {
+    // Not "an empty array" — absent. An empty array is a place for something
+    // to be added into.
+    expect("preDeployCommand" in parsed(workerPath).deploy).toBe(false);
+  });
+});
+
+describe("deploy contract · schema validity and closed shape", () => {
+  it.each([
+    ["api", apiPath],
+    ["worker", workerPath],
+  ])("%s is valid JSON accepted by the local Railway subset", (_n, path) => {
+    expect(() => JSON.parse(raw(path))).not.toThrow();
+    expect(() =>
+      RailwayServiceConfigSchema.parse(JSON.parse(raw(path))),
+    ).not.toThrow();
+  });
+
+  it("rejects a key Railway supports but we have not approved", () => {
+    // `cronSchedule` is real and valid to Railway — and would turn a service
+    // into something else entirely. `.strict()` is what makes adding it a
+    // deliberate act.
+    const withCron = {
+      ...JSON.parse(raw(workerPath)),
+      deploy: {
+        ...JSON.parse(raw(workerPath)).deploy,
+        cronSchedule: "0 * * * *",
+      },
+    };
+    expect(() => RailwayServiceConfigSchema.parse(withCron)).toThrow();
+  });
+
+  it("rejects a wrong type on an approved key", () => {
+    const bad = JSON.parse(raw(apiPath));
+    bad.deploy.restartPolicyMaxRetries = "10";
+    expect(() => RailwayServiceConfigSchema.parse(bad)).toThrow();
+  });
+});
 
 describe("deploy contract · exactly one migration owner", () => {
-  it("the API runs migrate:deploy", () => {
-    expect(preDeployText(api())).toContain("migrate:deploy");
-  });
-
-  it("the worker runs no pre-deploy at all", () => {
-    // Two concurrent `migrate deploy` runs do not politely queue: Prisma's
-    // advisory lock times out at a non-configurable 10s, and the pair ends
-    // with one deadlocked, an INVALID index left behind and every later
-    // migration blocked by P3009. One owner is the design, not an accident.
-    expect(worker().deploy?.preDeployCommand).toBeUndefined();
-  });
-
-  it("only ONE of the two services migrates", () => {
-    const owners = [api(), worker()].filter((c) =>
-      preDeployText(c).includes("migrate:deploy"),
+  const migrates = (c: RailwayServiceConfig) =>
+    (c.deploy.preDeployCommand ?? []).some((cmd) =>
+      cmd.includes("migrate:deploy"),
     );
+
+  it("the API is the owner and the worker is not", () => {
+    expect(migrates(parsed(apiPath))).toBe(true);
+    expect(migrates(parsed(workerPath))).toBe(false);
+  });
+
+  it("only ONE of the two migrates", () => {
+    // Two concurrent `migrate deploy` runs do not queue. Prisma's advisory
+    // lock times out at a non-configurable 10s and the pair ends with one
+    // deadlocked (40P01), an INVALID index left behind and every later
+    // migration blocked by P3009 — reproduced on PostgreSQL 18.4.
+    const owners = [parsed(apiPath), parsed(workerPath)].filter(migrates);
     expect(owners).toHaveLength(1);
   });
+
+  it("the API pre-deploy is that ONE command and nothing more", () => {
+    expect(parsed(apiPath).deploy.preDeployCommand).toEqual([
+      "pnpm --filter @psico/api migrate:deploy",
+    ]);
+  });
 });
 
-describe("deploy contract · the seed is not a deployment step", () => {
-  it.each([
-    ["api", () => api()],
-    ["worker", () => worker()],
-  ])("%s pre-deploy does not seed", (_name, get) => {
-    const text = preDeployText(get());
-    for (const marker of SEED_MARKERS) {
-      expect(text).not.toContain(marker);
+describe("deploy contract · no command can carry a passenger", () => {
+  const everyCommand = (c: RailwayServiceConfig) => [
+    c.build.buildCommand,
+    c.deploy.startCommand,
+    ...(c.deploy.preDeployCommand ?? []),
+  ];
+
+  it("pre-deploy and start commands are single commands", () => {
+    // `buildCommand` is exempt from the chaining rule by necessity — install
+    // then build is one logical step Railway has no other way to express —
+    // and it is pinned by exact equality above, so it cannot grow either.
+    for (const config of [parsed(apiPath), parsed(workerPath)]) {
+      const guarded = [
+        config.deploy.startCommand,
+        ...(config.deploy.preDeployCommand ?? []),
+      ];
+      for (const cmd of guarded) {
+        expect(cmd).not.toMatch(/&&|\|\||[;|]|\$\(|`/);
+      }
     }
   });
-});
 
-describe("deploy contract · the two services stay distinct", () => {
-  it("start commands differ and each is the right one", () => {
-    const a = api().deploy?.startCommand ?? "";
-    const w = worker().deploy?.startCommand ?? "";
-    expect(a).not.toBe(w);
-    expect(a).toContain("dist/main");
-    expect(w).toContain("start:worker");
+  it("no command anywhere mentions the seed", () => {
+    const markers = [
+      "db seed",
+      "prisma seed",
+      "seed.ts",
+      "seed:",
+      "ALLOW_PRODUCTION_BOOTSTRAP_SEED",
+    ];
+    for (const config of [parsed(apiPath), parsed(workerPath)]) {
+      for (const cmd of everyCommand(config)) {
+        for (const marker of markers) {
+          expect(cmd).not.toContain(marker);
+        }
+      }
+    }
   });
 
-  it("watch patterns match the effective configuration", () => {
-    // The worker watches only the API workspace; the API also watches shared
-    // packages. Both are reproduced from the live settings, not invented.
-    expect(api().build?.watchPatterns).toEqual(["apps/api/**", "packages/**"]);
-    expect(worker().build?.watchPatterns).toEqual(["apps/api/**"]);
-  });
-
-  it("both declare the effective builder", () => {
-    expect(api().build?.builder).toBe("RAILPACK");
-    expect(worker().build?.builder).toBe("RAILPACK");
+  it("neither raw document mentions the seed or its override", () => {
+    for (const path of [apiPath, workerPath]) {
+      const text = raw(path);
+      expect(text).not.toMatch(/db\s+seed|seed\.ts|prisma\s+seed/);
+      expect(text).not.toContain("ALLOW_PRODUCTION_BOOTSTRAP_SEED");
+    }
   });
 });
 
@@ -114,20 +201,20 @@ describe("deploy contract · nothing secret is versioned", () => {
   it.each([
     ["api", apiPath],
     ["worker", workerPath],
-  ])("%s config carries no credentials or URLs", (_name, path) => {
-    const raw = readFileSync(path, "utf8");
-    expect(raw).not.toMatch(
+  ])("%s carries no credentials or URLs", (_n, path) => {
+    const text = raw(path);
+    expect(text).not.toMatch(
       /postgres(ql)?:\/\/|redis:\/\/|https?:\/\/(?!railway\.com)/,
     );
-    expect(raw).not.toMatch(/SECRET|PASSWORD|TOKEN|API_KEY|DATABASE_URL/i);
+    expect(text).not.toMatch(/SECRET|PASSWORD|TOKEN|API_KEY|DATABASE_URL/i);
   });
 });
 
 describe("deploy contract · the dead config is gone", () => {
   it("apps/api/railway.json no longer exists", () => {
     // It declared NIXPACKS and a seedless pre-deploy while Railway ran
-    // RAILPACK and seeded. Keeping a file that contradicts production is
-    // worse than having none.
+    // RAILPACK and seeded. A file that contradicts production is worse than
+    // no file at all.
     expect(existsSync(join(API_DIR, "railway.json"))).toBe(false);
   });
 

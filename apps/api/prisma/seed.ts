@@ -8,11 +8,28 @@ import {
   MOTIVO_SEED_CATALOG,
 } from "../src/onboarding/constants";
 import { lockEditionForBookSlugTx } from "../src/content-core/revision-lifecycle";
-import { assertSeedAllowed } from "./seed-guard";
+import { runGuardedSeed, type SeedClientHandle } from "./seed-runtime";
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+/**
+ * Assigned by `createSeedClient()` before `main()` runs, and only after the
+ * guard has allowed the run. Module-level `const`s here would be built at
+ * import time — before any refusal could execute.
+ */
+let prisma!: PrismaClient;
+
+/** Builds the client. Called ONLY once the run is allowed. */
+function createSeedClient(): SeedClientHandle {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const adapter = new PrismaPg(pool);
+  const client = new PrismaClient({ adapter });
+  prisma = client;
+  return {
+    dispose: async () => {
+      await client.$disconnect();
+      await pool.end();
+    },
+  };
+}
 
 /**
  * A seeded chapter, written under the EDITION row lock.
@@ -49,17 +66,6 @@ async function main() {
   // seed, but that test only needs the schema (tables + enums + constraints),
   // not seed data. Set PRISMA_SKIP_SEED=1 to make the seed a fast no-op. Never
   // set in prod — a plain deploy still seeds normally.
-  if (process.env.PRISMA_SKIP_SEED === "1") {
-    console.log("↩︎ PRISMA_SKIP_SEED=1 — skipping seed (schema-only run).");
-    return;
-  }
-
-  // C.0A1 — refuse a production run without explicit, single-invocation
-  // authorization. FIRST, before any Prisma call: a refusal should not even
-  // open a connection. The skip above stays ahead of it so pg-specs keep
-  // working as a no-op without needing production authorization.
-  assertSeedAllowed();
-
   console.log("🌱 Seeding database...\n");
 
   // ─── Book Categories (S5) ────────────────────────────────────────────────
@@ -1052,12 +1058,13 @@ async function main() {
   console.log("\n🌱 Seed completado.");
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-    await pool.end();
-  });
+// Skip → refuse → build → seed → dispose. The client is built by the factory
+// this call owns, so nothing exists to close when the guard refuses.
+runGuardedSeed({
+  env: process.env,
+  createClient: createSeedClient,
+  seed: () => main(),
+}).catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

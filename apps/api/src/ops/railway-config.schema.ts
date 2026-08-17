@@ -7,8 +7,10 @@ import { z } from "zod";
  *
  *   - Source: Railway's official schema, fetched once from
  *     `https://railway.com/railway.schema.json` (301 →
- *     `backboard.railway.app`), sha256 `38d35a7de8d6fa51…`, on 2026-08-17.
- *     Both files were validated against it with `ajv --spec=draft7`: valid.
+ *     `backboard.railway.app`), sha256
+ *     `38d35a7de8d6fa511895abbcf9a2cac49a12494fd6a9cd2d4228a5b2a8af5e5f`
+ *     (8510 bytes), on 2026-08-17. Both files validated against it with
+ *     `ajv --spec=draft7`: valid.
  *   - This is a POLICY schema, not a compatibility proof. It says what WE
  *     allow; the official document says what Railway accepts. The two are
  *     recorded separately (LOCAL_POLICY_SCHEMA_VALIDATION vs

@@ -127,15 +127,34 @@ cada deployment y el fichero solo sobrescribe los valores que declara. Un campo
 omitido **no** vuelve a su default — conserva el del dashboard. Por eso todo
 campo efectivo queda clasificado, sin categoría implícita:
 
-| Campo                                                                   | Autoridad                                                                                              |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `builder`, `buildCommand`, `watchPatterns`                              | `CODE_OWNED`                                                                                           |
-| `startCommand`, `preDeployCommand`                                      | `CODE_OWNED`                                                                                           |
-| `healthcheckPath` (API), `restartPolicyType`, `restartPolicyMaxRetries` | `CODE_OWNED`                                                                                           |
-| `sleepApplication`                                                      | `CODE_OWNED` — está en el schema oficial bajo `deploy`, así que se declara en vez de asumir su default |
-| `rootDirectory`                                                         | `DASHBOARD_OWNED` — no existe en el schema oficial de Config-as-Code                                   |
-| `railwayConfigFile`                                                     | `DASHBOARD_OWNED` por necesidad: es el puntero al propio fichero                                       |
-| `healthcheckTimeout`, `cronSchedule`, `numReplicas`, `region`           | `NOT_APPLICABLE` — sin valor efectivo hoy                                                              |
+| Campo                                                                                       | Autoridad                                                     | Por qué                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `builder`, `buildCommand`, `watchPatterns`                                                  | `CODE_OWNED`                                                  | declarados en el fichero                                                                                                                                                      |
+| `startCommand`; `preDeployCommand` (API)                                                    | `CODE_OWNED`                                                  | declarados                                                                                                                                                                    |
+| `healthcheckPath` (API), `restartPolicyType`, `restartPolicyMaxRetries`, `sleepApplication` | `CODE_OWNED`                                                  | declarados; `sleepApplication` está en el schema oficial bajo `deploy`                                                                                                        |
+| `preDeployCommand` (worker)                                                                 | **`DASHBOARD_OWNED` · sin resolver**                          | el fichero lo **omite**, y omitir no impide heredar. Hoy el valor efectivo está vacío, así que no hay exposición real — pero el contrato **no** garantiza que no aparezca uno |
+| `healthcheckPath` (worker)                                                                  | **`DASHBOARD_OWNED` · sin resolver**                          | idéntico: el worker no tiene listener HTTP y el fichero no puede impedir hoy que herede un healthcheck                                                                        |
+| `rootDirectory`                                                                             | `DASHBOARD_OWNED`                                             | no existe en el schema oficial de Config-as-Code                                                                                                                              |
+| `railwayConfigFile`                                                                         | `DASHBOARD_OWNED`                                             | es el puntero al propio fichero                                                                                                                                               |
+| `cronSchedule`, `numReplicas`, `region`, `healthcheckTimeout`                               | `NOT_APPLICABLE` · **sin valor efectivo hoy, no garantizado** | ninguno está declarado; si el dashboard fijara uno, el fichero no lo impediría                                                                                                |
+
+**Cuestión abierta — representación autoritativa de «sin preDeploy».** El schema
+oficial acepta `string`, un array de **un solo elemento** (`maxItems: 1`) y
+`null`. La documentación dice que la configuración en código sobrescribe al
+dashboard _cuando está presente_, pero **no** define qué hace un campo omitido
+ni si `null` limpia un valor existente. La forma del schema
+(`anyOf[{not:{}}, …, null]`, típica de un `Option<Option<T>>`) sugiere que
+Railway distingue «ausente» de «null» — pero es una inferencia sobre el
+generador del schema, no documentación.
+
+```
+BLOCKED_NEEDS_NON_PRODUCTION_RAILWAY_PROBE=true
+```
+
+Elegir `[]` o `null` por intuición sería peor que declararlo sin resolver.
+Resolverlo requiere una sonda en un servicio **no productivo**: fijar un
+preDeploy por dashboard, enlazar un fichero con cada variante y observar el
+`serviceManifest` resuelto del deployment.
 
 **Cinco estados distintos, que no deben confundirse:**
 
@@ -151,6 +170,14 @@ Enlazar solo demuestra el segundo. **Los tres últimos exigen al menos un
 deployment por servicio y evidencia en su configuración resuelta**: releer
 `serviceInstance` después del binding no prueba que un deployment haya
 consumido el fichero.
+
+La evidencia existe y es concreta: `deployment.meta.serviceManifest` registra la
+configuración **resuelta** de cada deployment (bloques `build` y `deploy`
+completos), y `meta.fileServiceManifest` junto con `meta.propertyFileMapping`
+están hoy **vacíos** en el deployment activo del API — coherente con que no hay
+fichero enlazado. La verificación posterior al binding consiste en comprobar que
+dejan de estarlo y que el `serviceManifest` coincide con el fichero del commit
+desplegado.
 
 Orden operativo futuro, cada paso con autorización propia:
 

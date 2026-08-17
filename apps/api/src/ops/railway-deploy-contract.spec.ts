@@ -103,9 +103,21 @@ describe("deploy contract · the files are exactly the approved contract", () =>
     expect(parsed(workerPath)).toEqual(WORKER_EXPECTED);
   });
 
-  it("the worker declares no pre-deploy key at all", () => {
-    // Not "an empty array" — absent. An empty array is a place for something
-    // to be added into.
+  it("the worker's file declares no pre-deploy", () => {
+    // What this asserts, exactly: the FILE contains no pre-deploy. It does NOT
+    // assert that the worker cannot inherit one from the dashboard.
+    //
+    // Railway merges file and dashboard on every deployment, and the official
+    // documentation states only that code overrides dashboard values "when
+    // present" — it does not define what an omitted field does, nor whether
+    // `null` clears an existing value. The schema accepts string, a
+    // single-element array, and null, but accepting null is not the same as
+    // documenting that null unsets.
+    //
+    // Today there is nothing to inherit: the worker's effective
+    // `preDeployCommand` is unset. The authoritative "no pre-deploy"
+    // representation is an open question (see ROADMAP), and choosing `[]` or
+    // `null` on a guess would be worse than saying so.
     expect("preDeployCommand" in parsed(workerPath).deploy).toBe(false);
   });
 });

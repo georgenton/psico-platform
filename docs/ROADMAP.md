@@ -260,39 +260,110 @@ WAVE_2_MANUAL_REDEPLOYS_EXPECTED=0_or_1_per_service
 ```
 
 El binding puede generar ese deployment por sí solo o no; si no lo genera, se
-inicia un redeploy manual sobre el SHA ya fusionado. Lo que **nunca** es correcto
-es reportar «0 deployments en la onda 2 porque el binding los disparó»: el
-deployment existe y es justamente el que hay que verificar. Lo que sí puede ser
-0 es el número de **redeploys manuales**.
+inicia un deployment desde la fuente sobre el SHA ya fusionado. Lo que **nunca**
+es correcto es reportar «0 deployments en la onda 2 porque el binding los
+disparó»: el deployment existe y es justamente el que hay que verificar. Lo que
+sí puede ser 0 es el número de **deployments manuales**.
+
+###### Escribir el path y aplicarlo son operaciones distintas
+
+Este es el error que costó el primer intento de la onda 2A. **Escribir**
+`railwayConfigFile` deja el path guardado; **aplicarlo** exige un deployment que
+vuelva a resolver la configuración desde el repositorio. Son dos operaciones, no
+una.
+
+Y no cualquier deployment sirve. Un **redeploy del deployment actual** reutiliza
+la configuración ya resuelta de ese deployment: termina en `SUCCESS`, no aplica
+el binding pendiente y **no demuestra nada**. Lo que hace falta es un deployment
+**desde la fuente**.
+
+Medido en una sonda efímera (proyecto Railway desechable conectado a este mismo
+repo en `main`, borrado al terminar):
+
+```
+BINDING_WRITE_CREATED_STAGED_CHANGE=false   la escritura se aplica directa
+BINDING_WRITE_CREATED_DEPLOYMENT=false      no dispara nada por sí sola
+BINDING_APPLICATION_MODE=FROM_SOURCE_REDEPLOY_AFTER_APPLIED_BINDING
+COMMAND_VERIFIED=railway redeploy --from-source   (CLI 5.41.2)
+```
+
+Si en un intento futuro la escritura **sí** produjera un staged change, el
+mecanismo correcto sería aplicar ese changeset —no un redeploy— y volver a
+medir. La secuencia empieza con **cero staged changes** y termina con **cero
+staged changes**; cualquier otro estado es ambiguo y detiene la onda.
+
+###### La prueba autoritativa son los tres manifests
+
+El estado `SUCCESS` **no** es evidencia de nada. Un deployment sano con
+manifests vacíos es un **fallo de la onda**, no un aprobado con matices. La
+prueba es:
+
+- `fileServiceManifest` **no vacío** y reproduciendo el fichero;
+- `propertyFileMapping` **no vacío**, atribuyendo cada campo declarado a su ruta
+  JSON de origen (`$.build.*`, `$.deploy.*`);
+- `serviceManifest` resolviendo exactamente el contenido del fichero.
+
+La sonda confirmó también lo que C.0A1 solo había derivado: los `null`
+declarados del worker aparecen en `propertyFileMapping` como contribuciones del
+fichero. Un `null` declarado **es** una declaración, ahora observada en un
+deployment real.
+
+###### Desenlazado se decide por «bound vs unbound», no por el valor guardado
+
+`serviceInstanceUpdate` no sabe escribir `null`: lo trata como campo ausente y
+devuelve `true` sin cambiar nada. Al limpiar un binding, el campo queda en `""`.
+
+Observado en el dashboard de producción, un servicio cuyo `railwayConfigFile`
+vale `""` muestra **`Add File Path`** — el mismo estado que uno con `null`. Son
+**dos representaciones de almacenamiento distintas del mismo estado semántico**
+«sin custom config path»; no son el mismo valor y no se comparan por igualdad
+entre sí. La comprobación correcta es si el servicio está enlazado o no:
+
+```
+UNBOUND  ⇔  railwayConfigFile ∈ { null, "" }  Y  cero staged changes
+BOUND    ⇔  cualquier path no vacío
+```
+
+Un path no vacío **nunca** cuenta como desenlazado, aunque apunte a un fichero
+que no existe.
 
 ###### Onda 2A — worker (canario)
 
-1. Enlazar únicamente `/apps/api/railway.worker.json`.
-2. Comprobar si el binding generó un deployment.
-3. Si no lo generó, redesplegar el worker sobre el SHA fusionado — no sobre otro
-   commit.
-4. Verificar en **ese** deployment `serviceManifest`, `fileServiceManifest` y
-   `propertyFileMapping`: los `watchPatterns` nuevos provienen del fichero,
-   `preDeployCommand = null`, `healthcheckPath = null`, `sleepApplication =
-false`, ninguna mención del seed; y en logs, arranque limpio del worker con
-   sus processors registrados.
-5. Ante cualquier divergencia: desenlazar **solo** el worker, restaurar su
+1. Comprobar que el entorno arranca con **cero staged changes**.
+2. Enlazar únicamente `/apps/api/railway.worker.json`.
+3. Registrar por separado si la escritura creó un staged change y si creó un
+   deployment. No esperar pasivamente.
+4. Si creó un staged change, aplicar ese changeset. Si no, lanzar **un**
+   deployment desde la fuente (`railway redeploy --from-source`) sobre el SHA
+   fusionado — no sobre otro commit, y **nunca** un redeploy del deployment
+   actual.
+5. Verificar en **ese** deployment los tres manifests: `fileServiceManifest` y
+   `propertyFileMapping` no vacíos, y `serviceManifest` con los siete watch
+   paths en orden, `preDeployCommand = null`, `healthcheckPath = null`,
+   `sleepApplication = false`, ninguna mención del seed; y en logs, arranque
+   limpio del worker con sus processors registrados.
+6. Comprobar que el entorno queda otra vez con **cero staged changes**.
+7. Ante cualquier divergencia: desenlazar **solo** el worker, restaurar su
    deployment previo y detenerse.
-6. **Gate terminal:** no se pasa al API hasta que el worker esté sano y
-   verificado. Un worker «probablemente bien» no habilita la onda 2B.
+8. **Gate terminal:** no se pasa al API hasta que el worker esté sano y
+   verificado. Un worker «probablemente bien» no habilita la onda 2B. Mientras
+   `WAVE_2A_COMPLETE=false`, el siguiente paso es reintentar la 2A, nunca
+   empezar la 2B.
 
 ###### Onda 2B — API
 
 1. Enlazar `/apps/api/railway.api.json`.
-2. Comprobar si el binding generó un deployment.
-3. Si no lo generó, redesplegar el API sobre el mismo SHA fusionado.
+2. Registrar si la escritura creó staged change o deployment.
+3. Si no creó ninguno, lanzar **un** deployment desde la fuente sobre el mismo
+   SHA fusionado.
 4. Verificar en **ese** deployment que el preDeploy ejecuta **solo**
    `migrate:deploy`, aplica **0** migraciones y **nunca** ejecuta el seed; y que
    la configuración resuelta trae del fichero los `watchPatterns` (incluido
    `turbo.json`, exclusivo del API), `preDeployCommand = ["pnpm --filter
 @psico/api migrate:deploy"]`, `healthcheckPath = "/health"` y
    `sleepApplication = false`.
-5. Comprobar `/health` y cerrar con smoke anónimo de solo lectura.
+5. Comprobar `/health`, que el entorno queda con **cero staged changes**, y
+   cerrar con smoke anónimo de solo lectura.
 6. Ante divergencia: desenlazar el API, restaurar su deployment previo y
    detenerse.
 
@@ -318,9 +389,9 @@ sin consulta adicional:
 
 - **Onda 1** — restaurar los deployments de retorno registrados en Railway (API
   y worker) y el de producción en Vercel.
-- **Binding** — devolver `railwayConfigFile = None` en el servicio afectado. Eso
-  restituye la autoridad del dashboard, que sigue intacta porque el fichero
-  nunca escribe en ella.
+- **Binding** — vaciar `railwayConfigFile` en el servicio afectado hasta dejarlo
+  desenlazado (`null` o `""`, según lo dicho arriba). Eso restituye la autoridad
+  del dashboard, que sigue intacta porque el fichero nunca escribe en ella.
 - **API sana y worker fallido** — desenlazar **solo** el worker y restaurar su
   deployment previo. El API queda como esté; son servicios independientes y el
   worker no atiende tráfico.

@@ -144,8 +144,11 @@ describe("docs ratchet · the two-wave plan stays safe", () => {
   it("forbids reporting zero deployments because the binding triggered them", () => {
     // A deployment the binding created is still a deployment, and it is the
     // exact one carrying the file for the first time.
-    expect(text()).toMatch(
-      /nunca\*{0,2}\s+es correcto\s*\n?\s*es reportar «0 deployments en la onda 2 porque el binding los disparó»/,
+    // Whitespace-tolerant: the sentence reflows whenever the section is edited,
+    // and a ratchet that breaks on rewrapping teaches people to delete it.
+    const flat = text().replace(/\s+/g, " ");
+    expect(flat).toMatch(
+      /nunca\*{0,2} es correcto es reportar «0 deployments en la onda 2 porque el binding los disparó»/,
     );
   });
 
@@ -195,6 +198,94 @@ describe("docs ratchet · the two-wave plan stays safe", () => {
   it("does not pause autodeploy or revert Git without its own authorization", () => {
     expect(text()).toMatch(
       /no se pausa el autodeploy ni se revierte\s*\n?Git sin autorización independiente/,
+    );
+  });
+});
+
+/**
+ * How a binding actually gets applied — learned the expensive way.
+ *
+ * The first wave-2A attempt wrote the config path, ran `railway redeploy`, got
+ * a green SUCCESS, and proved nothing: a plain redeploy reuses the resolved
+ * configuration of the deployment it copies, so the pending binding was never
+ * applied. A throwaway Railway project then showed what does work — writing the
+ * path applies immediately (no staged change), and a deployment FROM SOURCE is
+ * what re-resolves Config-as-Code.
+ *
+ * These pins exist so that lesson cannot quietly evaporate from the plan.
+ */
+describe("docs ratchet · applying a binding is not the same as writing it", () => {
+  it("separates writing the path from applying it", () => {
+    const src = text();
+    expect(src).toMatch(
+      /\*\*Escribir\*\*\s*\n?`railwayConfigFile` deja el path guardado; \*\*aplicarlo\*\*/,
+    );
+    expect(src).toMatch(/Son dos operaciones, no\s*\n?una/);
+  });
+
+  it("rejects a plain redeploy as proof of consumption", () => {
+    const src = text();
+    expect(src).toMatch(
+      /redeploy del deployment actual\*{0,2} reutiliza\s*\n?la configuración ya resuelta/,
+    );
+    expect(src).toMatch(
+      /no aplica\s*\n?el binding pendiente y \*\*no demuestra nada\*\*/,
+    );
+  });
+
+  it("names the source-deployment mechanism the probe actually verified", () => {
+    const src = text();
+    expect(src).toContain(
+      "BINDING_APPLICATION_MODE=FROM_SOURCE_REDEPLOY_AFTER_APPLIED_BINDING",
+    );
+    // The command has two jobs — recorded as what the probe verified, and
+    // prescribed in the wave-2A steps. `toContain` cannot tell them apart, so
+    // losing either one would slip past a single check.
+    expect(src).toContain("COMMAND_VERIFIED=railway redeploy --from-source");
+    expect(src.replace(/\s+/g, " ")).toMatch(
+      /deployment desde la fuente \(`railway redeploy --from-source`\) sobre el SHA/,
+    );
+    expect(src).toContain("BINDING_WRITE_CREATED_STAGED_CHANGE=false");
+    expect(src).toContain("BINDING_WRITE_CREATED_DEPLOYMENT=false");
+  });
+
+  it("keeps the staged-change bookends on the wave", () => {
+    const src = text();
+    expect(src).toMatch(
+      /empieza con \*\*cero staged changes\*\* y termina con \*\*cero\s*\n?staged changes\*\*/,
+    );
+    expect(src).toMatch(/arranca con \*\*cero staged changes\*\*/);
+    expect(src).toMatch(/queda otra vez con \*\*cero staged changes\*\*/);
+  });
+
+  it("refuses SUCCESS alone and demands all three manifests", () => {
+    const src = text();
+    expect(src).toMatch(
+      /El estado `SUCCESS` \*\*no\*\* es evidencia de nada|`SUCCESS` \*\*no\*\* es evidencia/,
+    );
+    expect(src).toMatch(/manifests vacíos es un \*\*fallo\s*\n?de la onda\*\*/);
+    // Empty is never acceptable for either provenance manifest.
+    expect(src).toMatch(/`fileServiceManifest` \*\*no vacío\*\*/);
+    expect(src).toMatch(/`propertyFileMapping` \*\*no vacío\*\*/);
+  });
+
+  it("treats null and empty string as representations, never as equal values", () => {
+    const src = text();
+    // Both mean unbound — but they are distinct stored values, and the check is
+    // bound-vs-unbound. Collapsing them into "equivalent" is the regression.
+    expect(src).toMatch(
+      /\*\*dos representaciones de almacenamiento distintas del mismo estado\s*\n?semántico\*\*/,
+    );
+    expect(src).toMatch(/no son el mismo valor/);
+    expect(src).toContain('UNBOUND  ⇔  railwayConfigFile ∈ { null, "" }');
+    expect(src).toMatch(
+      /Un path no vacío \*\*nunca\*\* cuenta como desenlazado/,
+    );
+  });
+
+  it("blocks wave 2B while 2A is incomplete", () => {
+    expect(text()).toMatch(
+      /Mientras\s*\n?\s*`WAVE_2A_COMPLETE=false`, el siguiente paso es reintentar la 2A, nunca\s*\n?\s*empezar la 2B/,
     );
   });
 });

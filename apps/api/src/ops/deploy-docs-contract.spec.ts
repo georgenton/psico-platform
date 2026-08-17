@@ -118,3 +118,83 @@ describe("docs ratchet · the measured semantics are recorded", () => {
     expect(text()).toMatch(/NOT_APPLICABLE`? · \*\*no declarados\*\*/);
   });
 });
+
+/**
+ * The operational plan gets its own ratchet.
+ *
+ * These are not stylistic preferences. Each pins a way the plan could quietly
+ * become unsafe again: counting a binding-triggered deployment as "none", so it
+ * never gets verified; binding both services at once, so the canary stops being
+ * a canary; and calling an operational rollback "closed" while `main` still
+ * points at the code that failed.
+ */
+describe("docs ratchet · the two-wave plan stays safe", () => {
+  it("expects exactly one verifiable deployment per service in wave 2", () => {
+    const src = text();
+    expect(src).toContain("WAVE_2_WORKER_DEPLOYMENTS_EXPECTED=1");
+    expect(src).toContain("WAVE_2_API_DEPLOYMENTS_EXPECTED=1");
+    // Only the MANUAL redeploys may be zero.
+    expect(src).toContain(
+      "WAVE_2_MANUAL_REDEPLOYS_EXPECTED=0_or_1_per_service",
+    );
+    expect(src).not.toContain("WAVE_2_API_DEPLOYMENTS_EXPECTED=0");
+    expect(src).not.toContain("WAVE_2_WORKER_DEPLOYMENTS_EXPECTED=0");
+  });
+
+  it("forbids reporting zero deployments because the binding triggered them", () => {
+    // A deployment the binding created is still a deployment, and it is the
+    // exact one carrying the file for the first time.
+    expect(text()).toMatch(
+      /nunca\*{0,2}\s+es correcto\s*\n?\s*es reportar «0 deployments en la onda 2 porque el binding los disparó»/,
+    );
+  });
+
+  it("binds the worker first and the API only after it is healthy", () => {
+    const src = text();
+    expect(src).toContain("WAVE_2_WORKER_FIRST=true");
+    expect(src).toContain("WAVE_2_API_AFTER_WORKER_HEALTHY=true");
+    expect(src).toMatch(/Los dos servicios no se enlazan a la vez/);
+    expect(src).toMatch(/worker \(canario\)/i);
+    // Wave 2A must precede wave 2B in the document, not merely be mentioned.
+    expect(src.indexOf("Onda 2A")).toBeGreaterThan(0);
+    expect(src.indexOf("Onda 2B")).toBeGreaterThan(src.indexOf("Onda 2A"));
+  });
+
+  it("keeps a terminal health gate between the worker and the API", () => {
+    expect(text()).toMatch(
+      /\*\*Gate terminal:\*\* no se pasa al API hasta que el worker esté sano/,
+    );
+  });
+
+  it("separates operational rollback from source reconciliation", () => {
+    const src = text();
+    expect(src).toMatch(/Nivel 1 · Rollback operativo inmediato/);
+    expect(src).toMatch(/Nivel 2 · Reconciliación de fuente/);
+    // Restoring a deployment leaves main ahead of production. Say so.
+    expect(src).toMatch(/`main` sigue\s*\n?apuntando al commit nuevo/);
+    expect(src).toMatch(/solicitar autorización\*{0,2} antes de fusionarla/);
+  });
+
+  it("never calls an operational rollback a closed incident", () => {
+    const src = text();
+    // The marker has two distinct jobs, and `toContain` alone cannot tell them
+    // apart: it must be REPORTED by whoever rolls back, and it must be what
+    // keeps the incident open. Dropping either one leaves the other looking
+    // like coverage.
+    expect(src).toMatch(
+      /reportar\s*\n?\s*la causa exacta y registrar `SOURCE_RUNTIME_DIVERGENCE=true`/,
+    );
+    expect(src).toMatch(
+      /rollback operativo con `SOURCE_RUNTIME_DIVERGENCE=true` es una \*\*mitigación\s*\n?completada, no un incidente cerrado\*\*/,
+    );
+    expect(src).toMatch(
+      /no declarar cerrado el incidente\*{0,2} mientras `main` y producción no vuelvan a/,
+    );
+  });
+
+  it("does not pause autodeploy or revert Git without its own authorization", () => {
+    expect(text()).toMatch(
+      /no se pausa el autodeploy ni se revierte\s*\n?Git sin autorización independiente/,
+    );
+  });
+});

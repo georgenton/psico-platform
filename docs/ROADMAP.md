@@ -208,10 +208,11 @@ Orden operativo futuro, cada paso con autorización propia:
 
 1. fusionar el código bajo la configuración seedless actual;
 2. verificar ese deployment;
-3. enlazar `railwayConfigFile` a `/apps/api/railway.api.json` y
-   `/apps/api/railway.worker.json`;
-4. realizar o esperar deployments explícitamente autorizados;
-5. verificar **en cada deployment** que la configuración provino del fichero y
+3. enlazar `railwayConfigFile` **primero solo en el worker**
+   (`/apps/api/railway.worker.json`) y verificarlo;
+4. enlazar el API (`/apps/api/railway.api.json`) **solo con el worker sano**;
+5. realizar o esperar deployments explícitamente autorizados;
+6. verificar **en cada deployment** que la configuración provino del fichero y
    coincide con el commit desplegado.
 
 #### C.0A1 — plan productivo en dos ondas
@@ -241,25 +242,61 @@ comportamiento con cualquier push a `main`, ya observado. El binding todavía no
 ocurre, así que **los ficheros no gobiernan nada en esta onda** — el despliegue
 usa la configuración del dashboard, que ya es seedless.
 
-##### Onda 2 — binding y verificación real
+##### Onda 2 — binding secuencial y verificación real
 
-Solo si la onda 1 quedó sana. Enlazar `railwayConfigFile` a
-`/apps/api/railway.api.json` y `/apps/api/railway.worker.json`.
+Solo si la onda 1 quedó sana. **Los dos servicios no se enlazan a la vez.** El
+worker va primero como canario: no atiende tráfico y no toca la base de datos,
+así que si el modelo de fusión no se comporta como creemos, lo descubrimos donde
+nadie lo nota. El API se toca **después**, y solo con el worker sano.
 
-Después hay que **comprobar si el binding por sí solo crea un deployment**. Si
-no lo crea, ejecutar un redeploy controlado de ambos servicios sobre el SHA ya
-fusionado — no sobre otro commit. Y en cada deployment inspeccionar
-`serviceManifest`, `fileServiceManifest` y `propertyFileMapping` para demostrar:
+Cada subpaso produce **exactamente un deployment verificable** para su servicio:
 
-- los `watchPatterns` nuevos **provienen del fichero** (aparecen en
-  `propertyFileMapping`, no solo en el resuelto);
-- API `preDeployCommand = ["pnpm --filter @psico/api migrate:deploy"]`;
-- worker `preDeployCommand = null`;
-- worker `healthcheckPath = null`;
-- `sleepApplication = false` en ambos;
-- **ninguna** configuración menciona el seed.
+```
+WAVE_2_WORKER_FIRST=true
+WAVE_2_API_AFTER_WORKER_HEALTHY=true
+WAVE_2_WORKER_DEPLOYMENTS_EXPECTED=1
+WAVE_2_API_DEPLOYMENTS_EXPECTED=1
+WAVE_2_MANUAL_REDEPLOYS_EXPECTED=0_or_1_per_service
+```
 
-Cierre con smoke anónimo de solo lectura. Hasta aquí:
+El binding puede generar ese deployment por sí solo o no; si no lo genera, se
+inicia un redeploy manual sobre el SHA ya fusionado. Lo que **nunca** es correcto
+es reportar «0 deployments en la onda 2 porque el binding los disparó»: el
+deployment existe y es justamente el que hay que verificar. Lo que sí puede ser
+0 es el número de **redeploys manuales**.
+
+###### Onda 2A — worker (canario)
+
+1. Enlazar únicamente `/apps/api/railway.worker.json`.
+2. Comprobar si el binding generó un deployment.
+3. Si no lo generó, redesplegar el worker sobre el SHA fusionado — no sobre otro
+   commit.
+4. Verificar en **ese** deployment `serviceManifest`, `fileServiceManifest` y
+   `propertyFileMapping`: los `watchPatterns` nuevos provienen del fichero,
+   `preDeployCommand = null`, `healthcheckPath = null`, `sleepApplication =
+false`, ninguna mención del seed; y en logs, arranque limpio del worker con
+   sus processors registrados.
+5. Ante cualquier divergencia: desenlazar **solo** el worker, restaurar su
+   deployment previo y detenerse.
+6. **Gate terminal:** no se pasa al API hasta que el worker esté sano y
+   verificado. Un worker «probablemente bien» no habilita la onda 2B.
+
+###### Onda 2B — API
+
+1. Enlazar `/apps/api/railway.api.json`.
+2. Comprobar si el binding generó un deployment.
+3. Si no lo generó, redesplegar el API sobre el mismo SHA fusionado.
+4. Verificar en **ese** deployment que el preDeploy ejecuta **solo**
+   `migrate:deploy`, aplica **0** migraciones y **nunca** ejecuta el seed; y que
+   la configuración resuelta trae del fichero los `watchPatterns` (incluido
+   `turbo.json`, exclusivo del API), `preDeployCommand = ["pnpm --filter
+@psico/api migrate:deploy"]`, `healthcheckPath = "/health"` y
+   `sleepApplication = false`.
+5. Comprobar `/health` y cerrar con smoke anónimo de solo lectura.
+6. Ante divergencia: desenlazar el API, restaurar su deployment previo y
+   detenerse.
+
+C.0A1 termina **solo** cuando ambos subpasos están cerrados:
 
 ```
 RAILWAY_CONFIG_PATHS_BOUND=true
@@ -268,12 +305,19 @@ CONFIG_SOURCE_USED_BY_WORKER_DEPLOYMENT=true
 DEPLOYED_CONFIG_MATCHES_REPO=true
 ```
 
-##### Rollback
+##### Rollback — dos niveles que no se confunden
+
+Restaurar un deployment anterior **no** revierte el código: `main` sigue
+apuntando al commit nuevo, producción ejecuta un artefacto viejo, y cualquier
+push o redeploy posterior vuelve a publicar el HEAD defectuoso. Por eso el
+rollback operativo y la reconciliación de fuente son cosas distintas y se
+autorizan por separado.
+
+**Nivel 1 · Rollback operativo inmediato** — autorizable dentro de cada onda,
+sin consulta adicional:
 
 - **Onda 1** — restaurar los deployments de retorno registrados en Railway (API
-  y worker) y el de producción en Vercel. **Sin revertir Git**: la PR aporta 0
-  migraciones y el preflight habrá demostrado 0 pendientes, así que **no hay
-  rollback de base de datos** que hacer ni que proponer.
+  y worker) y el de producción en Vercel.
 - **Binding** — devolver `railwayConfigFile = None` en el servicio afectado. Eso
   restituye la autoridad del dashboard, que sigue intacta porque el fichero
   nunca escribe en ella.
@@ -281,11 +325,28 @@ DEPLOYED_CONFIG_MATCHES_REPO=true
   deployment previo. El API queda como esté; son servicios independientes y el
   worker no atiende tráfico.
 - **El binding resuelve una configuración distinta de la esperada** — desenlazar
-  ambos antes de investigar. Una configuración resuelta que no coincide con el
-  fichero significa que no entendemos la fusión, y operar sobre esa base sería
-  peor que quedarse con el dashboard.
-- Tras cualquier rollback: releer la configuración efectiva, comprobar salud y
-  reportar la causa exacta.
+  el servicio afectado (y cualquiera enlazado antes) y **detenerse** a
+  investigar. Una configuración resuelta que no coincide con el fichero
+  significa que no entendemos la fusión, y operar sobre esa base sería peor que
+  quedarse con el dashboard.
+- Tras cualquiera: releer la configuración efectiva, comprobar salud, reportar
+  la causa exacta y registrar `SOURCE_RUNTIME_DIVERGENCE=true`.
+
+**Sin rollback de base de datos.** La PR aporta 0 migraciones y el preflight
+habrá demostrado 0 pendientes, así que no hay ninguno que hacer ni que proponer.
+
+**Nivel 2 · Reconciliación de fuente** — nunca automática:
+
+- preparar un revert commit o una PR de revert;
+- ejecutar CI sobre ella;
+- **solicitar autorización** antes de fusionarla;
+- **no declarar cerrado el incidente** mientras `main` y producción no vuelvan a
+  coincidir.
+
+Un rollback operativo con `SOURCE_RUNTIME_DIVERGENCE=true` es una **mitigación
+completada, no un incidente cerrado**. Y no se pausa el autodeploy ni se revierte
+Git sin autorización independiente: ambas cosas cambian el comportamiento del
+repositorio, no solo el de un deployment.
 
 **Diferencia deliberada pendiente de aplicar por binding:** los `watchPatterns`
 versionados corrigen un cierre de dependencias incompleto en el dashboard. Hoy

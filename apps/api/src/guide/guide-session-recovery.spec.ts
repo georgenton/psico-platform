@@ -25,22 +25,24 @@ const USER = "user-1";
 /** Only the two collaborators the recovery path touches. */
 function makeService(over: { active?: unknown; accepted?: unknown[] }): {
   service: GuideLifecycleService;
-  findActive: ReturnType<typeof vi.fn>;
+  findActiveOwnForGuideKey: ReturnType<typeof vi.fn>;
   listAccepted: ReturnType<typeof vi.fn>;
 } {
-  const findActive = vi.fn().mockResolvedValue(over.active ?? null);
+  const findActiveOwnForGuideKey = vi
+    .fn()
+    .mockResolvedValue(over.active ?? null);
   const listAccepted = vi.fn().mockResolvedValue(over.accepted ?? []);
   const service = new GuideLifecycleService(
     {} as never, // prisma — untouched by a read
     {} as never, // resolver
     {} as never, // access
     {} as never, // context
-    { findActive } as never,
+    { findActiveOwnForGuideKey } as never,
     { listAccepted } as never,
     {} as never, // receipts
     {} as never, // events
   );
-  return { service, findActive, listAccepted };
+  return { service, findActiveOwnForGuideKey, listAccepted };
 }
 
 const session = (over: Record<string, unknown> = {}) => ({
@@ -80,9 +82,11 @@ describe("GR-5 — recoverable session lookup", () => {
   });
 
   it("scopes the lookup to the JWT actor — the query carries the user", async () => {
-    const { service, findActive } = makeService({ active: null });
+    const { service, findActiveOwnForGuideKey } = makeService({ active: null });
     await service.findRecoverableSession(USER, PIN);
-    expect(findActive).toHaveBeenCalledWith(USER);
+    // C.0A — the lineage is part of the QUERY, not a filter applied to
+    // whatever row came back. Asked about A it can no longer be handed B.
+    expect(findActiveOwnForGuideKey).toHaveBeenCalledWith(USER, PIN.guideKey);
   });
 
   it("returns the session for an exact pin, derived from the ledger", async () => {
@@ -155,14 +159,14 @@ describe("GR-5 — recoverable session lookup", () => {
   });
 
   it("reads nothing but the two rows it needs — no write primitive is reachable", async () => {
-    const { service, findActive, listAccepted } = makeService({
+    const { service, findActiveOwnForGuideKey, listAccepted } = makeService({
       active: session(),
       accepted: [],
     });
     await service.findRecoverableSession(USER, PIN);
     // The service was built with `{}` for prisma, receipts and events: had the
     // read touched any of them, this test would have thrown instead of passing.
-    expect(findActive).toHaveBeenCalledTimes(1);
+    expect(findActiveOwnForGuideKey).toHaveBeenCalledTimes(1);
     expect(listAccepted).toHaveBeenCalledTimes(1);
   });
 });
@@ -203,5 +207,37 @@ describe("GR-5 — the query is parsed, never coerced", () => {
       expect(e.message).toBe("GUIDE_INVALID_RECOVERY_QUERY");
       expect(e.message).not.toContain("Not A Key");
     }
+  });
+});
+
+describe("C.0A — recovery is scoped to the lineage it was asked about", () => {
+  it("never returns another guide's ACTIVE session", async () => {
+    // The defect this closes: with one ACTIVE row allowed per user, reading
+    // "the" active session and comparing the pin afterwards was sound. Once
+    // two lineages can be ACTIVE, that read returns an arbitrary one — so a
+    // reader asking about A could be answered with B, or told A was never
+    // started while it was running. Here the repository is the one that
+    // scopes, so a foreign lineage cannot even be a candidate.
+    const { service, findActiveOwnForGuideKey } = makeService({ active: null });
+
+    const result = await service.findRecoverableSession(USER, PIN);
+
+    expect(result).toBeNull();
+    expect(findActiveOwnForGuideKey).toHaveBeenCalledWith(USER, PIN.guideKey);
+    expect(findActiveOwnForGuideKey).not.toHaveBeenCalledWith(
+      USER,
+      expect.not.stringMatching(PIN.guideKey),
+    );
+  });
+
+  it("still refuses a different VERSION of the same lineage", async () => {
+    // C.0A deliberately does not change this: offering an older pinned
+    // version where a newer one was asked for is a public behaviour change,
+    // and it belongs to the per-Experience state endpoint.
+    const { service } = makeService({
+      active: session({ guideVersion: GUIDE.guideVersion + 1 }),
+    });
+
+    await expect(service.findRecoverableSession(USER, PIN)).resolves.toBeNull();
   });
 });

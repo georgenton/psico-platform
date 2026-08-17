@@ -79,6 +79,12 @@ export interface CreateGuideSessionInput {
   currentStepKey: string;
 }
 
+/** The actor's ACTIVE-session count, as a value the caller cannot weaken. */
+export type ActiveOwnCardinality =
+  | { kind: "NONE" }
+  | { kind: "SINGLE"; session: GuideSessionRow }
+  | { kind: "MULTIPLE" };
+
 function sanitize(err: unknown): never {
   if (err instanceof GuideSessionStorageError) throw err;
   throw new GuideSessionStorageError();
@@ -104,17 +110,67 @@ export class GuideSessionRepository {
     }
   }
 
-  /** The user's ACTIVE session, if any (DB enforces at most one). */
-  async findActive(
+  /**
+   * The actor's ACTIVE session for ONE guide lineage.
+   *
+   * C.0A — replaces an unordered `findActive(userId)` that assumed the
+   * database allowed a single ACTIVE row per user. Once the invariant becomes
+   * per-`(userId, guideKey)` that assumption is false, and an unordered
+   * `findFirst` over several rows returns an ARBITRARY lineage: recovery could
+   * answer about guide B when asked about A, and START could cancel a journey
+   * nobody touched. Selecting by `guideKey` makes the answer a property of the
+   * query rather than of row order.
+   *
+   * At most one row can match in either schema state, so no ordering is needed
+   * here: the global index permits one ACTIVE per user, the lineage index one
+   * per user and guide.
+   */
+  async findActiveOwnForGuideKey(
     userId: string,
+    guideKey: string,
     db?: GuideSessionDb,
   ): Promise<GuideSessionRow | null> {
     const client = db ?? this.prisma;
     try {
       return await client.guideSession.findFirst({
-        where: { userId, status: "ACTIVE" },
+        where: { userId, guideKey, status: "ACTIVE" },
         select: SELECT,
       });
+    } catch (err) {
+      sanitize(err);
+    }
+  }
+
+  /**
+   * How many ACTIVE sessions the actor has, as a closed answer.
+   *
+   * Used only while the GLOBAL index is the authority, to PROVE the "at most
+   * one" it promises instead of assuming it. There is no caller-supplied
+   * limit: a `limit: 1` would hide the second row and turn the corruption
+   * check into a lie, so the bound of two is the operation's own.
+   *
+   * `MULTIPLE` is a state the global index says cannot exist. Reaching it
+   * means the schema and the code disagree, and the caller must write nothing.
+   */
+  async activeOwnCardinality(
+    userId: string,
+    db?: GuideSessionDb,
+  ): Promise<ActiveOwnCardinality> {
+    const client = db ?? this.prisma;
+    try {
+      const rows = await client.guideSession.findMany({
+        where: { userId, status: "ACTIVE" },
+        // Deterministic even though `MULTIPLE` discards the rows: a
+        // non-deterministic read has no business existing on this path.
+        orderBy: [{ startedAt: "asc" }, { id: "asc" }],
+        take: 2,
+        select: SELECT,
+      });
+      if (rows.length === 0) return { kind: "NONE" };
+      if (rows.length === 1) {
+        return { kind: "SINGLE", session: rows[0] as GuideSessionRow };
+      }
+      return { kind: "MULTIPLE" };
     } catch (err) {
       sanitize(err);
     }

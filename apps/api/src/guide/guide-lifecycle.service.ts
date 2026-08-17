@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import type {
@@ -12,7 +13,9 @@ import type {
   GuideStepDefinition,
   GuideExperienceStateResponse,
 } from "@psico/types";
-import type { Prisma } from "@prisma/client";
+// Value import, not `import type`: `Prisma.TransactionIsolationLevel` is read
+// at runtime to state the isolation level of both Guide command transactions.
+import { Prisma } from "@prisma/client";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -31,6 +34,11 @@ import {
   buildPracticeCompletedPayload,
 } from "../learning/learning-event-builders";
 import type { ValidatedLearningEvent } from "../learning/validated-learning-event";
+import {
+  c0aStartLockKeys,
+  readGuideActiveCapability,
+  type GuideActiveCapability,
+} from "./guide-active-capability";
 import { productionGuideRegistry } from "./guide-catalog";
 import { toGuideCompletionSummary } from "./guide-completion-summary";
 import type {
@@ -91,10 +99,13 @@ import {
  *     is never rejected by the state the session has since reached;
  *   - the LearningEvent a command emits carries EXACTLY the command's own
  *     idempotency key — the same canonical UUID stored in its receipt;
- *   - lock order is always START_LOCK (`guide:start:<userId>`) then
+ *   - lock order is always GLOBAL_COMPAT_START_LOCK (`guide:start:<userId>`)
+ *     then LINEAGE_START_LOCK (`guide:start:<userId>:<guideKey>`) then
  *     SESSION_MUTATION_LOCK (`guide:session:<userId>:<sessionId>`) — START
- *     nests the second one when it autocancels, and nothing ever takes them
- *     the other way round;
+ *     takes both start locks so a mixed fleet shares one with the version
+ *     before it and one with the version after, and nests the session lock
+ *     when it autocancels. Nothing ever takes them the other way round, which
+ *     is what makes the total order deadlock-free (ADR 0022 §7);
  *   - errors are value-free (`guide-errors.ts`): a foreign session and a
  *     nonexistent one are indistinguishable.
  *
@@ -187,11 +198,49 @@ export class GuideLifecycleService {
     private readonly events: LearningEventRepository,
   ) {}
 
+  /** Operational signal only — never a decision input. */
+  private readonly logger = new Logger("GuideLifecycle");
+
   // ─── Shared primitives ───────────────────────────────────────────────────
+
+  /**
+   * Say out loud that the schema is in a state we tolerate but did not expect.
+   *
+   * `degraded` is the whole reason authority and health are separate values:
+   * a half-built or leftover-invalid lineage index does NOT stop START, which
+   * is correct — and would therefore be completely invisible without this. A
+   * failed `CREATE INDEX CONCURRENTLY` leaves its index behind, so the state
+   * can persist for days with nothing on fire.
+   *
+   * Three properties, in order of importance:
+   *
+   *   - it CANNOT change the outcome. Everything is inside a catch, so a
+   *     broken logger degrades observability and nothing else;
+   *   - it carries only the closed enum values. No index name, no SQL, no
+   *     predicate, no pg message, no userId and no guideKey — an operator
+   *     needs to know the schema is odd, not who was reading at the time;
+   *   - it is emitted per occurrence. Deduplicating would mean remembering
+   *     the authority between transactions, and a remembered authority is the
+   *     feature flag this design refuses to have.
+   */
+  private reportDegradedCapability(capability: GuideActiveCapability): void {
+    try {
+      this.logger.warn(
+        `GUIDE_ACTIVE_CAPABILITY_DEGRADED effectiveMode=${capability.effectiveMode} globalHealth=${capability.globalHealth} lineageHealth=${capability.lineageHealth}`,
+      );
+    } catch {
+      // Telemetry is never load-bearing.
+    }
+  }
 
   /**
    * The ONLY raw SQL in the lifecycle: a transaction-scoped advisory lock. It
    * writes no row, so the single-writer ratchets stay intact.
+   *
+   * `hashtextextended(key, 42)` and the xact-scoped variant are part of the
+   * protocol, not an implementation detail: two versions of this service only
+   * serialize against each other if they hash the SAME string the SAME way
+   * and take the same kind of lock.
    */
   private async lock(tx: Tx, key: string): Promise<void> {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 42))`;
@@ -253,7 +302,7 @@ export class GuideLifecycleService {
    * on a laptop looked like starting over. The checkpoint has always lived in
    * the ledger; it just had no way out.
    *
-   * READ-ONLY and actor-scoped by construction: `findActive` filters on the
+   * READ-ONLY and actor-scoped by construction: the lookup filters on the
    * JWT's userId, so another actor's session is not "denied" — it does not
    * exist. A session pinned to a DIFFERENT guide is equally invisible here;
    * this endpoint answers about one pin and nothing else, and it never cancels
@@ -268,8 +317,25 @@ export class GuideLifecycleService {
     userId: string,
     pin: { guideKey: string; guideVersion: number },
   ): Promise<GuideSessionView | null> {
-    const session = await this.sessions.findActive(userId);
+    // C.0A — ask about THIS lineage. The previous read took whatever ACTIVE
+    // row came back for the user and only then compared the pin, which is
+    // sound while one ACTIVE exists per user and wrong the moment two can:
+    // asked about A it could be handed B, and answer `null` for a journey that
+    // was very much running.
+    const session = await this.sessions.findActiveOwnForGuideKey(
+      userId,
+      pin.guideKey,
+    );
     if (session === null) return null;
+    // The lineage is now part of the query, so a foreign guide cannot come
+    // back — but the check stays as a second line of defence. Handing back
+    // another journey is the exact failure this path exists to prevent, and
+    // it should not become possible through a repository change alone.
+    //
+    // The version check stays for a different reason: offering an older
+    // pinned version in place of the one asked for is a public behaviour
+    // change, and it belongs to the per-Experience state endpoint, not to
+    // this compatibility release.
     if (
       session.guideKey !== pin.guideKey ||
       session.guideVersion !== pin.guideVersion
@@ -484,15 +550,22 @@ export class GuideLifecycleService {
   /**
    * Start a session of an EXACT `guideKey@guideVersion`.
    *
-   * Everything runs in ONE transaction holding `guide:start:<userId>`:
+   * Everything runs in ONE transaction, holding BOTH start locks in the
+   * canonical order `GLOBAL_COMPAT → LINEAGE` (`c0aStartLockKeys`), with the
+   * SESSION lock nested underneath only when there is something to autocancel:
+   *
    *   1. load the pinned definition and resolve ALL its targets on `tx`, which
    *      is what pins `editionId`/`unitId` into the START semantics;
    *   2. receipt inspection — a replay returns the ORIGINAL session, applying
    *      nothing (in particular it never autocancels a second time);
    *   3. entitlement, on the same snapshot;
-   *   4. autocancel of the user's other ACTIVE session, under its OWN session
-   *      lock (nested, never reversed). It creates NO receipt and emits NO
-   *      event;
+   *   4. read from the SCHEMA which ACTIVE invariant is in force, and close
+   *      what this start replaces accordingly: under GLOBAL the user's single
+   *      ACTIVE session (its cardinality proved, not assumed), under LINEAGE
+   *      only an ACTIVE session of the SAME `guideKey`. Either way it happens
+   *      under that session's OWN lock (nested, never reversed), creates NO
+   *      receipt and emits NO event. With no usable invariant, nothing is
+   *      written at all;
    *   5. create the session, append the receipt, emit `guide_session_started`
    *      with the command's own idempotency key.
    */
@@ -501,85 +574,134 @@ export class GuideLifecycleService {
     command: GuideStartCommandInput,
   ): Promise<GuideCommandResult> {
     return mapGuideErrors(() =>
-      this.prisma.$transaction(async (tx) => {
-        await this.lock(tx, `guide:start:${user.userId}`);
+      this.prisma.$transaction(
+        async (tx) => {
+          // C.0A — BOTH start locks, from ONE authority, walked in order.
+          // The global key is what a pre-C.0A instance also takes, so the two
+          // serialize during a rolling deploy; the lineage key is what the
+          // future lineage-only instance will take, so THAT pair serializes
+          // too. Dropping either half leaves a version pair sharing no lock.
+          // Inlining the keys here would let production and the mixed-fleet
+          // pg-spec drift apart while both kept passing.
+          for (const key of c0aStartLockKeys(user.userId, command.guideKey)) {
+            await this.lock(tx, key);
+          }
 
-        // (1) Catalog + context, both on THIS transaction's snapshot.
-        const definition = productionGuideRegistry.getExact(
-          command.guideKey,
-          command.guideVersion,
-        );
-        const ctx = await this.context.resolve(definition, tx);
-        const semantics: ValidatedGuideStartSemantics = {
-          commandType: "START",
-          userId: user.userId,
-          idempotencyKey: command.idempotencyKey,
-          guideKey: definition.guideKey,
-          guideVersion: definition.guideVersion,
-          editionId: ctx.editionId,
-          unitId: ctx.unitId,
-        };
-
-        // (2) Receipt BEFORE any effect — including before the autocancel.
-        const seen = await this.receipts.inspectValidated(semantics, tx);
-        if (seen.state === "replay") {
-          // START's receipt stores the session it created in `sessionId`.
-          const priorId = seen.receipt.sessionId;
-          if (!priorId) guideFail("GUIDE_STORAGE_FAILURE");
-          const prior = await this.sessions.findOwn(
-            priorId as string,
-            user.userId,
-            tx,
+          // (1) Catalog + context, both on THIS transaction's snapshot.
+          const definition = productionGuideRegistry.getExact(
+            command.guideKey,
+            command.guideVersion,
           );
-          if (!prior) guideFail("GUIDE_SESSION_NOT_FOUND");
-          const row = prior as GuideSessionRow;
-          return this.snapshot(row, this.definitionOf(row), tx, {
-            created: false,
-            replayed: true,
-          });
-        }
-
-        // (3) Entitlement, under this transaction's snapshot and lock.
-        await this.gate(user, ctx, tx);
-
-        // (4) At most one ACTIVE session per user.
-        const active = await this.sessions.findActive(user.userId, tx);
-        if (active) await this.autocancel(user, active.id, tx);
-
-        // (5) Create → receipt → event, atomically with everything above.
-        const first = definition.steps[0] as GuideStepDefinition;
-        const session = await this.sessions.createActive(
-          {
+          const ctx = await this.context.resolve(definition, tx);
+          const semantics: ValidatedGuideStartSemantics = {
+            commandType: "START",
             userId: user.userId,
+            idempotencyKey: command.idempotencyKey,
             guideKey: definition.guideKey,
             guideVersion: definition.guideVersion,
             editionId: ctx.editionId,
             unitId: ctx.unitId,
-            totalSteps: definition.steps.length,
-            currentStepKey: first.stepKey,
-          },
-          tx,
-        );
-        await this.receipts.appendValidated(
-          { semantics, resultSessionId: session.id },
-          tx,
-        );
-        const event: ValidatedLearningEvent<"guide_session_started"> = {
-          userId: user.userId,
-          idempotencyKey: command.idempotencyKey,
-          type: "guide_session_started",
-          payload: { guideSessionId: session.id },
-          editionId: ctx.editionId,
-          unitId: ctx.unitId,
-          guideSessionId: session.id,
-        };
-        await this.events.appendValidated(event, tx);
+          };
 
-        return this.snapshot(session, definition, tx, {
-          created: true,
-          replayed: false,
-        });
-      }),
+          // (2) Receipt BEFORE any effect — including before the autocancel.
+          const seen = await this.receipts.inspectValidated(semantics, tx);
+          if (seen.state === "replay") {
+            // START's receipt stores the session it created in `sessionId`.
+            const priorId = seen.receipt.sessionId;
+            if (!priorId) guideFail("GUIDE_STORAGE_FAILURE");
+            const prior = await this.sessions.findOwn(
+              priorId as string,
+              user.userId,
+              tx,
+            );
+            if (!prior) guideFail("GUIDE_SESSION_NOT_FOUND");
+            const row = prior as GuideSessionRow;
+            return this.snapshot(row, this.definitionOf(row), tx, {
+              created: false,
+              replayed: true,
+            });
+          }
+
+          // (3) Entitlement, under this transaction's snapshot and lock.
+          await this.gate(user, ctx, tx);
+
+          // (4) Close whatever this start replaces — scoped by whichever
+          // invariant the DATABASE is currently enforcing, read here rather
+          // than configured, because the partial unique index IS the rule.
+          const capability = await readGuideActiveCapability(tx);
+          if (capability.degraded) this.reportDegradedCapability(capability);
+          if (capability.effectiveMode === "FAIL_CLOSED") {
+            // No authority means we cannot tell a global world from a lineage
+            // one, and the two disagree about what to cancel. Refuse before the
+            // first irreversible write rather than guess.
+            guideFail("GUIDE_STORAGE_FAILURE");
+          }
+
+          if (capability.effectiveMode === "GLOBAL") {
+            // The global index promises at most one ACTIVE row per user. Prove
+            // it: a second row here means schema and code disagree, and a
+            // global autocancel would then close an unrelated lineage.
+            const cardinality = await this.sessions.activeOwnCardinality(
+              user.userId,
+              tx,
+            );
+            if (cardinality.kind === "MULTIPLE") {
+              guideFail("GUIDE_STORAGE_FAILURE");
+            }
+            if (cardinality.kind === "SINGLE") {
+              await this.autocancel(user, cardinality.session.id, tx);
+            }
+          } else {
+            const active = await this.sessions.findActiveOwnForGuideKey(
+              user.userId,
+              definition.guideKey,
+              tx,
+            );
+            if (active) await this.autocancel(user, active.id, tx);
+          }
+
+          // (5) Create → receipt → event, atomically with everything above.
+          const first = definition.steps[0] as GuideStepDefinition;
+          const session = await this.sessions.createActive(
+            {
+              userId: user.userId,
+              guideKey: definition.guideKey,
+              guideVersion: definition.guideVersion,
+              editionId: ctx.editionId,
+              unitId: ctx.unitId,
+              totalSteps: definition.steps.length,
+              currentStepKey: first.stepKey,
+            },
+            tx,
+          );
+          await this.receipts.appendValidated(
+            { semantics, resultSessionId: session.id },
+            tx,
+          );
+          const event: ValidatedLearningEvent<"guide_session_started"> = {
+            userId: user.userId,
+            idempotencyKey: command.idempotencyKey,
+            type: "guide_session_started",
+            payload: { guideSessionId: session.id },
+            editionId: ctx.editionId,
+            unitId: ctx.unitId,
+            guideSessionId: session.id,
+          };
+          await this.events.appendValidated(event, tx);
+
+          return this.snapshot(session, definition, tx, {
+            created: true,
+            replayed: false,
+          });
+        },
+        // C.0A — stated, not inherited. The cross-lineage idempotency race is
+        // resolved by re-reading the receipt row the winner just committed,
+        // and only READ COMMITTED takes a fresh snapshot per statement. Under
+        // a stricter level the loser would read its own older snapshot, miss
+        // the row and report a storage failure instead of the canonical
+        // conflict — a different public contract, one server setting away.
+        { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+      ),
     );
   }
 
@@ -655,33 +777,43 @@ export class GuideLifecycleService {
     ) => Promise<R>,
   ): Promise<R> {
     return mapGuideErrors(() =>
-      this.prisma.$transaction(async (tx) => {
-        await this.lock(tx, `guide:session:${user.userId}:${sessionId}`);
+      this.prisma.$transaction(
+        async (tx) => {
+          await this.lock(tx, `guide:session:${user.userId}:${sessionId}`);
 
-        const current = await this.sessions.findOwn(sessionId, user.userId, tx);
-        // Foreign and nonexistent are the same value-free verdict.
-        if (!current) guideFail("GUIDE_SESSION_NOT_FOUND");
-        const session = current as GuideSessionRow;
-        const definition = this.definitionOf(session);
-        const semantics = buildSemantics(session, definition);
+          const current = await this.sessions.findOwn(
+            sessionId,
+            user.userId,
+            tx,
+          );
+          // Foreign and nonexistent are the same value-free verdict.
+          if (!current) guideFail("GUIDE_SESSION_NOT_FOUND");
+          const session = current as GuideSessionRow;
+          const definition = this.definitionOf(session);
+          const semantics = buildSemantics(session, definition);
 
-        const seen = await this.receipts.inspectValidated(semantics, tx);
-        if (seen.state === "replay") {
-          const replay = await this.snapshot(session, definition, tx, {
-            created: false,
-            replayed: true,
+          const seen = await this.receipts.inspectValidated(semantics, tx);
+          if (seen.state === "replay") {
+            const replay = await this.snapshot(session, definition, tx, {
+              created: false,
+              replayed: true,
+            });
+            return finalize ? finalize(tx, session, replay) : (replay as R);
+          }
+
+          const updated = await apply(tx, session, definition);
+          await this.receipts.appendValidated({ semantics }, tx);
+          const fresh = await this.snapshot(updated, definition, tx, {
+            created: true,
+            replayed: false,
           });
-          return finalize ? finalize(tx, session, replay) : (replay as R);
-        }
-
-        const updated = await apply(tx, session, definition);
-        await this.receipts.appendValidated({ semantics }, tx);
-        const fresh = await this.snapshot(updated, definition, tx, {
-          created: true,
-          replayed: false,
-        });
-        return finalize ? finalize(tx, updated, fresh) : (fresh as R);
-      }),
+          return finalize ? finalize(tx, updated, fresh) : (fresh as R);
+        },
+        // The receipt key is transversal across command types, so the same
+        // isolation contract has to hold here: a STEP and a CANCEL sharing an
+        // idempotency key race exactly like two STARTs do.
+        { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+      ),
     );
   }
 

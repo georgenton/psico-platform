@@ -515,8 +515,9 @@ Explícitamente fuera de alcance de este ADR:
 | --------- | ---------------------------------------------------------------------------------------------------------------- | ------- | -------------------------- |
 | **C.0D**  | Este ADR — solo documentación                                                                                    | no      | trivial                    |
 | **C.0A**  | Tolerancia a multi-ACTIVE **+ contrato explícito de aislamiento** de la transacción Guide; índice global intacto | no      | **suelo de rollback**      |
-| **C.0B1** | Añadir índice por lineage; el global permanece                                                                   | sí      | retirar el nuevo           |
-| **C.0B2** | Retirar el índice global + START por lineage                                                                     | sí      | a C.0A, **no** a `eac804f` |
+| **C.0B1** | Añadir `UNIQUE(userId, guideKey) WHERE ACTIVE`; el global permanece                                              | sí      | retirar el nuevo           |
+| **C.0B2** | Retirar el índice global — **con V0 ya drenado**                                                                 | sí      | a C.0A, **no** a `eac804f` |
+| **C.0B3** | Desplegar V2 lineage-only (estrechar el lock)                                                                    | no      | a C.0A/V1                  |
 | **C.1**   | Endpoint aditivo de estado por Experience                                                                        | no      | limpio                     |
 | **C.3**   | Reserva de binding segura ante concurrencia                                                                      | no      | limpio                     |
 | **C.2**   | La web consume estados independientes                                                                            | no      | limpio                     |
@@ -524,3 +525,40 @@ Explícitamente fuera de alcance de este ADR:
 | **C.5**   | Verificación en producción (solo lectura)                                                                        | —       | —                          |
 
 Cada fase requiere su propia autorización explícita.
+
+### El puente de doble lock — por qué C.0B2 y C.0B3 son fases distintas
+
+Este ADR describía la retirada del índice y el estrechamiento del lock como un
+solo paso. **Eso era un error de despliegue**, no de diseño: un índice dice qué
+filas pueden existir, no qué STARTs pueden correr a la vez, y durante un rolling
+deploy conviven dos binarios.
+
+Tres versiones, por los locks que toman:
+
+| Versión       | Locks de START                    |
+| ------------- | --------------------------------- |
+| V0 (pre-C.0A) | `guide:start:<userId>`            |
+| V1 (C.0A)     | **global → lineage**              |
+| V2 (C.0B3)    | `guide:start:<userId>:<guideKey>` |
+
+Dos versiones solo se serializan si derivan **la misma clave**. V0 y V1
+comparten la global; V1 y V2 comparten la de lineage. **V0 y V2 no comparten
+ninguna**, así que podrían arrancar a la vez para el mismo lineage sin que
+ningún lock lo impida. De ahí las reglas:
+
+- **V0 y V2 nunca pueden coexistir.**
+- **V1 y V2 sí pueden**, y esa convivencia es justamente la función del puente.
+- **V0 debe estar extinto antes de C.0B2.**
+- **C.0B2 queda bloqueada** hasta poder demostrar el drenaje con evidencia de
+  Railway (deployment activo por servicio, SHA, deployments previos en estado
+  terminal, ventana de overlap + draining cumplida) **más** el marcador de
+  protocolo que cada réplica emite al arrancar. Un SHA dice qué fuente se
+  compiló, no que el proceso tome ambos locks; y una petición al balanceador no
+  habla por las demás réplicas. El marcador es evidencia de **qué protocolo
+  habla** ese binario, no prueba de que los locks sean correctos: eso lo
+  demuestran los specs.
+- **C.0B3 termina** verificando que V1 quedó drenado.
+
+El orden de locks es total —`GLOBAL_COMPAT_START_LOCK → LINEAGE_START_LOCK →
+SESSION_MUTATION_LOCK`— y toda versión adquiere un subconjunto en ese mismo
+orden, que es lo que hace imposible un ciclo de espera.

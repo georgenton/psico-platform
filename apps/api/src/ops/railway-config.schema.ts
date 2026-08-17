@@ -61,8 +61,11 @@ const BuildBlock = z
 const DeployBlock = z
   .object({
     startCommand: SingleCommand,
-    // Absent on the worker; exactly one element on the API.
-    preDeployCommand: z.array(SingleCommand).min(1).optional(),
+    // The official schema caps this at `maxItems: 1` — Railway accepts a
+    // string OR a one-element array, not a list of steps. `.min(1)` alone
+    // allowed a second entry through, which is the same "and then also run
+    // this" that put `prisma db seed` in the deployment path to begin with.
+    preDeployCommand: z.array(SingleCommand).min(1).max(1).optional(),
     healthcheckPath: z.string().startsWith("/").optional(),
     restartPolicyType: z.enum(["ALWAYS", "ON_FAILURE", "NEVER"]),
     restartPolicyMaxRetries: z.number().int().nonnegative(),

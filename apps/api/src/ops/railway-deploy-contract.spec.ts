@@ -336,3 +336,23 @@ describe("deploy contract · the watch patterns close the build graph", () => {
     }
   });
 });
+
+describe("deploy contract · the local policy mirrors the official cap", () => {
+  it("rejects a second pre-deploy entry, as the official schema does", () => {
+    // `maxItems: 1` in Railway's schema. A local policy that allowed two
+    // would pass here and fail at Railway — or worse, pass at both and
+    // reintroduce a chained step.
+    const twoSteps = JSON.parse(raw(apiPath));
+    twoSteps.deploy.preDeployCommand = [
+      "pnpm --filter @psico/api migrate:deploy",
+      "echo also-this",
+    ];
+    expect(() => RailwayServiceConfigSchema.parse(twoSteps)).toThrow();
+  });
+
+  it("still accepts the single approved entry", () => {
+    expect(() =>
+      RailwayServiceConfigSchema.parse(JSON.parse(raw(apiPath))),
+    ).not.toThrow();
+  });
+});

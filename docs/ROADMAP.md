@@ -170,12 +170,14 @@ NULL_OVER_NON_NULL_DASHBOARD_OBSERVED=false
 NULL_CLEAR_BEHAVIOR=derived_from_provenance_plus_documented_precedence
 ```
 
-Que `null` es una contribución del fichero está **medido**. Que una propiedad
-presente en código prevalece sobre el dashboard está **documentado** por
-Railway. Que `null` por tanto _limpia_ un valor del dashboard es una
-**derivación** de ambas cosas, **no una observación**: nunca llegué a fijar un
-valor no nulo con el que chocar, porque `railway api` rechaza
-`serviceInstanceUpdate` y el fichero no escribe en la instancia.
+Que `null` es una contribución del fichero está **medido** — dos veces: en la
+sonda de C.0A1 y otra vez en un deployment desde fuente, donde ambos `null` del
+worker aparecen en `propertyFileMapping`. Que una propiedad presente en código
+prevalece sobre el dashboard está **documentado** por Railway. Que `null` por
+tanto _limpia_ un valor del dashboard es una **derivación** de ambas cosas, **no
+una observación**: ninguna de las dos sondas enfrentó un `null` del fichero
+contra un valor no nulo almacenado en el dashboard, que es la única prueba que
+cerraría ese eslabón.
 
 Aun así la decisión no depende de ese eslabón: declarar `null` **nunca es peor**
 que omitir —la omisión provablemente no contribuye nada— y es la única forma que
@@ -277,8 +279,22 @@ la configuración ya resuelta de ese deployment: termina en `SUCCESS`, no aplica
 el binding pendiente y **no demuestra nada**. Lo que hace falta es un deployment
 **desde la fuente**.
 
-Medido en una sonda efímera (proyecto Railway desechable conectado a este mismo
-repo en `main`, borrado al terminar):
+Medido en una sonda efímera: un proyecto Railway desechable conectado a este
+mismo repo en `main`, sin base de datos, sin Redis, sin variables, sin dominio y
+sin volumen. Al cerrar la sonda, el **servicio** quedó eliminado de inmediato y
+el **proyecto** quedó con borrado programado por Railway —un tombstone diferido,
+no una desaparición instantánea:
+
+```
+TEMP_SERVICE_DELETED=true
+TEMP_PROJECT_DELETION_SCHEDULED=true
+TEMP_PROJECT_DELETED=false_as_of_report
+ACTIVE_COMPUTE_RESOURCES_REMAINING=0
+PROJECT_TOMBSTONE_PENDING=true
+```
+
+No quedan servicios ni recursos computables; el objeto Project todavía existe
+hasta que Railway ejecute su borrado. Resultado de la medición:
 
 ```
 BINDING_WRITE_CREATED_STAGED_CHANGE=false   la escritura se aplica directa
@@ -298,15 +314,28 @@ El estado `SUCCESS` **no** es evidencia de nada. Un deployment sano con
 manifests vacíos es un **fallo de la onda**, no un aprobado con matices. La
 prueba es:
 
-- `fileServiceManifest` **no vacío** y reproduciendo el fichero;
+- `fileServiceManifest` **no vacío**, coincidiendo **estructuralmente en los
+  nueve campos gobernados** de `build` y `deploy`;
 - `propertyFileMapping` **no vacío**, atribuyendo cada campo declarado a su ruta
   JSON de origen (`$.build.*`, `$.deploy.*`);
-- `serviceManifest` resolviendo exactamente el contenido del fichero.
+- `serviceManifest` resolviendo exactamente los valores de esos campos.
 
-La sonda confirmó también lo que C.0A1 solo había derivado: los `null`
+Precisión sobre «exacto»: `fileServiceManifest` **no** es el fichero. No trae
+`$schema`, así que la igualdad JSON completa es `false`. Lo que se compara —y lo
+único que puede llamarse exacto— son los nueve campos gobernados y sus valores:
+
+```
+FILE_MANIFEST_CLAIM=structurally matched all nine governed build/deploy fields
+FILE_MANIFEST_FULL_JSON_EQUALITY=false   (fileServiceManifest carece de $schema)
+```
+
+La sonda **reconfirmó**, ahora en un deployment desde fuente, que los `null`
 declarados del worker aparecen en `propertyFileMapping` como contribuciones del
-fichero. Un `null` declarado **es** una declaración, ahora observada en un
-deployment real.
+fichero. Eso es `NULL_IS_FILE_CONTRIBUTION=proven` visto por segunda vez, **no**
+el cierre de la colisión no observada: la sonda nunca enfrentó un `null` del
+fichero contra un valor no nulo almacenado en el dashboard, así que
+`NULL_OVER_NON_NULL_DASHBOARD_OBSERVED` sigue en `false` y
+`NULL_CLEAR_BEHAVIOR` sigue siendo una derivación.
 
 ###### Desenlazado se decide por «bound vs unbound», no por el valor guardado
 
@@ -331,12 +360,18 @@ que no existe.
 
 1. Comprobar que el entorno arranca con **cero staged changes**.
 2. Enlazar únicamente `/apps/api/railway.worker.json`.
-3. Registrar por separado si la escritura creó un staged change y si creó un
-   deployment. No esperar pasivamente.
-4. Si creó un staged change, aplicar ese changeset. Si no, lanzar **un**
-   deployment desde la fuente (`railway redeploy --from-source`) sobre el SHA
-   fusionado — no sobre otro commit, y **nunca** un redeploy del deployment
-   actual.
+3. Registrar por separado `BINDING_WRITE_CREATED_STAGED_CHANGE` y
+   `BINDING_WRITE_CREATED_DEPLOYMENT`. No esperar pasivamente.
+4. Ramificar según lo registrado, y solo según eso:
+   - **staged change** → aplicar ese changeset y verificar el deployment que
+     resulte;
+   - **deployment directo** → verificar **ese** deployment y **no crear otro**;
+   - **ninguno de los dos** → lanzar **un** deployment desde la fuente
+     (`railway redeploy --from-source`) sobre el SHA fusionado, no sobre otro
+     commit.
+
+   Un redeploy plano **nunca** vale como prueba en ninguna de las tres ramas.
+
 5. Verificar en **ese** deployment los tres manifests: `fileServiceManifest` y
    `propertyFileMapping` no vacíos, y `serviceManifest` con los siete watch
    paths en orden, `preDeployCommand = null`, `healthcheckPath = null`,
@@ -352,20 +387,37 @@ que no existe.
 
 ###### Onda 2B — API
 
-1. Enlazar `/apps/api/railway.api.json`.
-2. Registrar si la escritura creó staged change o deployment.
-3. Si no creó ninguno, lanzar **un** deployment desde la fuente sobre el mismo
-   SHA fusionado.
-4. Verificar en **ese** deployment que el preDeploy ejecuta **solo**
-   `migrate:deploy`, aplica **0** migraciones y **nunca** ejecuta el seed; y que
-   la configuración resuelta trae del fichero los `watchPatterns` (incluido
-   `turbo.json`, exclusivo del API), `preDeployCommand = ["pnpm --filter
-@psico/api migrate:deploy"]`, `healthcheckPath = "/health"` y
-   `sleepApplication = false`.
-5. Comprobar `/health`, que el entorno queda con **cero staged changes**, y
-   cerrar con smoke anónimo de solo lectura.
-6. Ante divergencia: desenlazar el API, restaurar su deployment previo y
-   detenerse.
+Misma máquina de decisión que la 2A. La 2B no es una versión abreviada: lo único
+que cambia es qué se verifica al final, porque el API sí ejecuta un preDeploy y
+sí atiende tráfico.
+
+1. Comprobar que el entorno del API arranca con **cero staged changes**.
+2. Escribir únicamente `/apps/api/railway.api.json`.
+3. Registrar por separado `BINDING_WRITE_CREATED_STAGED_CHANGE` y
+   `BINDING_WRITE_CREATED_DEPLOYMENT` para el API.
+4. Ramificar según lo registrado:
+   - **staged change en el API** → aplicar ese changeset y verificar el
+     deployment que resulte;
+   - **deployment directo del API** → verificar **ese** deployment y **no crear
+     otro**;
+   - **ninguno de los dos** → lanzar **un** deployment desde la fuente
+     (`railway redeploy --from-source`) sobre el mismo SHA fusionado.
+
+   Tampoco aquí un redeploy plano cuenta como prueba.
+
+5. Verificar los tres manifests del API: `fileServiceManifest` y
+   `propertyFileMapping` no vacíos, y `serviceManifest` con los `watchPatterns`
+   del fichero (incluido `turbo.json`, exclusivo del API),
+   `preDeployCommand = ["pnpm --filter @psico/api migrate:deploy"]`,
+   `healthcheckPath = "/health"` y `sleepApplication = false`.
+6. Verificar en logs que el preDeploy ejecuta **solo** `migrate:deploy`, aplica
+   **0** migraciones y **nunca** invoca el seed; distinguir menciones nominales
+   de una invocación ejecutable.
+7. Comprobar `/health`, arranque limpio, y que el entorno del API queda otra vez
+   con **cero staged changes**.
+8. Cerrar con smoke anónimo de solo lectura.
+9. Ante cualquier ambigüedad: desenlazar el API, restaurar su deployment previo
+   y detenerse.
 
 C.0A1 termina **solo** cuando ambos subpasos están cerrados:
 

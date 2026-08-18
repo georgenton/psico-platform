@@ -583,6 +583,29 @@ PostgreSQL 18.4, no supuesto.
 | Índice lineage inválido                          | **no** retirar el global; el detector sigue en `GLOBAL` y `degraded=true`                             |
 | Deployment del API falla tras una migración sana | restaurar el deployment anterior; el esquema queda como está, y V1 sigue siendo correcto en `LINEAGE` |
 
+##### El tren va apilado: fusionar una PR no deja lista la siguiente
+
+Las tres PRs están apiladas (`C.0B1 → C.0B2 → C.0B3`), y una PR apilada **no
+recibe los mismos workflows** que una contra `main`. Hoy: 15 checks en #672
+(base `main`) frente a 8 en #673 y #674. Un `8/8` verde **no equivale** a los
+gates completos contra `main` — faltan comprobaciones que solo se disparan en
+PRs a la rama por defecto.
+
+**Tras fusionar C.0B1** — #673 no puede fusionarse conservando como base la
+rama de #672. Debe:
+
+1. reapuntarse a `main`;
+2. actualizarse contra el merge commit real de C.0B1;
+3. demostrar que su diff contiene **solo** C.0B2;
+4. esperar el conjunto **completo** de workflows que aplica contra `main`;
+5. repetir gates focalizados y completos;
+6. seguir en Draft hasta una autorización productiva independiente.
+
+**Tras fusionar C.0B2** — #674 repite el proceso: base `main`, actualizada
+sobre el merge real de C.0B2, diff exclusivo de C.0B3, gates completos contra
+`main`, **cero migraciones nuevas en su diff**, y Draft hasta autorización
+independiente.
+
 ##### Puertas de merge (ninguna concedida todavía)
 
 - **C.0B1** — 0 migraciones pendientes · global sano · lineage ausente · 0
@@ -594,6 +617,52 @@ PostgreSQL 18.4, no supuesto.
 - **C.0B3** — C.0B2 aplicada · autoridad `LINEAGE` · inexistencia de V0 ·
   autorización para desplegar lineage-only · drenaje final de V1 verificado por
   **marcador de protocolo**, no por SHA.
+
+#### Qué falta de #639 después de C.0B3
+
+Derivado de ADR 0022 §13 y del cuerpo del issue, no inventado.
+
+**Lo que ya está resuelto** — y conviene no volver a listarlo como pendiente:
+
+```
+EXACT_PIN_RECOVERY_MULTI_ACTIVE_SAFE=true
+ACTIVE_LOOKUP_SCOPED_BY_GUIDE_KEY=true
+ARBITRARY_ACTIVE_SELECTION_PRESENT=false
+```
+
+`findActiveOwnForGuideKey` consulta por `(userId, guideKey, ACTIVE)`,
+`findLatestOwnForExactPin` por el pin exacto, y `findRecoverableSession` pasa el
+`guideKey` a la consulta además de verificar el pin al volver. La única lectura
+ACTIVE sin `guideKey` es `activeOwnCardinality`, que existe para **probar** la
+promesa del índice global mientras GLOBAL sigue siendo la autoridad: toma 2
+filas y nunca devuelve una sesión sobre la que actuar.
+
+**Lo que sí queda pendiente (C.1+):**
+
+- **resolver el estado desde la identidad de Experience** — hoy
+  `experienceCardStatus` resuelve por capítulo, que es la causa raíz del issue;
+- **mapear Experience → pin exacto** en discovery;
+- **ofrecer continuar una sesión activa del lineage** cuando la versión
+  publicada actual sea otra — hoy `findRecoverableSession` devuelve `null` si la
+  versión no coincide, y cambiarlo es una modificación de comportamiento público
+  que pertenece al endpoint de estado por Experience, no a esta release;
+- **distinguir recuperación del lineage frente al estado/completion de un pin
+  exacto** — son dos preguntas distintas y hoy comparten camino;
+- **discovery por Experience y consumo Web** (C.1 y C.2);
+- **reserva de binding segura ante concurrencia en el CMS** (C.3) y **selección
+  de Guide** (C.4, bloqueada por producto);
+- **ciclo de vida de drafts abandonados** (ADR §11): `DRAFT → ARCHIVED`, la fila
+  nunca se borra, un ARCHIVED no reserva Guide, las versiones nunca se
+  reutilizan;
+- **compatibilidad del contenido existente**: una sesión iniciada antes del
+  cambio debe seguir resolviendo la versión en la que empezó;
+- **verificación en producción, solo lectura** (C.5).
+
+**Deuda ajena al tren, registrada aparte:** `guide-firewall.e2e-spec.ts` (un
+caso GR-3 de resonancia, sin relación con locks ni índices) falló **1 de 6**
+corridas locales de la suite PG durante C.0B3. No se corrige dentro de estas
+PRs, no se reclasifica como regresión sin reproducción determinista, y una
+corrida verde posterior no borra el hecho.
 
 ### 🟢 Polish y mejoras incrementales (priorizado por impacto)
 

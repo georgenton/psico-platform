@@ -27,6 +27,7 @@ import {
 const API_DIR = process.cwd();
 const MIGRATIONS_DIR = join(API_DIR, "prisma", "migrations");
 const C0B1 = "20260818000000_c0b1_lineage_active_index";
+const C0B2 = "20260818010000_c0b2_retire_global_active_index";
 
 const migrationSql = (dir: string): string =>
   readFileSync(join(MIGRATIONS_DIR, dir, "migration.sql"), "utf8");
@@ -126,5 +127,111 @@ describe("C.0B1 · the runtime does not move in this phase", () => {
       globalStartLockKey("u-1"),
       lineageStartLockKey("u-1", "guia-a"),
     ]);
+  });
+});
+
+describe("C.0B2 · the migration retires the global index and only that", () => {
+  it("exists, and orders AFTER C.0B1", () => {
+    expect(existsSync(join(MIGRATIONS_DIR, C0B2, "migration.sql"))).toBe(true);
+    // Lexicographic order is what Prisma applies, so this is the ordering
+    // guarantee itself, not a naming preference: retiring the global index
+    // before creating the lineage one would leave the table with no ACTIVE
+    // invariant at all, and the detector would fail closed for everyone.
+    expect(C0B2 > C0B1).toBe(true);
+  });
+
+  it("drops CONCURRENTLY, without IF EXISTS", () => {
+    const ddl = statements(migrationSql(C0B2));
+    expect(ddl).toMatch(/DROP INDEX CONCURRENTLY/);
+    // A missing index means something we did not author ran. That deserves a
+    // loud failure, not a silent success.
+    expect(ddl).not.toMatch(/IF EXISTS/i);
+    expect(ddl.split(";").filter((s) => s.trim().length > 0)).toHaveLength(1);
+  });
+
+  it("names the global index and spares the lineage one", () => {
+    const ddl = statements(migrationSql(C0B2));
+    expect(ddl).toContain('"GuideSession_one_active_per_user"');
+    expect(ddl).not.toContain("one_active_per_lineage");
+  });
+
+  it("creates nothing and alters nothing", () => {
+    const ddl = statements(migrationSql(C0B2));
+    expect(ddl).not.toMatch(/CREATE\s+/i);
+    expect(ddl).not.toMatch(/ALTER\s+/i);
+    // No data touched: reconciling multi-ACTIVE sessions is a product
+    // decision, and a migration that cancelled sessions would make it silently.
+    expect(ddl).not.toMatch(/UPDATE\s+|DELETE\s+FROM/i);
+  });
+});
+
+describe("C.0B2 · the runtime still does not move", () => {
+  it("keeps the dual-v1 protocol and both start locks", () => {
+    // The cutover is the schema's. Narrowing the lock in the same phase would
+    // put V0-incompatible binaries in the fleet during the index change.
+    expect(GUIDE_START_LOCK_PROTOCOL).toBe("dual-v1");
+    expect([...c0aStartLockKeys("u-1", "guia-a")]).toEqual([
+      globalStartLockKey("u-1"),
+      lineageStartLockKey("u-1", "guia-a"),
+    ]);
+  });
+});
+
+/**
+ * No unscoped ACTIVE read may come back.
+ *
+ * The behavioural proof lives in `guide-multi-active-runtime.pg-spec.ts`, with
+ * two real lineages in one database. This is the cheaper guard beside it: a
+ * `findFirst` over `{ userId, status: ACTIVE }` returns an ARBITRARY lineage,
+ * and once several may be ACTIVE that is a recovery answering about the wrong
+ * journey. It passes every mocked test that only ever has one row.
+ */
+describe("C.0B2 · no path reads 'the user's ACTIVE session'", () => {
+  const read = (f: string) =>
+    readFileSync(join(API_DIR, "src", "guide", f), "utf8");
+
+  it("the repository scopes its ACTIVE lookups by guideKey", () => {
+    const src = read("guide-session.repository.ts");
+    // `findActiveOwnForGuideKey` is the scoped read; the ONLY unscoped one is
+    // `activeOwnCardinality`, which exists to PROVE the global index's promise
+    // while GLOBAL is still the authority — it takes 2 rows and never returns
+    // a session to act on.
+    const unscoped = [
+      ...src.matchAll(/where:\s*\{[^}]*status:\s*"ACTIVE"[^}]*\}/g),
+    ].map((m) => m[0]);
+    for (const clause of unscoped) {
+      const scoped =
+        clause.includes("guideKey") ||
+        clause.includes("id: sessionId") ||
+        clause.includes("sessionId");
+      if (!scoped) {
+        // The single documented exception, and it must stay bounded.
+        expect(src).toMatch(/activeOwnCardinality[\s\S]{0,600}?take:\s*2/);
+      }
+    }
+    expect(src).toMatch(
+      /findActiveOwnForGuideKey[\s\S]{0,400}?where:\s*\{\s*userId,\s*guideKey,\s*status:\s*"ACTIVE"\s*\}/,
+    );
+  });
+
+  it("recovery asks about the lineage it was given", () => {
+    const src = read("guide-lifecycle.service.ts");
+    expect(src).toMatch(
+      /findRecoverableSession[\s\S]{0,1200}?findActiveOwnForGuideKey\(\s*userId,\s*pin\.guideKey,/,
+    );
+    // And keeps the belt-and-braces check that the row handed back is the one
+    // asked for, so a repository change alone cannot reintroduce the bug.
+    expect(src).toMatch(/session\.guideKey !== pin\.guideKey/);
+  });
+
+  it("the LINEAGE autocancel is scoped, and the GLOBAL one proves cardinality first", () => {
+    const src = read("guide-lifecycle.service.ts");
+    // LINEAGE branch: close only this lineage's ACTIVE session.
+    expect(src).toMatch(
+      /findActiveOwnForGuideKey\(\s*user\.userId,\s*definition\.guideKey,/,
+    );
+    // GLOBAL branch: never act on an arbitrary row — MULTIPLE is a refusal.
+    expect(src).toMatch(/activeOwnCardinality\(/);
+    expect(src).toMatch(/cardinality\.kind === "MULTIPLE"/);
   });
 });

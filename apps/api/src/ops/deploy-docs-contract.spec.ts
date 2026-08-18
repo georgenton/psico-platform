@@ -427,3 +427,48 @@ describe("docs ratchet · the second probe reconfirms, it does not close", () =>
     );
   });
 });
+
+/**
+ * The stacked train has an operational trap, so the roadmap has to name it.
+ *
+ * A PR based on another branch does not receive the workflows a PR against
+ * `main` does — 15 checks versus 8, here. Reading a green 8/8 as "gates
+ * passed" is how a stacked branch reaches production having skipped whatever
+ * only runs on the default branch.
+ */
+describe("docs ratchet · the stacked release train", () => {
+  it("says a stacked PR must be retargeted and rebuilt after its base merges", () => {
+    const flat = text().replace(/\s+/g, " ");
+    expect(flat).toMatch(/reapuntarse a `main`/);
+    expect(flat).toMatch(/actualizarse contra el merge commit real/);
+    expect(flat).toMatch(/su diff contiene \*\*solo\*\* C\.0B2/);
+    expect(flat).toMatch(/diff exclusivo de C\.0B3/);
+    expect(flat).toMatch(/cero migraciones nuevas en su diff/);
+  });
+
+  it("never equates a stacked check run with the gates against main", () => {
+    const flat = text().replace(/\s+/g, " ");
+    expect(flat).toMatch(
+      /Un `8\/8` verde \*\*no equivale\*\* a los gates completos contra `main`/,
+    );
+  });
+
+  it("records what #639 already solved instead of relisting it as pending", () => {
+    const src = text();
+    expect(src).toContain("EXACT_PIN_RECOVERY_MULTI_ACTIVE_SAFE=true");
+    expect(src).toContain("ACTIVE_LOOKUP_SCOPED_BY_GUIDE_KEY=true");
+    expect(src).toContain("ARBITRARY_ACTIVE_SELECTION_PRESENT=false");
+    // The one documented unscoped read must stay described as a cardinality
+    // PROOF, not as a session lookup.
+    expect(src.replace(/\s+/g, " ")).toMatch(
+      /`activeOwnCardinality`, que existe para \*\*probar\*\* la promesa del índice global/,
+    );
+  });
+
+  it("keeps the unrelated flake as separate debt, with its evidence", () => {
+    const flat = text().replace(/\s+/g, " ");
+    expect(flat).toMatch(/guide-firewall\.e2e-spec\.ts/);
+    expect(flat).toMatch(/falló \*\*1 de 6\*\*/);
+    expect(flat).toMatch(/una corrida verde posterior no borra el hecho/);
+  });
+});

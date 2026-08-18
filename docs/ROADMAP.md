@@ -83,13 +83,21 @@ Cada fase necesita su propia autorización. El orden **no** es negociable: lo
 impone qué locks comparten dos binarios que conviven durante un rolling deploy,
 no el esquema.
 
-| Fase      | Qué                                                           | Puerta previa                                   |
-| --------- | ------------------------------------------------------------- | ----------------------------------------------- |
-| **C.0A**  | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                               |
-| **C.0A1** | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                 |
-| **C.0B1** | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs   |
-| **C.0B2** | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)          |
-| **C.0B3** | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir |
+| Fase      | Qué                                                           | Puerta previa                                   | Estado                     |
+| --------- | ------------------------------------------------------------- | ----------------------------------------------- | -------------------------- |
+| **C.0A**  | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                               | ✅ desplegada              |
+| **C.0A1** | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                 | ✅ completa                |
+| **C.0B1** | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs   | ⬜ PR abierta, sin aplicar |
+| **C.0B2** | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)          | ⬜ PR abierta, sin aplicar |
+| **C.0B3** | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir | ⬜ PR abierta, sin aplicar |
+
+**Checkpoint de producción — 2026-08-18.** Ambos servicios sirven
+`1a6be6d3adb3501c30f957e6b87c547aca191769` y **consumen sus ficheros
+versionados**: API `6813ac01` con `/apps/api/railway.api.json`, worker
+`d93f2d6a` con `/apps/api/railway.worker.json`, ambos con
+`propertyFileMapping` atribuyendo los nueve campos gobernados al fichero. 56
+migraciones aplicadas, 0 pendientes. El seed no aparece en ningún preDeploy.
+El esquema sigue en modo **GLOBAL**: el índice de lineage aún no existe.
 
 - **V0 y V2 nunca coexisten** — no comparten ningún lock de START.
 - **V1 y V2 sí coexisten**: ambos toman el lock de lineage. Esa convivencia es
@@ -183,15 +191,19 @@ Aun así la decisión no depende de ese eslabón: declarar `null` **nunca es peo
 que omitir —la omisión provablemente no contribuye nada— y es la única forma que
 pone el campo bajo la autoridad del fichero.
 
-**Cinco estados distintos, que no deben confundirse:**
+**Cinco estados distintos, que no deben confundirse** — todos cerrados el
+2026-08-18 sobre `1a6be6d3adb3501c30f957e6b87c547aca191769`:
 
 ```
-REPO_CONFIG_RATCHET=true                     ya cierto
-RAILWAY_CONFIG_PATHS_BOUND=false             las rutas quedan configuradas
-CONFIG_SOURCE_USED_BY_API_DEPLOYMENT=false   un deployment consumió el fichero
-CONFIG_SOURCE_USED_BY_WORKER_DEPLOYMENT=false
-DEPLOYED_CONFIG_MATCHES_REPO=false           y coincide con el commit desplegado
+REPO_CONFIG_RATCHET=true                     el contrato vive en el repo
+RAILWAY_CONFIG_PATHS_BOUND=true              las rutas quedan configuradas
+CONFIG_SOURCE_USED_BY_API_DEPLOYMENT=true    un deployment consumió el fichero
+CONFIG_SOURCE_USED_BY_WORKER_DEPLOYMENT=true
+DEPLOYED_CONFIG_MATCHES_REPO=true            y coincide con el commit desplegado
 ```
+
+Siguen siendo cinco preguntas distintas: enlazar no es consumir, y consumir no
+es coincidir. Que hoy valgan `true` a la vez no las colapsa en una sola.
 
 Enlazar solo demuestra el segundo. **Los tres últimos exigen al menos un
 deployment por servicio y evidencia en su configuración resuelta**: releer
@@ -471,14 +483,15 @@ completada, no un incidente cerrado**. Y no se pausa el autodeploy ni se reviert
 Git sin autorización independiente: ambas cosas cambian el comportamiento del
 repositorio, no solo el de un deployment.
 
-**Diferencia deliberada pendiente de aplicar por binding:** los `watchPatterns`
-versionados corrigen un cierre de dependencias incompleto en el dashboard. Hoy
-el API observa `apps/api/**` y `packages/**`, y el worker solo `apps/api/**`
-— pero `packages/types/tsconfig.json` extiende `@psico/typescript-config`, y
-ambos builds corren `pnpm install --frozen-lockfile`. Los ficheros añaden
-`config/**`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `package.json` y `.npmrc`
-a ambos, más `turbo.json` solo al API, que es el único que construye con Turbo.
-Hasta el binding, el dashboard sigue con el cierre incompleto.
+**Diferencia deliberada, ya aplicada:** los `watchPatterns` versionados corrigen
+un cierre de dependencias incompleto que el dashboard arrastraba. Antes del
+binding el API observaba `apps/api/**` y `packages/**`, y el worker solo
+`apps/api/**` — pero `packages/types/tsconfig.json` extiende
+`@psico/typescript-config`, y ambos builds corren
+`pnpm install --frozen-lockfile`. Los ficheros añaden `config/**`,
+`pnpm-lock.yaml`, `pnpm-workspace.yaml`, `package.json` y `.npmrc` a ambos, más
+`turbo.json` solo al API, que es el único que construye con Turbo. Desde el
+cierre de la onda 2B, esos son los watch paths **resueltos** en ambos servicios.
 
 **Registro corregido del despliegue de C.0A.** El informe original decía
 «sin escrituras en producción». Era falso:
@@ -510,6 +523,77 @@ GUIDE_START_LOCK_PROTOCOL=dual-v1 BUILD_SHA=<sha> REPLICA=<id>
 
 El SHA por sí solo no basta: dice qué fuente se compiló, no que el proceso tome
 ambos locks. Y una petición al balanceador no habla por las demás réplicas.
+
+#### C.0B — el tren de release, y por qué son tres fases
+
+Las tres PRs están abiertas y apiladas (`C.0B1 → C.0B2 → C.0B3`), cada una con
+base en la anterior. Ninguna está autorizada para fusionarse ni desplegarse: el
+desarrollo se adelanta, las barreras de producción no se mueven.
+
+| Fase      | Migración / cambio                         | Global    | Lineage   | Autoridad | Multi-ACTIVE                       |
+| --------- | ------------------------------------------ | --------- | --------- | --------- | ---------------------------------- |
+| hoy       | —                                          | `HEALTHY` | `ABSENT`  | `GLOBAL`  | imposible                          |
+| **C.0B1** | `CREATE UNIQUE INDEX CONCURRENTLY` lineage | `HEALTHY` | `HEALTHY` | `GLOBAL`  | imposible                          |
+| **C.0B2** | `DROP INDEX CONCURRENTLY` global           | `ABSENT`  | `HEALTHY` | `LINEAGE` | **sí, entre `guideKey` distintos** |
+| **C.0B3** | runtime lineage-only (`lineage-v2`)        | `ABSENT`  | `HEALTHY` | `LINEAGE` | sí                                 |
+
+**C.0B1 no cambia comportamiento visible.** Mientras el índice global exista,
+sigue siendo la autoridad: el detector elige la regla más estricta que esté
+realmente vigente. Su rollback es trivial — retirar el índice nuevo.
+
+**C.0B2 es el cutover semántico.** Desde su aplicación, un usuario puede tener
+varias sesiones `ACTIVE` si pertenecen a `guideKey` distintos, y ahí el rollback
+deja de ser simétrico: recrear el índice global es imposible en cuanto existan
+filas multi-ACTIVE legítimas, porque el índice mismo las prohíbe. La matriz
+está abajo. **Ninguna rama cancela sesiones automáticamente.**
+
+**C.0B3 estrecha el lock**, no el esquema: retira `GLOBAL_COMPAT_START_LOCK` y
+deja `LINEAGE → SESSION`. Exige que V0 esté extinto, porque V0 y V2 no comparten
+ningún lock de START.
+
+##### Matriz de recuperación del índice
+
+Nunca se decide por el nombre del índice. La evidencia es `pg_index`:
+`indisunique`, `indisvalid`, `indisready`, `indislive`, `indnatts` vs
+`indnkeyatts`, las columnas en orden y el predicado renderizado.
+
+| Estado observado                     | Qué significa                                      | Acción                                                                  |
+| ------------------------------------ | -------------------------------------------------- | ----------------------------------------------------------------------- |
+| `ABSENT`                             | la migración no llegó a crear nada                 | reaplicar la migración                                                  |
+| `HEALTHY`                            | índice válido y listo                              | nada                                                                    |
+| `INVALID`                            | `CREATE CONCURRENTLY` falló y dejó el índice atrás | `DROP INDEX CONCURRENTLY` + `migrate resolve --rolled-back` + reaplicar |
+| `NOT_READY`                          | build interrumpido antes de terminar               | igual que `INVALID`                                                     |
+| `WRONG_STRUCTURE_SAME_NAME`          | el nombre coincide, la estructura no               | **detenerse y decidir con una persona** — nunca borrar a ciegas         |
+| `HEALTHY_BUT_PRISMA_RECORDED_FAILED` | el índice está bien, el registro de Prisma no      | `migrate resolve --applied` (no re-ejecutar el DDL)                     |
+| `FAILED_BEFORE_CREATE`               | falló antes de tocar el índice                     | `migrate resolve --rolled-back` + reaplicar                             |
+
+`DROP INDEX CONCURRENTLY` no puede correr dentro de una transacción, igual que
+su contraparte. Prisma ejecuta cada sentencia fuera de una transacción
+explícita, lo que hace legales ambas — **medido** contra la cadena real en
+PostgreSQL 18.4, no supuesto.
+
+##### Matriz de rollback de C.0B2
+
+| Situación                                        | Qué se puede hacer                                                                                    |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Global retirado, aún sin filas multi-ACTIVE      | recrear el global con `CREATE UNIQUE INDEX CONCURRENTLY`; vuelve a `GLOBAL`                           |
+| Ya existen filas multi-ACTIVE                    | **no se puede recrear** sin decidir qué sesiones cerrar; requiere reconciliación humana explícita     |
+| Recreación imposible por datos legítimos         | permanecer en `LINEAGE`; el rollback correcto es del runtime, no del esquema                          |
+| Prisma marca la migración fallida (P3009)        | resolver el registro según la matriz de arriba antes de tocar el índice                               |
+| Índice lineage inválido                          | **no** retirar el global; el detector sigue en `GLOBAL` y `degraded=true`                             |
+| Deployment del API falla tras una migración sana | restaurar el deployment anterior; el esquema queda como está, y V1 sigue siendo correcto en `LINEAGE` |
+
+##### Puertas de merge (ninguna concedida todavía)
+
+- **C.0B1** — 0 migraciones pendientes · global sano · lineage ausente · 0
+  duplicados `(userId, guideKey) WHERE ACTIVE` en producción · C.0A/C.0A1
+  activas · autorización explícita de migración y deploy.
+- **C.0B2** — C.0B1 aplicada y sana · **V0 extinto demostrado** por marcador de
+  protocolo · ambos índices sanos · aceptación explícita del cutover y de la
+  asimetría de rollback.
+- **C.0B3** — C.0B2 aplicada · autoridad `LINEAGE` · inexistencia de V0 ·
+  autorización para desplegar lineage-only · drenaje final de V1 verificado por
+  **marcador de protocolo**, no por SHA.
 
 ### 🟢 Polish y mejoras incrementales (priorizado por impacto)
 

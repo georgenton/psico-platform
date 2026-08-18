@@ -143,13 +143,18 @@ suite("C.0A · ACTIVE capability against real PostgreSQL", () => {
   // ── The four schema states, walked in deployment order ───────────────────
 
   it("classifies the SHIPPED schema as GLOBAL", async () => {
-    // The migration chain as it exists on main. If this ever fails, the
+    // The migration chain as it exists on this branch. If this ever fails, the
     // detector and the migration have drifted and production would fail
     // closed — which is exactly the outage this file exists to prevent.
+    //
+    // Since C.0B1 the chain builds BOTH partial indexes, so lineage is healthy
+    // here too. The authority does not move: while the global index exists it
+    // is the stricter rule and it is genuinely enforcing, which is the whole
+    // reason C.0B1 can ship without changing behaviour.
     const cap = await capability();
     expect(cap.effectiveMode).toBe("GLOBAL");
     expect(cap.globalHealth).toBe("HEALTHY");
-    expect(cap.lineageHealth).toBe("ABSENT");
+    expect(cap.lineageHealth).toBe("HEALTHY");
     expect(cap.degraded).toBe(false);
   });
 

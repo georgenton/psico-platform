@@ -49,15 +49,23 @@ describe("docs ratchet · the merge model is stated correctly", () => {
   });
 
   it("keeps the five binding states separate", () => {
+    // C.0A1 closed all five on 2026-08-18, so they now read `true`. What the
+    // ratchet protects is not their value but their SEPARATENESS: binding is
+    // not consuming, and consuming is not matching. Collapsing them into one
+    // "config is done" line is the regression, and the roadmap has to keep
+    // saying so out loud now that they happen to agree.
     for (const marker of [
       "REPO_CONFIG_RATCHET=true",
-      "RAILWAY_CONFIG_PATHS_BOUND=false",
-      "CONFIG_SOURCE_USED_BY_API_DEPLOYMENT=false",
-      "CONFIG_SOURCE_USED_BY_WORKER_DEPLOYMENT=false",
-      "DEPLOYED_CONFIG_MATCHES_REPO=false",
+      "RAILWAY_CONFIG_PATHS_BOUND=true",
+      "CONFIG_SOURCE_USED_BY_API_DEPLOYMENT=true",
+      "CONFIG_SOURCE_USED_BY_WORKER_DEPLOYMENT=true",
+      "DEPLOYED_CONFIG_MATCHES_REPO=true",
     ]) {
       expect(text()).toContain(marker);
     }
+    expect(text().replace(/\s+/g, " ")).toMatch(
+      /Siguen siendo cinco preguntas distintas: enlazar no es consumir, y consumir no es coincidir/,
+    );
   });
 
   it("says binding alone does not prove a deployment used the file", () => {

@@ -252,10 +252,11 @@ suite("C.0B2 · retiring the global index is the cutover", () => {
     expect(await indexNames()).toEqual([LINEAGE_IX]);
   });
 
-  it("keeps serving on LINEAGE if the lineage index is the unhealthy one", async () => {
-    // The mirror case: with no global index left, an unhealthy lineage index
-    // is not something to shrug at — there is no stricter rule to fall back
-    // on, so the detector must fail closed rather than invent authority.
+  it("fails closed when the lineage index is ABSENT", async () => {
+    // With no global index left there is no stricter rule to fall back on, so
+    // a missing lineage index leaves no authority at all. This is the ABSENT
+    // case — named as such, because the INVALID one below behaves differently
+    // and conflating them overstates what either proves.
     await clearSessions();
     await pool.query(`DROP INDEX CONCURRENTLY "${LINEAGE_IX}"`);
     const cap = await capability();
@@ -268,5 +269,59 @@ suite("C.0B2 · retiring the global index is the cutover", () => {
       `CREATE UNIQUE INDEX CONCURRENTLY "${LINEAGE_IX}" ON "GuideSession"("userId","guideKey") WHERE "status" = 'ACTIVE'`,
     );
     expect((await capability()).effectiveMode).toBe("LINEAGE");
+  });
+
+  it("fails closed on an INVALID lineage index — really invalid, not absent", async () => {
+    // A failed `CREATE UNIQUE INDEX CONCURRENTLY` leaves the half-built index
+    // BEHIND, valid=false and ready=false. That is a state an operator finds
+    // in production, and it is NOT the same as the index being gone: the row
+    // exists, `pg_indexes` lists it, and anything deciding by name would call
+    // the world healthy.
+    //
+    // Reaching it takes real conflicting data, which is why this test builds
+    // the duplicate rows rather than describing them.
+    await clearSessions();
+    await pool.query(`DROP INDEX CONCURRENTLY "${LINEAGE_IX}"`);
+    await insertSession("gs-b2-dup1", "u-b2-roll", "guia-dup", 1);
+    await insertSession("gs-b2-dup2", "u-b2-roll", "guia-dup", 2);
+
+    await expect(
+      pool.query(
+        `CREATE UNIQUE INDEX CONCURRENTLY "${LINEAGE_IX}" ON "GuideSession"("userId","guideKey") WHERE "status" = 'ACTIVE'`,
+      ),
+    ).rejects.toMatchObject({ code: "23505" });
+
+    const { rows } = await pool.query<{
+      indisvalid: boolean;
+      indisready: boolean;
+      indislive: boolean;
+    }>(
+      `SELECT i.indisvalid, i.indisready, i.indislive FROM pg_index i
+         JOIN pg_class ic ON ic.oid = i.indexrelid
+        WHERE ic.relname = '${LINEAGE_IX}'`,
+    );
+    // Present, and unusable. Both halves matter.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.indisvalid).toBe(false);
+
+    const cap = await capability();
+    expect(cap.globalHealth).toBe("ABSENT");
+    expect(cap.lineageHealth).toBe("INVALID_OR_NOT_READY");
+    expect(cap.effectiveMode).toBe("FAIL_CLOSED");
+    // Deliberate: `degraded` means service CONTINUES under a healthy
+    // authority. Nothing continues here, so flagging it degraded would
+    // describe a running system that is not running.
+    expect(cap.degraded).toBe(false);
+
+    // Documented recovery: clear the conflict, drop the leftover, rebuild.
+    await clearSessions();
+    await pool.query(`DROP INDEX CONCURRENTLY "${LINEAGE_IX}"`);
+    await pool.query(
+      `CREATE UNIQUE INDEX CONCURRENTLY "${LINEAGE_IX}" ON "GuideSession"("userId","guideKey") WHERE "status" = 'ACTIVE'`,
+    );
+    const back = await capability();
+    expect(back.effectiveMode).toBe("LINEAGE");
+    expect(back.lineageHealth).toBe("HEALTHY");
+    expect(back.degraded).toBe(false);
   });
 });

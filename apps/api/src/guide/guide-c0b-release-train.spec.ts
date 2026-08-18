@@ -176,3 +176,62 @@ describe("C.0B2 · the runtime still does not move", () => {
     ]);
   });
 });
+
+/**
+ * No unscoped ACTIVE read may come back.
+ *
+ * The behavioural proof lives in `guide-multi-active-runtime.pg-spec.ts`, with
+ * two real lineages in one database. This is the cheaper guard beside it: a
+ * `findFirst` over `{ userId, status: ACTIVE }` returns an ARBITRARY lineage,
+ * and once several may be ACTIVE that is a recovery answering about the wrong
+ * journey. It passes every mocked test that only ever has one row.
+ */
+describe("C.0B2 · no path reads 'the user's ACTIVE session'", () => {
+  const read = (f: string) =>
+    readFileSync(join(API_DIR, "src", "guide", f), "utf8");
+
+  it("the repository scopes its ACTIVE lookups by guideKey", () => {
+    const src = read("guide-session.repository.ts");
+    // `findActiveOwnForGuideKey` is the scoped read; the ONLY unscoped one is
+    // `activeOwnCardinality`, which exists to PROVE the global index's promise
+    // while GLOBAL is still the authority — it takes 2 rows and never returns
+    // a session to act on.
+    const unscoped = [
+      ...src.matchAll(/where:\s*\{[^}]*status:\s*"ACTIVE"[^}]*\}/g),
+    ].map((m) => m[0]);
+    for (const clause of unscoped) {
+      const scoped =
+        clause.includes("guideKey") ||
+        clause.includes("id: sessionId") ||
+        clause.includes("sessionId");
+      if (!scoped) {
+        // The single documented exception, and it must stay bounded.
+        expect(src).toMatch(/activeOwnCardinality[\s\S]{0,600}?take:\s*2/);
+      }
+    }
+    expect(src).toMatch(
+      /findActiveOwnForGuideKey[\s\S]{0,400}?where:\s*\{\s*userId,\s*guideKey,\s*status:\s*"ACTIVE"\s*\}/,
+    );
+  });
+
+  it("recovery asks about the lineage it was given", () => {
+    const src = read("guide-lifecycle.service.ts");
+    expect(src).toMatch(
+      /findRecoverableSession[\s\S]{0,1200}?findActiveOwnForGuideKey\(\s*userId,\s*pin\.guideKey,/,
+    );
+    // And keeps the belt-and-braces check that the row handed back is the one
+    // asked for, so a repository change alone cannot reintroduce the bug.
+    expect(src).toMatch(/session\.guideKey !== pin\.guideKey/);
+  });
+
+  it("the LINEAGE autocancel is scoped, and the GLOBAL one proves cardinality first", () => {
+    const src = read("guide-lifecycle.service.ts");
+    // LINEAGE branch: close only this lineage's ACTIVE session.
+    expect(src).toMatch(
+      /findActiveOwnForGuideKey\(\s*user\.userId,\s*definition\.guideKey,/,
+    );
+    // GLOBAL branch: never act on an arbitrary row — MULTIPLE is a refusal.
+    expect(src).toMatch(/activeOwnCardinality\(/);
+    expect(src).toMatch(/cardinality\.kind === "MULTIPLE"/);
+  });
+});

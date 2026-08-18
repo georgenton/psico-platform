@@ -35,7 +35,7 @@ import {
 } from "../learning/learning-event-builders";
 import type { ValidatedLearningEvent } from "../learning/validated-learning-event";
 import {
-  c0aStartLockKeys,
+  guideStartLockKeys,
   readGuideActiveCapability,
   type GuideActiveCapability,
 } from "./guide-active-capability";
@@ -99,13 +99,13 @@ import {
  *     is never rejected by the state the session has since reached;
  *   - the LearningEvent a command emits carries EXACTLY the command's own
  *     idempotency key — the same canonical UUID stored in its receipt;
- *   - lock order is always GLOBAL_COMPAT_START_LOCK (`guide:start:<userId>`)
- *     then LINEAGE_START_LOCK (`guide:start:<userId>:<guideKey>`) then
- *     SESSION_MUTATION_LOCK (`guide:session:<userId>:<sessionId>`) — START
- *     takes both start locks so a mixed fleet shares one with the version
- *     before it and one with the version after, and nests the session lock
- *     when it autocancels. Nothing ever takes them the other way round, which
- *     is what makes the total order deadlock-free (ADR 0022 §7);
+ *   - lock order is always LINEAGE_START_LOCK (`guide:start:<userId>:<guideKey>`)
+ *     then SESSION_MUTATION_LOCK (`guide:session:<userId>:<sessionId>`) — START
+ *     takes the lineage lock, which V1 also takes, so a mixed V1/V2 fleet still
+ *     serialises per lineage; it nests the session lock when it autocancels.
+ *     The global compatibility lock is gone with V0. Nothing ever takes them
+ *     the other way round, which is what makes the total order deadlock-free
+ *     (ADR 0022 §7);
  *   - errors are value-free (`guide-errors.ts`): a foreign session and a
  *     nonexistent one are indistinguishable.
  *
@@ -550,9 +550,9 @@ export class GuideLifecycleService {
   /**
    * Start a session of an EXACT `guideKey@guideVersion`.
    *
-   * Everything runs in ONE transaction, holding BOTH start locks in the
-   * canonical order `GLOBAL_COMPAT → LINEAGE` (`c0aStartLockKeys`), with the
-   * SESSION lock nested underneath only when there is something to autocancel:
+   * Everything runs in ONE transaction, holding the LINEAGE start lock
+   * (`guideStartLockKeys`), with the SESSION lock nested underneath only when
+   * there is something to autocancel:
    *
    *   1. load the pinned definition and resolve ALL its targets on `tx`, which
    *      is what pins `editionId`/`unitId` into the START semantics;
@@ -576,14 +576,15 @@ export class GuideLifecycleService {
     return mapGuideErrors(() =>
       this.prisma.$transaction(
         async (tx) => {
-          // C.0A — BOTH start locks, from ONE authority, walked in order.
-          // The global key is what a pre-C.0A instance also takes, so the two
-          // serialize during a rolling deploy; the lineage key is what the
-          // future lineage-only instance will take, so THAT pair serializes
-          // too. Dropping either half leaves a version pair sharing no lock.
-          // Inlining the keys here would let production and the mixed-fleet
-          // pg-spec drift apart while both kept passing.
-          for (const key of c0aStartLockKeys(user.userId, command.guideKey)) {
+          // C.0B3 — the lineage start lock, from ONE authority.
+          // The global compatibility key is gone: it existed to serialise
+          // against V0, which took only that key, and V0 is extinct before this
+          // binary ships. V1 still takes the lineage key, so V1 and V2 keep
+          // serialising for the same lineage during the rollout — which is the
+          // whole reason the bridge took both for two phases. Inlining the key
+          // here would let production and the mixed-fleet pg-spec drift apart
+          // while both kept passing.
+          for (const key of guideStartLockKeys(user.userId, command.guideKey)) {
             await this.lock(tx, key);
           }
 

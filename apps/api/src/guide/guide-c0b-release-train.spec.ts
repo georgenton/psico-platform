@@ -6,6 +6,7 @@ import {
   GUIDE_START_LOCK_PROTOCOL,
   c0aStartLockKeys,
   globalStartLockKey,
+  guideStartLockKeys,
   lineageStartLockKey,
 } from "./guide-active-capability";
 
@@ -115,14 +116,22 @@ describe("C.0B1 · schema.prisma stays out of it", () => {
   });
 });
 
-describe("C.0B1 · the runtime does not move in this phase", () => {
-  it("still speaks the dual-v1 protocol", () => {
-    // C.0B3 is what narrows the lock. A protocol marker that moved here would
-    // make the drain gate lie about which binaries are running.
-    expect(GUIDE_START_LOCK_PROTOCOL).toBe("dual-v1");
-  });
+describe("C.0B1 and C.0B2 · schema-only phases", () => {
+  // Both phases ship SQL and nothing else. Once C.0B3 lands in the same tree
+  // the protocol constant reads `lineage-v2`, so "this phase does not move the
+  // runtime" can no longer be asserted from a global value — it is asserted
+  // where it is actually decidable: in the migration artifacts.
+  for (const phase of [C0B1, C0B2]) {
+    it(`${phase} touches no TypeScript`, () => {
+      const files = readdirSync(join(MIGRATIONS_DIR, phase));
+      expect(files).toEqual(["migration.sql"]);
+    });
+  }
 
-  it("still takes both start locks, in the canonical order", () => {
+  it("V1's own lock derivation survives for the mixed fleet", () => {
+    // C.0B3 stops TAKING the global lock; it must not stop being able to
+    // DERIVE V1's sequence, or the mixed-fleet spec would hand-copy the keys
+    // of the binary it claims to serialise against.
     expect([...c0aStartLockKeys("u-1", "guia-a")]).toEqual([
       globalStartLockKey("u-1"),
       lineageStartLockKey("u-1", "guia-a"),
@@ -165,15 +174,48 @@ describe("C.0B2 · the migration retires the global index and only that", () => 
   });
 });
 
-describe("C.0B2 · the runtime still does not move", () => {
-  it("keeps the dual-v1 protocol and both start locks", () => {
-    // The cutover is the schema's. Narrowing the lock in the same phase would
-    // put V0-incompatible binaries in the fleet during the index change.
-    expect(GUIDE_START_LOCK_PROTOCOL).toBe("dual-v1");
-    expect([...c0aStartLockKeys("u-1", "guia-a")]).toEqual([
-      globalStartLockKey("u-1"),
+describe("C.0B3 · the runtime narrows to the lineage lock", () => {
+  it("announces an unambiguous protocol", () => {
+    // The drain gate reads this marker off each replica's boot line. It has to
+    // name a sequence, not a release, so `dual-v1` and `lineage-v2` can never
+    // be confused for one another in a mixed fleet.
+    expect(GUIDE_START_LOCK_PROTOCOL).toBe("lineage-v2");
+  });
+
+  it("takes the lineage key and nothing else", () => {
+    expect([...guideStartLockKeys("u-1", "guia-a")]).toEqual([
       lineageStartLockKey("u-1", "guia-a"),
     ]);
+    // The global key coming back would silently re-serialise independent
+    // journeys — the exact behaviour issue #639 exists to remove.
+    expect([...guideStartLockKeys("u-1", "guia-a")]).not.toContain(
+      globalStartLockKey("u-1"),
+    );
+  });
+
+  it("START walks the authority instead of inlining keys", () => {
+    const src = readFileSync(
+      join(API_DIR, "src", "guide", "guide-lifecycle.service.ts"),
+      "utf8",
+    );
+    expect(src).toMatch(
+      /guideStartLockKeys\(user\.userId, command\.guideKey\)/,
+    );
+    // Nothing in production may derive the global key any more.
+    expect(src).not.toMatch(/globalStartLockKey/);
+    expect(src).not.toMatch(/c0aStartLockKeys/);
+  });
+
+  it("leaves the session lock and the isolation level alone", () => {
+    const src = readFileSync(
+      join(API_DIR, "src", "guide", "guide-lifecycle.service.ts"),
+      "utf8",
+    );
+    // `mutate()` still serialises per session, and the cross-lineage
+    // idempotency contract still depends on READ COMMITTED. Neither is part of
+    // this phase, and both would be easy to lose while editing the same file.
+    expect(src).toMatch(/guide:session:\$\{/);
+    expect(src).toMatch(/TransactionIsolationLevel\.ReadCommitted/);
   });
 });
 

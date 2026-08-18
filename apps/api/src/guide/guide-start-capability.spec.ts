@@ -5,7 +5,7 @@ import { GuideLifecycleError } from "./guide-errors";
 import { EEC_C1_BODY_BEFORE_MIND_GUIDE } from "./guide-catalog";
 import type * as CapabilityModuleNs from "./guide-active-capability";
 import {
-  c0aStartLockKeys,
+  guideStartLockKeys,
   type GuideActiveCapability,
 } from "./guide-active-capability";
 
@@ -179,14 +179,14 @@ const run = async (service: GuideLifecycleService) => {
   }
 };
 
-const LOCKS = c0aStartLockKeys(USER.userId, COMMAND.guideKey).map(
+const LOCKS = guideStartLockKeys(USER.userId, COMMAND.guideKey).map(
   (k) => `lock:${k}`,
 );
 
 /**
- * The prefix every START shares before it can decide anything: both locks, the
- * editorial context, the receipt verdict, the entitlement gate, the capability.
- * Nothing may be written before all of it has happened.
+ * The prefix every START shares before it can decide anything: the start lock,
+ * the editorial context, the receipt verdict, the entitlement gate, the
+ * capability. Nothing may be written before all of it has happened.
  */
 const NORMATIVE_PREFIX = [
   ...LOCKS,
@@ -226,8 +226,8 @@ describe("START · one ordered trace, not four separate claims", () => {
     // The prefix is exact: a lock that drifts after the receipt, or a
     // capability read that lands after the first write, changes this list.
     expect(h.trace.slice(0, NORMATIVE_PREFIX.length)).toEqual(NORMATIVE_PREFIX);
-    // Not a list rebuilt here: the same authority the pg-spec models V1 with.
-    expect(h.trace.slice(0, 2)).toEqual(LOCKS);
+    // Not a list rebuilt here: the same authority the pg-spec models V2 with.
+    expect(h.trace.slice(0, LOCKS.length)).toEqual(LOCKS);
   });
 
   it("writes happen in exactly one order", async () => {

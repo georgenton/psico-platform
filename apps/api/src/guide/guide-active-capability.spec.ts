@@ -224,7 +224,7 @@ describe("guide start lock derivation", () => {
     );
   });
 
-  it("states the dual-v1 protocol", () => {
-    expect(GUIDE_START_LOCK_PROTOCOL).toBe("dual-v1");
+  it("states the lineage-v2 protocol", () => {
+    expect(GUIDE_START_LOCK_PROTOCOL).toBe("lineage-v2");
   });
 });

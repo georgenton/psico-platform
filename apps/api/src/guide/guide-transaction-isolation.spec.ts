@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { c0aStartLockKeys } from "./guide-active-capability";
+import { guideStartLockKeys } from "./guide-active-capability";
 
 /**
  * C.0A — ratchet: every Guide command transaction STATES its isolation level.
@@ -84,13 +84,16 @@ describe("ratchet · the arbitrary ACTIVE read is gone", () => {
 });
 
 describe("ratchet · both start locks, in order", () => {
-  it("the acquisition order is global then lineage", () => {
-    // Order is the deadlock-freedom argument: every actor acquires along the
-    // same total order, so no pair can build a wait cycle. It is asserted on
-    // the shared authority now, because that is what `start()` walks.
-    const [first, second] = c0aStartLockKeys("u-1", "g-1");
-    expect(first).toBe("guide:start:u-1");
-    expect(second).toBe("guide:start:u-1:g-1");
+  it("the start sequence is the lineage key alone", () => {
+    // Order is still the deadlock-freedom argument — every actor acquires along
+    // the same total order, `lineage < session`, so no pair can build a wait
+    // cycle. Since C.0B3 the sequence is one key, and it is asserted on the
+    // shared authority because that is what `start()` walks.
+    const keys = guideStartLockKeys("u-1", "g-1");
+    expect([...keys]).toEqual(["guide:start:u-1:g-1"]);
+    // The V0 compatibility key is gone: taking it would re-serialise
+    // independent journeys against each other for no remaining reason.
+    expect([...keys]).not.toContain("guide:start:u-1");
   });
 
   it("the capability is read per transaction, never cached", () => {
@@ -109,17 +112,23 @@ describe("ratchet · the start-lock sequence has ONE authority", () => {
       "utf8",
     );
 
-  it("start() walks c0aStartLockKeys instead of inlining the keys", () => {
+  it("start() walks guideStartLockKeys instead of inlining the keys", () => {
     // A test that rebuilds the sequence by hand proves the hand-built list
     // behaves; it says nothing about production. Iterating the shared
     // authority is what makes the mixed-fleet pg-spec evidence about `start()`.
     const src = source();
-    expect(src).toMatch(/c0aStartLockKeys\(user\.userId, command\.guideKey\)/);
+    expect(src).toMatch(
+      /guideStartLockKeys\(user\.userId, command\.guideKey\)/,
+    );
     expect(src).not.toMatch(/this\.lock\(tx, globalStartLockKey\(/);
     expect(src).not.toMatch(/this\.lock\(tx, lineageStartLockKey\(/);
   });
 
-  it("the mixed-fleet pg-spec models V1 with that same authority", () => {
+  it("the mixed-fleet pg-spec models each version with its own authority", () => {
+    // Since C.0B3, V2 is production (`guideStartLockKeys`) and V1 is the binary
+    // being replaced (`c0aStartLockKeys`, retained for exactly this). Both come
+    // from real derivations, so "they share the lineage key" is a claim about
+    // two functions rather than about a list somebody retyped.
     const spec = readFileSync(
       join(process.cwd(), "src/guide/guide-rolling-deploy-locks.pg-spec.ts"),
       "utf8",
@@ -127,23 +136,27 @@ describe("ratchet · the start-lock sequence has ONE authority", () => {
     expect(spec).toMatch(
       /const V1 = \(guideKey: string\) => \[\s*\.\.\.c0aStartLockKeys/,
     );
+    expect(spec).toMatch(
+      /const V2 = \(guideKey: string\) => \[\s*\.\.\.guideStartLockKeys/,
+    );
   });
 
-  it("the authority yields global then lineage, and nothing else", () => {
+  it("the authority yields the lineage key, and nothing else", () => {
     const src = capability();
     expect(src).toMatch(
-      /c0aStartLockKeys[\s\S]*?globalStartLockKey\(userId\),\s*lineageStartLockKey\(userId, guideKey\),/,
+      /guideStartLockKeys[\s\S]{0,400}?\[lineageStartLockKey\(userId, guideKey\)\]/,
     );
   });
 
-  it("the dual-v1 marker names the protocol this sequence implements", () => {
-    // The marker is what the C.0B2 drain gate reads. If the sequence gained a
-    // third lock or lost one, `dual-v1` would be a false claim about a
-    // deployed box — so the two live in one module and are pinned together.
+  it("the lineage-v2 marker names the protocol this sequence implements", () => {
+    // The marker is what the C.0B3 drain gate reads. If the sequence gained a
+    // second lock or lost its only one, `lineage-v2` would be a false claim
+    // about a deployed box — so the two live in one module and are pinned
+    // together.
     expect(capability()).toMatch(
-      /GUIDE_START_LOCK_PROTOCOL = "dual-v1" as const/,
+      /GUIDE_START_LOCK_PROTOCOL = "lineage-v2" as const/,
     );
-    expect([...c0aStartLockKeys("u", "g")]).toHaveLength(2);
+    expect([...guideStartLockKeys("u", "g")]).toHaveLength(1);
   });
 });
 

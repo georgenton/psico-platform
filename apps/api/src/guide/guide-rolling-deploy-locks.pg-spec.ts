@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   c0aStartLockKeys,
   globalStartLockKey,
+  guideStartLockKeys,
   lineageStartLockKey,
 } from "./guide-active-capability";
 
@@ -52,7 +53,7 @@ function deferred<T = void>() {
   return { promise, resolve };
 }
 
-suite("C.0A · start locks across a rolling deploy", () => {
+suite("C.0B3 · start locks across a rolling deploy", () => {
   let pool: Pool;
   let prisma: PrismaClient;
 
@@ -76,13 +77,15 @@ suite("C.0A · start locks across a rolling deploy", () => {
     });
   }
 
-  // V0 and V2 are modelled — neither exists in this tree, one is history and
-  // one is the future. V1 is NOT modelled: it is the very function `start()`
-  // iterates, so a passing test says production serialises, not that a
-  // hand-copied list would.
+  // Since C.0B3 the roles have swapped. V2 is NOT modelled: it is the very
+  // function `start()` iterates, so a passing test says production serialises,
+  // not that a hand-copied list would. V0 is history and V1 is the binary this
+  // release replaces — V1 comes from its OWN retained derivation rather than a
+  // hand-copied list, so "V1 and V2 share the lineage key" is a claim about
+  // two real derivations.
   const V0 = () => [globalStartLockKey(U)];
   const V1 = (guideKey: string) => [...c0aStartLockKeys(U, guideKey)];
-  const V2 = (guideKey: string) => [lineageStartLockKey(U, guideKey)];
+  const V2 = (guideKey: string) => [...guideStartLockKeys(U, guideKey)];
 
   /**
    * Does `second` get in while `first` is still holding?
@@ -193,11 +196,18 @@ suite("C.0A · start locks across a rolling deploy", () => {
     expect(await canProceedConcurrently(V0(), V2(GUIDE_A))).toBe(true);
   });
 
-  it("the canonical sequence is exactly the two keys, in order", async () => {
+  it("the canonical sequence is exactly the lineage key", async () => {
     // The negative controls for "drop a lock" live in the AUTHORITY, not
-    // here: mutating `c0aStartLockKeys` breaks the pairs above, because V1 is
-    // that function. This pins the shape so a silent third key or a swap is
-    // visible in one place.
+    // here: emptying `guideStartLockKeys` breaks the pairs above, because V2 is
+    // that function. This pins the shape so a silent extra key — the global one
+    // creeping back, say — is visible in one place.
+    expect([...guideStartLockKeys(U, GUIDE_A)]).toEqual([
+      lineageStartLockKey(U, GUIDE_A),
+    ]);
+    expect([...guideStartLockKeys(U, GUIDE_A)]).not.toContain(
+      globalStartLockKey(U),
+    );
+    // And V1's retained derivation is untouched, since the mixed fleet needs it.
     expect([...c0aStartLockKeys(U, GUIDE_A)]).toEqual([
       globalStartLockKey(U),
       lineageStartLockKey(U, GUIDE_A),
@@ -222,12 +232,12 @@ suite("C.0A · start locks across a rolling deploy", () => {
 
     const startIn = deferred();
     const releaseStart = deferred();
-    const start = versionStart([...V1(GUIDE_A), sessionKey], {
+    const start = versionStart([...V2(GUIDE_A), sessionKey], {
       entered: startIn.resolve,
       release: releaseStart.promise,
     });
 
-    // START holds global + lineage and is now blocked on the session lock.
+    // START holds the lineage lock and is now blocked on the session lock.
     const gotEarly = await Promise.race([
       startIn.promise.then(() => true),
       new Promise<boolean>((r) => setTimeout(() => r(false), 600)),
@@ -244,14 +254,14 @@ suite("C.0A · start locks across a rolling deploy", () => {
     await start;
   });
 
-  it("holding both keys is deadlock-free against a session-lock holder", async () => {
-    // Every actor acquires along one total order — global, lineage, session —
-    // so no pair can build a wait cycle. A START that autocancels takes the
+  it("holding the start key is deadlock-free against a session-lock holder", async () => {
+    // Every actor acquires along one total order — lineage, then session — so
+    // no pair can build a wait cycle. A START that autocancels takes the
     // session lock LAST, which is the case modelled here.
     const sessionKey = `guide:session:${U}:s-1`;
     const firstIn = deferred();
     const release = deferred();
-    const holder = versionStart([...V1(GUIDE_A), sessionKey], {
+    const holder = versionStart([...V2(GUIDE_A), sessionKey], {
       entered: firstIn.resolve,
       release: release.promise,
     });
@@ -259,7 +269,7 @@ suite("C.0A · start locks across a rolling deploy", () => {
 
     const secondIn = deferred();
     const releaseSecond = deferred();
-    const waiter = versionStart(V1(GUIDE_A), {
+    const waiter = versionStart(V2(GUIDE_A), {
       entered: secondIn.resolve,
       release: releaseSecond.promise,
     });

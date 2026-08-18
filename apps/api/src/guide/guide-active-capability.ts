@@ -22,7 +22,7 @@ import type { Prisma } from "@prisma/client";
 
 /** The lock protocol this binary speaks. Surfaced at boot (see `main.ts`) so a
  * fleet can be PROVEN to be drained rather than inferred from a commit SHA. */
-export const GUIDE_START_LOCK_PROTOCOL = "dual-v1" as const;
+export const GUIDE_START_LOCK_PROTOCOL = "lineage-v2" as const;
 
 /**
  * The compatibility lock, shared with the pre-C.0A binary.
@@ -45,16 +45,16 @@ export const lineageStartLockKey = (userId: string, guideKey: string): string =>
   `guide:start:${userId}:${guideKey}`;
 
 /**
- * THE start-lock sequence of the `dual-v1` protocol, in acquisition order.
+ * The V1 (`dual-v1`) start-lock sequence — RETAINED, no longer taken.
  *
- * Single authority on purpose. A test that rebuilds the same list by hand
- * proves that the hand-built list behaves — not that production uses it, which
- * is the only claim worth making. `start()` iterates this, the pg-spec models
- * V1 with this, and the negative controls mutate THIS, so removing a lock or
- * reversing the order breaks the guarantee everywhere at once.
+ * C.0B3 stopped taking the global lock, but V1 has not stopped existing: V1 and
+ * V2 coexist through the rollout, and the mixed-fleet pg-spec has to model the
+ * binary being replaced with the SAME derivation it actually used. Deleting
+ * this would leave that spec hand-copying V1's keys, which proves that a
+ * hand-copied list behaves rather than that the two versions share a lock.
  *
- * The order is the deadlock argument: every actor acquires along the total
- * order `global < lineage < session`, so no pair can build a wait cycle.
+ * Nothing in `start()` calls it. `guideStartLockKeys` is the production
+ * sequence; a ratchet pins that this one has no production caller.
  */
 export const c0aStartLockKeys = (
   userId: string,
@@ -63,6 +63,26 @@ export const c0aStartLockKeys = (
   globalStartLockKey(userId),
   lineageStartLockKey(userId, guideKey),
 ];
+
+/**
+ * THE start-lock sequence of the `lineage-v2` protocol, in acquisition order.
+ *
+ * One key now. The global lock existed to serialise against V0, which took
+ * only that key; once V0 is extinct — proven with the boot marker, not with a
+ * SHA — holding it serialises independent journeys against each other for no
+ * remaining reason, which is precisely what issue #639 is about.
+ *
+ * Single authority on purpose. `start()` iterates this, the pg-spec models V2
+ * with this, and the negative controls mutate THIS, so emptying the sequence
+ * or putting the global key back breaks the guarantee everywhere at once.
+ *
+ * The order argument survives unchanged: every actor still acquires along the
+ * total order `lineage < session`, so no pair can build a wait cycle.
+ */
+export const guideStartLockKeys = (
+  userId: string,
+  guideKey: string,
+): readonly string[] => [lineageStartLockKey(userId, guideKey)];
 
 export type GuideActiveCapabilityHealth =
   | "HEALTHY"

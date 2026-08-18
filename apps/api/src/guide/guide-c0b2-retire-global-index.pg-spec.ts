@@ -1,15 +1,12 @@
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  GUIDE_START_LOCK_PROTOCOL,
-  readGuideActiveCapability,
-} from "./guide-active-capability";
+import { readGuideActiveCapability } from "./guide-active-capability";
 
 /**
  * C.0B2 — the semantic cutover, and the rollback asymmetry it creates.
@@ -146,8 +143,13 @@ suite("C.0B2 · retiring the global index is the cutover", () => {
     expect(ddl.split(";").filter((s) => s.trim().length > 0)).toHaveLength(1);
   });
 
-  it("changes no runtime lock — that is C.0B3", () => {
-    expect(GUIDE_START_LOCK_PROTOCOL).toBe("dual-v1");
+  it("is a schema-only migration — the lock change is C.0B3", () => {
+    // Asserted where it stays decidable. On the C.0B3 branch the protocol
+    // constant already reads `lineage-v2`, so pinning a value here would only
+    // record which branch the file is sitting on. What C.0B2 promises is that
+    // ITS artifact ships SQL and nothing else.
+    const files = readdirSync(join(MIGRATIONS_DIR, C0B2));
+    expect(files).toEqual(["migration.sql"]);
   });
 
   // ── The state after the full chain ───────────────────────────────────────

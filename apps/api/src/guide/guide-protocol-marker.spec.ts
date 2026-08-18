@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 import { GUIDE_START_LOCK_PROTOCOL } from "./guide-active-capability";
 
 /**
- * C.0A — the boot marker that lets the C.0B2 gate be evidence instead of an
- * inference.
+ * C.0A — the boot marker that lets the C.0B2 and C.0B3 gates be evidence
+ * instead of an inference.
  *
  * A commit SHA says which source was built. It does not say the running
  * process takes both start locks, and one request through a load balancer
@@ -25,7 +25,7 @@ describe("ratchet · Guide start-lock protocol marker", () => {
     expect(main()).toMatch(
       /GUIDE_START_LOCK_PROTOCOL=\$\{GUIDE_START_LOCK_PROTOCOL\}/,
     );
-    expect(GUIDE_START_LOCK_PROTOCOL).toBe("dual-v1");
+    expect(GUIDE_START_LOCK_PROTOCOL).toBe("lineage-v2");
   });
 
   it("reports Railway's documented commit SHA and replica id", () => {

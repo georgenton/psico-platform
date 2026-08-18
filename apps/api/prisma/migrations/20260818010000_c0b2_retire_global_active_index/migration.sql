@@ -1,0 +1,29 @@
+-- C.0B2 — retire the global ACTIVE index. THIS is the semantic cutover.
+--
+-- Until now `GuideSession_one_active_per_user` has been the authority, so a
+-- user could hold exactly one ACTIVE session no matter how many curated
+-- journeys existed. From the moment this statement commits, the lineage index
+-- is the only ACTIVE invariant left, and a user may hold SEVERAL ACTIVE
+-- sessions at once — one per `guideKey`. `readGuideActiveCapability` flips to
+-- LINEAGE by itself, because it reads the schema rather than a flag.
+--
+-- Rollback stops being symmetric here. Recreating the global index is only
+-- possible while no user has two ACTIVE lineages; once legitimate multi-ACTIVE
+-- rows exist, the index that would undo this migration is precisely the index
+-- those rows violate. Reconciling them means CLOSING somebody's session, which
+-- is a product decision and is never automated. The full matrix lives in
+-- docs/ROADMAP.md §C.0B.
+--
+-- Gate, non-negotiable: V0 (pre-C.0A) must be extinct before this runs. V0
+-- takes only the global start lock and V2 takes only the lineage one, so the
+-- two share nothing and could start concurrently for the same lineage. The
+-- drain is proven with the boot marker each replica emits, not with a SHA.
+--
+-- CONCURRENTLY for the same reason as C.0B1: a plain DROP INDEX takes an
+-- ACCESS EXCLUSIVE lock on GuideSession. Neither form may run inside an
+-- explicit transaction, and Prisma runs each statement outside one — verified
+-- against the real chain, not assumed.
+--
+-- No IF EXISTS: if the index is already gone, something ran that we did not
+-- author, and that is worth a loud failure rather than a silent success.
+DROP INDEX CONCURRENTLY "GuideSession_one_active_per_user";

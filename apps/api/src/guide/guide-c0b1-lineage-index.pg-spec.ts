@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -102,15 +101,33 @@ suite("C.0B1 · the lineage ACTIVE index, from the shipped migration", () => {
     await admin.end();
 
     url = withDatabase(base as string, DB);
-    // The whole chain INCLUDING C.0B1, through Prisma itself. If Prisma could
-    // not run `CREATE INDEX CONCURRENTLY` — because it wrapped the migration in
-    // a transaction — this call is what would fail (25001), so compatibility is
-    // demonstrated by the suite booting at all.
-    execSync("pnpm exec prisma migrate deploy", {
-      cwd: API_DIR,
-      env: { ...process.env, DATABASE_URL: url, PRISMA_SKIP_SEED: "1" },
-      stdio: "inherit",
-    });
+    // The chain UP TO AND INCLUDING C.0B1 — not the whole thing.
+    //
+    // C.0B2 retires the global index, so a full `migrate deploy` would land
+    // this suite in the world of a LATER phase and every assertion about the
+    // C.0B1 intermediate state would quietly become untestable. The phase this
+    // file describes is the one where BOTH indexes exist, so it builds exactly
+    // that world by applying the real migration.sql files in order and
+    // stopping.
+    //
+    // Prisma compatibility with `CREATE INDEX CONCURRENTLY` is proved in the
+    // C.0B2 spec, which does run `prisma migrate deploy` over the full chain.
+    const dirs = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name)
+      .sort();
+    expect(dirs).toContain(C0B1);
+    const bootstrap = new Pool({ connectionString: url });
+    try {
+      for (const dir of dirs) {
+        await bootstrap.query(
+          readFileSync(join(MIGRATIONS_DIR, dir, "migration.sql"), "utf8"),
+        );
+        if (dir === C0B1) break;
+      }
+    } finally {
+      await bootstrap.end();
+    }
 
     pool = new Pool({ connectionString: url });
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });

@@ -27,6 +27,7 @@ import {
 const API_DIR = process.cwd();
 const MIGRATIONS_DIR = join(API_DIR, "prisma", "migrations");
 const C0B1 = "20260818000000_c0b1_lineage_active_index";
+const C0B2 = "20260818010000_c0b2_retire_global_active_index";
 
 const migrationSql = (dir: string): string =>
   readFileSync(join(MIGRATIONS_DIR, dir, "migration.sql"), "utf8");
@@ -122,6 +123,53 @@ describe("C.0B1 · the runtime does not move in this phase", () => {
   });
 
   it("still takes both start locks, in the canonical order", () => {
+    expect([...c0aStartLockKeys("u-1", "guia-a")]).toEqual([
+      globalStartLockKey("u-1"),
+      lineageStartLockKey("u-1", "guia-a"),
+    ]);
+  });
+});
+
+describe("C.0B2 · the migration retires the global index and only that", () => {
+  it("exists, and orders AFTER C.0B1", () => {
+    expect(existsSync(join(MIGRATIONS_DIR, C0B2, "migration.sql"))).toBe(true);
+    // Lexicographic order is what Prisma applies, so this is the ordering
+    // guarantee itself, not a naming preference: retiring the global index
+    // before creating the lineage one would leave the table with no ACTIVE
+    // invariant at all, and the detector would fail closed for everyone.
+    expect(C0B2 > C0B1).toBe(true);
+  });
+
+  it("drops CONCURRENTLY, without IF EXISTS", () => {
+    const ddl = statements(migrationSql(C0B2));
+    expect(ddl).toMatch(/DROP INDEX CONCURRENTLY/);
+    // A missing index means something we did not author ran. That deserves a
+    // loud failure, not a silent success.
+    expect(ddl).not.toMatch(/IF EXISTS/i);
+    expect(ddl.split(";").filter((s) => s.trim().length > 0)).toHaveLength(1);
+  });
+
+  it("names the global index and spares the lineage one", () => {
+    const ddl = statements(migrationSql(C0B2));
+    expect(ddl).toContain('"GuideSession_one_active_per_user"');
+    expect(ddl).not.toContain("one_active_per_lineage");
+  });
+
+  it("creates nothing and alters nothing", () => {
+    const ddl = statements(migrationSql(C0B2));
+    expect(ddl).not.toMatch(/CREATE\s+/i);
+    expect(ddl).not.toMatch(/ALTER\s+/i);
+    // No data touched: reconciling multi-ACTIVE sessions is a product
+    // decision, and a migration that cancelled sessions would make it silently.
+    expect(ddl).not.toMatch(/UPDATE\s+|DELETE\s+FROM/i);
+  });
+});
+
+describe("C.0B2 · the runtime still does not move", () => {
+  it("keeps the dual-v1 protocol and both start locks", () => {
+    // The cutover is the schema's. Narrowing the lock in the same phase would
+    // put V0-incompatible binaries in the fleet during the index change.
+    expect(GUIDE_START_LOCK_PROTOCOL).toBe("dual-v1");
     expect([...c0aStartLockKeys("u-1", "guia-a")]).toEqual([
       globalStartLockKey("u-1"),
       lineageStartLockKey("u-1", "guia-a"),

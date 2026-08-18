@@ -48,6 +48,7 @@ interface SessionCols {
   completedAt?: string | null;
   cancelledAt?: string | null;
   guideVersion?: number;
+  guideKey?: string;
 }
 
 suite("CC-7.4B · Guide SQL invariants (real PostgreSQL)", () => {
@@ -61,10 +62,11 @@ suite("CC-7.4B · Guide SQL invariants (real PostgreSQL)", () => {
       `INSERT INTO "GuideSession"
         ("id","userId","guideKey","guideVersion","status","editionId","unitId",
          "stepsCompleted","totalSteps","currentStepKey","completedAt","cancelledAt")
-       VALUES ($1,$2,'guia-prueba',$3,$4::"GuideSessionStatus",$5,$6,$7,$8,$9,$10,$11)`,
+       VALUES ($1,$2,$3,$4,$5::"GuideSessionStatus",$6,$7,$8,$9,$10,$11,$12)`,
       [
         cols.id,
         cols.userId,
+        cols.guideKey ?? "guia-prueba",
         cols.guideVersion ?? 1,
         cols.status ?? "ACTIVE",
         cols.editionId ?? null,
@@ -332,12 +334,20 @@ suite("CC-7.4B · Guide SQL invariants (real PostgreSQL)", () => {
     ).rejects.toThrow(/GuideSession_version_positive/);
   });
 
-  it("one ACTIVE per user (partial unique) — a second ACTIVE is rejected; other users unaffected", async () => {
-    // U1 already holds "gs-active"; a second ACTIVE for U1 must hit the
-    // partial unique. U2's ACTIVE ("gs-anchored") proves per-user scoping.
+  it("one ACTIVE per LINEAGE (partial unique) — same guideKey rejected, different one allowed", async () => {
+    // C.0B2 replaced the per-user rule with a per-(user, guideKey) one. U1
+    // already holds "gs-active" on `guia-prueba`; a second ACTIVE of THAT
+    // lineage must still hit the partial unique...
     await expect(
       insertSession({ id: "gs-active-2", userId: U1 }),
-    ).rejects.toThrow(/GuideSession_one_active_per_user/);
+    ).rejects.toThrow(/GuideSession_one_active_per_lineage/);
+    // ...while a different journey is now allowed to run alongside it. This
+    // single assertion is the product change the whole train exists for.
+    await insertSession({
+      id: "gs-active-otra",
+      userId: U1,
+      guideKey: "guia-otra",
+    });
     // COMPLETED/CANCELLED rows do NOT count against the partial index:
     await insertSession({
       id: "gs-done-2",
@@ -347,11 +357,15 @@ suite("CC-7.4B · Guide SQL invariants (real PostgreSQL)", () => {
       cancelledAt: new Date().toISOString(),
     });
     const { rows } = await pool.query(
-      `SELECT indexdef FROM pg_indexes
+      `SELECT indexname, indexdef FROM pg_indexes
         WHERE tablename = 'GuideSession'
-          AND indexname = 'GuideSession_one_active_per_user'`,
+          AND indexdef LIKE '%ACTIVE%'
+        ORDER BY indexname`,
     );
-    expect(rows).toHaveLength(1);
+    // Exactly one ACTIVE invariant survives, and it is the lineage one.
+    expect(rows.map((r: { indexname: string }) => r.indexname)).toEqual([
+      "GuideSession_one_active_per_lineage",
+    ]);
     expect(rows[0].indexdef).toMatch(/WHERE.*ACTIVE/);
   });
 

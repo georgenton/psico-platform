@@ -122,6 +122,14 @@ suite("C.3A · the binding bridge", () => {
     await prisma.$executeRawUnsafe(
       'ALTER TABLE "ChapterExperienceVersion" DROP CONSTRAINT IF EXISTS "ChapterExperienceVersion_binding_shape_check"',
     );
+    // The other half of the cutover, for the same reason. `NOT NULL` and the
+    // CHECK land in ONE migration precisely so no replica can observe one
+    // without the other — which is also why rewinding one here means rewinding
+    // both, or this database would be in the half-applied shape the authority
+    // detector calls FAIL_CLOSED.
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE "ChapterExperienceVersion" ALTER COLUMN "contentUnitId" DROP NOT NULL',
+    );
 
     for (const [slug, title, heading, order] of [
       [BOOK_A, "Emociones en Construcción", HEADING_A, 1],
@@ -194,24 +202,30 @@ suite("C.3A · the binding bridge", () => {
     await prisma.experienceGuideReservation.deleteMany();
   });
 
-  /** Insert exactly what the PREVIOUS binary writes: no identity, no lineage. */
+  /**
+   * Insert exactly what the PREVIOUS binary writes: no identity, no lineage.
+   *
+   * Raw SQL, and that is the point rather than a convenience. On the cutover
+   * branch the generated Prisma client is built from a schema where
+   * `contentUnitId` is NOT NULL, so a row without it is not expressible through
+   * the client AT ALL — the create input has no shape for it. The DDL was
+   * rewound above; the client cannot be. Writing the statement the old binary's
+   * client would have produced is the faithful way to reproduce its rows.
+   */
   async function insertLegacyRow(
     def: ChapterExperienceDefinition,
     status: "DRAFT" | "PUBLISHED" = "DRAFT",
   ): Promise<string> {
-    const row = await prisma.chapterExperienceVersion.create({
-      data: {
-        experienceKey: def.experienceKey,
-        experienceVersion: def.experienceVersion,
-        bookSlug: def.bookSlug,
-        chapterOrder: def.chapterOrder,
-        status,
-        definitionJson: def as unknown as never,
-        createdByUserId: userId,
-      },
-      select: { id: true },
-    });
-    return row.id;
+    const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+      INSERT INTO "ChapterExperienceVersion"
+        ("id", "experienceKey", "experienceVersion", "bookSlug", "chapterOrder",
+         "status", "definitionJson", "createdByUserId", "createdAt", "updatedAt")
+      VALUES (gen_random_uuid()::text, ${def.experienceKey}, ${def.experienceVersion},
+              ${def.bookSlug}, ${def.chapterOrder},
+              ${status}::"ExperienceVersionStatus",
+              ${JSON.stringify(def)}::jsonb, ${userId}, now(), now())
+      RETURNING "id"`;
+    return rows[0]!.id;
   }
 
   /** Both tables, as they finally stand. */
@@ -1401,17 +1415,7 @@ suite("C.3A · the binding bridge", () => {
       experienceVersion: version,
       status,
     });
-    await prisma.chapterExperienceVersion.create({
-      data: {
-        experienceKey: def.experienceKey,
-        experienceVersion: version,
-        bookSlug: def.bookSlug,
-        chapterOrder: def.chapterOrder,
-        status,
-        definitionJson: def as unknown as never,
-        createdByUserId: userId,
-      },
-    });
+    await insertLegacyRow({ ...def, experienceVersion: version }, status);
   }
 
   it("measure is read-only and reports the groups it would create", async () => {
@@ -1452,18 +1456,7 @@ suite("C.3A · the binding bridge", () => {
     // The collision that would otherwise appear the day a deploy replaced the
     // catalog — which is the worst possible moment to find it. The row claims
     // this chapter's guide under a lineage the build does not ship.
-    const def = await eecDraft({ experienceKey: "eec-c1-intrusa" });
-    await prisma.chapterExperienceVersion.create({
-      data: {
-        experienceKey: def.experienceKey,
-        experienceVersion: 1,
-        bookSlug: def.bookSlug,
-        chapterOrder: def.chapterOrder,
-        status: "DRAFT",
-        definitionJson: def as unknown as never,
-        createdByUserId: userId,
-      },
-    });
+    await insertLegacyRow(await eecDraft({ experienceKey: "eec-c1-intrusa" }));
 
     const measured = await measureReservations(prisma);
     expect(measured.anomalies.map((a) => a.kind)).toContain(
@@ -1584,17 +1577,7 @@ suite("C.3A · the binding bridge", () => {
   it("a legacy collision aborts the WHOLE backfill", async () => {
     const def = await eecDraft();
     for (const key of ["eec-c1-una", "eec-c1-otra"]) {
-      await prisma.chapterExperienceVersion.create({
-        data: {
-          experienceKey: key,
-          experienceVersion: 1,
-          bookSlug: def.bookSlug,
-          chapterOrder: def.chapterOrder,
-          status: "PUBLISHED",
-          definitionJson: { ...def, experienceKey: key } as unknown as never,
-          createdByUserId: userId,
-        },
-      });
+      await insertLegacyRow({ ...def, experienceKey: key }, "PUBLISHED");
     }
 
     await expect(applyReservations(prisma)).rejects.toBeInstanceOf(
@@ -1756,17 +1739,7 @@ suite("C.3A · the binding bridge", () => {
 
   it("the backfill and a create are serialised by the GLOBAL lock", async () => {
     const legacy = await eecDraft({ experienceKey: "eec-c1-legado" });
-    await prisma.chapterExperienceVersion.create({
-      data: {
-        experienceKey: legacy.experienceKey,
-        experienceVersion: 1,
-        bookSlug: legacy.bookSlug,
-        chapterOrder: legacy.chapterOrder,
-        status: "PUBLISHED",
-        definitionJson: legacy as unknown as never,
-        createdByUserId: userId,
-      },
-    });
+    await insertLegacyRow(legacy, "PUBLISHED");
 
     const b = barrier();
     // Hold the backfill open inside its transaction, with the global lock

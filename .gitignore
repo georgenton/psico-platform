@@ -66,3 +66,7 @@ coverage/
 # Local Vercel project linkage
 .vercel/
 apps/web/.vercel/
+
+# C.3C — the V1 compatibility gate materialises the previous binary here at
+# test time (`experience-v1-compat.pg-spec.ts`). Generated, never committed.
+apps/api/src/.v1-artifact/

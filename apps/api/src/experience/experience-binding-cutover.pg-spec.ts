@@ -15,6 +15,9 @@ import {
   bridgeBindingLockKeys,
 } from "./experience-binding-lock";
 import { readReservationAuthority } from "./experience-binding-reservation";
+import { GUIDE_READER_ANCHOR, PAREJAS_READER_ANCHOR } from "@psico/types";
+import { productionGuideRegistry } from "../guide/guide-catalog";
+import type { ExperienceBindingCatalog } from "./experience-guide-options";
 
 /**
  * C.3C+C.4 (#639) — the cutover: archive, rebind, and a fleet where the bridge
@@ -32,6 +35,15 @@ const base = process.env.TEST_DATABASE_URL;
 const suite = base ? describe : describe.skip;
 const API_DIR = process.cwd();
 const DB = "c3c_experience_cutover_db";
+
+const EEC_PIN = {
+  guideKey: GUIDE_READER_ANCHOR.guideKey,
+  guideVersion: GUIDE_READER_ANCHOR.guideVersion,
+};
+const PQP_PIN = {
+  guideKey: PAREJAS_READER_ANCHOR.guideKey,
+  guideVersion: PAREJAS_READER_ANCHOR.guideVersion,
+};
 
 const BOOK_A = "emociones-en-construccion";
 const BOOK_B = "parejas-que-perduran";
@@ -60,6 +72,8 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
   let prisma: PrismaClient;
   let pool: Pool;
   let service: ExperienceAdminService;
+  /** Same service, a menu with two guides in this chapter. See `twoGuideCatalog`. */
+  let twoGuides: ExperienceAdminService;
   let userId: string;
   let unitA: string;
 
@@ -118,6 +132,10 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
     });
     userId = u.id;
     service = new ExperienceAdminService(prisma as unknown as PrismaService);
+    twoGuides = new ExperienceAdminService(
+      prisma as unknown as PrismaService,
+      twoGuideCatalog,
+    );
 
     const edition = await prisma.edition.findFirstOrThrow({
       where: { slug: BOOK_A },
@@ -191,22 +209,52 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
 
   it("refuses a reserving row with no identity — the cutover shape", async () => {
     // Exactly the write the previous binary made all through C.3A. After the
-    // constraint it is no longer legal, which is what makes the backfill a
+    // migration it is no longer legal, which is what makes the backfill a
     // precondition rather than a nicety.
+    //
+    // Raw SQL because the client cannot express it any more: generated from
+    // this schema, `contentUnitId` is required and the create input has no
+    // shape for its absence. That refusal happens one layer earlier and is a
+    // different guarantee — the DATABASE's answer is the one being asserted,
+    // and it has to hold for statements no Prisma client wrote.
     const def = await eecDraft();
     await expect(
-      prisma.chapterExperienceVersion.create({
-        data: {
-          experienceKey: def.experienceKey,
-          experienceVersion: 1,
-          bookSlug: def.bookSlug,
-          chapterOrder: def.chapterOrder,
-          status: "DRAFT",
-          definitionJson: def as unknown as never,
-          createdByUserId: userId,
-        },
-      }),
+      prisma.$executeRaw`
+        INSERT INTO "ChapterExperienceVersion"
+          ("id", "experienceKey", "experienceVersion", "bookSlug",
+           "chapterOrder", "status", "definitionJson", "createdByUserId",
+           "createdAt", "updatedAt")
+        VALUES (gen_random_uuid()::text, ${def.experienceKey}, 1,
+                ${def.bookSlug}, ${def.chapterOrder},
+                'DRAFT'::"ExperienceVersionStatus",
+                ${JSON.stringify(def)}::jsonb, ${userId}, now(), now())`,
     ).rejects.toBeTruthy();
+  });
+
+  it("refuses an ARCHIVED row that kept its guide, and one that lost its unit", async () => {
+    // The two halves of the CHECK, from the side that would break them.
+    const def = await eecDraft({ experienceKey: "eec-c1-forma" });
+    const insert = (
+      status: string,
+      unit: string | null,
+      guide: string | null,
+    ) =>
+      prisma.$executeRaw`
+        INSERT INTO "ChapterExperienceVersion"
+          ("id", "experienceKey", "experienceVersion", "bookSlug",
+           "chapterOrder", "status", "contentUnitId", "guideKey",
+           "definitionJson", "createdByUserId", "createdAt", "updatedAt")
+        VALUES (gen_random_uuid()::text, ${def.experienceKey}, 1,
+                ${def.bookSlug}, ${def.chapterOrder},
+                ${status}::"ExperienceVersionStatus", ${unit}, ${guide},
+                ${JSON.stringify(def)}::jsonb, ${userId}, now(), now())`;
+
+    // ARCHIVED must give the guide back.
+    await expect(
+      insert("ARCHIVED", unitA, EEC_PIN.guideKey),
+    ).rejects.toBeTruthy();
+    // …and must keep its identity: history does not evaporate.
+    await expect(insert("ARCHIVED", null, null)).rejects.toBeTruthy();
   });
 
   it("accepts the shape the BRIDGE binary writes", async () => {
@@ -305,6 +353,26 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
     expect(final.reservations).toHaveLength(0);
   });
 
+  it("an ARCHIVED row still protects its chapter, with no reservation left", async () => {
+    // The reason the DIRECT foreign key exists. Once `guideKey` is null the
+    // composite key is not evaluated at all (MATCH SIMPLE), so if identity were
+    // only guarded by that one, an archived row's `contentUnitId` would be an
+    // unchecked string and the unit it names could be deleted underneath it.
+    const created = await service.createDraft(userId, await eecDraft(), unitA);
+    await service.archiveDraft(created.id);
+    expect(await prisma.experienceGuideReservation.count()).toBe(0);
+
+    const row = await prisma.chapterExperienceVersion.findUniqueOrThrow({
+      where: { id: created.id },
+      select: { contentUnitId: true, guideKey: true },
+    });
+    expect(row).toEqual({ contentUnitId: unitA, guideKey: null });
+
+    await expect(
+      prisma.contentUnit.delete({ where: { id: unitA } }),
+    ).rejects.toBeTruthy();
+  });
+
   it("archiving one version does not release a guide another still uses", async () => {
     const first = await service.createDraft(userId, await eecDraft());
     await service.publish(first.id);
@@ -375,33 +443,207 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
 
   // ── Rebind ───────────────────────────────────────────────────────────────
 
-  it("a never-published draft may move, and the reservation moves with it", async () => {
-    // The chapter's own guide is held by the code-owned experience, so this
-    // lineage starts on it only because the fixture is the same key. Move it
-    // by hand to prove the mechanism, then back.
+  it("rebinding to a guide whose passage is elsewhere is refused", async () => {
+    // The same rule the selector applies, applied again where it matters. A
+    // card bound here would publish cleanly and open for nobody.
     const created = await service.createDraft(userId, await eecDraft());
-    const before = await state();
-    expect(before.reservations[0]!.guideKey).toBe(
-      "eec-c1-cuerpo-antes-que-mente",
-    );
-
-    // Rebinding to a guide whose passage is elsewhere is refused — the same
-    // rule the selector applies, applied again where it matters.
     await expect(
       service.rebindDraft(created.id, {
-        guideKey: "pqp-c1-contacto-sostenido",
-        guideVersion: 1,
+        guideKey: PQP_PIN.guideKey,
+        guideVersion: PQP_PIN.guideVersion,
       }),
     ).rejects.toMatchObject({
       response: expect.objectContaining({
         code: "EXPERIENCE_GUIDE_PIN_NOT_RUNNABLE_HERE",
       }),
     });
+    expect((await state()).reservations[0]!.guideKey).toBe(EEC_PIN.guideKey);
+  });
 
-    // Nothing moved.
-    expect((await state()).reservations[0]!.guideKey).toBe(
-      "eec-c1-cuerpo-antes-que-mente",
+  it("rebinding to a guide the registry does not have is refused", async () => {
+    const created = await service.createDraft(userId, await eecDraft());
+    await expect(
+      service.rebindDraft(created.id, {
+        guideKey: `${EEC_PIN.guideKey}-inexistente`,
+        guideVersion: 1,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: "EXPERIENCE_GUIDE_PIN_NOT_REGISTERED",
+      }),
+    });
+  });
+
+  // ── A→B, with two guides that genuinely live in this chapter ─────────────
+
+  /**
+   * The production catalog anchors exactly ONE guide per chapter, so with it
+   * there is no chapter in which "move from A to B" is even expressible — a
+   * rebind's success path could ship without a test having run it once.
+   *
+   * The answer is not a second production guide invented for a test suite. It
+   * is the injected catalog: same service, same transaction, same locks, same
+   * constraints — only the menu differs. `ALT` is the real definition under a
+   * second key, anchored to the same chapter.
+   */
+  const ALT_PIN = { guideKey: `${EEC_PIN.guideKey}-alterna`, guideVersion: 1 };
+  const twoGuideCatalog: ExperienceBindingCatalog = {
+    anchors: [
+      GUIDE_READER_ANCHOR,
+      { ...GUIDE_READER_ANCHOR, guideKey: ALT_PIN.guideKey },
+    ],
+    getExact: (guideKey, guideVersion) =>
+      guideKey === ALT_PIN.guideKey
+        ? {
+            ...productionGuideRegistry.getExact(
+              EEC_PIN.guideKey,
+              EEC_PIN.guideVersion,
+            ),
+            guideKey: ALT_PIN.guideKey,
+          }
+        : productionGuideRegistry.getExact(guideKey, guideVersion),
+  };
+  /** Everything that describes one lineage's binding, read from all three places. */
+  async function bindingOf(experienceKey: string) {
+    const rows = await prisma.chapterExperienceVersion.findMany({
+      where: { experienceKey },
+      select: {
+        experienceVersion: true,
+        guideKey: true,
+        contentUnitId: true,
+        definitionJson: true,
+      },
+      orderBy: { experienceVersion: "asc" },
+    });
+    const reservation = await prisma.experienceGuideReservation.findUnique({
+      where: {
+        contentUnitId_experienceKey: { contentUnitId: unitA, experienceKey },
+      },
+      select: { guideKey: true },
+    });
+    return {
+      reservation: reservation?.guideKey ?? null,
+      columns: rows.map((r) => r.guideKey),
+      // Tolerant on purpose: the rollback test deliberately stores a
+      // definition with no pin, and a helper that threw there would report a
+      // fixture problem where the assertion about rollback should be.
+      json: rows.map(
+        (r) =>
+          (r.definitionJson as { guidePin?: { guideKey?: string } } | null)
+            ?.guidePin?.guideKey ?? null,
+      ),
+    };
+  }
+
+  it("moves a never-published draft from A to B, in all three places at once", async () => {
+    const created = await twoGuides.createDraft(userId, await eecDraft());
+    expect(await bindingOf(EEC_PIN.guideKey)).toEqual({
+      reservation: EEC_PIN.guideKey,
+      columns: [EEC_PIN.guideKey],
+      json: [EEC_PIN.guideKey],
+    });
+
+    await twoGuides.rebindDraft(created.id, ALT_PIN);
+
+    // Reservation, promoted column and stored definition — no divergence, and
+    // the column moved by CASCADE rather than by a second write.
+    expect(await bindingOf(EEC_PIN.guideKey)).toEqual({
+      reservation: ALT_PIN.guideKey,
+      columns: [ALT_PIN.guideKey],
+      json: [ALT_PIN.guideKey],
+    });
+    // Still exactly one reservation: a move, not an acquire-then-release.
+    expect(await prisma.experienceGuideReservation.count()).toBe(1);
+  });
+
+  it("every unpublished version of the lineage moves together", async () => {
+    // `ON UPDATE CASCADE` moves the COLUMNS of every referencing row. A
+    // definition left naming the old pin would be the divergence the cascade
+    // cannot fix, so the service rewrites them all — not only the one clicked.
+    const first = await twoGuides.createDraft(userId, await eecDraft());
+    await twoGuides.createNextDraft(userId, EEC_PIN.guideKey, 1);
+
+    await twoGuides.rebindDraft(first.id, ALT_PIN);
+
+    const after = await bindingOf(EEC_PIN.guideKey);
+    expect(after.columns).toEqual([ALT_PIN.guideKey, ALT_PIN.guideKey]);
+    expect(after.json).toEqual([ALT_PIN.guideKey, ALT_PIN.guideKey]);
+  });
+
+  it("refuses when the destination belongs to another lineage", async () => {
+    const mine = await twoGuides.createDraft(userId, await eecDraft());
+    // A second lineage takes B first.
+    await twoGuides.createDraft(
+      userId,
+      await eecDraft({
+        experienceKey: `${EEC_PIN.guideKey}-vecina`,
+        guidePin: ALT_PIN,
+      }),
     );
+
+    await expect(twoGuides.rebindDraft(mine.id, ALT_PIN)).rejects.toMatchObject(
+      {
+        response: expect.objectContaining({
+          code: "EXPERIENCE_GUIDE_BINDING_RESERVED",
+        }),
+      },
+    );
+    expect((await bindingOf(EEC_PIN.guideKey)).reservation).toBe(
+      EEC_PIN.guideKey,
+    );
+  });
+
+  it("the same pin twice is a replay, not a conflict", async () => {
+    const created = await twoGuides.createDraft(userId, await eecDraft());
+    await twoGuides.rebindDraft(created.id, ALT_PIN);
+    // A double submit, a retried request, a stale render.
+    await twoGuides.rebindDraft(created.id, ALT_PIN);
+    await twoGuides.rebindDraft(created.id, ALT_PIN);
+
+    expect(await bindingOf(EEC_PIN.guideKey)).toEqual({
+      reservation: ALT_PIN.guideKey,
+      columns: [ALT_PIN.guideKey],
+      json: [ALT_PIN.guideKey],
+    });
+    expect(await prisma.experienceGuideReservation.count()).toBe(1);
+  });
+
+  it("two concurrent rebinds to DIFFERENT guides leave one coherent state", async () => {
+    const created = await twoGuides.createDraft(userId, await eecDraft());
+    const results = await Promise.allSettled([
+      twoGuides.rebindDraft(created.id, ALT_PIN),
+      twoGuides.rebindDraft(created.id, EEC_PIN),
+    ]);
+    // Both may legitimately succeed — they are serialised, not mutually
+    // exclusive. What must never happen is a state where the three
+    // descriptions disagree.
+    expect(results.some((r) => r.status === "fulfilled")).toBe(true);
+
+    const after = await bindingOf(EEC_PIN.guideKey);
+    expect(after.columns).toEqual([after.reservation]);
+    expect(after.json).toEqual([after.reservation]);
+    expect(await prisma.experienceGuideReservation.count()).toBe(1);
+  });
+
+  it("a failure after the reservation moved rolls the move back", async () => {
+    // The move happens first, then the definitions are rewritten. If the
+    // second half throws, a reservation left on the new guide would be a
+    // lineage holding something none of its rows claim.
+    const first = await twoGuides.createDraft(userId, await eecDraft());
+    const second = await twoGuides.createNextDraft(userId, EEC_PIN.guideKey, 1);
+    // Corrupt the SIBLING, so the rewrite loop throws after the move.
+    await prisma.chapterExperienceVersion.update({
+      where: { id: second.id },
+      data: { definitionJson: { nonsense: true } as unknown as never },
+    });
+
+    await expect(twoGuides.rebindDraft(first.id, ALT_PIN)).rejects.toBeTruthy();
+
+    const after = await bindingOf(EEC_PIN.guideKey);
+    expect(after.reservation).toBe(EEC_PIN.guideKey);
+    expect(after.columns).toEqual([EEC_PIN.guideKey, EEC_PIN.guideKey]);
+    // v1's definition was never rewritten either: the whole transaction went.
+    expect(after.json[0]).toBe(EEC_PIN.guideKey);
   });
 
   it("a lineage with any published version can never rebind", async () => {

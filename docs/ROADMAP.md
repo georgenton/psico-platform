@@ -804,17 +804,57 @@ sostiene, no una promesa del servicio: la reserva no puede borrarse mientras una
 versión la referencie.
 
 **La identidad de capítulo deja de ser posicional** (cierra ADR 0022 §10). Toda
-mutación de binding resuelve `ContentUnit.id` desde el manifiesto publicado
-antes del lock, y falla cerrada para las clases que no resuelven —legacy sin
-adoptar, desplazado, fuera de la estructura publicada—. No hay fallback a
-`chapterOrder`, y el `contentUnitId` que envíe el navegador se verifica, nunca
-se cree.
+mutación de binding resuelve `ContentUnit.id` desde el manifiesto publicado, y
+falla cerrada para las clases que no resuelven —legacy sin adoptar, desplazado,
+fuera de la estructura publicada—. No hay fallback a `chapterOrder`, y el
+`contentUnitId` que envíe el navegador se verifica, nunca se cree.
+
+**Resolver no basta: tiene que seguir resuelto.** Leer el manifiesto sin nada
+tomado deja una ventana en la que un reorder concurrente cambia la respuesta
+después de leerla. Content Core ya tiene el mecanismo y **no es un advisory
+lock**: cada escritura editorial —`publishDraftRevision`,
+`reorderDraftManifest`, `discardDraftUnit`, `saveUnitDraft`, `ingestUnitV2`—
+abre tomando la fila de `Edition` con `FOR UPDATE`. El binding se suma a ese
+protocolo. El orden completo de la familia es:
+
+```
+advisory global  →  Edition FOR UPDATE  →  advisory de capítulo
+```
+
+La clave de capítulo no puede tomarse antes porque su nombre ES la respuesta.
+El orden es libre de deadlock contra todo lo demás: Content Studio solo toma la
+fila de Edition y nunca espera un advisory, y el backfill C.3B toma la clave
+global y después filas de Edition — el mismo orden relativo.
+
+**Una fila que ya tiene identidad no se re-resuelve.** `chapterOrder` en una
+fila guardada es la posición en la que se creó y nada la actualiza, así que
+resolver un `save` por ese número seguiría una posición vieja hasta la unidad
+que la heredó — moviendo el borrador de capítulo y llevándose su reserva. Una
+fila con `contentUnitId` es su propia respuesta.
+
+**`listForChapter` deja de seleccionar por posición.** En `STRUCTURAL` la
+selección es por identidad y solo por identidad; en `BRIDGE` mezcla las dos de
+forma controlada —las filas legacy por posición **y** solo cuando no tienen
+identidad—, de modo que las filas de una unidad movida nunca aparecen bajo su
+número anterior.
 
 **C.3B no es una migración de Prisma, y eso es deliberado.** Puede abortar
 legítimamente ante una colisión heredada, y una migración de datos que aborta
 deja `_prisma_migrations` con `finished_at` nulo — bloqueando todos los deploys
 siguientes, exactamente el incidente del 2026-06-01. Como comando aborta sin
 dejar nada aplicado y se re-ejecuta cuando el dato esté corregido.
+
+**Medido, no supuesto: `prisma migrate deploy` NO envuelve cada fichero en una
+transacción.** Un fichero con `CREATE TABLE` seguido de un fallo deja la tabla
+creada y la migración marcada como fallida. Comprobado con el `migrate:deploy`
+real del proyecto sobre PostgreSQL 18.4 desechable. Dos consecuencias:
+
+- `ALTER TYPE … ADD VALUE` seguido de un `CHECK` que usa el valor nuevo **sí
+  funciona** en un mismo fichero — el motivo que C.3C daba para separarlos era
+  incorrecto.
+- Pero un fichero de dos sentencias **no es re-ejecutable** tras un fallo
+  parcial: la primera ya está confirmada y el reintento choca. Por eso C.3C
+  mantiene los ficheros separados, ahora por la razón real.
 
 **ARCHIVED no se habilita por existir el enum.** El binario anterior lista sin
 filtrar por estado y su guarda de edición negaba PUBLISHED en vez de exigir

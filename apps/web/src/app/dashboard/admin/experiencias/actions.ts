@@ -88,12 +88,19 @@ export async function rebindDraftAction(
   chapterOrder: number,
   id: string,
   guidePin: { guideKey: string; guideVersion: number },
+  expectedContentUnitId?: string | null,
 ): Promise<{ id: string }> {
   const result = await serverFetch<{ id: string }>(
-    `/pulso/experiences/drafts/${id}/binding`,
-    { method: "PATCH", body: JSON.stringify({ guidePin }) },
+    `/pulso/experiences/drafts/${encodeURIComponent(id)}/binding`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ guidePin, ...hint(expectedContentUnitId) }),
+    },
   );
   revalidatePath(chapterPath(bookSlug, chapterOrder));
+  // The draft editor renders the binding, so its own route has to be
+  // invalidated too — otherwise the card keeps showing the guide it just left.
+  revalidatePath(`${chapterPath(bookSlug, chapterOrder)}/borrador/${id}`);
   return result;
 }
 
@@ -107,10 +114,11 @@ export async function archiveDraftAction(
   bookSlug: string,
   chapterOrder: number,
   id: string,
+  expectedContentUnitId?: string | null,
 ): Promise<{ id: string }> {
   const result = await serverFetch<{ id: string }>(
-    `/pulso/experiences/drafts/${id}/archive`,
-    { method: "POST" },
+    `/pulso/experiences/drafts/${encodeURIComponent(id)}/archive`,
+    { method: "POST", body: JSON.stringify(hint(expectedContentUnitId)) },
   );
   revalidatePath(chapterPath(bookSlug, chapterOrder));
   return result;

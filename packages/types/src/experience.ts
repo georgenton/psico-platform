@@ -374,6 +374,26 @@ export interface AdminExperienceRow {
   updatedAt: string | null;
 }
 
+/** How a guide option stands for the chapter being edited (C.4). */
+export type GuideOptionAvailability =
+  | "AVAILABLE"
+  | "OWNED_BY_THIS_EXPERIENCE"
+  | "RESERVED_BY_ANOTHER_EXPERIENCE";
+
+/**
+ * One guide an editor may bind, as the SERVER decides it.
+ *
+ * A guide reserved by another experience is listed as reserved, never hidden:
+ * "that guide does not exist" would be false, and an editor who cannot see the
+ * collision cannot resolve it. Who holds it is deliberately not disclosed.
+ */
+export interface SelectableGuideOption {
+  guideKey: string;
+  guideVersion: number;
+  stepCount: number;
+  availability: GuideOptionAvailability;
+}
+
 /** Everything the editor needs for one chapter, in one read. */
 export interface AdminChapterExperiences {
   bookSlug: string;

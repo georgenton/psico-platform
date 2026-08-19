@@ -1,6 +1,11 @@
 import type { Prisma } from "@prisma/client";
 
 import { validateExperienceDefinition } from "./experience-catalog";
+import {
+  decideReservationAuthority,
+  probeBindingSchema,
+  type ReservationAuthority,
+} from "./experience-binding-schema";
 
 /**
  * C.3A (#639) — reserving a guide lineage for an experience lineage, and the
@@ -34,13 +39,12 @@ import { validateExperienceDefinition } from "./experience-catalog";
  * that a row which HAS columns agrees with its reservation and with its JSON,
  * and it reads legacy rows by scanning. A row that half-agrees is not a
  * degraded read — it is a contradiction, and contradictions fail closed.
+ *
+ * The structural half of that answer — what the catalog actually says — lives in
+ * `experience-binding-schema.ts`, exact predicate by exact predicate.
  */
 
-export type ReservationAuthority =
-  | "LEGACY_SCAN"
-  | "BRIDGE"
-  | "STRUCTURAL"
-  | "FAIL_CLOSED";
+export type { ReservationAuthority };
 
 export const EXPERIENCE_BINDING_CODES = {
   /** Another lineage already owns this guide in this chapter. */
@@ -61,71 +65,22 @@ export class ExperienceBindingError extends Error {
   }
 }
 
-interface CapabilityRow {
-  has_table: boolean;
-  has_reservation_fk: boolean;
-  has_guide_unique: boolean;
-  has_final_check: boolean;
-  final_check_validated: boolean;
-}
-
 /**
  * Which authority this schema supports, decided from its structure.
  *
  * Read inside the caller's transaction. Nothing is memoised: a cached answer
  * would survive the migration that changed it, and the one moment this must be
  * right is exactly the moment it changes.
+ *
+ * The probe and the decision are separate on purpose. The probe is the part
+ * only a real PostgreSQL can verify; the decision is a pure function over its
+ * answers, so every branch of the table — including the ones a migration can
+ * only reach by going wrong — is exercised without one.
  */
 export async function readReservationAuthority(
   tx: Prisma.TransactionClient,
 ): Promise<ReservationAuthority> {
-  const rows = await tx.$queryRaw<CapabilityRow[]>`
-SELECT
-  to_regclass('public."ExperienceGuideReservation"') IS NOT NULL AS has_table,
-  EXISTS (
-    SELECT 1 FROM pg_constraint c
-     WHERE c.conrelid = to_regclass('public."ChapterExperienceVersion"')
-       AND c.contype = 'f'
-       AND c.confrelid = to_regclass('public."ExperienceGuideReservation"')
-       AND array_length(c.conkey, 1) = 3
-  ) AS has_reservation_fk,
-  EXISTS (
-    SELECT 1 FROM pg_index i
-     WHERE i.indrelid = to_regclass('public."ExperienceGuideReservation"')
-       AND i.indisunique AND i.indisvalid AND i.indisready
-       AND i.indnkeyatts = 2
-       AND (SELECT array_agg(a.attname::text ORDER BY k.ord)
-              FROM unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord)
-              JOIN pg_attribute a
-                ON a.attrelid = i.indrelid AND a.attnum = k.attnum)
-           = ARRAY['contentUnitId','guideKey']
-  ) AS has_guide_unique,
-  EXISTS (
-    SELECT 1 FROM pg_constraint c
-     WHERE c.conrelid = to_regclass('public."ChapterExperienceVersion"')
-       AND c.contype = 'c'
-       AND c.conname = 'ChapterExperienceVersion_binding_shape_check'
-  ) AS has_final_check,
-  COALESCE((
-    SELECT c.convalidated FROM pg_constraint c
-     WHERE c.conrelid = to_regclass('public."ChapterExperienceVersion"')
-       AND c.contype = 'c'
-       AND c.conname = 'ChapterExperienceVersion_binding_shape_check'
-  ), false) AS final_check_validated`;
-
-  const cap = rows[0];
-  if (!cap) return "FAIL_CLOSED";
-  if (!cap.has_table) {
-    // No table anywhere. A CHECK without its table is not a partial rollout,
-    // it is a shape nobody designed.
-    return cap.has_final_check ? "FAIL_CLOSED" : "LEGACY_SCAN";
-  }
-  // The table alone is not enough: without the composite FK a row could name a
-  // reservation that does not exist, and without the unique two lineages could
-  // hold the same guide.
-  if (!cap.has_reservation_fk || !cap.has_guide_unique) return "FAIL_CLOSED";
-  if (!cap.has_final_check) return "BRIDGE";
-  return cap.final_check_validated ? "STRUCTURAL" : "FAIL_CLOSED";
+  return decideReservationAuthority(await probeBindingSchema(tx));
 }
 
 /** A row as the binding logic needs to see it. */

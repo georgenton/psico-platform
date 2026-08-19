@@ -631,6 +631,17 @@ LINEAGE_RECOVERY_SEPARATED_FROM_EXACT_PIN_COMPLETION=true
 OLD_ACTIVE_VERSION_CONTINUES=true
 COMPLETION_CROSSES_VERSION=false
 WEB_STATE_PER_EXPERIENCE=true
+UNKNOWN_CARD_STATE_FAILS_CLOSED=true
+ROLLING_DEPLOY_OLD_API_FAILS_CLOSED=true
+CARD_STATE_REVALIDATES_ON_REENTRY=true
+CARD_STATE_REVALIDATES_ON_FOCUS=true
+UNBOUNDED_EXPERIENCE_LIST_SUPPORTED_BY_CHUNKS=true
+REQUESTS_PER_CARD=false
+RUNTIME_ADDITIONAL_PROPERTIES_REJECTED=true
+CARD_RESPONSE_EXPOSES_SESSION=false
+CARD_STATE_REPOSITORY_READS=2
+EXACT_HISTORY_ROWS_BOUNDED=true
+PICKED_EXPERIENCE_INDEPENDENT_OF_CHAPTER_DISCOVERY=true
 ```
 
 **La causa raíz.** Un capítulo resuelve UN pin de Guide. La web pedía el estado
@@ -652,7 +663,7 @@ preguntara por cada tarjeta.
 | ------------------------------------- | ---------------------------------------- | --------------------------- |
 | Qué guía inicia una experiencia nueva | pin publicado de esa Experience          | discovery                   |
 | Qué sesión puede continuar            | `(userId, guideKey)` — cualquier versión | `findActiveOwnForGuideKeys` |
-| Si el pin publicado está terminado    | `(userId, guideKey, guideVersion)`       | `findOwnForExactPins`       |
+| Si el pin publicado está terminado    | `(userId, guideKey, guideVersion)`       | `findLatestOwnPerExactPin`  |
 
 **Precedencia, en este orden:** una sesión ACTIVE del mismo `guideKey` gana y se
 continúa **en su propio pin inmutable**; si no la hay, un COMPLETED del pin
@@ -660,13 +671,41 @@ exacto; si tampoco, START con el pin publicado. La regla 1 supera a la 3 a
 propósito: ofrecer `A@v2` a quien dejó `A@v1` corriendo abandonaría su sesión.
 Una sesión **nunca** se migra de versión, y completar `A@v1` no completa `A@v2`.
 
-**`POST /api/guide/experiences/state`** resuelve la lista entera en tres
-lecturas —los ACTIVE de los linajes, las sesiones de los pines exactos, y los
-pasos aceptados de las sesiones citadas— sea cual sea el número de tarjetas. La
-respuesta conserva el orden pedido y **repite** la respuesta para un pin
-repetido: dos experiencias ligadas a la misma guía comparten linaje de verdad, y
-fingir independencia ahí escondería un error de catálogo que C.3/C.4 deben
-evitar en la creación.
+**`POST /api/guide/experiences/state`** resuelve un lote en **dos** lecturas:
+los ACTIVE de los linajes y la **última** sesión de cada pin exacto. `DISTINCT
+ON` acota esa segunda lectura a una fila por pin, así que quien reinició la
+misma travesía veinte veces cuesta lo mismo que quien nunca lo hizo. No se
+proyecta el ledger: una tarjeta pinta una palabra y un destino, no un recorrido
+paso a paso. La respuesta conserva el orden pedido y **repite** la respuesta
+para un pin repetido: dos experiencias ligadas a la misma guía comparten linaje
+de verdad, y fingir independencia ahí escondería un error de catálogo que
+C.3/C.4 deben evitar en la creación.
+
+**El lote está acotado a 25 pines**, y una lista más larga se trocea: `ceil(N/25)`
+peticiones, nunca una por tarjeta. El orden global y los pines repetidos
+sobreviven al corte, y si un sublote falla, falla la operación entera — un lote a
+medias dejaría unas tarjetas con veredicto y otras adivinando, que es el defecto
+de #639 reconstruido en el cliente. El contrato se rechaza en runtime, no solo en
+el papel: propiedades desconocidas en la raíz o dentro de un pin son un 400, y
+un ratchet obliga a que parser, OpenAPI y cliente digan lo mismo.
+
+**Un veredicto que no se tiene no es un veredicto.** La carga es una máquina de
+estados (`idle`/`loading`/`ready`/`error`) y solo `ready` habilita una acción:
+mientras se consulta, tras un error de red y ante un 404 de un despliegue
+antiguo, la tarjeta queda inerte con su motivo y un reintento. «No pudimos
+preguntar» y «no has empezado» son hechos distintos, y solo uno es seguro:
+empezar de nuevo puede cancelar precisamente la sesión que C.1 debía continuar.
+El lote se revalida al entrar a Chapter Home, al volver a esa superficie y al
+recuperar foco o visibilidad, sin polling; una respuesta tardía de una pregunta
+anterior se descarta por clave y por orden de emisión.
+
+**Una tarjeta elegida basta para ejecutar su Guide.** El pin elegido es la
+autoridad y no depende del discovery del capítulo — que responde otra pregunta:
+la del pin propio del capítulo. Siguen siendo obligatorios el gate del piloto,
+el actor scope, el bundle exacto y el anchor aplicable, así que una tarjeta sin
+ellos sigue fallando cerrada. Y elegir se abandona entero: cambiar de capítulo,
+que la Experience desaparezca del discovery o pulsar «Ver otra experiencia»
+limpian pin y Experience a la vez. Cerrar el panel no es abandonar.
 
 #### Qué falta de #639 después de C.0B3
 

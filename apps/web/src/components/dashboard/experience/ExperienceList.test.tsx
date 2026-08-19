@@ -7,7 +7,7 @@ import type {
 } from "@psico/types";
 import {
   ExperienceList,
-  experienceCardStatus,
+  experienceCardView,
   experiencePinKey,
   type ExperienceCardStates,
   type ExperienceStatesLoad,
@@ -527,9 +527,12 @@ describe("Chapter Home · a verdict this screen cannot act on", () => {
     );
 
     const cards = screen.getAllByRole("listitem");
-    // No answer for card 1; an answer we cannot act on for card 2.
+    // No answer for card 1; an answer we cannot act on for card 2. Two axes,
+    // two attributes: the verdict survives, the runnability is what differs.
     expect(cards[0]).toHaveAttribute("data-status", "unknown");
-    expect(cards[1]).toHaveAttribute("data-status", "unavailable");
+    expect(cards[0]).toHaveAttribute("data-runnable", "false");
+    expect(cards[1]).toHaveAttribute("data-status", "start");
+    expect(cards[1]).toHaveAttribute("data-runnable", "false");
     expect(screen.getByTestId("experience-note-exp-1")).toHaveTextContent(
       /no pudimos consultar/i,
     );
@@ -539,41 +542,130 @@ describe("Chapter Home · a verdict this screen cannot act on", () => {
   });
 });
 
-describe("experienceCardStatus — the server decides, this only translates", () => {
+describe("Chapter Home · an unrunnable card still says where you stand", () => {
+  const pin = { guideKey: "guide-1", guideVersion: 1 };
+
+  const renderUnrunnable = (status: GuideExperienceCardState["status"]) =>
+    render(
+      <ExperienceList
+        experiences={[experience(1, { guidePin: pin })]}
+        load={states(state(pin, status))}
+        canRun={RUNS_NOWHERE}
+        onOpen={onOpen}
+      />,
+    );
+
+  it("CONTINUE keeps «En curso» and disables the CTA", async () => {
+    // The whole point of splitting the axes: being mid-journey is a fact about
+    // the reader, and it does not stop being true because this build cannot
+    // open the door.
+    renderUnrunnable("CONTINUE");
+
+    expect(screen.getByText(/En curso/)).toBeInTheDocument();
+    const cta = screen.getByRole("button", { name: /No disponible aquí/ });
+    expect(cta).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Continuar/ })).toBeNull();
+
+    await userEvent.click(cta);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("COMPLETED keeps «Completada» and disables the CTA", () => {
+    renderUnrunnable("COMPLETED");
+
+    expect(screen.getByText(/Completada/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /No disponible aquí/ }),
+    ).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Ver resumen/ })).toBeNull();
+  });
+
+  it("START invents no badge, and still disables the CTA", () => {
+    renderUnrunnable("START");
+
+    expect(screen.queryByText(/En curso/)).toBeNull();
+    expect(screen.queryByText(/Completada/)).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /No disponible aquí/ }),
+    ).toBeDisabled();
+  });
+
+  it("all three carry the same explanation, wired for a screen reader", () => {
+    for (const status of ["START", "CONTINUE", "COMPLETED"] as const) {
+      cleanup();
+      renderUnrunnable(status);
+      const note = screen.getByTestId("experience-note-exp-1");
+      expect(note).toHaveTextContent(/no puede abrirse en este capítulo/i);
+      expect(
+        screen.getByRole("button", { name: /No disponible aquí/ }),
+      ).toHaveAttribute("aria-describedby", note.id);
+    }
+  });
+
+  it("an unknown card says something ELSE — the network, not the catalog", () => {
+    render(
+      <ExperienceList
+        experiences={[experience(1, { guidePin: pin })]}
+        load={FAILED}
+        canRun={RUNS_ANYWHERE}
+        onOpen={onOpen}
+      />,
+    );
+    expect(screen.getByTestId("experience-note-exp-1")).toHaveTextContent(
+      /no pudimos consultar/i,
+    );
+    expect(
+      screen.getByRole("button", { name: /^No disponible ·/ }),
+    ).toBeDisabled();
+  });
+
+  it("the CTA comes back when the pin becomes runnable", () => {
+    const { rerender } = renderUnrunnable("CONTINUE");
+    expect(
+      screen.getByRole("button", { name: /No disponible aquí/ }),
+    ).toBeDisabled();
+
+    rerender(
+      <ExperienceList
+        experiences={[experience(1, { guidePin: pin })]}
+        load={states(state(pin, "CONTINUE"))}
+        canRun={RUNS_ANYWHERE}
+        onOpen={onOpen}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /Continuar/ })).toBeEnabled();
+    expect(screen.getByText(/En curso/)).toBeInTheDocument();
+    expect(screen.queryByTestId("experience-note-exp-1")).toBeNull();
+  });
+});
+
+describe("experienceCardView — two facts, answered separately", () => {
   const pin = { guideKey: "guide-eec", guideVersion: 1 };
+  const view = (
+    status: GuideExperienceCardState["status"],
+    canRun = RUNS_ANYWHERE,
+  ) =>
+    experienceCardView(
+      experience(1, { guidePin: pin }),
+      states(state(pin, status)),
+      canRun,
+    );
 
   it("maps the three server words to the three reader words", () => {
-    expect(
-      experienceCardStatus(
-        experience(1, { guidePin: pin }),
-        states(state(pin, "START")),
-        RUNS_ANYWHERE,
-      ),
-    ).toBe("start");
-    expect(
-      experienceCardStatus(
-        experience(1, { guidePin: pin }),
-        states(state(pin, "CONTINUE")),
-        RUNS_ANYWHERE,
-      ),
-    ).toBe("continue");
-    expect(
-      experienceCardStatus(
-        experience(1, { guidePin: pin }),
-        states(state(pin, "COMPLETED")),
-        RUNS_ANYWHERE,
-      ),
-    ).toBe("completed");
+    expect(view("START")).toEqual({ verdict: "start", runnable: true });
+    expect(view("CONTINUE")).toEqual({ verdict: "continue", runnable: true });
+    expect(view("COMPLETED")).toEqual({ verdict: "completed", runnable: true });
   });
 
   it("a state for ANOTHER pin does not answer for this card", () => {
     expect(
-      experienceCardStatus(
+      experienceCardView(
         experience(1, { guidePin: pin }),
         states(state({ guideKey: "otra", guideVersion: 1 }, "COMPLETED")),
         RUNS_ANYWHERE,
       ),
-    ).toBe("unknown");
+    ).toEqual({ verdict: "unknown", runnable: false });
   });
 
   it("an unfinished load is «unknown», not «start»", () => {
@@ -586,27 +678,48 @@ describe("experienceCardStatus — the server decides, this only translates", ()
       FAILED,
     ]) {
       expect(
-        experienceCardStatus(
+        experienceCardView(
           experience(1, { guidePin: pin }),
           load,
           RUNS_ANYWHERE,
         ),
-      ).toBe("unknown");
+      ).toEqual({ verdict: "unknown", runnable: false });
     }
   });
 
-  it("a verdict whose resumePin cannot run here becomes «unavailable»", () => {
-    // Not «unknown»: the answer arrived and is trusted. What is missing is the
-    // journey itself, on this screen, in this build.
-    for (const status of ["START", "CONTINUE", "COMPLETED"] as const) {
-      expect(
-        experienceCardStatus(
-          experience(1, { guidePin: pin }),
-          states(state(pin, status)),
-          RUNS_NOWHERE,
-        ),
-      ).toBe("unavailable");
-    }
+  it("an unrunnable pin changes RUNNABILITY, never the verdict", () => {
+    // The collapse this replaces turned all three into one word, and «En
+    // curso» disappeared from a journey the reader is in the middle of.
+    expect(view("START", RUNS_NOWHERE)).toEqual({
+      verdict: "start",
+      runnable: false,
+    });
+    expect(view("CONTINUE", RUNS_NOWHERE)).toEqual({
+      verdict: "continue",
+      runnable: false,
+    });
+    expect(view("COMPLETED", RUNS_NOWHERE)).toEqual({
+      verdict: "completed",
+      runnable: false,
+    });
+  });
+
+  it("asks about resumePin, never the published pin", () => {
+    const published = { guideKey: "guide-eec", guideVersion: 2 };
+    const resume = { guideKey: "guide-eec", guideVersion: 1 };
+    const asked: { guideKey: string; guideVersion: number }[] = [];
+
+    const result = experienceCardView(
+      experience(1, { guidePin: published }),
+      states({ guidePin: published, status: "CONTINUE", resumePin: resume }),
+      (p) => {
+        asked.push(p);
+        return p.guideVersion === 1;
+      },
+    );
+
+    expect(asked).toEqual([resume]);
+    expect(result).toEqual({ verdict: "continue", runnable: true });
   });
 
   it("two experiences on the SAME binding share their state, honestly", () => {
@@ -620,7 +733,11 @@ describe("experienceCardStatus — the server decides, this only translates", ()
     const a = experience(1, { experienceKey: "eec", guidePin: pin });
     const b = experience(2, { experienceKey: "otra", guidePin: pin });
 
-    expect(experienceCardStatus(a, shared, RUNS_ANYWHERE)).toBe("completed");
-    expect(experienceCardStatus(b, shared, RUNS_ANYWHERE)).toBe("completed");
+    expect(experienceCardView(a, shared, RUNS_ANYWHERE)).toEqual(
+      experienceCardView(b, shared, RUNS_ANYWHERE),
+    );
+    expect(experienceCardView(a, shared, RUNS_ANYWHERE).verdict).toBe(
+      "completed",
+    );
   });
 });

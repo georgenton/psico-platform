@@ -30,15 +30,19 @@ const SERVICE = join(process.cwd(), "src/guide/guide-lifecycle.service.ts");
 const source = () => readFileSync(SERVICE, "utf8");
 
 describe("ratchet · Guide command transaction isolation", () => {
-  it("the lifecycle opens exactly two interactive transactions", () => {
+  it("the lifecycle opens exactly three interactive transactions", () => {
     // Five commands, two transactions: START owns one, and the shared
     // `mutate()` helper owns the other for step-complete, recall, cancel and
     // session-complete. A third would be an uncovered command.
+    //
+    // C.1 adds the third, and it is the only READ one: the card-state batch
+    // needs its two queries on ONE snapshot. A fourth would be an uncovered
+    // command again.
     const opens = source().match(/this\.prisma\.\$transaction\(/g) ?? [];
-    expect(opens).toHaveLength(2);
+    expect(opens).toHaveLength(3);
   });
 
-  it("both request ReadCommitted explicitly", () => {
+  it("both COMMAND transactions request ReadCommitted explicitly", () => {
     const stated =
       source().match(
         /isolationLevel:\s*Prisma\.TransactionIsolationLevel\.ReadCommitted/g,
@@ -54,6 +58,77 @@ describe("ratchet · Guide command transaction isolation", () => {
       /import type \{ Prisma \} from "@prisma\/client"/,
     );
     expect(source()).toMatch(/import \{ Prisma \} from "@prisma\/client"/);
+  });
+});
+
+/**
+ * C.1 — the card-state read is the opposite case, and it must not be confused
+ * with the commands above.
+ *
+ * Its two queries answer different halves of one question — «is a run of this
+ * lineage open?» and «was this exact pin finished?» — and under per-statement
+ * snapshots a START committed between them yields a verdict that was true at
+ * no single instant. REPEATABLE READ fixes the snapshot at the first
+ * statement, so both halves describe the same moment.
+ *
+ * The commands need the reverse property and keep READ COMMITTED. Stating both
+ * here, in one place, is what stops a future "let's make them consistent"
+ * change from silently breaking either contract.
+ */
+describe("ratchet · the card-state read runs on ONE snapshot", () => {
+  /** The `resolveExperienceCardStates` body, and nothing else. */
+  const cardStatePath = () => {
+    const src = source();
+    const from = src.indexOf("async resolveExperienceCardStates(");
+    expect(from).toBeGreaterThan(-1);
+    const to = src.indexOf(
+      "\n  /** Build the result from CURRENT stored state",
+      from,
+    );
+    expect(to).toBeGreaterThan(from);
+    return src.slice(from, to);
+  };
+
+  it("opens ONE transaction and asks for RepeatableRead explicitly", () => {
+    const body = cardStatePath();
+    expect(body.match(/this\.prisma\.\$transaction\(/g) ?? []).toHaveLength(1);
+    expect(body).toMatch(
+      /isolationLevel:\s*Prisma\.TransactionIsolationLevel\.RepeatableRead/,
+    );
+    // Exactly one RepeatableRead in the whole file: this one.
+    expect(
+      source().match(/Prisma\.TransactionIsolationLevel\.RepeatableRead/g) ??
+        [],
+    ).toHaveLength(1);
+  });
+
+  it("hands the SAME tx to both reads — a shared snapshot, not two", () => {
+    const body = cardStatePath();
+    expect(body).toMatch(/findActiveOwnForGuideKeys\([\s\S]{0,120}?\btx,/);
+    expect(body).toMatch(/findLatestOwnPerExactPin\([\s\S]{0,120}?\btx,/);
+    // Two functional reads, and no third one sneaking back in.
+    expect(body.match(/this\.sessions\.\w+\(/g) ?? []).toHaveLength(2);
+    expect(body).not.toMatch(/this\.steps\./);
+  });
+
+  it("stays a READ: no write primitive inside the transaction", () => {
+    const body = cardStatePath();
+    expect(body).not.toMatch(
+      /\.create\(|\.update\(|\.delete\(|\.upsert\(|appendValidated|\$executeRaw/,
+    );
+  });
+
+  it("does not borrow the COMMAND level, and the commands do not borrow this one", () => {
+    const body = cardStatePath();
+    expect(body).not.toMatch(/TransactionIsolationLevel\.ReadCommitted/);
+    // And the two command transactions are still the ReadCommitted ones.
+    const commands = source().replace(body, "");
+    expect(
+      commands.match(
+        /isolationLevel:\s*Prisma\.TransactionIsolationLevel\.ReadCommitted/g,
+      ) ?? [],
+    ).toHaveLength(2);
+    expect(commands).not.toMatch(/TransactionIsolationLevel\.RepeatableRead/);
   });
 });
 

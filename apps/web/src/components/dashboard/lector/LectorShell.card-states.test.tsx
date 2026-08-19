@@ -255,7 +255,10 @@ describe("Chapter Home · an unknown card is inert (fail closed)", () => {
       screen.getByTestId("chapter-experiences"),
     ).getAllByRole("listitem");
     expect(cards[0]).toHaveAttribute("data-status", "completed");
-    expect(cards[1]).toHaveAttribute("data-status", "unavailable");
+    expect(cards[0]).toHaveAttribute("data-runnable", "true");
+    // The verdict survives; only the runnability differs.
+    expect(cards[1]).toHaveAttribute("data-status", "start");
+    expect(cards[1]).toHaveAttribute("data-runnable", "false");
     expect(screen.queryByRole("button", { name: /^Empezar/ })).toBeNull();
   });
 

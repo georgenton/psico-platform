@@ -362,6 +362,151 @@ suite("C.1 · one card state per experience", () => {
     expect(theirs[0]?.resumePin).toEqual(PIN_A);
   });
 
+  // ── One snapshot, not two moments ────────────────────────────────────────
+
+  /**
+   * The verdict is assembled from two reads, and a verdict assembled from two
+   * MOMENTS belongs to neither of them.
+   *
+   * The interleaving is forced, never slept on: the exact-pin read is held at
+   * a barrier until a concurrent START has committed from another connection.
+   * Under per-statement snapshots that produces a word — START — that was true
+   * at no single instant: before the concurrent start the answer was
+   * COMPLETED, after it CONTINUE.
+   */
+  function barrier() {
+    let release!: () => void;
+    const reached = new Promise<void>((resolve) => {
+      // Resolved by the spy the moment the second read is attempted.
+      release = resolve;
+    });
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    return { reached, arrive: release, gate, open };
+  }
+
+  it("holds ONE snapshot across both reads — never the hybrid START", async () => {
+    const finished = await completeA();
+
+    // Hold the second read until a concurrent START has committed.
+    const b = barrier();
+    const real = sessions.findLatestOwnPerExactPin.bind(sessions);
+    const spy = vi
+      .spyOn(sessions, "findLatestOwnPerExactPin")
+      .mockImplementation(async (...args) => {
+        b.arrive();
+        await b.gate;
+        return real(...args);
+      });
+
+    const verdict = cards([PIN_A]);
+    // The ACTIVE read has run and found nothing; the exact-pin read is waiting.
+    await b.reached;
+
+    // Another device starts A, and COMMITS, while our read is mid-flight.
+    const concurrent = await start(PIN_A);
+    b.open();
+
+    const [a] = await verdict;
+
+    // The whole answer belongs to the snapshot taken before that commit.
+    expect(a?.status).toBe("COMPLETED");
+    expect(a?.resumePin).toEqual(PIN_A);
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    // …and the concurrency really happened: the new run is committed and
+    // visible to a fresh read.
+    const rows = await prisma.guideSession.findMany({
+      where: { userId: user.userId, ...PIN_A },
+      select: { id: true, status: true },
+      orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+    });
+    expect(rows.map((r) => r.id)).toContain(concurrent.sessionId);
+    expect(rows.find((r) => r.id === concurrent.sessionId)?.status).toBe(
+      "ACTIVE",
+    );
+    expect(rows.find((r) => r.id === finished)?.status).toBe("COMPLETED");
+
+    // A LATER read, on its own snapshot, sees the world that now exists.
+    vi.restoreAllMocks();
+    const [after] = await cards([PIN_A]);
+    expect(after?.status).toBe("CONTINUE");
+  });
+
+  it("the snapshot is the boundary even when the new run is another VERSION", async () => {
+    /**
+     * Documents the boundary rather than discriminating the bug: with the
+     * concurrent run on `A@v1` and the question about `A@v2`, no single read
+     * can produce a hybrid. What it pins is that the answer is the ONE the
+     * snapshot supports — and that the forbidden shortcut (treat any ACTIVE
+     * row the exact-pin read returns as CONTINUE) would not have helped here,
+     * because that read never sees the other version's row at all.
+     */
+    const V2 = { guideKey: GUIDE_A, guideVersion: 2 };
+    await completeA(); // A@v1 finished; nothing ACTIVE.
+
+    const b = barrier();
+    const real = sessions.findLatestOwnPerExactPin.bind(sessions);
+    vi.spyOn(sessions, "findLatestOwnPerExactPin").mockImplementation(
+      async (...args) => {
+        b.arrive();
+        await b.gate;
+        return real(...args);
+      },
+    );
+
+    const verdict = cards([V2]);
+    await b.reached;
+    const concurrent = await start(PIN_A); // the OLDER version of the lineage
+    b.open();
+
+    const [v2] = await verdict;
+    expect(v2?.status).toBe("START");
+    expect(v2?.resumePin).toEqual(V2);
+
+    vi.restoreAllMocks();
+    // Once the snapshot moves on, rule 1 applies: the open run wins, on its
+    // own pin, even though the card asked about v2.
+    const [after] = await cards([V2]);
+    expect(after?.status).toBe("CONTINUE");
+    expect(after?.resumePin).toEqual(PIN_A);
+    expect(concurrent.sessionId).toBeTruthy();
+  });
+
+  it("the snapshot read writes nothing, even racing a commit", async () => {
+    await completeA();
+    const before = {
+      sessions: await prisma.guideSession.count(),
+      steps: await prisma.guideSessionStep.count(),
+      receipts: await prisma.guideCommandReceipt.count(),
+      events: await prisma.learningEvent.count(),
+    };
+
+    const b = barrier();
+    const real = sessions.findLatestOwnPerExactPin.bind(sessions);
+    vi.spyOn(sessions, "findLatestOwnPerExactPin").mockImplementation(
+      async (...args) => {
+        b.arrive();
+        await b.gate;
+        return real(...args);
+      },
+    );
+    const verdict = cards([PIN_A, PIN_B]);
+    await b.reached;
+    b.open();
+    await verdict;
+
+    // Only the reader ran; nothing it did left a row behind.
+    expect({
+      sessions: await prisma.guideSession.count(),
+      steps: await prisma.guideSessionStep.count(),
+      receipts: await prisma.guideCommandReceipt.count(),
+      events: await prisma.learningEvent.count(),
+    }).toEqual(before);
+  });
+
   // ── The cost of a long history ───────────────────────────────────────────
 
   it("a pin with a long history still returns ONE row", async () => {

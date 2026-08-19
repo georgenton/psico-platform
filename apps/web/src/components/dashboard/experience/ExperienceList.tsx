@@ -30,24 +30,37 @@ import type {
 } from "@psico/types";
 
 /**
- * What the reader can do with this experience, as a fact.
+ * WHERE the reader stands — the server's answer, and only the server's.
  *
- * `unknown` is a first-class member, not an absence. It used to be spelled
+ * `unknown` is a first-class member, not an absence: it means no authoritative
+ * verdict, which happens while the batch is in flight, when it failed, and
+ * when the answer said nothing about this pin. It used to be spelled
  * «Empezar», which offered a fresh run over a journey that might already be in
  * progress — the exact confusion C.1 exists to end.
- *
- * `unavailable` is the OTHER honest negative, and it is deliberately not the
- * same word. The verdict arrived and is trusted; what cannot happen is running
- * it here — this build ships no such journey, or its passage belongs to another
- * chapter. Calling that «no pudimos consultar» would blame the network for a
- * catalog fact, and calling it «Empezar» would offer a run that then refuses.
  */
-export type ExperienceCardStatus =
+export type ExperienceCardVerdict =
+  | "unknown"
   | "start"
   | "continue"
-  | "completed"
-  | "unknown"
-  | "unavailable";
+  | "completed";
+
+/**
+ * The two facts a card needs, kept apart on purpose.
+ *
+ * They were briefly collapsed into one word, and the collapse cost something
+ * real: a CONTINUE this build cannot open stopped saying «En curso», and a
+ * COMPLETED stopped saying «Completada». Where the reader stands does not
+ * change because the app in front of them cannot open the door — it only
+ * changes what the door does.
+ *
+ * `runnable` is decided from `resumePin` and nothing else: when the server
+ * answers CONTINUE for `A@v2` because `A@v1` is still open, `A@v1` is the run
+ * a click would land in, so `A@v1` is what has to exist here.
+ */
+export interface ExperienceCardView {
+  verdict: ExperienceCardVerdict;
+  runnable: boolean;
+}
 
 /** The server's verdict, keyed by published pin. */
 export type ExperienceCardStates = ReadonlyMap<
@@ -87,64 +100,61 @@ export function experiencePinKey(pin: {
   return `${pin.guideKey}@${pin.guideVersion}`;
 }
 
-const CTA: Record<ExperienceCardStatus, string> = {
+/** What a live card offers. A card that cannot be opened says so instead. */
+const CTA: Record<ExperienceCardVerdict, string> = {
   start: "Empezar",
   continue: "Continuar",
   completed: "Ver resumen",
   unknown: "No disponible",
-  unavailable: "No disponible aquí",
 };
 
-const BADGE: Record<ExperienceCardStatus, string | null> = {
+const CTA_UNRUNNABLE = "No disponible aquí";
+
+/**
+ * Where the reader stands, said plainly — and said even when the journey
+ * cannot be opened here, because that is still where they stand.
+ */
+const BADGE: Record<ExperienceCardVerdict, string | null> = {
+  unknown: null,
   start: null,
   continue: "En curso",
   completed: "Completada",
-  unknown: null,
-  // The badge still tells the truth about where the reader stands, even when
-  // the journey cannot be opened on this screen.
-  unavailable: null,
 };
 
 /** Said out loud on the card, not only encoded in a disabled button. */
-const NOTE: Partial<Record<ExperienceCardStatus, string>> = {
-  unknown: "No pudimos consultar tu avance en esta experiencia.",
-  unavailable:
-    "Esta experiencia no puede abrirse en este capítulo con esta versión de la app.",
-};
+const NOTE_UNKNOWN = "No pudimos consultar tu avance en esta experiencia.";
+const NOTE_UNRUNNABLE =
+  "Esta experiencia no puede abrirse en este capítulo con esta versión de la app.";
 
 /**
- * The status of one experience — READ from the server, never derived here.
+ * The two facts about one experience, answered separately.
  *
- * This used to compare one chapter-wide session against each card's pin, and
- * that is precisely the bug in #639: a chapter has one guide pin, so two
- * experiences shared a verdict and finishing one made the other read
- * «Completada». Worse, the comparison demanded an exact version match, so a
- * reader with `A@v1` still running saw «Empezar» the day `A@v2` published.
+ * The verdict is READ from the server, never derived here. This used to
+ * compare one chapter-wide session against each card's pin, and that is
+ * precisely the bug in #639: a chapter has one guide pin, so two experiences
+ * shared a verdict and finishing one made the other read «Completada». Worse,
+ * the comparison demanded an exact version match, so a reader with `A@v1`
+ * still running saw «Empezar» the day `A@v2` published.
  *
- * Both questions belong to the server, which can see the lineage and the exact
+ * Both of those belong to the server, which can see the lineage and the exact
  * pin separately. Here the only job left is translating its three words into
  * the three the reader sees.
  *
- * A card the load does not cover reads `unknown` — while the batch is in
- * flight, when it failed, and when the answer said nothing about this pin. It
- * is deliberately NOT `start`: an unanswered question must never look like a
- * fresh journey, because acting on it can strand a session the reader has.
- *
- * `canRun` is the second question, and it is asked about `resumePin` — the pin
- * a click would actually run. When the server answers CONTINUE for `A@v2`
- * because `A@v1` is still open, `A@v1` is what has to exist here. A verdict the
- * screen cannot act on becomes `unavailable` rather than a CTA that opens
- * nothing.
+ * Runnability is the LOCAL question, and it never rewrites the verdict — an
+ * unopenable CONTINUE is still «En curso». An `unknown` verdict is reported as
+ * not runnable too, but for a different reason: there is no `resumePin` to ask
+ * about, and acting on a question nobody answered can strand a session.
  */
-export function experienceCardStatus(
+export function experienceCardView(
   experience: ChapterExperiencePublicView,
   load: ExperienceStatesLoad,
   canRun: (pin: { guideKey: string; guideVersion: number }) => boolean,
-): ExperienceCardStatus {
-  if (load.status !== "ready") return "unknown";
+): ExperienceCardView {
+  const unknown: ExperienceCardView = { verdict: "unknown", runnable: false };
+  if (load.status !== "ready") return unknown;
   const state = load.states.get(experiencePinKey(experience.guidePin));
-  if (!state) return "unknown";
-  const known =
+  if (!state) return unknown;
+  const verdict: ExperienceCardVerdict | null =
     state.status === "CONTINUE"
       ? "continue"
       : state.status === "COMPLETED"
@@ -152,8 +162,8 @@ export function experienceCardStatus(
         : state.status === "START"
           ? "start"
           : null;
-  if (known === null) return "unknown";
-  return canRun(state.resumePin) ? known : "unavailable";
+  if (verdict === null) return unknown;
+  return { verdict, runnable: canRun(state.resumePin) };
 }
 
 function minutesLabel(minutes: number | undefined): string | null {
@@ -163,26 +173,43 @@ function minutesLabel(minutes: number | undefined): string | null {
 
 export function ExperienceCard({
   experience,
-  status,
+  view,
   onOpen,
 }: {
   experience: ChapterExperiencePublicView;
-  status: ExperienceCardStatus;
+  view: ExperienceCardView;
   onOpen: (experience: ChapterExperiencePublicView) => void;
 }) {
-  const badge = BADGE[status];
+  const { verdict, runnable } = view;
+  // The badge follows the VERDICT alone. «En curso» is where the reader
+  // stands, and that stays true whether or not this build can open the door.
+  const badge = BADGE[verdict];
   const minutes = minutesLabel(experience.estimatedMinutes);
-  const note = NOTE[status];
+  // Two different negatives, two different sentences. Blaming the network for
+  // a catalog fact — or the catalog for a network one — is its own small lie.
+  const note =
+    verdict === "unknown" ? NOTE_UNKNOWN : runnable ? null : NOTE_UNRUNNABLE;
   const noteId = `${experience.experienceKey}-note`;
   // An inert card is visible, disabled and says WHY. Not a fallback CTA, not a
   // hidden one: «we asked and could not tell» and «this cannot open here» are
   // both true statements, and both are better than a button that does nothing.
-  const actionable = status !== "unknown" && status !== "unavailable";
+  const actionable = verdict !== "unknown" && runnable;
+  // Three labels for three situations, because they are three situations: an
+  // offer, «we could not ask», and «we asked and cannot open it here».
+  const cta = actionable
+    ? CTA[verdict]
+    : verdict === "unknown"
+      ? CTA.unknown
+      : CTA_UNRUNNABLE;
 
   return (
     <li
       data-testid={`experience-card-${experience.experienceKey}`}
-      data-status={status}
+      // Two attributes because they are two facts. Collapsing them into one
+      // combined status is exactly what hid «En curso» from a card this build
+      // cannot open.
+      data-status={verdict}
+      data-runnable={runnable ? "true" : "false"}
       className="border-b last:border-b-0"
       style={{ borderColor: "var(--color-warm-200)" }}
     >
@@ -231,7 +258,7 @@ export function ExperienceCard({
           // voice control can say what they can read; the reason travels with
           // it, so a screen reader gets the explanation and not just «no
           // disponible».
-          aria-label={`${CTA[status]} · ${experience.title}`}
+          aria-label={`${cta} · ${experience.title}`}
           {...(note ? { "aria-describedby": noteId } : {})}
           onClick={() => {
             // Belt as well as braces: a disabled button cannot be clicked, and
@@ -240,7 +267,7 @@ export function ExperienceCard({
             onOpen(experience);
           }}
         >
-          {CTA[status]}
+          {cta}
         </button>
       </div>
     </li>
@@ -349,7 +376,7 @@ export function ExperienceList({
           <ExperienceCard
             key={`${experience.experienceKey}@${experience.experienceVersion}`}
             experience={experience}
-            status={experienceCardStatus(experience, load, canRun)}
+            view={experienceCardView(experience, load, canRun)}
             onOpen={onOpen}
           />
         ))}

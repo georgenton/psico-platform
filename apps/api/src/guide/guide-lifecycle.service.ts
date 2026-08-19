@@ -466,12 +466,15 @@ export class GuideLifecycleService {
    * experiences therefore shared one state — finish one and the other read
    * «Completada» without anybody opening it.
    *
-   * TWO reads, whatever the list's length:
+   * TWO reads, whatever the list's length, and both on ONE snapshot:
    *
    *   1. the ACTIVE sessions of the distinct lineages;
    *   2. the LATEST session of each exact published pin — at most one row per
    *      pin, so a reader who restarted the same journey twenty times costs
    *      exactly what a reader who never did.
+   *
+   * They run inside a single REPEATABLE READ transaction, because a verdict
+   * assembled from two moments belongs to neither. See the call site.
    *
    * Precedence per card, and the order matters:
    *
@@ -499,13 +502,46 @@ export class GuideLifecycleService {
     // TWO reads, whatever the list's length. A card shows a word and a
     // destination, so nothing here projects the ledger: the third read this
     // used to do existed only to fill a `session` the cards never displayed.
-    const [activeRows, exactRows] = await Promise.all([
-      this.sessions.findActiveOwnForGuideKeys(
-        userId,
-        pins.map((p) => p.guideKey),
-      ),
-      this.sessions.findLatestOwnPerExactPin(userId, pins),
-    ]);
+    //
+    // ONE SNAPSHOT, and it is stated rather than inherited. The two reads
+    // answer different halves of one question — «is a run of this lineage
+    // open?» and «was this exact pin finished?» — and a verdict assembled from
+    // two moments belongs to neither of them. Concretely, under per-statement
+    // snapshots: the ACTIVE read sees none, another device commits START, and
+    // the exact-pin read then returns that fresh ACTIVE row as the latest for
+    // the pin. Rule 2 does not fire (it is not COMPLETED) and rule 1 already
+    // passed, so the card reads START — a word that was true before the
+    // concurrent start and after it, but at no single instant in between.
+    //
+    // REPEATABLE READ fixes the snapshot at the first statement, so both reads
+    // describe the same moment. The alternative — treating any ACTIVE row the
+    // exact-pin read happens to return as a fallback — would only patch the
+    // case where the new run is on the SAME version, and would still miss one
+    // started on another version of the lineage.
+    //
+    // Deliberately sequential: two queries racing inside one interactive
+    // transaction buy nothing here and make the order of what the snapshot
+    // covers a matter of luck.
+    const { activeRows, exactRows } = await this.prisma.$transaction(
+      async (tx) => {
+        const activeRows = await this.sessions.findActiveOwnForGuideKeys(
+          userId,
+          pins.map((p) => p.guideKey),
+          tx,
+        );
+        const exactRows = await this.sessions.findLatestOwnPerExactPin(
+          userId,
+          pins,
+          tx,
+        );
+        return { activeRows, exactRows };
+      },
+      // NOT the level the commands use. START and the mutations stay READ
+      // COMMITTED on purpose (see `start`), because their idempotency contract
+      // depends on re-reading the receipt a concurrent winner just committed.
+      // This path writes nothing and needs the opposite property.
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
 
     const activeByKey = new Map<string, GuideSessionRow>();
     for (const row of activeRows) {

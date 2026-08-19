@@ -17685,7 +17685,17 @@
         ],
         "responses": {
           "200": {
-            "description": "Opciones de guía para el capítulo."
+            "description": "Opciones de guía para el capítulo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SelectableGuideOptionDto"
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "Las guías que este capítulo puede vincular, con su disponibilidad decidida en el servidor.",
@@ -17877,6 +17887,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExperienceBindingHintDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -17923,7 +17943,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RebindExperienceDraftResultDto"
+                }
+              }
+            }
           },
           "409": {
             "description": "Ya hay una versión publicada, o la guía está reservada.",
@@ -17965,9 +17992,26 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExperienceBindingHintDto"
+              }
+            }
+          }
+        },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveExperienceDraftResultDto"
+                }
+              }
+            }
           },
           "409": {
             "description": "",
@@ -17999,6 +18043,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExperienceBindingHintDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -24982,17 +25036,70 @@
           "totalCount"
         ]
       },
+      "SelectableGuideOptionDto": {
+        "type": "object",
+        "properties": {
+          "guideKey": {
+            "type": "string",
+            "example": "eec-c1-cuerpo-antes-que-mente"
+          },
+          "guideVersion": {
+            "type": "number",
+            "example": 1
+          },
+          "stepCount": {
+            "type": "number",
+            "description": "Pasos de la guía, para dimensionar el trabajo."
+          },
+          "availability": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "OWNED_BY_THIS_EXPERIENCE",
+              "RESERVED_BY_ANOTHER_EXPERIENCE"
+            ],
+            "description": "Decidida en el servidor bajo el lock del capítulo. Una guía reservada se lista como reservada, nunca se oculta — y no se revela quién la tiene."
+          }
+        },
+        "required": [
+          "guideKey",
+          "guideVersion",
+          "stepCount",
+          "availability"
+        ]
+      },
       "SaveExperienceDefinitionDto": {
         "type": "object",
         "properties": {
           "definition": {
             "type": "object",
             "description": "Un ChapterExperienceDefinition completo. El servidor decide status, versión, publishedAt y autor: lo que venga en esos campos se ignora."
+          },
+          "expectedContentUnitId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "/^[a-z0-9]+$/",
+            "description": "El ContentUnit que el cliente cree estar editando. El servidor lo vuelve a derivar del manifiesto publicado y rechaza si no coincide: nunca lo usa como fuente.",
+            "example": "clx0000000000000000000000"
           }
         },
         "required": [
           "definition"
         ]
+      },
+      "ExperienceBindingHintDto": {
+        "type": "object",
+        "properties": {
+          "expectedContentUnitId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "/^[a-z0-9]+$/",
+            "description": "El ContentUnit que el cliente cree estar editando. Pista, no autoridad.",
+            "example": "clx0000000000000000000000"
+          }
+        }
       },
       "GuidePinDto": {
         "type": "object",
@@ -25018,10 +25125,42 @@
         "properties": {
           "guidePin": {
             "$ref": "#/components/schemas/GuidePinDto"
+          },
+          "expectedContentUnitId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "/^[a-z0-9]+$/",
+            "description": "El ContentUnit que el cliente cree estar editando. Pista, no autoridad.",
+            "example": "clx0000000000000000000000"
           }
         },
         "required": [
           "guidePin"
+        ]
+      },
+      "RebindExperienceDraftResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "El borrador que cambió de guía."
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "ArchiveExperienceDraftResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "El borrador archivado. La fila no se borra."
+          }
+        },
+        "required": [
+          "id"
         ]
       },
       "ContentStudioBookSummaryDto": {

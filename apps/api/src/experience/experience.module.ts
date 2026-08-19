@@ -25,6 +25,10 @@ import {
   EXPERIENCE_CODE_OWNED_CLAIMS,
   productionCodeOwnedClaims,
 } from "./experience-code-owned-identity";
+import {
+  EXPERIENCE_BINDING_CATALOG,
+  productionBindingCatalog,
+} from "./experience-guide-options";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Module({
@@ -39,6 +43,10 @@ import { PrismaService } from "../prisma/prisma.service";
       provide: EXPERIENCE_CODE_OWNED_CLAIMS,
       useValue: productionCodeOwnedClaims,
     },
+    // C.4 — the guides the CMS may offer, as a binding rather than an import.
+    // The default IS production; the seam exists so a test can describe a
+    // chapter with two bindable guides without inventing editorial content.
+    { provide: EXPERIENCE_BINDING_CATALOG, useValue: productionBindingCatalog },
     {
       provide: EXPERIENCE_DEFINITION_REPOSITORY,
       useFactory: (prisma: PrismaService) =>

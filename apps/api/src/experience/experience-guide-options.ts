@@ -2,6 +2,7 @@ import {
   GUIDE_READER_ANCHOR,
   PAREJAS_READER_ANCHOR,
   anchorAppliesTo,
+  type GuideDefinition,
   type GuideOptionAvailability,
   type GuideReaderAnchorLocator,
   type SelectableGuideOption,
@@ -51,23 +52,49 @@ export type {
 } from "@psico/types";
 
 /**
- * Every anchor this build ships, keyed by pin.
+ * What the CMS may offer: the guides this build ships and where each one's
+ * passage lives.
  *
- * Listed explicitly rather than discovered: an anchor is editorial placement,
- * and a registry that silently grew one would change which chapters may host
- * which guides without anybody deciding it.
+ * A parameter rather than two module singletons, and not for the usual
+ * testability reason alone. The production catalog has exactly ONE anchored
+ * guide per chapter, so with it hard-wired there is no chapter in which a
+ * rebind from guide A to guide B is even expressible — the operation could be
+ * written, reviewed and shipped without a single test having exercised its
+ * success path. Adding a second production guide to make a test pass would be
+ * editorial content invented for a test suite. Passing the catalog in is the
+ * honest third option.
  */
-const READER_ANCHORS: readonly GuideReaderAnchorLocator[] = [
-  GUIDE_READER_ANCHOR,
-  PAREJAS_READER_ANCHOR,
-];
+export interface ExperienceBindingCatalog {
+  /**
+   * Every anchor this build ships, keyed by pin.
+   *
+   * Listed explicitly rather than discovered: an anchor is editorial placement,
+   * and a registry that silently grew one would change which chapters may host
+   * which guides without anybody deciding it.
+   */
+  readonly anchors: readonly GuideReaderAnchorLocator[];
+  /** Exact lookup only — the same registry publishing validates against. */
+  readonly getExact: (
+    guideKey: string,
+    guideVersion: number,
+  ) => GuideDefinition;
+}
 
-function anchorFor(pin: {
-  guideKey: string;
-  guideVersion: number;
-}): GuideReaderAnchorLocator | null {
+/** DI token. The production catalog is the default binding in the module. */
+export const EXPERIENCE_BINDING_CATALOG = "EXPERIENCE_BINDING_CATALOG";
+
+export const productionBindingCatalog: ExperienceBindingCatalog = {
+  anchors: [GUIDE_READER_ANCHOR, PAREJAS_READER_ANCHOR],
+  getExact: (guideKey, guideVersion) =>
+    productionGuideRegistry.getExact(guideKey, guideVersion),
+};
+
+function anchorFor(
+  catalog: ExperienceBindingCatalog,
+  pin: { guideKey: string; guideVersion: number },
+): GuideReaderAnchorLocator | null {
   return (
-    READER_ANCHORS.find(
+    catalog.anchors.find(
       (a) => a.guideKey === pin.guideKey && a.guideVersion === pin.guideVersion,
     ) ?? null
   );
@@ -82,8 +109,9 @@ function anchorFor(pin: {
 export function guideAnchorAppliesToChapter(
   pin: { guideKey: string; guideVersion: number },
   where: { bookSlug: string; chapterOrder: number },
+  catalog: ExperienceBindingCatalog = productionBindingCatalog,
 ): boolean {
-  const anchor = anchorFor(pin);
+  const anchor = anchorFor(catalog, pin);
   if (anchor === null) return false;
   return anchorAppliesTo(where.bookSlug, where.chapterOrder, anchor);
 }
@@ -100,21 +128,20 @@ export function selectableGuidesForChapter(input: {
   chapterOrder: number;
   experienceKey: string | null;
   view: ChapterBindingView;
+  catalog?: ExperienceBindingCatalog;
 }): SelectableGuideOption[] {
+  const catalog = input.catalog ?? productionBindingCatalog;
   const options: SelectableGuideOption[] = [];
-  for (const anchor of READER_ANCHORS) {
+  for (const anchor of catalog.anchors) {
     const pin = {
       guideKey: anchor.guideKey,
       guideVersion: anchor.guideVersion,
     };
-    if (!guideAnchorAppliesToChapter(pin, input)) continue;
+    if (!guideAnchorAppliesToChapter(pin, input, catalog)) continue;
 
     let definition;
     try {
-      definition = productionGuideRegistry.getExact(
-        pin.guideKey,
-        pin.guideVersion,
-      );
+      definition = catalog.getExact(pin.guideKey, pin.guideVersion);
     } catch {
       // An anchor pointing at a guide the registry does not have is a catalog
       // contradiction, not an option. It is skipped rather than offered as

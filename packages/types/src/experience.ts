@@ -378,6 +378,19 @@ export interface AdminExperienceRow {
 export interface AdminChapterExperiences {
   bookSlug: string;
   chapterOrder: number;
+  /**
+   * C.3A — the STABLE chapter this list was scoped by.
+   *
+   * `(bookSlug, chapterOrder)` above is a locator and it moves: a reorder
+   * changes which unit answers to a number. This is the identity the server
+   * resolved from the published manifest, and the client hands it straight back
+   * on the next write so a page rendered before a reorder is refused rather
+   * than silently applied to whichever unit now occupies that position.
+   *
+   * `null` means the chapter resolves to no unit in the published structure —
+   * it cannot host a binding at all, and no write against it will succeed.
+   */
+  contentUnitId: string | null;
   /** The only guide an experience here may pin, or null when none exists. */
   guidePin: { guideKey: string; guideVersion: number } | null;
   experiences: AdminExperienceRow[];
@@ -388,4 +401,12 @@ export interface AdminExperienceDraft {
   id: string;
   status: AdminExperienceStatus;
   definition: ChapterExperienceDefinition;
+  /**
+   * C.3A — the STABLE chapter this row lives in, echoed back on every write.
+   *
+   * `null` for a row the C.3B backfill has not reached yet: it has no identity
+   * to claim, and claiming its `chapterOrder` instead would be claiming a
+   * position.
+   */
+  contentUnitId: string | null;
 }

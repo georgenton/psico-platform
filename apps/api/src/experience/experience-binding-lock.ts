@@ -1,5 +1,11 @@
 import type { Prisma } from "@prisma/client";
 
+import {
+  resolveChapterIdentity,
+  resolveUnitIdentity,
+  type ResolvedChapterIdentity,
+} from "./experience-chapter-identity";
+
 /**
  * C.3A (#639) — the lock protocol for guide bindings, and the reason it has
  * two keys rather than one.
@@ -34,6 +40,26 @@ import type { Prisma } from "@prisma/client";
  * Always `global → chapter`. A total order is what makes a deadlock impossible;
  * a pair acquiring them the other way round could build a cycle with a pair
  * acquiring them this way.
+ *
+ * ── The third lock, which is not ours ───────────────────────────────────────
+ *
+ * The chapter key is derived from `contentUnitId`, so it cannot be taken until
+ * the chapter has been resolved — and resolving reads the published manifest,
+ * which a concurrent reorder can move. So the full order is:
+ *
+ *   global advisory  →  Edition row FOR UPDATE  →  chapter advisory
+ *
+ * The middle one belongs to Content Core, not to this protocol: it is the row
+ * lock every editorial write already takes (`lockEditionTx`). Taking it here is
+ * how a binding decision serialises against a publish instead of racing it.
+ *
+ * That order is deadlock-free against everything else that takes these locks.
+ * Content Studio takes only the edition row and never waits on an advisory key,
+ * so it can never be the far side of a cycle. The C.3B backfill takes the
+ * global key and then edition rows — the same relative order. And the chapter
+ * advisory key is always taken LAST, by a holder that necessarily already
+ * passed through its edition's row, so nothing can hold a chapter key while
+ * waiting for the edition that key belongs to.
  */
 
 /** The protocol this binary speaks, surfaced at boot so a fleet can be PROVEN
@@ -59,18 +85,37 @@ export const chapterBindingLockKey = (contentUnitId: string): string =>
   `experience:binding:chapter:${contentUnitId}`;
 
 /**
- * THE bridge sequence, in acquisition order.
+ * Advisory keys taken BEFORE the chapter is known — so, before the edition row
+ * lock that makes resolving it safe.
  *
- * Single authority: the service iterates this, the pg-specs model the protocol
- * with this, and the negative controls mutate THIS — so emptying it, dropping
- * the global key or swapping the order breaks the guarantee everywhere at once
- * instead of in one forgotten caller.
+ * The compatibility key is the only one that can be taken here, because it is
+ * the only one whose name does not depend on the answer.
+ */
+export const preIdentityLockKeys = (): readonly string[] => [
+  globalBindingLockKey(),
+];
+
+/** Advisory keys taken once identity is known, and therefore last. */
+export const postIdentityLockKeys = (
+  contentUnitId: string,
+): readonly string[] => [chapterBindingLockKey(contentUnitId)];
+
+/**
+ * THE bridge sequence of ADVISORY keys, in acquisition order.
+ *
+ * Single authority: `enterBindingProtocol` composes it from its two halves, the
+ * pg-specs model the protocol with this, and the negative controls mutate THIS
+ * — so emptying it, dropping the global key or swapping the order breaks the
+ * guarantee everywhere at once instead of in one forgotten caller.
+ *
+ * The edition row lock is deliberately not in this list: it is not an advisory
+ * key and it belongs to Content Core's protocol, not this one.
  */
 export const bridgeBindingLockKeys = (
   contentUnitId: string,
 ): readonly string[] => [
-  globalBindingLockKey(),
-  chapterBindingLockKey(contentUnitId),
+  ...preIdentityLockKeys(),
+  ...postIdentityLockKeys(contentUnitId),
 ];
 
 /**
@@ -94,4 +139,49 @@ export async function acquireBindingLocks(
   keys: readonly string[],
 ): Promise<void> {
   for (const key of keys) await acquireBindingLock(tx, key);
+}
+
+/**
+ * Enter the protocol and come back holding everything, with the chapter named.
+ *
+ * The ONE place the three steps are sequenced. Every binding command goes
+ * through it, so "resolve then lock" — which is the TOCTOU — cannot be written
+ * by accident in a new command: there is no exported way to get a
+ * `ResolvedChapterIdentity` for a write without the locks that make it stay
+ * true.
+ */
+export async function enterBindingProtocol(
+  tx: Prisma.TransactionClient,
+  where: BindingTarget,
+): Promise<ResolvedChapterIdentity> {
+  await acquireBindingLocks(tx, preIdentityLockKeys());
+  const chapter =
+    where.contentUnitId != null
+      ? // Already fixed. Nothing to protect from a reorder, because nothing is
+        // being derived from a position — see `resolveUnitIdentity`.
+        await resolveUnitIdentity(tx, {
+          contentUnitId: where.contentUnitId,
+          expectedContentUnitId: where.expectedContentUnitId,
+        })
+      : // `for-update` is the edition row lock. Resolution happens UNDER it, so
+        // the manifest it reads is the one still published at commit.
+        await resolveChapterIdentity(tx, { ...where, lock: "for-update" });
+  await acquireBindingLocks(tx, postIdentityLockKeys(chapter.contentUnitId));
+  return chapter;
+}
+
+/**
+ * Which chapter a command is acting on, and how it knows.
+ *
+ * `contentUnitId` present means the row already carries its identity and that
+ * value IS the answer. Absent means the only locator is a position, which is
+ * true for a create and for every row the previous binary wrote.
+ */
+export interface BindingTarget {
+  bookSlug: string;
+  chapterOrder: number;
+  /** The row's own unit, when it has one. Never taken from a client. */
+  contentUnitId?: string | null;
+  /** The client's echo, checked against whichever of the two answered. */
+  expectedContentUnitId?: string | null;
 }

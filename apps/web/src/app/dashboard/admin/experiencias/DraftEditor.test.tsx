@@ -86,6 +86,7 @@ function renderEditor() {
       initial={definition()}
       bookSlug="emociones-en-construccion"
       chapterOrder={1}
+      contentUnitId="unit_eec_c1"
     />,
   );
 }

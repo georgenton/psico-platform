@@ -22,6 +22,7 @@ export function NewExperienceButton({
   chapterOrder,
   guideAvailable,
   lineageExists,
+  contentUnitId,
 }: {
   bookSlug: string;
   chapterOrder: number;
@@ -35,6 +36,8 @@ export function NewExperienceButton({
    * offering it in the first place.
    */
   lineageExists: boolean;
+  /** The chapter this page was rendered against. See `createDraftAction`. */
+  contentUnitId: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -93,7 +96,7 @@ export function NewExperienceButton({
     } as unknown as ChapterExperienceDefinition;
 
     try {
-      const created = await createDraftAction(definition);
+      const created = await createDraftAction(definition, contentUnitId);
       router.push(
         `/dashboard/admin/experiencias/${bookSlug}/${chapterOrder}/borrador/${created.id}`,
       );

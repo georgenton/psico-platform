@@ -18,10 +18,13 @@ export function ExperienceRowActions({
   row,
   bookSlug,
   chapterOrder,
+  contentUnitId,
 }: {
   row: AdminExperienceRow;
   bookSlug: string;
   chapterOrder: number;
+  /** The chapter this list was rendered against. See `createDraftAction`. */
+  contentUnitId: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -41,6 +44,7 @@ export function ExperienceRowActions({
         chapterOrder,
         row.experienceKey,
         row.experienceVersion,
+        contentUnitId,
       );
       router.push(
         `/dashboard/admin/experiencias/${bookSlug}/${chapterOrder}/borrador/${created.id}`,

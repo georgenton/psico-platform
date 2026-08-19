@@ -129,6 +129,7 @@ export default async function AdminChapterExperiencesPage({
             chapterOrder={chapterOrder}
             guideAvailable={admin?.guidePin != null}
             lineageExists={experiences.length > 0}
+            contentUnitId={admin?.contentUnitId ?? null}
           />
         </div>
 
@@ -198,6 +199,7 @@ export default async function AdminChapterExperiencesPage({
                   row={row}
                   bookSlug={params.bookSlug}
                   chapterOrder={chapterOrder}
+                  contentUnitId={admin?.contentUnitId ?? null}
                 />
               </li>
             ))}

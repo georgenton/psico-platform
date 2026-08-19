@@ -17701,6 +17701,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExperienceBindingHintDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -17735,6 +17745,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExperienceBindingHintDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -24724,11 +24744,32 @@
           "definition": {
             "type": "object",
             "description": "Un ChapterExperienceDefinition completo. El servidor decide status, versión, publishedAt y autor: lo que venga en esos campos se ignora."
+          },
+          "expectedContentUnitId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "/^[a-z0-9]+$/",
+            "description": "El ContentUnit que el cliente cree estar editando. El servidor lo vuelve a derivar del manifiesto publicado y rechaza si no coincide: nunca lo usa como fuente.",
+            "example": "clx0000000000000000000000"
           }
         },
         "required": [
           "definition"
         ]
+      },
+      "ExperienceBindingHintDto": {
+        "type": "object",
+        "properties": {
+          "expectedContentUnitId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "/^[a-z0-9]+$/",
+            "description": "El ContentUnit que el cliente cree estar editando. Pista, no autoridad.",
+            "example": "clx0000000000000000000000"
+          }
+        }
       },
       "ContentStudioBookSummaryDto": {
         "type": "object",

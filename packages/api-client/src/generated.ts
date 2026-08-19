@@ -4847,6 +4847,18 @@ export interface components {
         SaveExperienceDefinitionDto: {
             /** @description Un ChapterExperienceDefinition completo. El servidor decide status, versión, publishedAt y autor: lo que venga en esos campos se ignora. */
             definition: Record<string, never>;
+            /**
+             * @description El ContentUnit que el cliente cree estar editando. El servidor lo vuelve a derivar del manifiesto publicado y rechaza si no coincide: nunca lo usa como fuente.
+             * @example clx0000000000000000000000
+             */
+            expectedContentUnitId?: string;
+        };
+        ExperienceBindingHintDto: {
+            /**
+             * @description El ContentUnit que el cliente cree estar editando. Pista, no autoridad.
+             * @example clx0000000000000000000000
+             */
+            expectedContentUnitId?: string;
         };
         ContentStudioBookSummaryDto: {
             slug: string;
@@ -14498,7 +14510,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ExperienceBindingHintDto"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -14525,7 +14541,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ExperienceBindingHintDto"];
+            };
+        };
         responses: {
             201: {
                 headers: {

@@ -642,6 +642,15 @@ CARD_RESPONSE_EXPOSES_SESSION=false
 CARD_STATE_REPOSITORY_READS=2
 EXACT_HISTORY_ROWS_BOUNDED=true
 PICKED_EXPERIENCE_INDEPENDENT_OF_CHAPTER_DISCOVERY=true
+STALE_ACTION_WINDOW=false
+READY_BOUND_TO_CURRENT_REQUEST=true
+RESPONSE_RUNTIME_VALIDATION=complete
+FOREIGN_LINEAGE_RESUME_PIN_ACCEPTED=false
+START_OR_COMPLETED_RESUME_PIN_MAY_DIFFER=false
+CARD_EXECUTABILITY_KEY=resumePin
+UNRUNNABLE_CARD_VISIBLE_AND_DISABLED=true
+UNRUNNABLE_HANDLER_SIDE_EFFECTS=0
+OLD_ACTIVE_VERSION_CONTINUES_WHEN_LOCALLY_AVAILABLE=true
 ```
 
 **La causa raíz.** Un capítulo resuelve UN pin de Guide. La web pedía el estado
@@ -695,9 +704,30 @@ mientras se consulta, tras un error de red y ante un 404 de un despliegue
 antiguo, la tarjeta queda inerte con su motivo y un reintento. «No pudimos
 preguntar» y «no has empezado» son hechos distintos, y solo uno es seguro:
 empezar de nuevo puede cancelar precisamente la sesión que C.1 debía continuar.
-El lote se revalida al entrar a Chapter Home, al volver a esa superficie y al
-recuperar foco o visibilidad, sin polling; una respuesta tardía de una pregunta
-anterior se descarta por clave y por orden de emisión.
+
+Una respuesta `ready` va **etiquetada con la pregunta y la consulta que la
+produjo**, y si aún habla por la pantalla se deriva en el render. Así, entrar a
+Chapter Home, volver, recuperar foco o visibilidad y reintentar dejan de dar
+autoridad a la respuesta anterior **en el mismo acto**, no cuando un efecto se
+ejecute: no hay frame en que un «Empezar» superado esté en pantalla y sea
+pulsable. El handler repite todas esas guardas contra la clave y la generación
+vivas, no contra las que capturó su clausura.
+
+**La respuesta también se valida en runtime.** El genérico de `apiClient.post`
+es una promesa de compilación sobre un servidor que este proceso no ejecuta; en
+runtime es JSON. Se comprueba por chunk y antes de combinar nada: envelope y
+item cerrados, ambos pines con la gramática y el rango del servidor, `status`
+entre exactamente tres palabras, alineación posicional con la pregunta, y las
+dos reglas semánticas del `resumePin` — START y COMPLETED resumen su propio pin;
+CONTINUE puede nombrar otra **versión** del mismo linaje, jamás otro linaje.
+
+**Dos autoridades, separadas.** Dónde está el lector lo responde el servidor;
+si esta pantalla puede actuar sobre eso se decide localmente y se pregunta por
+`resumePin` —la ejecución, no el pin publicado— con las mismas cuatro
+autoridades que consulta la superficie guiada. Un veredicto que este build no
+puede ejecutar deja la tarjeta **visible, deshabilitada y explicada**, con el
+motivo enlazado al botón por `aria-describedby`; nunca como error de red ni
+como START.
 
 **Una tarjeta elegida basta para ejecutar su Guide.** El pin elegido es la
 autoridad y no depende del discovery del capítulo — que responde otra pregunta:

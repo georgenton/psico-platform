@@ -4895,6 +4895,19 @@ export interface components {
             completedCount: number;
             totalCount: number;
         };
+        SelectableGuideOptionDto: {
+            /** @example eec-c1-cuerpo-antes-que-mente */
+            guideKey: string;
+            /** @example 1 */
+            guideVersion: number;
+            /** @description Pasos de la guía, para dimensionar el trabajo. */
+            stepCount: number;
+            /**
+             * @description Decidida en el servidor bajo el lock del capítulo. Una guía reservada se lista como reservada, nunca se oculta — y no se revela quién la tiene.
+             * @enum {string}
+             */
+            availability: SelectableGuideOptionDtoAvailability;
+        };
         SaveExperienceDefinitionDto: {
             /** @description Un ChapterExperienceDefinition completo. El servidor decide status, versión, publishedAt y autor: lo que venga en esos campos se ignora. */
             definition: Record<string, never>;
@@ -4919,6 +4932,19 @@ export interface components {
         };
         RebindExperienceDraftDto: {
             guidePin: components["schemas"]["GuidePinDto"];
+            /**
+             * @description El ContentUnit que el cliente cree estar editando. Pista, no autoridad.
+             * @example clx0000000000000000000000
+             */
+            expectedContentUnitId?: string;
+        };
+        RebindExperienceDraftResultDto: {
+            /** @description El borrador que cambió de guía. */
+            id: string;
+        };
+        ArchiveExperienceDraftResultDto: {
+            /** @description El borrador archivado. La fila no se borra. */
+            id: string;
         };
         ContentStudioBookSummaryDto: {
             slug: string;
@@ -14490,7 +14516,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SelectableGuideOptionDto"][];
+                };
             };
         };
     };
@@ -14670,7 +14698,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RebindExperienceDraftResultDto"];
+                };
             };
             /** @description Ya hay una versión publicada, o la guía está reservada. */
             409: {
@@ -14700,13 +14730,19 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ExperienceBindingHintDto"];
+            };
+        };
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ArchiveExperienceDraftResultDto"];
+                };
             };
             409: {
                 headers: {
@@ -19440,6 +19476,11 @@ export enum LearningUnitProgressItemDtoState {
     not_started = "not_started",
     opened = "opened",
     completed = "completed"
+}
+export enum SelectableGuideOptionDtoAvailability {
+    AVAILABLE = "AVAILABLE",
+    OWNED_BY_THIS_EXPERIENCE = "OWNED_BY_THIS_EXPERIENCE",
+    RESERVED_BY_ANOTHER_EXPERIENCE = "RESERVED_BY_ANOTHER_EXPERIENCE"
 }
 export enum ContentStudioBookStateResponseDtoCreationBlockedReason {
     PENDING_SYNC = "PENDING_SYNC"

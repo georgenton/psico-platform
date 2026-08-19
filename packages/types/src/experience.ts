@@ -429,4 +429,14 @@ export interface AdminExperienceDraft {
    * position.
    */
   contentUnitId: string | null;
+  /**
+   * C.4 — may this draft still change guide?
+   *
+   * A property of the LINEAGE, not of this row: one published version anywhere
+   * fixes the guide forever (PUBLISHED_GUIDE_KEY_IMMUTABLE), and a draft
+   * sitting beside a published sibling looks rebindable from the outside. The
+   * server decides it so the CMS can hide the control rather than offer it and
+   * answer with a conflict.
+   */
+  rebindable: boolean;
 }

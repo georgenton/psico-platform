@@ -21,6 +21,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Header,
   Param,
   ParseIntPipe,
@@ -48,8 +49,11 @@ import { ExperienceAdminService } from "./experience-admin.service";
 import {
   ExperienceBindingHintDto,
   ListChapterExperiencesQueryDto,
+  ArchiveExperienceDraftResultDto,
   ListSelectableGuidesQueryDto,
   RebindExperienceDraftDto,
+  RebindExperienceDraftResultDto,
+  SelectableGuideOptionDto,
   SaveExperienceDefinitionDto,
 } from "./dto/experience-admin.dto";
 
@@ -79,7 +83,11 @@ export class ExperienceAdminController {
     summary:
       "Las guías que este capítulo puede vincular, con su disponibilidad decidida en el servidor.",
   })
-  @ApiOkResponse({ description: "Opciones de guía para el capítulo." })
+  @ApiOkResponse({
+    description: "Opciones de guía para el capítulo.",
+    type: SelectableGuideOptionDto,
+    isArray: true,
+  })
   listSelectableGuides(@Query() query: ListSelectableGuidesQueryDto) {
     return this.admin.listSelectableGuides(
       query.bookSlug,
@@ -190,8 +198,16 @@ export class ExperienceAdminController {
     description: "Ya hay una versión publicada, o la guía está reservada.",
   })
   @ApiUnprocessableEntityResponse({ type: ErrorEnvelopeDto })
+  @ApiOkResponse({ type: RebindExperienceDraftResultDto })
+  // 200, not 201. PATCH does not create; the default would have been right by
+  // accident and wrong the day this became a POST.
+  @HttpCode(200)
   rebindDraft(@Param("id") id: string, @Body() dto: RebindExperienceDraftDto) {
-    return this.admin.rebindDraft(id, dto.guidePin);
+    return this.admin.rebindDraft(
+      id,
+      dto.guidePin,
+      dto.expectedContentUnitId ?? null,
+    );
   }
 
   @Post("drafts/:id/archive")
@@ -202,8 +218,14 @@ export class ExperienceAdminController {
       "Archiva el borrador. La fila no se borra, su versión no se reutiliza y la guía queda libre.",
   })
   @ApiConflictResponse({ type: ErrorEnvelopeDto })
-  archiveDraft(@Param("id") id: string) {
-    return this.admin.archiveDraft(id);
+  @ApiOkResponse({ type: ArchiveExperienceDraftResultDto })
+  @ApiBody({ type: ExperienceBindingHintDto, required: false })
+  // 200, chosen rather than inherited. `@Post` defaults to 201 Created, and
+  // archiving creates nothing — it ends something. A status that says
+  // "Created" for a terminal transition is a contract that misleads.
+  @HttpCode(200)
+  archiveDraft(@Param("id") id: string, @Body() dto: ExperienceBindingHintDto) {
+    return this.admin.archiveDraft(id, dto.expectedContentUnitId ?? null);
   }
 
   @Post("drafts/:id/publish")

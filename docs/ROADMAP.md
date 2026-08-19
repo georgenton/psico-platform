@@ -651,6 +651,12 @@ CARD_EXECUTABILITY_KEY=resumePin
 UNRUNNABLE_CARD_VISIBLE_AND_DISABLED=true
 UNRUNNABLE_HANDLER_SIDE_EFFECTS=0
 OLD_ACTIVE_VERSION_CONTINUES_WHEN_LOCALLY_AVAILABLE=true
+CARD_STATE_SNAPSHOT_ISOLATION=REPEATABLE_READ
+CARD_STATE_READS_SHARE_ONE_TRANSACTION=true
+CARD_STATE_RESULT_NEVER_HYBRID=true
+CARD_STATE_READ_PATH_WRITES=0
+COMMAND_TRANSACTION_ISOLATION_UNCHANGED=READ_COMMITTED
+SERVER_VERDICT_AND_LOCAL_RUNNABILITY_SEPARATE=true
 ```
 
 **La causa raíz.** Un capítulo resuelve UN pin de Guide. La web pedía el estado
@@ -721,13 +727,26 @@ entre exactamente tres palabras, alineación posicional con la pregunta, y las
 dos reglas semánticas del `resumePin` — START y COMPLETED resumen su propio pin;
 CONTINUE puede nombrar otra **versión** del mismo linaje, jamás otro linaje.
 
-**Dos autoridades, separadas.** Dónde está el lector lo responde el servidor;
-si esta pantalla puede actuar sobre eso se decide localmente y se pregunta por
-`resumePin` —la ejecución, no el pin publicado— con las mismas cuatro
-autoridades que consulta la superficie guiada. Un veredicto que este build no
-puede ejecutar deja la tarjeta **visible, deshabilitada y explicada**, con el
-motivo enlazado al botón por `aria-describedby`; nunca como error de red ni
-como START.
+**Las dos lecturas comparten snapshot.** Responden mitades distintas de una
+misma pregunta, y un veredicto ensamblado con dos momentos no pertenece a
+ninguno: con snapshots por sentencia, la lectura ACTIVE no ve nada, otro
+dispositivo commitea START, y la lectura por pin exacto devuelve esa ACTIVE
+recién creada como la última del pin — la regla 2 no dispara y la tarjeta lee
+START, palabra que no fue cierta en ningún instante. Ambas consultas corren
+secuencialmente dentro de UNA transacción `RepeatableRead`. Los comandos siguen
+en `ReadCommitted` a propósito (su idempotencia depende de releer el recibo que
+otro acaba de commitear), y un ratchet fija las dos cosas en el mismo sitio.
+
+**Dos autoridades, y se mantienen como dos.** Dónde está el lector lo responde
+el servidor (`unknown | start | continue | completed`); si esta pantalla puede
+actuar sobre eso se decide localmente y se pregunta por `resumePin` —la
+ejecución, no el pin publicado— con las mismas cuatro autoridades que consulta
+la superficie guiada. Son **dos campos** (`{ verdict, runnable }`) y dos
+atributos en el DOM, no una palabra combinada: colapsarlos hacía que un
+CONTINUE no ejecutable dejara de decir «En curso». Una tarjeta no ejecutable
+conserva su badge, muestra un CTA deshabilitado «No disponible aquí» y explica
+por qué, con el motivo enlazado por `aria-describedby`; una `unknown` dice otra
+cosa, porque es otra cosa.
 
 **Una tarjeta elegida basta para ejecutar su Guide.** El pin elegido es la
 autoridad y no depende del discovery del capítulo — que responde otra pregunta:

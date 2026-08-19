@@ -238,7 +238,7 @@ describe("ExperienceAdminService — creating", () => {
     prisma.chapterExperienceVersion.findUnique.mockResolvedValue(null);
     prisma.chapterExperienceVersion.create.mockResolvedValue({ id: "row_1" });
 
-    const { guidePin: _omitted, ...withoutPin } = definition();
+    const withoutPin = { ...definition(), guidePin: undefined };
     await service.createDraft(
       "user_1",
       withoutPin as unknown as ChapterExperienceDefinition,
@@ -249,9 +249,10 @@ describe("ExperienceAdminService — creating", () => {
   });
 
   it("refuses a chapter that publishes no guide, instead of inventing one", async () => {
-    const { guidePin: _omitted, ...withoutPin } = definition({
-      chapterOrder: 99,
-    });
+    const withoutPin = {
+      ...definition({ chapterOrder: 99 }),
+      guidePin: undefined,
+    };
     await expect(
       service.createDraft(
         "user_1",

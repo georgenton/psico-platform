@@ -523,6 +523,122 @@ describe("ratchet · a stored pin is never recomputed from a number", () => {
     expect(method("createNextDraft")).not.toMatch(/getExactContext\(/);
     expect(method("saveDraft")).toMatch(/storedPin/);
     expect(method("createNextDraft")).toMatch(/source\.guidePin/);
+
+describe("ratchet · the rebind is a MOVE, not an acquire", () => {
+  it("never asks `reserveFor` for permission to change its own binding", () => {
+    // The bug this pins. `reserveFor` asserts BOTH halves of the bijection, and
+    // the second half — "this lineage already holds another guide" — is exactly
+    // what a rebind is asking to change. Calling it made the whole operation
+    // unreachable: the lineage's own claim refused the lineage's own move.
+    const src = code(SERVICE);
+    const body = src.slice(src.indexOf("async rebindDraft("));
+    const rebind = body.slice(0, body.indexOf("\n  async "));
+    expect(rebind).not.toMatch(/this\.reserveFor\(/);
+    expect(rebind).toMatch(/moveReservation\(tx, \{/);
+  });
+
+  it("moves ONE row rather than deleting and recreating", () => {
+    const src = code(
+      join(process.cwd(), "src/experience/experience-binding-reservation.ts"),
+    );
+    const move = src.slice(
+      src.indexOf("export async function moveReservation"),
+    );
+    const body = move.slice(0, move.indexOf("\n}"));
+    // A delete would be refused by RESTRICT while a version references it, and
+    // two reservations cannot coexist under the primary key. An update is the
+    // only shape with no window.
+    expect(body).not.toMatch(/\.delete\(|\.deleteMany\(/);
+    expect(body).toMatch(/experienceGuideReservation\.update\(/);
+    // Same pin is a replay, not a conflict and not a write.
+    expect(body).toMatch(/existing\.guideKey === input\.toGuideKey/);
+  });
+
+  it("rewrites every unpublished version, and no archived one", () => {
+    const src = code(SERVICE);
+    const body = src.slice(src.indexOf("async rebindDraft("));
+    const rebind = body.slice(0, body.indexOf("\n  async "));
+    // `ON UPDATE CASCADE` moves the columns of every referencing row; a
+    // definition left naming the old pin would be the divergence it cannot fix.
+    expect(rebind).toMatch(/status: "DRAFT",/);
+    expect(rebind).toMatch(/for \(const sibling of siblings\)/);
+  });
+});
+
+describe("ratchet · the CMS can actually perform what the server offers", () => {
+  const WEB = join(
+    process.cwd(),
+    "../web/src/app/dashboard/admin/experiencias",
+  );
+
+  it("rebind has a visual consumer", () => {
+    // `rebindDraftAction` shipped with no component calling it, which meant the
+    // one operation C.4 adds to the CMS could not be performed by an editor.
+    const card = read(
+      join(WEB, "[bookSlug]/[chapterOrder]/borrador/[id]/GuideBindingCard.tsx"),
+    );
+    expect(card).toMatch(/rebindDraftAction\(/);
+    const page = read(
+      join(WEB, "[bookSlug]/[chapterOrder]/borrador/[id]/page.tsx"),
+    );
+    expect(page).toMatch(/<GuideBindingCard/);
+  });
+
+  it("archive keeps its explicit confirmation", () => {
+    const actions = read(
+      join(WEB, "[bookSlug]/[chapterOrder]/ExperienceRowActions.tsx"),
+    );
+    expect(actions).toMatch(/confirmingArchive/);
+    expect(actions).toMatch(/archiveDraftAction\(/);
+  });
+
+  it("the chapter page says so when no guide could be chosen", () => {
+    // With the current catalog a chapter can have exactly one guide and a
+    // definition the build ships already holding it. Offering «Nueva
+    // experiencia» there promises an operation that cannot complete.
+    const button = read(
+      join(WEB, "[bookSlug]/[chapterOrder]/NewExperienceButton.tsx"),
+    );
+    expect(button).toMatch(/bindableGuides === 0/);
+    expect(button).toMatch(/new-experience-no-guide/);
+    const page = read(join(WEB, "[bookSlug]/[chapterOrder]/page.tsx"));
+    expect(page).toMatch(/bindableGuides=\{bindableGuides\}/);
+  });
+});
+
+describe("ratchet · the published contract describes what comes back", () => {
+  const CONTROLLER = join(
+    process.cwd(),
+    "src/experience/experience-admin.controller.ts",
+  );
+
+  it("the C.4 endpoints declare response schemas and deliberate statuses", () => {
+    // Nest infers request bodies and infers NOTHING about responses. An
+    // endpoint that returns JSON with no declared schema reaches
+    // `openapi-typescript` as `content?: never` — a generated client that types
+    // the answer as "no body", which is not thin, it is wrong.
+    const src = read(CONTROLLER);
+    expect(src).toMatch(/type: SelectableGuideOptionDto,\s*\n\s*isArray: true/);
+    expect(src).toMatch(
+      /@ApiOkResponse\(\{ type: RebindExperienceDraftResultDto \}\)/,
+    );
+    expect(src).toMatch(
+      /@ApiOkResponse\(\{ type: ArchiveExperienceDraftResultDto \}\)/,
+    );
+    // `@Post` defaults to 201 Created, and archiving creates nothing.
+    const archive = src.slice(src.indexOf('@Post("drafts/:id/archive")'));
+    expect(archive.slice(0, archive.indexOf("archiveDraft("))).toMatch(
+      /@HttpCode\(200\)/,
+    );
+  });
+
+  it("the generated client types those responses", () => {
+    const generated = read(
+      join(process.cwd(), "../../packages/api-client/src/generated.ts"),
+    );
+    expect(generated).toMatch(/SelectableGuideOptionDto/);
+    expect(generated).toMatch(/RebindExperienceDraftResultDto/);
+    expect(generated).toMatch(/ArchiveExperienceDraftResultDto/);
   });
 });
 

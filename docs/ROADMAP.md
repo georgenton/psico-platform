@@ -83,13 +83,15 @@ Cada fase necesita su propia autorización. El orden **no** es negociable: lo
 impone qué locks comparten dos binarios que conviven durante un rolling deploy,
 no el esquema.
 
-| Fase      | Qué                                                           | Puerta previa                                   | Estado                     |
-| --------- | ------------------------------------------------------------- | ----------------------------------------------- | -------------------------- |
-| **C.0A**  | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                               | ✅ desplegada              |
-| **C.0A1** | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                 | ✅ completa                |
-| **C.0B1** | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs   | ⬜ PR abierta, sin aplicar |
-| **C.0B2** | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)          | ⬜ PR abierta, sin aplicar |
-| **C.0B3** | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir | ⬜ PR abierta, sin aplicar |
+| Fase      | Qué                                                           | Puerta previa                                   | Estado                      |
+| --------- | ------------------------------------------------------------- | ----------------------------------------------- | --------------------------- |
+| **C.0A**  | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                               | ✅ desplegada               |
+| **C.0A1** | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                 | ✅ completa                 |
+| **C.0B1** | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs   | ⬜ PR abierta, sin aplicar  |
+| **C.0B2** | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)          | ⬜ PR abierta, sin aplicar  |
+| **C.0B3** | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir | ✅ desplegada               |
+| **C.1**   | Estado por Experience + discovery con pin exacto              | C.0B3 desplegada                                | ⬜ PR abierta, sin fusionar |
+| **C.2**   | La web consume estados independientes                         | C.1 en la misma PR                              | ⬜ PR abierta, sin fusionar |
 
 **Checkpoint de producción — 2026-08-18.** Ambos servicios sirven
 `1a6be6d3adb3501c30f957e6b87c547aca191769` y **consumen sus ficheros
@@ -618,6 +620,142 @@ independiente.
   autorización para desplegar lineage-only · drenaje final de V1 verificado por
   **marcador de protocolo**, no por SHA.
 
+#### C.1 + C.2 — el estado deja de ser del capítulo y pasa a ser de la Experience
+
+Hechos comprobados, no intenciones:
+
+```
+EXPERIENCE_IDENTITY_STATE_RESOLUTION=true
+EXPERIENCE_TO_EXACT_PIN_DISCOVERY=true
+LINEAGE_RECOVERY_SEPARATED_FROM_EXACT_PIN_COMPLETION=true
+OLD_ACTIVE_VERSION_CONTINUES=true
+COMPLETION_CROSSES_VERSION=false
+WEB_STATE_PER_EXPERIENCE=true
+UNKNOWN_CARD_STATE_FAILS_CLOSED=true
+ROLLING_DEPLOY_OLD_API_FAILS_CLOSED=true
+CARD_STATE_REVALIDATES_ON_REENTRY=true
+CARD_STATE_REVALIDATES_ON_FOCUS=true
+UNBOUNDED_EXPERIENCE_LIST_SUPPORTED_BY_CHUNKS=true
+REQUESTS_PER_CARD=false
+RUNTIME_ADDITIONAL_PROPERTIES_REJECTED=true
+CARD_RESPONSE_EXPOSES_SESSION=false
+CARD_STATE_REPOSITORY_READS=2
+EXACT_HISTORY_ROWS_BOUNDED=true
+PICKED_EXPERIENCE_INDEPENDENT_OF_CHAPTER_DISCOVERY=true
+STALE_ACTION_WINDOW=false
+READY_BOUND_TO_CURRENT_REQUEST=true
+RESPONSE_RUNTIME_VALIDATION=complete
+FOREIGN_LINEAGE_RESUME_PIN_ACCEPTED=false
+START_OR_COMPLETED_RESUME_PIN_MAY_DIFFER=false
+CARD_EXECUTABILITY_KEY=resumePin
+UNRUNNABLE_CARD_VISIBLE_AND_DISABLED=true
+UNRUNNABLE_HANDLER_SIDE_EFFECTS=0
+OLD_ACTIVE_VERSION_CONTINUES_WHEN_LOCALLY_AVAILABLE=true
+CARD_STATE_SNAPSHOT_ISOLATION=REPEATABLE_READ
+CARD_STATE_READS_SHARE_ONE_TRANSACTION=true
+CARD_STATE_RESULT_NEVER_HYBRID=true
+CARD_STATE_READ_PATH_WRITES=0
+COMMAND_TRANSACTION_ISOLATION_UNCHANGED=READ_COMMITTED
+SERVER_VERDICT_AND_LOCAL_RUNNABILITY_SEPARATE=true
+```
+
+**La causa raíz.** Un capítulo resuelve UN pin de Guide. La web pedía el estado
+una vez, para ese pin, y cada tarjeta comparaba su propio pin contra esa única
+respuesta. Dos experiencias compartían veredicto: terminar una hacía que la otra
+leyera «Completada» sin que nadie la abriera. Y la comparación exigía versión
+exacta, así que un lector con `A@v1` en curso veía «Empezar» el día que se
+publicaba `A@v2`.
+
+**La identidad ya existía.** `ChapterExperiencePublicView` lleva
+`experienceKey` + `experienceVersion` y su propio `guidePin` desde GR-6, y el
+binding vive en `ChapterExperienceVersion.definitionJson`. No hizo falta
+migración, ni esquema, ni tocar el CMS: lo que faltaba era que alguien
+preguntara por cada tarjeta.
+
+**Tres preguntas, separadas:**
+
+| Pregunta                              | Clave                                    | Responde                    |
+| ------------------------------------- | ---------------------------------------- | --------------------------- |
+| Qué guía inicia una experiencia nueva | pin publicado de esa Experience          | discovery                   |
+| Qué sesión puede continuar            | `(userId, guideKey)` — cualquier versión | `findActiveOwnForGuideKeys` |
+| Si el pin publicado está terminado    | `(userId, guideKey, guideVersion)`       | `findLatestOwnPerExactPin`  |
+
+**Precedencia, en este orden:** una sesión ACTIVE del mismo `guideKey` gana y se
+continúa **en su propio pin inmutable**; si no la hay, un COMPLETED del pin
+exacto; si tampoco, START con el pin publicado. La regla 1 supera a la 3 a
+propósito: ofrecer `A@v2` a quien dejó `A@v1` corriendo abandonaría su sesión.
+Una sesión **nunca** se migra de versión, y completar `A@v1` no completa `A@v2`.
+
+**`POST /api/guide/experiences/state`** resuelve un lote en **dos** lecturas:
+los ACTIVE de los linajes y la **última** sesión de cada pin exacto. `DISTINCT
+ON` acota esa segunda lectura a una fila por pin, así que quien reinició la
+misma travesía veinte veces cuesta lo mismo que quien nunca lo hizo. No se
+proyecta el ledger: una tarjeta pinta una palabra y un destino, no un recorrido
+paso a paso. La respuesta conserva el orden pedido y **repite** la respuesta
+para un pin repetido: dos experiencias ligadas a la misma guía comparten linaje
+de verdad, y fingir independencia ahí escondería un error de catálogo que
+C.3/C.4 deben evitar en la creación.
+
+**El lote está acotado a 25 pines**, y una lista más larga se trocea: `ceil(N/25)`
+peticiones, nunca una por tarjeta. El orden global y los pines repetidos
+sobreviven al corte, y si un sublote falla, falla la operación entera — un lote a
+medias dejaría unas tarjetas con veredicto y otras adivinando, que es el defecto
+de #639 reconstruido en el cliente. El contrato se rechaza en runtime, no solo en
+el papel: propiedades desconocidas en la raíz o dentro de un pin son un 400, y
+un ratchet obliga a que parser, OpenAPI y cliente digan lo mismo.
+
+**Un veredicto que no se tiene no es un veredicto.** La carga es una máquina de
+estados (`idle`/`loading`/`ready`/`error`) y solo `ready` habilita una acción:
+mientras se consulta, tras un error de red y ante un 404 de un despliegue
+antiguo, la tarjeta queda inerte con su motivo y un reintento. «No pudimos
+preguntar» y «no has empezado» son hechos distintos, y solo uno es seguro:
+empezar de nuevo puede cancelar precisamente la sesión que C.1 debía continuar.
+
+Una respuesta `ready` va **etiquetada con la pregunta y la consulta que la
+produjo**, y si aún habla por la pantalla se deriva en el render. Así, entrar a
+Chapter Home, volver, recuperar foco o visibilidad y reintentar dejan de dar
+autoridad a la respuesta anterior **en el mismo acto**, no cuando un efecto se
+ejecute: no hay frame en que un «Empezar» superado esté en pantalla y sea
+pulsable. El handler repite todas esas guardas contra la clave y la generación
+vivas, no contra las que capturó su clausura.
+
+**La respuesta también se valida en runtime.** El genérico de `apiClient.post`
+es una promesa de compilación sobre un servidor que este proceso no ejecuta; en
+runtime es JSON. Se comprueba por chunk y antes de combinar nada: envelope y
+item cerrados, ambos pines con la gramática y el rango del servidor, `status`
+entre exactamente tres palabras, alineación posicional con la pregunta, y las
+dos reglas semánticas del `resumePin` — START y COMPLETED resumen su propio pin;
+CONTINUE puede nombrar otra **versión** del mismo linaje, jamás otro linaje.
+
+**Las dos lecturas comparten snapshot.** Responden mitades distintas de una
+misma pregunta, y un veredicto ensamblado con dos momentos no pertenece a
+ninguno: con snapshots por sentencia, la lectura ACTIVE no ve nada, otro
+dispositivo commitea START, y la lectura por pin exacto devuelve esa ACTIVE
+recién creada como la última del pin — la regla 2 no dispara y la tarjeta lee
+START, palabra que no fue cierta en ningún instante. Ambas consultas corren
+secuencialmente dentro de UNA transacción `RepeatableRead`. Los comandos siguen
+en `ReadCommitted` a propósito (su idempotencia depende de releer el recibo que
+otro acaba de commitear), y un ratchet fija las dos cosas en el mismo sitio.
+
+**Dos autoridades, y se mantienen como dos.** Dónde está el lector lo responde
+el servidor (`unknown | start | continue | completed`); si esta pantalla puede
+actuar sobre eso se decide localmente y se pregunta por `resumePin` —la
+ejecución, no el pin publicado— con las mismas cuatro autoridades que consulta
+la superficie guiada. Son **dos campos** (`{ verdict, runnable }`) y dos
+atributos en el DOM, no una palabra combinada: colapsarlos hacía que un
+CONTINUE no ejecutable dejara de decir «En curso». Una tarjeta no ejecutable
+conserva su badge, muestra un CTA deshabilitado «No disponible aquí» y explica
+por qué, con el motivo enlazado por `aria-describedby`; una `unknown` dice otra
+cosa, porque es otra cosa.
+
+**Una tarjeta elegida basta para ejecutar su Guide.** El pin elegido es la
+autoridad y no depende del discovery del capítulo — que responde otra pregunta:
+la del pin propio del capítulo. Siguen siendo obligatorios el gate del piloto,
+el actor scope, el bundle exacto y el anchor aplicable, así que una tarjeta sin
+ellos sigue fallando cerrada. Y elegir se abandona entero: cambiar de capítulo,
+que la Experience desaparezca del discovery o pulsar «Ver otra experiencia»
+limpian pin y Experience a la vez. Cerrar el panel no es abandonar.
+
 #### Qué falta de #639 después de C.0B3
 
 Derivado de ADR 0022 §13 y del cuerpo del issue, no inventado.
@@ -639,16 +777,16 @@ filas y nunca devuelve una sesión sobre la que actuar.
 
 **Lo que sí queda pendiente (C.1+):**
 
-- **resolver el estado desde la identidad de Experience** — hoy
-  `experienceCardStatus` resuelve por capítulo, que es la causa raíz del issue;
-- **mapear Experience → pin exacto** en discovery;
-- **ofrecer continuar una sesión activa del lineage** cuando la versión
-  publicada actual sea otra — hoy `findRecoverableSession` devuelve `null` si la
-  versión no coincide, y cambiarlo es una modificación de comportamiento público
-  que pertenece al endpoint de estado por Experience, no a esta release;
-- **distinguir recuperación del lineage frente al estado/completion de un pin
-  exacto** — son dos preguntas distintas y hoy comparten camino;
-- **discovery por Experience y consumo Web** (C.1 y C.2);
+- ~~resolver el estado desde la identidad de Experience~~ — **cerrado en C.1**;
+- ~~mapear Experience → pin exacto~~ — **ya existía**: discovery devuelve el pin
+  publicado de cada Experience desde GR-6;
+- ~~ofrecer continuar una sesión activa del lineage cuando la versión publicada
+  sea otra~~ — **cerrado en C.1**, en el endpoint de estado por Experience.
+  `findRecoverableSession` sigue exigiendo pin exacto y no cambia: su contrato
+  público es otro;
+- ~~distinguir recuperación del lineage frente a completion del pin exacto~~ —
+  **cerrado en C.1**;
+- ~~consumo Web de estados independientes~~ — **cerrado en C.2**;
 - **reserva de binding segura ante concurrencia en el CMS** (C.3) y **selección
   de Guide** (C.4, bloqueada por producto);
 - **ciclo de vida de drafts abandonados** (ADR §11): `DRAFT → ARCHIVED`, la fila

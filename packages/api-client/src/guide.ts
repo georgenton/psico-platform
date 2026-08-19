@@ -5,6 +5,8 @@ import type {
   GuideAvailabilityResponse,
   GuideDiscoveryResponse,
   GuideCommandResponse,
+  GuideExperienceCardState,
+  GuideExperienceCardStatesResponse,
   GuideExperienceStateResponse,
   RecoverableGuideSessionResponse,
   StartGuideSessionRequestBody,
@@ -18,6 +20,23 @@ export const GUIDE_DISCOVERY_PARAMS_INVALID = "GUIDE_DISCOVERY_PARAMS_INVALID";
 
 /** The one code a locally-rejected recovery pin reports (GR-5). */
 export const GUIDE_RECOVERY_PARAMS_INVALID = "GUIDE_RECOVERY_PARAMS_INVALID";
+
+/** The one code a locally-rejected card-state batch reports (C.1). */
+export const GUIDE_CARD_STATES_PARAMS_INVALID =
+  "GUIDE_CARD_STATES_PARAMS_INVALID";
+
+/** The one code a card-state batch reports when the answer does not fit. */
+export const GUIDE_CARD_STATES_ANSWER_INVALID =
+  "GUIDE_CARD_STATES_ANSWER_INVALID";
+
+/**
+ * The server's own limits, restated so the client refuses what the server
+ * would refuse — and so a chapter longer than one batch is chunked instead of
+ * rejected. A ratchet compares these against the parser and the OpenAPI
+ * document; the server stays the authority either way.
+ */
+export const GUIDE_CARD_STATES_MAX_PINS = 25;
+export const GUIDE_CARD_STATES_MAX_VERSION = 999_999_999;
 
 /**
  * The catalog's key grammar, restated: lowercase, bounded, no spaces. Same
@@ -52,6 +71,115 @@ function normalizeDiscoverySlug(value: unknown): string | null {
  * catalog's correct option is never sent and never returned, so there is
  * nothing here to store.
  */
+/**
+ * C.1 — the answer, checked rather than assumed.
+ *
+ * The generic on `apiClient.post` is a compile-time promise about a server we
+ * do not run in this process. At runtime it is JSON: a stale deploy, a proxy
+ * that rewrites bodies, or an endpoint that quietly grows a field can all put
+ * a shape here that TypeScript already believes. So every invariant the cards
+ * rely on is asked out loud.
+ *
+ * Two of them are more than shape:
+ *
+ *   - positional alignment. An answer of the right LENGTH whose pins do not
+ *     match the questions is the dangerous one: it lines up perfectly and
+ *     describes the wrong journeys.
+ *   - `resumePin`. START and COMPLETED are statements about the published pin,
+ *     so resuming anything else would be a fresh run wearing a finished
+ *     journey's clothes. CONTINUE may name another VERSION — that is the whole
+ *     point of rule 1 — but never another lineage: a `guideKey` that is not the
+ *     one asked about is somebody else's session.
+ *
+ * Nothing received is echoed. The error carries the code and nothing else,
+ * because a rejected payload is exactly the thing that must not reach a log.
+ */
+function validateCardStatesAnswer(
+  answer: unknown,
+  asked: ReadonlyArray<{ guideKey: string; guideVersion: number }>,
+): GuideExperienceCardState[] {
+  const bad = () => {
+    throw new Error(GUIDE_CARD_STATES_ANSWER_INVALID);
+  };
+  if (!isPlainObject(answer)) bad();
+  if (!onlyKeys(answer as Record<string, unknown>, ["items"])) bad();
+  const items = (answer as { items: unknown }).items;
+  if (!Array.isArray(items) || items.length !== asked.length) bad();
+
+  const validated: GuideExperienceCardState[] = [];
+  (items as unknown[]).forEach((raw, i) => {
+    if (!isPlainObject(raw)) bad();
+    const item = raw as Record<string, unknown>;
+    if (!onlyKeys(item, ["guidePin", "status", "resumePin"])) bad();
+
+    const guidePin = readPin(item.guidePin);
+    const resumePin = readPin(item.resumePin);
+    if (!guidePin || !resumePin) bad();
+
+    const question = asked[i]!;
+    if (
+      guidePin!.guideKey !== question.guideKey ||
+      guidePin!.guideVersion !== question.guideVersion
+    ) {
+      bad();
+    }
+
+    const status = item.status;
+    if (status !== "START" && status !== "CONTINUE" && status !== "COMPLETED") {
+      bad();
+    }
+    if (status === "CONTINUE") {
+      // Another version of the SAME lineage, or nothing.
+      if (resumePin!.guideKey !== guidePin!.guideKey) bad();
+    } else if (
+      resumePin!.guideKey !== guidePin!.guideKey ||
+      resumePin!.guideVersion !== guidePin!.guideVersion
+    ) {
+      bad();
+    }
+
+    validated.push({
+      guidePin: guidePin!,
+      status: status as GuideExperienceCardState["status"],
+      resumePin: resumePin!,
+    });
+  });
+  return validated;
+}
+
+/** A JSON object, not an array and not null. */
+function isPlainObject(value: unknown): boolean {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Exactly these own keys — no more, none missing. */
+function onlyKeys(value: Record<string, unknown>, allowed: string[]): boolean {
+  const keys = Object.keys(value);
+  return (
+    keys.length === allowed.length && keys.every((k) => allowed.includes(k))
+  );
+}
+
+/** A pin, or `null`. Same grammar and range the server enforces on the way in. */
+function readPin(
+  value: unknown,
+): { guideKey: string; guideVersion: number } | null {
+  if (!isPlainObject(value)) return null;
+  const pin = value as Record<string, unknown>;
+  if (!onlyKeys(pin, ["guideKey", "guideVersion"])) return null;
+  const { guideKey, guideVersion } = pin;
+  if (typeof guideKey !== "string" || !GUIDE_KEY_RE.test(guideKey)) return null;
+  if (
+    typeof guideVersion !== "number" ||
+    !Number.isInteger(guideVersion) ||
+    guideVersion <= 0 ||
+    guideVersion > GUIDE_CARD_STATES_MAX_VERSION
+  ) {
+    return null;
+  }
+  return { guideKey, guideVersion };
+}
+
 export const guideApi = {
   /**
    * CC-7.R1 — the server-owned pilot gate. A single opaque boolean: whether
@@ -124,6 +252,69 @@ export const guideApi = {
     return apiClient.get<GuideExperienceStateResponse>(
       `/guide/sessions/state?${query.toString()}`,
     );
+  },
+
+  /**
+   * C.1 — the state of EVERY card in a chapter, in one request.
+   *
+   * `getExperienceState` answers about one exact pin, which is why a chapter
+   * with two journeys used to ask once and paint both cards with the same
+   * answer. This asks about the published pin of each card and gets a verdict
+   * per card, in the order sent.
+   *
+   * Pins are NOT deduped here: two experiences bound to the same guide really
+   * do share a state, and the caller maps answers back by position.
+   */
+  getExperienceCardStates: async (
+    pins: ReadonlyArray<{ guideKey: string; guideVersion: number }>,
+  ): Promise<GuideExperienceCardStatesResponse> => {
+    const invalid =
+      pins.length === 0 ||
+      pins.some(
+        (pin) =>
+          typeof pin?.guideKey !== "string" ||
+          !GUIDE_KEY_RE.test(pin.guideKey) ||
+          typeof pin?.guideVersion !== "number" ||
+          !Number.isInteger(pin.guideVersion) ||
+          pin.guideVersion <= 0 ||
+          pin.guideVersion > GUIDE_CARD_STATES_MAX_VERSION,
+      );
+    if (invalid) {
+      // The rejected pin is NOT echoed — untrusted input does not travel into
+      // an error message that something will eventually log.
+      throw new Error(GUIDE_CARD_STATES_PARAMS_INVALID);
+    }
+
+    // A chapter longer than one batch is a chapter, not a caller error: split
+    // it into `ceil(n / 25)` requests and reassemble. `pins` is copied
+    // defensively — a caller mutating its array mid-flight must not be able to
+    // change what a chunk asked about after the fact.
+    const wanted = pins.map((p) => ({
+      guideKey: p.guideKey,
+      guideVersion: p.guideVersion,
+    }));
+    const chunks: (typeof wanted)[] = [];
+    for (let i = 0; i < wanted.length; i += GUIDE_CARD_STATES_MAX_PINS) {
+      chunks.push(wanted.slice(i, i + GUIDE_CARD_STATES_MAX_PINS));
+    }
+
+    // All-or-nothing: a partial batch would leave some cards holding a verdict
+    // and others holding a guess, which is the defect #639 is about. One
+    // failed chunk rejects the whole call and the caller shows an error — and
+    // each chunk is VALIDATED before any of them is combined, so a malformed
+    // second chunk cannot publish a well-formed first one.
+    const answers = await Promise.all(
+      chunks.map(async (chunk) =>
+        validateCardStatesAnswer(
+          await apiClient.post<unknown>("/guide/experiences/state", {
+            pins: chunk,
+          }),
+          chunk,
+        ),
+      ),
+    );
+
+    return { items: answers.flat() };
   },
 
   getRecoverableSession: (pin: { guideKey: string; guideVersion: number }) => {

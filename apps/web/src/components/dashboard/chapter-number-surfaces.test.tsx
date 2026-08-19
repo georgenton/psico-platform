@@ -184,8 +184,15 @@ describe("PAREJAS_CHAPTER_HOME_DOES_NOT_SHOW_PLATFORM_ORDER", () => {
           ver: mode({ kind: "VIDEO", state: "HIDDEN", label: "Ver" }),
         }}
         guidedView={mode({ kind: "GUIDED", state: "HIDDEN", label: "Guiada" })}
+        experiencesEnabled={false}
         experiences={[]}
-        experienceSession={null}
+        experienceStates={{
+          status: "ready",
+          requestKey: "k",
+          generation: 1,
+          states: new Map(),
+        }}
+        canRunResumePin={() => true}
         onOpenExperience={() => {}}
         activityCount={0}
         onContinueReading={() => {}}

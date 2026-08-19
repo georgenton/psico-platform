@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  Body,
   Query,
   Controller,
   Get,
   Header,
+  HttpCode,
   Param,
   Post,
   Req,
@@ -41,6 +43,7 @@ import type { AuthenticatedUser } from "../auth";
 import { CurrentUser } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import type {
+  GuideExperienceCardStatesResponse,
   GuideExperienceStateResponse,
   RecoverableGuideSessionResponse,
 } from "@psico/types";
@@ -57,6 +60,10 @@ import {
   parseGuideStateQuery,
   type GuideStateQuery,
 } from "./guide-state-params";
+import {
+  GUIDE_INVALID_CARD_STATES_BODY,
+  parseGuideCardStatesBody,
+} from "./guide-card-states-params";
 import type {
   GuideCommandResult,
   GuideRecallCommandResult,
@@ -84,6 +91,8 @@ import {
 } from "./guide-http-errors";
 import {
   GUIDE_AVAILABILITY_RESPONSE,
+  GUIDE_CARD_STATES_BODY,
+  GUIDE_CARD_STATES_RESPONSE,
   GUIDE_EXPERIENCE_STATE_RESPONSE,
   GUIDE_RECOVERABLE_SESSION_RESPONSE,
   GUIDE_DISCOVERY_RESPONSE,
@@ -217,6 +226,53 @@ export class GuideController {
       throw new BadRequestException({ code: GUIDE_INVALID_STATE_QUERY });
     }
     return this.lifecycle.findExperienceState(user.userId, pin);
+  }
+
+  /**
+   * C.1 — where the reader stands in EACH experience of a chapter, at once.
+   *
+   * `/sessions/state` answers about ONE exact pin, which is why a chapter with
+   * two journeys ended up asking once and colouring both cards with the same
+   * answer (#639). This route takes the published pin of every card and
+   * returns a verdict per card, computed server-side.
+   *
+   * A POST for a read, deliberately: a list of pins does not belong in a query
+   * string, and the alternative — one GET per card — is the N+1 this exists to
+   * remove. It creates nothing, stores nothing and is marked `no-store`.
+   *
+   * READ-ONLY and actor-scoped by construction: every lookup filters on the
+   * JWT's user, so another actor's session is not denied, it is invisible.
+   */
+  @Post("experiences/state")
+  @HttpCode(200)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "getGuideExperienceCardStates",
+    summary:
+      "Estado por experiencia para una lista de pines publicados: START, " +
+      "CONTINUE (sesión ACTIVE del mismo guideKey, en su propio pin) o " +
+      "COMPLETED (solo del pin exacto). No revela sesiones ajenas ni crea nada.",
+  })
+  @ApiBody({ schema: GUIDE_CARD_STATES_BODY })
+  @ApiOkResponse({ schema: GUIDE_CARD_STATES_RESPONSE })
+  @ApiBadRequestResponse({ type: ErrorEnvelopeDto })
+  @ApiUnauthorizedResponse({ type: ErrorEnvelopeDto })
+  async getGuideExperienceCardStates(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: unknown,
+  ): Promise<GuideExperienceCardStatesResponse> {
+    let parsed: { pins: Array<{ guideKey: string; guideVersion: number }> };
+    try {
+      parsed = parseGuideCardStatesBody(body);
+    } catch {
+      throw new BadRequestException({ code: GUIDE_INVALID_CARD_STATES_BODY });
+    }
+    const items = await this.lifecycle.resolveExperienceCardStates(
+      user.userId,
+      parsed.pins,
+    );
+    return { items };
   }
 
   @Get("sessions/recoverable")

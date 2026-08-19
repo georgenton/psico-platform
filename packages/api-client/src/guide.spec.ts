@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { GUIDE_RECOVERY_PARAMS_INVALID, guideApi } from "./guide";
+import {
+  GUIDE_CARD_STATES_ANSWER_INVALID,
+  GUIDE_CARD_STATES_MAX_PINS,
+  GUIDE_CARD_STATES_MAX_VERSION,
+  GUIDE_CARD_STATES_PARAMS_INVALID,
+  GUIDE_RECOVERY_PARAMS_INVALID,
+  guideApi,
+} from "./guide";
 import { apiClient } from "./client";
 
 /**
@@ -212,6 +219,417 @@ describe("guideApi", () => {
           expect(err.message).toBe(GUIDE_RECOVERY_PARAMS_INVALID);
           expect(err.message).not.toContain(secretish);
         });
+    });
+  });
+
+  /**
+   * C.1 — the card-state batch, which is the only client method that may split
+   * one call into several requests. Everything here is about the seam that
+   * creates: order, repetition, and what happens when one request fails.
+   */
+  describe("getExperienceCardStates", () => {
+    const pin = (n: number) => ({ guideKey: `guia-${n}`, guideVersion: 1 });
+
+    /** Answer each chunk with a verdict per pin, echoing what it was asked. */
+    const echoServer = () =>
+      post.mockImplementation((_path: unknown, body: unknown) => {
+        const pins = (
+          body as { pins: { guideKey: string; guideVersion: number }[] }
+        ).pins;
+        return Promise.resolve({
+          items: pins.map((p) => ({
+            guidePin: p,
+            status: "START",
+            resumePin: p,
+          })),
+        }) as never;
+      });
+
+    it("sends ONE request for a chapter that fits in one batch", async () => {
+      echoServer();
+      const pins = [pin(1), pin(2), pin(3)];
+
+      const answer = await guideApi.getExperienceCardStates(pins);
+
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(post).toHaveBeenCalledWith("/guide/experiences/state", { pins });
+      expect(answer.items.map((i) => i.guidePin)).toEqual(pins);
+    });
+
+    it("splits a longer chapter into ceil(n / 25) requests", async () => {
+      echoServer();
+      const pins = Array.from({ length: 63 }, (_, i) => pin(i));
+
+      const answer = await guideApi.getExperienceCardStates(pins);
+
+      expect(post).toHaveBeenCalledTimes(
+        Math.ceil(63 / GUIDE_CARD_STATES_MAX_PINS),
+      );
+      // No chunk exceeds what the server accepts...
+      for (const [, body] of post.mock.calls) {
+        expect((body as { pins: unknown[] }).pins.length).toBeLessThanOrEqual(
+          GUIDE_CARD_STATES_MAX_PINS,
+        );
+      }
+      // ...and the GLOBAL order survives the split, position for position.
+      expect(answer.items.map((i) => i.guidePin)).toEqual(pins);
+    });
+
+    it("keeps a repeated pin repeated, even across a chunk boundary", async () => {
+      echoServer();
+      const shared = { guideKey: "compartida", guideVersion: 1 };
+      const pins = [
+        ...Array.from({ length: GUIDE_CARD_STATES_MAX_PINS - 1 }, (_, i) =>
+          pin(i),
+        ),
+        shared, // last of chunk 1
+        shared, // first of chunk 2
+      ];
+
+      const answer = await guideApi.getExperienceCardStates(pins);
+
+      expect(post).toHaveBeenCalledTimes(2);
+      expect(answer.items).toHaveLength(pins.length);
+      expect(answer.items.at(-1)!.guidePin).toEqual(shared);
+      expect(answer.items.at(-2)!.guidePin).toEqual(shared);
+    });
+
+    it("one failed chunk fails the whole call — never a half answer", async () => {
+      let call = 0;
+      post.mockImplementation((_path: unknown, body: unknown) => {
+        call += 1;
+        if (call === 2) return Promise.reject(new Error("boom")) as never;
+        const pins = (body as { pins: unknown[] }).pins;
+        return Promise.resolve({
+          items: pins.map((p) => ({
+            guidePin: p,
+            status: "START",
+            resumePin: p,
+          })),
+        }) as never;
+      });
+
+      await expect(
+        guideApi.getExperienceCardStates(
+          Array.from({ length: 30 }, (_, i) => pin(i)),
+        ),
+      ).rejects.toThrow("boom");
+    });
+
+    it("refuses an answer that cannot be aligned to the questions", async () => {
+      // A server returning fewer verdicts than pins would shift every card by
+      // one. Truncating or padding would be a guess; this is not.
+      post.mockResolvedValue({ items: [] } as never);
+
+      await expect(
+        guideApi.getExperienceCardStates([pin(1), pin(2)]),
+      ).rejects.toThrow(GUIDE_CARD_STATES_ANSWER_INVALID);
+    });
+
+    it("refuses an answer of the RIGHT length whose pins are wrong", async () => {
+      // The dangerous one: it lines up perfectly and describes the wrong
+      // journeys. A card would show a verdict earned somewhere else.
+      post.mockResolvedValue({
+        items: [
+          { guidePin: pin(1), status: "START", resumePin: pin(1) },
+          { guidePin: pin(9), status: "COMPLETED", resumePin: pin(9) },
+        ],
+      } as never);
+
+      await expect(
+        guideApi.getExperienceCardStates([pin(1), pin(2)]),
+      ).rejects.toThrow(GUIDE_CARD_STATES_ANSWER_INVALID);
+    });
+
+    it("refuses an answer whose pins are RIGHT but in the wrong order", async () => {
+      post.mockResolvedValue({
+        items: [
+          { guidePin: pin(2), status: "START", resumePin: pin(2) },
+          { guidePin: pin(1), status: "COMPLETED", resumePin: pin(1) },
+        ],
+      } as never);
+
+      await expect(
+        guideApi.getExperienceCardStates([pin(1), pin(2)]),
+      ).rejects.toThrow(GUIDE_CARD_STATES_ANSWER_INVALID);
+    });
+
+    it("a rolling deploy answering 404 fails the batch, not one card", async () => {
+      // An older API that has never heard of this route. The reader must not
+      // be offered a fresh start over a journey it cannot ask about.
+      post.mockRejectedValue(
+        Object.assign(new Error("Not Found"), { statusCode: 404 }),
+      );
+
+      await expect(
+        guideApi.getExperienceCardStates([pin(1), pin(2)]),
+      ).rejects.toThrow(/Not Found/);
+    });
+
+    /**
+     * The generic on `apiClient.post` is a promise about a server this process
+     * does not run. These are the shapes that satisfy TypeScript and would
+     * still put a wrong verdict — or a foreign lineage — on a card.
+     */
+    describe("the answer is checked, not assumed", () => {
+      const answered = (items: unknown) =>
+        post.mockResolvedValue({ items } as never);
+
+      const refuses = async (pins = [pin(1)]) =>
+        expect(guideApi.getExperienceCardStates(pins)).rejects.toThrow(
+          GUIDE_CARD_STATES_ANSWER_INVALID,
+        );
+
+      it("refuses an envelope that is not an object with exactly `items`", async () => {
+        post.mockResolvedValue(null as never);
+        await refuses();
+        post.mockResolvedValue([{ guidePin: pin(1) }] as never);
+        await refuses();
+        post.mockResolvedValue({
+          items: [{ guidePin: pin(1), status: "START", resumePin: pin(1) }],
+          total: 1,
+        } as never);
+        await refuses();
+        post.mockResolvedValue({ data: [] } as never);
+        await refuses();
+      });
+
+      it("refuses an item with an extra property", async () => {
+        // OpenAPI declares the response closed; a client that shrugged at an
+        // extra field would let the two contracts drift apart in silence.
+        answered([
+          {
+            guidePin: pin(1),
+            status: "START",
+            resumePin: pin(1),
+            session: { sessionId: "ses_1" },
+          },
+        ]);
+        await refuses();
+      });
+
+      it("refuses an unknown status", async () => {
+        answered([{ guidePin: pin(1), status: "PAUSED", resumePin: pin(1) }]);
+        await refuses();
+        answered([{ guidePin: pin(1), status: "start", resumePin: pin(1) }]);
+        await refuses();
+        answered([{ guidePin: pin(1), status: null, resumePin: pin(1) }]);
+        await refuses();
+      });
+
+      it("refuses a missing or malformed resumePin", async () => {
+        answered([{ guidePin: pin(1), status: "START" }]);
+        await refuses();
+        answered([{ guidePin: pin(1), status: "START", resumePin: null }]);
+        await refuses();
+        answered([
+          { guidePin: pin(1), status: "START", resumePin: { guideKey: "g-1" } },
+        ]);
+        await refuses();
+        answered([
+          {
+            guidePin: pin(1),
+            status: "START",
+            resumePin: { guideKey: "guia-1", guideVersion: 0 },
+          },
+        ]);
+        await refuses();
+        answered([
+          {
+            guidePin: pin(1),
+            status: "START",
+            resumePin: { guideKey: "GUIA-1", guideVersion: 1 },
+          },
+        ]);
+        await refuses();
+      });
+
+      it("refuses CONTINUE that resumes ANOTHER lineage", async () => {
+        // Another version of the same journey is the point of rule 1; another
+        // journey entirely is somebody else's session.
+        answered([
+          {
+            guidePin: pin(1),
+            status: "CONTINUE",
+            resumePin: { guideKey: "guia-9", guideVersion: 1 },
+          },
+        ]);
+        await refuses();
+      });
+
+      it("refuses START or COMPLETED that resumes another VERSION", async () => {
+        // Both are statements about the published pin. Resuming a different
+        // version would be a fresh run wearing a finished journey's clothes.
+        for (const status of ["START", "COMPLETED"]) {
+          answered([
+            {
+              guidePin: { guideKey: "guia-1", guideVersion: 2 },
+              status,
+              resumePin: { guideKey: "guia-1", guideVersion: 1 },
+            },
+          ]);
+          await expect(
+            guideApi.getExperienceCardStates([
+              { guideKey: "guia-1", guideVersion: 2 },
+            ]),
+          ).rejects.toThrow(GUIDE_CARD_STATES_ANSWER_INVALID);
+        }
+      });
+
+      it("ACCEPTS CONTINUE on an older version of the same lineage", async () => {
+        const published = { guideKey: "guia-1", guideVersion: 2 };
+        const resume = { guideKey: "guia-1", guideVersion: 1 };
+        answered([
+          { guidePin: published, status: "CONTINUE", resumePin: resume },
+        ]);
+
+        const answer = await guideApi.getExperienceCardStates([published]);
+        expect(answer.items).toEqual([
+          { guidePin: published, status: "CONTINUE", resumePin: resume },
+        ]);
+      });
+
+      it("a semantically invalid SECOND chunk publishes nothing from the first", async () => {
+        let call = 0;
+        post.mockImplementation((_path: unknown, body: unknown) => {
+          call += 1;
+          const pins = (body as { pins: { guideKey: string }[] }).pins;
+          if (call === 2) {
+            // Right length, right pins, impossible status.
+            return Promise.resolve({
+              items: pins.map((p) => ({
+                guidePin: p,
+                status: "PAUSED",
+                resumePin: p,
+              })),
+            }) as never;
+          }
+          return Promise.resolve({
+            items: pins.map((p) => ({
+              guidePin: p,
+              status: "START",
+              resumePin: p,
+            })),
+          }) as never;
+        });
+
+        await expect(
+          guideApi.getExperienceCardStates(
+            Array.from({ length: 30 }, (_, i) => pin(i)),
+          ),
+        ).rejects.toThrow(GUIDE_CARD_STATES_ANSWER_INVALID);
+      });
+
+      it("never echoes anything it received", async () => {
+        answered([
+          {
+            guidePin: pin(1),
+            status: "SOSPECHOSO",
+            resumePin: pin(1),
+          },
+        ]);
+        await guideApi.getExperienceCardStates([pin(1)]).catch((err: Error) => {
+          expect(err.message).toBe(GUIDE_CARD_STATES_ANSWER_INVALID);
+          expect(`${err.name} ${err.message}`).not.toContain("SOSPECHOSO");
+        });
+      });
+    });
+
+    it.each([25, 26, 51])("asks ceil(n / 25) times for %s cards", async (n) => {
+      echoServer();
+      const pins = Array.from({ length: n }, (_, i) => pin(i));
+
+      const answer = await guideApi.getExperienceCardStates(pins);
+
+      expect(post).toHaveBeenCalledTimes(Math.ceil(n / 25));
+      expect(post.mock.calls.length).toBeLessThan(n);
+      expect(answer.items.map((i) => i.guidePin)).toEqual(pins);
+    });
+
+    it("a failing SECOND chunk publishes nothing from the first", async () => {
+      const seen: unknown[] = [];
+      let call = 0;
+      post.mockImplementation((_path: unknown, body: unknown) => {
+        call += 1;
+        seen.push(body);
+        if (call === 2) {
+          return Promise.reject(new Error("chunk 2 down")) as never;
+        }
+        const pins = (body as { pins: unknown[] }).pins;
+        return Promise.resolve({
+          items: pins.map((p) => ({
+            guidePin: p,
+            status: "COMPLETED",
+            resumePin: p,
+          })),
+        }) as never;
+      });
+
+      await expect(
+        guideApi.getExperienceCardStates(
+          Array.from({ length: 51 }, (_, i) => pin(i)),
+        ),
+      ).rejects.toThrow("chunk 2 down");
+      // The first chunk's verdicts existed and were thrown away: a partial
+      // answer is not a smaller answer, it is a wrong one.
+      expect(seen.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it.each([
+      ["", 1],
+      ["UPPER", 1],
+      ["has spaces", 1],
+      ["ok-key", 0],
+      ["ok-key", -1],
+      ["ok-key", 1.5],
+      ["ok-key", Number.NaN],
+      ["ok-key", GUIDE_CARD_STATES_MAX_VERSION + 1],
+    ])("rejects (%s, %s) locally, without a request", async (key, version) => {
+      await expect(
+        guideApi.getExperienceCardStates([
+          { guideKey: "valida", guideVersion: 1 },
+          { guideKey: key as string, guideVersion: version as number },
+        ]),
+      ).rejects.toThrow(GUIDE_CARD_STATES_PARAMS_INVALID);
+      // The whole batch is refused: a request carrying only the valid half
+      // would answer some cards and leave the rest guessing.
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it("rejects an empty list rather than asking about nothing", async () => {
+      await expect(guideApi.getExperienceCardStates([])).rejects.toThrow(
+        GUIDE_CARD_STATES_PARAMS_INVALID,
+      );
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it("the local rejection never echoes the pin it rejected", async () => {
+      const secretish = "Not A Key";
+      await guideApi
+        .getExperienceCardStates([{ guideKey: secretish, guideVersion: 1 }])
+        .catch((err: Error) => {
+          expect(err.message).toBe(GUIDE_CARD_STATES_PARAMS_INVALID);
+          expect(err.message).not.toContain(secretish);
+        });
+    });
+
+    it("a caller mutating its array mid-flight cannot change the request", async () => {
+      echoServer();
+      const pins = [pin(1), pin(2)];
+      const promise = guideApi.getExperienceCardStates(pins);
+      pins[0] = { guideKey: "otra", guideVersion: 9 };
+
+      const answer = await promise;
+      expect(post.mock.calls[0]![1]).toEqual({
+        pins: [
+          { guideKey: "guia-1", guideVersion: 1 },
+          { guideKey: "guia-2", guideVersion: 1 },
+        ],
+      });
+      expect(answer.items[0]!.guidePin).toEqual({
+        guideKey: "guia-1",
+        guideVersion: 1,
+      });
     });
   });
 });

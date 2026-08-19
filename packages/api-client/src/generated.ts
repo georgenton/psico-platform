@@ -2143,6 +2143,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guide/experiences/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Estado por experiencia para una lista de pines publicados: START, CONTINUE (sesión ACTIVE del mismo guideKey, en su propio pin) o COMPLETED (solo del pin exacto). No revela sesiones ajenas ni crea nada. */
+        post: operations["getGuideExperienceCardStates"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guide/sessions/recoverable": {
         parameters: {
             query?: never;
@@ -13267,6 +13284,108 @@ export interface operations {
             };
         };
     };
+    getGuideExperienceCardStates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Pines publicados, uno por tarjeta. El orden se conserva y un pin repetido recibe la misma respuesta repetida: dos experiencias ligadas a la misma guía comparten linaje de verdad. */
+                    pins: {
+                        guideKey: string;
+                        guideVersion: number;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            guidePin: {
+                                guideKey: string;
+                                guideVersion: number;
+                            };
+                            /**
+                             * @description CONTINUE si hay una sesión ACTIVE del mismo guideKey, sea cual sea su versión; COMPLETED solo si el pin EXACTO está completado; START en cualquier otro caso.
+                             * @enum {string}
+                             */
+                            status: PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsStatus;
+                            /** @description El pin que debe ejecutarse al pulsar: el de la sesión abierta cuando la hay, el publicado en caso contrario. */
+                            resumePin: {
+                                guideKey: string;
+                                guideVersion: number;
+                            };
+                        }[];
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     getRecoverableGuideSession: {
         parameters: {
             query: {
@@ -18851,6 +18970,11 @@ export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf
 export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf2SummaryRecallsOutcome {
     CORRECT = "CORRECT",
     REVIEW = "REVIEW"
+}
+export enum PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsStatus {
+    START = "START",
+    CONTINUE = "CONTINUE",
+    COMPLETED = "COMPLETED"
 }
 export enum PathsApiGuideSessionsRecoverableGetResponses200ContentApplicationJsonOneOf1SessionStatus {
     ACTIVE = "ACTIVE",

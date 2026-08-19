@@ -1,5 +1,11 @@
 import type { SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
 
+import {
+  GUIDE_CARD_STATES_KEY_PATTERN,
+  GUIDE_CARD_STATES_MAX_PINS,
+  GUIDE_CARD_STATES_MAX_VERSION,
+} from "../guide-card-states-params";
+
 /**
  * CC-7.4D — CLOSED OpenAPI schemas for the Guide surface.
  *
@@ -257,6 +263,80 @@ export const GUIDE_STATE_COMPLETED: SchemaObject = {
 
 export const GUIDE_EXPERIENCE_STATE_RESPONSE: SchemaObject = {
   oneOf: [GUIDE_STATE_NOT_STARTED, GUIDE_STATE_ACTIVE, GUIDE_STATE_COMPLETED],
+};
+
+/** C.1 — one requested pin in the card-state batch. */
+const GUIDE_CARD_PIN: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["guideKey", "guideVersion"],
+  properties: {
+    // Taken from the parser, not retyped next to it: a published contract that
+    // drifts from the code enforcing it is worse than no contract.
+    guideKey: {
+      type: "string",
+      pattern: GUIDE_CARD_STATES_KEY_PATTERN,
+      minLength: 1,
+      maxLength: 200,
+    },
+    guideVersion: {
+      type: "integer",
+      minimum: 1,
+      maximum: GUIDE_CARD_STATES_MAX_VERSION,
+    },
+  },
+};
+
+/** POST /api/guide/experiences/state */
+export const GUIDE_CARD_STATES_BODY: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["pins"],
+  properties: {
+    pins: {
+      type: "array",
+      minItems: 1,
+      maxItems: GUIDE_CARD_STATES_MAX_PINS,
+      items: GUIDE_CARD_PIN,
+      description:
+        "Pines publicados, uno por tarjeta. El orden se conserva y un pin " +
+        "repetido recibe la misma respuesta repetida: dos experiencias " +
+        "ligadas a la misma guía comparten linaje de verdad.",
+    },
+  },
+};
+
+export const GUIDE_CARD_STATES_RESPONSE: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["items"],
+  properties: {
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["guidePin", "status", "resumePin"],
+        properties: {
+          guidePin: GUIDE_CARD_PIN,
+          status: {
+            type: "string",
+            enum: ["START", "CONTINUE", "COMPLETED"],
+            description:
+              "CONTINUE si hay una sesión ACTIVE del mismo guideKey, sea cual " +
+              "sea su versión; COMPLETED solo si el pin EXACTO está " +
+              "completado; START en cualquier otro caso.",
+          },
+          resumePin: {
+            ...GUIDE_CARD_PIN,
+            description:
+              "El pin que debe ejecutarse al pulsar: el de la sesión abierta " +
+              "cuando la hay, el publicado en caso contrario.",
+          },
+        },
+      },
+    },
+  },
 };
 
 /** The response of all five commands. */

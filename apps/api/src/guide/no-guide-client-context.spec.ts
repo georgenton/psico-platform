@@ -93,8 +93,14 @@ describe("ratchet · guide public surface", () => {
     expect(controllers).toHaveLength(1);
 
     const source = readFileSync(controllers[0] as string, "utf8");
+    // Five COMMAND posts, plus ONE post that is a read: the C.1 card-state
+    // batch, whose input is a list of pins and does not fit a query string.
+    // It is pinned by name below so a sixth real command cannot hide in the
+    // count.
     const posts = source.match(/@Post\(/g) ?? [];
-    expect(posts).toHaveLength(5);
+    expect(posts).toHaveLength(6);
+    expect(source).toContain('@Post("experiences/state")');
+    expect(source).toContain("@HttpCode(200)");
     // Exactly ONE read route — the CC-7.R1 availability gate — and no mutation
     // verb beyond the five POST commands.
     const gets = source.match(/@Get\(/g) ?? [];
@@ -128,6 +134,7 @@ describe("ratchet · guide public surface", () => {
       "createGuideSession",
       "getGuideAvailability",
       "getGuideDiscovery",
+      "getGuideExperienceCardStates",
       "getGuideExperienceState",
       "getRecoverableGuideSession",
       "submitGuideStepRecall",

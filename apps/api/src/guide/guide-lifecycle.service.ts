@@ -12,6 +12,8 @@ import type {
   GuideSessionStatus,
   GuideStepDefinition,
   GuideExperienceStateResponse,
+  GuideExperienceCardState,
+  GuideExperienceCardStatus,
 } from "@psico/types";
 // Value import, not `import type`: `Prisma.TransactionIsolationLevel` is read
 // at runtime to state the isolation level of both Guide command transactions.
@@ -454,6 +456,144 @@ export class GuideLifecycleService {
       };
     }
     return { state: "ACTIVE", session: view, summary: null };
+  }
+
+  /**
+   * C.1 — where the reader stands in EACH of several experiences.
+   *
+   * The defect this closes (#639): the chapter asked once, for the chapter's
+   * own guide pin, and every card compared itself to that single answer. Two
+   * experiences therefore shared one state — finish one and the other read
+   * «Completada» without anybody opening it.
+   *
+   * TWO reads, whatever the list's length, and both on ONE snapshot:
+   *
+   *   1. the ACTIVE sessions of the distinct lineages;
+   *   2. the LATEST session of each exact published pin — at most one row per
+   *      pin, so a reader who restarted the same journey twenty times costs
+   *      exactly what a reader who never did.
+   *
+   * They run inside a single REPEATABLE READ transaction, because a verdict
+   * assembled from two moments belongs to neither. See the call site.
+   *
+   * Precedence per card, and the order matters:
+   *
+   *   1. ACTIVE of the same `guideKey` → CONTINUE, on that session's OWN pin.
+   *      A reader who left `A@v1` running is offered the run they are in, not
+   *      a fresh `A@v2` that would strand it. A session is never migrated.
+   *   2. otherwise COMPLETED of the EXACT published pin → COMPLETED.
+   *      Completion does not cross versions.
+   *   3. otherwise → START, on the published pin.
+   *
+   * A CANCELLED session is not a state: the reader withdrew, and the honest
+   * answer is START — including when an earlier run of the SAME pin was
+   * completed and then restarted and abandoned, because the last outcome is
+   * the one the reader is living in. The response echoes the requested order and repeats the
+   * answer for a repeated pin — two experiences deliberately bound to the same
+   * guide DO share a lineage, and pretending otherwise would invent an
+   * independence the data does not have.
+   */
+  async resolveExperienceCardStates(
+    userId: string,
+    pins: readonly { guideKey: string; guideVersion: number }[],
+  ): Promise<GuideExperienceCardState[]> {
+    if (pins.length === 0) return [];
+
+    // TWO reads, whatever the list's length. A card shows a word and a
+    // destination, so nothing here projects the ledger: the third read this
+    // used to do existed only to fill a `session` the cards never displayed.
+    //
+    // ONE SNAPSHOT, and it is stated rather than inherited. The two reads
+    // answer different halves of one question — «is a run of this lineage
+    // open?» and «was this exact pin finished?» — and a verdict assembled from
+    // two moments belongs to neither of them. Concretely, under per-statement
+    // snapshots: the ACTIVE read sees none, another device commits START, and
+    // the exact-pin read then returns that fresh ACTIVE row as the latest for
+    // the pin. Rule 2 does not fire (it is not COMPLETED) and rule 1 already
+    // passed, so the card reads START — a word that was true before the
+    // concurrent start and after it, but at no single instant in between.
+    //
+    // REPEATABLE READ fixes the snapshot at the first statement, so both reads
+    // describe the same moment. The alternative — treating any ACTIVE row the
+    // exact-pin read happens to return as a fallback — would only patch the
+    // case where the new run is on the SAME version, and would still miss one
+    // started on another version of the lineage.
+    //
+    // Deliberately sequential: two queries racing inside one interactive
+    // transaction buy nothing here and make the order of what the snapshot
+    // covers a matter of luck.
+    const { activeRows, exactRows } = await this.prisma.$transaction(
+      async (tx) => {
+        const activeRows = await this.sessions.findActiveOwnForGuideKeys(
+          userId,
+          pins.map((p) => p.guideKey),
+          tx,
+        );
+        const exactRows = await this.sessions.findLatestOwnPerExactPin(
+          userId,
+          pins,
+          tx,
+        );
+        return { activeRows, exactRows };
+      },
+      // NOT the level the commands use. START and the mutations stay READ
+      // COMMITTED on purpose (see `start`), because their idempotency contract
+      // depends on re-reading the receipt a concurrent winner just committed.
+      // This path writes nothing and needs the opposite property.
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
+
+    const activeByKey = new Map<string, GuideSessionRow>();
+    for (const row of activeRows) {
+      if (!activeByKey.has(row.guideKey)) activeByKey.set(row.guideKey, row);
+    }
+    // One row per pin comes from the repository; this map is a lookup, not a
+    // reduction.
+    const exactByPin = new Map<string, GuideSessionRow>();
+    for (const row of exactRows) {
+      exactByPin.set(`${row.guideKey}@${row.guideVersion}`, row);
+    }
+
+    return pins.map((pin) => {
+      const published = {
+        guideKey: pin.guideKey,
+        guideVersion: pin.guideVersion,
+      };
+
+      // 1. An ACTIVE run of this lineage wins, on its OWN pin. The registry is
+      //    deliberately not consulted: a run pinned to a version this build no
+      //    longer ships still exists, and answering START would strand it.
+      const active = activeByKey.get(pin.guideKey);
+      if (active) {
+        return {
+          guidePin: published,
+          status: "CONTINUE" as GuideExperienceCardStatus,
+          resumePin: {
+            guideKey: active.guideKey,
+            guideVersion: active.guideVersion,
+          },
+        };
+      }
+
+      // 2. Otherwise the EXACT published pin, finished. Completion does not
+      //    cross versions.
+      const exact = exactByPin.get(`${pin.guideKey}@${pin.guideVersion}`);
+      if (exact && exact.status === "COMPLETED") {
+        return {
+          guidePin: published,
+          status: "COMPLETED" as GuideExperienceCardStatus,
+          resumePin: published,
+        };
+      }
+
+      // 3. Otherwise a fresh run of the published pin. A CANCELLED session is
+      //    not a state: the reader withdrew.
+      return {
+        guidePin: published,
+        status: "START" as GuideExperienceCardStatus,
+        resumePin: published,
+      };
+    });
   }
 
   /** Build the result from CURRENT stored state (never from the command). */

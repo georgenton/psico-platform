@@ -1,0 +1,18 @@
+-- C.3C (#639) — the ARCHIVED value, and nothing else.
+--
+-- Its own migration on purpose. PostgreSQL will not let a value added by
+-- `ALTER TYPE ... ADD VALUE` be USED in the same transaction that added it, and
+-- Prisma runs each migration file in one transaction. The next migration writes
+-- a CHECK constraint that names 'ARCHIVED', so the two cannot share a file: the
+-- constraint would be parsed against a value that is not yet committed.
+--
+-- Splitting them is not a stylistic choice about migration counts. It is the
+-- difference between a deploy that applies and one that fails halfway through
+-- the preDeploy of a production release.
+--
+-- Measured on PostgreSQL 18, not assumed. Both statements inside one BEGIN:
+--
+--   ALTER TYPE
+--   ERROR:  unsafe use of new value "ARCHIVED" of enum type st
+--   HINT:   New enum values must be committed before they can be used.
+ALTER TYPE "ExperienceVersionStatus" ADD VALUE IF NOT EXISTS 'ARCHIVED';

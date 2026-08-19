@@ -2821,4 +2821,8 @@ enum ChapterMediaEditorialStatus {
 enum ExperienceVersionStatus {
   DRAFT
   PUBLISHED
+  /// C.3C — terminal, and never restorable. The row stays, its version number
+  /// is never reused, and its `contentUnitId` is kept: identity is history.
+  /// What archiving gives back is the guide.
+  ARCHIVED
 }

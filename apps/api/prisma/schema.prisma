@@ -2358,6 +2358,8 @@ model ContentUnit {
   conceptLinks    ConceptLink[]
   readingSessions ReadingSession[]
   progress        UserProgress[]
+  /// C.3A — the guide bindings reserved inside this chapter.
+  guideReservations ExperienceGuideReservation[]
 
   @@unique([editionId, unitKey])
   @@index([editionId])
@@ -2691,11 +2693,68 @@ model ChapterExperienceVersion {
   updatedAt         DateTime                @updatedAt
   publishedAt       DateTime?
 
+  /// C.3A — the STABLE chapter this version belongs to.
+  ///
+  /// `(bookSlug, chapterOrder)` above is a locator: `chapterOrder` is placement
+  /// and placement moves (ADR 0022 §10). This is identity, resolved server-side
+  /// from the manifest and never taken from a browser. Nullable through the
+  /// bridge because rows written by the previous binary have none, and because
+  /// ARCHIVED will later keep it — identity survives archiving; the binding
+  /// does not.
+  contentUnitId     String?
+  /// C.3A — the reserved guide LINEAGE, promoted out of `definitionJson`.
+  ///
+  /// A constraint cannot be built on a value buried in JSON, so the lineage
+  /// this row reserves becomes a real column. `guideVersion` deliberately does
+  /// NOT: a lineage is a `guideKey`, and versions of it share the reservation.
+  /// Null means "reserves nothing" — a legacy row not yet backfilled, or an
+  /// archived one that released.
+  guideKey          String?
+
   createdBy User @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  /// The reservation this row lives under. RESTRICT, so a reservation cannot be
+  /// released while a version still depends on it — "archive releases" becomes
+  /// a fact the database keeps rather than a promise the service makes.
+  ///
+  /// MATCH SIMPLE (the default): with either column null the constraint is not
+  /// evaluated, which is exactly what makes a bridge row and an archived row
+  /// legal without weakening the rule for rows that do reserve.
+  reservation ExperienceGuideReservation? @relation(fields: [contentUnitId, experienceKey, guideKey], references: [contentUnitId, experienceKey, guideKey], onDelete: Restrict)
 
   /// The pin is the identity. Two rows can never claim the same version.
   @@unique([experienceKey, experienceVersion])
   @@index([bookSlug, chapterOrder, status])
+  @@index([contentUnitId, guideKey])
+}
+
+/// C.3A — who owns which guide inside one stable chapter.
+///
+/// A partial bijection, and both halves are structural:
+///
+///   `@@id([contentUnitId, experienceKey])`     one guide per experience
+///   `@@unique([contentUnitId, guideKey])`      one experience per guide
+///
+/// The triple unique exists only as the target of the composite foreign key on
+/// `ChapterExperienceVersion`; it does not replace either rule above.
+///
+/// Versions of the SAME experienceKey share one row — that is the point:
+/// publishing v2 does not re-reserve anything, and archiving v1 does not
+/// release a guide v2 still uses.
+model ExperienceGuideReservation {
+  contentUnitId String
+  experienceKey String
+  guideKey      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  /// RESTRICT: a chapter cannot be deleted out from under a reservation.
+  unit     ContentUnit                @relation(fields: [contentUnitId], references: [id], onDelete: Restrict)
+  versions ChapterExperienceVersion[]
+
+  @@id([contentUnitId, experienceKey])
+  @@unique([contentUnitId, guideKey])
+  @@unique([contentUnitId, experienceKey, guideKey])
 }
 
 /// Content Studio (C2A) — an editorially-administered chapter media definition.

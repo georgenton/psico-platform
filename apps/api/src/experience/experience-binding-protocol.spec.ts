@@ -70,11 +70,15 @@ describe("ratchet · the lock protocol", () => {
   });
 
   it("the chapter key is derived from the STABLE unit, never from placement", () => {
-    expect(code(LOCKS)).toMatch(
-      /chapterBindingLockKey = \(contentUnitId: string\)/,
-    );
-    // No placement anywhere in the executable part of the module.
-    expect(code(LOCKS)).not.toMatch(/chapterOrder/);
+    const src = code(LOCKS);
+    expect(src).toMatch(/chapterBindingLockKey = \(contentUnitId: string\)/);
+    // No placement anywhere in the half of the module that DERIVES keys.
+    // `enterBindingProtocol` below it necessarily takes a `chapterOrder` — it
+    // is the locator being resolved — but nothing that becomes a key may.
+    const derivation = src.slice(0, src.indexOf("enterBindingProtocol"));
+    expect(derivation).toMatch(/globalBindingLockKey/);
+    expect(derivation).not.toMatch(/chapterOrder/);
+    expect(src).not.toMatch(/binding:chapter:\$\{[^}]*chapterOrder/);
   });
 
   it("uses the same advisory mechanism and seed as the Guide lifecycle", () => {
@@ -103,13 +107,57 @@ describe("ratchet · identity before anything else", () => {
     expect(guarded.length).toBeGreaterThanOrEqual(4);
   });
 
-  it("the helper resolves identity BEFORE it locks", () => {
-    const src = read(SERVICE);
-    const body = src.slice(src.indexOf("private async withBinding<T>"));
-    const resolveAt = body.indexOf("resolveChapterIdentity(");
-    const lockAt = body.indexOf("acquireBindingLocks(");
-    expect(resolveAt).toBeGreaterThan(-1);
-    expect(lockAt).toBeGreaterThan(resolveAt);
+  it("locks, resolves under the edition lock, then locks the chapter", () => {
+    // The order IS the guarantee, and it is not the obvious one. Resolving
+    // first — which is what this used to assert — reads the manifest with
+    // nothing held, so a reorder committing a moment later leaves a row bound
+    // to the unit that used to be at that position. The chapter key cannot be
+    // taken any earlier, because its name is the answer.
+    const body = code(LOCKS).slice(
+      code(LOCKS).indexOf("export async function enterBindingProtocol"),
+    );
+    const pre = body.indexOf("preIdentityLockKeys()");
+    const resolve = body.indexOf("resolveChapterIdentity(");
+    const post = body.indexOf("postIdentityLockKeys(");
+    expect(pre).toBeGreaterThan(-1);
+    expect(resolve).toBeGreaterThan(pre);
+    expect(post).toBeGreaterThan(resolve);
+    // And the resolution genuinely holds the edition row.
+    expect(body).toMatch(/lock:\s*"for-update"/);
+  });
+
+  it("a write never resolves identity without the edition lock", () => {
+    // The one exported way to get a resolved chapter for a WRITE is the
+    // protocol helper. A new command that called the resolver directly with
+    // `lock: "none"` would reintroduce the race silently, so the service is
+    // pinned to entering through the helper.
+    const src = code(SERVICE);
+    expect(src).toMatch(/enterBindingProtocol\(tx, where\)/);
+    // The only direct resolution left in the service is the READ path, and it
+    // is explicitly unlocked.
+    const direct = [...src.matchAll(/resolveChapterIdentity\(/g)];
+    expect(direct.length).toBe(1);
+    expect(src).toMatch(/lock:\s*"none"/);
+  });
+
+  it("the edition lock is the one Content Core already takes", () => {
+    // Not a new advisory namespace: the SAME row, by the same predicate, that
+    // `lockEditionTx` and `lockEditionForBookSlugTx` take for every publish,
+    // reorder, ingest and discard. A second, private mechanism would serialise
+    // binding writes against each other and against nothing else.
+    const src = code(IDENTITY);
+    expect(src).toMatch(
+      /SELECT "id", "publishedRevisionId" FROM "Edition" WHERE "slug" = \$\{bookSlug\} FOR UPDATE/,
+    );
+    const core = code(
+      join(process.cwd(), "src/content-core/revision-lifecycle.ts"),
+    );
+    expect(core).toMatch(
+      /FROM "Edition" WHERE "id" = \$\{editionId\} FOR UPDATE/,
+    );
+    expect(core).toMatch(
+      /FROM "Edition" WHERE "slug" = \$\{bookSlug\} FOR UPDATE/,
+    );
   });
 
   it("identity comes from the manifest, and never falls back to order", () => {
@@ -155,13 +203,48 @@ describe("ratchet · the backfill's own guarantees", () => {
     const src = code(BACKFILL);
     // It fills columns and inserts reservations…
     expect(src).toMatch(/contentUnitId: group\.contentUnitId,/);
-    // …and `definitionJson` is only ever SELECTED and READ, never assigned.
+    // …and `definitionJson` is only ever SELECTED and READ.
     expect(src).toMatch(/definitionJson: true/);
-    expect(src).toMatch(/guideKeyFromDefinition\(row\.definitionJson\)/);
-    const assignments = [...src.matchAll(/definitionJson:\s*([^,\s]+)/g)].map(
-      (m) => m[1],
+    expect(src).toMatch(/validateExperienceDefinition\(row\.definitionJson\)/);
+    // Never inside a write payload. `data: { … definitionJson … }` in this file
+    // would mean the backfill had decided what an editor meant.
+    expect(src).not.toMatch(/data:\s*\{[^}]*definitionJson/);
+  });
+
+  it("only ever writes to rows that are STILL fully legacy", () => {
+    const src = code(BACKFILL);
+    // The guard is in the WHERE, not only in the plan. A row a bridge writer
+    // materialised between planning and writing must not be overwritten, and
+    // the count check turns "matched nothing" into an abort rather than a
+    // silently smaller result.
+    expect(src).toMatch(
+      /id: \{ in: group\.legacyRowIds \},[\s\S]{0,200}contentUnitId: null,[\s\S]{0,40}guideKey: null,/,
     );
-    expect(assignments).toEqual(["true"]);
+    expect(src).toMatch(/updated\.count !== group\.legacyRowIds\.length/);
+    // Materialised rows are verified and left alone.
+    expect(src).not.toMatch(/materialisedRowIds[\s\S]{0,120}updateMany/);
+  });
+
+  it("code-owned definitions are counted as claims and never materialised", () => {
+    const src = code(BACKFILL);
+    expect(src).toMatch(/listPublishedForChapter/);
+    expect(src).toMatch(/codeOwnedCollision/);
+    // A reservation nothing references could never be released: the composite
+    // foreign key that makes release safe is the one that would block it.
+    const collisions = src.slice(
+      src.indexOf("async function codeOwnedCollisions"),
+    );
+    expect(collisions.slice(0, collisions.indexOf("\n}"))).not.toMatch(
+      /experienceGuideReservation\.create/,
+    );
+  });
+
+  it("never reports a driver error, only canonical codes", () => {
+    const src = code(BACKFILL);
+    expect(src).toMatch(/class BackfillFailure/);
+    expect(src).toMatch(/canonicalFailureCode/);
+    // Prisma's codes are mapped; its messages are not forwarded.
+    expect(src).not.toMatch(/err\.message|String\(err\)|\$\{err\}/);
   });
 
   it("reports without quoting content or driver text", () => {

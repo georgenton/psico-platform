@@ -15,6 +15,12 @@ import {
   BackfillAbort,
   measureReservations,
 } from "./experience-reservation-backfill";
+import {
+  decideReservationAuthority,
+  EXPERIENCE_BINDING_SHAPE,
+  probeBindingSchema,
+  type BindingSchemaProbe,
+} from "./experience-binding-schema";
 
 /**
  * C.3A (#639) — the binding bridge, against real PostgreSQL.
@@ -480,21 +486,458 @@ suite("C.3A · the binding bridge", () => {
     expect((await state()).reservations).toHaveLength(1);
   });
 
+  // ── The schema, read exactly ─────────────────────────────────────────────
+
+  /**
+   * Probe a MUTATED schema and throw the mutation away.
+   *
+   * Every negative control below describes a database that looks assembled and
+   * enforces less than it appears to. None of them can be produced by running
+   * the migrations, which is the point: they are what a hand-applied hotfix, a
+   * half-finished cutover or a "helpful" index rebuild leave behind. DDL inside
+   * a transaction is transactional in PostgreSQL, so the rollback is total.
+   */
+  const ROLLBACK = Symbol("rollback");
+  async function probeWith(
+    ddl: readonly string[],
+  ): Promise<BindingSchemaProbe> {
+    let probe: BindingSchemaProbe | null = null;
+    try {
+      await prisma.$transaction(async (tx) => {
+        for (const stmt of ddl) await tx.$executeRawUnsafe(stmt);
+        probe = await probeBindingSchema(tx);
+        throw ROLLBACK;
+      });
+    } catch (err) {
+      if (err !== ROLLBACK) throw err;
+    }
+    if (probe === null) throw new Error("probe never ran");
+    return probe;
+  }
+
+  it("reads the migrated schema as exactly the BRIDGE shape", async () => {
+    const probe = await probeWith([]);
+    expect(probe).toEqual({
+      versionTable: true,
+      reservationTable: true,
+      unitTable: true,
+      bindingColumns: true,
+      // The cutover's half. C.3A deliberately leaves the column nullable: the
+      // previous binary is still writing rows without it.
+      identityNotNull: false,
+      reservationPk: true,
+      guideUnique: true,
+      tripleUnique: true,
+      versionUnitFk: true,
+      reservationUnitFk: true,
+      compositeFk: true,
+      finalCheckNamePresent: false,
+      finalCheckNameIsExact: false,
+      finalCheckExactPresent: false,
+    });
+    expect(decideReservationAuthority(probe)).toBe("BRIDGE");
+  });
+
+  it("a foreign key over the right columns in the WRONG ORDER is not the one", async () => {
+    // A perfectly valid three-column foreign key that permits exactly the
+    // collision the real one forbids. A detector counting `array_length(conkey)`
+    // would have called this BRIDGE.
+    const probe = await probeWith([
+      `ALTER TABLE "ChapterExperienceVersion" DROP CONSTRAINT "ChapterExperienceVersion_reservation_fkey"`,
+      `CREATE UNIQUE INDEX "swapped_target" ON "ExperienceGuideReservation"("contentUnitId","guideKey","experienceKey")`,
+      `ALTER TABLE "ChapterExperienceVersion" ADD CONSTRAINT "ChapterExperienceVersion_reservation_fkey"
+         FOREIGN KEY ("contentUnitId","guideKey","experienceKey")
+         REFERENCES "ExperienceGuideReservation"("contentUnitId","guideKey","experienceKey")
+         ON DELETE RESTRICT ON UPDATE CASCADE`,
+    ]);
+    expect(probe.compositeFk).toBe(false);
+    expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
+  });
+
+  it("a PARTIAL unique index does not enforce the bijection", async () => {
+    const probe = await probeWith([
+      `DROP INDEX "ExperienceGuideReservation_contentUnitId_guideKey_key"`,
+      `CREATE UNIQUE INDEX "ExperienceGuideReservation_contentUnitId_guideKey_key"
+         ON "ExperienceGuideReservation"("contentUnitId","guideKey")
+         WHERE "guideKey" <> 'x'`,
+    ]);
+    expect(probe.guideUnique).toBe(false);
+    expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
+  });
+
+  it("an INCLUDE column is not a key column", async () => {
+    // Unique on `(contentUnitId)` alone, with `guideKey` merely carried. Its
+    // column list reads right and its key is narrower than the rule needs.
+    const probe = await probeWith([
+      `DROP INDEX "ExperienceGuideReservation_contentUnitId_guideKey_key"`,
+      `CREATE UNIQUE INDEX "ExperienceGuideReservation_contentUnitId_guideKey_key"
+         ON "ExperienceGuideReservation"("contentUnitId") INCLUDE ("guideKey")`,
+    ]);
+    expect(probe.guideUnique).toBe(false);
+    expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
+  });
+
+  it("NOT VALID is present and proves nothing", async () => {
+    const probe = await probeWith([
+      `ALTER TABLE "ChapterExperienceVersion" DROP CONSTRAINT "ChapterExperienceVersion_reservation_fkey"`,
+      `ALTER TABLE "ChapterExperienceVersion" ADD CONSTRAINT "ChapterExperienceVersion_reservation_fkey"
+         FOREIGN KEY ("contentUnitId","experienceKey","guideKey")
+         REFERENCES "ExperienceGuideReservation"("contentUnitId","experienceKey","guideKey")
+         ON DELETE RESTRICT ON UPDATE CASCADE NOT VALID`,
+    ]);
+    expect(probe.compositeFk).toBe(false);
+    expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
+  });
+
+  it("the referential ACTIONS are part of the shape", async () => {
+    // CASCADE would let a reservation be deleted and take the version row with
+    // it — silently discarding an editorial row to release a guide.
+    const cascade = await probeWith([
+      `ALTER TABLE "ChapterExperienceVersion" DROP CONSTRAINT "ChapterExperienceVersion_reservation_fkey"`,
+      `ALTER TABLE "ChapterExperienceVersion" ADD CONSTRAINT "ChapterExperienceVersion_reservation_fkey"
+         FOREIGN KEY ("contentUnitId","experienceKey","guideKey")
+         REFERENCES "ExperienceGuideReservation"("contentUnitId","experienceKey","guideKey")
+         ON DELETE CASCADE ON UPDATE CASCADE`,
+    ]);
+    expect(cascade.compositeFk).toBe(false);
+
+    // SET NULL on the identity foreign key would quietly un-name the chapter an
+    // archived row belongs to.
+    const setNull = await probeWith([
+      `ALTER TABLE "ChapterExperienceVersion" DROP CONSTRAINT "ChapterExperienceVersion_contentUnitId_fkey"`,
+      `ALTER TABLE "ChapterExperienceVersion" ADD CONSTRAINT "ChapterExperienceVersion_contentUnitId_fkey"
+         FOREIGN KEY ("contentUnitId") REFERENCES "ContentUnit"("id")
+         ON DELETE SET NULL ON UPDATE CASCADE`,
+    ]);
+    expect(setNull.versionUnitFk).toBe(false);
+    expect(decideReservationAuthority(setNull)).toBe("FAIL_CLOSED");
+  });
+
+  it("a CHECK wearing the cutover's name must BE the cutover's check", async () => {
+    const probe = await probeWith([
+      `ALTER TABLE "ChapterExperienceVersion"
+         ADD CONSTRAINT "${EXPERIENCE_BINDING_SHAPE.finalCheckName}" CHECK (true)`,
+    ]);
+    expect(probe.finalCheckNamePresent).toBe(true);
+    expect(probe.finalCheckNameIsExact).toBe(false);
+    expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
+  });
+
+  it("dropping the reservation table but keeping its residue is not LEGACY", async () => {
+    // A rollback that removed the table and left the columns behind. Reporting
+    // LEGACY_SCAN here would send this binary back to scanning JSON over a
+    // schema that is half of something else.
+    const probe = await probeWith([
+      `ALTER TABLE "ChapterExperienceVersion" DROP CONSTRAINT "ChapterExperienceVersion_reservation_fkey"`,
+      `DROP TABLE "ExperienceGuideReservation"`,
+    ]);
+    expect(probe.reservationTable).toBe(false);
+    expect(probe.bindingColumns).toBe(true);
+    expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
+  });
+
+  // ── Identity is a fact the database keeps ────────────────────────────────
+
+  it("a legacy row with no identity stays legal", async () => {
+    // The whole rollout depends on this: the previous binary writes exactly
+    // this shape, and neither the direct foreign key nor the composite one may
+    // reject it.
+    const id = await insertLegacyRow(await eecDraft());
+    const row = await prisma.chapterExperienceVersion.findUniqueOrThrow({
+      where: { id },
+      select: { contentUnitId: true, guideKey: true },
+    });
+    expect(row).toEqual({ contentUnitId: null, guideKey: null });
+  });
+
+  it("a materialised row cannot name a unit that does not exist", async () => {
+    await service.createDraft(userId, await eecDraft());
+    await expect(
+      prisma.$executeRawUnsafe(
+        `UPDATE "ChapterExperienceVersion" SET "contentUnitId" = 'unit_that_never_existed'`,
+      ),
+    ).rejects.toBeTruthy();
+  });
+
+  it("a chapter cannot be deleted out from under a row that names it", async () => {
+    // RESTRICT on the DIRECT foreign key. The composite one cannot carry this:
+    // MATCH SIMPLE stops evaluating it the moment `guideKey` goes null, which
+    // is exactly what archiving does — so identity would be unprotected in the
+    // one state where only identity is left.
+    await service.createDraft(userId, await eecDraft());
+    await expect(
+      prisma.contentUnit.delete({ where: { id: unitA } }),
+    ).rejects.toBeTruthy();
+  });
+
+  // ── Placement moves; the binding does not follow it ──────────────────────
+
+  /**
+   * Publish a manifest that puts `order` on a brand-new native unit, holding
+   * the SAME edition row lock `publishDraftRevision` holds.
+   *
+   * This is the committed effect of a real publish — a new revision, its
+   * manifest rows, and the pointer moved last — without dragging the CMS
+   * entitlement gate into a test about locking. `open` lets the caller hold the
+   * lock open while another transaction tries to bind.
+   */
+  async function republishWithNewUnitAtOrder(
+    bookSlug: string,
+    order: number,
+    hold?: { reached: () => void; gate: Promise<void> },
+  ): Promise<{ newUnitId: string; previousRevisionId: string }> {
+    return prisma.$transaction(
+      async (tx) => {
+        const locked = await tx.$queryRaw<
+          Array<{ id: string; publishedRevisionId: string }>
+        >`SELECT "id", "publishedRevisionId" FROM "Edition" WHERE "slug" = ${bookSlug} FOR UPDATE`;
+        const edition = locked[0]!;
+        if (hold) {
+          hold.reached();
+          await hold.gate;
+        }
+
+        const unit = await tx.contentUnit.create({
+          data: {
+            editionId: edition.id,
+            unitKey: `native-${order}-${Date.now()}`,
+          },
+        });
+        const version = await tx.contentUnitVersion.create({
+          data: { unitId: unit.id, title: "Capítulo movido" },
+        });
+        const highest = await tx.revision.findFirstOrThrow({
+          where: { editionId: edition.id },
+          orderBy: { number: "desc" },
+          select: { number: true },
+        });
+        const next = await tx.revision.create({
+          data: {
+            editionId: edition.id,
+            number: highest.number + 1,
+            status: "PUBLISHED",
+            publishedAt: new Date(),
+          },
+        });
+        const previous = await tx.revisionUnit.findMany({
+          where: { revisionId: edition.publishedRevisionId },
+          select: { unitId: true, unitVersionId: true, order: true },
+        });
+        // The incumbent moves one slot down; the new unit takes its number.
+        for (const entry of previous) {
+          await tx.revisionUnit.create({
+            data: {
+              revisionId: next.id,
+              unitId: entry.unitId,
+              unitVersionId: entry.unitVersionId,
+              order: entry.order + 1000,
+            },
+          });
+        }
+        await tx.revisionUnit.create({
+          data: {
+            revisionId: next.id,
+            unitId: unit.id,
+            unitVersionId: version.id,
+            order,
+          },
+        });
+        await tx.edition.update({
+          where: { id: edition.id },
+          data: { publishedRevisionId: next.id },
+        });
+        return {
+          newUnitId: unit.id,
+          previousRevisionId: edition.publishedRevisionId,
+        };
+      },
+      { timeout: 30_000 },
+    );
+  }
+
+  /** Put the published pointer back, so the rest of the suite sees its fixture. */
+  async function restorePublishedRevision(
+    bookSlug: string,
+    revisionId: string,
+  ): Promise<void> {
+    const edition = await prisma.edition.findFirstOrThrow({
+      where: { slug: bookSlug },
+      select: { id: true },
+    });
+    await prisma.edition.update({
+      where: { id: edition.id },
+      data: { publishedRevisionId: revisionId },
+    });
+  }
+
+  it("a reorder mid-decision serialises: the binding lands on the unit that is really there", async () => {
+    // The race this exists for. Without the edition row lock the binder reads
+    // the manifest with nothing held, and a publish committing a moment later
+    // leaves a row naming the unit that USED to be at that position.
+    const b = barrier();
+    let restore: string | null = null;
+    try {
+      const republish = republishWithNewUnitAtOrder(BOOK_A, 1, {
+        reached: b.arrive,
+        gate: b.gate,
+      });
+      await b.reached; // the publish holds the edition row
+
+      let created = false;
+      const create = service.createDraft(userId, await eecDraft()).then(
+        (r) => {
+          created = true;
+          return r;
+        },
+        (e) => {
+          created = true;
+          throw e;
+        },
+      );
+
+      // Nothing to sleep on: the claim is that the binder has NOT decided while
+      // the publish holds the row, checked after the event loop drains.
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(created).toBe(false);
+
+      b.open();
+      const { newUnitId, previousRevisionId } = await republish;
+      restore = previousRevisionId;
+      await create;
+
+      const { rows, reservations } = await state();
+      // It bound to the unit the manifest names NOW — never to the old one.
+      expect(rows[0]!.contentUnitId).toBe(newUnitId);
+      expect(rows[0]!.contentUnitId).not.toBe(unitA);
+      expect(reservations[0]!.contentUnitId).toBe(newUnitId);
+    } finally {
+      if (restore) await restorePublishedRevision(BOOK_A, restore);
+    }
+  });
+
+  it("a row whose unit moved does not appear under the number it used to have", async () => {
+    // `where: { bookSlug, chapterOrder }` — the old scope — would have listed
+    // this row under whichever unit inherited its position. An editor would be
+    // reading one chapter's experiences while looking at another's.
+    await service.createDraft(userId, await eecDraft());
+    let restore: string | null = null;
+    try {
+      const moved = await republishWithNewUnitAtOrder(BOOK_A, 1);
+      restore = moved.previousRevisionId;
+
+      const atOne = await service.listForChapter(BOOK_A, 1);
+      expect(atOne.contentUnitId).toBe(moved.newUnitId);
+      expect(atOne.experiences.filter((e) => e.source === "database")).toEqual(
+        [],
+      );
+
+      // The original unit was pushed to 1001 by the helper; the row follows the
+      // UNIT, not the number it was created under.
+      const atMoved = await service.listForChapter(BOOK_A, 1001);
+      expect(atMoved.contentUnitId).toBe(unitA);
+      expect(
+        atMoved.experiences.filter((e) => e.source === "database"),
+      ).toHaveLength(1);
+    } finally {
+      if (restore) await restorePublishedRevision(BOOK_A, restore);
+    }
+  });
+
+  it("saving a draft never follows a stale number onto another unit", async () => {
+    // `chapterOrder` on a stored row is the position it was CREATED at, and
+    // nothing updates it. Resolving a save by that number would move the draft
+    // into whichever unit inherited it — taking its reservation along.
+    const created = await service.createDraft(userId, await eecDraft());
+    let restore: string | null = null;
+    try {
+      const moved = await republishWithNewUnitAtOrder(BOOK_A, 1);
+      restore = moved.previousRevisionId;
+
+      await service.saveDraft(created.id, await eecDraft());
+
+      const { rows, reservations } = await state();
+      expect(rows[0]!.contentUnitId).toBe(unitA);
+      expect(rows[0]!.contentUnitId).not.toBe(moved.newUnitId);
+      expect(reservations[0]!.contentUnitId).toBe(unitA);
+    } finally {
+      if (restore) await restorePublishedRevision(BOOK_A, restore);
+    }
+  });
+
+  it("publishing never follows a stale number either", async () => {
+    const created = await service.createDraft(userId, await eecDraft());
+    let restore: string | null = null;
+    try {
+      restore = (await republishWithNewUnitAtOrder(BOOK_A, 1))
+        .previousRevisionId;
+      await service.publish(created.id);
+      const { rows } = await state();
+      expect(rows[0]!.status).toBe("PUBLISHED");
+      expect(rows[0]!.contentUnitId).toBe(unitA);
+    } finally {
+      if (restore) await restorePublishedRevision(BOOK_A, restore);
+    }
+  });
+
+  it("a stale expectedContentUnitId is refused, not corrected", async () => {
+    // The hint an editor's page was rendered with. After a reorder it names the
+    // wrong unit, and the honest answer is a refusal the editor can see.
+    await expect(
+      service.createDraft(userId, await eecDraft(), unitB),
+    ).rejects.toMatchObject({
+      response: { code: "EXPERIENCE_CHAPTER_IDENTITY_UNRESOLVED" },
+    });
+    expect((await state()).rows).toEqual([]);
+  });
+
+  it("a matching expectedContentUnitId changes nothing", async () => {
+    await service.createDraft(userId, await eecDraft(), unitA);
+    const { rows } = await state();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.contentUnitId).toBe(unitA);
+  });
+
   // ── The C.3B command, prepared but never run against production ──────────
 
-  it("measure is read-only and reports the groups it would create", async () => {
-    const def = await eecDraft({ experienceKey: "eec-c1-legado" });
+  /**
+   * A row exactly as the PREVIOUS binary left it.
+   *
+   * The lineage is the code-owned one on purpose. In this chapter that guide
+   * belongs to a definition the build ships, so a legacy row claiming it under
+   * ANY other key is a real collision — which is what `eec-c1-legado` used to
+   * be here, and what the code-owned check now refuses. Reusing the key is the
+   * actual migration path: code-owned v1, database v2.
+   *
+   * `definitionJson.status` matches the column because that is what `publish`
+   * wrote: it re-validates the definition with `status: "PUBLISHED"` before
+   * storing it. A fixture where they disagree describes a row nothing produced.
+   */
+  const LEGACY_KEY = "eec-c1-cuerpo-antes-que-mente";
+  async function insertPreBridgeRow(
+    version: number,
+    status: "DRAFT" | "PUBLISHED",
+  ): Promise<void> {
+    const def = await eecDraft({
+      experienceKey: LEGACY_KEY,
+      experienceVersion: version,
+      status,
+    });
     await prisma.chapterExperienceVersion.create({
       data: {
         experienceKey: def.experienceKey,
-        experienceVersion: 1,
+        experienceVersion: version,
         bookSlug: def.bookSlug,
         chapterOrder: def.chapterOrder,
-        status: "PUBLISHED",
+        status,
         definitionJson: def as unknown as never,
         createdByUserId: userId,
       },
     });
+  }
+
+  it("measure is read-only and reports the groups it would create", async () => {
+    await insertPreBridgeRow(1, "PUBLISHED");
 
     const report = await measureReservations(prisma);
     expect(report.applied).toBe(false);
@@ -504,23 +947,8 @@ suite("C.3A · the binding bridge", () => {
   });
 
   it("apply materialises the claims already in the data, and is replayable", async () => {
-    const def = await eecDraft({ experienceKey: "eec-c1-legado" });
-    for (const version of [1, 2]) {
-      await prisma.chapterExperienceVersion.create({
-        data: {
-          experienceKey: def.experienceKey,
-          experienceVersion: version,
-          bookSlug: def.bookSlug,
-          chapterOrder: def.chapterOrder,
-          status: version === 1 ? "PUBLISHED" : "DRAFT",
-          definitionJson: {
-            ...def,
-            experienceVersion: version,
-          } as unknown as never,
-          createdByUserId: userId,
-        },
-      });
-    }
+    await insertPreBridgeRow(1, "PUBLISHED");
+    await insertPreBridgeRow(2, "DRAFT");
 
     const first = await applyReservations(prisma);
     expect(first.reservationsCreated).toBe(1);
@@ -540,6 +968,93 @@ suite("C.3A · the binding bridge", () => {
       (stored.definitionJson as { guidePin: { guideKey: string } }).guidePin
         .guideKey,
     ).toBe("eec-c1-cuerpo-antes-que-mente");
+  });
+
+  it("a legacy row cannot take a guide a SHIPPED experience already holds", async () => {
+    // The collision that would otherwise appear the day a deploy replaced the
+    // catalog — which is the worst possible moment to find it. The row claims
+    // this chapter's guide under a lineage the build does not ship.
+    const def = await eecDraft({ experienceKey: "eec-c1-intrusa" });
+    await prisma.chapterExperienceVersion.create({
+      data: {
+        experienceKey: def.experienceKey,
+        experienceVersion: 1,
+        bookSlug: def.bookSlug,
+        chapterOrder: def.chapterOrder,
+        status: "DRAFT",
+        definitionJson: def as unknown as never,
+        createdByUserId: userId,
+      },
+    });
+
+    const measured = await measureReservations(prisma);
+    expect(measured.anomalies.map((a) => a.kind)).toContain(
+      "CODE_OWNED_GUIDE_COLLISION",
+    );
+    await expect(applyReservations(prisma)).rejects.toBeInstanceOf(
+      BackfillAbort,
+    );
+    // And the code-owned claim is never MATERIALISED: a reservation nothing
+    // references could never be released, because the foreign key that makes
+    // releasing safe is the one that would block it forever.
+    expect((await state()).reservations).toEqual([]);
+  });
+
+  it("a HALF materialised row stops the run instead of being completed", async () => {
+    await insertPreBridgeRow(1, "DRAFT");
+    // MATCH SIMPLE does not evaluate the composite key with a null column, so
+    // the database lets this exist. Nothing else would catch it.
+    await prisma.$executeRawUnsafe(
+      `UPDATE "ChapterExperienceVersion" SET "guideKey" = '${LEGACY_KEY}'`,
+    );
+
+    const measured = await measureReservations(prisma);
+    expect(measured.anomalies.map((a) => a.kind)).toEqual([
+      "ROW_HALF_MATERIALISED",
+    ]);
+    await expect(applyReservations(prisma)).rejects.toBeInstanceOf(
+      BackfillAbort,
+    );
+    expect((await state()).reservations).toEqual([]);
+  });
+
+  it("a definition that has drifted from its own row stops the run", async () => {
+    await insertPreBridgeRow(1, "DRAFT");
+    const def = await eecDraft({ experienceKey: LEGACY_KEY });
+    await prisma.chapterExperienceVersion.updateMany({
+      data: {
+        definitionJson: {
+          ...def,
+          // The definition now describes a different chapter than the row does.
+          chapterOrder: 7,
+        } as unknown as never,
+      },
+    });
+
+    const measured = await measureReservations(prisma);
+    expect(measured.anomalies.map((a) => a.kind)).toEqual([
+      "DEFINITION_DISAGREES_WITH_ROW",
+    ]);
+  });
+
+  it("a moved unit is COUNTED, not treated as a contradiction", async () => {
+    // `chapterOrder` is a locator nothing updates, so a reorder after C.3A
+    // leaves a materialised row whose number is stale and whose identity is
+    // right. Aborting on it would be a gate with no remedy — there is no CMS
+    // action that could make the number agree again.
+    await service.createDraft(userId, await eecDraft());
+    let restore: string | null = null;
+    try {
+      restore = (await republishWithNewUnitAtOrder(BOOK_A, 1))
+        .previousRevisionId;
+      const measured = await measureReservations(prisma);
+      expect(measured.anomalies).toEqual([]);
+      expect(measured.rowsWithPositionDrift).toBe(1);
+      expect(measured.rowsAlreadyMaterialised).toBe(1);
+      expect(measured.rowsLegacy).toBe(0);
+    } finally {
+      if (restore) await restorePublishedRevision(BOOK_A, restore);
+    }
   });
 
   it("a legacy collision aborts the WHOLE backfill", async () => {

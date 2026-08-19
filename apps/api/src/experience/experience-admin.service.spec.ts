@@ -98,6 +98,29 @@ function prismaMock() {
 /** The one stable chapter every fixture in this file lives in. */
 const UNIT_ID = "unit_eec_c1";
 
+/**
+ * What `probeBindingSchema` reads back on a database that has had C.3A applied
+ * and nothing since. Spelled out rather than partial: the detector requires
+ * every predicate, and a fixture that only set the ones it remembered would
+ * make this file pass for the wrong reason.
+ */
+const BRIDGE_SCHEMA = {
+  versionTable: true,
+  reservationTable: true,
+  unitTable: true,
+  bindingColumns: true,
+  identityNotNull: false,
+  reservationPk: true,
+  guideUnique: true,
+  tripleUnique: true,
+  versionUnitFk: true,
+  reservationUnitFk: true,
+  compositeFk: true,
+  finalCheckNamePresent: false,
+  finalCheckNameIsExact: false,
+  finalCheckExactPresent: false,
+};
+
 let prisma: ReturnType<typeof prismaMock>;
 let service: ExperienceAdminService;
 
@@ -107,17 +130,19 @@ beforeEach(() => {
     fn(prisma),
   );
   prisma.chapterExperienceVersion.findMany.mockResolvedValue([]);
-  // The schema is in the bridge shape: table and composite FK present, final
-  // CHECK absent. Anything else and the service would refuse to write at all.
-  prisma.$queryRaw.mockResolvedValue([
-    {
-      has_table: true,
-      has_reservation_fk: true,
-      has_guide_unique: true,
-      has_final_check: false,
-      final_check_validated: false,
-    },
-  ]);
+  // `$queryRaw` now answers two different questions — what shape the schema is
+  // in, and which edition serves this book (locked FOR UPDATE) — so the mock
+  // dispatches on the statement rather than returning one shape to both.
+  prisma.$queryRaw.mockImplementation((strings: TemplateStringsArray) => {
+    const sql = Array.isArray(strings) ? strings.join("?") : String(strings);
+    if (sql.includes('FROM "Edition"')) {
+      return Promise.resolve([
+        { id: "edition_1", publishedRevisionId: "revision_1" },
+      ]);
+    }
+    // The bridge shape: everything C.3A builds, and no cutover CHECK.
+    return Promise.resolve([BRIDGE_SCHEMA]);
+  });
   prisma.$executeRaw.mockResolvedValue(0);
   prisma.edition.findFirst.mockResolvedValue({
     id: "edition_1",

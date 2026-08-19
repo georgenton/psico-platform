@@ -984,6 +984,10 @@ suite("C.3A · the binding bridge", () => {
    * manifest AFTER the holder commits and the assertion passes for the wrong
    * reason. Waiting on `pg_stat_activity` makes the block itself the
    * precondition.
+   *
+   * The statement it looks for is the one the binding path issues under
+   * `lock: "for-update"`, so a build that stopped taking it never satisfies
+   * this.
    */
   async function waitForEditionLockWaiter(): Promise<void> {
     for (let attempt = 0; attempt < 300; attempt += 1) {
@@ -991,7 +995,7 @@ suite("C.3A · the binding bridge", () => {
         SELECT count(*) AS n FROM pg_stat_activity
          WHERE wait_event_type = 'Lock'
            AND state = 'active'
-           AND query LIKE '%"Edition"%FOR UPDATE%'`;
+           AND query LIKE '%FROM "Edition"%FOR UPDATE%'`;
       if (Number(waiting[0]?.n ?? 0) > 0) return;
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
@@ -1026,9 +1030,10 @@ suite("C.3A · the binding bridge", () => {
         },
       );
 
-      // The binder must be OBSERVABLY blocked before the publish commits.
-      // Draining the event loop instead lets a build that takes no lock read
-      // the manifest after the commit and pass for the wrong reason.
+      // Wait for the binder to be OBSERVABLY blocked on the edition row before
+      // letting the publish commit. Draining the event loop instead lets a
+      // build that takes no lock read the manifest after the commit and pass
+      // for the wrong reason.
       await waitForEditionLockWaiter();
       expect(created).toBe(false);
 

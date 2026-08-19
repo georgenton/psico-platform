@@ -443,6 +443,87 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
 
   // ── Rebind ───────────────────────────────────────────────────────────────
 
+  it("under STRUCTURAL the list is scoped by identity, never by position", async () => {
+    // The BRIDGE spec asserts the mixed scope; this asserts the cutover one,
+    // where position must not be consulted AT ALL. Without it, the negative
+    // control "STRUCTURAL reads by bookSlug/chapterOrder" passes unnoticed:
+    // the bridge test exercises a different branch.
+    const created = await service.createDraft(userId, await eecDraft(), unitA);
+
+    // Publish a manifest that puts a NEW unit at order 1 and pushes the
+    // incumbent to 1001 — the same committed effect as a reorder.
+    const edition = await prisma.edition.findFirstOrThrow({
+      where: { slug: BOOK_A },
+      select: { id: true, publishedRevisionId: true },
+    });
+    const previousRevisionId = edition.publishedRevisionId!;
+    try {
+      const unit = await prisma.contentUnit.create({
+        data: { editionId: edition.id, unitKey: `native-structural-scope` },
+      });
+      const version = await prisma.contentUnitVersion.create({
+        data: { unitId: unit.id, title: "Capítulo movido" },
+      });
+      const highest = await prisma.revision.findFirstOrThrow({
+        where: { editionId: edition.id },
+        orderBy: { number: "desc" },
+        select: { number: true },
+      });
+      const next = await prisma.revision.create({
+        data: {
+          editionId: edition.id,
+          number: highest.number + 1,
+          status: "PUBLISHED",
+          publishedAt: new Date(),
+        },
+      });
+      for (const entry of await prisma.revisionUnit.findMany({
+        where: { revisionId: previousRevisionId },
+        select: { unitId: true, unitVersionId: true, order: true },
+      })) {
+        await prisma.revisionUnit.create({
+          data: {
+            revisionId: next.id,
+            unitId: entry.unitId,
+            unitVersionId: entry.unitVersionId,
+            order: entry.order + 1000,
+          },
+        });
+      }
+      await prisma.revisionUnit.create({
+        data: {
+          revisionId: next.id,
+          unitId: unit.id,
+          unitVersionId: version.id,
+          order: 1,
+        },
+      });
+      await prisma.edition.update({
+        where: { id: edition.id },
+        data: { publishedRevisionId: next.id },
+      });
+
+      // Chapter 1 is now a different unit. The row belongs to the OLD one.
+      const atOne = await service.listForChapter(BOOK_A, 1);
+      expect(atOne.contentUnitId).toBe(unit.id);
+      expect(atOne.experiences.filter((e) => e.source === "database")).toEqual(
+        [],
+      );
+
+      // And it is listed where its unit actually went.
+      const atMoved = await service.listForChapter(BOOK_A, 1001);
+      expect(atMoved.contentUnitId).toBe(unitA);
+      const rows = atMoved.experiences.filter((e) => e.source === "database");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.id).toBe(created.id);
+    } finally {
+      await prisma.edition.update({
+        where: { id: edition.id },
+        data: { publishedRevisionId: previousRevisionId },
+      });
+    }
+  });
+
   it("rebinding to a guide whose passage is elsewhere is refused", async () => {
     // The same rule the selector applies, applied again where it matters. A
     // card bound here would publish cleanly and open for nobody.

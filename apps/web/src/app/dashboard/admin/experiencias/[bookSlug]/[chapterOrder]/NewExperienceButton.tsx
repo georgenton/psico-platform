@@ -5,74 +5,56 @@ import { useState } from "react";
 import type { ChapterExperienceDefinition } from "@psico/types";
 
 import { createDraftAction } from "../../actions";
+import { GuideSelector } from "./GuideSelector";
 
 /**
- * CMS V1 (#637) — start a new experience.
+ * CMS V1 (#637) · C.4 (#639) — start a new experience, on a guide the editor
+ * chooses.
  *
- * Disabled, with the reason visible, when the chapter publishes no guide. An
- * experience only means something bound to a guide's steps, and inventing one
- * so the button stays enabled would be worse than saying there is nothing to
- * bind to.
+ * ── What changed, and why the old gate is gone ──────────────────────────────
  *
- * The new draft is the smallest thing the validator accepts: one INTRO scene.
- * Editors add the rest in the editor, where they can see what each kind needs.
+ * This used to refuse a second experience in a chapter outright, because the
+ * chapter resolved exactly one guide pin and two lineages on it would share
+ * progress. C.1 made each card carry its own verdict and C.3A made the
+ * reservation structural, so the rule is now the honest one: **one experience
+ * per guide**, as many experiences as the chapter has guides. The button no
+ * longer decides that — the selector shows which guides are free, and the
+ * server decides again under the chapter lock.
+ *
+ * The pin used to be a `placeholder` string the server overwrote. It is now the
+ * editor's choice, sent explicitly, and a choice the server cannot honour is
+ * refused rather than silently replaced.
+ *
+ * The new draft is still the smallest thing the validator accepts: one INTRO
+ * scene. Editors add the rest in the editor, where they can see what each kind
+ * needs.
  */
 export function NewExperienceButton({
   bookSlug,
   chapterOrder,
-  guideAvailable,
-  lineageExists,
   contentUnitId,
 }: {
   bookSlug: string;
   chapterOrder: number;
-  guideAvailable: boolean;
-  /**
-   * Whether this chapter already has an experience bound to its guide.
-   *
-   * CMS V1 allows one lineage per guide, because GuideSession is the progress
-   * authority: a second key on the same pin would share Start / Continue /
-   * Completed with the first. The server refuses it; this stops the UI from
-   * offering it in the first place.
-   */
-  lineageExists: boolean;
   /** The chapter this page was rendered against. See `createDraftAction`. */
   contentUnitId: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [choosing, setChoosing] = useState(false);
+  const [pin, setPin] = useState<{
+    guideKey: string;
+    guideVersion: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  if (guideAvailable && lineageExists) {
-    return (
-      <span
-        className="text-[12.5px]"
-        style={{ color: "var(--color-warm-500)" }}
-        data-testid="new-experience-lineage-exists"
-      >
-        Este capítulo ya tiene una experiencia para su guía. Para cambiarla,
-        crea una nueva versión.
-      </span>
-    );
-  }
-
-  if (!guideAvailable) {
-    return (
-      <span
-        className="text-[12.5px]"
-        style={{ color: "var(--color-warm-500)" }}
-        data-testid="new-experience-unavailable"
-      >
-        No hay una guía base disponible para este capítulo.
-      </span>
-    );
-  }
-
   async function create() {
+    // Guarded in the handler, not only by `disabled`: a double click or a
+    // replayed event must not create two drafts and burn two version numbers.
+    if (busy || pin === null) return;
     setBusy(true);
     setError(null);
-    // The server overwrites key collisions, status, version and guide pin, so
-    // this only has to be a shape the validator accepts.
+
     const stamp = Date.now().toString(36);
     const definition = {
       experienceKey: `cms-${bookSlug}-c${chapterOrder}-${stamp}`,
@@ -81,7 +63,7 @@ export function NewExperienceButton({
       chapterOrder,
       title: "Experiencia sin título",
       status: "DRAFT",
-      guidePin: { guideKey: "placeholder", guideVersion: 1 },
+      guidePin: pin,
       scenes: [
         {
           sceneKey: "intro",
@@ -101,28 +83,71 @@ export function NewExperienceButton({
         `/dashboard/admin/experiencias/${bookSlug}/${chapterOrder}/borrador/${created.id}`,
       );
     } catch {
-      setError("No pudimos crear el borrador.");
+      // The selection survives the failure: the editor picked a guide, and
+      // making them pick it again would punish them for our error.
+      setError(
+        "No pudimos crear el borrador. Puede que otra persona haya tomado esa guía.",
+      );
       setBusy(false);
     }
   }
 
-  return (
-    <span className="flex items-center gap-3">
-      {error ? (
-        <span className="text-[12.5px]" style={{ color: "#B91C1C" }}>
-          {error}
-        </span>
-      ) : null}
+  if (!choosing) {
+    return (
       <button
         type="button"
-        onClick={() => void create()}
-        disabled={busy}
-        className="rounded-full px-4 text-[13px] font-semibold text-white disabled:opacity-60"
+        onClick={() => setChoosing(true)}
+        className="rounded-full px-4 text-[13px] font-semibold text-white"
         style={{ background: "var(--color-lavender-500)", minHeight: 44 }}
         data-testid="new-experience"
       >
-        {busy ? "Creando…" : "Nueva experiencia"}
+        Nueva experiencia
       </button>
-    </span>
+    );
+  }
+
+  return (
+    <div data-testid="new-experience-form">
+      <GuideSelector
+        bookSlug={bookSlug}
+        chapterOrder={chapterOrder}
+        experienceKey={null}
+        value={pin}
+        onChange={setPin}
+        disabled={busy}
+      />
+
+      {error ? (
+        <p
+          role="alert"
+          className="mt-2 text-[12.5px]"
+          style={{ color: "#B91C1C" }}
+        >
+          {error}
+        </p>
+      ) : null}
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void create()}
+          disabled={busy || pin === null}
+          className="rounded-full px-4 text-[13px] font-semibold text-white disabled:opacity-60"
+          style={{ background: "var(--color-lavender-500)", minHeight: 44 }}
+          data-testid="new-experience-create"
+        >
+          {busy ? "Creando…" : "Crear borrador"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setChoosing(false)}
+          disabled={busy}
+          className="text-[13px] disabled:opacity-60"
+          style={{ color: "var(--color-warm-600)", minHeight: 44 }}
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
   );
 }

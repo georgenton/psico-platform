@@ -124,11 +124,12 @@ export default async function AdminChapterExperiencesPage({
           >
             Experiencias
           </h2>
+          {/* C.4 — the button no longer decides availability. Which guides are
+              free is the selector's question, answered by the server, and a
+              chapter may hold as many experiences as it has guides. */}
           <NewExperienceButton
             bookSlug={params.bookSlug}
             chapterOrder={chapterOrder}
-            guideAvailable={admin?.guidePin != null}
-            lineageExists={experiences.length > 0}
             contentUnitId={admin?.contentUnitId ?? null}
           />
         </div>

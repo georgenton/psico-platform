@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { EXPERIENCE_BINDING_SHAPE } from "./experience-binding-schema";
 import {
   bindingLockKeys,
   bridgeBindingLockKeys,
@@ -238,10 +239,16 @@ describe("ratchet · the backfill's own guarantees", () => {
     // materialised between planning and writing must not be overwritten, and
     // the count check turns "matched nothing" into an abort rather than a
     // silently smaller result.
-    expect(src).toMatch(
-      /id: \{ in: group\.legacyRowIds \},[\s\S]{0,200}contentUnitId: null,[\s\S]{0,40}guideKey: null,/,
-    );
-    expect(src).toMatch(/updated\.count !== group\.legacyRowIds\.length/);
+    // Raw SQL now: this binary's client may be generated from the cutover
+    // schema, where `contentUnitId` is NOT NULL and `contentUnitId: null` is
+    // not a filter it will send. The guard is the point of the statement.
+    // One UPDATE in the whole file, so these three are statements about it.
+    expect([
+      ...src.matchAll(/UPDATE "ChapterExperienceVersion"/g),
+    ]).toHaveLength(1);
+    expect(src).toMatch(/AND "contentUnitId" IS NULL\s*AND "guideKey" IS NULL/);
+    expect(src).toMatch(/id" = ANY\(\$\{group\.legacyRowIds\}::text\[\]\)/);
+    expect(src).toMatch(/updated !== group\.legacyRowIds\.length/);
     // Materialised rows are verified and left alone.
     expect(src).not.toMatch(/materialisedRowIds[\s\S]{0,120}updateMany/);
   });
@@ -523,6 +530,8 @@ describe("ratchet · a stored pin is never recomputed from a number", () => {
     expect(method("createNextDraft")).not.toMatch(/getExactContext\(/);
     expect(method("saveDraft")).toMatch(/storedPin/);
     expect(method("createNextDraft")).toMatch(/source\.guidePin/);
+  });
+});
 
 describe("ratchet · the rebind is a MOVE, not an acquire", () => {
   it("never asks `reserveFor` for permission to change its own binding", () => {
@@ -776,5 +785,77 @@ describe("ratchet · claims this PR makes in prose are anchored in code", () => 
     expect(block).not.toMatch(/was (simply )?wrong/i);
     expect(block).toMatch(/ownership/);
     expect(block).toMatch(/codeOwnedClaimsForUnit/);
+  });
+});
+
+describe("ratchet · the cutover migrations say what they do", () => {
+  const MIGRATIONS = join(process.cwd(), "prisma/migrations");
+
+  /**
+   * The migration with its `--` comments removed.
+   *
+   * Same reason `code()` exists: these files EXPLAIN why `IF NOT EXISTS` and
+   * `NOT VALID` are absent, and a prose block naming them must not be mistaken
+   * for using them. An absence check is worth exactly as much as its ability to
+   * mean what it says.
+   */
+  const sql = (p: string) => read(p).replace(/^\s*--.*$/gm, "");
+
+  it("the ARCHIVED value is added without IF NOT EXISTS", () => {
+    // `IF NOT EXISTS` would absorb a drift silently: if something other than
+    // this migration put the value there — a hand-applied hotfix, a restored
+    // dump, a branch deployed and rolled back — the deploy would succeed and
+    // leave a schema nobody can account for looking exactly like a migrated
+    // one. The cutover inherits whatever the deploy hides.
+    const statements = sql(
+      join(
+        MIGRATIONS,
+        "20260820010000_c3c_experience_archived_status/migration.sql",
+      ),
+    );
+    expect(statements).toMatch(
+      /ALTER TYPE "ExperienceVersionStatus" ADD VALUE 'ARCHIVED';/,
+    );
+    expect(statements).not.toMatch(/IF NOT EXISTS/);
+  });
+
+  it("NOT NULL and the CHECK land in ONE migration", () => {
+    // The detector calls the half-applied shape FAIL_CLOSED. Splitting them
+    // would make that state observable by a live replica rather than only
+    // inside a failed migration.
+    const statements = sql(
+      join(
+        MIGRATIONS,
+        "20260820020000_c3c_experience_binding_shape/migration.sql",
+      ),
+    );
+    expect(statements).toMatch(/ALTER COLUMN "contentUnitId" SET NOT NULL/);
+    expect(statements).toMatch(
+      /ADD CONSTRAINT "ChapterExperienceVersion_binding_shape_check"/,
+    );
+    // Validated, not NOT VALID: a constraint that proves nothing about the rows
+    // already stored is the ambiguity the whole gate exists to remove.
+    expect(statements).not.toMatch(/NOT VALID/);
+  });
+
+  it("the CHECK the migration writes is the one the detector recognises", () => {
+    // Two independent statements of the same rule would drift. The detector
+    // pins the RENDERED expression; this pins that the migration's source
+    // mentions both halves it renders from.
+    const statements = sql(
+      join(
+        MIGRATIONS,
+        "20260820020000_c3c_experience_binding_shape/migration.sql",
+      ),
+    );
+    expect(statements).toMatch(
+      /"status" = 'ARCHIVED'[\s\S]{0,80}"guideKey" IS NULL/,
+    );
+    expect(statements).toMatch(
+      /"status" <> 'ARCHIVED'[\s\S]{0,80}"guideKey" IS NOT NULL/,
+    );
+    expect(EXPERIENCE_BINDING_SHAPE.finalCheckDefinition).toContain(
+      `("guideKey" IS NOT NULL)`,
+    );
   });
 });

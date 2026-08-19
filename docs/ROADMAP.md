@@ -989,6 +989,30 @@ anticipado —exige DRAFT en positivo y lee el estado de la columna, no del
 JSON— y la acción de archivar solo aparece en C.3C, tras probar por marcador
 que ninguna instancia anterior atiende el CMS.
 
+#### Deuda conocida de la suite PG (no se repara aquí)
+
+`mood-normalization-migration.pg-spec.ts` corre el `prisma migrate deploy` real
+dentro de un **esquema** (`pr2a_migrate`) de la base **base** de
+`TEST_DATABASE_URL`. Esa migración incluye `CREATE EXTENSION vector`, y las
+extensiones son **de base de datos**, no de esquema — así que mientras ese spec
+corre, la base tiene la extensión. Su `afterAll` borra el esquema y se la lleva.
+
+`privacy-barrier.pg-spec.ts` exige en su `beforeAll` que la base esté limpia. Si
+las dos ventanas se solapan, la suite del barrier se niega con
+«TEST_DATABASE_URL contains the vector extension» y sus 5 tests se reportan como
+suite fallida.
+
+Es una carrera de ORDEN entre dos specs preexistentes, no un fallo de
+aserción, y cada suite afectada pasa en aislamiento y sobre una base recién
+creada — que es lo que CI da por job. Pero al ser una carrera, cualquier cosa
+que cambie la planificación cambia con qué frecuencia pierde: el tren C.3 añade
+tres suites que corren su propio `migrate deploy` sobre su propia base
+desechable, y medido en tres corridas completas con base nueva cada una, pierde
+**1 de 3** con esas suites y **0 de 3** sin ellas.
+
+Arreglarlo significa decidir qué acepta ese guard de precondición, y esa
+decisión es de quien lo mantiene. Queda registrada, no absorbida.
+
 #### Qué falta de #639 después de C.0B3
 
 Derivado de ADR 0022 §13 y del cuerpo del issue, no inventado.

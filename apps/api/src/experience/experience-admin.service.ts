@@ -31,9 +31,11 @@ import {
 import type {
   AdminChapterExperiences,
   AdminExperienceRow,
+  AdminExperienceStatus,
   ChapterExperienceDefinition,
   ChapterExperiencePublicView,
 } from "@psico/types";
+import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { productionGuideRegistry } from "../guide/guide-catalog";
 import { productionGuideDiscoveryCatalog } from "../guide/guide-discovery-catalog";
@@ -44,6 +46,24 @@ import {
 } from "./experience-catalog";
 import { productionExperienceRepository } from "./experience-production-catalog";
 import { toPublicExperienceView } from "./experience-public-view";
+import {
+  ChapterIdentityError,
+  resolveChapterIdentity,
+  type ResolvedChapterIdentity,
+} from "./experience-chapter-identity";
+import {
+  acquireBindingLocks,
+  bridgeBindingLockKeys,
+} from "./experience-binding-lock";
+import {
+  assertBindingAvailable,
+  ensureReservation,
+  EXPERIENCE_BINDING_CODES,
+  ExperienceBindingError,
+  guideKeyFromDefinition,
+  readChapterBindings,
+  readReservationAuthority,
+} from "./experience-binding-reservation";
 
 /** Editorial failures, surfaced as codes rather than stack traces. */
 const EDITORIAL_CODES: Record<string, string> = {
@@ -53,6 +73,41 @@ const EDITORIAL_CODES: Record<string, string> = {
     "Una escena dice completar un paso que la guía no tiene, o no puede completarlo.",
   EXPERIENCE_CATALOG_DUPLICATE_DEFINITION: "Esa versión ya existe.",
 };
+
+/** Binding refusals, as codes an editor can act on. Never a key, never an id. */
+const BINDING_MESSAGES: Record<string, string> = {
+  [EXPERIENCE_BINDING_CODES.guideReserved]:
+    "Otra experiencia de este capítulo ya usa esa guía.",
+  [EXPERIENCE_BINDING_CODES.lineageBound]:
+    "Esta experiencia ya está vinculada a otra guía en este capítulo.",
+  [EXPERIENCE_BINDING_CODES.divergent]:
+    "El vínculo con la guía no es consistente. No se escribió nada.",
+  [EXPERIENCE_BINDING_CODES.authorityUnavailable]:
+    "El vínculo con la guía no se puede verificar ahora mismo.",
+};
+
+/**
+ * Turn a binding or identity refusal into HTTP, and let everything else
+ * through. A storage failure is not an editorial verdict and must not be
+ * dressed up as one.
+ */
+function bindingFailure(err: unknown): never {
+  if (err instanceof ExperienceBindingError) {
+    throw new ConflictException({
+      code: err.code,
+      message: BINDING_MESSAGES[err.code] ?? "No se pudo vincular la guía.",
+    });
+  }
+  if (err instanceof ChapterIdentityError) {
+    throw new ConflictException({
+      code: err.code,
+      message:
+        "Este capítulo no puede alojar una experiencia: su identidad no se " +
+        "resuelve en la estructura publicada.",
+    });
+  }
+  throw err;
+}
 
 function editorial(err: unknown): never {
   if (err instanceof ExperienceCatalogError) {
@@ -64,11 +119,22 @@ function editorial(err: unknown): never {
   throw err;
 }
 
+/**
+ * One row for the editor.
+ *
+ * `status` comes from the caller, and for database rows the caller passes the
+ * COLUMN. It used to be derived from `definitionJson.status`, which was fine
+ * while the column had two values and will not be once ARCHIVED exists: an
+ * archived row keeps a definition that still says DRAFT, so deriving it would
+ * present an archived experience as editable. An unrecognised status is passed
+ * through rather than folded into DRAFT — this binary does not decide what a
+ * value it has never seen means.
+ */
 function rowOf(
   def: ChapterExperienceDefinition,
   extra: Pick<
     AdminExperienceRow,
-    "id" | "source" | "publishedAt" | "updatedAt"
+    "id" | "source" | "publishedAt" | "updatedAt" | "status"
   >,
 ): AdminExperienceRow {
   return {
@@ -77,7 +143,6 @@ function rowOf(
     title: def.title,
     summary: def.summary ?? null,
     estimatedMinutes: def.estimatedMinutes ?? null,
-    status: def.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT",
     sceneCount: def.scenes.length,
     ...extra,
   };
@@ -114,6 +179,9 @@ export class ExperienceAdminService {
         rowOf(def, {
           id: null,
           source: "code",
+          // A code-owned definition has no row, so its own status is all there
+          // is — and code-owned definitions are published by construction.
+          status: def.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT",
           publishedAt: null,
           updatedAt: null,
         }),
@@ -127,6 +195,8 @@ export class ExperienceAdminService {
         rowOf(def, {
           id: row.id,
           source: "database",
+          // The COLUMN, always.
+          status: row.status,
           publishedAt: row.publishedAt?.toISOString() ?? null,
           updatedAt: row.updatedAt.toISOString(),
         }),
@@ -151,7 +221,7 @@ export class ExperienceAdminService {
   /** One draft, for the editor. Drafts are never served through the port. */
   async getDraft(id: string): Promise<{
     id: string;
-    status: "DRAFT" | "PUBLISHED";
+    status: AdminExperienceStatus;
     definition: ChapterExperienceDefinition;
   }> {
     const row = await this.prisma.chapterExperienceVersion.findUnique({
@@ -203,6 +273,8 @@ export class ExperienceAdminService {
     userId: string,
     input: ChapterExperienceDefinition,
   ): Promise<{ id: string }> {
+    // C.3A — still the chapter's own pin. Selection is C.4; this phase changes
+    // how a binding is RESERVED, not who chooses it.
     const pin = productionGuideDiscoveryCatalog.getExactContext(
       input.bookSlug,
       input.chapterOrder,
@@ -214,64 +286,97 @@ export class ExperienceAdminService {
       });
     }
 
-    // CMS V1 — ONE lineage per guide.
-    //
-    // A chapter resolves exactly one guide pin, and GuideSession is the
-    // authority on Start / Continue / Completed. Two distinct experience keys
-    // bound to that pin would therefore SHARE progress: finishing one would
-    // show the other as finished too. That is not two experiences, it is two
-    // presentations of one, so the CMS refuses to create the second rather than
-    // offering a button whose result would not mean what it looks like.
-    //
-    // Versions of the SAME key are unaffected — that is the whole point of the
-    // versioning model, and completion carrying forward across them is
-    // deliberate.
-    const existingKeys = await this.lineageKeysForChapter(
-      input.bookSlug,
-      input.chapterOrder,
-    );
-    const foreign = [...existingKeys].filter(
-      (key) => key !== input.experienceKey,
-    );
-    if (foreign.length > 0) {
-      throw new ConflictException({
-        code: "EXPERIENCE_GUIDE_ALREADY_HAS_LINEAGE",
-        message:
-          "Este capítulo ya tiene una experiencia vinculada a esta guía. " +
-          "Crea una nueva versión de la experiencia existente.",
-      });
-    }
-
     const definition = this.rebuildAsDraft(input, pin);
-    return this.insert(userId, definition);
+    return this.withBinding(
+      { bookSlug: definition.bookSlug, chapterOrder: definition.chapterOrder },
+      async (tx, chapter) => {
+        await this.reserveFor(tx, chapter, definition);
+        return this.insert(tx, userId, definition, chapter);
+      },
+    );
   }
 
   /**
-   * Every experience key this chapter already has, from BOTH sides — code-owned
-   * definitions and database rows, drafts included.
+   * Identity, then locks, then the caller — in that order, always.
    *
-   * Drafts count: a draft is a lineage that is about to exist, and letting a
-   * second one be started beside it would just move the collision to publish
-   * time, when an editor has already done the work.
+   * The order is the guarantee. Resolving the chapter first means a command
+   * that cannot name its chapter never reaches a lock, an insert or a release;
+   * taking the global key before the chapter key gives every writer the same
+   * total order, so no pair can build a wait cycle; and doing both inside the
+   * transaction is what lets the C.3B backfill exclude every bridge writer by
+   * taking the same global key.
    */
-  private async lineageKeysForChapter(
-    bookSlug: string,
-    chapterOrder: number,
-  ): Promise<Set<string>> {
-    const [rows, fromCode] = await Promise.all([
-      this.prisma.chapterExperienceVersion.findMany({
-        where: { bookSlug, chapterOrder },
-        select: { experienceKey: true },
-      }),
-      productionExperienceRepository.listPublishedForChapter({
-        bookSlug,
-        chapterOrder,
-      }),
-    ]);
-    return new Set([
-      ...rows.map((r) => r.experienceKey),
-      ...fromCode.map((d) => d.experienceKey),
-    ]);
+  private async withBinding<T>(
+    where: {
+      bookSlug: string;
+      chapterOrder: number;
+      expectedContentUnitId?: string | null;
+    },
+    run: (
+      tx: Prisma.TransactionClient,
+      chapter: ResolvedChapterIdentity,
+    ) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const authority = await readReservationAuthority(tx);
+        if (authority !== "BRIDGE" && authority !== "STRUCTURAL") {
+          // LEGACY_SCAN means this binary is running against a schema that
+          // predates its own migration; FAIL_CLOSED means a shape nobody
+          // designed. Neither is a state to write bindings in.
+          throw new ExperienceBindingError(
+            EXPERIENCE_BINDING_CODES.authorityUnavailable,
+          );
+        }
+        const chapter = await resolveChapterIdentity(tx, where);
+        await acquireBindingLocks(
+          tx,
+          bridgeBindingLockKeys(chapter.contentUnitId),
+        );
+        return run(tx, chapter);
+      });
+    } catch (err) {
+      return bindingFailure(err);
+    }
+  }
+
+  /**
+   * Check both halves of the bijection and materialise the reservation.
+   *
+   * Read AFTER the lock, never before: a view taken outside it describes a
+   * moment another writer may already have left.
+   */
+  private async reserveFor(
+    tx: Prisma.TransactionClient,
+    chapter: ResolvedChapterIdentity,
+    definition: ChapterExperienceDefinition,
+  ): Promise<void> {
+    // Code-owned definitions hold their guide too, and they are not rows. The
+    // previous rule counted them; dropping them would move a collision to the
+    // day the catalog is replaced.
+    const shipped =
+      await productionExperienceRepository.listPublishedForChapter({
+        bookSlug: definition.bookSlug,
+        chapterOrder: definition.chapterOrder,
+      });
+    const view = await readChapterBindings(tx, {
+      contentUnitId: chapter.contentUnitId,
+      bookSlug: definition.bookSlug,
+      chapterOrder: definition.chapterOrder,
+      codeOwned: shipped.map((d) => ({
+        experienceKey: d.experienceKey,
+        guideKey: d.guidePin.guideKey,
+      })),
+    });
+    assertBindingAvailable(view, {
+      experienceKey: definition.experienceKey,
+      guideKey: definition.guidePin.guideKey,
+    });
+    await ensureReservation(tx, {
+      contentUnitId: chapter.contentUnitId,
+      experienceKey: definition.experienceKey,
+      guideKey: definition.guidePin.guideKey,
+    });
   }
 
   /**
@@ -314,7 +419,16 @@ export class ExperienceAdminService {
       { ...source, experienceVersion: nextVersion },
       pin,
     );
-    return this.insert(userId, definition);
+    return this.withBinding(
+      { bookSlug: definition.bookSlug, chapterOrder: definition.chapterOrder },
+      async (tx, chapter) => {
+        // The next version of a lineage reuses its reservation rather than
+        // taking a new one — which is why `ensureReservation` treats an exact
+        // match as a replay instead of a conflict.
+        await this.reserveFor(tx, chapter, definition);
+        return this.insert(tx, userId, definition, chapter);
+      },
+    );
   }
 
   /**
@@ -337,11 +451,22 @@ export class ExperienceAdminService {
       },
     });
     if (!row) throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
-    if (row.status === "PUBLISHED") {
+    // Positively DRAFT, never "not PUBLISHED".
+    //
+    // Forward compatibility with the ARCHIVED value C.3C adds: the old test
+    // let anything that was not PUBLISHED through, so an archived row would
+    // have been editable by a binary that had never heard of archiving. A
+    // status this binary does not recognise is inert here, on purpose.
+    if (row.status !== "DRAFT") {
       throw new ConflictException({
-        code: "EXPERIENCE_PUBLISHED_IMMUTABLE",
+        code:
+          row.status === "PUBLISHED"
+            ? "EXPERIENCE_PUBLISHED_IMMUTABLE"
+            : "EXPERIENCE_VERSION_NOT_DRAFT",
         message:
-          "Una versión publicada no se edita. Crea una versión nueva a partir de ella.",
+          row.status === "PUBLISHED"
+            ? "Una versión publicada no se edita. Crea una versión nueva a partir de ella."
+            : "Esta versión no es un borrador editable.",
       });
     }
 
@@ -366,11 +491,25 @@ export class ExperienceAdminService {
       pin,
     );
 
-    await this.prisma.chapterExperienceVersion.update({
-      where: { id },
-      data: { definitionJson: definition as unknown as never },
-    });
-    return { id };
+    return this.withBinding(
+      { bookSlug: row.bookSlug, chapterOrder: row.chapterOrder },
+      async (tx, chapter) => {
+        // A save is not a rebind. `rebuildAsDraft` already overwrote the pin
+        // with the chapter's own, so this cannot move a binding — and the
+        // reservation check runs anyway, because "cannot" is worth verifying
+        // when the alternative is a silent rebind.
+        await this.reserveFor(tx, chapter, definition);
+        await tx.chapterExperienceVersion.update({
+          where: { id },
+          data: {
+            definitionJson: definition as unknown as never,
+            contentUnitId: chapter.contentUnitId,
+            guideKey: definition.guidePin.guideKey,
+          },
+        });
+        return { id };
+      },
+    );
   }
 
   /**
@@ -382,48 +521,75 @@ export class ExperienceAdminService {
    * reported as a conflict.
    */
   async publish(id: string): Promise<{ id: string; publishedAt: string }> {
-    return this.prisma.$transaction(async (tx) => {
-      const row = await tx.chapterExperienceVersion.findUnique({
-        where: { id },
-      });
-      if (!row) throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
-      if (row.status !== "DRAFT") {
-        throw new ConflictException({
-          code: "EXPERIENCE_ALREADY_PUBLISHED",
-          message: "Esta versión ya está publicada.",
-        });
-      }
-
-      let definition: ChapterExperienceDefinition;
-      try {
-        definition = validateExperienceDefinition({
-          ...(row.definitionJson as object),
-          status: "PUBLISHED",
-        });
-        const guide = productionGuideRegistry.getExact(
-          definition.guidePin.guideKey,
-          definition.guidePin.guideVersion,
-        );
-        validateExperienceAgainstGuide(definition, guide);
-      } catch (err) {
-        return editorial(err);
-      }
-
-      const publishedAt = new Date();
-      const updated = await tx.chapterExperienceVersion.updateMany({
-        where: { id, status: "DRAFT" },
-        data: {
-          status: "PUBLISHED",
-          publishedAt,
-          definitionJson: definition as unknown as never,
-        },
-      });
-      if (updated.count !== 1) {
-        throw new ConflictException({ code: "EXPERIENCE_ALREADY_PUBLISHED" });
-      }
-
-      return { id, publishedAt: publishedAt.toISOString() };
+    const row = await this.prisma.chapterExperienceVersion.findUnique({
+      where: { id },
+      select: { bookSlug: true, chapterOrder: true },
     });
+    if (!row) throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
+
+    return this.withBinding(
+      { bookSlug: row.bookSlug, chapterOrder: row.chapterOrder },
+      async (tx, chapter) => {
+        // Re-read INSIDE the lock. The row read a moment ago only told us which
+        // chapter to lock; what publishing decides on has to be the state the
+        // lock is actually protecting.
+        const current = await tx.chapterExperienceVersion.findUnique({
+          where: { id },
+        });
+        if (!current) {
+          throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
+        }
+        if (current.status !== "DRAFT") {
+          throw new ConflictException({
+            code:
+              current.status === "PUBLISHED"
+                ? "EXPERIENCE_ALREADY_PUBLISHED"
+                : "EXPERIENCE_VERSION_NOT_DRAFT",
+            message:
+              current.status === "PUBLISHED"
+                ? "Esta versión ya está publicada."
+                : "Esta versión no es un borrador publicable.",
+          });
+        }
+
+        let definition: ChapterExperienceDefinition;
+        try {
+          definition = validateExperienceDefinition({
+            ...(current.definitionJson as object),
+            status: "PUBLISHED",
+          });
+          const guide = productionGuideRegistry.getExact(
+            definition.guidePin.guideKey,
+            definition.guidePin.guideVersion,
+          );
+          validateExperienceAgainstGuide(definition, guide);
+        } catch (err) {
+          return editorial(err);
+        }
+
+        // The reservation is revalidated here, not inherited from create time.
+        // A draft can have sat for weeks; publishing is when it starts holding
+        // the guide against readers, so this is where the claim must still hold.
+        await this.reserveFor(tx, chapter, definition);
+
+        const publishedAt = new Date();
+        const updated = await tx.chapterExperienceVersion.updateMany({
+          where: { id, status: "DRAFT" },
+          data: {
+            status: "PUBLISHED",
+            publishedAt,
+            definitionJson: definition as unknown as never,
+            contentUnitId: chapter.contentUnitId,
+            guideKey: definition.guidePin.guideKey,
+          },
+        });
+        if (updated.count !== 1) {
+          throw new ConflictException({ code: "EXPERIENCE_ALREADY_PUBLISHED" });
+        }
+
+        return { id, publishedAt: publishedAt.toISOString() };
+      },
+    );
   }
 
   // ── internals ────────────────────────────────────────────────────────────
@@ -450,10 +616,12 @@ export class ExperienceAdminService {
   }
 
   private async insert(
+    tx: Prisma.TransactionClient,
     userId: string,
     definition: ChapterExperienceDefinition,
+    chapter: ResolvedChapterIdentity,
   ): Promise<{ id: string }> {
-    const clash = await this.prisma.chapterExperienceVersion.findUnique({
+    const clash = await tx.chapterExperienceVersion.findUnique({
       where: {
         experienceKey_experienceVersion: {
           experienceKey: definition.experienceKey,
@@ -469,12 +637,16 @@ export class ExperienceAdminService {
       });
     }
 
-    const created = await this.prisma.chapterExperienceVersion.create({
+    const created = await tx.chapterExperienceVersion.create({
       data: {
         experienceKey: definition.experienceKey,
         experienceVersion: definition.experienceVersion,
         bookSlug: definition.bookSlug,
         chapterOrder: definition.chapterOrder,
+        // Identity and lineage as COLUMNS, not only inside the definition.
+        // The composite foreign key can only protect what it can see.
+        contentUnitId: chapter.contentUnitId,
+        guideKey: definition.guidePin.guideKey,
         status: "DRAFT",
         definitionJson: definition as unknown as never,
         createdByUserId: userId,

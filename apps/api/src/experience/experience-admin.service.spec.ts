@@ -60,6 +60,16 @@ function definition(
   } as ChapterExperienceDefinition;
 }
 
+/**
+ * C.3A — the mock grew a schema and a chapter.
+ *
+ * Binding mutations now read the authority from `pg_catalog`, resolve the
+ * chapter through the published manifest and take advisory locks. None of that
+ * is this file's subject — the lifecycle rules are — so the fixtures answer
+ * "schema is the bridge shape" and "the chapter resolves", and the real
+ * behaviour of both lives in `experience-binding-bridge.pg-spec.ts`, where a
+ * database can actually be asked.
+ */
 function prismaMock() {
   return {
     chapterExperienceVersion: {
@@ -70,9 +80,23 @@ function prismaMock() {
       update: vi.fn(),
       updateMany: vi.fn(),
     },
+    experienceGuideReservation: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+    },
+    edition: { findFirst: vi.fn() },
+    revisionUnit: { findFirst: vi.fn() },
+    book: { findUnique: vi.fn() },
+    chapter: { findFirst: vi.fn() },
+    $queryRaw: vi.fn(),
+    $executeRaw: vi.fn(),
     $transaction: vi.fn(),
   };
 }
+
+/** The one stable chapter every fixture in this file lives in. */
+const UNIT_ID = "unit_eec_c1";
 
 let prisma: ReturnType<typeof prismaMock>;
 let service: ExperienceAdminService;
@@ -83,6 +107,29 @@ beforeEach(() => {
     fn(prisma),
   );
   prisma.chapterExperienceVersion.findMany.mockResolvedValue([]);
+  // The schema is in the bridge shape: table and composite FK present, final
+  // CHECK absent. Anything else and the service would refuse to write at all.
+  prisma.$queryRaw.mockResolvedValue([
+    {
+      has_table: true,
+      has_reservation_fk: true,
+      has_guide_unique: true,
+      has_final_check: false,
+      final_check_validated: false,
+    },
+  ]);
+  prisma.$executeRaw.mockResolvedValue(0);
+  prisma.edition.findFirst.mockResolvedValue({
+    id: "edition_1",
+    publishedRevisionId: "revision_1",
+  });
+  prisma.revisionUnit.findFirst.mockResolvedValue({
+    order: 1,
+    unit: { id: UNIT_ID, unitKey: "unit-key-1" },
+  });
+  prisma.experienceGuideReservation.findMany.mockResolvedValue([]);
+  prisma.experienceGuideReservation.findUnique.mockResolvedValue(null);
+  prisma.experienceGuideReservation.create.mockResolvedValue({});
   service = new ExperienceAdminService(prisma as unknown as PrismaService);
 });
 
@@ -294,15 +341,17 @@ describe("ExperienceAdminService — one lineage per guide", () => {
   /**
    * The rule exists because of a fact about PROGRESS, not about presentation.
    *
-   * A chapter resolves exactly one guide pin, and `experienceCardStatus` reads
-   * Start / Continue / Completed from the GuideSession matching that pin. Two
-   * distinct experience keys bound to it would therefore report each other's
+   * Two distinct experience keys bound to one guide report each other's
    * progress: finish one, and the other reads «Completada» without anyone
-   * having opened it.
+   * having opened it. C.1 made that visible per card; it did not make it
+   * harmless.
    *
-   * So CMS V1 permits one lineage per guide and unlimited immutable versions of
-   * it. Genuinely independent experiences need independent guides, which is a
-   * Guide-authoring capability this vertical does not claim to have.
+   * C.3A changed WHERE the rule lives, not what it says. It used to be a scan
+   * of experience keys in `(bookSlug, chapterOrder)` — a read followed by a
+   * write, with nothing between them — and it is now a reservation held under
+   * a chapter lock, with the database enforcing both halves of the bijection.
+   * The refusal is reported as `EXPERIENCE_GUIDE_BINDING_RESERVED`, which says
+   * what is actually true: the guide is taken.
    */
   it("refuses a second experience key when the chapter ships a code-owned one", async () => {
     prisma.chapterExperienceVersion.findMany.mockResolvedValue([]);
@@ -310,7 +359,7 @@ describe("ExperienceAdminService — one lineage per guide", () => {
     await expect(
       service.createDraft("user_1", definition({ experienceKey: "otra-cosa" })),
     ).rejects.toMatchObject({
-      response: { code: "EXPERIENCE_GUIDE_ALREADY_HAS_LINEAGE" },
+      response: { code: "EXPERIENCE_GUIDE_BINDING_RESERVED" },
     });
     expect(prisma.chapterExperienceVersion.create).not.toHaveBeenCalled();
   });

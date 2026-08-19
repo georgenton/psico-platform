@@ -35,12 +35,19 @@ import type {
  * `unknown` is a first-class member, not an absence. It used to be spelled
  * «Empezar», which offered a fresh run over a journey that might already be in
  * progress — the exact confusion C.1 exists to end.
+ *
+ * `unavailable` is the OTHER honest negative, and it is deliberately not the
+ * same word. The verdict arrived and is trusted; what cannot happen is running
+ * it here — this build ships no such journey, or its passage belongs to another
+ * chapter. Calling that «no pudimos consultar» would blame the network for a
+ * catalog fact, and calling it «Empezar» would offer a run that then refuses.
  */
 export type ExperienceCardStatus =
   | "start"
   | "continue"
   | "completed"
-  | "unknown";
+  | "unknown"
+  | "unavailable";
 
 /** The server's verdict, keyed by published pin. */
 export type ExperienceCardStates = ReadonlyMap<
@@ -53,12 +60,24 @@ export type ExperienceCardStates = ReadonlyMap<
  *
  * `idle` is before anything was asked; `ready` carries the verdicts; `error`
  * means the question failed and the reader is offered a retry, not a guess.
+ *
+ * `ready` and `error` are TAGGED with the question and the asking that produced
+ * them. An answer is a fact about a moment, and once the reader asks again —
+ * or moves to another chapter — it stops speaking for the screen. Whoever owns
+ * the load decides that; this component is only ever handed the answer that
+ * still counts.
  */
 export type ExperienceStatesLoad =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "ready"; states: ExperienceCardStates }
-  | { status: "error" };
+  | {
+      status: "ready";
+      /** The question this answers, and which asking of it. */
+      requestKey: string;
+      generation: number;
+      states: ExperienceCardStates;
+    }
+  | { status: "error"; requestKey: string; generation: number };
 
 /** The key both sides agree on: a card is identified by the pin it publishes. */
 export function experiencePinKey(pin: {
@@ -73,6 +92,7 @@ const CTA: Record<ExperienceCardStatus, string> = {
   continue: "Continuar",
   completed: "Ver resumen",
   unknown: "No disponible",
+  unavailable: "No disponible aquí",
 };
 
 const BADGE: Record<ExperienceCardStatus, string | null> = {
@@ -80,6 +100,16 @@ const BADGE: Record<ExperienceCardStatus, string | null> = {
   continue: "En curso",
   completed: "Completada",
   unknown: null,
+  // The badge still tells the truth about where the reader stands, even when
+  // the journey cannot be opened on this screen.
+  unavailable: null,
+};
+
+/** Said out loud on the card, not only encoded in a disabled button. */
+const NOTE: Partial<Record<ExperienceCardStatus, string>> = {
+  unknown: "No pudimos consultar tu avance en esta experiencia.",
+  unavailable:
+    "Esta experiencia no puede abrirse en este capítulo con esta versión de la app.",
 };
 
 /**
@@ -99,18 +129,31 @@ const BADGE: Record<ExperienceCardStatus, string | null> = {
  * flight, when it failed, and when the answer said nothing about this pin. It
  * is deliberately NOT `start`: an unanswered question must never look like a
  * fresh journey, because acting on it can strand a session the reader has.
+ *
+ * `canRun` is the second question, and it is asked about `resumePin` — the pin
+ * a click would actually run. When the server answers CONTINUE for `A@v2`
+ * because `A@v1` is still open, `A@v1` is what has to exist here. A verdict the
+ * screen cannot act on becomes `unavailable` rather than a CTA that opens
+ * nothing.
  */
 export function experienceCardStatus(
   experience: ChapterExperiencePublicView,
   load: ExperienceStatesLoad,
+  canRun: (pin: { guideKey: string; guideVersion: number }) => boolean,
 ): ExperienceCardStatus {
   if (load.status !== "ready") return "unknown";
   const state = load.states.get(experiencePinKey(experience.guidePin));
   if (!state) return "unknown";
-  if (state.status === "CONTINUE") return "continue";
-  if (state.status === "COMPLETED") return "completed";
-  if (state.status === "START") return "start";
-  return "unknown";
+  const known =
+    state.status === "CONTINUE"
+      ? "continue"
+      : state.status === "COMPLETED"
+        ? "completed"
+        : state.status === "START"
+          ? "start"
+          : null;
+  if (known === null) return "unknown";
+  return canRun(state.resumePin) ? known : "unavailable";
 }
 
 function minutesLabel(minutes: number | undefined): string | null {
@@ -129,9 +172,12 @@ export function ExperienceCard({
 }) {
   const badge = BADGE[status];
   const minutes = minutesLabel(experience.estimatedMinutes);
-  // An unknown card is inert. Not a fallback CTA, not a hidden one: a visible,
-  // disabled action says «we asked and could not tell», which is true.
-  const actionable = status !== "unknown";
+  const note = NOTE[status];
+  const noteId = `${experience.experienceKey}-note`;
+  // An inert card is visible, disabled and says WHY. Not a fallback CTA, not a
+  // hidden one: «we asked and could not tell» and «this cannot open here» are
+  // both true statements, and both are better than a button that does nothing.
+  const actionable = status !== "unknown" && status !== "unavailable";
 
   return (
     <li
@@ -164,6 +210,16 @@ export function ExperienceCard({
               {[minutes, badge].filter(Boolean).join(" · ")}
             </p>
           ) : null}
+          {note ? (
+            <p
+              id={noteId}
+              data-testid={`experience-note-${experience.experienceKey}`}
+              className="mt-1.5 text-[11.5px]"
+              style={{ color: "var(--color-warm-600)" }}
+            >
+              {note}
+            </p>
+          ) : null}
         </div>
 
         <button
@@ -172,8 +228,11 @@ export function ExperienceCard({
           style={{ minHeight: 44, opacity: actionable ? 1 : 0.55 }}
           disabled={!actionable}
           // The accessible name contains the visible word, so somebody using
-          // voice control can say what they can read.
+          // voice control can say what they can read; the reason travels with
+          // it, so a screen reader gets the explanation and not just «no
+          // disponible».
           aria-label={`${CTA[status]} · ${experience.title}`}
+          {...(note ? { "aria-describedby": noteId } : {})}
           onClick={() => {
             // Belt as well as braces: a disabled button cannot be clicked, and
             // a handler that would open an unknown card cannot exist either.
@@ -191,6 +250,7 @@ export function ExperienceCard({
 export function ExperienceList({
   experiences,
   load,
+  canRun,
   onOpen,
   onRetry,
   headingId = "chapter-experiences-heading",
@@ -198,9 +258,16 @@ export function ExperienceList({
   experiences: readonly ChapterExperiencePublicView[];
   /**
    * The server's verdict per published pin — one entry per card, from ONE
-   * batch request — together with whether we have it at all.
+   * batch request — together with whether we have it at all. Only the answer
+   * that still speaks for this screen reaches here.
    */
   load: ExperienceStatesLoad;
+  /**
+   * Whether a `resumePin` can be run on this screen by this build. Required,
+   * not optional with a permissive default: forgetting it would re-enable
+   * every card that cannot open, which is the defect this closes.
+   */
+  canRun: (pin: { guideKey: string; guideVersion: number }) => boolean;
   onOpen: (experience: ChapterExperiencePublicView) => void;
   /** Ask the question again. Shown only when the last attempt failed. */
   onRetry?: () => void;
@@ -282,7 +349,7 @@ export function ExperienceList({
           <ExperienceCard
             key={`${experience.experienceKey}@${experience.experienceVersion}`}
             experience={experience}
-            status={experienceCardStatus(experience, load)}
+            status={experienceCardStatus(experience, load, canRun)}
             onOpen={onOpen}
           />
         ))}

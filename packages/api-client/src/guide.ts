@@ -5,6 +5,7 @@ import type {
   GuideAvailabilityResponse,
   GuideDiscoveryResponse,
   GuideCommandResponse,
+  GuideExperienceCardState,
   GuideExperienceCardStatesResponse,
   GuideExperienceStateResponse,
   RecoverableGuideSessionResponse,
@@ -70,6 +71,115 @@ function normalizeDiscoverySlug(value: unknown): string | null {
  * catalog's correct option is never sent and never returned, so there is
  * nothing here to store.
  */
+/**
+ * C.1 — the answer, checked rather than assumed.
+ *
+ * The generic on `apiClient.post` is a compile-time promise about a server we
+ * do not run in this process. At runtime it is JSON: a stale deploy, a proxy
+ * that rewrites bodies, or an endpoint that quietly grows a field can all put
+ * a shape here that TypeScript already believes. So every invariant the cards
+ * rely on is asked out loud.
+ *
+ * Two of them are more than shape:
+ *
+ *   - positional alignment. An answer of the right LENGTH whose pins do not
+ *     match the questions is the dangerous one: it lines up perfectly and
+ *     describes the wrong journeys.
+ *   - `resumePin`. START and COMPLETED are statements about the published pin,
+ *     so resuming anything else would be a fresh run wearing a finished
+ *     journey's clothes. CONTINUE may name another VERSION — that is the whole
+ *     point of rule 1 — but never another lineage: a `guideKey` that is not the
+ *     one asked about is somebody else's session.
+ *
+ * Nothing received is echoed. The error carries the code and nothing else,
+ * because a rejected payload is exactly the thing that must not reach a log.
+ */
+function validateCardStatesAnswer(
+  answer: unknown,
+  asked: ReadonlyArray<{ guideKey: string; guideVersion: number }>,
+): GuideExperienceCardState[] {
+  const bad = () => {
+    throw new Error(GUIDE_CARD_STATES_ANSWER_INVALID);
+  };
+  if (!isPlainObject(answer)) bad();
+  if (!onlyKeys(answer as Record<string, unknown>, ["items"])) bad();
+  const items = (answer as { items: unknown }).items;
+  if (!Array.isArray(items) || items.length !== asked.length) bad();
+
+  const validated: GuideExperienceCardState[] = [];
+  (items as unknown[]).forEach((raw, i) => {
+    if (!isPlainObject(raw)) bad();
+    const item = raw as Record<string, unknown>;
+    if (!onlyKeys(item, ["guidePin", "status", "resumePin"])) bad();
+
+    const guidePin = readPin(item.guidePin);
+    const resumePin = readPin(item.resumePin);
+    if (!guidePin || !resumePin) bad();
+
+    const question = asked[i]!;
+    if (
+      guidePin!.guideKey !== question.guideKey ||
+      guidePin!.guideVersion !== question.guideVersion
+    ) {
+      bad();
+    }
+
+    const status = item.status;
+    if (status !== "START" && status !== "CONTINUE" && status !== "COMPLETED") {
+      bad();
+    }
+    if (status === "CONTINUE") {
+      // Another version of the SAME lineage, or nothing.
+      if (resumePin!.guideKey !== guidePin!.guideKey) bad();
+    } else if (
+      resumePin!.guideKey !== guidePin!.guideKey ||
+      resumePin!.guideVersion !== guidePin!.guideVersion
+    ) {
+      bad();
+    }
+
+    validated.push({
+      guidePin: guidePin!,
+      status: status as GuideExperienceCardState["status"],
+      resumePin: resumePin!,
+    });
+  });
+  return validated;
+}
+
+/** A JSON object, not an array and not null. */
+function isPlainObject(value: unknown): boolean {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Exactly these own keys — no more, none missing. */
+function onlyKeys(value: Record<string, unknown>, allowed: string[]): boolean {
+  const keys = Object.keys(value);
+  return (
+    keys.length === allowed.length && keys.every((k) => allowed.includes(k))
+  );
+}
+
+/** A pin, or `null`. Same grammar and range the server enforces on the way in. */
+function readPin(
+  value: unknown,
+): { guideKey: string; guideVersion: number } | null {
+  if (!isPlainObject(value)) return null;
+  const pin = value as Record<string, unknown>;
+  if (!onlyKeys(pin, ["guideKey", "guideVersion"])) return null;
+  const { guideKey, guideVersion } = pin;
+  if (typeof guideKey !== "string" || !GUIDE_KEY_RE.test(guideKey)) return null;
+  if (
+    typeof guideVersion !== "number" ||
+    !Number.isInteger(guideVersion) ||
+    guideVersion <= 0 ||
+    guideVersion > GUIDE_CARD_STATES_MAX_VERSION
+  ) {
+    return null;
+  }
+  return { guideKey, guideVersion };
+}
+
 export const guideApi = {
   /**
    * CC-7.R1 — the server-owned pilot gate. A single opaque boolean: whether
@@ -190,32 +300,21 @@ export const guideApi = {
 
     // All-or-nothing: a partial batch would leave some cards holding a verdict
     // and others holding a guess, which is the defect #639 is about. One
-    // failed chunk rejects the whole call and the caller shows an error.
+    // failed chunk rejects the whole call and the caller shows an error — and
+    // each chunk is VALIDATED before any of them is combined, so a malformed
+    // second chunk cannot publish a well-formed first one.
     const answers = await Promise.all(
-      chunks.map((chunk) =>
-        apiClient.post<GuideExperienceCardStatesResponse>(
-          "/guide/experiences/state",
-          { pins: chunk },
+      chunks.map(async (chunk) =>
+        validateCardStatesAnswer(
+          await apiClient.post<unknown>("/guide/experiences/state", {
+            pins: chunk,
+          }),
+          chunk,
         ),
       ),
     );
 
-    const items = answers.flatMap((answer) => answer?.items ?? []);
-    // Positional mapping is the whole contract, so it is CHECKED rather than
-    // assumed. A short answer cannot be aligned at all; an answer of the right
-    // length whose pins do not match the questions is worse, because it lines
-    // up perfectly and describes the wrong journeys. Both are a failed batch —
-    // never a truncation, a padding, or a card quietly holding somebody else's
-    // verdict.
-    const aligned =
-      items.length === wanted.length &&
-      items.every(
-        (item, i) =>
-          item?.guidePin?.guideKey === wanted[i]!.guideKey &&
-          item?.guidePin?.guideVersion === wanted[i]!.guideVersion,
-      );
-    if (!aligned) throw new Error(GUIDE_CARD_STATES_ANSWER_INVALID);
-    return { items };
+    return { items: answers.flat() };
   },
 
   getRecoverableSession: (pin: { guideKey: string; guideVersion: number }) => {

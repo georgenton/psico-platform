@@ -74,6 +74,12 @@ export interface ChapterExperienceHomeProps {
    * another's; and a card we could not ask about offers nothing.
    */
   experienceStates: ExperienceStatesLoad;
+  /**
+   * Whether the pin a click would RUN exists in this build and belongs to this
+   * chapter. A verdict says where the reader stands; this says whether the
+   * screen can act on it.
+   */
+  canRunResumePin: (pin: { guideKey: string; guideVersion: number }) => boolean;
   onOpenExperience: (experience: ChapterExperiencePublicView) => void;
   /** Ask the card-state question again after a failure. */
   onRetryExperienceStates?: () => void;
@@ -140,6 +146,7 @@ export function ChapterExperienceHome({
   experiencesEnabled,
   experiences,
   experienceStates,
+  canRunResumePin,
   onRetryExperienceStates,
   onOpenExperience,
   activityCount,
@@ -347,6 +354,7 @@ export function ChapterExperienceHome({
       <ExperienceList
         experiences={visibleExperiences}
         load={experienceStates}
+        canRun={canRunResumePin}
         onOpen={onOpenExperience}
         onRetry={onRetryExperienceStates}
       />

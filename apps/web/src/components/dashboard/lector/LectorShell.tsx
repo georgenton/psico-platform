@@ -310,6 +310,30 @@ export function LectorShell({
   const pendingActivitiesFocus = useRef(false);
 
   /**
+   * WHICH asking this is. Bumped — synchronously, in the same act — by every
+   * event that makes the previous answer stale: arriving at the list, coming
+   * back to it, the tab regaining focus or visibility, and a manual retry.
+   *
+   * The ref is the authority and the state is only how the render learns about
+   * it. That order matters: a nonce that lived in state alone left a window
+   * between «the reader asked for fresh data» and «the effect got around to
+   * saying so», and inside that window the previous verdict was still on
+   * screen AND still clickable. A stale «Empezar» is exactly the click that
+   * can cancel the session C.1 exists to continue, so the window is closed by
+   * construction rather than by trusting React's scheduling.
+   */
+  const experienceGenerationRef = useRef(0);
+  const [experienceGeneration, setExperienceGeneration] = useState(0);
+
+  /**
+   * Invalidate and ask again — one act, deliberately not two. Splitting them
+   * would recreate the window this exists to close.
+   */
+  const revalidateExperienceStates = useCallback(() => {
+    setExperienceGeneration((experienceGenerationRef.current += 1));
+  }, []);
+
+  /**
    * Going to the chapter home closes what belongs to reading.
    *
    * Purely visual: the guided panel is hidden, not ended — no session is
@@ -324,7 +348,12 @@ export function LectorShell({
     setDockOpen(false);
     setPrefsOpen(false);
     setSelection(null);
-  }, []);
+    // Arriving at the list is a question, not a memory. Whatever the cards
+    // said last time was true then; a run may have finished on another device
+    // since, so the previous verdict stops counting HERE, in the same act —
+    // not whenever an effect happens to run.
+    revalidateExperienceStates();
+  }, [revalidateExperienceStates]);
 
   /** «Seguir leyendo» and every format row land back on the reader. */
   const openReaderSurface = useCallback(() => {
@@ -500,6 +529,35 @@ export function LectorShell({
   );
 
   /**
+   * C.2 — can THIS pin actually be run, on this screen, by this build?
+   *
+   * The same four authorities the guided surface itself consults, asked one
+   * screen earlier. A verdict from the server says where the reader stands; it
+   * says nothing about whether this bundle ships the journey, or whether the
+   * journey's passage belongs to the chapter in front of them. Without asking,
+   * a card was enabled on the verdict alone: the click stored a pick, switched
+   * surface, opened the panel — and then the panel refused, so the button
+   * looked broken and left a selection behind.
+   *
+   * `resumePin`, never the published pin. When the server answers CONTINUE for
+   * `A@v2` because `A@v1` is still running, the thing that has to be runnable
+   * is `A@v1` — the run the reader would land in.
+   *
+   * A fallback to another guide's bundle or anchor is exactly what must never
+   * happen here, so nothing is resolved except by exact pin.
+   */
+  const canRunPin = useCallback(
+    (pin: GuidePin): boolean => {
+      if (!resolveGuideWebBundle(pin)) return false;
+      const locator = guideAnchorRegistry.getExact(pin);
+      if (!locator) return false;
+      if (!anchorAppliesTo(bookSlug, chapter.order, locator)) return false;
+      return resolveGuideAnchor(blocks, locator).status === "RESOLVED";
+    },
+    [blocks, bookSlug, chapter.order],
+  );
+
+  /**
    * Where THIS guide's approved passage is in THIS chapter.
    *
    * The locator comes from the registry keyed by the discovered pin — so the
@@ -620,9 +678,6 @@ export function LectorShell({
    * two experiences deliberately bound to the same guide DO share a verdict.
    * That is not a bug to paper over; it is what the binding says.
    */
-  const [experienceLoad, setExperienceLoad] = useState<ExperienceStatesLoad>({
-    status: "idle",
-  });
   const experiencePins = useMemo(
     () => chapterExperiences.items.map((item) => item.guidePin),
     [chapterExperiences.items],
@@ -647,41 +702,41 @@ export function LectorShell({
     [bookSlug, chapter.order, experiencePins],
   );
 
-  /**
-   * Bumped to ask the same question again: a manual retry, coming back to the
-   * list, or the tab regaining focus. Separate from the key so a revalidation
-   * does not read as a different question.
-   */
-  const [experienceReloadNonce, setExperienceReloadNonce] = useState(0);
-  const revalidateExperienceStates = useCallback(() => {
-    setExperienceReloadNonce((n) => n + 1);
-  }, []);
-
   const currentExperienceKeyRef = useRef(experienceRequestKey);
   currentExperienceKeyRef.current = experienceRequestKey;
 
   /**
-   * How many questions have been ASKED. The key says what was asked; this says
-   * when. Two revalidations of the same list are the same key and can still
-   * land out of order, so both guards are needed: without the sequence, an
-   * older in-flight read overwrites a newer one simply by being slower.
+   * The load, exactly as the last accepted answer left it — TAGGED with the
+   * question and the generation that produced it.
+   *
+   * Nothing reads this directly. Whether it still speaks for the screen is a
+   * separate question, answered below.
    */
-  const experienceSeqRef = useRef(0);
+  const [experienceLoad, setExperienceLoad] = useState<ExperienceStatesLoad>({
+    status: "idle",
+  });
 
   useEffect(() => {
     if (surface !== "home") return;
+    const askedFor = experienceRequestKey;
+    const generation = experienceGenerationRef.current;
     if (experiencePins.length === 0) {
       // Nothing to ask about is a complete answer, not a pending one.
-      setExperienceLoad({ status: "ready", states: new Map() });
+      setExperienceLoad({
+        status: "ready",
+        requestKey: askedFor,
+        generation,
+        states: new Map(),
+      });
       return;
     }
-    const askedFor = experienceRequestKey;
-    const seq = (experienceSeqRef.current += 1);
+    // Accepted only while BOTH still hold: the same question, and no newer
+    // asking since. The key catches a chapter change; the generation catches
+    // two revalidations of the same list answering out of order.
     const isCurrent = () =>
       currentExperienceKeyRef.current === askedFor &&
-      experienceSeqRef.current === seq;
+      experienceGenerationRef.current === generation;
     let cancelled = false;
-    setExperienceLoad({ status: "loading" });
     void (async () => {
       try {
         const answer = await guideApi.getExperienceCardStates(experiencePins);
@@ -690,20 +745,48 @@ export function LectorShell({
         for (const state of answer.items) {
           states.set(experiencePinKey(state.guidePin), state);
         }
-        setExperienceLoad({ status: "ready", states });
+        setExperienceLoad({
+          status: "ready",
+          requestKey: askedFor,
+          generation,
+          states,
+        });
       } catch {
         if (cancelled || !isCurrent()) return;
         // A failed read is NOT a state. It used to fall back to an empty map,
         // and an empty map read as «Empezar» on every card — so a network
         // blip offered a fresh start over a journey already in progress. The
         // honest answer is «no pudimos saberlo», with a way to ask again.
-        setExperienceLoad({ status: "error" });
+        setExperienceLoad({
+          status: "error",
+          requestKey: askedFor,
+          generation,
+        });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [surface, experiencePins, experienceRequestKey, experienceReloadNonce]);
+  }, [surface, experiencePins, experienceRequestKey, experienceGeneration]);
+
+  /**
+   * Does the last answer still speak for what is on screen?
+   *
+   * Derived during render, so the moment the question changes — a new chapter,
+   * a new list of pins, or a new asking — the previous `ready` stops being
+   * authoritative in the SAME render that changed it. No effect has to run
+   * first, and there is no frame in which a superseded verdict is clickable.
+   * An answer that has lapsed reads as `loading`, because that is what is
+   * true: we are asking again.
+   */
+  const experienceAuthority: ExperienceStatesLoad = useMemo(() => {
+    if (experienceLoad.status === "idle") return experienceLoad;
+    if (experienceLoad.status === "loading") return experienceLoad;
+    const current =
+      experienceLoad.requestKey === experienceRequestKey &&
+      experienceLoad.generation === experienceGeneration;
+    return current ? experienceLoad : { status: "loading" };
+  }, [experienceLoad, experienceRequestKey, experienceGeneration]);
 
   /**
    * Ask again when the reader comes back to the tab or the window.
@@ -1675,22 +1758,39 @@ export function LectorShell({
             guideAvailable === true && guideActorScope !== null
           }
           experiences={chapterExperiences.items}
-          experienceStates={experienceLoad}
+          experienceStates={experienceAuthority}
+          canRunResumePin={canRunPin}
           onRetryExperienceStates={revalidateExperienceStates}
           onOpenExperience={(experience) => {
             // C.1 — the pin the server says to run: the open session's own pin
             // when there is one to continue, the published pin otherwise. A
             // run is never migrated to another version behind the reader.
             //
+            // Every guard the render applied, applied again here — against the
+            // LIVE key and generation, not the ones this closure captured. A
+            // handler is reachable from a render that has already been
+            // superseded (a focus event, a chapter change), and «the button was
+            // enabled a moment ago» is not permission to start a run.
+            //
             // No verdict, no opening. The published pin used to be the
             // fallback, which quietly turned «we could not ask» into «start a
             // fresh run» — and starting fresh is the one thing that can strand
             // a session the reader already has.
             if (experienceLoad.status !== "ready") return;
+            if (experienceLoad.requestKey !== currentExperienceKeyRef.current) {
+              return;
+            }
+            if (experienceLoad.generation !== experienceGenerationRef.current) {
+              return;
+            }
             const state = experienceLoad.states.get(
               experiencePinKey(experience.guidePin),
             );
             if (!state) return;
+            // And the pin has to be runnable HERE. Storing a pick the panel
+            // will refuse is worse than doing nothing: the button reads as
+            // broken and the selection lingers.
+            if (!canRunPin(state.resumePin)) return;
             setPickedPin(state.resumePin);
             setPickedExperience(experience);
             openReaderSurface();

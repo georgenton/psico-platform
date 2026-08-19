@@ -366,6 +366,175 @@ describe("guideApi", () => {
       ).rejects.toThrow(/Not Found/);
     });
 
+    /**
+     * The generic on `apiClient.post` is a promise about a server this process
+     * does not run. These are the shapes that satisfy TypeScript and would
+     * still put a wrong verdict — or a foreign lineage — on a card.
+     */
+    describe("the answer is checked, not assumed", () => {
+      const answered = (items: unknown) =>
+        post.mockResolvedValue({ items } as never);
+
+      const refuses = async (pins = [pin(1)]) =>
+        expect(guideApi.getExperienceCardStates(pins)).rejects.toThrow(
+          GUIDE_CARD_STATES_ANSWER_INVALID,
+        );
+
+      it("refuses an envelope that is not an object with exactly `items`", async () => {
+        post.mockResolvedValue(null as never);
+        await refuses();
+        post.mockResolvedValue([{ guidePin: pin(1) }] as never);
+        await refuses();
+        post.mockResolvedValue({
+          items: [{ guidePin: pin(1), status: "START", resumePin: pin(1) }],
+          total: 1,
+        } as never);
+        await refuses();
+        post.mockResolvedValue({ data: [] } as never);
+        await refuses();
+      });
+
+      it("refuses an item with an extra property", async () => {
+        // OpenAPI declares the response closed; a client that shrugged at an
+        // extra field would let the two contracts drift apart in silence.
+        answered([
+          {
+            guidePin: pin(1),
+            status: "START",
+            resumePin: pin(1),
+            session: { sessionId: "ses_1" },
+          },
+        ]);
+        await refuses();
+      });
+
+      it("refuses an unknown status", async () => {
+        answered([{ guidePin: pin(1), status: "PAUSED", resumePin: pin(1) }]);
+        await refuses();
+        answered([{ guidePin: pin(1), status: "start", resumePin: pin(1) }]);
+        await refuses();
+        answered([{ guidePin: pin(1), status: null, resumePin: pin(1) }]);
+        await refuses();
+      });
+
+      it("refuses a missing or malformed resumePin", async () => {
+        answered([{ guidePin: pin(1), status: "START" }]);
+        await refuses();
+        answered([{ guidePin: pin(1), status: "START", resumePin: null }]);
+        await refuses();
+        answered([
+          { guidePin: pin(1), status: "START", resumePin: { guideKey: "g-1" } },
+        ]);
+        await refuses();
+        answered([
+          {
+            guidePin: pin(1),
+            status: "START",
+            resumePin: { guideKey: "guia-1", guideVersion: 0 },
+          },
+        ]);
+        await refuses();
+        answered([
+          {
+            guidePin: pin(1),
+            status: "START",
+            resumePin: { guideKey: "GUIA-1", guideVersion: 1 },
+          },
+        ]);
+        await refuses();
+      });
+
+      it("refuses CONTINUE that resumes ANOTHER lineage", async () => {
+        // Another version of the same journey is the point of rule 1; another
+        // journey entirely is somebody else's session.
+        answered([
+          {
+            guidePin: pin(1),
+            status: "CONTINUE",
+            resumePin: { guideKey: "guia-9", guideVersion: 1 },
+          },
+        ]);
+        await refuses();
+      });
+
+      it("refuses START or COMPLETED that resumes another VERSION", async () => {
+        // Both are statements about the published pin. Resuming a different
+        // version would be a fresh run wearing a finished journey's clothes.
+        for (const status of ["START", "COMPLETED"]) {
+          answered([
+            {
+              guidePin: { guideKey: "guia-1", guideVersion: 2 },
+              status,
+              resumePin: { guideKey: "guia-1", guideVersion: 1 },
+            },
+          ]);
+          await expect(
+            guideApi.getExperienceCardStates([
+              { guideKey: "guia-1", guideVersion: 2 },
+            ]),
+          ).rejects.toThrow(GUIDE_CARD_STATES_ANSWER_INVALID);
+        }
+      });
+
+      it("ACCEPTS CONTINUE on an older version of the same lineage", async () => {
+        const published = { guideKey: "guia-1", guideVersion: 2 };
+        const resume = { guideKey: "guia-1", guideVersion: 1 };
+        answered([
+          { guidePin: published, status: "CONTINUE", resumePin: resume },
+        ]);
+
+        const answer = await guideApi.getExperienceCardStates([published]);
+        expect(answer.items).toEqual([
+          { guidePin: published, status: "CONTINUE", resumePin: resume },
+        ]);
+      });
+
+      it("a semantically invalid SECOND chunk publishes nothing from the first", async () => {
+        let call = 0;
+        post.mockImplementation((_path: unknown, body: unknown) => {
+          call += 1;
+          const pins = (body as { pins: { guideKey: string }[] }).pins;
+          if (call === 2) {
+            // Right length, right pins, impossible status.
+            return Promise.resolve({
+              items: pins.map((p) => ({
+                guidePin: p,
+                status: "PAUSED",
+                resumePin: p,
+              })),
+            }) as never;
+          }
+          return Promise.resolve({
+            items: pins.map((p) => ({
+              guidePin: p,
+              status: "START",
+              resumePin: p,
+            })),
+          }) as never;
+        });
+
+        await expect(
+          guideApi.getExperienceCardStates(
+            Array.from({ length: 30 }, (_, i) => pin(i)),
+          ),
+        ).rejects.toThrow(GUIDE_CARD_STATES_ANSWER_INVALID);
+      });
+
+      it("never echoes anything it received", async () => {
+        answered([
+          {
+            guidePin: pin(1),
+            status: "SOSPECHOSO",
+            resumePin: pin(1),
+          },
+        ]);
+        await guideApi.getExperienceCardStates([pin(1)]).catch((err: Error) => {
+          expect(err.message).toBe(GUIDE_CARD_STATES_ANSWER_INVALID);
+          expect(`${err.name} ${err.message}`).not.toContain("SOSPECHOSO");
+        });
+      });
+    });
+
     it.each([25, 26, 51])("asks ceil(n / 25) times for %s cards", async (n) => {
       echoServer();
       const pins = Array.from({ length: n }, (_, i) => pin(i));

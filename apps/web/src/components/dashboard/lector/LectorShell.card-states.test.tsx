@@ -68,6 +68,13 @@ import { EEC_EXPERIENCE, EEC_PIN } from "../guide/guide-test-fixtures";
 /**
  * A second journey in the same chapter — the shape #639 is about.
  *
+ * Its pin is one this build does NOT ship, which is the honest situation on a
+ * real chapter: the registry carries exactly two guides, each anchored to its
+ * own chapter. So this card exercises the other half of C.2 — a verdict that
+ * arrives and still cannot be acted on here. Cards that are independent AND
+ * runnable side by side are asserted in `ExperienceList.test.tsx`, where the
+ * pins are fixtures rather than the real catalog.
+ *
  * Its key is DERIVED from the published one rather than written out: a long
  * hyphenated literal sitting next to the word «key» is what secret scanners
  * are built to notice, and a catalog slug is not worth teaching them to ignore.
@@ -240,11 +247,16 @@ describe("Chapter Home · an unknown card is inert (fail closed)", () => {
       OTHER_EXPERIENCE.guidePin,
     ]);
 
-    // #639, on screen: one finished, one untouched, side by side.
+    // Two questions composing: the server's verdict, and whether this build
+    // can act on it. The chapter's own journey is finished; the one this
+    // build does not ship says so instead of offering a run that would refuse.
     expect(await screen.findByText(/Completada/)).toBeInTheDocument();
-    expect(
-      await screen.findByRole("button", { name: /Empezar/ }),
-    ).toBeInTheDocument();
+    const cards = within(
+      screen.getByTestId("chapter-experiences"),
+    ).getAllByRole("listitem");
+    expect(cards[0]).toHaveAttribute("data-status", "completed");
+    expect(cards[1]).toHaveAttribute("data-status", "unavailable");
+    expect(screen.queryByRole("button", { name: /^Empezar/ })).toBeNull();
   });
 
   it("while the batch is in flight, no card offers «Empezar»", async () => {
@@ -355,6 +367,142 @@ describe("Chapter Home · an unknown card is inert (fail closed)", () => {
   });
 });
 
+/**
+ * Blocker A — the window between «ask again» and «say we are asking».
+ *
+ * Every assertion here runs WITHOUT letting promises settle first. That is the
+ * whole point: a nonce that only lived in state left the previous verdict on
+ * screen — and clickable — until an effect got around to replacing it, and how
+ * long that took was React's business, not ours.
+ */
+describe("Chapter Home · a stale verdict stops counting IMMEDIATELY", () => {
+  /** Land on the list with a settled START, then hand back a pending read. */
+  async function readyThenPending() {
+    renderReader();
+    await openChapterHome();
+    expect(
+      await screen.findByRole("button", { name: /Empezar/ }),
+    ).toBeEnabled();
+    const pending = deferred<{ items: GuideExperienceCardState[] }>();
+    getExperienceCardStates.mockReturnValue(pending.promise);
+    return pending;
+  }
+
+  /** No CTA of any kind, and the reader is told we are asking. */
+  function noActionableCta() {
+    for (const name of [/Empezar/, /Continuar/, /Ver resumen/]) {
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    }
+    expect(screen.getByRole("status")).toHaveTextContent(/consultando/i);
+    expect(
+      screen.getByRole("button", { name: /No disponible/ }),
+    ).toBeDisabled();
+  }
+
+  it("re-entering the list drops the previous answer in the same act", async () => {
+    await readyThenPending();
+
+    // Leave and come back. NOTHING is awaited between the click and the
+    // assertion — no settle, no waitFor, no flush.
+    fireEvent.click(screen.getByTestId("reader-open-chapter-home"));
+    fireEvent.click(screen.getByTestId("reader-open-chapter-home"));
+
+    noActionableCta();
+  });
+
+  it("regaining focus drops it in the same act", async () => {
+    await readyThenPending();
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    noActionableCta();
+  });
+
+  it("becoming visible drops it in the same act", async () => {
+    await readyThenPending();
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    noActionableCta();
+  });
+
+  it("retry drops the previous ERROR in the same act", async () => {
+    getExperienceCardStates.mockRejectedValueOnce(new Error("network"));
+    renderReader();
+    await openChapterHome();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+
+    const pending = deferred<{ items: GuideExperienceCardState[] }>();
+    getExperienceCardStates.mockReturnValue(pending.promise);
+    fireEvent.click(screen.getByRole("button", { name: /Reintentar/ }));
+
+    // The failure is no longer the current answer, so it is no longer shown as
+    // one: we are asking again, and that is what the reader is told.
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent(/consultando/i);
+  });
+
+  it("a handler reached during the transition changes NOTHING", async () => {
+    // The card the reader could have clicked a frame ago. React can still run
+    // a handler captured by a render that has been superseded, so «the button
+    // was enabled a moment ago» must not be permission to start a run.
+    await readyThenPending();
+    const staleCta = screen.getByRole("button", { name: /Empezar/ });
+
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    fireEvent.click(staleCta);
+
+    // No pick, no surface change, no panel — and no request to create one.
+    expect(screen.queryByTestId("reader-guide-panel")).toBeNull();
+    expect(screen.getByTestId("chapter-experiences")).toBeInTheDocument();
+    expect(createGuideSession).not.toHaveBeenCalled();
+  });
+
+  it("two revalidations of the SAME question keep the newer answer", async () => {
+    const first = deferred<{ items: GuideExperienceCardState[] }>();
+    const second = deferred<{ items: GuideExperienceCardState[] }>();
+    getExperienceCardStates
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    renderReader();
+    await openChapterHome();
+    await settle();
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() =>
+      expect(getExperienceCardStates).toHaveBeenCalledTimes(2),
+    );
+
+    await act(async () => {
+      second.resolve({ items: [card(EEC_EXPERIENCE.guidePin, "COMPLETED")] });
+    });
+    await act(async () => {
+      first.resolve({ items: [card(EEC_EXPERIENCE.guidePin, "START")] });
+    });
+    await settle();
+
+    expect(screen.getByText(/Completada/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Empezar/ })).toBeNull();
+  });
+
+  it("does not ask twice for one arrival", async () => {
+    // Invalidating on entry AND on the effect's own dependencies could easily
+    // become two requests for the same visit. It is one.
+    renderReader();
+    await openChapterHome();
+    await settle();
+    expect(getExperienceCardStates).toHaveBeenCalledTimes(1);
+
+    // And a quiet stretch on the list does not poll.
+    await settle();
+    expect(getExperienceCardStates).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("Chapter Home · the answer is matched to the question", () => {
   it("a slower EARLIER read never overwrites a newer one", async () => {
     // Two reads of the same list overlap — the first at entry, the second a
@@ -396,9 +544,8 @@ describe("Chapter Home · the answer is matched to the question", () => {
 
   it("an answer about a SUPERSEDED list of pins never paints the current one", async () => {
     // The catalog changed while a read was in flight. The answer that comes
-    // back describes journeys this chapter no longer publishes, and applying
-    // it would show a verdict for a card that is not on screen — or worse,
-    // leave the card that IS on screen holding somebody else's status.
+    // back describes a journey this chapter no longer publishes, and applying
+    // it would put a verdict — and a CTA — on a list that no longer has it.
     const stale = deferred<{ items: GuideExperienceCardState[] }>();
     getExperienceCardStates.mockReturnValueOnce(stale.promise);
 
@@ -409,19 +556,15 @@ describe("Chapter Home · the answer is matched to the question", () => {
       EEC_EXPERIENCE.guidePin,
     ]);
 
-    // Leave the list, republish, come back: the hook asks again and the
-    // question is now about a different pin.
+    // Leave, the catalog retires the journey, come back: a different question.
     fireEvent.click(screen.getByTestId("reader-open-chapter-home"));
     await settle();
-    listPublishedForChapter.mockResolvedValue({ items: [OTHER_EXPERIENCE] });
-    getExperienceCardStates.mockResolvedValue({
-      items: [card(OTHER_EXPERIENCE.guidePin, "CONTINUE")],
-    });
+    listPublishedForChapter.mockResolvedValue({ items: [] });
     fireEvent.click(screen.getByTestId("reader-open-chapter-home"));
+    await settle();
 
-    expect(
-      await screen.findByRole("button", { name: /Continuar/ }),
-    ).toBeInTheDocument();
+    // Zero is the absence of a section, not an empty one.
+    expect(screen.queryByTestId("chapter-experiences")).toBeNull();
 
     await act(async () => {
       // The old question finally answers, about a pin nobody is asking about.
@@ -429,10 +572,9 @@ describe("Chapter Home · the answer is matched to the question", () => {
     });
     await settle();
 
+    expect(screen.queryByTestId("chapter-experiences")).toBeNull();
     expect(screen.queryByText(/Completada/)).toBeNull();
-    expect(
-      screen.getByRole("button", { name: /Continuar/ }),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Empezar/ })).toBeNull();
   });
 
   it("asks again when the tab regains focus or becomes visible", async () => {

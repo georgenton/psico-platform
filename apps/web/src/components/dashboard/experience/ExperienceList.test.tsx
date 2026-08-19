@@ -54,18 +54,31 @@ function state(
   return { guidePin: pin, status, resumePin: pin, ...over };
 }
 
-/** A finished load carrying these verdicts and no others. */
+/**
+ * A finished load carrying these verdicts and no others.
+ *
+ * The key and generation are what LectorShell uses to decide whether an answer
+ * still speaks for the screen. This component is only ever handed the answer
+ * that already passed that test, so here they are just a stamp.
+ */
 const states = (
   ...entries: GuideExperienceCardState[]
 ): ExperienceStatesLoad => ({
   status: "ready",
+  requestKey: "k",
+  generation: 1,
   states: new Map(
     entries.map((s) => [experiencePinKey(s.guidePin), s]),
   ) as ExperienceCardStates,
 });
 
 /** A finished load that answered about nothing — every card is unknown. */
-const NONE: ExperienceStatesLoad = { status: "ready", states: new Map() };
+const NONE: ExperienceStatesLoad = {
+  status: "ready",
+  requestKey: "k",
+  generation: 1,
+  states: new Map(),
+};
 
 /** A finished load that answers START for every pin these fixtures use. */
 const allStart = (...ns: number[]): ExperienceStatesLoad =>
@@ -75,7 +88,15 @@ const allStart = (...ns: number[]): ExperienceStatesLoad =>
     ),
   );
 const LOADING: ExperienceStatesLoad = { status: "loading" };
-const FAILED: ExperienceStatesLoad = { status: "error" };
+const FAILED: ExperienceStatesLoad = {
+  status: "error",
+  requestKey: "k",
+  generation: 1,
+};
+
+/** This build ships every journey these fixtures name, unless a test says so. */
+const RUNS_ANYWHERE = () => true;
+const RUNS_NOWHERE = () => false;
 
 const onOpen = vi.fn();
 
@@ -86,7 +107,14 @@ beforeEach(() => {
 
 describe("Chapter Home · cardinality", () => {
   it("0 experiences — the section does not exist", () => {
-    render(<ExperienceList experiences={[]} load={NONE} onOpen={onOpen} />);
+    render(
+      <ExperienceList
+        experiences={[]}
+        load={NONE}
+        canRun={RUNS_ANYWHERE}
+        onOpen={onOpen}
+      />,
+    );
 
     expect(screen.queryByTestId("chapter-experiences")).toBeNull();
     expect(screen.queryByRole("heading")).toBeNull();
@@ -101,6 +129,7 @@ describe("Chapter Home · cardinality", () => {
       <ExperienceList
         experiences={[experience(1)]}
         load={NONE}
+        canRun={RUNS_ANYWHERE}
         onOpen={onOpen}
       />,
     );
@@ -119,6 +148,7 @@ describe("Chapter Home · cardinality", () => {
       <ExperienceList
         experiences={[experience(1), experience(2), experience(3)]}
         load={NONE}
+        canRun={RUNS_ANYWHERE}
         onOpen={onOpen}
       />,
     );
@@ -139,6 +169,7 @@ describe("Chapter Home · cardinality", () => {
           state({ guideKey: "guide-3", guideVersion: 1 }, "COMPLETED"),
           state({ guideKey: "guide-2", guideVersion: 1 }, "CONTINUE"),
         )}
+        canRun={RUNS_ANYWHERE}
         onOpen={onOpen}
       />,
     );
@@ -151,7 +182,14 @@ describe("Chapter Home · cardinality", () => {
 
   it("10 experiences — all ten, no editorial cap", () => {
     const many = Array.from({ length: 10 }, (_, i) => experience(i + 1));
-    render(<ExperienceList experiences={many} load={NONE} onOpen={onOpen} />);
+    render(
+      <ExperienceList
+        experiences={many}
+        load={NONE}
+        canRun={RUNS_ANYWHERE}
+        onOpen={onOpen}
+      />,
+    );
 
     expect(screen.getAllByRole("listitem")).toHaveLength(10);
     expect(screen.getByText("Experiencia 10")).toBeInTheDocument();
@@ -163,6 +201,7 @@ describe("Chapter Home · cardinality", () => {
       <ExperienceList
         experiences={[experience(1), experience(2)]}
         load={allStart(1, 2)}
+        canRun={RUNS_ANYWHERE}
         onOpen={onOpen}
       />,
     );
@@ -195,6 +234,7 @@ describe("Chapter Home · each card carries its OWN state (#639)", () => {
           state({ guideKey: "guide-1", guideVersion: 1 }, "COMPLETED"),
           state({ guideKey: "guide-2", guideVersion: 1 }, "START"),
         )}
+        canRun={RUNS_ANYWHERE}
         onOpen={onOpen}
       />,
     );
@@ -219,6 +259,7 @@ describe("Chapter Home · each card carries its OWN state (#639)", () => {
           state({ guideKey: "guide-1", guideVersion: 1 }, "START"),
           state({ guideKey: "guide-2", guideVersion: 1 }, "CONTINUE"),
         )}
+        canRun={RUNS_ANYWHERE}
         onOpen={onOpen}
       />,
     );
@@ -246,6 +287,7 @@ describe("Chapter Home · each card carries its OWN state (#639)", () => {
       <ExperienceList
         experiences={[experience(1, { guidePin: published })]}
         load={states(older)}
+        canRun={RUNS_ANYWHERE}
         onOpen={onOpen}
       />,
     );
@@ -264,6 +306,7 @@ describe("Chapter Home · each card carries its OWN state (#639)", () => {
       <ExperienceList
         experiences={[experience(1)]}
         load={NONE}
+        canRun={RUNS_ANYWHERE}
         onOpen={onOpen}
       />,
     );
@@ -282,6 +325,7 @@ describe("Chapter Home · each card carries its OWN state (#639)", () => {
       <ExperienceList
         experiences={[experience(1), experience(2)]}
         load={allStart(1, 2)}
+        canRun={RUNS_ANYWHERE}
         onOpen={onOpen}
       />,
     );
@@ -301,6 +345,7 @@ describe("Chapter Home · each card carries its OWN state (#639)", () => {
         load={states(
           state({ guideKey: "guide-1", guideVersion: 1 }, "CONTINUE"),
         )}
+        canRun={RUNS_ANYWHERE}
         onOpen={onOpen}
       />,
     );
@@ -317,6 +362,7 @@ describe("Chapter Home · while the answer is missing", () => {
       <ExperienceList
         experiences={[experience(1), experience(2)]}
         load={LOADING}
+        canRun={RUNS_ANYWHERE}
         onOpen={onOpen}
       />,
     );
@@ -338,6 +384,7 @@ describe("Chapter Home · while the answer is missing", () => {
       <ExperienceList
         experiences={[experience(1), experience(2)]}
         load={FAILED}
+        canRun={RUNS_ANYWHERE}
         onOpen={onOpen}
         onRetry={onRetry}
       />,
@@ -358,6 +405,7 @@ describe("Chapter Home · while the answer is missing", () => {
       <ExperienceList
         experiences={[experience(1)]}
         load={FAILED}
+        canRun={RUNS_ANYWHERE}
         onOpen={onOpen}
       />,
     );
@@ -373,6 +421,7 @@ describe("Chapter Home · while the answer is missing", () => {
       <ExperienceList
         experiences={[experience(1)]}
         load={allStart(1)}
+        canRun={RUNS_ANYWHERE}
         onOpen={onOpen}
       />,
     );
@@ -380,6 +429,113 @@ describe("Chapter Home · while the answer is missing", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByRole("list")).not.toHaveAttribute("aria-busy");
     expect(screen.getByRole("button", { name: /Empezar/ })).toBeEnabled();
+  });
+});
+
+describe("Chapter Home · a verdict this screen cannot act on", () => {
+  it("a known verdict whose resumePin does not run here is visible and disabled", async () => {
+    render(
+      <ExperienceList
+        experiences={[experience(1)]}
+        load={allStart(1)}
+        canRun={RUNS_NOWHERE}
+        onOpen={onOpen}
+      />,
+    );
+
+    // The card is there — the chapter really does publish this journey.
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: /Empezar/ })).toBeNull();
+
+    const cta = screen.getByRole("button", { name: /No disponible aquí/ });
+    expect(cta).toBeDisabled();
+    await userEvent.click(cta);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("says WHY, and says it to a screen reader too", () => {
+    render(
+      <ExperienceList
+        experiences={[experience(1)]}
+        load={allStart(1)}
+        canRun={RUNS_NOWHERE}
+        onOpen={onOpen}
+      />,
+    );
+
+    const note = screen.getByTestId("experience-note-exp-1");
+    expect(note).toHaveTextContent(/no puede abrirse en este capítulo/i);
+    // Not a network failure and not an unanswered question: those have their
+    // own words, and blaming the wrong thing is its own kind of lie.
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(note).not.toHaveTextContent(/no pudimos consultar/i);
+    expect(
+      screen.getByRole("button", { name: /No disponible aquí/ }),
+    ).toHaveAttribute("aria-describedby", note.id);
+  });
+
+  it("asks about resumePin, not the published pin", () => {
+    // CONTINUE for `guide-1@2` because `guide-1@1` is still open. What has to
+    // exist locally is the run the reader would land in.
+    const published = { guideKey: "guide-1", guideVersion: 2 };
+    const resume = { guideKey: "guide-1", guideVersion: 1 };
+    const asked: { guideKey: string; guideVersion: number }[] = [];
+    const canRun = (pin: { guideKey: string; guideVersion: number }) => {
+      asked.push(pin);
+      return pin.guideVersion === 1;
+    };
+
+    render(
+      <ExperienceList
+        experiences={[experience(1, { guidePin: published })]}
+        load={states({
+          guidePin: published,
+          status: "CONTINUE",
+          resumePin: resume,
+        })}
+        canRun={canRun}
+        onOpen={onOpen}
+      />,
+    );
+
+    expect(asked).toEqual([resume]);
+    expect(screen.getByRole("button", { name: /Continuar/ })).toBeEnabled();
+  });
+
+  it("a COMPLETED card that runs here keeps «Ver resumen»", () => {
+    const pin = { guideKey: "guide-1", guideVersion: 1 };
+    render(
+      <ExperienceList
+        experiences={[experience(1, { guidePin: pin })]}
+        load={states(state(pin, "COMPLETED"))}
+        canRun={RUNS_ANYWHERE}
+        onOpen={onOpen}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Ver resumen/ })).toBeEnabled();
+    expect(screen.queryByTestId("experience-note-exp-1")).toBeNull();
+  });
+
+  it("an unknown card and an unrunnable one do not read the same", () => {
+    render(
+      <ExperienceList
+        experiences={[experience(1), experience(2)]}
+        load={states(state({ guideKey: "guide-2", guideVersion: 1 }, "START"))}
+        canRun={RUNS_NOWHERE}
+        onOpen={onOpen}
+      />,
+    );
+
+    const cards = screen.getAllByRole("listitem");
+    // No answer for card 1; an answer we cannot act on for card 2.
+    expect(cards[0]).toHaveAttribute("data-status", "unknown");
+    expect(cards[1]).toHaveAttribute("data-status", "unavailable");
+    expect(screen.getByTestId("experience-note-exp-1")).toHaveTextContent(
+      /no pudimos consultar/i,
+    );
+    expect(screen.getByTestId("experience-note-exp-2")).toHaveTextContent(
+      /no puede abrirse/i,
+    );
   });
 });
 
@@ -391,18 +547,21 @@ describe("experienceCardStatus — the server decides, this only translates", ()
       experienceCardStatus(
         experience(1, { guidePin: pin }),
         states(state(pin, "START")),
+        RUNS_ANYWHERE,
       ),
     ).toBe("start");
     expect(
       experienceCardStatus(
         experience(1, { guidePin: pin }),
         states(state(pin, "CONTINUE")),
+        RUNS_ANYWHERE,
       ),
     ).toBe("continue");
     expect(
       experienceCardStatus(
         experience(1, { guidePin: pin }),
         states(state(pin, "COMPLETED")),
+        RUNS_ANYWHERE,
       ),
     ).toBe("completed");
   });
@@ -412,6 +571,7 @@ describe("experienceCardStatus — the server decides, this only translates", ()
       experienceCardStatus(
         experience(1, { guidePin: pin }),
         states(state({ guideKey: "otra", guideVersion: 1 }, "COMPLETED")),
+        RUNS_ANYWHERE,
       ),
     ).toBe("unknown");
   });
@@ -425,9 +585,27 @@ describe("experienceCardStatus — the server decides, this only translates", ()
       LOADING,
       FAILED,
     ]) {
-      expect(experienceCardStatus(experience(1, { guidePin: pin }), load)).toBe(
-        "unknown",
-      );
+      expect(
+        experienceCardStatus(
+          experience(1, { guidePin: pin }),
+          load,
+          RUNS_ANYWHERE,
+        ),
+      ).toBe("unknown");
+    }
+  });
+
+  it("a verdict whose resumePin cannot run here becomes «unavailable»", () => {
+    // Not «unknown»: the answer arrived and is trusted. What is missing is the
+    // journey itself, on this screen, in this build.
+    for (const status of ["START", "CONTINUE", "COMPLETED"] as const) {
+      expect(
+        experienceCardStatus(
+          experience(1, { guidePin: pin }),
+          states(state(pin, status)),
+          RUNS_NOWHERE,
+        ),
+      ).toBe("unavailable");
     }
   });
 
@@ -442,7 +620,7 @@ describe("experienceCardStatus — the server decides, this only translates", ()
     const a = experience(1, { experienceKey: "eec", guidePin: pin });
     const b = experience(2, { experienceKey: "otra", guidePin: pin });
 
-    expect(experienceCardStatus(a, shared)).toBe("completed");
-    expect(experienceCardStatus(b, shared)).toBe("completed");
+    expect(experienceCardStatus(a, shared, RUNS_ANYWHERE)).toBe("completed");
+    expect(experienceCardStatus(b, shared, RUNS_ANYWHERE)).toBe("completed");
   });
 });

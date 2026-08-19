@@ -226,10 +226,16 @@ describe("the pin that runs", () => {
     );
   });
 
-  it("a picked card runs ITS pin, and never borrows another guide's anchor", async () => {
-    // The foreign journey's anchor belongs to another book's chapter. Running
-    // it here would mean narrating this chapter with someone else's passage —
-    // so it fails closed instead of falling back to the chapter's own guide.
+  it("a card whose pin cannot run HERE is never actionable at all", async () => {
+    /**
+     * The foreign journey's anchor belongs to another book's chapter. Running
+     * it here would narrate this chapter with someone else's passage.
+     *
+     * «Click and nothing opens» used to be the expectation, and that was too
+     * weak: the click stored a pick and switched surface before the panel
+     * refused, so the button read as broken and left a selection behind. The
+     * card is now disabled BEFORE the click, and says why.
+     */
     listPublishedForChapter.mockResolvedValue({ items: [FOREIGN_EXPERIENCE] });
     getExperienceCardStates.mockResolvedValue({
       items: [card(FOREIGN_EXPERIENCE.guidePin)],
@@ -237,12 +243,104 @@ describe("the pin that runs", () => {
     renderReader();
     await openChapterHome();
 
-    fireEvent.click(await screen.findByRole("button", { name: /Empezar/ }));
+    const cta = await screen.findByRole("button", {
+      name: /No disponible aquí/,
+    });
+    expect(cta).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /^Empezar/ })).toBeNull();
+    expect(
+      screen.getByTestId(`experience-note-${FOREIGN_EXPERIENCE.experienceKey}`),
+    ).toHaveTextContent(/no puede abrirse en este capítulo/i);
+
+    fireEvent.click(cta);
     await settle();
 
+    // Nothing moved: no panel, no surface change, and emphatically NOT the
+    // chapter's own guide as a stand-in.
     expect(screen.queryByTestId("reader-guide-panel")).toBeNull();
-    // And emphatically NOT the chapter's own guide as a stand-in.
     expect(screen.queryByTestId("running-pin")).toBeNull();
+    expect(screen.getByTestId("chapter-experiences")).toBeInTheDocument();
+  });
+
+  it("CONTINUE on an older version runs THAT version when it exists here", async () => {
+    // The catalog moved to `@2`, which this build does not ship; the reader's
+    // run is on `@1`, which it does. Executability follows `resumePin`, so the
+    // card is live and the panel opens on the run they are in.
+    const published = { guideKey: EEC_PIN.guideKey, guideVersion: 2 };
+    listPublishedForChapter.mockResolvedValue({
+      items: [{ ...EEC_EXPERIENCE, guidePin: published }],
+    });
+    getExperienceCardStates.mockResolvedValue({
+      items: [{ guidePin: published, status: "CONTINUE", resumePin: EEC_PIN }],
+    });
+    renderReader();
+    await openChapterHome();
+
+    fireEvent.click(await screen.findByRole("button", { name: /Continuar/ }));
+
+    expect(await screen.findByTestId("running-pin")).toHaveTextContent(
+      `${EEC_PIN.guideKey}@${EEC_PIN.guideVersion}`,
+    );
+  });
+
+  it("CONTINUE whose resumePin does NOT exist here is disabled", async () => {
+    // Same published pin, but the run is on a version this build never
+    // shipped. Offering «Continuar» would open nothing.
+    const published = EEC_PIN;
+    const resume = { guideKey: EEC_PIN.guideKey, guideVersion: 7 };
+    getExperienceCardStates.mockResolvedValue({
+      items: [{ guidePin: published, status: "CONTINUE", resumePin: resume }],
+    });
+    renderReader();
+    await openChapterHome();
+
+    expect(
+      await screen.findByRole("button", { name: /No disponible aquí/ }),
+    ).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Continuar/ })).toBeNull();
+  });
+
+  it("a COMPLETED card that runs here keeps «Ver resumen»", async () => {
+    getExperienceCardStates.mockResolvedValue({
+      items: [card(EEC_EXPERIENCE.guidePin, "COMPLETED")],
+    });
+    renderReader();
+    await openChapterHome();
+
+    fireEvent.click(await screen.findByRole("button", { name: /Ver resumen/ }));
+    expect(await screen.findByTestId("running-pin")).toHaveTextContent(
+      `${EEC_PIN.guideKey}@${EEC_PIN.guideVersion}`,
+    );
+  });
+
+  it("becomes live again when the verdict names a resumePin that runs here", async () => {
+    // First answer: a run on a version this build lacks → inert. Then the
+    // reader finishes elsewhere and the next answer names the published pin.
+    const unavailable = {
+      guidePin: EEC_PIN,
+      status: "CONTINUE" as const,
+      resumePin: { guideKey: EEC_PIN.guideKey, guideVersion: 7 },
+    };
+    getExperienceCardStates.mockResolvedValue({ items: [unavailable] });
+    renderReader();
+    await openChapterHome();
+    expect(
+      await screen.findByRole("button", { name: /No disponible aquí/ }),
+    ).toBeDisabled();
+
+    getExperienceCardStates.mockResolvedValue({
+      items: [card(EEC_PIN, "START")],
+    });
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+
+    expect(
+      await screen.findByRole("button", { name: /Empezar/ }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByTestId(`experience-note-${EEC_EXPERIENCE.experienceKey}`),
+    ).toBeNull();
   });
 });
 

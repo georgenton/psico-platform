@@ -77,6 +77,8 @@ const SESSION: GuideSessionView = {
 /** C.1 — the server's verdict per card, the shape the list now consumes. */
 const STATES: ExperienceStatesLoad = {
   status: "ready",
+  requestKey: "k",
+  generation: 1,
   states: new Map([
     [
       "guide-1@1",
@@ -109,6 +111,7 @@ describe("firewall · Chapter Home and Completion Summary", () => {
       <ExperienceList
         experiences={EXPERIENCES}
         load={STATES}
+        canRun={() => true}
         onOpen={() => {}}
       />,
     );

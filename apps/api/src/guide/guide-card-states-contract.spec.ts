@@ -143,32 +143,105 @@ describe("ratchet · parser ↔ client", () => {
     const src = client();
     // The loop that splits, and the constant it steps by.
     expect(src).toMatch(/i \+= GUIDE_CARD_STATES_MAX_PINS/);
-    // All-or-nothing, and an ALIGNMENT check before anything is handed back:
-    // the right number of verdicts, each about the pin it was asked for.
+    // All-or-nothing, and every chunk VALIDATED before any of them is
+    // combined — so a malformed second chunk cannot publish a well-formed
+    // first one.
     expect(src).toMatch(/Promise\.all\(/);
-    expect(src).toMatch(/items\.length === wanted\.length/);
-    expect(src).toMatch(/guidePin\?\.guideKey === wanted\[i\]!\.guideKey/);
-    expect(src).toMatch(
-      /if \(!aligned\) throw new Error\(GUIDE_CARD_STATES_ANSWER_INVALID\);/,
-    );
+    expect(src).toMatch(/validateCardStatesAnswer\(\s*await apiClient\.post/);
+    expect(src).toMatch(/items\.length !== asked\.length/);
     // A cap the client enforces on the WHOLE list would defeat the chunking.
     expect(src).not.toMatch(
       /pins\.length > GUIDE_CARD_STATES_MAX_PINS|wanted\.length > GUIDE_CARD_STATES_MAX_PINS/,
     );
   });
 
-  it("never echoes a rejected pin", () => {
+  it("checks the ANSWER at runtime, not only the request", () => {
+    const src = client();
+    const fn = src.slice(src.indexOf("function validateCardStatesAnswer"));
+    const body = fn.slice(0, fn.indexOf("\n/** A JSON object"));
+
+    // The envelope, closed; the item, closed; both pins parsed by the same
+    // grammar the parser applies on the way in.
+    expect(body).toMatch(
+      /onlyKeys\(answer as Record<string, unknown>, \["items"\]\)/,
+    );
+    expect(body).toMatch(
+      /onlyKeys\(item, \["guidePin", "status", "resumePin"\]\)/,
+    );
+    expect(body).toMatch(/readPin\(item\.guidePin\)/);
+    expect(body).toMatch(/readPin\(item\.resumePin\)/);
+    // Positional alignment against the question actually asked.
+    expect(body).toMatch(/guidePin!\.guideKey !== question\.guideKey/);
+    // And the resumePin rules, which are semantics rather than shape.
+    expect(body).toMatch(
+      /status === "CONTINUE"[\s\S]{0,200}resumePin!\.guideKey !== guidePin!\.guideKey/,
+    );
+    expect(body).toMatch(
+      /resumePin!\.guideVersion !== guidePin!\.guideVersion/,
+    );
+  });
+
+  it("agrees with OpenAPI on the three words a status may be", () => {
+    const item = (
+      GUIDE_CARD_STATES_RESPONSE.properties?.items as {
+        items: Record<string, any>;
+      }
+    ).items;
+    const published: string[] = item.properties.status.enum;
+    const inClient = [...client().matchAll(/status !== "([A-Z]+)"/g)].map(
+      (m) => m[1]!,
+    );
+
+    expect(published.slice().sort()).toEqual([
+      "COMPLETED",
+      "CONTINUE",
+      "START",
+    ]);
+    // The client refuses everything the document does not list. A fourth word
+    // added on one side and not the other is exactly the drift this catches.
+    expect([...new Set(inClient)].sort()).toEqual(published.slice().sort());
+  });
+
+  it("publishes the response as CLOSED, pins included", () => {
+    const item = (
+      GUIDE_CARD_STATES_RESPONSE.properties?.items as {
+        items: Record<string, any>;
+      }
+    ).items;
+    expect(item.additionalProperties).toBe(false);
+    for (const key of ["guidePin", "resumePin"]) {
+      const pin = item.properties[key];
+      expect(pin.additionalProperties).toBe(false);
+      expect(pin.required.slice().sort()).toEqual(["guideKey", "guideVersion"]);
+      expect(pin.properties.guideKey.pattern).toBe(
+        GUIDE_CARD_STATES_KEY_PATTERN,
+      );
+    }
+  });
+
+  it("never echoes what it rejected — sent OR received", () => {
     const src = client();
     const method = src.slice(src.indexOf("getExperienceCardStates:"));
-    const body = method.slice(0, method.indexOf("\n  getRecoverableSession"));
-    // The only strings thrown are the two codes.
-    const thrown = [...body.matchAll(/throw new Error\(([^)]*)\)/g)].map((m) =>
-      m[1]!.trim(),
+    const request = method.slice(
+      0,
+      method.indexOf("\n  getRecoverableSession"),
     );
-    expect(thrown.sort()).toEqual([
+    const validator = src.slice(
+      src.indexOf("function validateCardStatesAnswer"),
+      src.indexOf("\n/** A JSON object"),
+    );
+
+    // Across both halves, the only strings thrown are the two codes: a
+    // rejected pin and a rejected payload are exactly the values that must not
+    // reach a log line.
+    const thrown = [
+      ...`${request}\n${validator}`.matchAll(/throw new Error\(([^)]*)\)/g),
+    ].map((m) => m[1]!.trim());
+    expect([...new Set(thrown)].sort()).toEqual([
       "GUIDE_CARD_STATES_ANSWER_INVALID",
       "GUIDE_CARD_STATES_PARAMS_INVALID",
     ]);
-    expect(body).not.toMatch(/\$\{[^}]*guideKey/);
+    expect(request).not.toMatch(/\$\{[^}]*guideKey/);
+    expect(validator).not.toMatch(/\$\{[^}]*(guideKey|status|item)/);
   });
 });

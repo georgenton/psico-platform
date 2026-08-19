@@ -104,6 +104,25 @@ suite("C.3A · the binding bridge", () => {
     pool = new Pool({ connectionString: url });
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
+    /**
+     * This suite models the BRIDGE phase, and says so to the schema.
+     *
+     * `migrate deploy` applies every migration in the tree, so on the cutover
+     * branch this disposable database also gets the constraint that ENDS the
+     * bridge — the one that makes a row with null binding columns illegal.
+     * Those rows are the whole subject here: they are what the previous binary
+     * writes while both are live.
+     *
+     * Dropping it is not weakening a guarantee. It is stating which phase these
+     * tests are about, in a throwaway database, with `IF EXISTS` so the same
+     * file runs unchanged on the branch where the constraint does not exist yet.
+     * That the constraint refuses those rows is asserted where it belongs, in
+     * `experience-binding-cutover.pg-spec.ts`.
+     */
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE "ChapterExperienceVersion" DROP CONSTRAINT IF EXISTS "ChapterExperienceVersion_binding_shape_check"',
+    );
+
     for (const [slug, title, heading, order] of [
       [BOOK_A, "Emociones en Construcción", HEADING_A, 1],
       [BOOK_B, "Parejas que Perduran", HEADING_B, 2],

@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import {
   applyReservations,
   BackfillAbort,
+  BackfillFailure,
   measureReservations,
   type BackfillReport,
 } from "./experience-reservation-backfill";
@@ -27,10 +28,13 @@ function render(report: BackfillReport): void {
   const lines = [
     `EXPERIENCE_RESERVATION_BACKFILL=${report.applied ? "applied" : "measured"}`,
     `ROWS_CONSIDERED=${report.rowsConsidered}`,
+    `ROWS_LEGACY=${report.rowsLegacy}`,
     `ROWS_ALREADY_MATERIALISED=${report.rowsAlreadyMaterialised}`,
+    `ROWS_WITH_POSITION_DRIFT=${report.rowsWithPositionDrift}`,
     `GROUPS=${report.groups}`,
     `RESERVATIONS_TO_CREATE=${report.reservationsToCreate}`,
     `RESERVATIONS_CREATED=${report.reservationsCreated}`,
+    `RESERVATIONS_REPLAYED=${report.reservationsReplayed}`,
     `COLUMNS_FILLED=${report.columnsFilled}`,
     `ANOMALIES=${report.anomalies.length}`,
   ];
@@ -68,10 +72,13 @@ async function main(): Promise<void> {
     if (err instanceof BackfillAbort) {
       render({
         rowsConsidered: 0,
+        rowsLegacy: 0,
         rowsAlreadyMaterialised: 0,
+        rowsWithPositionDrift: 0,
         groups: 0,
         reservationsToCreate: 0,
         reservationsCreated: 0,
+        reservationsReplayed: 0,
         columnsFilled: 0,
         anomalies: err.anomalies,
         applied: false,
@@ -80,6 +87,13 @@ async function main(): Promise<void> {
         "ABORTED — nothing was written. Fix the catalog and run again.",
       );
       process.exitCode = 3;
+      return;
+    }
+    if (err instanceof BackfillFailure) {
+      // A code and nothing else. A driver message can carry a connection
+      // string or a row's contents, and this output gets pasted into tickets.
+      console.error(`FAILED ${err.code} — nothing was written.`);
+      process.exitCode = 4;
       return;
     }
     throw err;

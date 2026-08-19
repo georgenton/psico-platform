@@ -71,7 +71,7 @@ import { useChapterMediaManifest } from "./media/use-chapter-media";
 import { guideComponentKey, type GuidePin } from "../guide/guide-pin";
 import {
   experiencePinKey,
-  type ExperienceCardStates,
+  type ExperienceStatesLoad,
 } from "../experience/ExperienceList";
 import { resolveGuideWebBundle } from "../guide/guide-web-bundle";
 import { useGuideActorScope } from "../guide/guide-actor-scope";
@@ -363,6 +363,55 @@ export function LectorShell({
    */
   const [pickedPin, setPickedPin] = useState<GuidePin | null>(null);
 
+  /**
+   * The pick is ONE fact in two fields, so it is dropped in one place.
+   *
+   * Letting them diverge is how the surface ends up running journey A's pin
+   * while naming journey B — the shape of #639, rebuilt on the client.
+   */
+  const clearPick = useCallback(() => {
+    setPickedPin(null);
+    setPickedExperience(null);
+  }, []);
+
+  /**
+   * A new chapter is a new catalog. Whatever was picked belonged to the one
+   * the reader just left, and carrying it over would run a journey that is not
+   * on this screen.
+   *
+   * Closing the panel is deliberately NOT here. A reader who dismisses the
+   * guide to check a paragraph and reopens it expects the same journey — the
+   * panel is a surface, not the run.
+   */
+  useEffect(() => {
+    clearPick();
+  }, [bookSlug, chapter.order, clearPick]);
+
+  /**
+   * The picked experience stopped being published.
+   *
+   * Only once discovery has actually ANSWERED: an empty list while the request
+   * is in flight is not the catalog saying the journey is gone, and dropping
+   * the pick on it would eject a reader mid-journey over a slow network. And
+   * the match is by exact key AND version — a republished version is a
+   * different thing to run, not the same card with new contents.
+   */
+  useEffect(() => {
+    if (!pickedExperience) return;
+    if (chapterExperiences.status !== "ready") return;
+    const stillPublished = chapterExperiences.items.some(
+      (item) =>
+        item.experienceKey === pickedExperience.experienceKey &&
+        item.experienceVersion === pickedExperience.experienceVersion,
+    );
+    if (!stillPublished) clearPick();
+  }, [
+    pickedExperience,
+    chapterExperiences.status,
+    chapterExperiences.items,
+    clearPick,
+  ]);
+
   // Text selection state for the popover.
   const [selection, setSelection] = useState<{
     blockId: string;
@@ -505,11 +554,18 @@ export function LectorShell({
    *
    * Anything less and the reader offers no guide at all. It never falls back
    * to another book's guide to fill the gap.
+   *
+   * Condition 3 applies to the CHAPTER's pin only. A picked card already
+   * carries a pin the server decided for that exact experience, so making it
+   * wait on chapter-level discovery would gate a journey on an unrelated
+   * question — and a chapter whose discovery says «no guide here» would refuse
+   * to run an experience it publishes itself. What the pin must never be is
+   * unresolved: conditions 4, 5 and 6 still hold for both paths.
    */
   const guideRuntimeReady =
     guideAvailable === true &&
     guideActorScope !== null &&
-    discovery.status === "available" &&
+    (pickedPin !== null || discovery.status === "available") &&
     runPin !== null &&
     guideBundle !== null &&
     guideAnchor.status === "RESOLVED";
@@ -564,37 +620,112 @@ export function LectorShell({
    * two experiences deliberately bound to the same guide DO share a verdict.
    * That is not a bug to paper over; it is what the binding says.
    */
-  const [experienceStates, setExperienceStates] =
-    useState<ExperienceCardStates>(() => new Map());
+  const [experienceLoad, setExperienceLoad] = useState<ExperienceStatesLoad>({
+    status: "idle",
+  });
   const experiencePins = useMemo(
     () => chapterExperiences.items.map((item) => item.guidePin),
     [chapterExperiences.items],
   );
+
+  /**
+   * The identity of the question currently being asked.
+   *
+   * Two requests can be in flight when the chapter changes or a revalidation
+   * overlaps the first read, and they can land out of order. Without this key
+   * the older answer wins by arriving last, and the cards describe a chapter
+   * the reader already left. Every response is checked against the key that is
+   * current when it arrives, not the one it was sent with.
+   */
+  const experienceRequestKey = useMemo(
+    () =>
+      [
+        bookSlug,
+        chapter.order,
+        ...experiencePins.map((p) => experiencePinKey(p)),
+      ].join("|"),
+    [bookSlug, chapter.order, experiencePins],
+  );
+
+  /**
+   * Bumped to ask the same question again: a manual retry, coming back to the
+   * list, or the tab regaining focus. Separate from the key so a revalidation
+   * does not read as a different question.
+   */
+  const [experienceReloadNonce, setExperienceReloadNonce] = useState(0);
+  const revalidateExperienceStates = useCallback(() => {
+    setExperienceReloadNonce((n) => n + 1);
+  }, []);
+
+  const currentExperienceKeyRef = useRef(experienceRequestKey);
+  currentExperienceKeyRef.current = experienceRequestKey;
+
+  /**
+   * How many questions have been ASKED. The key says what was asked; this says
+   * when. Two revalidations of the same list are the same key and can still
+   * land out of order, so both guards are needed: without the sequence, an
+   * older in-flight read overwrites a newer one simply by being slower.
+   */
+  const experienceSeqRef = useRef(0);
+
   useEffect(() => {
-    if (surface !== "home" || experiencePins.length === 0) {
+    if (surface !== "home") return;
+    if (experiencePins.length === 0) {
+      // Nothing to ask about is a complete answer, not a pending one.
+      setExperienceLoad({ status: "ready", states: new Map() });
       return;
     }
+    const askedFor = experienceRequestKey;
+    const seq = (experienceSeqRef.current += 1);
+    const isCurrent = () =>
+      currentExperienceKeyRef.current === askedFor &&
+      experienceSeqRef.current === seq;
     let cancelled = false;
+    setExperienceLoad({ status: "loading" });
     void (async () => {
       try {
         const answer = await guideApi.getExperienceCardStates(experiencePins);
-        if (cancelled) return;
-        const next = new Map<string, GuideExperienceCardState>();
+        if (cancelled || !isCurrent()) return;
+        const states = new Map<string, GuideExperienceCardState>();
         for (const state of answer.items) {
-          next.set(experiencePinKey(state.guidePin), state);
+          states.set(experiencePinKey(state.guidePin), state);
         }
-        setExperienceStates(next);
+        setExperienceLoad({ status: "ready", states });
       } catch {
-        // A failed read is not a state. Every card falls back to «Empezar»,
-        // which is what an unopened journey looks like anyway — and never to a
-        // status this client invented.
-        if (!cancelled) setExperienceStates(new Map());
+        if (cancelled || !isCurrent()) return;
+        // A failed read is NOT a state. It used to fall back to an empty map,
+        // and an empty map read as «Empezar» on every card — so a network
+        // blip offered a fresh start over a journey already in progress. The
+        // honest answer is «no pudimos saberlo», with a way to ask again.
+        setExperienceLoad({ status: "error" });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [surface, experiencePins]);
+  }, [surface, experiencePins, experienceRequestKey, experienceReloadNonce]);
+
+  /**
+   * Ask again when the reader comes back to the tab or the window.
+   *
+   * A card's verdict is decided by a session that can change elsewhere: on the
+   * phone, in another tab, or by finishing the journey and returning. A state
+   * read once at mount goes stale silently, and a stale «Empezar» over a
+   * running session is exactly the confusion this endpoint exists to remove.
+   */
+  useEffect(() => {
+    if (surface !== "home") return;
+    const onFocus = () => revalidateExperienceStates();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") revalidateExperienceStates();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [surface, revalidateExperienceStates]);
 
   /**
    * What the reader ASKED for and what the chapter can actually give them.
@@ -1471,7 +1602,12 @@ export function LectorShell({
             ? {
                 onPickAnotherExperience: () => {
                   closeGuide({ restoreFocus: false });
-                  setPickedExperience(null);
+                  // ABANDONING the selection, not closing the panel: both
+                  // halves of the pick go. Dropping only the experience left
+                  // `pickedPin` behind, so the generic guided tab would
+                  // silently reopen the journey the reader just walked away
+                  // from — with the chapter's own guide nowhere in sight.
+                  clearPick();
                   openChapterHome();
                 },
               }
@@ -1532,16 +1668,30 @@ export function LectorShell({
           progressPct={progressPct}
           modeViews={modeViews}
           guidedView={guidedView}
+          // The pilot gate and an owner for a session — not the guided tab.
+          // A chapter can publish journeys whose own pins resolve perfectly
+          // while chapter-level discovery names none of them.
+          experiencesEnabled={
+            guideAvailable === true && guideActorScope !== null
+          }
           experiences={chapterExperiences.items}
-          experienceStates={experienceStates}
+          experienceStates={experienceLoad}
+          onRetryExperienceStates={revalidateExperienceStates}
           onOpenExperience={(experience) => {
             // C.1 — the pin the server says to run: the open session's own pin
             // when there is one to continue, the published pin otherwise. A
             // run is never migrated to another version behind the reader.
-            const state = experienceStates.get(
+            //
+            // No verdict, no opening. The published pin used to be the
+            // fallback, which quietly turned «we could not ask» into «start a
+            // fresh run» — and starting fresh is the one thing that can strand
+            // a session the reader already has.
+            if (experienceLoad.status !== "ready") return;
+            const state = experienceLoad.states.get(
               experiencePinKey(experience.guidePin),
             );
-            setPickedPin(state ? state.resumePin : experience.guidePin);
+            if (!state) return;
+            setPickedPin(state.resumePin);
             setPickedExperience(experience);
             openReaderSurface();
             setGuideOpen(true);

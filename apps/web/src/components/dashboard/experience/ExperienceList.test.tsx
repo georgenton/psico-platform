@@ -10,6 +10,7 @@ import {
   experienceCardStatus,
   experiencePinKey,
   type ExperienceCardStates,
+  type ExperienceStatesLoad,
 } from "./ExperienceList";
 
 /**
@@ -50,28 +51,31 @@ function state(
   status: GuideExperienceCardState["status"],
   over: Partial<GuideExperienceCardState> = {},
 ): GuideExperienceCardState {
-  const session =
-    status === "START"
-      ? null
-      : {
-          sessionId: `ses_${pin.guideKey}`,
-          guideKey: pin.guideKey,
-          guideVersion: pin.guideVersion,
-          status:
-            status === "COMPLETED"
-              ? ("COMPLETED" as const)
-              : ("ACTIVE" as const),
-          stepsCompleted: status === "COMPLETED" ? 3 : 1,
-          totalSteps: 3,
-          currentStepKey: status === "COMPLETED" ? null : "paso",
-        };
-  return { guidePin: pin, status, session, resumePin: pin, ...over };
+  return { guidePin: pin, status, resumePin: pin, ...over };
 }
 
-const states = (...entries: GuideExperienceCardState[]): ExperienceCardStates =>
-  new Map(entries.map((s) => [experiencePinKey(s.guidePin), s]));
+/** A finished load carrying these verdicts and no others. */
+const states = (
+  ...entries: GuideExperienceCardState[]
+): ExperienceStatesLoad => ({
+  status: "ready",
+  states: new Map(
+    entries.map((s) => [experiencePinKey(s.guidePin), s]),
+  ) as ExperienceCardStates,
+});
 
-const NONE: ExperienceCardStates = new Map();
+/** A finished load that answered about nothing — every card is unknown. */
+const NONE: ExperienceStatesLoad = { status: "ready", states: new Map() };
+
+/** A finished load that answers START for every pin these fixtures use. */
+const allStart = (...ns: number[]): ExperienceStatesLoad =>
+  states(
+    ...ns.map((n) =>
+      state({ guideKey: `guide-${n}`, guideVersion: 1 }, "START"),
+    ),
+  );
+const LOADING: ExperienceStatesLoad = { status: "loading" };
+const FAILED: ExperienceStatesLoad = { status: "error" };
 
 const onOpen = vi.fn();
 
@@ -82,7 +86,7 @@ beforeEach(() => {
 
 describe("Chapter Home · cardinality", () => {
   it("0 experiences — the section does not exist", () => {
-    render(<ExperienceList experiences={[]} states={NONE} onOpen={onOpen} />);
+    render(<ExperienceList experiences={[]} load={NONE} onOpen={onOpen} />);
 
     expect(screen.queryByTestId("chapter-experiences")).toBeNull();
     expect(screen.queryByRole("heading")).toBeNull();
@@ -96,7 +100,7 @@ describe("Chapter Home · cardinality", () => {
     render(
       <ExperienceList
         experiences={[experience(1)]}
-        states={NONE}
+        load={NONE}
         onOpen={onOpen}
       />,
     );
@@ -114,7 +118,7 @@ describe("Chapter Home · cardinality", () => {
     render(
       <ExperienceList
         experiences={[experience(1), experience(2), experience(3)]}
-        states={NONE}
+        load={NONE}
         onOpen={onOpen}
       />,
     );
@@ -131,7 +135,7 @@ describe("Chapter Home · cardinality", () => {
     render(
       <ExperienceList
         experiences={[experience(1), experience(2), experience(3)]}
-        states={states(
+        load={states(
           state({ guideKey: "guide-3", guideVersion: 1 }, "COMPLETED"),
           state({ guideKey: "guide-2", guideVersion: 1 }, "CONTINUE"),
         )}
@@ -147,7 +151,7 @@ describe("Chapter Home · cardinality", () => {
 
   it("10 experiences — all ten, no editorial cap", () => {
     const many = Array.from({ length: 10 }, (_, i) => experience(i + 1));
-    render(<ExperienceList experiences={many} states={NONE} onOpen={onOpen} />);
+    render(<ExperienceList experiences={many} load={NONE} onOpen={onOpen} />);
 
     expect(screen.getAllByRole("listitem")).toHaveLength(10);
     expect(screen.getByText("Experiencia 10")).toBeInTheDocument();
@@ -158,7 +162,7 @@ describe("Chapter Home · cardinality", () => {
     render(
       <ExperienceList
         experiences={[experience(1), experience(2)]}
-        states={NONE}
+        load={allStart(1, 2)}
         onOpen={onOpen}
       />,
     );
@@ -187,7 +191,7 @@ describe("Chapter Home · each card carries its OWN state (#639)", () => {
     render(
       <ExperienceList
         experiences={[experience(1), experience(2)]}
-        states={states(
+        load={states(
           state({ guideKey: "guide-1", guideVersion: 1 }, "COMPLETED"),
           state({ guideKey: "guide-2", guideVersion: 1 }, "START"),
         )}
@@ -211,7 +215,7 @@ describe("Chapter Home · each card carries its OWN state (#639)", () => {
     render(
       <ExperienceList
         experiences={[experience(1), experience(2)]}
-        states={states(
+        load={states(
           state({ guideKey: "guide-1", guideVersion: 1 }, "START"),
           state({ guideKey: "guide-2", guideVersion: 1 }, "CONTINUE"),
         )}
@@ -235,22 +239,13 @@ describe("Chapter Home · each card carries its OWN state (#639)", () => {
     const older: GuideExperienceCardState = {
       guidePin: published,
       status: "CONTINUE",
-      session: {
-        sessionId: "ses_old",
-        guideKey: "guide-1",
-        guideVersion: 1,
-        status: "ACTIVE",
-        stepsCompleted: 2,
-        totalSteps: 3,
-        currentStepKey: "paso-2",
-      },
       resumePin: { guideKey: "guide-1", guideVersion: 1 },
     };
 
     render(
       <ExperienceList
         experiences={[experience(1, { guidePin: published })]}
-        states={states(older)}
+        load={states(older)}
         onOpen={onOpen}
       />,
     );
@@ -261,25 +256,32 @@ describe("Chapter Home · each card carries its OWN state (#639)", () => {
     expect(screen.getByText(/En curso/)).toBeInTheDocument();
   });
 
-  it("a card with no answer reads Empezar, never a guess", () => {
-    // The batch failed, or the server said nothing about this pin.
+  it("a card with no answer is INERT — never «Empezar»", async () => {
+    // The batch came back without this pin. «Empezar» would offer a fresh run
+    // over a journey that may already be in progress, so the card offers
+    // nothing at all and says so.
     render(
       <ExperienceList
         experiences={[experience(1)]}
-        states={NONE}
+        load={NONE}
         onOpen={onOpen}
       />,
     );
-    expect(screen.getByRole("button", { name: /Empezar/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Empezar/ })).toBeNull();
     expect(screen.queryByText(/En curso/)).toBeNull();
     expect(screen.queryByText(/Completada/)).toBeNull();
+
+    const cta = screen.getByRole("button", { name: /No disponible/ });
+    expect(cta).toBeDisabled();
+    await userEvent.click(cta);
+    expect(onOpen).not.toHaveBeenCalled();
   });
 
   it("rendering a card starts nothing — opening is a tap", async () => {
     render(
       <ExperienceList
         experiences={[experience(1), experience(2)]}
-        states={NONE}
+        load={allStart(1, 2)}
         onOpen={onOpen}
       />,
     );
@@ -296,16 +298,88 @@ describe("Chapter Home · each card carries its OWN state (#639)", () => {
     const { container } = render(
       <ExperienceList
         experiences={[experience(1)]}
-        states={states(
+        load={states(
           state({ guideKey: "guide-1", guideVersion: 1 }, "CONTINUE"),
         )}
         onOpen={onOpen}
       />,
     );
     const html = container.innerHTML;
-    expect(html).not.toContain("ses_guide-1");
+    expect(html).not.toMatch(/ses_|sessionId/);
     expect(html).not.toContain("guideKey");
     expect(html).not.toMatch(/GUIDE_[A-Z_]+/);
+  });
+});
+
+describe("Chapter Home · while the answer is missing", () => {
+  it("says it is asking, and no card can be opened yet", async () => {
+    render(
+      <ExperienceList
+        experiences={[experience(1), experience(2)]}
+        load={LOADING}
+        onOpen={onOpen}
+      />,
+    );
+
+    // Announced, not just drawn: a reader who cannot see the list still gets
+    // told the verdicts are in flight.
+    expect(screen.getByRole("status")).toHaveTextContent(/consultando/i);
+    expect(screen.getByRole("list")).toHaveAttribute("aria-busy", "true");
+    for (const button of screen.getAllByRole("button")) {
+      expect(button).toBeDisabled();
+    }
+    await userEvent.click(screen.getAllByRole("button")[0]!);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("a failure says so and offers a retry — it does not invent «Empezar»", async () => {
+    const onRetry = vi.fn();
+    render(
+      <ExperienceList
+        experiences={[experience(1), experience(2)]}
+        load={FAILED}
+        onOpen={onOpen}
+        onRetry={onRetry}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/no pudimos/i);
+    expect(screen.queryByRole("button", { name: /Empezar/ })).toBeNull();
+    // The list is still there — the chapter's catalog is not what failed.
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+
+    await userEvent.click(screen.getByRole("button", { name: /Reintentar/ }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("without a retry handler there is no retry button, and no fake CTA", () => {
+    render(
+      <ExperienceList
+        experiences={[experience(1)]}
+        load={FAILED}
+        onOpen={onOpen}
+      />,
+    );
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Reintentar/ })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /No disponible/ }),
+    ).toBeDisabled();
+  });
+
+  it("a ready answer clears both the notice and the alert", () => {
+    render(
+      <ExperienceList
+        experiences={[experience(1)]}
+        load={allStart(1)}
+        onOpen={onOpen}
+      />,
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("list")).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("button", { name: /Empezar/ })).toBeEnabled();
   });
 });
 
@@ -339,7 +413,22 @@ describe("experienceCardStatus — the server decides, this only translates", ()
         experience(1, { guidePin: pin }),
         states(state({ guideKey: "otra", guideVersion: 1 }, "COMPLETED")),
       ),
-    ).toBe("start");
+    ).toBe("unknown");
+  });
+
+  it("an unfinished load is «unknown», not «start»", () => {
+    // The distinction the whole fail-closed rule rests on: "we have not asked
+    // yet" and "you have not started" are different facts, and only one of
+    // them is safe to offer a button for.
+    for (const load of [
+      { status: "idle" } as ExperienceStatesLoad,
+      LOADING,
+      FAILED,
+    ]) {
+      expect(experienceCardStatus(experience(1, { guidePin: pin }), load)).toBe(
+        "unknown",
+      );
+    }
   });
 
   it("two experiences on the SAME binding share their state, honestly", () => {

@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { ChapterExperiencePublicView } from "@psico/types";
 import {
   ExperienceList,
-  type ExperienceCardStates,
+  type ExperienceStatesLoad,
 } from "../experience/ExperienceList";
 import type { BookExperienceModeView } from "./book-experience";
 import {
@@ -57,6 +57,11 @@ export interface ChapterExperienceHomeProps {
   /** The guided-reading surface, from Guide discovery. Hidden until PUBLISHED. */
   guidedView: BookExperienceModeView;
   /**
+   * Whether this reader may be offered guided journeys at all — the pilot gate
+   * and an actor to own a session. Deliberately NOT the guided tab's state.
+   */
+  experiencesEnabled: boolean;
+  /**
    * GR-7 — the experiences discovery published for this chapter, in the
    * server's order. Empty means the section does not exist: a chapter without
    * a journey is a complete chapter, and "no hay experiencias" is a worse
@@ -64,11 +69,14 @@ export interface ChapterExperienceHomeProps {
    */
   experiences: readonly ChapterExperiencePublicView[];
   /**
-   * C.1 — the server's verdict per published pin, from ONE batch read. Each
-   * card takes its own; none of them shares another's.
+   * C.1 — the server's verdict per published pin, from ONE batch read, plus
+   * whether we have it at all. Each card takes its own; none of them shares
+   * another's; and a card we could not ask about offers nothing.
    */
-  experienceStates: ExperienceCardStates;
+  experienceStates: ExperienceStatesLoad;
   onOpenExperience: (experience: ChapterExperiencePublicView) => void;
+  /** Ask the card-state question again after a failure. */
+  onRetryExperienceStates?: () => void;
   /**
    * How many activities and exercises this chapter really shows, counted once
    * each. Curated activities and the chapter's own exercise list are two
@@ -129,8 +137,10 @@ export function ChapterExperienceHome({
   progressPct,
   modeViews,
   guidedView,
+  experiencesEnabled,
   experiences,
   experienceStates,
+  onRetryExperienceStates,
   onOpenExperience,
   activityCount,
   onContinueReading,
@@ -173,9 +183,14 @@ export function ChapterExperienceHome({
   //
   // The pilot gate still decides whether ANY of this is offered: a closed
   // gate means no cards, whatever discovery published.
-  const experiencesVisible =
-    isModeVisible(guidedView) && isModeEnabled(guidedView);
-  const visibleExperiences = experiencesVisible ? experiences : [];
+  //
+  // C.1 — what it must NOT depend on is the guided TAB. That tab is about the
+  // chapter's own pin; these cards are about the journeys the catalog
+  // published here. Deriving the list from `guidedView` made a chapter whose
+  // guide discovery answers «nothing here» hide experiences it publishes
+  // itself, and left a picked journey unrunnable for a reason that has nothing
+  // to do with it.
+  const visibleExperiences = experiencesEnabled ? experiences : [];
 
   if (activityCount > 0) {
     rows.push({
@@ -331,8 +346,9 @@ export function ChapterExperienceHome({
 
       <ExperienceList
         experiences={visibleExperiences}
-        states={experienceStates}
+        load={experienceStates}
         onOpen={onOpenExperience}
+        onRetry={onRetryExperienceStates}
       />
 
       <div className="mt-7 flex flex-wrap gap-3">

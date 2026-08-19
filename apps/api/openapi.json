@@ -15251,7 +15251,8 @@
                         },
                         "guideVersion": {
                           "type": "integer",
-                          "minimum": 1
+                          "minimum": 1,
+                          "maximum": 999999999
                         }
                       }
                     },
@@ -15282,7 +15283,6 @@
                         "required": [
                           "guidePin",
                           "status",
-                          "session",
                           "resumePin"
                         ],
                         "properties": {
@@ -15302,7 +15302,8 @@
                               },
                               "guideVersion": {
                                 "type": "integer",
-                                "minimum": 1
+                                "minimum": 1,
+                                "maximum": 999999999
                               }
                             }
                           },
@@ -15314,64 +15315,6 @@
                               "COMPLETED"
                             ],
                             "description": "CONTINUE si hay una sesión ACTIVE del mismo guideKey, sea cual sea su versión; COMPLETED solo si el pin EXACTO está completado; START en cualquier otro caso."
-                          },
-                          "session": {
-                            "oneOf": [
-                              {
-                                "type": "object",
-                                "additionalProperties": false,
-                                "required": [
-                                  "sessionId",
-                                  "guideKey",
-                                  "guideVersion",
-                                  "status",
-                                  "stepsCompleted",
-                                  "totalSteps",
-                                  "currentStepKey"
-                                ],
-                                "properties": {
-                                  "sessionId": {
-                                    "type": "string"
-                                  },
-                                  "guideKey": {
-                                    "type": "string",
-                                    "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
-                                    "minLength": 1,
-                                    "maxLength": 200
-                                  },
-                                  "guideVersion": {
-                                    "type": "integer",
-                                    "minimum": 1
-                                  },
-                                  "status": {
-                                    "type": "string",
-                                    "enum": [
-                                      "ACTIVE",
-                                      "COMPLETED",
-                                      "CANCELLED"
-                                    ]
-                                  },
-                                  "stepsCompleted": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
-                                  },
-                                  "totalSteps": {
-                                    "type": "integer",
-                                    "minimum": 1
-                                  },
-                                  "currentStepKey": {
-                                    "type": "string",
-                                    "nullable": true,
-                                    "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
-                                  }
-                                }
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ],
-                            "description": "La sesión que sostiene el veredicto. Su pin puede diferir de `guidePin`: continuar nunca migra una sesión de versión."
                           },
                           "resumePin": {
                             "type": "object",
@@ -15389,7 +15332,8 @@
                               },
                               "guideVersion": {
                                 "type": "integer",
-                                "minimum": 1
+                                "minimum": 1,
+                                "maximum": 999999999
                               }
                             },
                             "description": "El pin que debe ejecutarse al pulsar: el de la sesión abierta cuando la hay, el publicado en caso contrario."

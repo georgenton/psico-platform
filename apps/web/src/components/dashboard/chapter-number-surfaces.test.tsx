@@ -184,8 +184,9 @@ describe("PAREJAS_CHAPTER_HOME_DOES_NOT_SHOW_PLATFORM_ORDER", () => {
           ver: mode({ kind: "VIDEO", state: "HIDDEN", label: "Ver" }),
         }}
         guidedView={mode({ kind: "GUIDED", state: "HIDDEN", label: "Guiada" })}
+        experiencesEnabled={false}
         experiences={[]}
-        experienceStates={new Map()}
+        experienceStates={{ status: "ready", states: new Map() }}
         onOpenExperience={() => {}}
         activityCount={0}
         onContinueReading={() => {}}

@@ -13319,18 +13319,6 @@ export interface operations {
                              * @enum {string}
                              */
                             status: PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsStatus;
-                            /** @description La sesión que sostiene el veredicto. Su pin puede diferir de `guidePin`: continuar nunca migra una sesión de versión. */
-                            session: {
-                                sessionId: string;
-                                guideKey: string;
-                                guideVersion: number;
-                                /** @enum {string} */
-                                status: PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsSessionOneOf0Status;
-                                /** @description Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents. */
-                                stepsCompleted: number;
-                                totalSteps: number;
-                                currentStepKey: string | null;
-                            } | null;
                             /** @description El pin que debe ejecutarse al pulsar: el de la sesión abierta cuando la hay, el publicado en caso contrario. */
                             resumePin: {
                                 guideKey: string;
@@ -18987,11 +18975,6 @@ export enum PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonI
     START = "START",
     CONTINUE = "CONTINUE",
     COMPLETED = "COMPLETED"
-}
-export enum PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsSessionOneOf0Status {
-    ACTIVE = "ACTIVE",
-    COMPLETED = "COMPLETED",
-    CANCELLED = "CANCELLED"
 }
 export enum PathsApiGuideSessionsRecoverableGetResponses200ContentApplicationJsonOneOf1SessionStatus {
     ACTIVE = "ACTIVE",

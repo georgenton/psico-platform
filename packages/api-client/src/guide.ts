@@ -20,6 +20,23 @@ export const GUIDE_DISCOVERY_PARAMS_INVALID = "GUIDE_DISCOVERY_PARAMS_INVALID";
 /** The one code a locally-rejected recovery pin reports (GR-5). */
 export const GUIDE_RECOVERY_PARAMS_INVALID = "GUIDE_RECOVERY_PARAMS_INVALID";
 
+/** The one code a locally-rejected card-state batch reports (C.1). */
+export const GUIDE_CARD_STATES_PARAMS_INVALID =
+  "GUIDE_CARD_STATES_PARAMS_INVALID";
+
+/** The one code a card-state batch reports when the answer does not fit. */
+export const GUIDE_CARD_STATES_ANSWER_INVALID =
+  "GUIDE_CARD_STATES_ANSWER_INVALID";
+
+/**
+ * The server's own limits, restated so the client refuses what the server
+ * would refuse — and so a chapter longer than one batch is chunked instead of
+ * rejected. A ratchet compares these against the parser and the OpenAPI
+ * document; the server stays the authority either way.
+ */
+export const GUIDE_CARD_STATES_MAX_PINS = 25;
+export const GUIDE_CARD_STATES_MAX_VERSION = 999_999_999;
+
 /**
  * The catalog's key grammar, restated: lowercase, bounded, no spaces. Same
  * shape `parseGuideRecoveryQuery` enforces on the server.
@@ -138,25 +155,67 @@ export const guideApi = {
    * Pins are NOT deduped here: two experiences bound to the same guide really
    * do share a state, and the caller maps answers back by position.
    */
-  getExperienceCardStates: (
+  getExperienceCardStates: async (
     pins: ReadonlyArray<{ guideKey: string; guideVersion: number }>,
-  ) => {
-    const invalid = pins.some(
-      (pin) =>
-        typeof pin?.guideKey !== "string" ||
-        !GUIDE_KEY_RE.test(pin.guideKey) ||
-        !Number.isInteger(pin?.guideVersion) ||
-        pin.guideVersion <= 0,
-    );
-    if (pins.length === 0 || invalid) {
+  ): Promise<GuideExperienceCardStatesResponse> => {
+    const invalid =
+      pins.length === 0 ||
+      pins.some(
+        (pin) =>
+          typeof pin?.guideKey !== "string" ||
+          !GUIDE_KEY_RE.test(pin.guideKey) ||
+          typeof pin?.guideVersion !== "number" ||
+          !Number.isInteger(pin.guideVersion) ||
+          pin.guideVersion <= 0 ||
+          pin.guideVersion > GUIDE_CARD_STATES_MAX_VERSION,
+      );
+    if (invalid) {
       // The rejected pin is NOT echoed — untrusted input does not travel into
       // an error message that something will eventually log.
-      return Promise.reject(new Error(GUIDE_RECOVERY_PARAMS_INVALID));
+      throw new Error(GUIDE_CARD_STATES_PARAMS_INVALID);
     }
-    return apiClient.post<GuideExperienceCardStatesResponse>(
-      "/guide/experiences/state",
-      { pins: pins.map((p) => ({ ...p })) },
+
+    // A chapter longer than one batch is a chapter, not a caller error: split
+    // it into `ceil(n / 25)` requests and reassemble. `pins` is copied
+    // defensively — a caller mutating its array mid-flight must not be able to
+    // change what a chunk asked about after the fact.
+    const wanted = pins.map((p) => ({
+      guideKey: p.guideKey,
+      guideVersion: p.guideVersion,
+    }));
+    const chunks: (typeof wanted)[] = [];
+    for (let i = 0; i < wanted.length; i += GUIDE_CARD_STATES_MAX_PINS) {
+      chunks.push(wanted.slice(i, i + GUIDE_CARD_STATES_MAX_PINS));
+    }
+
+    // All-or-nothing: a partial batch would leave some cards holding a verdict
+    // and others holding a guess, which is the defect #639 is about. One
+    // failed chunk rejects the whole call and the caller shows an error.
+    const answers = await Promise.all(
+      chunks.map((chunk) =>
+        apiClient.post<GuideExperienceCardStatesResponse>(
+          "/guide/experiences/state",
+          { pins: chunk },
+        ),
+      ),
     );
+
+    const items = answers.flatMap((answer) => answer?.items ?? []);
+    // Positional mapping is the whole contract, so it is CHECKED rather than
+    // assumed. A short answer cannot be aligned at all; an answer of the right
+    // length whose pins do not match the questions is worse, because it lines
+    // up perfectly and describes the wrong journeys. Both are a failed batch —
+    // never a truncation, a padding, or a card quietly holding somebody else's
+    // verdict.
+    const aligned =
+      items.length === wanted.length &&
+      items.every(
+        (item, i) =>
+          item?.guidePin?.guideKey === wanted[i]!.guideKey &&
+          item?.guidePin?.guideVersion === wanted[i]!.guideVersion,
+      );
+    if (!aligned) throw new Error(GUIDE_CARD_STATES_ANSWER_INVALID);
+    return { items };
   },
 
   getRecoverableSession: (pin: { guideKey: string; guideVersion: number }) => {

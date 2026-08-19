@@ -102,6 +102,45 @@ describe("parseGuideCardStatesBody · what it refuses", () => {
     refuses({ pins: [pin(), pin({ guideVersion: 0 })] });
   });
 
+  it("refuses an unknown property at the ROOT", () => {
+    // Not "ignored": a caller sending `userId` or `force` would otherwise read
+    // the 200 as "accepted", and this endpoint implements neither.
+    refuses({ pins: [pin()], userId: "u1" });
+    refuses({ pins: [pin()], force: true });
+    refuses({ pins: [pin()], includeSession: true });
+    refuses({ Pins: [pin()] }); // casing is a different field, not a hint
+  });
+
+  it("refuses an unknown property INSIDE a pin", () => {
+    // `guideVerison` is the expensive one: silently dropped, the answer would
+    // be about `guideVersion: undefined` — a confident verdict about a
+    // question nobody asked.
+    refuses({ pins: [{ guideKey: "eec-c1", guideVerison: 1 }] });
+    refuses({ pins: [pin({ extra: 1 })] });
+    refuses({ pins: [pin(), pin({ sessionId: "ses_1" })] });
+  });
+
+  it("refuses an array where an object belongs", () => {
+    refuses([{ pins: [pin()] }]);
+    refuses({ pins: [[]] });
+  });
+
+  it("is not fooled by a prototype-shaped payload", () => {
+    // `JSON.parse` puts `__proto__` on the object as an own key, so it is an
+    // unknown property like any other — refused, not silently absorbed.
+    refuses(
+      JSON.parse(
+        '{"pins":[{"guideKey":"eec","guideVersion":1}],' +
+          '"__proto__":{"admin":true}}',
+      ),
+    );
+    refuses(
+      JSON.parse(
+        '{"pins":[{"guideKey":"eec","guideVersion":1,"__proto__":{"a":1}}]}',
+      ),
+    );
+  });
+
   it("never echoes the rejected value", () => {
     try {
       parseGuideCardStatesBody({ pins: [pin({ guideKey: "SECRETO-Raro" })] });

@@ -466,11 +466,12 @@ export class GuideLifecycleService {
    * experiences therefore shared one state — finish one and the other read
    * «Completada» without anybody opening it.
    *
-   * Three reads, whatever the list's length:
+   * TWO reads, whatever the list's length:
    *
    *   1. the ACTIVE sessions of the distinct lineages;
-   *   2. every session of the exact published pins;
-   *   3. the accepted steps of the sessions those two produced.
+   *   2. the LATEST session of each exact published pin — at most one row per
+   *      pin, so a reader who restarted the same journey twenty times costs
+   *      exactly what a reader who never did.
    *
    * Precedence per card, and the order matters:
    *
@@ -482,7 +483,9 @@ export class GuideLifecycleService {
    *   3. otherwise → START, on the published pin.
    *
    * A CANCELLED session is not a state: the reader withdrew, and the honest
-   * answer is START. The response echoes the requested order and repeats the
+   * answer is START — including when an earlier run of the SAME pin was
+   * completed and then restarted and abandoned, because the last outcome is
+   * the one the reader is living in. The response echoes the requested order and repeats the
    * answer for a repeated pin — two experiences deliberately bound to the same
    * guide DO share a lineage, and pretending otherwise would invent an
    * independence the data does not have.
@@ -493,75 +496,27 @@ export class GuideLifecycleService {
   ): Promise<GuideExperienceCardState[]> {
     if (pins.length === 0) return [];
 
+    // TWO reads, whatever the list's length. A card shows a word and a
+    // destination, so nothing here projects the ledger: the third read this
+    // used to do existed only to fill a `session` the cards never displayed.
     const [activeRows, exactRows] = await Promise.all([
       this.sessions.findActiveOwnForGuideKeys(
         userId,
         pins.map((p) => p.guideKey),
       ),
-      this.sessions.findOwnForExactPins(userId, pins),
+      this.sessions.findLatestOwnPerExactPin(userId, pins),
     ]);
 
     const activeByKey = new Map<string, GuideSessionRow>();
     for (const row of activeRows) {
       if (!activeByKey.has(row.guideKey)) activeByKey.set(row.guideKey, row);
     }
-    // Newest first per pin comes from the repository's ordering; the first row
-    // seen for a pin is therefore the latest one.
+    // One row per pin comes from the repository; this map is a lookup, not a
+    // reduction.
     const exactByPin = new Map<string, GuideSessionRow>();
     for (const row of exactRows) {
-      const k = `${row.guideKey}@${row.guideVersion}`;
-      if (!exactByPin.has(k)) exactByPin.set(k, row);
+      exactByPin.set(`${row.guideKey}@${row.guideVersion}`, row);
     }
-
-    // The sessions any card actually cites — and only those. Steps for a
-    // session nobody will mention are work nobody asked for.
-    const cited = new Map<string, GuideSessionRow>();
-    for (const pin of pins) {
-      const active = activeByKey.get(pin.guideKey);
-      if (active) cited.set(active.id, active);
-      const exact = exactByPin.get(`${pin.guideKey}@${pin.guideVersion}`);
-      if (exact && exact.status === "COMPLETED") cited.set(exact.id, exact);
-    }
-    const steps = await this.steps.listAcceptedForSessions([...cited.keys()]);
-    const stepsBySession = new Map<string, typeof steps>();
-    for (const row of steps) {
-      const list = stepsBySession.get(row.sessionId) ?? [];
-      list.push(row);
-      stepsBySession.set(row.sessionId, list);
-    }
-
-    /** The public view of a session, or `null` when its pin left the registry. */
-    const viewOf = (row: GuideSessionRow): GuideSessionView | null => {
-      let definition: GuideDefinition;
-      try {
-        definition = productionGuideRegistry.getExact(
-          row.guideKey,
-          row.guideVersion,
-        );
-      } catch {
-        // A session pinned to a version this build no longer ships cannot be
-        // projected, so it is not cited at all — the card falls back to START
-        // rather than reporting a shape we cannot compute.
-        return null;
-      }
-      const accepted = (stepsBySession.get(row.id) ?? []).map((r) =>
-        parseAcceptedGuideStepRow(r),
-      );
-      const projection = deriveGuideProjection(
-        definition,
-        accepted,
-        row.status,
-      );
-      return {
-        sessionId: row.id,
-        guideKey: row.guideKey,
-        guideVersion: row.guideVersion,
-        status: row.status,
-        stepsCompleted: projection.stepsCompleted,
-        totalSteps: projection.totalSteps,
-        currentStepKey: projection.currentStepKey,
-      };
-    };
 
     return pins.map((pin) => {
       const published = {
@@ -569,41 +524,37 @@ export class GuideLifecycleService {
         guideVersion: pin.guideVersion,
       };
 
+      // 1. An ACTIVE run of this lineage wins, on its OWN pin. The registry is
+      //    deliberately not consulted: a run pinned to a version this build no
+      //    longer ships still exists, and answering START would strand it.
       const active = activeByKey.get(pin.guideKey);
       if (active) {
-        const view = viewOf(active);
-        if (view) {
-          return {
-            guidePin: published,
-            status: "CONTINUE" as GuideExperienceCardStatus,
-            session: view,
-            // The session's OWN pin: continuing must never move a run to
-            // another version.
-            resumePin: {
-              guideKey: view.guideKey,
-              guideVersion: view.guideVersion,
-            },
-          };
-        }
+        return {
+          guidePin: published,
+          status: "CONTINUE" as GuideExperienceCardStatus,
+          resumePin: {
+            guideKey: active.guideKey,
+            guideVersion: active.guideVersion,
+          },
+        };
       }
 
+      // 2. Otherwise the EXACT published pin, finished. Completion does not
+      //    cross versions.
       const exact = exactByPin.get(`${pin.guideKey}@${pin.guideVersion}`);
       if (exact && exact.status === "COMPLETED") {
-        const view = viewOf(exact);
-        if (view) {
-          return {
-            guidePin: published,
-            status: "COMPLETED" as GuideExperienceCardStatus,
-            session: view,
-            resumePin: published,
-          };
-        }
+        return {
+          guidePin: published,
+          status: "COMPLETED" as GuideExperienceCardStatus,
+          resumePin: published,
+        };
       }
 
+      // 3. Otherwise a fresh run of the published pin. A CANCELLED session is
+      //    not a state: the reader withdrew.
       return {
         guidePin: published,
         status: "START" as GuideExperienceCardStatus,
-        session: null,
         resumePin: published,
       };
     });

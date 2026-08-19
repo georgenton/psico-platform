@@ -21,7 +21,13 @@ import type { PrismaClient } from "@prisma/client";
  * an id, or a catalog key.
  */
 
-export type GuideSessionDb = Pick<PrismaClient, "guideSession">;
+/**
+ * The client surface this repository is allowed to touch. `$queryRaw` is part
+ * of it because ONE read — the latest session per exact pin — needs PostgreSQL
+ * to do the picking (see `findLatestOwnPerExactPin`); it is never a licence to
+ * build SQL from values, which stay parameters in every call.
+ */
+export type GuideSessionDb = Pick<PrismaClient, "guideSession" | "$queryRaw">;
 
 /** Sanitized storage failure — the value-free replacement for EVERY upstream
  * error. `cause` is never set (driver text can embed values). */
@@ -244,18 +250,28 @@ export class GuideSessionRepository {
   }
 
   /**
-   * C.1 — the LATEST session per EXACT pin, for several pins at once.
+   * C.1 — the LATEST session per EXACT pin, and NOTHING else.
    *
-   * The lineage read above cannot answer "did I finish this exact version?",
-   * and completion never crosses versions: finishing `A@v1` says nothing about
-   * `A@v2`. So this is the second half of a card's verdict, and it is one
-   * query rather than one per card.
+   * The lineage read cannot answer "did I finish this exact version?", and
+   * completion never crosses versions: finishing `A@v1` says nothing about
+   * `A@v2`. So this is the second half of a card's verdict, in one query
+   * rather than one per card.
    *
-   * Returns every matching row, newest first per pin; the caller picks the
-   * first for each. Doing the grouping here would hide from the caller that
-   * "latest" is a decision, and the ordering is the decision.
+   * At most ONE row comes back per requested pin. That bound is the point: a
+   * reader who has started and cancelled the same journey twenty times has
+   * twenty rows for that pin, and returning all of them would make a card's
+   * cost grow with somebody's history. `DISTINCT ON` lets PostgreSQL do the
+   * picking, so the rows never leave the server in the first place.
+   *
+   * Newest first, with `id` as the tie-break: two sessions can share a
+   * `startedAt` to the microsecond, and a read that decides a card must not
+   * depend on planner order.
+   *
+   * Values are PARAMETERS, never interpolated — the pin comes from a request
+   * body, and `$queryRaw` with a tagged template is what makes that structural
+   * instead of a promise in a comment.
    */
-  async findOwnForExactPins(
+  async findLatestOwnPerExactPin(
     userId: string,
     pins: readonly { guideKey: string; guideVersion: number }[],
     db?: GuideSessionDb,
@@ -265,29 +281,26 @@ export class GuideSessionRepository {
     // Distinct pins only: a repeated pin asks the same question twice, and the
     // caller maps answers back by pin anyway.
     const seen = new Set<string>();
-    const distinct = pins.filter((p) => {
-      const k = `${p.guideKey}@${p.guideVersion}`;
-      if (seen.has(k)) return false;
+    const keys: string[] = [];
+    const versions: number[] = [];
+    for (const pin of pins) {
+      const k = `${pin.guideKey}@${pin.guideVersion}`;
+      if (seen.has(k)) continue;
       seen.add(k);
-      return true;
-    });
+      keys.push(pin.guideKey);
+      versions.push(pin.guideVersion);
+    }
     try {
-      return await client.guideSession.findMany({
-        where: {
-          userId,
-          OR: distinct.map((p) => ({
-            guideKey: p.guideKey,
-            guideVersion: p.guideVersion,
-          })),
-        },
-        orderBy: [
-          { guideKey: "asc" },
-          { guideVersion: "asc" },
-          { startedAt: "desc" },
-          { id: "asc" },
-        ],
-        select: SELECT,
-      });
+      return await client.$queryRaw<GuideSessionRow[]>`
+        SELECT DISTINCT ON (s."guideKey", s."guideVersion")
+               s."id", s."userId", s."guideKey", s."guideVersion", s."status",
+               s."editionId", s."unitId", s."stepsCompleted", s."totalSteps",
+               s."currentStepKey", s."startedAt", s."completedAt", s."cancelledAt"
+          FROM "GuideSession" s
+          JOIN unnest(${keys}::text[], ${versions}::int[]) AS q("guideKey", "guideVersion")
+            ON q."guideKey" = s."guideKey" AND q."guideVersion" = s."guideVersion"
+         WHERE s."userId" = ${userId}
+         ORDER BY s."guideKey", s."guideVersion", s."startedAt" DESC, s."id" DESC`;
     } catch (err) {
       sanitize(err);
     }

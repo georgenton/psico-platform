@@ -205,13 +205,25 @@ suite("C.1 · one card state per experience", () => {
   const cards = (pins = [PIN_A, PIN_B]) =>
     service.resolveExperienceCardStates(user.userId, pins);
 
+  /**
+   * The answer no longer carries the session (a card needs a verdict and a pin
+   * to run, not a projection), so "which run backs this?" is asked of the
+   * database directly. That keeps the old assertions honest instead of
+   * deleting them along with the field.
+   */
+  const rowsFor = (pin: { guideKey: string; guideVersion: number }) =>
+    prisma.guideSession.findMany({
+      where: { userId: user.userId, ...pin },
+      orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+      select: { id: true, status: true },
+    });
+
   // ── The three states, per experience ─────────────────────────────────────
 
   it("two untouched experiences both START", async () => {
     const [a, b] = await cards();
     expect(a?.status).toBe("START");
     expect(b?.status).toBe("START");
-    expect(a?.session).toBeNull();
     expect(a?.resumePin).toEqual(PIN_A);
     expect(b?.resumePin).toEqual(PIN_B);
   });
@@ -220,9 +232,12 @@ suite("C.1 · one card state per experience", () => {
     const started = await start(PIN_A);
     const [a, b] = await cards();
     expect(a?.status).toBe("CONTINUE");
-    expect(a?.session?.sessionId).toBe(started.sessionId);
+    expect(a?.resumePin).toEqual(PIN_A);
+    // The run that backs it is the one just started, and it is still ACTIVE.
+    expect(await rowsFor(PIN_A)).toEqual([
+      { id: started.sessionId, status: "ACTIVE" },
+    ]);
     expect(b?.status).toBe("START");
-    expect(b?.session).toBeNull();
   });
 
   it("a COMPLETED A gives A COMPLETED and leaves B at START", async () => {
@@ -231,8 +246,9 @@ suite("C.1 · one card state per experience", () => {
     const finished = await completeA();
     const [a, b] = await cards();
     expect(a?.status).toBe("COMPLETED");
-    expect(a?.session?.sessionId).toBe(finished);
-    expect(a?.session?.status).toBe("COMPLETED");
+    expect(await rowsFor(PIN_A)).toEqual([
+      { id: finished, status: "COMPLETED" },
+    ]);
     expect(b?.status).toBe("START");
   });
 
@@ -247,10 +263,17 @@ suite("C.1 · one card state per experience", () => {
 
     const [a, b] = await cards();
     expect(a?.status).toBe("CONTINUE");
-    expect(a?.session?.sessionId).toBe(startedA.sessionId);
+    expect(a?.resumePin).toEqual(PIN_A);
     expect(b?.status).toBe("CONTINUE");
-    expect(b?.session?.sessionId).toBe(startedB.sessionId);
-    expect(a?.session?.sessionId).not.toBe(b?.session?.sessionId);
+    expect(b?.resumePin).toEqual(PIN_B);
+    // Two lineages, two runs: neither verdict is borrowed from the other.
+    expect(startedA.sessionId).not.toBe(startedB.sessionId);
+    expect(await rowsFor(PIN_A)).toEqual([
+      { id: startedA.sessionId, status: "ACTIVE" },
+    ]);
+    expect(await rowsFor(PIN_B)).toEqual([
+      { id: startedB.sessionId, status: "ACTIVE" },
+    ]);
   });
 
   // ── Lineage recovery vs exact-pin completion ─────────────────────────────
@@ -264,9 +287,13 @@ suite("C.1 · one card state per experience", () => {
 
     expect(card?.status).toBe("CONTINUE");
     expect(card?.guidePin).toEqual({ guideKey: GUIDE_A, guideVersion: 2 });
-    expect(card?.session?.sessionId).toBe(started.sessionId);
-    expect(card?.session?.guideVersion).toBe(1);
+    // Asked about v2, answered on v1: the pin to run is the running one.
     expect(card?.resumePin).toEqual({ guideKey: GUIDE_A, guideVersion: 1 });
+    expect(await rowsFor({ guideKey: GUIDE_A, guideVersion: 1 })).toEqual([
+      { id: started.sessionId, status: "ACTIVE" },
+    ]);
+    // And no v2 run was conjured to justify the verdict.
+    expect(await rowsFor({ guideKey: GUIDE_A, guideVersion: 2 })).toEqual([]);
   });
 
   it("a COMPLETED A@v1 with published A@v2 and nothing ACTIVE reads START", async () => {
@@ -275,7 +302,6 @@ suite("C.1 · one card state per experience", () => {
     const [card] = await cards([{ guideKey: GUIDE_A, guideVersion: 2 }]);
 
     expect(card?.status).toBe("START");
-    expect(card?.session).toBeNull();
     expect(card?.resumePin).toEqual({ guideKey: GUIDE_A, guideVersion: 2 });
   });
 
@@ -292,7 +318,7 @@ suite("C.1 · one card state per experience", () => {
 
     expect(v1?.status).toBe("COMPLETED");
     expect(v2?.status).toBe("START");
-    expect(v2?.session).toBeNull();
+    expect(v2?.resumePin).toEqual({ guideKey: GUIDE_A, guideVersion: 2 });
   });
 
   it("a CANCELLED session is not a state — the card reads START", async () => {
@@ -303,7 +329,10 @@ suite("C.1 · one card state per experience", () => {
     });
     const [a] = await cards([PIN_A]);
     expect(a?.status).toBe("START");
-    expect(a?.session).toBeNull();
+    // The cancelled row is still there — it just is not a state.
+    expect(await rowsFor(PIN_A)).toEqual([
+      { id: started.sessionId, status: "CANCELLED" },
+    ]);
   });
 
   // ── What must never leak across cards ────────────────────────────────────
@@ -312,14 +341,14 @@ suite("C.1 · one card state per experience", () => {
     await start(PIN_B);
     const [a] = await cards([PIN_A]);
     expect(a?.status).toBe("START");
-    expect(a?.session).toBeNull();
+    expect(a?.resumePin).toEqual(PIN_A);
   });
 
   it("a version nobody ever started does not fall back to another session", async () => {
     await completeA();
     const [card] = await cards([{ guideKey: GUIDE_A, guideVersion: 7 }]);
     expect(card?.status).toBe("START");
-    expect(card?.session).toBeNull();
+    expect(card?.resumePin).toEqual({ guideKey: GUIDE_A, guideVersion: 7 });
   });
 
   it("another actor's session is invisible, not denied", async () => {
@@ -330,7 +359,94 @@ suite("C.1 · one card state per experience", () => {
 
     const theirs = await service.resolveExperienceCardStates(other.id, [PIN_A]);
     expect(theirs[0]?.status).toBe("START");
-    expect(theirs[0]?.session).toBeNull();
+    expect(theirs[0]?.resumePin).toEqual(PIN_A);
+  });
+
+  // ── The cost of a long history ───────────────────────────────────────────
+
+  it("a pin with a long history still returns ONE row", async () => {
+    /**
+     * The bound this endpoint lives or dies by: `returned_rows <=
+     * distinct_requested_pins`. A reader who has started and withdrawn the
+     * same journey many times has many rows for that pin, and handing them all
+     * to the service would make a card's cost grow with somebody's past.
+     */
+    for (let i = 0; i < 6; i += 1) {
+      const s = await start(PIN_A);
+      await service.cancel(user, {
+        idempotencyKey: nextKey(),
+        sessionId: s.sessionId,
+      });
+    }
+    await start(PIN_B);
+    expect(await prisma.guideSession.count()).toBe(7);
+
+    const rows = await sessions.findLatestOwnPerExactPin(user.userId, [
+      PIN_A,
+      PIN_B,
+      PIN_A, // repeated on purpose: it is the same question twice
+    ]);
+
+    expect(rows.length).toBeLessThanOrEqual(2); // distinct requested pins
+    expect(rows.map((r) => `${r.guideKey}@${r.guideVersion}`).sort()).toEqual([
+      `${GUIDE_A}@1`,
+      `${GUIDE_B}@1`,
+    ]);
+  });
+
+  it("the LAST outcome decides, not the best one", async () => {
+    // Completed, then started again and withdrawn. Answering COMPLETED would
+    // describe a run the reader already left; answering START describes where
+    // they actually stand.
+    await completeA();
+    const again = await start(PIN_A);
+    await service.cancel(user, {
+      idempotencyKey: nextKey(),
+      sessionId: again.sessionId,
+    });
+
+    const rows = await sessions.findLatestOwnPerExactPin(user.userId, [PIN_A]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.status).toBe("CANCELLED");
+
+    const [card] = await cards([PIN_A]);
+    expect(card?.status).toBe("START");
+  });
+
+  it("picks the newest row deterministically, tie-broken by id", async () => {
+    // Two rows of the same pin forced to share `startedAt` to the microsecond.
+    // Without the `id` tie-break the answer would depend on planner order,
+    // which is no way to decide what a card says.
+    const first = await start(PIN_A);
+    await service.cancel(user, {
+      idempotencyKey: nextKey(),
+      sessionId: first.sessionId,
+    });
+    const second = await start(PIN_A);
+    const when = new Date("2026-01-01T00:00:00.000Z");
+    await prisma.guideSession.updateMany({
+      where: { userId: user.userId, guideKey: GUIDE_A },
+      data: { startedAt: when },
+    });
+
+    // What "last by id" means is PostgreSQL's business, not JavaScript's:
+    // string ordering depends on the database collation, so the expectation is
+    // asked of the same engine that will answer the real query.
+    const [highest] = await prisma.guideSession.findMany({
+      where: { userId: user.userId, guideKey: GUIDE_A },
+      orderBy: { id: "desc" },
+      take: 1,
+      select: { id: true },
+    });
+    expect([first.sessionId, second.sessionId]).toContain(highest?.id);
+
+    for (let i = 0; i < 4; i += 1) {
+      const rows = await sessions.findLatestOwnPerExactPin(user.userId, [
+        PIN_A,
+      ]);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.id).toBe(highest?.id);
+    }
   });
 
   // ── The list's own properties ────────────────────────────────────────────
@@ -351,10 +467,12 @@ suite("C.1 · one card state per experience", () => {
     // are independent would hide a catalog mistake C.3/C.4 must prevent.
     const started = await start(PIN_A);
     const [first, second] = await cards([PIN_A, PIN_A]);
+    expect(first).toEqual(second);
     expect(first?.status).toBe("CONTINUE");
-    expect(second?.status).toBe("CONTINUE");
-    expect(first?.session?.sessionId).toBe(started.sessionId);
-    expect(second?.session?.sessionId).toBe(started.sessionId);
+    expect(first?.resumePin).toEqual(PIN_A);
+    expect(await rowsFor(PIN_A)).toEqual([
+      { id: started.sessionId, status: "ACTIVE" },
+    ]);
   });
 
   it("the cost does not grow with the list — no N+1", async () => {
@@ -362,16 +480,15 @@ suite("C.1 · one card state per experience", () => {
     await start(PIN_B);
 
     const active = vi.spyOn(sessions, "findActiveOwnForGuideKeys");
-    const exact = vi.spyOn(sessions, "findOwnForExactPins");
-    const ledger = vi.spyOn(steps, "listAcceptedForSessions");
+    const exact = vi.spyOn(sessions, "findLatestOwnPerExactPin");
     const perSession = vi.spyOn(steps, "listAccepted");
 
     await cards([PIN_A, PIN_B, PIN_A, PIN_B, PIN_A]);
 
-    // Three reads for five cards, and none of them the per-session one.
+    // DATABASE_READS_PER_CHUNK=2 — two reads for five cards, and the ledger is
+    // not among them: a card needs a verdict, not a step-by-step projection.
     expect(active).toHaveBeenCalledTimes(1);
     expect(exact).toHaveBeenCalledTimes(1);
-    expect(ledger).toHaveBeenCalledTimes(1);
     expect(perSession).not.toHaveBeenCalled();
   });
 
@@ -404,8 +521,11 @@ suite("C.1 · one card state per experience", () => {
     expect(Object.keys(card ?? {}).sort()).toEqual([
       "guidePin",
       "resumePin",
-      "session",
       "status",
     ]);
+    // The session itself is deliberately absent: a card renders a word and a
+    // pin, and shipping a projection per card would pay the ledger's cost for
+    // a list nobody is running yet.
+    expect(wire).not.toMatch(/sessionId|stepsCompleted|currentStepKey/);
   });
 });

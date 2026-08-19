@@ -1,5 +1,11 @@
 import type { SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec.interface";
 
+import {
+  GUIDE_CARD_STATES_KEY_PATTERN,
+  GUIDE_CARD_STATES_MAX_PINS,
+  GUIDE_CARD_STATES_MAX_VERSION,
+} from "../guide-card-states-params";
+
 /**
  * CC-7.4D — CLOSED OpenAPI schemas for the Guide surface.
  *
@@ -265,8 +271,19 @@ const GUIDE_CARD_PIN: SchemaObject = {
   additionalProperties: false,
   required: ["guideKey", "guideVersion"],
   properties: {
-    guideKey: CATALOG_KEY_PROP,
-    guideVersion: { type: "integer", minimum: 1 },
+    // Taken from the parser, not retyped next to it: a published contract that
+    // drifts from the code enforcing it is worse than no contract.
+    guideKey: {
+      type: "string",
+      pattern: GUIDE_CARD_STATES_KEY_PATTERN,
+      minLength: 1,
+      maxLength: 200,
+    },
+    guideVersion: {
+      type: "integer",
+      minimum: 1,
+      maximum: GUIDE_CARD_STATES_MAX_VERSION,
+    },
   },
 };
 
@@ -279,7 +296,7 @@ export const GUIDE_CARD_STATES_BODY: SchemaObject = {
     pins: {
       type: "array",
       minItems: 1,
-      maxItems: 25,
+      maxItems: GUIDE_CARD_STATES_MAX_PINS,
       items: GUIDE_CARD_PIN,
       description:
         "Pines publicados, uno por tarjeta. El orden se conserva y un pin " +
@@ -299,7 +316,7 @@ export const GUIDE_CARD_STATES_RESPONSE: SchemaObject = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["guidePin", "status", "session", "resumePin"],
+        required: ["guidePin", "status", "resumePin"],
         properties: {
           guidePin: GUIDE_CARD_PIN,
           status: {
@@ -309,12 +326,6 @@ export const GUIDE_CARD_STATES_RESPONSE: SchemaObject = {
               "CONTINUE si hay una sesión ACTIVE del mismo guideKey, sea cual " +
               "sea su versión; COMPLETED solo si el pin EXACTO está " +
               "completado; START en cualquier otro caso.",
-          },
-          session: {
-            oneOf: [GUIDE_SESSION_VIEW, { type: "null" }],
-            description:
-              "La sesión que sostiene el veredicto. Su pin puede diferir de " +
-              "`guidePin`: continuar nunca migra una sesión de versión.",
           },
           resumePin: {
             ...GUIDE_CARD_PIN,

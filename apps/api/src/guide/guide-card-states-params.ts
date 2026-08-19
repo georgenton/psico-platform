@@ -15,6 +15,13 @@
  * deliberately bound to the same guide, and they genuinely share a state. The
  * caller gets one answer per requested position, in the requested order.
  *
+ * Unknown properties are REFUSED, at the root and inside every pin. Ignoring
+ * them is the friendlier-looking choice and the worse one: a caller that sends
+ * `guideVerison` gets a confident answer about a guide it never asked about,
+ * and a field this endpoint does not implement — `userId`, `force`,
+ * `includeSession` — reads as accepted. Silence about an unread field is a
+ * promise nobody made.
+ *
  * Errors are value-free — a received key never reaches a message or a log line.
  */
 
@@ -32,20 +39,48 @@ export interface GuideCardStatesQuery {
   pins: Array<{ guideKey: string; guideVersion: number }>;
 }
 
-/** Same key grammar the catalog enforces — lowercase, bounded, no spaces. */
-const KEY_RE = /^[a-z0-9][a-z0-9._:-]{0,199}$/;
+/**
+ * Same key grammar the catalog enforces — lowercase, bounded, no spaces.
+ *
+ * Exported as the pattern STRING because three surfaces must agree on it: this
+ * parser, the OpenAPI document, and the API client that validates before it
+ * spends a round trip. A ratchet compares the three; the constant is what makes
+ * that comparison possible instead of a promise in a comment.
+ */
+export const GUIDE_CARD_STATES_KEY_PATTERN = "^[a-z0-9][a-z0-9._:-]{0,199}$";
+const KEY_RE = new RegExp(GUIDE_CARD_STATES_KEY_PATTERN);
 
 /** A chapter's list, generously bounded. */
 export const GUIDE_CARD_STATES_MAX_PINS = 25;
+
+/** The largest version a pin may name — a version, not an identifier. */
+export const GUIDE_CARD_STATES_MAX_VERSION = 999_999_999;
+
+const ROOT_KEYS = ["pins"] as const;
+const PIN_KEYS = ["guideKey", "guideVersion"] as const;
+
+/**
+ * Refuse anything this endpoint does not read.
+ *
+ * `Object.keys` only walks own enumerable string keys, which is exactly the
+ * surface `JSON.parse` produces — so a prototype-polluted payload cannot smuggle
+ * a field past here, and a symbol nobody can send is not treated as a violation.
+ */
+function onlyKeys(value: object, allowed: readonly string[]): void {
+  for (const key of Object.keys(value)) {
+    if (!allowed.includes(key)) throw new GuideCardStatesBodyError();
+  }
+}
 
 /**
  * Parse and normalize, or throw. Never returns a partially parsed batch, so a
  * caller cannot end up querying with some pins validated and others guessed.
  */
 export function parseGuideCardStatesBody(body: unknown): GuideCardStatesQuery {
-  if (typeof body !== "object" || body === null) {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
     throw new GuideCardStatesBodyError();
   }
+  onlyKeys(body, ROOT_KEYS);
   const raw = (body as { pins?: unknown }).pins;
   if (!Array.isArray(raw) || raw.length === 0) {
     throw new GuideCardStatesBodyError();
@@ -55,9 +90,10 @@ export function parseGuideCardStatesBody(body: unknown): GuideCardStatesQuery {
   }
 
   const pins = raw.map((entry) => {
-    if (typeof entry !== "object" || entry === null) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
       throw new GuideCardStatesBodyError();
     }
+    onlyKeys(entry, PIN_KEYS);
     const { guideKey, guideVersion } = entry as {
       guideKey?: unknown;
       guideVersion?: unknown;
@@ -72,7 +108,7 @@ export function parseGuideCardStatesBody(body: unknown): GuideCardStatesQuery {
       typeof guideVersion !== "number" ||
       !Number.isInteger(guideVersion) ||
       guideVersion <= 0 ||
-      guideVersion > 999_999_999
+      guideVersion > GUIDE_CARD_STATES_MAX_VERSION
     ) {
       throw new GuideCardStatesBodyError();
     }

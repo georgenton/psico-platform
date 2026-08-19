@@ -246,7 +246,9 @@ export type GuideExperienceStateResponse =
  * Precedence, in this order and no other:
  *
  *   1. an ACTIVE session of the same `guideKey` → `CONTINUE`, on that
- *      session's own immutable pin;
+ *      session's own immutable pin — including a version the running build no
+ *      longer ships, because the run exists whether or not this endpoint can
+ *      describe it;
  *   2. otherwise a COMPLETED session of the exact published pin → `COMPLETED`;
  *   3. otherwise → `START`, on the published pin.
  *
@@ -260,15 +262,16 @@ export interface GuideExperienceCardState {
   guidePin: { guideKey: string; guideVersion: number };
   status: GuideExperienceCardStatus;
   /**
-   * The session behind the verdict: the open run for `CONTINUE`, the finished
-   * one for `COMPLETED`, `null` for `START`. Its pin may differ from
-   * `guidePin` — that is the whole point of rule 1.
-   */
-  session: GuideSessionView | null;
-  /**
-   * The pin a click should actually run: the session's own pin when there is
-   * one to continue, the published pin otherwise. A session is NEVER migrated
-   * to another version.
+   * The pin a click should actually run: the open session's own pin when there
+   * is one to continue, the published pin otherwise. A session is NEVER
+   * migrated to another version.
+   *
+   * Deliberately NOT here: the session itself. A card shows a word and a
+   * destination; it does not show progress, so shipping `sessionId`,
+   * `stepsCompleted` and the rest would hand every list an identifier it has
+   * no use for — and cost a ledger read per cited session to compute. The
+   * Guide screen projects the run through its own contracts once the pin is
+   * open.
    */
   resumePin: { guideKey: string; guideVersion: number };
 }

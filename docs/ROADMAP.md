@@ -83,23 +83,39 @@ Cada fase necesita su propia autorización. El orden **no** es negociable: lo
 impone qué locks comparten dos binarios que conviven durante un rolling deploy,
 no el esquema.
 
-| Fase      | Qué                                                           | Puerta previa                                   | Estado                      |
-| --------- | ------------------------------------------------------------- | ----------------------------------------------- | --------------------------- |
-| **C.0A**  | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                               | ✅ desplegada               |
-| **C.0A1** | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                 | ✅ completa                 |
-| **C.0B1** | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs   | ⬜ PR abierta, sin aplicar  |
-| **C.0B2** | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)          | ⬜ PR abierta, sin aplicar  |
-| **C.0B3** | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir | ✅ desplegada               |
-| **C.1**   | Estado por Experience + discovery con pin exacto              | C.0B3 desplegada                                | ⬜ PR abierta, sin fusionar |
-| **C.2**   | La web consume estados independientes                         | C.1 en la misma PR                              | ⬜ PR abierta, sin fusionar |
+| Fase         | Qué                                                           | Puerta previa                                   | Estado                    |
+| ------------ | ------------------------------------------------------------- | ----------------------------------------------- | ------------------------- |
+| **C.0A**     | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                               | ✅ desplegada             |
+| **C.0A1**    | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                 | ✅ completa               |
+| **C.0B1**    | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs   | ✅ aplicada               |
+| **C.0B2**    | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)          | ✅ aplicada               |
+| **C.0B3**    | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir | ✅ desplegada             |
+| **C.1**      | Estado por Experience + discovery con pin exacto              | C.0B3 desplegada                                | ✅ desplegada (#675)      |
+| **C.2**      | La web consume estados independientes                         | C.1 en la misma PR                              | ✅ desplegada (#675)      |
+| **C.3A**     | Puente de binding: identidad estable, locks y reserva         | C.2 desplegada                                  | ⬜ PR Draft, sin fusionar |
+| **C.3B**     | Backfill de reservas — **fase operativa, no una PR**          | C.3A desplegada y **V0 extinto**                | ⬜ sin autorizar          |
+| **C.3C+C.4** | Cutover estructural + selección, rebind y archive en el CMS   | C.3B aplicado, sin nulls ni colisiones          | ⬜ PR Draft, sin fusionar |
+| **C.5**      | Verificación en producción (solo lectura)                     | C.3C+C.4 desplegada                             | ⬜ pendiente              |
 
-**Checkpoint de producción — 2026-08-18.** Ambos servicios sirven
-`1a6be6d3adb3501c30f957e6b87c547aca191769` y **consumen sus ficheros
-versionados**: API `6813ac01` con `/apps/api/railway.api.json`, worker
-`d93f2d6a` con `/apps/api/railway.worker.json`, ambos con
-`propertyFileMapping` atribuyendo los nueve campos gobernados al fichero. 56
-migraciones aplicadas, 0 pendientes. El seed no aparece en ningún preDeploy.
-El esquema sigue en modo **GLOBAL**: el índice de lineage aún no existe.
+**Checkpoint de producción — 2026-08-19.** Ambos servicios sirven
+`78d3b58f925979a3c51bdeef40b02262ad78fd8b` y **consumen sus ficheros
+versionados**: API con `/apps/api/railway.api.json` (preDeploy
+`migrate:deploy`, sin seed), worker con `/apps/api/railway.worker.json` (sin
+preDeploy). **58 migraciones aplicadas, 0 pendientes.** El esquema está en modo
+**LINEAGE**: el índice global está ausente, el de lineage sano, y todas las
+instancias emiten `lineage-v2`.
+
+**Decisiones de producto aprobadas para C.3/C.4** (2026-08-19):
+
+```
+DRAFT_REBIND=permitido solo antes de la primera publicación, atómico
+CROSS_CHAPTER_GUIDE_BINDING=prohibido
+LEGACY_COLLISION_POLICY=fallo cerrado para escrituras nuevas, sin corrección automática
+PUBLISHED_GUIDE_KEY_IMMUTABLE=true
+ARCHIVED_TERMINAL=true · ARCHIVED_RESTORABLE=false
+HARD_DELETE_ALLOWED=false · VERSION_REUSE_ALLOWED=false
+GUIDE_AUTHORING_FROM_CMS=false
+```
 
 - **V0 y V2 nunca coexisten** — no comparten ningún lock de START.
 - **V1 y V2 sí coexisten**: ambos toman el lock de lineage. Esa convivencia es
@@ -528,9 +544,8 @@ ambos locks. Y una petición al balanceador no habla por las demás réplicas.
 
 #### C.0B — el tren de release, y por qué son tres fases
 
-Las tres PRs están abiertas y apiladas (`C.0B1 → C.0B2 → C.0B3`), cada una con
-base en la anterior. Ninguna está autorizada para fusionarse ni desplegarse: el
-desarrollo se adelanta, las barreras de producción no se mueven.
+Las tres PRs se fusionaron y desplegaron en su orden, cada una con su propia
+autorización. Lo que sigue describe el tren tal como ocurrió.
 
 | Fase      | Migración / cambio                         | Global    | Lineage   | Autoridad | Multi-ACTIVE                       |
 | --------- | ------------------------------------------ | --------- | --------- | --------- | ---------------------------------- |
@@ -756,6 +771,58 @@ ellos sigue fallando cerrada. Y elegir se abandona entero: cambiar de capítulo,
 que la Experience desaparezca del discovery o pulsar «Ver otra experiencia»
 limpian pin y Experience a la vez. Cerrar el panel no es abandonar.
 
+#### C.3 — el tren del binding, y por qué no cabe en una PR
+
+El plan anterior decía «C.3+C.4 en una PR, sin esquema». Las dos afirmaciones
+eran falsas, y la segunda escondía a la primera.
+
+**El agujero.** El binario que corre en producción sigue escribiendo
+`ChapterExperienceVersion` durante todo el rolling deploy: sin reserva, sin
+columnas y sin tomar ningún lock. Con la FK compuesta en `MATCH SIMPLE`, una
+fila con columnas nulas **no evalúa el constraint**. Así que la secuencia
+—preDeploy migra, V0 sigue vivo, V0 crea una Experience, V2 reserva esa misma
+guía— produce dos linajes sobre una guía sin que nada estructural se entere. Un
+solo merge no lo cierra.
+
+**Lo que sí lo cierra** es el mismo patrón que C.0B: un puente que comparte lock
+con lo que viene después, un marcador de protocolo por instancia para poder
+demostrar el drenaje, y una fase operativa entre ambos.
+
+| Fase         | Migración         | Runtime                                                                       | Autoridad    | Marcador                       | Puerta previa                        |
+| ------------ | ----------------- | ----------------------------------------------------------------------------- | ------------ | ------------------------------ | ------------------------------------ |
+| **C.3A**     | sí, aditiva       | resuelve identidad, toma los locks, escribe columnas y reserva sus escrituras | `BRIDGE`     | `experience-binding-bridge-v1` | —                                    |
+| **C.3B**     | no (comando ops)  | sin cambios de superficie                                                     | `BRIDGE`     | idem                           | **V0 extinto** por marcador          |
+| **C.3C+C.4** | sí (enum + CHECK) | selección, rebind, archive                                                    | `STRUCTURAL` | `experience-binding-v2`        | C.3B aplicado, 0 nulls, 0 colisiones |
+
+**La reserva es una biyección parcial dentro del capítulo**, y las dos mitades
+son estructurales: `PRIMARY KEY (contentUnitId, experienceKey)` — un linaje
+posee como máximo una guía — y `UNIQUE (contentUnitId, guideKey)` — una guía
+pertenece como máximo a un linaje. Varias versiones del mismo `experienceKey`
+comparten la fila. Una FK compuesta desde `ChapterExperienceVersion` con
+`ON DELETE RESTRICT` hace que «archivar libera la guía» sea un hecho que la base
+sostiene, no una promesa del servicio: la reserva no puede borrarse mientras una
+versión la referencie.
+
+**La identidad de capítulo deja de ser posicional** (cierra ADR 0022 §10). Toda
+mutación de binding resuelve `ContentUnit.id` desde el manifiesto publicado
+antes del lock, y falla cerrada para las clases que no resuelven —legacy sin
+adoptar, desplazado, fuera de la estructura publicada—. No hay fallback a
+`chapterOrder`, y el `contentUnitId` que envíe el navegador se verifica, nunca
+se cree.
+
+**C.3B no es una migración de Prisma, y eso es deliberado.** Puede abortar
+legítimamente ante una colisión heredada, y una migración de datos que aborta
+deja `_prisma_migrations` con `finished_at` nulo — bloqueando todos los deploys
+siguientes, exactamente el incidente del 2026-06-01. Como comando aborta sin
+dejar nada aplicado y se re-ejecuta cuando el dato esté corregido.
+
+**ARCHIVED no se habilita por existir el enum.** El binario anterior lista sin
+filtrar por estado y su guarda de edición negaba PUBLISHED en vez de exigir
+DRAFT, así que habría editado una fila archivada. C.3A corrige ambas cosas por
+anticipado —exige DRAFT en positivo y lee el estado de la columna, no del
+JSON— y la acción de archivar solo aparece en C.3C, tras probar por marcador
+que ninguna instancia anterior atiende el CMS.
+
 #### Qué falta de #639 después de C.0B3
 
 Derivado de ADR 0022 §13 y del cuerpo del issue, no inventado.
@@ -788,7 +855,8 @@ filas y nunca devuelve una sesión sobre la que actuar.
   **cerrado en C.1**;
 - ~~consumo Web de estados independientes~~ — **cerrado en C.2**;
 - **reserva de binding segura ante concurrencia en el CMS** (C.3) y **selección
-  de Guide** (C.4, bloqueada por producto);
+  de Guide** (C.4) — desbloqueadas por producto el 2026-08-19 y planificadas
+  como un tren de dos PRs más una fase operativa (ver abajo);
 - **ciclo de vida de drafts abandonados** (ADR §11): `DRAFT → ARCHIVED`, la fila
   nunca se borra, un ARCHIVED no reserva Guide, las versiones nunca se
   reutilizan;

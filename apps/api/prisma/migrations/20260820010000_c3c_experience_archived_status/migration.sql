@@ -1,18 +1,38 @@
 -- C.3C (#639) — the ARCHIVED value, and nothing else.
 --
--- Its own migration on purpose. PostgreSQL will not let a value added by
--- `ALTER TYPE ... ADD VALUE` be USED in the same transaction that added it, and
--- Prisma runs each migration file in one transaction. The next migration writes
--- a CHECK constraint that names 'ARCHIVED', so the two cannot share a file: the
--- constraint would be parsed against a value that is not yet committed.
+-- ── Why it is alone in this file ────────────────────────────────────────────
 --
--- Splitting them is not a stylistic choice about migration counts. It is the
--- difference between a deploy that applies and one that fails halfway through
--- the preDeploy of a production release.
+-- Not for the reason this file used to give. It claimed Prisma runs each
+-- migration in one transaction and that PostgreSQL therefore could not parse a
+-- CHECK naming a value added in the same file. The first half is FALSE, and
+-- that makes the second half irrelevant.
 --
--- Measured on PostgreSQL 18, not assumed. Both statements inside one BEGIN:
+-- Measured with this project's own `migrate:deploy` against a disposable
+-- PostgreSQL 18.4. A file containing `CREATE TABLE` followed by a statement
+-- that fails leaves the table CREATED and the migration recorded as failed —
+-- so the runner does not wrap a file in a transaction, and `ALTER TYPE … ADD
+-- VALUE` followed by a CHECK that uses the value applies without complaint.
 --
---   ALTER TYPE
---   ERROR:  unsafe use of new value "ARCHIVED" of enum type st
+-- The real reason is the flip side of that same fact: a two-statement file is
+-- not RE-RUNNABLE after a partial failure. If the CHECK failed, the enum value
+-- would already be committed while `_prisma_migrations` recorded the migration
+-- as unfinished, and the retry would fail on the value that now exists. Split,
+-- each file either applies completely or writes nothing, and only the one that
+-- failed is retried.
+--
+-- (Inside an explicit `BEGIN`, PostgreSQL does refuse the pair:
+--   ERROR:  unsafe use of new value "ARCHIVED" of enum type
 --   HINT:   New enum values must be committed before they can be used.
-ALTER TYPE "ExperienceVersionStatus" ADD VALUE IF NOT EXISTS 'ARCHIVED';
+--  That is a true statement about PostgreSQL and a false one about how these
+--  migrations run. Both are recorded here so the next person does not have to
+--  measure it again.)
+--
+-- ── No IF NOT EXISTS ────────────────────────────────────────────────────────
+--
+-- If this value is already present, something added it that is not this
+-- migration — a hand-applied hotfix, a restored dump, a branch deployed and
+-- rolled back. `IF NOT EXISTS` would absorb that silently and leave a schema
+-- nobody can account for looking exactly like one that was migrated properly.
+-- Failing loudly is the point: a drift the deploy hides is a drift the cutover
+-- inherits.
+ALTER TYPE "ExperienceVersionStatus" ADD VALUE 'ARCHIVED';

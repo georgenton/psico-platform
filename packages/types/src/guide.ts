@@ -232,6 +232,66 @@ export type GuideExperienceStateResponse =
     };
 
 /**
+ * C.1 — where the reader stands in ONE experience, decided by the server.
+ *
+ * Three questions used to be one, and collapsing them is what made two
+ * experiences in a chapter share a state (#639):
+ *
+ *   - which guide a NEW run of this experience starts — its published pin;
+ *   - whether a run of that LINEAGE is open — `(userId, guideKey)`, whatever
+ *     version it was pinned to;
+ *   - whether the PUBLISHED pin exactly was finished — completion never
+ *     crosses versions, so finishing `A@v1` says nothing about `A@v2`.
+ *
+ * Precedence, in this order and no other:
+ *
+ *   1. an ACTIVE session of the same `guideKey` → `CONTINUE`, on that
+ *      session's own immutable pin;
+ *   2. otherwise a COMPLETED session of the exact published pin → `COMPLETED`;
+ *   3. otherwise → `START`, on the published pin.
+ *
+ * Rule 1 outranks rule 3 deliberately: a reader who left `A@v1` running is
+ * offered the run they are in, not a fresh `A@v2` that would strand it.
+ */
+export type GuideExperienceCardStatus = "START" | "CONTINUE" | "COMPLETED";
+
+export interface GuideExperienceCardState {
+  /** The PUBLISHED pin this answer is about — echoed so a batch can be keyed. */
+  guidePin: { guideKey: string; guideVersion: number };
+  status: GuideExperienceCardStatus;
+  /**
+   * The session behind the verdict: the open run for `CONTINUE`, the finished
+   * one for `COMPLETED`, `null` for `START`. Its pin may differ from
+   * `guidePin` — that is the whole point of rule 1.
+   */
+  session: GuideSessionView | null;
+  /**
+   * The pin a click should actually run: the session's own pin when there is
+   * one to continue, the published pin otherwise. A session is NEVER migrated
+   * to another version.
+   */
+  resumePin: { guideKey: string; guideVersion: number };
+}
+
+/**
+ * A batch, because a chapter shows a LIST.
+ *
+ * One request per card would grow with the catalog and would make the list's
+ * cost the reader's problem. The response echoes the requested order so the
+ * client never has to sort, and repeats an answer for repeated pins rather
+ * than deduping silently — two experiences deliberately bound to the same
+ * guide DO share their state, and hiding that would fake independence the
+ * data does not have.
+ */
+export interface GuideExperienceCardStatesRequest {
+  pins: Array<{ guideKey: string; guideVersion: number }>;
+}
+
+export interface GuideExperienceCardStatesResponse {
+  items: GuideExperienceCardState[];
+}
+
+/**
  * The response of all five commands. `created` means this call applied the
  * transition (HTTP 201); `replayed` means an identical prior command already
  * did and nothing ran now (HTTP 200).

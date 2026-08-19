@@ -15216,6 +15216,274 @@
         ]
       }
     },
+    "/api/guide/experiences/state": {
+      "post": {
+        "operationId": "getGuideExperienceCardStates",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "pins"
+                ],
+                "properties": {
+                  "pins": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 25,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "guideKey",
+                        "guideVersion"
+                      ],
+                      "properties": {
+                        "guideKey": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "guideVersion": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      }
+                    },
+                    "description": "Pines publicados, uno por tarjeta. El orden se conserva y un pin repetido recibe la misma respuesta repetida: dos experiencias ligadas a la misma guía comparten linaje de verdad."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "guidePin",
+                          "status",
+                          "session",
+                          "resumePin"
+                        ],
+                        "properties": {
+                          "guidePin": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "guideKey",
+                              "guideVersion"
+                            ],
+                            "properties": {
+                              "guideKey": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "guideVersion": {
+                                "type": "integer",
+                                "minimum": 1
+                              }
+                            }
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "START",
+                              "CONTINUE",
+                              "COMPLETED"
+                            ],
+                            "description": "CONTINUE si hay una sesión ACTIVE del mismo guideKey, sea cual sea su versión; COMPLETED solo si el pin EXACTO está completado; START en cualquier otro caso."
+                          },
+                          "session": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "sessionId",
+                                  "guideKey",
+                                  "guideVersion",
+                                  "status",
+                                  "stepsCompleted",
+                                  "totalSteps",
+                                  "currentStepKey"
+                                ],
+                                "properties": {
+                                  "sessionId": {
+                                    "type": "string"
+                                  },
+                                  "guideKey": {
+                                    "type": "string",
+                                    "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "guideVersion": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ACTIVE",
+                                      "COMPLETED",
+                                      "CANCELLED"
+                                    ]
+                                  },
+                                  "stepsCompleted": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Derivado del ledger de pasos aceptados — nunca de un contador enviado por el cliente ni de LearningEvents."
+                                  },
+                                  "totalSteps": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "currentStepKey": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "La sesión que sostiene el veredicto. Su pin puede diferir de `guidePin`: continuar nunca migra una sesión de versión."
+                          },
+                          "resumePin": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "guideKey",
+                              "guideVersion"
+                            ],
+                            "properties": {
+                              "guideKey": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "guideVersion": {
+                                "type": "integer",
+                                "minimum": 1
+                              }
+                            },
+                            "description": "El pin que debe ejecutarse al pulsar: el de la sesión abierta cuando la hay, el publicado en caso contrario."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Estado por experiencia para una lista de pines publicados: START, CONTINUE (sesión ACTIVE del mismo guideKey, en su propio pin) o COMPLETED (solo del pin exacto). No revela sesiones ajenas ni crea nada.",
+        "tags": [
+          "Guide"
+        ]
+      }
+    },
     "/api/guide/sessions/recoverable": {
       "get": {
         "operationId": "getRecoverableGuideSession",

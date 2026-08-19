@@ -210,6 +210,89 @@ export class GuideSessionRepository {
     }
   }
 
+  /**
+   * C.1 — the ACTIVE sessions of SEVERAL lineages, in one round trip.
+   *
+   * A chapter shows a list, and asking per card would make the reader pay for
+   * the catalog's size. `IN` over the distinct keys is one query no matter how
+   * many cards there are, which is why the batch exists at all.
+   *
+   * Ordered even though at most one row per lineage can exist: a read whose
+   * result depends on planner order has no place on a path that decides what a
+   * card says.
+   */
+  async findActiveOwnForGuideKeys(
+    userId: string,
+    guideKeys: readonly string[],
+    db?: GuideSessionDb,
+  ): Promise<GuideSessionRow[]> {
+    if (guideKeys.length === 0) return [];
+    const client = db ?? this.prisma;
+    try {
+      return await client.guideSession.findMany({
+        where: {
+          userId,
+          guideKey: { in: [...new Set(guideKeys)] },
+          status: "ACTIVE",
+        },
+        orderBy: [{ guideKey: "asc" }, { startedAt: "desc" }, { id: "asc" }],
+        select: SELECT,
+      });
+    } catch (err) {
+      sanitize(err);
+    }
+  }
+
+  /**
+   * C.1 — the LATEST session per EXACT pin, for several pins at once.
+   *
+   * The lineage read above cannot answer "did I finish this exact version?",
+   * and completion never crosses versions: finishing `A@v1` says nothing about
+   * `A@v2`. So this is the second half of a card's verdict, and it is one
+   * query rather than one per card.
+   *
+   * Returns every matching row, newest first per pin; the caller picks the
+   * first for each. Doing the grouping here would hide from the caller that
+   * "latest" is a decision, and the ordering is the decision.
+   */
+  async findOwnForExactPins(
+    userId: string,
+    pins: readonly { guideKey: string; guideVersion: number }[],
+    db?: GuideSessionDb,
+  ): Promise<GuideSessionRow[]> {
+    if (pins.length === 0) return [];
+    const client = db ?? this.prisma;
+    // Distinct pins only: a repeated pin asks the same question twice, and the
+    // caller maps answers back by pin anyway.
+    const seen = new Set<string>();
+    const distinct = pins.filter((p) => {
+      const k = `${p.guideKey}@${p.guideVersion}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    try {
+      return await client.guideSession.findMany({
+        where: {
+          userId,
+          OR: distinct.map((p) => ({
+            guideKey: p.guideKey,
+            guideVersion: p.guideVersion,
+          })),
+        },
+        orderBy: [
+          { guideKey: "asc" },
+          { guideVersion: "asc" },
+          { startedAt: "desc" },
+          { id: "asc" },
+        ],
+        select: SELECT,
+      });
+    } catch (err) {
+      sanitize(err);
+    }
+  }
+
   /** Create the ACTIVE session. All counters start server-owned at zero. */
   async createActive(
     input: CreateGuideSessionInput,

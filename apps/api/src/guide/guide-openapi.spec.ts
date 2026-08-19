@@ -68,6 +68,8 @@ const AVAILABILITY_PATH = "/api/guide/availability";
 const STATE_PATH = "/api/guide/sessions/state";
 const DISCOVERY_PATH = "/api/guide/discovery/{bookSlug}/{chapterOrder}";
 const RECOVERABLE_PATH = "/api/guide/sessions/recoverable";
+/** C.1 — where the actor stands in EACH published experience of a chapter. */
+const CARD_STATES_PATH = "/api/guide/experiences/state";
 
 /** The five COMMAND paths (POST) — the availability GET is deliberately not here. */
 const EXPECTED_PATHS = [
@@ -79,8 +81,13 @@ const EXPECTED_PATHS = [
 ];
 
 /**
- * The full published Guide surface — the five commands plus the three read
- * routes: the pilot gate, GR-4 contextual discovery and GR-5 session recovery.
+ * The full published Guide surface — the five commands plus the read routes:
+ * the pilot gate, GR-4 contextual discovery, GR-5 session recovery, GR-7
+ * single-pin state and the C.1 per-experience batch.
+ *
+ * The batch is a POST that CREATES NOTHING; it is a read whose input is a list
+ * and does not fit a query string. `EXPECTED_PATHS` stays the five commands, so
+ * a new write can never slip in under a read's name.
  */
 const ALL_GUIDE_PATHS = [
   ...EXPECTED_PATHS,
@@ -88,6 +95,7 @@ const ALL_GUIDE_PATHS = [
   DISCOVERY_PATH,
   RECOVERABLE_PATH,
   STATE_PATH,
+  CARD_STATES_PATH,
 ].sort();
 
 const EXPECTED_OPERATION_IDS = [
@@ -107,12 +115,51 @@ const responseOf = (path: string, status: string): Schema =>
     ?.schema as Schema;
 
 describe("ratchet · guide OpenAPI surface", () => {
-  it("publishes exactly nine paths — five commands and four read routes", () => {
+  it("publishes exactly ten paths — five commands and five read routes", () => {
     expect(GUIDE_PATHS).toEqual(ALL_GUIDE_PATHS);
     const ids = EXPECTED_PATHS.map((p) => openapi.paths[p]?.post?.operationId)
       .filter((id): id is string => typeof id === "string")
       .sort();
     expect(ids).toEqual(EXPECTED_OPERATION_IDS);
+  });
+
+  it("the card-state batch is a POST that creates nothing", () => {
+    const ops = openapi.paths[CARD_STATES_PATH];
+    expect(Object.keys(ops ?? {})).toEqual(["post"]);
+    const post = ops?.post;
+    expect(post?.operationId).toBe("getGuideExperienceCardStates");
+    // A read: 200, never 201, and no command operationId.
+    expect(Object.keys(post?.responses ?? {})).toContain("200");
+    expect(Object.keys(post?.responses ?? {})).not.toContain("201");
+    expect(EXPECTED_OPERATION_IDS).not.toContain(post?.operationId);
+  });
+
+  it("the batch takes a bounded list of pins and nothing else", () => {
+    const schema = openapi.paths[CARD_STATES_PATH]?.post?.requestBody
+      ?.content?.["application/json"]?.schema as {
+      additionalProperties?: boolean;
+      required?: string[];
+      properties?: { pins?: { maxItems?: number; minItems?: number } };
+    };
+    expect(schema?.additionalProperties).toBe(false);
+    expect(schema?.required).toEqual(["pins"]);
+    // Bounded on purpose: an unbounded batch turns one authenticated request
+    // into as much work as the caller likes.
+    expect(schema?.properties?.pins?.minItems).toBe(1);
+    expect(schema?.properties?.pins?.maxItems).toBe(25);
+  });
+
+  it("the batch answer names no editorial context and no actor", () => {
+    const schema =
+      openapi.paths[CARD_STATES_PATH]?.post?.responses?.["200"]?.content?.[
+        "application/json"
+      ]?.schema;
+    const serialized = JSON.stringify(schema);
+    expect(serialized).not.toMatch(/userId|editionId|unitId|idempotency/i);
+    // The three words, closed.
+    expect(serialized).toContain('"START"');
+    expect(serialized).toContain('"CONTINUE"');
+    expect(serialized).toContain('"COMPLETED"');
   });
 
   it("state is a GET-only read that takes its pin as query parameters", () => {

@@ -185,7 +185,7 @@ describe("PAREJAS_CHAPTER_HOME_DOES_NOT_SHOW_PLATFORM_ORDER", () => {
         }}
         guidedView={mode({ kind: "GUIDED", state: "HIDDEN", label: "Guiada" })}
         experiences={[]}
-        experienceSession={null}
+        experienceStates={new Map()}
         onOpenExperience={() => {}}
         activityCount={0}
         onContinueReading={() => {}}

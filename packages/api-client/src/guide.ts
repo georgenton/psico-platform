@@ -5,6 +5,7 @@ import type {
   GuideAvailabilityResponse,
   GuideDiscoveryResponse,
   GuideCommandResponse,
+  GuideExperienceCardStatesResponse,
   GuideExperienceStateResponse,
   RecoverableGuideSessionResponse,
   StartGuideSessionRequestBody,
@@ -123,6 +124,38 @@ export const guideApi = {
     });
     return apiClient.get<GuideExperienceStateResponse>(
       `/guide/sessions/state?${query.toString()}`,
+    );
+  },
+
+  /**
+   * C.1 — the state of EVERY card in a chapter, in one request.
+   *
+   * `getExperienceState` answers about one exact pin, which is why a chapter
+   * with two journeys used to ask once and paint both cards with the same
+   * answer. This asks about the published pin of each card and gets a verdict
+   * per card, in the order sent.
+   *
+   * Pins are NOT deduped here: two experiences bound to the same guide really
+   * do share a state, and the caller maps answers back by position.
+   */
+  getExperienceCardStates: (
+    pins: ReadonlyArray<{ guideKey: string; guideVersion: number }>,
+  ) => {
+    const invalid = pins.some(
+      (pin) =>
+        typeof pin?.guideKey !== "string" ||
+        !GUIDE_KEY_RE.test(pin.guideKey) ||
+        !Number.isInteger(pin?.guideVersion) ||
+        pin.guideVersion <= 0,
+    );
+    if (pins.length === 0 || invalid) {
+      // The rejected pin is NOT echoed — untrusted input does not travel into
+      // an error message that something will eventually log.
+      return Promise.reject(new Error(GUIDE_RECOVERY_PARAMS_INVALID));
+    }
+    return apiClient.post<GuideExperienceCardStatesResponse>(
+      "/guide/experiences/state",
+      { pins: pins.map((p) => ({ ...p })) },
     );
   },
 

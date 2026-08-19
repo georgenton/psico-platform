@@ -10,6 +10,7 @@ import type {
   ContentUnitMarks,
   ContentUnitRead,
   HighlightColor,
+  GuideExperienceCardState,
   GuideSessionView,
   HighlightSummary,
   LectorChapterResponse,
@@ -67,7 +68,11 @@ import {
   type BookExperienceModeView,
 } from "./book-experience";
 import { useChapterMediaManifest } from "./media/use-chapter-media";
-import { guideComponentKey } from "../guide/guide-pin";
+import { guideComponentKey, type GuidePin } from "../guide/guide-pin";
+import {
+  experiencePinKey,
+  type ExperienceCardStates,
+} from "../experience/ExperienceList";
 import { resolveGuideWebBundle } from "../guide/guide-web-bundle";
 import { useGuideActorScope } from "../guide/guide-actor-scope";
 import { useGuideAvailability } from "../guide/guide-availability";
@@ -347,6 +352,17 @@ export function LectorShell({
   const [pickedExperience, setPickedExperience] =
     useState<ChapterExperiencePublicView | null>(null);
 
+  /**
+   * C.1 — the EXACT pin the guide surface runs, once the reader picks a card.
+   *
+   * The surface used to run whatever pin chapter-level Guide discovery named,
+   * so opening experience B ran experience A's guide. It now runs the pin the
+   * card resolved: the published one for a fresh start, the open session's own
+   * one to continue. `null` until a card is picked, and then the chapter pin is
+   * only a fallback for surfaces that never went through a card.
+   */
+  const [pickedPin, setPickedPin] = useState<GuidePin | null>(null);
+
   // Text selection state for the popover.
   const [selection, setSelection] = useState<{
     blockId: string;
@@ -422,9 +438,16 @@ export function LectorShell({
    * ahead of a deploy). That is a refusal, not a fallback: showing the guide we
    * DO have would narrate the wrong chapter with real progress behind it.
    */
+  /**
+   * The pin actually being run. A picked card wins over chapter discovery,
+   * because "which journey is this" is a property of the card the reader
+   * touched, not of the chapter it lives in.
+   */
+  const runPin = pickedPin ?? discoveredPin;
+
   const guideBundle = useMemo(
-    () => (discoveredPin ? resolveGuideWebBundle(discoveredPin) : null),
-    [discoveredPin],
+    () => (runPin ? resolveGuideWebBundle(runPin) : null),
+    [runPin],
   );
 
   /**
@@ -438,14 +461,17 @@ export function LectorShell({
    * chapter are not the screen we are on does not apply here.
    */
   const guideAnchor: GuideAnchorResolution = useMemo(() => {
-    if (!discoveredPin) return { status: "UNRESOLVED" };
-    const locator = guideAnchorRegistry.getExact(discoveredPin);
+    // Keyed by the pin being RUN: a picked card may run a different journey
+    // than chapter discovery named, and handing it another guide's passage is
+    // the failure this registry exists to make impossible.
+    if (!runPin) return { status: "UNRESOLVED" };
+    const locator = guideAnchorRegistry.getExact(runPin);
     if (!locator) return { status: "UNRESOLVED" };
     if (!anchorAppliesTo(bookSlug, chapter.order, locator)) {
       return { status: "UNRESOLVED" };
     }
     return resolveGuideAnchor(blocks, locator);
-  }, [blocks, bookSlug, chapter.order, discoveredPin]);
+  }, [blocks, bookSlug, chapter.order, runPin]);
 
   /**
    * Scroll the anchored paragraph into view and focus it. Deliberately does
@@ -484,7 +510,7 @@ export function LectorShell({
     guideAvailable === true &&
     guideActorScope !== null &&
     discovery.status === "available" &&
-    discoveredPin !== null &&
+    runPin !== null &&
     guideBundle !== null &&
     guideAnchor.status === "RESOLVED";
 
@@ -526,31 +552,49 @@ export function LectorShell({
   );
 
   /**
-   * The open session the SERVER reports for this chapter's pin, which is what
-   * turns a card's «Empezar» into «Continuar». One read, and only while the
-   * list is on screen: the cards report what the server said, never a guess.
+   * C.1 — the server's verdict for EACH published experience, in one read.
+   *
+   * This used to ask once, for the chapter's own guide pin, and hand that
+   * single answer to every card. A chapter has one pin and can publish several
+   * journeys, so the cards shared a state: finishing one made the others read
+   * «Completada» without anybody opening them (#639).
+   *
+   * One request for the whole list, not one per card — the reader should not
+   * pay for the catalog's size — and the answer is keyed by published pin, so
+   * two experiences deliberately bound to the same guide DO share a verdict.
+   * That is not a bug to paper over; it is what the binding says.
    */
-  const [openSession, setOpenSession] = useState<GuideSessionView | null>(null);
+  const [experienceStates, setExperienceStates] =
+    useState<ExperienceCardStates>(() => new Map());
+  const experiencePins = useMemo(
+    () => chapterExperiences.items.map((item) => item.guidePin),
+    [chapterExperiences.items],
+  );
   useEffect(() => {
-    if (surface !== "home" || guideBundle === null) return;
+    if (surface !== "home" || experiencePins.length === 0) {
+      return;
+    }
     let cancelled = false;
     void (async () => {
       try {
-        // GR-7 — `state`, not `recoverable`. The older read sees ACTIVE runs
-        // only, so a finished journey came back as nothing and the card read
-        // «Empezar» the morning after somebody completed it.
-        const answer = await guideApi.getExperienceState(guideBundle.pin);
-        if (!cancelled) setOpenSession(answer.session);
+        const answer = await guideApi.getExperienceCardStates(experiencePins);
+        if (cancelled) return;
+        const next = new Map<string, GuideExperienceCardState>();
+        for (const state of answer.items) {
+          next.set(experiencePinKey(state.guidePin), state);
+        }
+        setExperienceStates(next);
       } catch {
-        // A failed read is not a session. The cards fall back to «Empezar»,
-        // which is what the reader sees when nothing is open anyway.
-        if (!cancelled) setOpenSession(null);
+        // A failed read is not a state. Every card falls back to «Empezar»,
+        // which is what an unopened journey looks like anyway — and never to a
+        // status this client invented.
+        if (!cancelled) setExperienceStates(new Map());
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [surface, guideBundle]);
+  }, [surface, experiencePins]);
 
   /**
    * What the reader ASKED for and what the chapter can actually give them.
@@ -1489,8 +1533,15 @@ export function LectorShell({
           modeViews={modeViews}
           guidedView={guidedView}
           experiences={chapterExperiences.items}
-          experienceSession={openSession}
+          experienceStates={experienceStates}
           onOpenExperience={(experience) => {
+            // C.1 — the pin the server says to run: the open session's own pin
+            // when there is one to continue, the published pin otherwise. A
+            // run is never migrated to another version behind the reader.
+            const state = experienceStates.get(
+              experiencePinKey(experience.guidePin),
+            );
+            setPickedPin(state ? state.resumePin : experience.guidePin);
             setPickedExperience(experience);
             openReaderSurface();
             setGuideOpen(true);

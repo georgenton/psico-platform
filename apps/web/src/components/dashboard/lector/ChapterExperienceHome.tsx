@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import type {
-  ChapterExperiencePublicView,
-  GuideSessionView,
-} from "@psico/types";
-import { ExperienceList } from "../experience/ExperienceList";
+import type { ChapterExperiencePublicView } from "@psico/types";
+import {
+  ExperienceList,
+  type ExperienceCardStates,
+} from "../experience/ExperienceList";
 import type { BookExperienceModeView } from "./book-experience";
 import {
   disabledNotice,
@@ -63,8 +63,11 @@ export interface ChapterExperienceHomeProps {
    * answer than saying nothing at all.
    */
   experiences: readonly ChapterExperiencePublicView[];
-  /** The open session the server reported, for the cards' status. */
-  experienceSession: GuideSessionView | null;
+  /**
+   * C.1 — the server's verdict per published pin, from ONE batch read. Each
+   * card takes its own; none of them shares another's.
+   */
+  experienceStates: ExperienceCardStates;
   onOpenExperience: (experience: ChapterExperiencePublicView) => void;
   /**
    * How many activities and exercises this chapter really shows, counted once
@@ -127,7 +130,7 @@ export function ChapterExperienceHome({
   modeViews,
   guidedView,
   experiences,
-  experienceSession,
+  experienceStates,
   onOpenExperience,
   activityCount,
   onContinueReading,
@@ -328,7 +331,7 @@ export function ChapterExperienceHome({
 
       <ExperienceList
         experiences={visibleExperiences}
-        session={experienceSession}
+        states={experienceStates}
         onOpen={onOpenExperience}
       />
 

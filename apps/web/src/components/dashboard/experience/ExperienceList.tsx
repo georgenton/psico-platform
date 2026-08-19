@@ -13,18 +13,33 @@
  *   N → a vertical list in the SERVER's order. No editorial cap: if the
  *       catalog publishes ten, the reader sees ten.
  *
- * Every word on a card came over the wire. The status is the only thing this
- * file computes, and it computes it from the session the server reported —
- * never from a guess about what the reader "probably" did.
+ * Every word on a card came over the wire — the status included. C.1 moved
+ * that verdict to the server, because a chapter has ONE guide pin and two
+ * experiences comparing themselves against one session is exactly how
+ * finishing one made the other read «Completada» (#639).
  */
 
 import type {
   ChapterExperiencePublicView,
-  GuideSessionView,
+  GuideExperienceCardState,
 } from "@psico/types";
 
 /** What the reader can do with this experience, as a fact. */
 export type ExperienceCardStatus = "start" | "continue" | "completed";
+
+/** The server's verdict, keyed by published pin. */
+export type ExperienceCardStates = ReadonlyMap<
+  string,
+  GuideExperienceCardState
+>;
+
+/** The key both sides agree on: a card is identified by the pin it publishes. */
+export function experiencePinKey(pin: {
+  guideKey: string;
+  guideVersion: number;
+}): string {
+  return `${pin.guideKey}@${pin.guideVersion}`;
+}
 
 const CTA: Record<ExperienceCardStatus, string> = {
   start: "Empezar",
@@ -39,25 +54,29 @@ const BADGE: Record<ExperienceCardStatus, string | null> = {
 };
 
 /**
- * The status of one experience, from the server's own answer.
+ * The status of one experience — READ from the server, never derived here.
  *
- * `session` is the recoverable/open session the server reported, whatever pin
- * it carries; matching happens here so a session belonging to a DIFFERENT
- * journey can never colour this card. When there is no session for this pin
- * the honest answer is `start`, because that is all the server told us.
+ * This used to compare one chapter-wide session against each card's pin, and
+ * that is precisely the bug in #639: a chapter has one guide pin, so two
+ * experiences shared a verdict and finishing one made the other read
+ * «Completada». Worse, the comparison demanded an exact version match, so a
+ * reader with `A@v1` still running saw «Empezar» the day `A@v2` published.
+ *
+ * Both questions belong to the server, which can see the lineage and the exact
+ * pin separately. Here the only job left is translating its three words into
+ * the three the reader sees. An unknown card — the batch failed, or the server
+ * said nothing about this pin — reads `start`, which is what an unopened
+ * journey looks like anyway.
  */
 export function experienceCardStatus(
   experience: ChapterExperiencePublicView,
-  session: GuideSessionView | null,
+  states: ExperienceCardStates,
 ): ExperienceCardStatus {
-  if (
-    session === null ||
-    session.guideKey !== experience.guidePin.guideKey ||
-    session.guideVersion !== experience.guidePin.guideVersion
-  ) {
-    return "start";
-  }
-  return session.status === "COMPLETED" ? "completed" : "continue";
+  const state = states.get(experiencePinKey(experience.guidePin));
+  if (!state) return "start";
+  if (state.status === "CONTINUE") return "continue";
+  if (state.status === "COMPLETED") return "completed";
+  return "start";
 }
 
 function minutesLabel(minutes: number | undefined): string | null {
@@ -128,13 +147,16 @@ export function ExperienceCard({
 
 export function ExperienceList({
   experiences,
-  session,
+  states,
   onOpen,
   headingId = "chapter-experiences-heading",
 }: {
   experiences: readonly ChapterExperiencePublicView[];
-  /** The open session the server reported, or `null`. */
-  session: GuideSessionView | null;
+  /**
+   * The server's verdict per published pin — one entry per card, from ONE
+   * batch request. A missing entry is `start`, never a guess.
+   */
+  states: ExperienceCardStates;
   onOpen: (experience: ChapterExperiencePublicView) => void;
   headingId?: string;
 }) {
@@ -162,7 +184,7 @@ export function ExperienceList({
           <ExperienceCard
             key={`${experience.experienceKey}@${experience.experienceVersion}`}
             experience={experience}
-            status={experienceCardStatus(experience, session)}
+            status={experienceCardStatus(experience, states)}
             onOpen={onOpen}
           />
         ))}

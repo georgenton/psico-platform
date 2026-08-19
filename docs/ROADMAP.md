@@ -83,13 +83,15 @@ Cada fase necesita su propia autorización. El orden **no** es negociable: lo
 impone qué locks comparten dos binarios que conviven durante un rolling deploy,
 no el esquema.
 
-| Fase      | Qué                                                           | Puerta previa                                   | Estado                     |
-| --------- | ------------------------------------------------------------- | ----------------------------------------------- | -------------------------- |
-| **C.0A**  | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                               | ✅ desplegada              |
-| **C.0A1** | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                 | ✅ completa                |
-| **C.0B1** | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs   | ⬜ PR abierta, sin aplicar |
-| **C.0B2** | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)          | ⬜ PR abierta, sin aplicar |
-| **C.0B3** | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir | ⬜ PR abierta, sin aplicar |
+| Fase      | Qué                                                           | Puerta previa                                   | Estado                      |
+| --------- | ------------------------------------------------------------- | ----------------------------------------------- | --------------------------- |
+| **C.0A**  | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                               | ✅ desplegada               |
+| **C.0A1** | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                 | ✅ completa                 |
+| **C.0B1** | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs   | ⬜ PR abierta, sin aplicar  |
+| **C.0B2** | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)          | ⬜ PR abierta, sin aplicar  |
+| **C.0B3** | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir | ✅ desplegada               |
+| **C.1**   | Estado por Experience + discovery con pin exacto              | C.0B3 desplegada                                | ⬜ PR abierta, sin fusionar |
+| **C.2**   | La web consume estados independientes                         | C.1 en la misma PR                              | ⬜ PR abierta, sin fusionar |
 
 **Checkpoint de producción — 2026-08-18.** Ambos servicios sirven
 `1a6be6d3adb3501c30f957e6b87c547aca191769` y **consumen sus ficheros
@@ -618,6 +620,54 @@ independiente.
   autorización para desplegar lineage-only · drenaje final de V1 verificado por
   **marcador de protocolo**, no por SHA.
 
+#### C.1 + C.2 — el estado deja de ser del capítulo y pasa a ser de la Experience
+
+Hechos comprobados, no intenciones:
+
+```
+EXPERIENCE_IDENTITY_STATE_RESOLUTION=true
+EXPERIENCE_TO_EXACT_PIN_DISCOVERY=true
+LINEAGE_RECOVERY_SEPARATED_FROM_EXACT_PIN_COMPLETION=true
+OLD_ACTIVE_VERSION_CONTINUES=true
+COMPLETION_CROSSES_VERSION=false
+WEB_STATE_PER_EXPERIENCE=true
+```
+
+**La causa raíz.** Un capítulo resuelve UN pin de Guide. La web pedía el estado
+una vez, para ese pin, y cada tarjeta comparaba su propio pin contra esa única
+respuesta. Dos experiencias compartían veredicto: terminar una hacía que la otra
+leyera «Completada» sin que nadie la abriera. Y la comparación exigía versión
+exacta, así que un lector con `A@v1` en curso veía «Empezar» el día que se
+publicaba `A@v2`.
+
+**La identidad ya existía.** `ChapterExperiencePublicView` lleva
+`experienceKey` + `experienceVersion` y su propio `guidePin` desde GR-6, y el
+binding vive en `ChapterExperienceVersion.definitionJson`. No hizo falta
+migración, ni esquema, ni tocar el CMS: lo que faltaba era que alguien
+preguntara por cada tarjeta.
+
+**Tres preguntas, separadas:**
+
+| Pregunta                              | Clave                                    | Responde                    |
+| ------------------------------------- | ---------------------------------------- | --------------------------- |
+| Qué guía inicia una experiencia nueva | pin publicado de esa Experience          | discovery                   |
+| Qué sesión puede continuar            | `(userId, guideKey)` — cualquier versión | `findActiveOwnForGuideKeys` |
+| Si el pin publicado está terminado    | `(userId, guideKey, guideVersion)`       | `findOwnForExactPins`       |
+
+**Precedencia, en este orden:** una sesión ACTIVE del mismo `guideKey` gana y se
+continúa **en su propio pin inmutable**; si no la hay, un COMPLETED del pin
+exacto; si tampoco, START con el pin publicado. La regla 1 supera a la 3 a
+propósito: ofrecer `A@v2` a quien dejó `A@v1` corriendo abandonaría su sesión.
+Una sesión **nunca** se migra de versión, y completar `A@v1` no completa `A@v2`.
+
+**`POST /api/guide/experiences/state`** resuelve la lista entera en tres
+lecturas —los ACTIVE de los linajes, las sesiones de los pines exactos, y los
+pasos aceptados de las sesiones citadas— sea cual sea el número de tarjetas. La
+respuesta conserva el orden pedido y **repite** la respuesta para un pin
+repetido: dos experiencias ligadas a la misma guía comparten linaje de verdad, y
+fingir independencia ahí escondería un error de catálogo que C.3/C.4 deben
+evitar en la creación.
+
 #### Qué falta de #639 después de C.0B3
 
 Derivado de ADR 0022 §13 y del cuerpo del issue, no inventado.
@@ -639,16 +689,16 @@ filas y nunca devuelve una sesión sobre la que actuar.
 
 **Lo que sí queda pendiente (C.1+):**
 
-- **resolver el estado desde la identidad de Experience** — hoy
-  `experienceCardStatus` resuelve por capítulo, que es la causa raíz del issue;
-- **mapear Experience → pin exacto** en discovery;
-- **ofrecer continuar una sesión activa del lineage** cuando la versión
-  publicada actual sea otra — hoy `findRecoverableSession` devuelve `null` si la
-  versión no coincide, y cambiarlo es una modificación de comportamiento público
-  que pertenece al endpoint de estado por Experience, no a esta release;
-- **distinguir recuperación del lineage frente al estado/completion de un pin
-  exacto** — son dos preguntas distintas y hoy comparten camino;
-- **discovery por Experience y consumo Web** (C.1 y C.2);
+- ~~resolver el estado desde la identidad de Experience~~ — **cerrado en C.1**;
+- ~~mapear Experience → pin exacto~~ — **ya existía**: discovery devuelve el pin
+  publicado de cada Experience desde GR-6;
+- ~~ofrecer continuar una sesión activa del lineage cuando la versión publicada
+  sea otra~~ — **cerrado en C.1**, en el endpoint de estado por Experience.
+  `findRecoverableSession` sigue exigiendo pin exacto y no cambia: su contrato
+  público es otro;
+- ~~distinguir recuperación del lineage frente a completion del pin exacto~~ —
+  **cerrado en C.1**;
+- ~~consumo Web de estados independientes~~ — **cerrado en C.2**;
 - **reserva de binding segura ante concurrencia en el CMS** (C.3) y **selección
   de Guide** (C.4, bloqueada por producto);
 - **ciclo de vida de drafts abandonados** (ADR §11): `DRAFT → ARCHIVED`, la fila

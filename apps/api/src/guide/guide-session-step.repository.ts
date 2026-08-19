@@ -205,6 +205,31 @@ export class GuideSessionStepRepository {
   }
 
   /**
+   * C.1 — the accepted steps of SEVERAL sessions, in one query.
+   *
+   * The card batch derives a projection per session, and doing that with one
+   * `listAccepted` per card is the N+1 the batch exists to avoid. Grouping is
+   * left to the caller so the ordering contract stays visible here: rows come
+   * back ordered by session and then by step order, which is what a projection
+   * needs.
+   */
+  async listAcceptedForSessions(
+    sessionIds: readonly string[],
+    db?: GuideSessionStepDb,
+  ): Promise<GuideSessionStep[]> {
+    if (sessionIds.length === 0) return [];
+    const client = db ?? this.prisma;
+    try {
+      return await client.guideSessionStep.findMany({
+        where: { sessionId: { in: [...new Set(sessionIds)] } },
+        orderBy: [{ sessionId: "asc" }, { order: "asc" }],
+      });
+    } catch (err) {
+      sanitize(err);
+    }
+  }
+
+  /**
    * Insert ONE accepted step — the only ledger write primitive:
    *
    *   1. fail-closed input validation (no DB touch on bad shape);

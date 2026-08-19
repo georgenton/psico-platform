@@ -4,7 +4,7 @@ import type {
   ChapterExperiencePublicView,
   GuideSessionView,
 } from "@psico/types";
-import { ExperienceList } from "./ExperienceList";
+import { ExperienceList, type ExperienceCardStates } from "./ExperienceList";
 import { CompletionSummary } from "./CompletionSummary";
 import type { GuideRunFacts } from "../guide/use-guide-run";
 
@@ -74,6 +74,27 @@ const SESSION: GuideSessionView = {
   currentStepKey: null,
 };
 
+/** C.1 — the server's verdict per card, the shape the list now consumes. */
+const STATES: ExperienceCardStates = new Map([
+  [
+    "guide-1@1",
+    {
+      guidePin: { guideKey: "guide-1", guideVersion: 1 },
+      status: "COMPLETED" as const,
+      session: {
+        sessionId: "ses_1",
+        guideKey: "guide-1",
+        guideVersion: 1,
+        status: "COMPLETED" as const,
+        stepsCompleted: 2,
+        totalSteps: 2,
+        currentStepKey: null,
+      },
+      resumePin: { guideKey: "guide-1", guideVersion: 1 },
+    },
+  ],
+]);
+
 const FACTS: GuideRunFacts = {
   confirmedStepKeys: ["explorar"],
   recalls: [{ stepKey: "recordar", outcome: "CORRECT" }],
@@ -93,7 +114,7 @@ describe("firewall · Chapter Home and Completion Summary", () => {
     render(
       <ExperienceList
         experiences={EXPERIENCES}
-        session={SESSION}
+        states={STATES}
         onOpen={() => {}}
       />,
     );

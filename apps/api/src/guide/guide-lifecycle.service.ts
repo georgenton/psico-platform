@@ -12,6 +12,8 @@ import type {
   GuideSessionStatus,
   GuideStepDefinition,
   GuideExperienceStateResponse,
+  GuideExperienceCardState,
+  GuideExperienceCardStatus,
 } from "@psico/types";
 // Value import, not `import type`: `Prisma.TransactionIsolationLevel` is read
 // at runtime to state the isolation level of both Guide command transactions.
@@ -454,6 +456,157 @@ export class GuideLifecycleService {
       };
     }
     return { state: "ACTIVE", session: view, summary: null };
+  }
+
+  /**
+   * C.1 — where the reader stands in EACH of several experiences.
+   *
+   * The defect this closes (#639): the chapter asked once, for the chapter's
+   * own guide pin, and every card compared itself to that single answer. Two
+   * experiences therefore shared one state — finish one and the other read
+   * «Completada» without anybody opening it.
+   *
+   * Three reads, whatever the list's length:
+   *
+   *   1. the ACTIVE sessions of the distinct lineages;
+   *   2. every session of the exact published pins;
+   *   3. the accepted steps of the sessions those two produced.
+   *
+   * Precedence per card, and the order matters:
+   *
+   *   1. ACTIVE of the same `guideKey` → CONTINUE, on that session's OWN pin.
+   *      A reader who left `A@v1` running is offered the run they are in, not
+   *      a fresh `A@v2` that would strand it. A session is never migrated.
+   *   2. otherwise COMPLETED of the EXACT published pin → COMPLETED.
+   *      Completion does not cross versions.
+   *   3. otherwise → START, on the published pin.
+   *
+   * A CANCELLED session is not a state: the reader withdrew, and the honest
+   * answer is START. The response echoes the requested order and repeats the
+   * answer for a repeated pin — two experiences deliberately bound to the same
+   * guide DO share a lineage, and pretending otherwise would invent an
+   * independence the data does not have.
+   */
+  async resolveExperienceCardStates(
+    userId: string,
+    pins: readonly { guideKey: string; guideVersion: number }[],
+  ): Promise<GuideExperienceCardState[]> {
+    if (pins.length === 0) return [];
+
+    const [activeRows, exactRows] = await Promise.all([
+      this.sessions.findActiveOwnForGuideKeys(
+        userId,
+        pins.map((p) => p.guideKey),
+      ),
+      this.sessions.findOwnForExactPins(userId, pins),
+    ]);
+
+    const activeByKey = new Map<string, GuideSessionRow>();
+    for (const row of activeRows) {
+      if (!activeByKey.has(row.guideKey)) activeByKey.set(row.guideKey, row);
+    }
+    // Newest first per pin comes from the repository's ordering; the first row
+    // seen for a pin is therefore the latest one.
+    const exactByPin = new Map<string, GuideSessionRow>();
+    for (const row of exactRows) {
+      const k = `${row.guideKey}@${row.guideVersion}`;
+      if (!exactByPin.has(k)) exactByPin.set(k, row);
+    }
+
+    // The sessions any card actually cites — and only those. Steps for a
+    // session nobody will mention are work nobody asked for.
+    const cited = new Map<string, GuideSessionRow>();
+    for (const pin of pins) {
+      const active = activeByKey.get(pin.guideKey);
+      if (active) cited.set(active.id, active);
+      const exact = exactByPin.get(`${pin.guideKey}@${pin.guideVersion}`);
+      if (exact && exact.status === "COMPLETED") cited.set(exact.id, exact);
+    }
+    const steps = await this.steps.listAcceptedForSessions([...cited.keys()]);
+    const stepsBySession = new Map<string, typeof steps>();
+    for (const row of steps) {
+      const list = stepsBySession.get(row.sessionId) ?? [];
+      list.push(row);
+      stepsBySession.set(row.sessionId, list);
+    }
+
+    /** The public view of a session, or `null` when its pin left the registry. */
+    const viewOf = (row: GuideSessionRow): GuideSessionView | null => {
+      let definition: GuideDefinition;
+      try {
+        definition = productionGuideRegistry.getExact(
+          row.guideKey,
+          row.guideVersion,
+        );
+      } catch {
+        // A session pinned to a version this build no longer ships cannot be
+        // projected, so it is not cited at all — the card falls back to START
+        // rather than reporting a shape we cannot compute.
+        return null;
+      }
+      const accepted = (stepsBySession.get(row.id) ?? []).map((r) =>
+        parseAcceptedGuideStepRow(r),
+      );
+      const projection = deriveGuideProjection(
+        definition,
+        accepted,
+        row.status,
+      );
+      return {
+        sessionId: row.id,
+        guideKey: row.guideKey,
+        guideVersion: row.guideVersion,
+        status: row.status,
+        stepsCompleted: projection.stepsCompleted,
+        totalSteps: projection.totalSteps,
+        currentStepKey: projection.currentStepKey,
+      };
+    };
+
+    return pins.map((pin) => {
+      const published = {
+        guideKey: pin.guideKey,
+        guideVersion: pin.guideVersion,
+      };
+
+      const active = activeByKey.get(pin.guideKey);
+      if (active) {
+        const view = viewOf(active);
+        if (view) {
+          return {
+            guidePin: published,
+            status: "CONTINUE" as GuideExperienceCardStatus,
+            session: view,
+            // The session's OWN pin: continuing must never move a run to
+            // another version.
+            resumePin: {
+              guideKey: view.guideKey,
+              guideVersion: view.guideVersion,
+            },
+          };
+        }
+      }
+
+      const exact = exactByPin.get(`${pin.guideKey}@${pin.guideVersion}`);
+      if (exact && exact.status === "COMPLETED") {
+        const view = viewOf(exact);
+        if (view) {
+          return {
+            guidePin: published,
+            status: "COMPLETED" as GuideExperienceCardStatus,
+            session: view,
+            resumePin: published,
+          };
+        }
+      }
+
+      return {
+        guidePin: published,
+        status: "START" as GuideExperienceCardStatus,
+        session: null,
+        resumePin: published,
+      };
+    });
   }
 
   /** Build the result from CURRENT stored state (never from the command). */

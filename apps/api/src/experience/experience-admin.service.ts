@@ -66,13 +66,17 @@ import {
 } from "./experience-binding-lock";
 import type { ReservationAuthority } from "./experience-binding-schema";
 import {
+  EXPERIENCE_BINDING_CATALOG,
   guideAnchorAppliesToChapter,
+  productionBindingCatalog,
   selectableGuidesForChapter,
+  type ExperienceBindingCatalog,
   type SelectableGuideOption,
 } from "./experience-guide-options";
 import {
   assertBindingAvailable,
   ensureReservation,
+  moveReservation,
   EXPERIENCE_BINDING_CODES,
   ExperienceBindingError,
   readChapterBindings,
@@ -117,12 +121,43 @@ export function chapterRowScope(
       : { contentUnitId: chapter.contentUnitId };
   }
   if (authority === "BRIDGE") {
-    const legacy = { contentUnitId: null, bookSlug, chapterOrder };
+    // Position is a SUPERSET here — it can also match rows belonging to a unit
+    // that has since moved away — so `keepsChapterRow` narrows it afterwards.
+    // The narrowing cannot be expressed in the query: this binary's Prisma
+    // client is generated from the cutover schema, where `contentUnitId` is NOT
+    // NULL, so `contentUnitId: null` is neither a legal filter for it nor a
+    // shape it will send.
     return chapter === null
-      ? legacy
-      : { OR: [{ contentUnitId: chapter.contentUnitId }, legacy] };
+      ? { bookSlug, chapterOrder }
+      : {
+          OR: [
+            { contentUnitId: chapter.contentUnitId },
+            { bookSlug, chapterOrder },
+          ],
+        };
   }
   return { bookSlug, chapterOrder };
+}
+
+/**
+ * Does this row really belong to the chapter that was asked for?
+ *
+ * Only BRIDGE needs it, and only because the query above is a superset there. A
+ * row with NO identity is legacy and position is all it has; a row WITH one
+ * belongs to that unit and to no other, whatever number it was created under.
+ *
+ * `contentUnitId` is typed non-null by a client built for the cutover schema,
+ * and under BRIDGE it genuinely can be null — so the read is widened here,
+ * deliberately and in one place, rather than the schema being made to lie.
+ */
+export function keepsChapterRow(
+  authority: ReservationAuthority,
+  chapter: { contentUnitId: string } | null,
+  row: { contentUnitId: string },
+): boolean {
+  if (authority !== "BRIDGE") return true;
+  const identity = (row as { contentUnitId: string | null }).contentUnitId;
+  return identity === null || identity === chapter?.contentUnitId;
 }
 
 /** Editorial failures, surfaced as codes rather than stack traces. */
@@ -222,18 +257,29 @@ function rowOf(
 @Injectable()
 export class ExperienceAdminService {
   /**
-   * The shipped-claim resolver is injected, with production as the default.
+   * Two catalogs, both injected, both defaulting to production.
    *
-   * `@Optional()` so `new ExperienceAdminService(prisma)` still means the real
-   * catalog — every existing caller keeps working — while a test can say what
-   * the build ships without impersonating the three catalog tables that answer
-   * it.
+   * `codeOwnedClaims` says WHERE the definitions this build ships live.
+   * Resolving that for real walks the guide registry and three catalog tables,
+   * which is a great deal of database for a unit test about lifecycle rules to
+   * have to impersonate.
+   *
+   * `catalog` says which guides a chapter may bind. The production one anchors
+   * exactly ONE guide per chapter, so with it hard-wired there is no chapter in
+   * which "move from guide A to guide B" is even expressible — a rebind's
+   * success path could ship without a test having run it once.
+   *
+   * `@Optional()` on both, so a bare `new ExperienceAdminService(prisma)` still
+   * means the real thing and every existing caller keeps working unchanged.
    */
   constructor(
     private readonly prisma: PrismaService,
     @Optional()
     @Inject(EXPERIENCE_CODE_OWNED_CLAIMS)
     private readonly codeOwnedClaims: CodeOwnedClaimResolver = productionCodeOwnedClaims,
+    @Optional()
+    @Inject(EXPERIENCE_BINDING_CATALOG)
+    private readonly catalog: ExperienceBindingCatalog = productionBindingCatalog,
   ) {}
 
   /**
@@ -272,10 +318,12 @@ export class ExperienceAdminService {
         });
         return {
           chapter: resolved,
-          rows: await tx.chapterExperienceVersion.findMany({
-            where: chapterRowScope(authority, resolved, bookSlug, chapterOrder),
-            orderBy: [{ experienceKey: "asc" }, { experienceVersion: "asc" }],
-          }),
+          rows: (
+            await tx.chapterExperienceVersion.findMany({
+              where: chapterRowScope(authority, resolved, bookSlug, chapterOrder),
+              orderBy: [{ experienceKey: "asc" }, { experienceVersion: "asc" }],
+            })
+          ).filter((row) => keepsChapterRow(authority, resolved, row)),
           // Resolved on the SAME snapshot, so the two halves of the list cannot
           // describe two different manifests.
           fromCode:
@@ -352,6 +400,7 @@ export class ExperienceAdminService {
     status: AdminExperienceStatus;
     definition: ChapterExperienceDefinition;
     contentUnitId: string | null;
+    rebindable: boolean;
   }> {
     const row = await this.prisma.chapterExperienceVersion.findUnique({
       where: { id },
@@ -363,6 +412,19 @@ export class ExperienceAdminService {
     } catch (err) {
       return editorial(err);
     }
+    // C.4 — whether the guide may still move.
+    //
+    // Computed here rather than inferred in the browser from `status`, because
+    // the rule is about the LINEAGE, not this row: one published version
+    // anywhere fixes the guide forever, and a draft sitting beside it looks
+    // perfectly rebindable from the outside. A UI that offered the control and
+    // then showed a 409 would be teaching the editor the rule by punishment.
+    const publishedInLineage = await this.prisma.chapterExperienceVersion.count(
+      {
+        where: { experienceKey: row.experienceKey, status: "PUBLISHED" },
+      },
+    );
+
     // The row's OWN chapter, not one derived from its number. The editor echoes
     // it back on save and publish, and the server compares.
     return {
@@ -370,6 +432,7 @@ export class ExperienceAdminService {
       status: row.status,
       definition,
       contentUnitId: row.contentUnitId,
+      rebindable: row.status === "DRAFT" && publishedInLineage === 0,
     };
   }
 
@@ -456,14 +519,14 @@ export class ExperienceAdminService {
     where: { bookSlug: string; chapterOrder: number },
   ): void {
     try {
-      productionGuideRegistry.getExact(pin.guideKey, pin.guideVersion);
+      this.catalog.getExact(pin.guideKey, pin.guideVersion);
     } catch {
       throw new UnprocessableEntityException({
         code: "EXPERIENCE_GUIDE_PIN_NOT_REGISTERED",
         message: "Esa guía no existe en esta versión de la plataforma.",
       });
     }
-    if (!guideAnchorAppliesToChapter(pin, where)) {
+    if (!guideAnchorAppliesToChapter(pin, where, this.catalog)) {
       throw new UnprocessableEntityException({
         code: "EXPERIENCE_GUIDE_PIN_NOT_RUNNABLE_HERE",
         message:
@@ -504,6 +567,7 @@ export class ExperienceAdminService {
         chapterOrder,
         experienceKey,
         view,
+        catalog: this.catalog,
       });
     });
   }
@@ -861,26 +925,46 @@ export class ExperienceAdminService {
    * session already walking the published version
    * (PUBLISHED_GUIDE_KEY_IMMUTABLE=true).
    *
-   * Atomic by construction. The new reservation is acquired BEFORE the old one
-   * is released, both inside one transaction under the chapter lock — a release
-   * that happened first would open a window where a colleague could take the
-   * guide this draft is about to move back to on rollback. The primary key on
-   * `(contentUnitId, experienceKey)` is what stops a lineage from ever holding
-   * two at once, so the move is an update of one row, not two rows in flight.
+   * ── Atomic because there is only one row ────────────────────────────────
+   *
+   * This used to describe itself as "acquire the new reservation before
+   * releasing the old one". That framing is wrong twice over. The primary key
+   * is `(contentUnitId, experienceKey)`, so a lineage has exactly ONE
+   * reservation row and cannot hold two — there is no acquire-then-release
+   * sequence to order. And the composite foreign key is `RESTRICT`, so
+   * releasing first is not merely unwise, it is refused by the database while a
+   * version still references it.
+   *
+   * What is left is an UPDATE of that single row, under the chapter lock, with
+   * no window: before it the lineage holds the old guide, after it the new one,
+   * and nothing observes an in-between. `ON UPDATE CASCADE` carries the new
+   * `guideKey` to every version row referencing the reservation in the same
+   * statement, so columns and reservation cannot diverge.
+   *
+   * The definitions do not cascade — structure does, editorial content does
+   * not — so every unpublished version of the lineage in this chapter is
+   * rewritten explicitly. Archived versions are left exactly as they are: their
+   * historical `guidePin` is the thing archiving preserves.
    */
   async rebindDraft(
     id: string,
     pin: { guideKey: string; guideVersion: number },
+    expectedContentUnitId?: string | null,
   ): Promise<{ id: string }> {
     const row = await this.prisma.chapterExperienceVersion.findUnique({
       where: { id },
-      select: { bookSlug: true, chapterOrder: true },
+      select: { bookSlug: true, chapterOrder: true, contentUnitId: true },
     });
     if (!row) throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
     this.assertPinBindable(pin, row);
 
     return this.withBinding(
-      { bookSlug: row.bookSlug, chapterOrder: row.chapterOrder },
+      {
+        bookSlug: row.bookSlug,
+        chapterOrder: row.chapterOrder,
+        contentUnitId: row.contentUnitId,
+        expectedContentUnitId,
+      },
       async (tx, chapter) => {
         const current = await tx.chapterExperienceVersion.findUnique({
           where: { id },
@@ -912,32 +996,66 @@ export class ExperienceAdminService {
           });
         }
 
-        const definition = this.rebuildAsDraft(
-          validateExperienceDefinition(current.definitionJson),
-          pin,
-        );
-        await this.reserveFor(tx, chapter, definition);
+        // The target must be free or already ours. `reserveFor` cannot answer
+        // this: it also asserts the lineage holds nothing else, which is
+        // precisely what a rebind is asking to change — calling it here made
+        // the whole operation unreachable.
+        const shipped =
+          await productionExperienceRepository.listPublishedForChapter({
+            bookSlug: current.bookSlug,
+            chapterOrder: current.chapterOrder,
+          });
+        const view = await readChapterBindings(tx, {
+          contentUnitId: chapter.contentUnitId,
+          bookSlug: current.bookSlug,
+          chapterOrder: current.chapterOrder,
+          codeOwned: shipped.map((d) => ({
+            experienceKey: d.experienceKey,
+            guideKey: d.guidePin.guideKey,
+          })),
+        });
 
-        // The lineage's reservation is UPDATED, not deleted and recreated:
-        // deleting it would be refused by the foreign key while this row still
-        // references it, and that refusal is the guarantee, not an obstacle.
-        await tx.experienceGuideReservation.update({
+        // ONE row, updated in place. `ON UPDATE CASCADE` carries the new
+        // `guideKey` to every version row that references the reservation, so
+        // the columns cannot drift from it — nothing separate maintains them.
+        const outcome = await moveReservation(tx, {
+          contentUnitId: chapter.contentUnitId,
+          experienceKey: current.experienceKey,
+          toGuideKey: pin.guideKey,
+          view,
+        });
+
+        // Every UNPUBLISHED version of the lineage in this chapter, not just
+        // the row that was clicked. The cascade already moved their columns; a
+        // definition still naming the old pin would be the one divergence left.
+        // Archived rows are deliberately excluded — their historical `guidePin`
+        // is what archiving preserves.
+        const siblings = await tx.chapterExperienceVersion.findMany({
           where: {
-            contentUnitId_experienceKey: {
-              contentUnitId: chapter.contentUnitId,
-              experienceKey: current.experienceKey,
-            },
-          },
-          data: { guideKey: pin.guideKey },
-        });
-        await tx.chapterExperienceVersion.update({
-          where: { id },
-          data: {
-            definitionJson: definition as unknown as never,
+            experienceKey: current.experienceKey,
             contentUnitId: chapter.contentUnitId,
-            guideKey: pin.guideKey,
+            status: "DRAFT",
           },
+          select: { id: true, definitionJson: true },
         });
+        for (const sibling of siblings) {
+          const definition = this.rebuildAsDraft(
+            validateExperienceDefinition(sibling.definitionJson),
+            pin,
+          );
+          await tx.chapterExperienceVersion.update({
+            where: { id: sibling.id },
+            data: {
+              definitionJson: definition as unknown as never,
+              contentUnitId: chapter.contentUnitId,
+              guideKey: pin.guideKey,
+            },
+          });
+        }
+        // A rebind that moved nothing and rewrote nothing is a broken rebind.
+        if (outcome !== "replayed" && siblings.length === 0) {
+          throw new ExperienceBindingError(EXPERIENCE_BINDING_CODES.divergent);
+        }
         return { id };
       },
     );
@@ -958,15 +1076,23 @@ export class ExperienceAdminService {
    * DRAFT or PUBLISHED version of the lineage still needs it. The database
    * enforces that order: deleting it early is refused, not merely avoided.
    */
-  async archiveDraft(id: string): Promise<{ id: string }> {
+  async archiveDraft(
+    id: string,
+    expectedContentUnitId?: string | null,
+  ): Promise<{ id: string }> {
     const row = await this.prisma.chapterExperienceVersion.findUnique({
       where: { id },
-      select: { bookSlug: true, chapterOrder: true },
+      select: { bookSlug: true, chapterOrder: true, contentUnitId: true },
     });
     if (!row) throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
 
     return this.withBinding(
-      { bookSlug: row.bookSlug, chapterOrder: row.chapterOrder },
+      {
+        bookSlug: row.bookSlug,
+        chapterOrder: row.chapterOrder,
+        contentUnitId: row.contentUnitId,
+        expectedContentUnitId,
+      },
       async (tx, chapter) => {
         const current = await tx.chapterExperienceVersion.findUnique({
           where: { id },

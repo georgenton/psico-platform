@@ -908,21 +908,24 @@ export async function applyReservations(
         // command refuses to do. `definitionJson` is never touched: the claim it
         // records is what the whole command is preserving.
         if (group.legacyRowIds.length > 0) {
-          const updated = await tx.chapterExperienceVersion.updateMany({
-            where: {
-              id: { in: group.legacyRowIds },
-              // Still legacy at write time. If a bridge writer materialised it
-              // between the plan and here, this matches zero rows and the count
-              // check below aborts rather than overwriting their work.
-              contentUnitId: null,
-              guideKey: null,
-            },
-            data: {
-              contentUnitId: group.contentUnitId,
-              guideKey: group.guideKey,
-            },
-          });
-          if (updated.count !== group.legacyRowIds.length) {
+          // Raw SQL, for the same reason the bridge tests insert with it: this
+          // binary's Prisma client may be generated from the CUTOVER schema,
+          // where `contentUnitId` is NOT NULL — so `contentUnitId: null` is
+          // not a filter it will send. The guard is the point of the statement
+          // and cannot be dropped to satisfy a client that describes a schema
+          // this command may not be running against.
+          const updated = await tx.$executeRaw`
+            UPDATE "ChapterExperienceVersion"
+               SET "contentUnitId" = ${group.contentUnitId},
+                   "guideKey"      = ${group.guideKey},
+                   "updatedAt"     = now()
+             WHERE "id" = ANY(${group.legacyRowIds}::text[])
+               -- Still legacy at write time. If a bridge writer materialised it
+               -- between the plan and here, this matches zero rows and the count
+               -- check below aborts rather than overwriting their work.
+               AND "contentUnitId" IS NULL
+               AND "guideKey" IS NULL`;
+          if (updated !== group.legacyRowIds.length) {
             throw new BackfillAbort([
               {
                 kind: BACKFILL_ANOMALY.halfMaterialised,
@@ -933,7 +936,7 @@ export async function applyReservations(
               },
             ]);
           }
-          filled += updated.count;
+          filled += updated;
         }
       }
 

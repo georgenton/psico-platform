@@ -306,6 +306,108 @@ export function assertBindingAvailable(
 }
 
 /**
+ * May `experienceKey` take `guideKey`, ALLOWING it to let go of its own?
+ *
+ * `assertBindingAvailable` checks both halves of the bijection, and the second
+ * half — "this lineage already holds another guide" — is exactly what a rebind
+ * is asking permission to change. Calling it from a rebind makes the operation
+ * unreachable: the lineage's own claim refuses the lineage's own move.
+ *
+ * So this checks the half that still applies. The target must be free or
+ * already ours; what we currently hold is not an obstacle to us.
+ */
+export function assertGuideFreeForLineage(
+  view: ChapterBindingView,
+  input: { experienceKey: string; guideKey: string },
+): void {
+  const owner =
+    view.reservedBy.get(input.guideKey) ?? view.scannedBy.get(input.guideKey);
+  if (owner !== undefined && owner !== input.experienceKey) {
+    throw new ExperienceBindingError(EXPERIENCE_BINDING_CODES.guideReserved);
+  }
+}
+
+/** What a move turned out to be, so a caller can tell a replay from a change. */
+export type ReservationMove = "created" | "moved" | "replayed";
+
+/**
+ * Move a lineage's reservation from whatever it holds to `toGuideKey`.
+ *
+ * ── One row, updated in place ───────────────────────────────────────────────
+ *
+ * Not "take the new one, then release the old one". The primary key is
+ * `(contentUnitId, experienceKey)`, so a lineage has exactly ONE reservation
+ * row and two cannot coexist — there is no state in which it holds both. And it
+ * is not delete-then-insert either: the composite foreign key is `RESTRICT`, so
+ * deleting the row while a version still references it is refused by the
+ * database. That refusal is the guarantee, not an obstacle to work around.
+ *
+ * What is left is an UPDATE of the single row, which has no window at all:
+ * before it the lineage holds the old guide, after it the new one, and nothing
+ * observes an in-between.
+ *
+ * ── The columns come along by themselves ────────────────────────────────────
+ *
+ * The composite key is `ON UPDATE CASCADE`, so updating the reservation's
+ * `guideKey` updates the `guideKey` of every version row that references it, in
+ * the same statement. The columns cannot drift from the reservation because
+ * nothing separate maintains them — which is stronger than writing both and
+ * hoping they agree.
+ *
+ * The caller still owns `definitionJson`: the cascade moves structure, not
+ * editorial content, and a definition that still named the old pin would be the
+ * remaining divergence.
+ */
+export async function moveReservation(
+  db: BindingDb,
+  input: {
+    contentUnitId: string;
+    experienceKey: string;
+    toGuideKey: string;
+    view: ChapterBindingView;
+  },
+): Promise<ReservationMove> {
+  assertGuideFreeForLineage(input.view, {
+    experienceKey: input.experienceKey,
+    guideKey: input.toGuideKey,
+  });
+
+  const where = {
+    contentUnitId_experienceKey: {
+      contentUnitId: input.contentUnitId,
+      experienceKey: input.experienceKey,
+    },
+  };
+  const existing = await db.experienceGuideReservation.findUnique({
+    where,
+    select: { guideKey: true },
+  });
+
+  if (!existing) {
+    // No reservation yet — a legacy row the backfill has not reached, or a
+    // lineage whose only rows are archived. Creating one is the same operation
+    // with a shorter history.
+    await db.experienceGuideReservation.create({
+      data: {
+        contentUnitId: input.contentUnitId,
+        experienceKey: input.experienceKey,
+        guideKey: input.toGuideKey,
+      },
+    });
+    return "created";
+  }
+  // Same pin twice — a double submit, a retried request. Writing nothing is the
+  // honest answer, and it must not look like a conflict.
+  if (existing.guideKey === input.toGuideKey) return "replayed";
+
+  await db.experienceGuideReservation.update({
+    where,
+    data: { guideKey: input.toGuideKey },
+  });
+  return "moved";
+}
+
+/**
  * Materialise the reservation for a write this binary is making.
  *
  * Idempotent by identity, never by suppression: an existing row is a replay

@@ -2313,6 +2313,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pulso/experiences/guides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Las guías que este capítulo puede vincular, con su disponibilidad decidida en el servidor. */
+        get: operations["listSelectableGuidesForChapter"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pulso/experiences/drafts/{id}": {
         parameters: {
             query?: never;
@@ -2376,6 +2393,40 @@ export interface paths {
         put?: never;
         /** Clona una versión publicada como el siguiente borrador. La original no se toca. */
         post: operations["createNextExperienceDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pulso/experiences/drafts/{id}/binding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Cambia la guía de un borrador. Solo si la experiencia nunca se publicó. */
+        patch: operations["rebindExperienceDraft"];
+        trace?: never;
+    };
+    "/api/pulso/experiences/drafts/{id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archiva el borrador. La fila no se borra, su versión no se reutiliza y la guía queda libre. */
+        post: operations["archiveExperienceDraft"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4859,6 +4910,15 @@ export interface components {
              * @example clx0000000000000000000000
              */
             expectedContentUnitId?: string;
+        };
+        GuidePinDto: {
+            /** @example eec-c1-cuerpo-antes-que-mente */
+            guideKey: string;
+            /** @example 1 */
+            guideVersion: number;
+        };
+        RebindExperienceDraftDto: {
+            guidePin: components["schemas"]["GuidePinDto"];
         };
         ContentStudioBookSummaryDto: {
             slug: string;
@@ -14408,6 +14468,32 @@ export interface operations {
             };
         };
     };
+    listSelectableGuidesForChapter: {
+        parameters: {
+            query: {
+                bookSlug: string;
+                chapterOrder: number;
+                /**
+                 * @description Whose point of view. With it, the guide this lineage already holds reads
+                 *     `OWNED_BY_THIS_EXPERIENCE` instead of "taken by somebody".
+                 */
+                experienceKey?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Opciones de guía para el capítulo. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getExperienceDraftForAdmin: {
         parameters: {
             query?: never;
@@ -14548,6 +14634,73 @@ export interface operations {
                 "application/json": components["schemas"]["ExperienceBindingHintDto"];
             };
         };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    rebindExperienceDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RebindExperienceDraftDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Ya hay una versión publicada, o la guía está reservada. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    archiveExperienceDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             201: {
                 headers: {

@@ -17648,6 +17648,52 @@
         ]
       }
     },
+    "/api/pulso/experiences/guides": {
+      "get": {
+        "operationId": "listSelectableGuidesForChapter",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "emociones-en-construccion",
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10000,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "experienceKey",
+            "required": false,
+            "in": "query",
+            "description": "Whose point of view. With it, the guide this lineage already holds reads\n`OWNED_BY_THIS_EXPERIENCE` instead of \"taken by somebody\".",
+            "schema": {
+              "example": "eec-c1-cuerpo-antes-que-mente",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Opciones de guía para el capítulo."
+          }
+        },
+        "summary": "Las guías que este capítulo puede vincular, con su disponibilidad decidida en el servidor.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
     "/api/pulso/experiences/drafts/{id}": {
       "get": {
         "operationId": "getExperienceDraftForAdmin",
@@ -17831,16 +17877,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExperienceBindingHintDto"
-              }
-            }
-          }
-        },
         "responses": {
           "201": {
             "description": ""
@@ -17862,6 +17898,94 @@
         ]
       }
     },
+    "/api/pulso/experiences/drafts/{id}/binding": {
+      "patch": {
+        "operationId": "rebindExperienceDraft",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RebindExperienceDraftDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "409": {
+            "description": "Ya hay una versión publicada, o la guía está reservada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Cambia la guía de un borrador. Solo si la experiencia nunca se publicó.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/experiences/drafts/{id}/archive": {
+      "post": {
+        "operationId": "archiveExperienceDraft",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Archiva el borrador. La fila no se borra, su versión no se reutiliza y la guía queda libre.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
     "/api/pulso/experiences/drafts/{id}/publish": {
       "post": {
         "operationId": "publishExperienceDraft",
@@ -17875,16 +17999,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExperienceBindingHintDto"
-              }
-            }
-          }
-        },
         "responses": {
           "201": {
             "description": ""
@@ -24874,32 +24988,41 @@
           "definition": {
             "type": "object",
             "description": "Un ChapterExperienceDefinition completo. El servidor decide status, versión, publishedAt y autor: lo que venga en esos campos se ignora."
-          },
-          "expectedContentUnitId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 64,
-            "pattern": "/^[a-z0-9]+$/",
-            "description": "El ContentUnit que el cliente cree estar editando. El servidor lo vuelve a derivar del manifiesto publicado y rechaza si no coincide: nunca lo usa como fuente.",
-            "example": "clx0000000000000000000000"
           }
         },
         "required": [
           "definition"
         ]
       },
-      "ExperienceBindingHintDto": {
+      "GuidePinDto": {
         "type": "object",
         "properties": {
-          "expectedContentUnitId": {
+          "guideKey": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 64,
-            "pattern": "/^[a-z0-9]+$/",
-            "description": "El ContentUnit que el cliente cree estar editando. Pista, no autoridad.",
-            "example": "clx0000000000000000000000"
+            "example": "eec-c1-cuerpo-antes-que-mente"
+          },
+          "guideVersion": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 999999999,
+            "example": 1
           }
-        }
+        },
+        "required": [
+          "guideKey",
+          "guideVersion"
+        ]
+      },
+      "RebindExperienceDraftDto": {
+        "type": "object",
+        "properties": {
+          "guidePin": {
+            "$ref": "#/components/schemas/GuidePinDto"
+          }
+        },
+        "required": [
+          "guidePin"
+        ]
       },
       "ContentStudioBookSummaryDto": {
         "type": "object",

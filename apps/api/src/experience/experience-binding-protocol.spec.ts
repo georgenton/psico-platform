@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  bindingLockKeys,
   bridgeBindingLockKeys,
   chapterBindingLockKey,
   globalBindingLockKey,
@@ -57,7 +58,29 @@ const code = (p: string) =>
 
 describe("ratchet · the lock protocol", () => {
   it("names the protocol this binary speaks", () => {
-    expect(EXPERIENCE_BINDING_PROTOCOL).toBe("experience-binding-bridge-v1");
+    expect(EXPERIENCE_BINDING_PROTOCOL).toBe("experience-binding-v2");
+  });
+
+  it("V2 drops the global key and keeps the chapter one", () => {
+    // The same narrowing C.0B3 did to the start lock, for the same reason: the
+    // global key existed so the backfill could exclude every writer, and once
+    // that has run it only serialises unrelated chapters against each other.
+    expect(bindingLockKeys("unit_1")).toEqual([
+      "experience:binding:chapter:unit_1",
+    ]);
+  });
+
+  it("V1's sequence is RETAINED so a mixed fleet can be modelled", () => {
+    // Not dead code: the mixed-fleet spec must model the binary being replaced
+    // with the derivation it actually used, and the chapter key must be
+    // byte-identical in both — that shared key is what makes V1+V2 safe.
+    expect(bridgeBindingLockKeys("unit_1")).toEqual([
+      "experience:binding:global",
+      "experience:binding:chapter:unit_1",
+    ]);
+    expect(bridgeBindingLockKeys("unit_1")[1]).toBe(
+      bindingLockKeys("unit_1")[0],
+    );
   });
 
   it("derives keys byte for byte, so two binaries can share them", () => {
@@ -65,15 +88,6 @@ describe("ratchet · the lock protocol", () => {
     expect(chapterBindingLockKey("unit_1")).toBe(
       "experience:binding:chapter:unit_1",
     );
-  });
-
-  it("the bridge sequence is global THEN chapter", () => {
-    // Order is the deadlock argument. A pair acquiring them the other way round
-    // could build a cycle with a pair acquiring them this way.
-    expect(bridgeBindingLockKeys("unit_1")).toEqual([
-      "experience:binding:global",
-      "experience:binding:chapter:unit_1",
-    ]);
   });
 
   it("the chapter key is derived from the STABLE unit, never from placement", () => {

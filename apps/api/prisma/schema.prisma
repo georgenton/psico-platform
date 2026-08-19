@@ -2360,6 +2360,8 @@ model ContentUnit {
   progress        UserProgress[]
   /// C.3A — the guide bindings reserved inside this chapter.
   guideReservations ExperienceGuideReservation[]
+  /// C.3A — every experience version that names this unit, reserving or not.
+  experienceVersions ChapterExperienceVersion[] @relation("ChapterExperienceVersionUnit")
 
   @@unique([editionId, unitKey])
   @@index([editionId])
@@ -2712,6 +2714,17 @@ model ChapterExperienceVersion {
   guideKey          String?
 
   createdBy User @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  /// C.3A — the chapter this row names, as a fact of its own.
+  ///
+  /// Separate from the composite reservation key below, and not redundant with
+  /// it. That one is MATCH SIMPLE, so it stops being evaluated the instant
+  /// `guideKey` goes null — which is precisely what archiving does. Without
+  /// this relation an ARCHIVED row's `contentUnitId` would be an unchecked
+  /// string, and the chapter it names could be deleted out from under it.
+  /// Identity survives archiving; it has to be protected after the binding is
+  /// gone, not only while it is there.
+  unit ContentUnit? @relation("ChapterExperienceVersionUnit", fields: [contentUnitId], references: [id], onDelete: Restrict)
 
   /// The reservation this row lives under. RESTRICT, so a reservation cannot be
   /// released while a version still depends on it — "archive releases" becomes

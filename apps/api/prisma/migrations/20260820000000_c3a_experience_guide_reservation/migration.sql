@@ -52,6 +52,21 @@ ALTER TABLE "ExperienceGuideReservation"
     FOREIGN KEY ("contentUnitId") REFERENCES "ContentUnit"("id")
     ON DELETE RESTRICT ON UPDATE CASCADE;
 
+-- ── The chapter a row names is a fact of its own ───────────────────────────
+--
+-- Not redundant with the composite key below, and the reason is MATCH SIMPLE.
+-- That constraint is not evaluated once `guideKey` is null — which is exactly
+-- what an archived row is. Without this one, an ARCHIVED row's `contentUnitId`
+-- would be an unchecked string and the unit it names could be deleted out from
+-- under it. Identity survives archiving, so it must be protected after the
+-- binding is released, not only while the binding is there.
+--
+-- Nullable, because a row written by the previous binary has no identity yet.
+ALTER TABLE "ChapterExperienceVersion"
+    ADD CONSTRAINT "ChapterExperienceVersion_contentUnitId_fkey"
+    FOREIGN KEY ("contentUnitId") REFERENCES "ContentUnit"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE;
+
 -- ── The row cannot outrun its reservation ──────────────────────────────────
 --
 -- RESTRICT, so a reservation cannot be released while a version still depends

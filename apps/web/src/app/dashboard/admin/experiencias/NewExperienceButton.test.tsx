@@ -51,6 +51,8 @@ function renderButton() {
     <NewExperienceButton
       bookSlug="emociones-en-construccion"
       chapterOrder={1}
+      contentUnitId="unit_eec_c1"
+      bindableGuides={1}
     />,
   );
 }
@@ -176,5 +178,38 @@ describe("NewExperienceButton", () => {
     await userEvent.tab();
     // Focus reaches the choice without a pointer.
     expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it("does not offer to create when no guide could be chosen", async () => {
+    // A real state with the current catalog, not a hypothetical: a chapter can
+    // have exactly one guide and a definition the build ships already holding
+    // it. Opening a form where nothing is selectable would be a promise the
+    // page cannot keep.
+    cleanup();
+    render(
+      <NewExperienceButton
+        bookSlug="emociones-en-construccion"
+        chapterOrder={1}
+        contentUnitId="unit_eec_c1"
+        bindableGuides={0}
+      />,
+    );
+    expect(screen.getByTestId("new-experience-no-guide")).toBeInTheDocument();
+    expect(screen.queryByTestId("new-experience")).toBeNull();
+    expect(listSelectableGuidesAction).not.toHaveBeenCalled();
+  });
+
+  it("echoes the chapter the page was rendered against", async () => {
+    // C.3A — a hint, never an authority. The server re-derives the identity and
+    // refuses on a mismatch, which is what turns "created from a page opened
+    // before a reorder" into something the editor sees.
+    renderButton();
+    await openForm();
+    await userEvent.click(screen.getByRole("radio"));
+    await userEvent.click(screen.getByTestId("new-experience-create"));
+    expect(createDraftAction).toHaveBeenCalledWith(
+      expect.anything(),
+      "unit_eec_c1",
+    );
   });
 });

@@ -51,7 +51,7 @@ export function ExperienceRowActions({
     setBusy(true);
     setError(null);
     try {
-      await archiveDraftAction(bookSlug, chapterOrder, row.id!);
+      await archiveDraftAction(bookSlug, chapterOrder, row.id!, contentUnitId);
       setConfirmingArchive(false);
       router.refresh();
     } catch {

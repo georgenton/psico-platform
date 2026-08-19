@@ -33,11 +33,22 @@ export function NewExperienceButton({
   bookSlug,
   chapterOrder,
   contentUnitId,
+  bindableGuides,
 }: {
   bookSlug: string;
   chapterOrder: number;
   /** The chapter this page was rendered against. See `createDraftAction`. */
   contentUnitId: string | null;
+  /**
+   * How many guides this chapter could actually bind right now — AVAILABLE or
+   * already this chapter's, as the server decided.
+   *
+   * Zero is a real state with the current catalog: a chapter may have exactly
+   * one guide and a definition the build ships may already hold it. Offering a
+   * button that opens a form where nothing is selectable would be promising an
+   * operation that cannot complete.
+   */
+  bindableGuides: number;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -90,6 +101,19 @@ export function NewExperienceButton({
       );
       setBusy(false);
     }
+  }
+
+  if (bindableGuides === 0) {
+    return (
+      <span
+        className="text-[12.5px]"
+        style={{ color: "var(--color-warm-500)" }}
+        data-testid="new-experience-no-guide"
+      >
+        Ninguna guía de este capítulo está libre: o no hay ninguna cuyo pasaje
+        viva aquí, o las que hay ya pertenecen a otra experiencia.
+      </span>
+    );
   }
 
   if (!choosing) {

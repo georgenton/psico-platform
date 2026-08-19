@@ -5,6 +5,7 @@ import type { AdminExperienceDraft } from "@psico/types";
 
 import { getSessionUser, isNextThrow, serverFetch } from "@/lib/api.server";
 import { DraftEditor } from "./DraftEditor";
+import { GuideBindingCard } from "./GuideBindingCard";
 
 export const metadata: Metadata = { title: "Pulso · Borrador" };
 export const dynamic = "force-dynamic";
@@ -71,13 +72,24 @@ export default async function AdminDraftEditorPage({
           .
         </p>
       ) : (
-        <DraftEditor
-          id={draft.id}
-          initial={draft.definition}
-          bookSlug={params.bookSlug}
-          chapterOrder={chapterOrder}
-          contentUnitId={draft.contentUnitId}
-        />
+        <>
+          <DraftEditor
+            id={draft.id}
+            initial={draft.definition}
+            bookSlug={params.bookSlug}
+            chapterOrder={chapterOrder}
+            contentUnitId={draft.contentUnitId}
+          />
+          <GuideBindingCard
+            id={draft.id}
+            bookSlug={params.bookSlug}
+            chapterOrder={chapterOrder}
+            experienceKey={draft.definition.experienceKey}
+            currentPin={draft.definition.guidePin}
+            rebindable={draft.rebindable}
+            contentUnitId={draft.contentUnitId}
+          />
+        </>
       )}
     </div>
   );

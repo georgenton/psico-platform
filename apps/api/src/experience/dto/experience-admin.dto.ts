@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
 import {
   IsInt,
   IsObject,
@@ -8,6 +9,7 @@ import {
   Matches,
   Max,
   Min,
+  ValidateNested,
 } from "class-validator";
 
 /**
@@ -79,6 +81,54 @@ export class ExperienceBindingHintDto {
   @Length(1, 64)
   @Matches(/^[a-z0-9]+$/)
   expectedContentUnitId?: string;
+}
+
+/**
+ * C.4 — the pin an editor picked.
+ *
+ * Closed and shallow on purpose: two integers-and-a-string is the whole
+ * vocabulary, and the server validates the pair against its registry and the
+ * chapter's anchor before it means anything.
+ */
+export class GuidePinDto {
+  @ApiProperty({ example: "eec-c1-cuerpo-antes-que-mente" })
+  @IsString()
+  guideKey!: string;
+
+  @ApiProperty({ example: 1 })
+  @IsInt()
+  @Min(1)
+  @Max(999_999_999)
+  guideVersion!: number;
+}
+
+export class RebindExperienceDraftDto {
+  @ApiProperty({ type: GuidePinDto })
+  @IsObject()
+  @ValidateNested()
+  @Type(() => GuidePinDto)
+  guidePin!: GuidePinDto;
+}
+
+export class ListSelectableGuidesQueryDto {
+  @ApiProperty({ example: "emociones-en-construccion" })
+  @IsString()
+  bookSlug!: string;
+
+  @ApiProperty({ example: 1 })
+  @IsInt()
+  @Min(1)
+  @Max(10_000)
+  chapterOrder!: number;
+
+  /**
+   * Whose point of view. With it, the guide this lineage already holds reads
+   * `OWNED_BY_THIS_EXPERIENCE` instead of "taken by somebody".
+   */
+  @ApiProperty({ required: false, example: "eec-c1-cuerpo-antes-que-mente" })
+  @IsOptional()
+  @IsString()
+  experienceKey?: string;
 }
 
 export class ListChapterExperiencesQueryDto {

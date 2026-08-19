@@ -66,6 +66,11 @@ import {
 } from "./experience-binding-lock";
 import type { ReservationAuthority } from "./experience-binding-schema";
 import {
+  guideAnchorAppliesToChapter,
+  selectableGuidesForChapter,
+  type SelectableGuideOption,
+} from "./experience-guide-options";
+import {
   assertBindingAvailable,
   ensureReservation,
   EXPERIENCE_BINDING_CODES,
@@ -405,18 +410,23 @@ export class ExperienceAdminService {
     input: ChapterExperienceDefinition,
     expectedContentUnitId?: string | null,
   ): Promise<{ id: string }> {
-    // C.3A — still the chapter's own pin. Selection is C.4; this phase changes
-    // how a binding is RESERVED, not who chooses it.
-    const pin = productionGuideDiscoveryCatalog.getExactContext(
-      input.bookSlug,
-      input.chapterOrder,
-    );
+    // C.4 — the editor chooses, and the server decides whether the choice is
+    // one it will honour. A pin the client omits falls back to the chapter's
+    // own, which keeps every existing caller working unchanged.
+    const requested = input.guidePin ?? null;
+    const pin =
+      requested ??
+      productionGuideDiscoveryCatalog.getExactContext(
+        input.bookSlug,
+        input.chapterOrder,
+      );
     if (pin === null) {
       throw new BadRequestException({
         code: "NO_GUIDE_FOR_CHAPTER",
         message: "No hay una guía base disponible para este capítulo.",
       });
     }
+    this.assertPinBindable(pin, input);
 
     const definition = this.rebuildAsDraft(input, pin);
     return this.withBinding(
@@ -430,6 +440,72 @@ export class ExperienceAdminService {
         return this.insert(tx, userId, definition, chapter);
       },
     );
+  }
+
+  /**
+   * May this chapter bind this pin at all?
+   *
+   * Two questions the browser is not allowed to answer. The registry one is
+   * obvious; the anchor one is the reason C.2 has a «No disponible aquí» state
+   * at all — a guide whose passage lives in another chapter produces a card
+   * that publishes cleanly and opens for nobody
+   * (CROSS_CHAPTER_GUIDE_BINDING=forbidden).
+   */
+  private assertPinBindable(
+    pin: { guideKey: string; guideVersion: number },
+    where: { bookSlug: string; chapterOrder: number },
+  ): void {
+    try {
+      productionGuideRegistry.getExact(pin.guideKey, pin.guideVersion);
+    } catch {
+      throw new UnprocessableEntityException({
+        code: "EXPERIENCE_GUIDE_PIN_NOT_REGISTERED",
+        message: "Esa guía no existe en esta versión de la plataforma.",
+      });
+    }
+    if (!guideAnchorAppliesToChapter(pin, where)) {
+      throw new UnprocessableEntityException({
+        code: "EXPERIENCE_GUIDE_PIN_NOT_RUNNABLE_HERE",
+        message:
+          "El pasaje de esa guía pertenece a otro capítulo, así que nadie " +
+          "podría abrir la experiencia aquí.",
+      });
+    }
+  }
+
+  /**
+   * The guides an editor may pick for this chapter, with availability.
+   *
+   * Read under the chapter lock like any other binding question: an answer
+   * computed outside it describes a moment a colleague may already have left.
+   */
+  async listSelectableGuides(
+    bookSlug: string,
+    chapterOrder: number,
+    experienceKey: string | null,
+  ): Promise<SelectableGuideOption[]> {
+    return this.withBinding({ bookSlug, chapterOrder }, async (tx, chapter) => {
+      const shipped =
+        await productionExperienceRepository.listPublishedForChapter({
+          bookSlug,
+          chapterOrder,
+        });
+      const view = await readChapterBindings(tx, {
+        contentUnitId: chapter.contentUnitId,
+        bookSlug,
+        chapterOrder,
+        codeOwned: shipped.map((d) => ({
+          experienceKey: d.experienceKey,
+          guideKey: d.guidePin.guideKey,
+        })),
+      });
+      return selectableGuidesForChapter({
+        bookSlug,
+        chapterOrder,
+        experienceKey,
+        view,
+      });
+    });
   }
 
   /**
@@ -773,6 +849,170 @@ export class ExperienceAdminService {
         }
 
         return { id, publishedAt: publishedAt.toISOString() };
+      },
+    );
+  }
+
+  /**
+   * C.4 — move a draft to another guide, before it has ever been published.
+   *
+   * Allowed only while the lineage has never published: after that the
+   * `guideKey` IS the lineage identity, and moving it would strand every
+   * session already walking the published version
+   * (PUBLISHED_GUIDE_KEY_IMMUTABLE=true).
+   *
+   * Atomic by construction. The new reservation is acquired BEFORE the old one
+   * is released, both inside one transaction under the chapter lock — a release
+   * that happened first would open a window where a colleague could take the
+   * guide this draft is about to move back to on rollback. The primary key on
+   * `(contentUnitId, experienceKey)` is what stops a lineage from ever holding
+   * two at once, so the move is an update of one row, not two rows in flight.
+   */
+  async rebindDraft(
+    id: string,
+    pin: { guideKey: string; guideVersion: number },
+  ): Promise<{ id: string }> {
+    const row = await this.prisma.chapterExperienceVersion.findUnique({
+      where: { id },
+      select: { bookSlug: true, chapterOrder: true },
+    });
+    if (!row) throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
+    this.assertPinBindable(pin, row);
+
+    return this.withBinding(
+      { bookSlug: row.bookSlug, chapterOrder: row.chapterOrder },
+      async (tx, chapter) => {
+        const current = await tx.chapterExperienceVersion.findUnique({
+          where: { id },
+        });
+        if (!current) {
+          throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
+        }
+        if (current.status !== "DRAFT") {
+          throw new ConflictException({
+            code: "EXPERIENCE_VERSION_NOT_DRAFT",
+            message: "Solo un borrador puede cambiar de guía.",
+          });
+        }
+
+        // Never published, in ANY version of this lineage. One published
+        // version is enough to fix the guide forever.
+        const published = await tx.chapterExperienceVersion.count({
+          where: {
+            experienceKey: current.experienceKey,
+            status: "PUBLISHED",
+          },
+        });
+        if (published > 0) {
+          throw new ConflictException({
+            code: "EXPERIENCE_BINDING_IMMUTABLE",
+            message:
+              "Esta experiencia ya tiene una versión publicada, así que su " +
+              "guía queda fija. Crea una experiencia nueva para otra guía.",
+          });
+        }
+
+        const definition = this.rebuildAsDraft(
+          validateExperienceDefinition(current.definitionJson),
+          pin,
+        );
+        await this.reserveFor(tx, chapter, definition);
+
+        // The lineage's reservation is UPDATED, not deleted and recreated:
+        // deleting it would be refused by the foreign key while this row still
+        // references it, and that refusal is the guarantee, not an obstacle.
+        await tx.experienceGuideReservation.update({
+          where: {
+            contentUnitId_experienceKey: {
+              contentUnitId: chapter.contentUnitId,
+              experienceKey: current.experienceKey,
+            },
+          },
+          data: { guideKey: pin.guideKey },
+        });
+        await tx.chapterExperienceVersion.update({
+          where: { id },
+          data: {
+            definitionJson: definition as unknown as never,
+            contentUnitId: chapter.contentUnitId,
+            guideKey: pin.guideKey,
+          },
+        });
+        return { id };
+      },
+    );
+  }
+
+  /**
+   * C.4 — archive a draft. Terminal, non-destructive, and it gives the guide
+   * back.
+   *
+   * What survives: the row, its version number, its whole `definitionJson`
+   * including the historical `guidePin`, and `contentUnitId`. Identity is
+   * history and does not evaporate because an editor stopped working on
+   * something.
+   *
+   * What is released: the `guideKey` COLUMN, set to null. With either column
+   * null the composite foreign key is not evaluated, so the row stops holding
+   * its reservation — and the reservation itself is deleted only when no
+   * DRAFT or PUBLISHED version of the lineage still needs it. The database
+   * enforces that order: deleting it early is refused, not merely avoided.
+   */
+  async archiveDraft(id: string): Promise<{ id: string }> {
+    const row = await this.prisma.chapterExperienceVersion.findUnique({
+      where: { id },
+      select: { bookSlug: true, chapterOrder: true },
+    });
+    if (!row) throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
+
+    return this.withBinding(
+      { bookSlug: row.bookSlug, chapterOrder: row.chapterOrder },
+      async (tx, chapter) => {
+        const current = await tx.chapterExperienceVersion.findUnique({
+          where: { id },
+        });
+        if (!current) {
+          throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
+        }
+        if (current.status === "ARCHIVED") {
+          throw new ConflictException({
+            code: "EXPERIENCE_ALREADY_ARCHIVED",
+            message: "Esta versión ya está archivada.",
+          });
+        }
+        if (current.status !== "DRAFT") {
+          throw new ConflictException({
+            code: "EXPERIENCE_VERSION_NOT_DRAFT",
+            message:
+              "Una versión publicada no se archiva: sigue sirviéndose a quien " +
+              "la empezó.",
+          });
+        }
+
+        await tx.chapterExperienceVersion.update({
+          where: { id },
+          data: { status: "ARCHIVED", guideKey: null },
+        });
+
+        // Release only when nothing else holds it. `RESTRICT` would refuse the
+        // delete anyway; asking first turns a constraint violation into a
+        // deliberate no-op.
+        const stillReserving = await tx.chapterExperienceVersion.count({
+          where: {
+            experienceKey: current.experienceKey,
+            contentUnitId: chapter.contentUnitId,
+            status: { in: ["DRAFT", "PUBLISHED"] },
+          },
+        });
+        if (stillReserving === 0) {
+          await tx.experienceGuideReservation.deleteMany({
+            where: {
+              contentUnitId: chapter.contentUnitId,
+              experienceKey: current.experienceKey,
+            },
+          });
+        }
+        return { id };
       },
     );
   }

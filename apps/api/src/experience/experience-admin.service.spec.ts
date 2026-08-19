@@ -200,15 +200,48 @@ describe("ExperienceAdminService — creating", () => {
     expect(data.publishedAt).toBeUndefined();
   });
 
-  it("binds the guide from the server's catalog, not from the request", async () => {
+  it("refuses a guide the registry does not have", async () => {
+    // C.4 changed what a `guidePin` in the request MEANS. It used to be
+    // ignored and overwritten with the chapter's own; now an editor may choose,
+    // so a choice the server cannot honour is refused rather than silently
+    // replaced. Quietly binding something else would be worse than saying no:
+    // the editor would believe they had picked one journey and shipped another.
+    await expect(
+      service.createDraft(
+        "user_1",
+        definition({
+          guidePin: { guideKey: "una-guia-inventada", guideVersion: 9 },
+        }),
+      ),
+    ).rejects.toMatchObject({
+      response: { code: "EXPERIENCE_GUIDE_PIN_NOT_REGISTERED" },
+    });
+    expect(prisma.chapterExperienceVersion.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses a guide whose passage lives in another chapter", async () => {
+    // CROSS_CHAPTER_GUIDE_BINDING=forbidden. The card would publish cleanly and
+    // open for nobody — C.2 renders exactly that as «No disponible aquí».
+    await expect(
+      service.createDraft(
+        "user_1",
+        definition({
+          guidePin: { guideKey: "pqp-c1-contacto-sostenido", guideVersion: 1 },
+        }),
+      ),
+    ).rejects.toMatchObject({
+      response: { code: "EXPERIENCE_GUIDE_PIN_NOT_RUNNABLE_HERE" },
+    });
+  });
+
+  it("falls back to the chapter's own pin when the client names none", async () => {
     prisma.chapterExperienceVersion.findUnique.mockResolvedValue(null);
     prisma.chapterExperienceVersion.create.mockResolvedValue({ id: "row_1" });
 
+    const { guidePin: _omitted, ...withoutPin } = definition();
     await service.createDraft(
       "user_1",
-      definition({
-        guidePin: { guideKey: "una-guia-inventada", guideVersion: 9 },
-      }),
+      withoutPin as unknown as ChapterExperienceDefinition,
     );
 
     const data = prisma.chapterExperienceVersion.create.mock.calls[0]![0].data;
@@ -216,8 +249,14 @@ describe("ExperienceAdminService — creating", () => {
   });
 
   it("refuses a chapter that publishes no guide, instead of inventing one", async () => {
+    const { guidePin: _omitted, ...withoutPin } = definition({
+      chapterOrder: 99,
+    });
     await expect(
-      service.createDraft("user_1", definition({ chapterOrder: 99 })),
+      service.createDraft(
+        "user_1",
+        withoutPin as unknown as ChapterExperienceDefinition,
+      ),
     ).rejects.toMatchObject({
       response: { code: "NO_GUIDE_FOR_CHAPTER" },
     });

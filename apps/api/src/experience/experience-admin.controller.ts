@@ -24,6 +24,7 @@ import {
   Header,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Put,
   Query,
@@ -47,6 +48,8 @@ import { ExperienceAdminService } from "./experience-admin.service";
 import {
   ExperienceBindingHintDto,
   ListChapterExperiencesQueryDto,
+  ListSelectableGuidesQueryDto,
+  RebindExperienceDraftDto,
   SaveExperienceDefinitionDto,
 } from "./dto/experience-admin.dto";
 
@@ -67,6 +70,22 @@ export class ExperienceAdminController {
   @ApiOkResponse({ description: "Vista de administración del capítulo." })
   listForChapter(@Query() query: ListChapterExperiencesQueryDto) {
     return this.admin.listForChapter(query.bookSlug, query.chapterOrder);
+  }
+
+  @Get("guides")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "listSelectableGuidesForChapter",
+    summary:
+      "Las guías que este capítulo puede vincular, con su disponibilidad decidida en el servidor.",
+  })
+  @ApiOkResponse({ description: "Opciones de guía para el capítulo." })
+  listSelectableGuides(@Query() query: ListSelectableGuidesQueryDto) {
+    return this.admin.listSelectableGuides(
+      query.bookSlug,
+      query.chapterOrder,
+      query.experienceKey ?? null,
+    );
   }
 
   @Get("drafts/:id")
@@ -157,6 +176,34 @@ export class ExperienceAdminController {
       dto.definition as unknown as ChapterExperienceDefinition,
       dto.expectedContentUnitId ?? null,
     );
+  }
+
+  @Patch("drafts/:id/binding")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "rebindExperienceDraft",
+    summary:
+      "Cambia la guía de un borrador. Solo si la experiencia nunca se publicó.",
+  })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description: "Ya hay una versión publicada, o la guía está reservada.",
+  })
+  @ApiUnprocessableEntityResponse({ type: ErrorEnvelopeDto })
+  rebindDraft(@Param("id") id: string, @Body() dto: RebindExperienceDraftDto) {
+    return this.admin.rebindDraft(id, dto.guidePin);
+  }
+
+  @Post("drafts/:id/archive")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "archiveExperienceDraft",
+    summary:
+      "Archiva el borrador. La fila no se borra, su versión no se reutiliza y la guía queda libre.",
+  })
+  @ApiConflictResponse({ type: ErrorEnvelopeDto })
+  archiveDraft(@Param("id") id: string) {
+    return this.admin.archiveDraft(id);
   }
 
   @Post("drafts/:id/publish")

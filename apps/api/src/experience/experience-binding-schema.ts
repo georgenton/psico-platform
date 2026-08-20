@@ -78,6 +78,32 @@ export interface BindingSchemaProbe {
   unitTable: boolean;
   /** The two promoted columns exist at all. */
   bindingColumns: boolean;
+  /**
+   * `contentUnitId`, `experienceKey` and `guideKey` are all `text`, on BOTH
+   * tables — so a foreign key built on them compares what it appears to.
+   */
+  columnTypes: boolean;
+  /**
+   * All three reservation columns are NOT NULL.
+   *
+   * The one that matters most is `guideKey`. Nullable, the row would mean "this
+   * lineage reserves nothing", the unique index would allow one such row per
+   * chapter, and the composite key would stop being evaluated for it — the
+   * bijection would have a hole the names and the indexes would still hide.
+   */
+  reservationNotNull: boolean;
+  /**
+   * No DROPPED column is sitting in an attribute slot these constraints name.
+   *
+   * `ALTER TABLE … DROP COLUMN` leaves a tombstone (`attisdropped`) that keeps
+   * its `attnum`. Nothing here reads `attnum` directly, but a catalog carrying
+   * dropped columns among the ones this contract depends on is a table that has
+   * been rebuilt underneath us, and a fingerprint that ignored it would report
+   * STRUCTURAL over a shape nobody reviewed.
+   */
+  noDroppedBindingColumns: boolean;
+  /** Every unique index in the contract is a btree. */
+  indexMethod: boolean;
   /** `contentUnitId` is NOT NULL — the cutover's half of the final shape. */
   identityNotNull: boolean;
   reservationPk: boolean;
@@ -138,7 +164,8 @@ co AS (
     FROM pg_constraint c
 ),
 att AS (
-  SELECT a.attrelid AS rel, a.attname::text AS name, a.attnotnull
+  SELECT a.attrelid AS rel, a.attname::text AS name, a.attnotnull,
+         format_type(a.atttypid, a.atttypmod) AS typ
     FROM pg_attribute a WHERE a.attnum > 0 AND NOT a.attisdropped
 )
 SELECT
@@ -147,6 +174,24 @@ SELECT
   (rel.unit IS NOT NULL) AS "unitTable",
   (EXISTS (SELECT 1 FROM att WHERE rel = rel.ver AND name = 'contentUnitId')
    AND EXISTS (SELECT 1 FROM att WHERE rel = rel.ver AND name = 'guideKey')) AS "bindingColumns",
+  -- Exact types, on both tables. A foreign key over columns of different types
+  -- would need a cast PostgreSQL will not silently supply, but a widened or
+  -- narrowed type on ONE side is a schema nobody designed either way.
+  (SELECT count(*) = 5 FROM att
+    WHERE ((rel = rel.ver AND name IN ('contentUnitId','experienceKey','guideKey'))
+        OR (rel = rel.res AND name IN ('contentUnitId','guideKey')))
+      AND typ = 'text') AS "columnTypes",
+  (SELECT count(*) = 3 FROM att
+    WHERE rel = rel.res
+      AND name IN ('contentUnitId','experienceKey','guideKey')
+      AND attnotnull) AS "reservationNotNull",
+  NOT EXISTS (SELECT 1 FROM pg_attribute d
+               WHERE d.attrelid IN (rel.ver, rel.res)
+                 AND d.attisdropped) AS "noDroppedBindingColumns",
+  (SELECT bool_and(am.amname = 'btree') FROM pg_index i
+     JOIN pg_class ic ON ic.oid = i.indexrelid
+     JOIN pg_am am ON am.oid = ic.relam
+    WHERE i.indrelid = rel.res AND i.indisunique) AS "indexMethod",
   COALESCE((SELECT attnotnull FROM att WHERE rel = rel.ver AND name = 'contentUnitId'), false)
     AS "identityNotNull",
   EXISTS (SELECT 1 FROM co WHERE rel = rel.res AND contype = 'p' AND convalidated
@@ -191,6 +236,10 @@ FROM rel`;
       reservationTable: false,
       unitTable: false,
       bindingColumns: false,
+      columnTypes: false,
+      reservationNotNull: false,
+      noDroppedBindingColumns: false,
+      indexMethod: false,
       identityNotNull: false,
       reservationPk: false,
       guideUnique: false,
@@ -243,6 +292,10 @@ export function decideReservationAuthority(
   // under a row that names it.
   const bridge =
     probe.bindingColumns &&
+    probe.columnTypes &&
+    probe.reservationNotNull &&
+    probe.noDroppedBindingColumns &&
+    probe.indexMethod &&
     probe.reservationPk &&
     probe.guideUnique &&
     probe.tripleUnique &&

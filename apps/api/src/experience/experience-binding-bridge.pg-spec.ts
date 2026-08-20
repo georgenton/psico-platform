@@ -21,6 +21,11 @@ import {
   probeBindingSchema,
   type BindingSchemaProbe,
 } from "./experience-binding-schema";
+import { codeOwnedClaimsByUnit } from "./experience-code-owned-identity";
+import { GUIDE_READER_ANCHOR } from "@psico/types";
+
+/** The lineage every fixture here works with, taken from the catalog. */
+const EEC_GUIDE_KEY = GUIDE_READER_ANCHOR.guideKey;
 
 /**
  * C.3A (#639) — the binding bridge, against real PostgreSQL.
@@ -522,6 +527,10 @@ suite("C.3A · the binding bridge", () => {
       reservationTable: true,
       unitTable: true,
       bindingColumns: true,
+      columnTypes: true,
+      reservationNotNull: true,
+      noDroppedBindingColumns: true,
+      indexMethod: true,
       // The cutover's half. C.3A deliberately leaves the column nullable: the
       // previous binary is still writing rows without it.
       identityNotNull: false,
@@ -536,6 +545,41 @@ suite("C.3A · the binding bridge", () => {
       finalCheckExactPresent: false,
     });
     expect(decideReservationAuthority(probe)).toBe("BRIDGE");
+  });
+
+  it("a NULLABLE reservation guideKey is refused, names and keys intact", async () => {
+    // The negative control the fingerprint was missing. Every index keeps its
+    // name, every foreign key keeps its shape — and the bijection acquires a
+    // hole: a row meaning "this lineage reserves nothing", one allowed per
+    // chapter by the unique index, invisible to the composite key because
+    // MATCH SIMPLE stops evaluating it.
+    const probe = await probeWith([
+      `ALTER TABLE "ExperienceGuideReservation" ALTER COLUMN "guideKey" DROP NOT NULL`,
+    ]);
+    expect(probe.reservationNotNull).toBe(false);
+    // Everything that USED to be checked still passes.
+    expect(probe.guideUnique).toBe(true);
+    expect(probe.tripleUnique).toBe(true);
+    expect(probe.compositeFk).toBe(true);
+    expect(probe.reservationPk).toBe(true);
+    expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
+  });
+
+  it("a widened column type is not the contract", async () => {
+    const probe = await probeWith([
+      `ALTER TABLE "ExperienceGuideReservation" ALTER COLUMN "guideKey" TYPE VARCHAR(255)`,
+    ]);
+    expect(probe.columnTypes).toBe(false);
+    expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
+  });
+
+  it("a dropped column tombstone means the table was rebuilt underneath us", async () => {
+    const probe = await probeWith([
+      `ALTER TABLE "ExperienceGuideReservation" ADD COLUMN "scratch" TEXT`,
+      `ALTER TABLE "ExperienceGuideReservation" DROP COLUMN "scratch"`,
+    ]);
+    expect(probe.noDroppedBindingColumns).toBe(false);
+    expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
   });
 
   it("a foreign key over the right columns in the WRONG ORDER is not the one", async () => {
@@ -770,6 +814,33 @@ suite("C.3A · the binding bridge", () => {
     });
   }
 
+  /**
+   * Block until some backend is WAITING on the edition row lock.
+   *
+   * Not a sleep: a sleep is a guess about timing, this is a query about state,
+   * and it fails loudly rather than passing early. Draining the event loop
+   * instead is not enough — with two microtasks the writer has barely issued
+   * its first statement, so a build that takes NO edition lock reads the
+   * manifest AFTER the holder commits and the assertion passes for the wrong
+   * reason. Waiting on `pg_stat_activity` makes the block itself the
+   * precondition.
+   */
+  async function waitForEditionLockWaiter(): Promise<void> {
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      const waiting = await prisma.$queryRaw<Array<{ n: bigint }>>`
+        SELECT count(*) AS n FROM pg_stat_activity
+         WHERE wait_event_type = 'Lock'
+           AND state = 'active'
+           AND query LIKE '%"Edition"%FOR UPDATE%'`;
+      if (Number(waiting[0]?.n ?? 0) > 0) return;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    throw new Error(
+      "no backend ever waited on the edition row — the write is not taking " +
+        "the lock a concurrent reorder takes",
+    );
+  }
+
   it("a reorder mid-decision serialises: the binding lands on the unit that is really there", async () => {
     // The race this exists for. Without the edition row lock the binder reads
     // the manifest with nothing held, and a publish committing a moment later
@@ -795,10 +866,10 @@ suite("C.3A · the binding bridge", () => {
         },
       );
 
-      // Nothing to sleep on: the claim is that the binder has NOT decided while
-      // the publish holds the row, checked after the event loop drains.
-      await Promise.resolve();
-      await Promise.resolve();
+      // The binder must be OBSERVABLY blocked before the publish commits.
+      // Draining the event loop instead lets a build that takes no lock read
+      // the manifest after the commit and pass for the wrong reason.
+      await waitForEditionLockWaiter();
       expect(created).toBe(false);
 
       b.open();
@@ -898,6 +969,267 @@ suite("C.3A · the binding bridge", () => {
     expect(rows[0]!.contentUnitId).toBe(unitA);
   });
 
+  // ── The pin follows the LINEAGE, never the number ────────────────────────
+
+  it("saving after a reorder keeps identity, column and stored pin", async () => {
+    // The bug this replaces: `saveDraft` re-derived the guide from
+    // `getExactContext(row.bookSlug, row.chapterOrder)` — a question about a
+    // NUMBER. After a reorder that number belongs to another unit, so saving an
+    // untouched draft either rebound it to that unit's guide or died on
+    // NO_GUIDE_FOR_CHAPTER for a chapter it never left.
+    const created = await service.createDraft(userId, await eecDraft());
+    let restore: string | null = null;
+    try {
+      const moved = await republishWithNewUnitAtOrder(BOOK_A, 1);
+      restore = moved.previousRevisionId;
+
+      await service.saveDraft(created.id, await eecDraft());
+
+      const row = await prisma.chapterExperienceVersion.findUniqueOrThrow({
+        where: { id: created.id },
+        select: {
+          contentUnitId: true,
+          guideKey: true,
+          definitionJson: true,
+        },
+      });
+      expect(row.contentUnitId).toBe(unitA);
+      expect(row.guideKey).toBe(EEC_GUIDE_KEY);
+      expect(
+        (row.definitionJson as { guidePin: { guideKey: string } }).guidePin
+          .guideKey,
+      ).toBe(EEC_GUIDE_KEY);
+      // And the unit that inherited the number is untouched by any of it.
+      expect(row.contentUnitId).not.toBe(moved.newUnitId);
+      const reservations = await prisma.experienceGuideReservation.findMany({
+        select: { contentUnitId: true, guideKey: true },
+      });
+      expect(reservations).toEqual([
+        { contentUnitId: unitA, guideKey: EEC_GUIDE_KEY },
+      ]);
+    } finally {
+      if (restore) await restorePublishedRevision(BOOK_A, restore);
+    }
+  });
+
+  it("the next version after a reorder keeps the SOURCE's pin", async () => {
+    const created = await service.createDraft(userId, await eecDraft());
+    await service.publish(created.id);
+    let restore: string | null = null;
+    try {
+      const moved = await republishWithNewUnitAtOrder(BOOK_A, 1);
+      restore = moved.previousRevisionId;
+
+      const next = await service.createNextDraft(userId, EEC_GUIDE_KEY, 1);
+
+      const row = await prisma.chapterExperienceVersion.findUniqueOrThrow({
+        where: { id: next.id },
+        select: {
+          experienceVersion: true,
+          contentUnitId: true,
+          guideKey: true,
+          definitionJson: true,
+        },
+      });
+      expect(row.experienceVersion).toBe(2);
+      expect(row.contentUnitId).toBe(unitA);
+      expect(row.guideKey).toBe(EEC_GUIDE_KEY);
+      expect(
+        (row.definitionJson as { guidePin: { guideKey: string } }).guidePin
+          .guideKey,
+      ).toBe(EEC_GUIDE_KEY);
+      expect(row.contentUnitId).not.toBe(moved.newUnitId);
+      // One reservation, shared by both versions of the lineage.
+      expect(await prisma.experienceGuideReservation.count()).toBe(1);
+    } finally {
+      if (restore) await restorePublishedRevision(BOOK_A, restore);
+    }
+  });
+
+  it("a client-supplied pin is not a rebind", async () => {
+    const created = await service.createDraft(userId, await eecDraft());
+    await service.saveDraft(
+      created.id,
+      await eecDraft({
+        guidePin: { guideKey: `${EEC_GUIDE_KEY}-otra`, guideVersion: 1 },
+      }),
+    );
+    const row = await prisma.chapterExperienceVersion.findUniqueOrThrow({
+      where: { id: created.id },
+      select: { guideKey: true, definitionJson: true },
+    });
+    expect(row.guideKey).toBe(EEC_GUIDE_KEY);
+    expect(
+      (row.definitionJson as { guidePin: { guideKey: string } }).guidePin
+        .guideKey,
+    ).toBe(EEC_GUIDE_KEY);
+  });
+
+  // ── The shipped catalog is placed by identity too ────────────────────────
+
+  it("a shipped definition is placed by its guide's targets, not its number", async () => {
+    // The stable authority: `guidePin` → the guide's catalog targets →
+    // one editorial context → `ContentUnit.id`. No position anywhere.
+    const claims = await prisma.$transaction((tx) => codeOwnedClaimsByUnit(tx));
+    expect(claims.get(unitA)?.map((c) => c.guideKey)).toEqual([EEC_GUIDE_KEY]);
+    expect(claims.get(unitB)).toHaveLength(1);
+
+    // And it FOLLOWS the unit when the number moves.
+    let restore: string | null = null;
+    try {
+      const moved = await republishWithNewUnitAtOrder(BOOK_A, 1);
+      restore = moved.previousRevisionId;
+      const after = await prisma.$transaction((tx) =>
+        codeOwnedClaimsByUnit(tx),
+      );
+      expect(after.get(unitA)?.map((c) => c.guideKey)).toEqual([EEC_GUIDE_KEY]);
+      // The unit that took the number claims nothing.
+      expect(after.get(moved.newUnitId)).toBeUndefined();
+    } finally {
+      if (restore) await restorePublishedRevision(BOOK_A, restore);
+    }
+  });
+
+  // ── One snapshot for the whole list ──────────────────────────────────────
+
+  /**
+   * A service whose `listForChapter` pauses between resolving the chapter and
+   * reading its rows.
+   *
+   * The pause has to be INSIDE the transaction — that is the whole point — so
+   * it is injected through the client rather than arranged around the call. A
+   * barrier outside would only prove that two separate transactions see two
+   * different worlds, which nobody doubts.
+   */
+  function serviceThatPausesBeforeRows(hold: {
+    reached: () => void;
+    gate: Promise<void>;
+  }): ExperienceAdminService {
+    const bind = <T extends object>(target: T, prop: PropertyKey): unknown => {
+      const value = Reflect.get(target, prop) as unknown;
+      return typeof value === "function" ? value.bind(target) : value;
+    };
+    const client = new Proxy(prisma as object, {
+      get(target, prop) {
+        if (prop !== "$transaction") return bind(target, prop);
+        return (
+          fn: (tx: unknown) => Promise<unknown>,
+          options?: Record<string, unknown>,
+        ) =>
+          (
+            prisma.$transaction as unknown as (
+              f: (tx: unknown) => Promise<unknown>,
+              o?: Record<string, unknown>,
+            ) => Promise<unknown>
+          )(async (tx) => {
+            const paused = new Proxy(tx as object, {
+              get(t, p) {
+                if (p !== "chapterExperienceVersion") return bind(t, p);
+                const delegate = Reflect.get(t, p) as object;
+                return new Proxy(delegate, {
+                  get(d, m) {
+                    if (m !== "findMany") return bind(d, m);
+                    return async (args: unknown) => {
+                      hold.reached();
+                      await hold.gate;
+                      return (
+                        Reflect.get(d, m) as (a: unknown) => Promise<unknown>
+                      ).call(d, args);
+                    };
+                  },
+                });
+              },
+            });
+            return fn(paused);
+          }, options);
+      },
+    });
+    return new ExperienceAdminService(client as unknown as PrismaService);
+  }
+
+  /** Publish a manifest that DROPS a unit from the structure entirely. */
+  async function republishWithoutUnit(
+    bookSlug: string,
+    dropUnitId: string,
+  ): Promise<{ previousRevisionId: string }> {
+    return prisma.$transaction(async (tx) => {
+      const edition = await tx.edition.findFirstOrThrow({
+        where: { slug: bookSlug },
+        select: { id: true, publishedRevisionId: true },
+      });
+      const previousRevisionId = edition.publishedRevisionId!;
+      const highest = await tx.revision.findFirstOrThrow({
+        where: { editionId: edition.id },
+        orderBy: { number: "desc" },
+        select: { number: true },
+      });
+      const next = await tx.revision.create({
+        data: {
+          editionId: edition.id,
+          number: highest.number + 1,
+          status: "PUBLISHED",
+          publishedAt: new Date(),
+        },
+      });
+      const kept = (
+        await tx.revisionUnit.findMany({
+          where: { revisionId: previousRevisionId },
+          select: { unitId: true, unitVersionId: true, order: true },
+        })
+      ).filter((entry) => entry.unitId !== dropUnitId);
+      for (const entry of kept) {
+        await tx.revisionUnit.create({
+          data: {
+            revisionId: next.id,
+            unitId: entry.unitId,
+            unitVersionId: entry.unitVersionId,
+            order: entry.order,
+          },
+        });
+      }
+      await tx.edition.update({
+        where: { id: edition.id },
+        data: { publishedRevisionId: next.id },
+      });
+      return { previousRevisionId };
+    });
+  }
+
+  it("a reorder mid-read gives one snapshot, never half of each", async () => {
+    // The three reads that build this list — the authority, the chapter's
+    // identity, and the rows plus the shipped claims for it — must describe ONE
+    // instant. Under READ COMMITTED a publish landing between them produces an
+    // answer that never corresponded to any state of the database: here, a
+    // chapter that resolves and holds a row while its shipped definition has
+    // already become unplaceable, which surfaces as the admin list REFUSING.
+    await service.createDraft(userId, await eecDraft());
+    const b = barrier();
+    let restore: string | null = null;
+    try {
+      const listing = serviceThatPausesBeforeRows({
+        reached: b.arrive,
+        gate: b.gate,
+      }).listForChapter(BOOK_A, 1);
+
+      await b.reached;
+      restore = (await republishWithoutUnit(BOOK_A, unitA)).previousRevisionId;
+      b.open();
+
+      const result = await listing;
+      // The pre-reorder world, whole: the chapter is unitA, its row is there,
+      // and the shipped definition that lives in it is there too.
+      expect(result.contentUnitId).toBe(unitA);
+      expect(
+        result.experiences.filter((e) => e.source === "database"),
+      ).toHaveLength(1);
+      expect(
+        result.experiences.filter((e) => e.source === "code"),
+      ).toHaveLength(1);
+    } finally {
+      if (restore) await restorePublishedRevision(BOOK_A, restore);
+    }
+  });
+
   // ── The C.3B command, prepared but never run against production ──────────
 
   /**
@@ -994,9 +1326,11 @@ suite("C.3A · the binding bridge", () => {
     await expect(applyReservations(prisma)).rejects.toBeInstanceOf(
       BackfillAbort,
     );
-    // And the code-owned claim is never MATERIALISED: a reservation nothing
-    // references could never be released, because the foreign key that makes
-    // releasing safe is the one that would block it forever.
+    // And the code-owned claim is never MATERIALISED. Not because the foreign
+    // key would trap it — `RESTRICT` only refuses a delete while something
+    // REFERENCES the row — but because a reservation is the record of an
+    // editorial decision, and a shipped definition is a fact about the build.
+    // Its authority stays in the catalog, resolved fresh on every read.
     expect((await state()).reservations).toEqual([]);
   });
 
@@ -1080,6 +1414,139 @@ suite("C.3A · the binding bridge", () => {
     const final = await state();
     expect(final.reservations).toHaveLength(0);
     expect(final.rows.every((r) => r.contentUnitId === null)).toBe(true);
+  });
+
+  it("measure is READ ONLY, so the database refuses a lock or a write", async () => {
+    // Not a promise in a comment. `SET TRANSACTION … READ ONLY` is the first
+    // statement, and PostgreSQL then rejects both halves at the statement.
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(
+          "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+        );
+        return tx.$queryRaw`SELECT "id" FROM "Edition" FOR UPDATE`;
+      }),
+    ).rejects.toThrow(/read-only transaction/i);
+
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(
+          "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+        );
+        return tx.experienceGuideReservation.create({
+          data: {
+            contentUnitId: unitA,
+            experienceKey: "no",
+            guideKey: EEC_GUIDE_KEY,
+          },
+        });
+      }),
+    ).rejects.toThrow(/read-only transaction/i);
+  });
+
+  it("a reorder in flight does NOT block measure", async () => {
+    // Measuring is something an operator should be able to do while the CMS is
+    // in use. A report that had to stop editorial writes in order to describe
+    // them would be its own small outage — and taking `FOR UPDATE` here is the
+    // shape that would cause it.
+    await insertPreBridgeRow(1, "PUBLISHED");
+    const b = barrier();
+    const holder = prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Edition" WHERE "slug" = ${BOOK_A} FOR UPDATE`;
+      b.arrive();
+      await b.gate;
+    });
+
+    await b.reached;
+    // Completes WHILE the edition row is held by somebody else.
+    const report = await measureReservations(prisma);
+    expect(report.applied).toBe(false);
+    expect(report.rowsLegacy).toBe(1);
+
+    b.open();
+    await holder;
+  });
+
+  it("apply waits for a reorder, and reads the manifest it left behind", async () => {
+    // The strong form. A legacy row has no identity of its own, so `--apply`
+    // gives it the unit that sits at its number — which means resolving that
+    // number must happen AFTER the edition lock, not before. If it read first,
+    // the reservation would name the unit that used to be there, permanently,
+    // and nothing downstream could tell.
+    await insertPreBridgeRow(1, "PUBLISHED");
+    const b = barrier();
+    let restore: string | null = null;
+    let newUnitId: string | null = null;
+    try {
+      const republish = republishWithNewUnitAtOrder(BOOK_A, 1, {
+        reached: b.arrive,
+        gate: b.gate,
+      });
+      await b.reached;
+
+      let settled = false;
+      const apply = applyReservations(prisma).then(
+        (r) => {
+          settled = true;
+          return r;
+        },
+        (e) => {
+          settled = true;
+          throw e;
+        },
+      );
+
+      await waitForEditionLockWaiter();
+      expect(settled).toBe(false);
+
+      b.open();
+      const moved = await republish;
+      restore = moved.previousRevisionId;
+      newUnitId = moved.newUnitId;
+      const report = await apply;
+
+      expect(report.applied).toBe(true);
+      // The unit the manifest names NOW — never the one it used to.
+      const reservations = await prisma.experienceGuideReservation.findMany({
+        select: { contentUnitId: true },
+      });
+      expect(reservations).toEqual([{ contentUnitId: newUnitId }]);
+      const rows = await prisma.chapterExperienceVersion.findMany({
+        select: { contentUnitId: true },
+      });
+      expect(rows).toEqual([{ contentUnitId: newUnitId }]);
+      // And the report said, before any of it, that this row's chapter was
+      // being inferred rather than read.
+      expect(report.rowsAdoptingCurrentPosition).toBe(1);
+    } finally {
+      if (restore) await restorePublishedRevision(BOOK_A, restore);
+    }
+  });
+
+  it("counts what a run would create, not how many lineages there are", async () => {
+    await insertPreBridgeRow(1, "PUBLISHED");
+    const before = await measureReservations(prisma);
+    expect(before.groups).toBe(1);
+    expect(before.reservationsExisting).toBe(0);
+    expect(before.reservationsToCreate).toBe(1);
+    expect(before.rowsAdoptingCurrentPosition).toBe(1);
+
+    await applyReservations(prisma);
+
+    // Same lineage, reservation now present: nothing left to create, and the
+    // row no longer adopts anything because it HAS an identity.
+    const after = await measureReservations(prisma);
+    expect(after.groups).toBe(1);
+    expect(after.reservationsExisting).toBe(1);
+    expect(after.reservationsToCreate).toBe(0);
+    expect(after.rowsAdoptingCurrentPosition).toBe(0);
+    expect(after.rowsAlreadyMaterialised).toBe(1);
+    expect(after.rowsLegacy).toBe(0);
+
+    const replay = await applyReservations(prisma);
+    expect(replay.reservationsCreated).toBe(0);
+    expect(replay.reservationsReplayed).toBe(1);
+    expect(replay.columnsFilled).toBe(0);
   });
 
   it("the backfill and a create are serialised by the GLOBAL lock", async () => {

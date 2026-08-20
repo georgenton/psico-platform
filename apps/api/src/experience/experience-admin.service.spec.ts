@@ -87,6 +87,7 @@ function prismaMock() {
     },
     edition: { findFirst: vi.fn() },
     revisionUnit: { findFirst: vi.fn() },
+    contentUnit: { findUnique: vi.fn() },
     book: { findUnique: vi.fn() },
     chapter: { findFirst: vi.fn() },
     $queryRaw: vi.fn(),
@@ -109,6 +110,10 @@ const BRIDGE_SCHEMA = {
   reservationTable: true,
   unitTable: true,
   bindingColumns: true,
+  columnTypes: true,
+  reservationNotNull: true,
+  noDroppedBindingColumns: true,
+  indexMethod: true,
   identityNotNull: false,
   reservationPk: true,
   guideUnique: true,
@@ -152,10 +157,31 @@ beforeEach(() => {
     order: 1,
     unit: { id: UNIT_ID, unitKey: "unit-key-1" },
   });
+  // A row that already carries its unit is resolved FROM that unit, so the
+  // fixture has to be able to answer for it.
+  prisma.contentUnit.findUnique.mockResolvedValue({
+    id: UNIT_ID,
+    unitKey: "unit-key-1",
+    editionId: "edition_1",
+  });
   prisma.experienceGuideReservation.findMany.mockResolvedValue([]);
   prisma.experienceGuideReservation.findUnique.mockResolvedValue(null);
   prisma.experienceGuideReservation.create.mockResolvedValue({});
-  service = new ExperienceAdminService(prisma as unknown as PrismaService);
+  // What the build ships, stated rather than resolved. The real resolver walks
+  // the guide registry and three catalog tables; impersonating those here would
+  // make this file a test about Content Core instead of about lifecycle rules.
+  // Its real behaviour lives in `experience-binding-bridge.pg-spec.ts`.
+  service = new ExperienceAdminService(
+    prisma as unknown as PrismaService,
+    async () => [
+      {
+        experienceKey: "eec-c1-cuerpo-antes-que-mente",
+        guideKey: EEC_PIN.guideKey,
+        contentUnitId: UNIT_ID,
+        definition: definition(),
+      },
+    ],
+  );
 });
 
 describe("ExperienceAdminService — creating", () => {
@@ -256,7 +282,10 @@ describe("ExperienceAdminService — published versions are immutable", () => {
     expect(prisma.chapterExperienceVersion.update).not.toHaveBeenCalled();
   });
 
-  it("keeps a draft's identity even when the payload claims another one", async () => {
+  it("keeps a draft's identity AND its guide, whatever the payload claims", async () => {
+    // The stored definition is now load-bearing rather than decoration: the
+    // guide comes from it, so a fixture without one describes a row that
+    // cannot exist.
     prisma.chapterExperienceVersion.findUnique.mockResolvedValue({
       id: "row_1",
       status: "DRAFT",
@@ -264,6 +293,8 @@ describe("ExperienceAdminService — published versions are immutable", () => {
       experienceVersion: 3,
       bookSlug: "emociones-en-construccion",
       chapterOrder: 1,
+      contentUnitId: UNIT_ID,
+      definitionJson: definition({ experienceVersion: 3 }),
     });
     prisma.chapterExperienceVersion.update.mockResolvedValue({ id: "row_1" });
 
@@ -274,6 +305,9 @@ describe("ExperienceAdminService — published versions are immutable", () => {
         experienceVersion: 99,
         bookSlug: "otro-libro",
         chapterOrder: 7,
+        // A client-supplied pin is not a rebind request. Only `rebindDraft`
+        // may move a binding, and it does not exist in this phase at all.
+        guidePin: { guideKey: "otra-guia", guideVersion: 9 },
       }),
     );
 
@@ -284,6 +318,7 @@ describe("ExperienceAdminService — published versions are immutable", () => {
     expect(stored.experienceVersion).toBe(3);
     expect(stored.bookSlug).toBe("emociones-en-construccion");
     expect(stored.chapterOrder).toBe(1);
+    expect(stored.guidePin).toEqual(EEC_PIN);
   });
 });
 

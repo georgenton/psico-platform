@@ -25,6 +25,10 @@ const BRIDGE: BindingSchemaProbe = {
   reservationTable: true,
   unitTable: true,
   bindingColumns: true,
+  columnTypes: true,
+  reservationNotNull: true,
+  noDroppedBindingColumns: true,
+  indexMethod: true,
   identityNotNull: false,
   reservationPk: true,
   guideUnique: true,
@@ -52,6 +56,10 @@ const LEGACY: BindingSchemaProbe = {
   reservationTable: false,
   unitTable: true,
   bindingColumns: false,
+  columnTypes: false,
+  reservationNotNull: false,
+  noDroppedBindingColumns: true,
+  indexMethod: false,
   identityNotNull: false,
   reservationPk: false,
   guideUnique: false,
@@ -90,6 +98,13 @@ describe("decideReservationAuthority — every missing piece fails closed", () =
     ["reservationUnitFk", "a reservation's chapter could be deleted"],
     ["compositeFk", "a row could name a reservation that does not exist"],
     ["bindingColumns", "there would be nothing to constrain"],
+    ["columnTypes", "a key could compare columns of different types"],
+    [
+      "reservationNotNull",
+      "a nullable guideKey would leave the bijection a hole the indexes hide",
+    ],
+    ["noDroppedBindingColumns", "the table has been rebuilt underneath us"],
+    ["indexMethod", "a non-btree unique index is not the contract"],
   ] as const;
 
   for (const [key, why] of required) {

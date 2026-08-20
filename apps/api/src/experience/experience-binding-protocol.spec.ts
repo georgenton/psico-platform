@@ -225,12 +225,20 @@ describe("ratchet · the backfill's own guarantees", () => {
     expect(src).not.toMatch(/materialisedRowIds[\s\S]{0,120}updateMany/);
   });
 
-  it("code-owned definitions are counted as claims and never materialised", () => {
+  it("code-owned definitions are placed by IDENTITY, and never materialised", () => {
     const src = code(BACKFILL);
-    expect(src).toMatch(/listPublishedForChapter/);
+    // By stable unit, not by number. Both sides of the collision check used to
+    // key on `(bookSlug, chapterOrder)` — and a stored row's number is the
+    // position it was CREATED at, so after a reorder the check compared a
+    // shipped definition placed today against a row placed months ago.
+    expect(src).toMatch(/codeOwnedClaimsByUnit\(db\)/);
+    expect(src).toMatch(/byUnit\.get\(g\.contentUnitId\)/);
+    expect(src).not.toMatch(/listPublishedForChapter/);
     expect(src).toMatch(/codeOwnedCollision/);
-    // A reservation nothing references could never be released: the composite
-    // foreign key that makes release safe is the one that would block it.
+    // A reservation is the record of an editorial decision; a shipped
+    // definition is a fact about the build. Writing one into the table would
+    // put a row there that no CMS action accounts for and a deploy could
+    // invalidate.
     const collisions = src.slice(
       src.indexOf("async function codeOwnedCollisions"),
     );

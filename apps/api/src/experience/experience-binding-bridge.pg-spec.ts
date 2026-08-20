@@ -13,6 +13,7 @@ import { ExperienceAdminService } from "./experience-admin.service";
 import {
   applyReservations,
   BackfillAbort,
+  BACKFILL_ANOMALY,
   measureReservations,
 } from "./experience-reservation-backfill";
 import {
@@ -1637,12 +1638,19 @@ suite("C.3A · the binding bridge", () => {
     await holder;
   });
 
-  it("apply waits for a reorder, and reads the manifest it left behind", async () => {
-    // The strong form. A legacy row has no identity of its own, so `--apply`
-    // gives it the unit that sits at its number — which means resolving that
-    // number must happen AFTER the edition lock, not before. If it read first,
-    // the reservation would name the unit that used to be there, permanently,
-    // and nothing downstream could tell.
+  it("a reorder cannot hand a legacy row to whichever unit takes its number", async () => {
+    // This test used to assert the opposite, and the opposite was the bug.
+    //
+    // `republishWithNewUnitAtOrder` puts a BRAND NEW unit at order 1 and pushes
+    // the incumbent down a slot. Under the old rule the legacy row adopted
+    // whatever now sat at its `chapterOrder`, so it was permanently reserved
+    // against a unit it had never had anything to do with — an inference the
+    // cutover's CHECK then froze, indistinguishable from an editor's choice.
+    //
+    // The row's guide has not moved. Its targets still name `unitA`, so that is
+    // where the reservation belongs, and the new occupant of the number gets
+    // nothing. The edition lock still matters — the run must still wait — but
+    // what it protects is the manifest read, not a guess.
     await insertPreBridgeRow(1, "PUBLISHED");
     const b = barrier();
     let restore: string | null = null;
@@ -1676,18 +1684,21 @@ suite("C.3A · the binding bridge", () => {
       const report = await apply;
 
       expect(report.applied).toBe(true);
-      // The unit the manifest names NOW — never the one it used to.
+      // The unit the row's own GUIDE names — not the one now at its number.
       const reservations = await prisma.experienceGuideReservation.findMany({
         select: { contentUnitId: true },
       });
-      expect(reservations).toEqual([{ contentUnitId: newUnitId }]);
+      expect(reservations).toEqual([{ contentUnitId: unitA }]);
+      expect(reservations[0]!.contentUnitId).not.toBe(newUnitId);
       const rows = await prisma.chapterExperienceVersion.findMany({
         select: { contentUnitId: true },
       });
-      expect(rows).toEqual([{ contentUnitId: newUnitId }]);
-      // And the report said, before any of it, that this row's chapter was
-      // being inferred rather than read.
-      expect(report.rowsAdoptingCurrentPosition).toBe(1);
+      expect(rows).toEqual([{ contentUnitId: unitA }]);
+      // Identity came from the guide; the number is now an observation that
+      // disagrees, and the report says so without acting on it.
+      expect(report.rowsIdentityFromGuideContext).toBe(1);
+      expect(report.rowsWithPositionDrift).toBe(1);
+      expect(report.rowsPositionCorroborated).toBe(0);
     } finally {
       if (restore) await restorePublishedRevision(BOOK_A, restore);
     }
@@ -1699,17 +1710,22 @@ suite("C.3A · the binding bridge", () => {
     expect(before.groups).toBe(1);
     expect(before.reservationsExisting).toBe(0);
     expect(before.reservationsToCreate).toBe(1);
-    expect(before.rowsAdoptingCurrentPosition).toBe(1);
+    // Identity from the guide, and the position happens to agree — which is
+    // corroboration, not authority.
+    expect(before.rowsIdentityFromGuideContext).toBe(1);
+    expect(before.rowsPositionCorroborated).toBe(1);
+    expect(before.rowsWithPositionDrift).toBe(0);
 
     await applyReservations(prisma);
 
-    // Same lineage, reservation now present: nothing left to create, and the
-    // row no longer adopts anything because it HAS an identity.
+    // Same lineage, reservation now present: nothing left to create. The row
+    // is materialised now, and its stored unit is verified against the guide
+    // rather than merely trusted.
     const after = await measureReservations(prisma);
     expect(after.groups).toBe(1);
     expect(after.reservationsExisting).toBe(1);
     expect(after.reservationsToCreate).toBe(0);
-    expect(after.rowsAdoptingCurrentPosition).toBe(0);
+    expect(after.rowsIdentityFromGuideContext).toBe(1);
     expect(after.rowsAlreadyMaterialised).toBe(1);
     expect(after.rowsLegacy).toBe(0);
 
@@ -1764,5 +1780,183 @@ suite("C.3A · the binding bridge", () => {
     await backfill;
     await create;
     expect(createSettled).toBe(true);
+  });
+
+  /**
+   * C.3B identity (#639) — where a legacy row's chapter comes from.
+   *
+   * Every case here is the same question asked from a different angle: when the
+   * row states one thing (its exact `guidePin`) and the number it carries states
+   * another, which one becomes the reservation? The answer has to be the pin,
+   * because `--apply` is followed by a CHECK that freezes whatever it wrote.
+   */
+  describe("C.3B · legacy identity comes from the guide, not the number", () => {
+    it("a legacy row is placed by its own guide, with the position agreeing", async () => {
+      await insertPreBridgeRow(1, "PUBLISHED");
+      const report = await measureReservations(prisma);
+
+      expect(report.rowsLegacy).toBe(1);
+      expect(report.rowsIdentityFromGuideContext).toBe(1);
+      // The number happens to point at the same unit. That is corroboration, and
+      // the counter that records it is not the counter identity came from.
+      expect(report.rowsPositionCorroborated).toBe(1);
+      expect(report.rowsWithPositionDrift).toBe(0);
+      expect(report.rowsWithUnresolvedPosition).toBe(0);
+      expect(report.anomalies).toEqual([]);
+
+      await applyReservations(prisma);
+      const reservations = await prisma.experienceGuideReservation.findMany({
+        select: { contentUnitId: true, guideKey: true },
+      });
+      expect(reservations).toEqual([
+        { contentUnitId: unitA, guideKey: EEC_GUIDE_KEY },
+      ]);
+    });
+
+    it("a position that no longer resolves does not change the identity", async () => {
+      // The old rule made this an anomaly — the row had nothing else to go on.
+      // Now the number is an observation that happens to be missing, and the
+      // pin still names the chapter, so the row is placed and simply reported as
+      // having an unresolved position.
+      await insertPreBridgeRow(1, "PUBLISHED");
+      await prisma.$executeRawUnsafe(
+        `UPDATE "ChapterExperienceVersion" SET "chapterOrder" = 99`,
+      );
+      // The definition has to keep describing the row, or a different anomaly
+      // fires first and this would pass for the wrong reason.
+      await prisma.$executeRawUnsafe(
+        `UPDATE "ChapterExperienceVersion"
+            SET "definitionJson" = jsonb_set("definitionJson"::jsonb, '{chapterOrder}', '99')`,
+      );
+
+      const report = await measureReservations(prisma);
+      expect(report.anomalies).toEqual([]);
+      expect(report.rowsIdentityFromGuideContext).toBe(1);
+      expect(report.rowsWithUnresolvedPosition).toBe(1);
+      expect(report.rowsPositionCorroborated).toBe(0);
+
+      await applyReservations(prisma);
+      const reservations = await prisma.experienceGuideReservation.findMany({
+        select: { contentUnitId: true },
+      });
+      expect(reservations).toEqual([{ contentUnitId: unitA }]);
+    });
+
+    it("a guide the registry does not have fails closed, and writes nothing", async () => {
+      await insertPreBridgeRow(1, "PUBLISHED");
+      await prisma.$executeRawUnsafe(
+        `UPDATE "ChapterExperienceVersion"
+            SET "definitionJson" = jsonb_set("definitionJson"::jsonb,
+                                             '{guidePin,guideKey}', '"no-such-guide"')`,
+      );
+      const report = await measureReservations(prisma);
+      expect(report.anomalies.map((a) => a.kind)).toEqual([
+        BACKFILL_ANOMALY.guideContextUnresolved,
+      ]);
+      await expect(applyReservations(prisma)).rejects.toBeInstanceOf(
+        BackfillAbort,
+      );
+      expect(await prisma.experienceGuideReservation.count()).toBe(0);
+    });
+
+    it("a guideVersion nobody published fails closed — the pin is BOTH halves", async () => {
+      // Resolving by `guideKey` alone would silently answer about whichever
+      // version happens to be current, which is a different guide's targets.
+      await insertPreBridgeRow(1, "PUBLISHED");
+      await prisma.$executeRawUnsafe(
+        `UPDATE "ChapterExperienceVersion"
+            SET "definitionJson" = jsonb_set("definitionJson"::jsonb,
+                                             '{guidePin,guideVersion}', '99')`,
+      );
+      const report = await measureReservations(prisma);
+      expect(report.anomalies.map((a) => a.kind)).toEqual([
+        BACKFILL_ANOMALY.guideContextUnresolved,
+      ]);
+      expect(await prisma.experienceGuideReservation.count()).toBe(0);
+    });
+
+    it("a stored unit in the RIGHT edition that is not the guide's unit fails closed", async () => {
+      // The contradiction the edition check cannot see. A sibling unit inside the
+      // same edition passes every structural test — foreign key, edition, column
+      // pairing — and is still not the chapter this row's guide lives in.
+      await insertPreBridgeRow(1, "PUBLISHED");
+      await applyReservations(prisma);
+
+      const editionA = await prisma.edition.findFirstOrThrow({
+        where: { slug: BOOK_A },
+        select: { id: true },
+      });
+      const sibling = await prisma.contentUnit.create({
+        data: { editionId: editionA.id, unitKey: `sibling-${Date.now()}` },
+      });
+      // Move BOTH the reservation and the row, so the only thing wrong is the
+      // disagreement with the guide.
+      await prisma.$executeRawUnsafe(
+        `UPDATE "ExperienceGuideReservation" SET "contentUnitId" = $1`,
+        sibling.id,
+      );
+      await prisma.$executeRawUnsafe(
+        `UPDATE "ChapterExperienceVersion" SET "contentUnitId" = $1`,
+        sibling.id,
+      );
+
+      const report = await measureReservations(prisma);
+      expect(report.anomalies.map((a) => a.kind)).toEqual([
+        BACKFILL_ANOMALY.guideContextIdentityMismatch,
+      ]);
+      // Not repaired — refused.
+      await expect(applyReservations(prisma)).rejects.toBeInstanceOf(
+        BackfillAbort,
+      );
+      const still = await prisma.experienceGuideReservation.findMany({
+        select: { contentUnitId: true },
+      });
+      expect(still).toEqual([{ contentUnitId: sibling.id }]);
+    });
+
+    it("a materialised row whose stored unit is in another book fails closed", async () => {
+      await insertPreBridgeRow(1, "PUBLISHED");
+      await applyReservations(prisma);
+      expect(await prisma.experienceGuideReservation.count()).toBe(1);
+
+      // Move the row's identity to a unit its guide has nothing to do with —
+      // and take the reservation with it, so the ONLY thing wrong is the
+      // disagreement with the guide.
+      await prisma.$executeRawUnsafe(
+        `UPDATE "ExperienceGuideReservation" SET "contentUnitId" = $1`,
+        unitB,
+      );
+      await prisma.$executeRawUnsafe(
+        `UPDATE "ChapterExperienceVersion" SET "contentUnitId" = $1`,
+        unitB,
+      );
+
+      const report = await measureReservations(prisma);
+      // The edition check fires first here — unitB belongs to the other book —
+      // which is itself the right refusal. Either way nothing is repaired.
+      expect(report.anomalies.length).toBeGreaterThan(0);
+      expect(
+        report.anomalies.every(
+          (a) =>
+            a.kind === BACKFILL_ANOMALY.identityCrossEdition ||
+            a.kind === BACKFILL_ANOMALY.guideContextIdentityMismatch,
+        ),
+      ).toBe(true);
+      await expect(applyReservations(prisma)).rejects.toBeInstanceOf(
+        BackfillAbort,
+      );
+    });
+
+    it("measure holds READ ONLY: it cannot write even when asked directly", async () => {
+      // Not a source assertion. The transaction measure opens refuses writes
+      // because PostgreSQL refuses them, and this is what that looks like.
+      await insertPreBridgeRow(1, "PUBLISHED");
+      await measureReservations(prisma);
+      expect(await prisma.experienceGuideReservation.count()).toBe(0);
+      const rows = await prisma.chapterExperienceVersion.findMany({
+        select: { contentUnitId: true, guideKey: true },
+      });
+      expect(rows).toEqual([{ contentUnitId: null, guideKey: null }]);
+    });
   });
 });

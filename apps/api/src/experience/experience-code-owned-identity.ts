@@ -112,6 +112,40 @@ function contextResolver(
 }
 
 /**
+ * The one resolution: an EXACT guide pin → the stable chapter it lives in.
+ *
+ * Both callers that need a chapter from a pin go through here — the shipped
+ * catalog below, and the C.3B backfill for stored rows. Two copies of this walk
+ * would be two chances to drift, and the whole point is that an experience and
+ * its own guide can never disagree about which chapter they are in.
+ *
+ * `guideVersion` is part of the question, not decoration. Two versions of one
+ * guide can name different targets, so resolving by `guideKey` alone would
+ * answer about a guide nobody pinned.
+ *
+ * Returns `null` rather than throwing. The two callers want different things
+ * from a failure — the shipped catalog refuses every chapter, the backfill
+ * records one anomaly and keeps classifying — and a shared helper should not
+ * pick one of those for them.
+ */
+export async function resolveUnitForGuidePin(
+  db: Prisma.TransactionClient,
+  pin: { guideKey: string; guideVersion: number },
+  catalog: CodeOwnedCatalog = productionCodeOwnedCatalog,
+): Promise<{ unitId: string; editionId: string } | null> {
+  try {
+    const guide = catalog.guideFor(pin.guideKey, pin.guideVersion);
+    const ctx = await contextResolver(db).resolve(guide, db);
+    return { unitId: ctx.unitId, editionId: ctx.editionId };
+  } catch {
+    // Includes GUIDE_CONTEXT_UNRESOLVED (targets not ingested),
+    // GUIDE_CONTEXT_MISMATCH (targets in different units) and an unknown pin.
+    // All three mean the same thing to a caller: this pin names no chapter.
+    return null;
+  }
+}
+
+/**
  * Every shipped claim, indexed by the stable chapter it belongs to.
  *
  * Resolved inside the caller's transaction, against the manifest that
@@ -125,19 +159,14 @@ export async function codeOwnedClaimsByUnit(
 ): Promise<Map<string, CodeOwnedClaim[]>> {
   const byUnit = new Map<string, CodeOwnedClaim[]>();
   for (const definition of catalog.definitions) {
-    let contentUnitId: string;
-    try {
-      const guide = catalog.guideFor(
-        definition.guidePin.guideKey,
-        definition.guidePin.guideVersion,
-      );
-      contentUnitId = (await contextResolver(db).resolve(guide, db)).unitId;
-    } catch {
-      // Includes GUIDE_CONTEXT_UNRESOLVED (targets not ingested),
-      // GUIDE_CONTEXT_MISMATCH (targets in different units) and an unknown
-      // pin. All three mean the same thing here: this claim cannot be placed.
+    const placed = await resolveUnitForGuidePin(
+      db,
+      definition.guidePin,
+      catalog,
+    );
+    if (placed === null)
       throw new CodeOwnedIdentityError(definition.experienceKey);
-    }
+    const contentUnitId = placed.unitId;
     const claims = byUnit.get(contentUnitId) ?? [];
     claims.push({
       experienceKey: definition.experienceKey,

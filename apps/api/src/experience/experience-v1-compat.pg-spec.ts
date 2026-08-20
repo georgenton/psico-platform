@@ -55,6 +55,18 @@ const MARKER_MIGRATION =
 
 const BOOK = "emociones-en-construccion";
 const HEADING = EXERCISE_INGESTION_CATALOG[BOOK][0].practice.sourceHeading;
+/**
+ * The OTHER book, and it is not scenery.
+ *
+ * A shipped definition is placed by resolving its guide's catalog targets to a
+ * unit, and the whole set is resolved together — so a build whose Parejas
+ * definition cannot be placed refuses binding writes in EVERY chapter, not only
+ * that one. A fixture with a single book therefore describes an environment
+ * production is not, and this gate would fail for a reason that has nothing to
+ * do with V1 compatibility.
+ */
+const BOOK_B = "parejas-que-perduran";
+const HEADING_B = EXERCISE_INGESTION_CATALOG[BOOK_B][0].practice.sourceHeading;
 
 /**
  * Git, from the repository root.
@@ -211,23 +223,28 @@ suite("C.3C · the previous binary, on the schema this PR ships", () => {
     pool = new Pool({ connectionString: url });
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
-    const book = await prisma.book.create({
-      data: { slug: BOOK, title: "Emociones en Construcción", plan: "FREE" },
-    });
-    const ch = await prisma.chapter.create({
-      data: { bookId: book.id, order: 1, title: "C1", isPublished: true },
-    });
-    await prisma.chapterBlock.create({
-      data: {
-        chapterId: ch.id,
-        order: 0,
-        kind: "PARAGRAPH",
-        content: "Intro.",
-      },
-    });
-    await prisma.chapterBlock.create({
-      data: { chapterId: ch.id, order: 1, kind: "HEADING", content: HEADING },
-    });
+    for (const [slug, title, heading, order] of [
+      [BOOK, "Emociones en Construcción", HEADING, 1],
+      [BOOK_B, "Parejas que Perduran", HEADING_B, 2],
+    ] as const) {
+      const book = await prisma.book.create({
+        data: { slug, title, plan: "FREE" },
+      });
+      const ch = await prisma.chapter.create({
+        data: { bookId: book.id, order, title: `C${order}`, isPublished: true },
+      });
+      await prisma.chapterBlock.create({
+        data: {
+          chapterId: ch.id,
+          order: 0,
+          kind: "PARAGRAPH",
+          content: "Intro.",
+        },
+      });
+      await prisma.chapterBlock.create({
+        data: { chapterId: ch.id, order: 1, kind: "HEADING", content: heading },
+      });
+    }
     await backfillContentCore(prisma);
 
     const u = await prisma.user.create({

@@ -817,6 +817,13 @@ describe("ratchet · the cutover migrations say what they do", () => {
       /ALTER TYPE "ExperienceVersionStatus" ADD VALUE 'ARCHIVED';/,
     );
     expect(statements).not.toMatch(/IF NOT EXISTS/);
+    // ONE statement, so no transaction to ask for: there is nothing it could
+    // be atomic with. Wrapping a single statement would only add a way for the
+    // file to be wrong.
+    expect(statements).not.toMatch(/BEGIN;|COMMIT;/);
+    expect(
+      statements.split(";").filter((part) => part.trim().length > 0),
+    ).toHaveLength(1);
   });
 
   it("NOT NULL and the CHECK land in ONE migration", () => {
@@ -836,6 +843,19 @@ describe("ratchet · the cutover migrations say what they do", () => {
     // Validated, not NOT VALID: a constraint that proves nothing about the rows
     // already stored is the ambiguity the whole gate exists to remove.
     expect(statements).not.toMatch(/NOT VALID/);
+    // And in ONE transaction. The runner gives none, so the likely failure here
+    // — the CHECK rejecting a row the backfill missed — would otherwise leave
+    // the column already NOT NULL and the constraint absent: the half-applied
+    // shape the detector calls FAIL_CLOSED, needing a hand-written
+    // `DROP NOT NULL` before anything could be retried.
+    expect([...statements.matchAll(/^\s*BEGIN;\s*$/gm)]).toHaveLength(1);
+    expect([...statements.matchAll(/^\s*COMMIT;\s*$/gm)]).toHaveLength(1);
+    const inside = statements.slice(
+      statements.indexOf("BEGIN;"),
+      statements.indexOf("COMMIT;"),
+    );
+    expect(inside).toMatch(/SET NOT NULL/);
+    expect(inside).toMatch(/ADD CONSTRAINT/);
   });
 
   it("the CHECK the migration writes is the one the detector recognises", () => {

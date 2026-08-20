@@ -83,20 +83,20 @@ Cada fase necesita su propia autorización. El orden **no** es negociable: lo
 impone qué locks comparten dos binarios que conviven durante un rolling deploy,
 no el esquema.
 
-| Fase         | Qué                                                           | Puerta previa                                            | Estado                    |
-| ------------ | ------------------------------------------------------------- | -------------------------------------------------------- | ------------------------- |
-| **C.0A**     | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                                        | ✅ desplegada             |
-| **C.0A1**    | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                          | ✅ completa               |
-| **C.0B1**    | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs            | ✅ aplicada               |
-| **C.0B2**    | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)                   | ✅ aplicada               |
-| **C.0B3**    | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir          | ✅ desplegada             |
-| **C.1**      | Estado por Experience + discovery con pin exacto              | C.0B3 desplegada                                         | ✅ desplegada (#675)      |
-| **C.2**      | La web consume estados independientes                         | C.1 en la misma PR                                       | ✅ desplegada (#675)      |
-| **C.3A**     | Puente de binding: identidad estable, locks y reserva         | C.2 desplegada                                           | ⬜ PR Draft, sin fusionar |
-| **C.3B**     | Backfill de reservas — **fase operativa, no una PR**          | C.3A desplegada y **V0 extinto**                         | ⬜ sin autorizar          |
-| **C.3R**     | **Ancla del lector por identidad** — ver abajo                | C.3A desplegada                                          | ⬜ **bloquea C.3C+C.4**   |
-| **C.3C+C.4** | Cutover estructural + selección, rebind y archive en el CMS   | C.3B aplicado, sin nulls ni colisiones, **C.3R cerrada** | ⬜ PR Draft, sin fusionar |
-| **C.5**      | Verificación en producción (solo lectura)                     | C.3C+C.4 desplegada                                      | ⬜ pendiente              |
+| Fase         | Qué                                                           | Puerta previa                                            | Estado                                           |
+| ------------ | ------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------ |
+| **C.0A**     | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                                        | ✅ desplegada                                    |
+| **C.0A1**    | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                          | ✅ completa                                      |
+| **C.0B1**    | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs            | ✅ aplicada                                      |
+| **C.0B2**    | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)                   | ✅ aplicada                                      |
+| **C.0B3**    | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir          | ✅ desplegada                                    |
+| **C.1**      | Estado por Experience + discovery con pin exacto              | C.0B3 desplegada                                         | ✅ desplegada (#675)                             |
+| **C.2**      | La web consume estados independientes                         | C.1 en la misma PR                                       | ✅ desplegada (#675)                             |
+| **C.3A**     | Puente de binding: identidad estable, locks y reserva         | C.2 desplegada                                           | ⬜ PR Draft, sin fusionar                        |
+| **C.3B**     | Backfill de reservas — **fase operativa, no una PR**          | C.3A desplegada y **V0 extinto**                         | ⬜ `--measure` corrido · `--apply` sin autorizar |
+| **C.3R**     | **Ancla del lector por identidad** — ver abajo                | C.3A desplegada                                          | ⬜ **bloquea C.3C+C.4**                          |
+| **C.3C+C.4** | Cutover estructural + selección, rebind y archive en el CMS   | C.3B aplicado, sin nulls ni colisiones, **C.3R cerrada** | ⬜ PR Draft, sin fusionar                        |
+| **C.5**      | Verificación en producción (solo lectura)                     | C.3C+C.4 desplegada                                      | ⬜ pendiente                                     |
 
 **Checkpoint de producción — 2026-08-19.** Ambos servicios sirven
 `78d3b58f925979a3c51bdeef40b02262ad78fd8b` y **consumen sus ficheros
@@ -105,6 +105,43 @@ versionados**: API con `/apps/api/railway.api.json` (preDeploy
 preDeploy). **58 migraciones aplicadas, 0 pendientes.** El esquema está en modo
 **LINEAGE**: el índice global está ausente, el de lineage sano, y todas las
 instancias emiten `lineage-v2`.
+
+#### C.3B — de dónde sale la identidad de una fila legacy
+
+**C.3A quedó desplegada el 2026-08-20** (`142a5ab`, 59 migraciones, autoridad
+`BRIDGE`). El primer `--measure` real destapó dos cosas.
+
+**El CLI no arrancaba.** `reservation-backfill-cli.ts` construía
+`new PrismaClient()` sin adaptador; el proyecto usa driver adapters, así que
+Prisma 7 lanzaba antes de ejecutar una sola sentencia. Pasó todas las puertas
+porque el único test que nombraba el fichero **leía su fuente**: un ratchet
+puede decir que una cadena está presente, no que el programa arranca. Ahora la
+construcción es una costura con default real, los flags se validan antes de
+construir nada, y hay dos suites — una ejecuta el entrypoint real, otra lanza el
+comando npm literal contra PostgreSQL de verdad.
+
+**La identidad legacy venía de la posición.** Una fila sin `contentUnitId`
+adoptaba la unidad que ocupara su `chapterOrder` en ese momento. Eso es una
+inferencia irreversible: tras el CHECK del cutover queda indistinguible de una
+elección editorial, y un reordenamiento entre la escritura de la fila y el
+backfill la vuelve simplemente incorrecta.
+
+La fila **sí** dice de qué capítulo es: su `guidePin` exacto. Ese pin resuelve a
+un contexto editorial por `GuideTargetContextService` — la misma resolución que
+el catálogo publicado ya usaba, ahora en un solo sitio
+(`resolveUnitForGuidePin`). La posición pasa a ser observación:
+
+```
+ROWS_IDENTITY_FROM_GUIDE_CONTEXT   de dónde sale la identidad
+ROWS_POSITION_CORROBORATED         la posición coincide (corrobora, no decide)
+ROWS_WITH_POSITION_DRIFT           la posición apunta a otra unidad
+ROWS_WITH_UNRESOLVED_POSITION      la posición ya no resuelve
+POSITION_USED_AS_IDENTITY=false
+```
+
+`ROWS_ADOPTING_CURRENT_POSITION` **se elimina**, no se deja en cero: mantenerlo
+diría que la adopción es algo que ocurre y que esta vez no ocurrió. Ya no es
+algo que ocurra.
 
 #### C.3R — el ancla del lector, y por qué bloquea a C.3C+C.4
 

@@ -6,7 +6,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { backfillContentCore } from "../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
-import type { PrismaService } from "../prisma";
 
 /**
  * C.3B (#639) — the LITERAL operator command, run as a process.
@@ -88,9 +87,8 @@ suite("C.3B · the command an operator actually types", () => {
         },
       });
     }
-    await backfillContentCore(prisma as unknown as PrismaService, {
-      bookSlugs: [BOOK, BOOK_B],
-    });
+    // Backfills every book present, which is both of them.
+    await backfillContentCore(prisma);
   }, 240_000);
 
   afterAll(async () => {

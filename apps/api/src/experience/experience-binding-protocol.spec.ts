@@ -268,6 +268,58 @@ describe("ratchet · the backfill's own guarantees", () => {
     );
     expect(cli).not.toMatch(/definitionJson|err\.message|\.stack/);
   });
+
+  it("the CLI builds its client with the pg adapter, and not at import time", () => {
+    // This ratchet exists because a source check is exactly what MISSED the
+    // original bug: the file said `new PrismaClient()` with no adapter and
+    // threw before running, while the only test naming it read its text.
+    //
+    // So this pins the two things text can honestly speak to, and the
+    // BEHAVIOUR is covered where it belongs — `reservation-backfill-cli.spec.ts`
+    // drives the real entry point, and `reservation-backfill-cli.pg-spec.ts`
+    // spawns the literal npm command against a real database.
+    const cli = code(
+      join(process.cwd(), "src/experience/reservation-backfill-cli.ts"),
+    );
+    expect(cli).toMatch(
+      /new PrismaClient\(\{ adapter: new PrismaPg\(pool\) \}\)/,
+    );
+    // Never the bare form that cannot construct under a driver adapter.
+    expect(cli).not.toMatch(/new PrismaClient\(\)/);
+    // Nothing is built at module load; the factory is a function.
+    expect(cli).toMatch(
+      /export const createBackfillClient: BackfillClientFactory = \(\) =>/,
+    );
+    // And `process.exit` never truncates the pool drain.
+    expect(cli).not.toMatch(/process\.exit\(/);
+  });
+
+  it("the retired positional counter is gone from the report, not zeroed", () => {
+    // Keeping `ROWS_ADOPTING_CURRENT_POSITION=0` for compatibility would state
+    // that adoption is a thing that happens and did not happen this time. It
+    // is not a thing that happens any more.
+    const cli = code(
+      join(process.cwd(), "src/experience/reservation-backfill-cli.ts"),
+    );
+    expect(cli).not.toMatch(/ROWS_ADOPTING_CURRENT_POSITION/);
+    expect(cli).toMatch(/POSITION_USED_AS_IDENTITY=false/);
+    expect(cli).toMatch(/ROWS_IDENTITY_FROM_GUIDE_CONTEXT/);
+  });
+
+  it("legacy identity is never taken from the resolved position", () => {
+    const src = code(BACKFILL);
+    // The exact assignment that used to place a legacy row on whatever unit
+    // sat at its number.
+    expect(src).not.toMatch(/contentUnitId:\s*resolvedForPosition/);
+    // What it is taken from instead, resolved with the caller's transaction.
+    expect(src).toMatch(/resolveUnitForGuidePin\(db, pin, catalog\)/);
+    // Both halves of the pin, so a key-only lookup cannot creep back.
+    expect(
+      code(
+        join(process.cwd(), "src/experience/experience-code-owned-identity.ts"),
+      ),
+    ).toMatch(/catalog\.guideFor\(pin\.guideKey, pin\.guideVersion\)/);
+  });
 });
 
 describe("ratchet · forward compatibility with ARCHIVED", () => {
@@ -515,16 +567,21 @@ describe("ratchet · claims this PR makes in prose are anchored in code", () => 
     "src/experience/experience-binding-reservation.ts",
   );
 
-  it("the anomaly catalogue is fourteen, and each one is reachable", () => {
+  it("the anomaly catalogue is fifteen, and each one is reachable", () => {
     // The pull request describes this list. Pinning the count here is what
     // stops the description and the code drifting apart — two of these
     // (`ROW_IDENTITY_UNKNOWN_UNIT`, `ROW_BOOK_HAS_NO_EDITION`) were added after
     // the first description was written, and nothing noticed.
     const kinds = Object.values(BACKFILL_ANOMALY);
-    expect(kinds).toHaveLength(14);
-    expect(new Set(kinds).size).toBe(14);
+    expect(kinds).toHaveLength(15);
+    expect(new Set(kinds).size).toBe(15);
     expect(kinds).toContain("ROW_IDENTITY_UNKNOWN_UNIT");
     expect(kinds).toContain("ROW_BOOK_HAS_NO_EDITION");
+    // C.3B identity: the two that replaced CHAPTER_IDENTITY_UNRESOLVED, which
+    // existed only because a legacy row's position had to resolve.
+    expect(kinds).toContain("ROW_GUIDE_CONTEXT_UNRESOLVED");
+    expect(kinds).toContain("ROW_GUIDE_CONTEXT_IDENTITY_MISMATCH");
+    expect(kinds).not.toContain("CHAPTER_IDENTITY_UNRESOLVED");
     // Every one of them is actually raised somewhere in the backfill.
     const backfill = read(BACKFILL);
     for (const kind of Object.keys(BACKFILL_ANOMALY)) {

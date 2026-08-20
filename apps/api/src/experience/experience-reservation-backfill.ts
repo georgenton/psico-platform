@@ -5,8 +5,13 @@ import {
   globalBindingLockKey,
 } from "./experience-binding-lock";
 import { resolveChapterIdentity } from "./experience-chapter-identity";
+import {
+  codeOwnedClaimsByUnit,
+  productionCodeOwnedCatalog,
+  resolveUnitForGuidePin,
+  type CodeOwnedCatalog,
+} from "./experience-code-owned-identity";
 import { validateExperienceDefinition } from "./experience-catalog";
-import { codeOwnedClaimsByUnit } from "./experience-code-owned-identity";
 import { readReservationAuthority } from "./experience-binding-reservation";
 
 /**
@@ -61,8 +66,21 @@ import { readReservationAuthority } from "./experience-binding-reservation";
 export const BACKFILL_ANOMALY = {
   /** `definitionJson` no longer validates. Its claim cannot be read at all. */
   invalidDefinition: "INVALID_DEFINITION",
-  /** `(bookSlug, chapterOrder)` names no unit in the published structure. */
-  identityUnresolved: "CHAPTER_IDENTITY_UNRESOLVED",
+  /**
+   * The row's EXACT `guidePin` names no chapter.
+   *
+   * Either the pin is not in the guide registry, or its targets are not
+   * ingested, or they disagree about which unit they live in. Whichever it is,
+   * the row's stable identity cannot be established — and the position it
+   * carries is not a substitute for it.
+   */
+  guideContextUnresolved: "ROW_GUIDE_CONTEXT_UNRESOLVED",
+  /**
+   * A materialised row's stored `contentUnitId` is not the one its own guide
+   * resolves to. Two descriptions of the same fact disagree; this command does
+   * not pick a winner.
+   */
+  guideContextIdentityMismatch: "ROW_GUIDE_CONTEXT_IDENTITY_MISMATCH",
   /** Two lineages claim one guide inside one chapter. */
   guideOwnedByTwoLineages: "GUIDE_OWNED_BY_TWO_LINEAGES",
   /** One lineage claims two guides inside one chapter. */
@@ -119,19 +137,26 @@ export interface BackfillReport {
    */
   rowsWithPositionDrift: number;
   /**
-   * Legacy rows whose chapter is being INFERRED from the position they carry.
+   * Rows whose chapter was established from their own guide's targets.
    *
-   * This is the number the C.3B gate exists to look at. A legacy row has no
-   * identity, so `--apply` gives it the unit that currently sits at its
-   * `chapterOrder` — and that is an inference, not a fact the row states. Once
-   * written it is indistinguishable from an identity the CMS chose, and the
-   * cutover's CHECK then makes it permanent. If a reorder happened between the
-   * row being written and the backfill running, the inference is wrong and
-   * nothing downstream can tell.
-   *
-   * Irreversible, therefore reported before rather than after.
+   * This replaces `rowsAdoptingCurrentPosition`, and the change is not
+   * cosmetic. That counter existed because a legacy row's chapter was INFERRED
+   * from the number it carried, which is irreversible once written and wrong
+   * whenever a reorder happened in between. Nothing infers any more: identity
+   * comes from the exact `guidePin`, so there is no adoption to count and no
+   * irreversible guess to warn about.
    */
-  rowsAdoptingCurrentPosition: number;
+  rowsIdentityFromGuideContext: number;
+  /**
+   * Rows where the position ALSO points at the same unit.
+   *
+   * Corroboration, and only that. It is reported because a mismatch between
+   * two independent descriptions is worth seeing, never because the position
+   * had a vote.
+   */
+  rowsPositionCorroborated: number;
+  /** Rows whose `(bookSlug, chapterOrder)` no longer resolves to any unit. */
+  rowsWithUnresolvedPosition: number;
   groups: number;
   /** Lineages whose reservation already exists. */
   reservationsExisting: number;
@@ -171,6 +196,30 @@ interface StoredRow {
   definitionJson: unknown;
 }
 
+/**
+ * The EXACT guide pin a stored row states.
+ *
+ * Both halves matter. `guideKey` alone would resolve whichever version happens
+ * to be current, and two versions of one guide can name different targets — so
+ * a key-only lookup answers a question nobody asked.
+ *
+ * `null` when the definition does not validate; `classify` turns that into the
+ * INVALID_DEFINITION anomaly, so this returns rather than throws.
+ */
+function pinOf(
+  row: StoredRow,
+): { guideKey: string; guideVersion: number } | null {
+  try {
+    const { guidePin } = validateExperienceDefinition(row.definitionJson);
+    return {
+      guideKey: guidePin.guideKey,
+      guideVersion: guidePin.guideVersion,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** What a single row turned out to be, once read against its own definition. */
 type Classified =
   | {
@@ -178,7 +227,12 @@ type Classified =
       contentUnitId: string;
       guideKey: string;
       materialised: boolean;
+      /** Observation only: position points somewhere else than identity. */
       positionDrift: boolean;
+      /** Observation only: position no longer resolves to any unit. */
+      positionUnresolved: boolean;
+      /** Observation only: position agrees with identity. */
+      positionCorroborated: boolean;
     }
   | { kind: "anomaly"; anomaly: BackfillAnomaly };
 
@@ -220,6 +274,8 @@ function anomaly(
 function classify(
   row: StoredRow,
   resolvedForPosition: string | null,
+  /** The chapter this row's OWN exact guide pin names. Identity, not a hint. */
+  resolvedForGuide: { unitId: string; editionId: string } | null,
   unitEdition: Map<string, string>,
   editionOfBook: Map<string, string>,
 ): Classified {
@@ -287,6 +343,25 @@ function classify(
     if (unitsEdition !== edition) {
       return anomaly(BACKFILL_ANOMALY.identityCrossEdition, row, claimed);
     }
+
+    // The stored identity and the guide's own context are two descriptions of
+    // one fact. If they disagree, this command does NOT pick a winner: a row
+    // pointing somewhere its guide does not live is a question for an editor,
+    // and completing the set around it would bake the disagreement in.
+    //
+    // An unresolvable pin is a separate anomaly, not silent agreement — the
+    // check would otherwise pass by being unable to run.
+    if (resolvedForGuide === null) {
+      return anomaly(BACKFILL_ANOMALY.guideContextUnresolved, row, claimed);
+    }
+    if (resolvedForGuide.unitId !== unitId) {
+      return anomaly(
+        BACKFILL_ANOMALY.guideContextIdentityMismatch,
+        row,
+        claimed,
+      );
+    }
+
     return {
       kind: "row",
       contentUnitId: unitId,
@@ -294,19 +369,44 @@ function classify(
       materialised: true,
       positionDrift:
         resolvedForPosition !== null && resolvedForPosition !== unitId,
+      positionUnresolved: resolvedForPosition === null,
+      positionCorroborated: resolvedForPosition === unitId,
     };
   }
 
-  // Fully legacy: position is the only locator it has, so it must resolve.
-  if (resolvedForPosition === null) {
-    return anomaly(BACKFILL_ANOMALY.identityUnresolved, row, claimed);
+  // Fully legacy — and its chapter is NOT the number it carries.
+  //
+  // The row states which guide it pins, exactly; that guide's targets name one
+  // editorial context; that context names a unit. `chapterOrder` is where the
+  // row happened to be written, which a single editorial reorder makes wrong
+  // while leaving the pin correct. Using it would have written an inference
+  // that the cutover's CHECK then makes permanent and indistinguishable from a
+  // choice an editor made.
+  if (resolvedForGuide === null) {
+    return anomaly(BACKFILL_ANOMALY.guideContextUnresolved, row, claimed);
   }
+  const guideUnit = resolvedForGuide.unitId;
+
+  // The same edition check materialised rows get, for the same reason: a unit
+  // that belongs to another book is not this row's chapter however it resolved.
+  const edition = editionOfBook.get(row.bookSlug);
+  if (edition === undefined) {
+    return anomaly(BACKFILL_ANOMALY.bookHasNoEdition, row, claimed);
+  }
+  if (resolvedForGuide.editionId !== edition) {
+    return anomaly(BACKFILL_ANOMALY.identityCrossEdition, row, claimed);
+  }
+
   return {
     kind: "row",
-    contentUnitId: resolvedForPosition,
+    contentUnitId: guideUnit,
     guideKey: claimed,
     materialised: false,
-    positionDrift: false,
+    // Position is now purely observational, on legacy rows too.
+    positionDrift:
+      resolvedForPosition !== null && resolvedForPosition !== guideUnit,
+    positionUnresolved: resolvedForPosition === null,
+    positionCorroborated: resolvedForPosition === guideUnit,
   };
 }
 
@@ -317,7 +417,9 @@ interface Plan {
   rowsLegacy: number;
   rowsAlreadyMaterialised: number;
   rowsWithPositionDrift: number;
-  rowsAdoptingCurrentPosition: number;
+  rowsIdentityFromGuideContext: number;
+  rowsPositionCorroborated: number;
+  rowsWithUnresolvedPosition: number;
   reservationsExisting: number;
 }
 
@@ -328,7 +430,10 @@ interface Plan {
  * a catalog wants the whole list, not one item at a time. The caller decides
  * that a non-empty list means "do not apply".
  */
-async function planReservations(db: BackfillDb): Promise<Plan> {
+async function planReservations(
+  db: BackfillDb,
+  catalog: CodeOwnedCatalog = productionCodeOwnedCatalog,
+): Promise<Plan> {
   const rows = (await db.chapterExperienceVersion.findMany({
     where: { status: { in: ["DRAFT", "PUBLISHED"] } },
     select: {
@@ -353,7 +458,14 @@ async function planReservations(db: BackfillDb): Promise<Plan> {
   let legacy = 0;
   let materialised = 0;
   let drifted = 0;
-  let inferred = 0;
+  let fromGuideContext = 0;
+  let corroborated = 0;
+  let positionUnresolved = 0;
+  /** `guideKey@guideVersion` → the chapter that exact pin names, once. */
+  const guideCache = new Map<
+    string,
+    { unitId: string; editionId: string } | null
+  >();
 
   // Editions FIRST, by slug, independent of any position.
   //
@@ -412,9 +524,27 @@ async function planReservations(db: BackfillDb): Promise<Plan> {
       }
     }
 
+    // The row's OWN identity, from the exact pin it stores. Cached per pin
+    // rather than per chapter: the pin is the question, and two rows pinning
+    // different guide versions are two different questions.
+    //
+    // Resolved with THIS transaction client, so it lands on the same snapshot
+    // as every other read in the plan. A resolution taken outside would
+    // describe a manifest this plan never saw.
+    const pin = pinOf(row);
+    if (pin !== null) {
+      const pinKey = `${pin.guideKey}@${pin.guideVersion}`;
+      if (!guideCache.has(pinKey)) {
+        guideCache.set(pinKey, await resolveUnitForGuidePin(db, pin, catalog));
+      }
+    }
+
     const verdict = classify(
       row,
       identityCache.get(cacheKey) ?? null,
+      pin === null
+        ? null
+        : (guideCache.get(`${pin.guideKey}@${pin.guideVersion}`) ?? null),
       unitEdition,
       editionOfBook,
     );
@@ -424,12 +554,13 @@ async function planReservations(db: BackfillDb): Promise<Plan> {
     }
 
     if (verdict.materialised) materialised += 1;
-    else {
-      legacy += 1;
-      // Every legacy row adopts the unit currently at its position. Counted
-      // separately because that adoption is an irreversible inference.
-      inferred += 1;
-    }
+    else legacy += 1;
+    // Every row's chapter came from its guide's targets — materialised rows
+    // have it verified against their stored column, legacy rows get it as
+    // their identity. Nothing is inferred from a number any more.
+    fromGuideContext += 1;
+    if (verdict.positionCorroborated) corroborated += 1;
+    if (verdict.positionUnresolved) positionUnresolved += 1;
     if (verdict.positionDrift) drifted += 1;
 
     const guideScope = `${verdict.contentUnitId}#${verdict.guideKey}`;
@@ -503,7 +634,9 @@ async function planReservations(db: BackfillDb): Promise<Plan> {
     rowsLegacy: legacy,
     rowsAlreadyMaterialised: materialised,
     rowsWithPositionDrift: drifted,
-    rowsAdoptingCurrentPosition: inferred,
+    rowsIdentityFromGuideContext: fromGuideContext,
+    rowsPositionCorroborated: corroborated,
+    rowsWithUnresolvedPosition: positionUnresolved,
     reservationsExisting,
   };
 }
@@ -616,7 +749,9 @@ function measuredReport(plan: Plan): BackfillReport {
     rowsLegacy: plan.rowsLegacy,
     rowsAlreadyMaterialised: plan.rowsAlreadyMaterialised,
     rowsWithPositionDrift: plan.rowsWithPositionDrift,
-    rowsAdoptingCurrentPosition: plan.rowsAdoptingCurrentPosition,
+    rowsIdentityFromGuideContext: plan.rowsIdentityFromGuideContext,
+    rowsPositionCorroborated: plan.rowsPositionCorroborated,
+    rowsWithUnresolvedPosition: plan.rowsWithUnresolvedPosition,
     groups: plan.groups.length,
     reservationsExisting: plan.reservationsExisting,
     // What a run would CREATE, not how many lineages there are. The two differ

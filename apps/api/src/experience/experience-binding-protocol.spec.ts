@@ -476,12 +476,30 @@ describe("ratchet · the reader anchor barrier", () => {
     );
   });
 
-  it("C.3A adds no editorial choice, which is why it may deploy first", () => {
-    // The claim the `false` above rests on: nothing in this PR lets an editor
-    // pick, move or release a guide. Those arrive with C.4.
+  it("the barrier is decided by which phase this binary IS", () => {
+    // The two flags are not independent opinions; each rests on a fact about
+    // the code in the tree, and the fact differs by phase. So the assertion
+    // reads the protocol marker and checks the claim that actually applies —
+    // which also means this ratchet keeps biting on the stacked branch, where
+    // it matters most, instead of quietly describing the branch below.
     const service = code(SERVICE);
-    for (const op of ["rebindDraft", "archiveDraft", "listGuideOptions"]) {
-      expect(service).not.toContain(op);
+    const editorial = ["rebindDraft", "archiveDraft", "listGuideOptions"];
+
+    if (EXPERIENCE_BINDING_PROTOCOL === "experience-binding-bridge-v1") {
+      // C.3A. The `false` rests on this: nothing here lets an editor pick,
+      // move or release a guide, so no editor can produce a binding the
+      // positional reader would refuse to open.
+      for (const op of editorial) expect(service).not.toContain(op);
+      expect(
+        EXPERIENCE_IDENTITY_BARRIER.C3A_DEPLOY_BLOCKED_BY_POSITIONAL_READER,
+      ).toBe(false);
+    } else {
+      // C.3C+C.4. The editorial surface exists, which is exactly the condition
+      // the merge gate was written for — so the gate had better still be shut.
+      expect(editorial.some((op) => service.includes(op))).toBe(true);
+      expect(
+        EXPERIENCE_IDENTITY_BARRIER.C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED,
+      ).toBe(true);
     }
   });
 

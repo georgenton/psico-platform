@@ -143,6 +143,16 @@ POSITION_USED_AS_IDENTITY=false
 diría que la adopción es algo que ocurre y que esta vez no ocurrió. Ya no es
 algo que ocurra.
 
+**Carrera de teardown en la suite PG (ampliación).** El 2026-08-20, el mismo
+commit `21f70ae1` produjo SUCCESS en la corrida `push` y FAILURE en la de
+`pull_request`, con **todas las aserciones verdes** (845/850) y un rechazo no
+capturado tras la suite: `FATAL 57P01` sobre `cc72_firewall_db`, la base de
+`learning-firewall.pg-spec.ts`. `DROP DATABASE … WITH (FORCE)` es el patrón de
+teardown de **55** specs y termina cualquier conexión que un pool aún sostenga.
+Misma familia que la carrera del `vector`/privacy-barrier ya registrada: no es
+una aserción que falle, es un pool que no terminó de drenar. Una corrida verde
+no demuestra que desapareció.
+
 #### C.3R — el ancla del lector, y por qué bloquea a C.3C+C.4
 
 Después de C.3A conviven **dos** formas de decir «de qué capítulo hablamos», y

@@ -30,6 +30,25 @@
 --
 -- This migration FAILS if any row still has a null `contentUnitId`. That is the
 -- gate working: it means C.3B has not run, or ran and left something behind.
+--
+-- ── Why the explicit transaction ───────────────────────────────────────────
+--
+-- `prisma migrate deploy` does NOT wrap a migration file. Measured with this
+-- project's own command against a disposable PostgreSQL 18.4. So without
+-- `BEGIN`/`COMMIT` the likely failure here — the CHECK rejecting a row the
+-- backfill missed — would leave the column already NOT NULL, the constraint
+-- absent, and `_prisma_migrations` unfinished.
+--
+-- That state is exactly the one the authority detector calls FAIL_CLOSED, and
+-- fail-closed is not a substitute for atomicity: the CMS would be down, the
+-- deploy blocked on P3009, and the recovery would need a hand-written
+-- `ALTER COLUMN … DROP NOT NULL` before anything could be retried.
+--
+-- Both halves land together or neither does. Verified the way it was measured:
+-- with a deliberate failure before `COMMIT`, the column keeps its nullability
+-- and no constraint appears.
+BEGIN;
+
 ALTER TABLE "ChapterExperienceVersion"
     ALTER COLUMN "contentUnitId" SET NOT NULL;
 
@@ -39,3 +58,5 @@ ALTER TABLE "ChapterExperienceVersion"
         ("status" = 'ARCHIVED' AND "contentUnitId" IS NOT NULL AND "guideKey" IS NULL)
         OR ("status" <> 'ARCHIVED' AND "contentUnitId" IS NOT NULL AND "guideKey" IS NOT NULL)
     );
+
+COMMIT;

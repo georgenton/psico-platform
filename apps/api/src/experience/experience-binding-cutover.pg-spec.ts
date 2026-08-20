@@ -15,6 +15,7 @@ import {
   bridgeBindingLockKeys,
 } from "./experience-binding-lock";
 import { readReservationAuthority } from "./experience-binding-reservation";
+import { productionCodeOwnedClaims } from "./experience-code-owned-identity";
 import { GUIDE_READER_ANCHOR, PAREJAS_READER_ANCHOR } from "@psico/types";
 import { productionGuideRegistry } from "../guide/guide-catalog";
 import type { ExperienceBindingCatalog } from "./experience-guide-options";
@@ -134,6 +135,9 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
     service = new ExperienceAdminService(prisma as unknown as PrismaService);
     twoGuides = new ExperienceAdminService(
       prisma as unknown as PrismaService,
+      // The real shipped-claim resolver: this fixture ingests the catalog, so
+      // it answers. Only the guide MENU is substituted.
+      productionCodeOwnedClaims,
       twoGuideCatalog,
     );
 
@@ -672,6 +676,116 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
     expect((await bindingOf(EEC_PIN.guideKey)).reservation).toBe(
       EEC_PIN.guideKey,
     );
+  });
+
+  it("a rebind after a reorder follows the UNIT, not the number", async () => {
+    // Both halves of C.4 have to survive the thing C.3A exists for. The draft
+    // stays in the unit it was created in, its reservation moves with it, and
+    // the unit that inherited its old number is untouched by any of it.
+    const created = await twoGuides.createDraft(
+      userId,
+      await eecDraft(),
+      unitA,
+    );
+    const edition = await prisma.edition.findFirstOrThrow({
+      where: { slug: BOOK_A },
+      select: { id: true, publishedRevisionId: true },
+    });
+    const previousRevisionId = edition.publishedRevisionId!;
+    try {
+      const unit = await prisma.contentUnit.create({
+        data: { editionId: edition.id, unitKey: "native-rebind-after-reorder" },
+      });
+      const version = await prisma.contentUnitVersion.create({
+        data: { unitId: unit.id, title: "Capítulo movido" },
+      });
+      const highest = await prisma.revision.findFirstOrThrow({
+        where: { editionId: edition.id },
+        orderBy: { number: "desc" },
+        select: { number: true },
+      });
+      const next = await prisma.revision.create({
+        data: {
+          editionId: edition.id,
+          number: highest.number + 1,
+          status: "PUBLISHED",
+          publishedAt: new Date(),
+        },
+      });
+      for (const entry of await prisma.revisionUnit.findMany({
+        where: { revisionId: previousRevisionId },
+        select: { unitId: true, unitVersionId: true, order: true },
+      })) {
+        await prisma.revisionUnit.create({
+          data: {
+            revisionId: next.id,
+            unitId: entry.unitId,
+            unitVersionId: entry.unitVersionId,
+            order: entry.order + 1000,
+          },
+        });
+      }
+      await prisma.revisionUnit.create({
+        data: {
+          revisionId: next.id,
+          unitId: unit.id,
+          unitVersionId: version.id,
+          order: 1,
+        },
+      });
+      await prisma.edition.update({
+        where: { id: edition.id },
+        data: { publishedRevisionId: next.id },
+      });
+
+      // The rebind lands on the draft's OWN unit.
+      await twoGuides.rebindDraft(created.id, ALT_PIN);
+      expect(await bindingOf(EEC_PIN.guideKey)).toEqual({
+        reservation: ALT_PIN.guideKey,
+        columns: [ALT_PIN.guideKey],
+        json: [ALT_PIN.guideKey],
+      });
+      const reservations = await prisma.experienceGuideReservation.findMany({
+        select: { contentUnitId: true },
+      });
+      expect(reservations).toEqual([{ contentUnitId: unitA }]);
+
+      // ── And here is the residual, asserted rather than hidden ────────────
+      //
+      // The selector answers a question the CMS cannot make identity-based on
+      // its own: "does this guide's approved passage live in this chapter". The
+      // answer comes from the shipped ANCHOR, which names `(bookSlug,
+      // chapterOrder)` — and the READER gates on the same positional anchor
+      // (`anchorAppliesTo`, used by the web Player to render «No disponible
+      // aquí»). Making only the CMS resolve it by identity would let an editor
+      // bind a guide no reader could open, which is strictly worse than
+      // refusing.
+      //
+      // So after a reorder the offer follows the NUMBER the anchor names, not
+      // the unit the passage is in:
+      const atMoved = await twoGuides.listSelectableGuides(BOOK_A, 1001, null);
+      expect(atMoved.map((o) => o.guideKey)).toEqual([]);
+      const atOne = await twoGuides.listSelectableGuides(BOOK_A, 1, null);
+      expect(atOne.map((o) => o.guideKey).sort()).toEqual(
+        [ALT_PIN.guideKey, EEC_PIN.guideKey].sort(),
+      );
+
+      // What C.3A and C.4 DO guarantee is the half that is theirs: the
+      // reservation stayed with the unit, so the moved draft still holds its
+      // guide and nothing was silently reassigned. Fixing the other half means
+      // making the anchor identity-based on the READER too, which is not this
+      // PR's to change.
+      expect(
+        await prisma.experienceGuideReservation.findMany({
+          select: { contentUnitId: true, guideKey: true },
+        }),
+      ).toEqual([{ contentUnitId: unitA, guideKey: ALT_PIN.guideKey }]);
+    } finally {
+      await prisma.edition.update({
+        where: { id: edition.id },
+        data: { publishedRevisionId: previousRevisionId },
+      });
+    }
   });
 
   it("the same pin twice is a replay, not a conflict", async () => {

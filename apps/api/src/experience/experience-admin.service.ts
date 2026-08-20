@@ -75,6 +75,8 @@ import {
 } from "./experience-guide-options";
 import {
   assertBindingAvailable,
+  chapterRowScope,
+  keepsChapterRow,
   ensureReservation,
   moveReservation,
   EXPERIENCE_BINDING_CODES,
@@ -82,83 +84,6 @@ import {
   readChapterBindings,
   readReservationAuthority,
 } from "./experience-binding-reservation";
-
-/**
- * Which stored rows belong to this chapter, given what the schema can prove.
- *
- * `where: { bookSlug, chapterOrder }` was the old answer and it is wrong for
- * the same reason the lock key is not built from those two values: they are a
- * POSITION. Move a unit from chapter 3 to chapter 5 and its experiences would
- * appear under whatever unit took over position 3 — an editor would be looking
- * at one chapter's experiences while reading another's.
- *
- *   STRUCTURAL   identity, and only identity. Every row has a `contentUnitId`
- *                by then (the CHECK guarantees it), so position is not needed
- *                and must not be consulted.
- *   BRIDGE       both, kept apart: materialised rows by identity, legacy rows
- *                by position AND `contentUnitId IS NULL`. That last clause is
- *                what makes the mixture controlled rather than a union of two
- *                overlapping guesses — a row that HAS an identity is never
- *                matched positionally, so a moved unit's rows cannot surface
- *                under its old number.
- *   otherwise    position alone. Under LEGACY_SCAN the columns do not exist to
- *                be queried, and under FAIL_CLOSED nothing may be written
- *                anyway; showing the editor what is there beats showing
- *                nothing, and `contentUnitId: null` in the response says the
- *                chapter cannot host a binding.
- */
-export function chapterRowScope(
-  authority: ReservationAuthority,
-  chapter: { contentUnitId: string } | null,
-  bookSlug: string,
-  chapterOrder: number,
-): Prisma.ChapterExperienceVersionWhereInput {
-  if (authority === "STRUCTURAL") {
-    // A chapter that does not resolve has no rows, by definition: under the
-    // cutover every row names a unit, and we cannot name this one.
-    return chapter === null
-      ? { id: { in: [] } }
-      : { contentUnitId: chapter.contentUnitId };
-  }
-  if (authority === "BRIDGE") {
-    // Position is a SUPERSET here — it can also match rows belonging to a unit
-    // that has since moved away — so `keepsChapterRow` narrows it afterwards.
-    // The narrowing cannot be expressed in the query: this binary's Prisma
-    // client is generated from the cutover schema, where `contentUnitId` is NOT
-    // NULL, so `contentUnitId: null` is neither a legal filter for it nor a
-    // shape it will send.
-    return chapter === null
-      ? { bookSlug, chapterOrder }
-      : {
-          OR: [
-            { contentUnitId: chapter.contentUnitId },
-            { bookSlug, chapterOrder },
-          ],
-        };
-  }
-  return { bookSlug, chapterOrder };
-}
-
-/**
- * Does this row really belong to the chapter that was asked for?
- *
- * Only BRIDGE needs it, and only because the query above is a superset there. A
- * row with NO identity is legacy and position is all it has; a row WITH one
- * belongs to that unit and to no other, whatever number it was created under.
- *
- * `contentUnitId` is typed non-null by a client built for the cutover schema,
- * and under BRIDGE it genuinely can be null — so the read is widened here,
- * deliberately and in one place, rather than the schema being made to lie.
- */
-export function keepsChapterRow(
-  authority: ReservationAuthority,
-  chapter: { contentUnitId: string } | null,
-  row: { contentUnitId: string },
-): boolean {
-  if (authority !== "BRIDGE") return true;
-  const identity = (row as { contentUnitId: string | null }).contentUnitId;
-  return identity === null || identity === chapter?.contentUnitId;
-}
 
 /** Editorial failures, surfaced as codes rather than stack traces. */
 const EDITORIAL_CODES: Record<string, string> = {
@@ -320,7 +245,12 @@ export class ExperienceAdminService {
           chapter: resolved,
           rows: (
             await tx.chapterExperienceVersion.findMany({
-              where: chapterRowScope(authority, resolved, bookSlug, chapterOrder),
+              where: chapterRowScope(
+                authority,
+                resolved,
+                bookSlug,
+                chapterOrder,
+              ),
               orderBy: [{ experienceKey: "asc" }, { experienceVersion: "asc" }],
             })
           ).filter((row) => keepsChapterRow(authority, resolved, row)),
@@ -498,8 +428,8 @@ export class ExperienceAdminService {
         chapterOrder: definition.chapterOrder,
         expectedContentUnitId,
       },
-      async (tx, chapter) => {
-        await this.reserveFor(tx, chapter, definition);
+      async (tx, chapter, authority) => {
+        await this.reserveFor(tx, chapter, definition, authority);
         return this.insert(tx, userId, definition, chapter);
       },
     );
@@ -547,29 +477,26 @@ export class ExperienceAdminService {
     chapterOrder: number,
     experienceKey: string | null,
   ): Promise<SelectableGuideOption[]> {
-    return this.withBinding({ bookSlug, chapterOrder }, async (tx, chapter) => {
-      const shipped =
-        await productionExperienceRepository.listPublishedForChapter({
+    return this.withBinding(
+      { bookSlug, chapterOrder },
+      async (tx, chapter, authority) => {
+        const view = await readChapterBindings(tx, {
+          contentUnitId: chapter.contentUnitId,
           bookSlug,
           chapterOrder,
+          authority,
+          // Placed by identity, like every other claim in this chapter.
+          codeOwned: await this.codeOwnedClaims(tx, chapter.contentUnitId),
         });
-      const view = await readChapterBindings(tx, {
-        contentUnitId: chapter.contentUnitId,
-        bookSlug,
-        chapterOrder,
-        codeOwned: shipped.map((d) => ({
-          experienceKey: d.experienceKey,
-          guideKey: d.guidePin.guideKey,
-        })),
-      });
-      return selectableGuidesForChapter({
-        bookSlug,
-        chapterOrder,
-        experienceKey,
-        view,
-        catalog: this.catalog,
-      });
-    });
+        return selectableGuidesForChapter({
+          bookSlug,
+          chapterOrder,
+          experienceKey,
+          view,
+          catalog: this.catalog,
+        });
+      },
+    );
   }
 
   /**
@@ -588,6 +515,9 @@ export class ExperienceAdminService {
     run: (
       tx: Prisma.TransactionClient,
       chapter: ResolvedChapterIdentity,
+      // What the schema can prove, so a callback scopes its reads the same way
+      // the listing does rather than deciding again.
+      authority: ReservationAuthority,
     ) => Promise<T>,
   ): Promise<T> {
     try {
@@ -601,7 +531,7 @@ export class ExperienceAdminService {
             EXPERIENCE_BINDING_CODES.authorityUnavailable,
           );
         }
-        return run(tx, await enterBindingProtocol(tx, where));
+        return run(tx, await enterBindingProtocol(tx, where), authority);
       });
     } catch (err) {
       return bindingFailure(err);
@@ -618,6 +548,7 @@ export class ExperienceAdminService {
     tx: Prisma.TransactionClient,
     chapter: ResolvedChapterIdentity,
     definition: ChapterExperienceDefinition,
+    authority: ReservationAuthority,
   ): Promise<void> {
     // Code-owned definitions hold their guide too, and they are not rows. The
     // previous rule counted them; dropping them would move a collision to the
@@ -630,6 +561,7 @@ export class ExperienceAdminService {
       contentUnitId: chapter.contentUnitId,
       bookSlug: definition.bookSlug,
       chapterOrder: definition.chapterOrder,
+      authority,
       codeOwned: await this.codeOwnedClaims(tx, chapter.contentUnitId),
     });
     assertBindingAvailable(view, {
@@ -679,7 +611,7 @@ export class ExperienceAdminService {
         contentUnitId: locator?.contentUnitId ?? null,
         expectedContentUnitId,
       },
-      async (tx, chapter) => {
+      async (tx, chapter, authority) => {
         // Re-read under the lock. The outer copy told us where to lock; what a
         // version is CLONED from has to be the state the lock is protecting.
         const inner = await tx.chapterExperienceVersion.findUnique({
@@ -719,7 +651,7 @@ export class ExperienceAdminService {
         // The next version of a lineage reuses its reservation rather than
         // taking a new one — which is why `ensureReservation` treats an exact
         // match as a replay instead of a conflict.
-        await this.reserveFor(tx, chapter, definition);
+        await this.reserveFor(tx, chapter, definition, authority);
         return this.insert(tx, userId, definition, chapter);
       },
     );
@@ -754,7 +686,7 @@ export class ExperienceAdminService {
         contentUnitId: locator.contentUnitId,
         expectedContentUnitId,
       },
-      async (tx, chapter) => {
+      async (tx, chapter, authority) => {
         const row = await tx.chapterExperienceVersion.findUnique({
           where: { id },
           select: {
@@ -814,7 +746,7 @@ export class ExperienceAdminService {
 
         // The reservation check runs anyway, because "this cannot move a
         // binding" is worth verifying when the alternative is a silent rebind.
-        await this.reserveFor(tx, chapter, definition);
+        await this.reserveFor(tx, chapter, definition, authority);
         await tx.chapterExperienceVersion.update({
           where: { id },
           data: {
@@ -854,7 +786,7 @@ export class ExperienceAdminService {
         contentUnitId: row.contentUnitId,
         expectedContentUnitId,
       },
-      async (tx, chapter) => {
+      async (tx, chapter, authority) => {
         // Re-read INSIDE the lock. The row read a moment ago only told us which
         // chapter to lock; what publishing decides on has to be the state the
         // lock is actually protecting.
@@ -895,7 +827,7 @@ export class ExperienceAdminService {
         // The reservation is revalidated here, not inherited from create time.
         // A draft can have sat for weeks; publishing is when it starts holding
         // the guide against readers, so this is where the claim must still hold.
-        await this.reserveFor(tx, chapter, definition);
+        await this.reserveFor(tx, chapter, definition, authority);
 
         const publishedAt = new Date();
         const updated = await tx.chapterExperienceVersion.updateMany({
@@ -965,7 +897,7 @@ export class ExperienceAdminService {
         contentUnitId: row.contentUnitId,
         expectedContentUnitId,
       },
-      async (tx, chapter) => {
+      async (tx, chapter, authority) => {
         const current = await tx.chapterExperienceVersion.findUnique({
           where: { id },
         });
@@ -1000,19 +932,12 @@ export class ExperienceAdminService {
         // this: it also asserts the lineage holds nothing else, which is
         // precisely what a rebind is asking to change — calling it here made
         // the whole operation unreachable.
-        const shipped =
-          await productionExperienceRepository.listPublishedForChapter({
-            bookSlug: current.bookSlug,
-            chapterOrder: current.chapterOrder,
-          });
         const view = await readChapterBindings(tx, {
           contentUnitId: chapter.contentUnitId,
           bookSlug: current.bookSlug,
           chapterOrder: current.chapterOrder,
-          codeOwned: shipped.map((d) => ({
-            experienceKey: d.experienceKey,
-            guideKey: d.guidePin.guideKey,
-          })),
+          authority,
+          codeOwned: await this.codeOwnedClaims(tx, chapter.contentUnitId),
         });
 
         // ONE row, updated in place. `ON UPDATE CASCADE` carries the new
@@ -1093,7 +1018,7 @@ export class ExperienceAdminService {
         contentUnitId: row.contentUnitId,
         expectedContentUnitId,
       },
-      async (tx, chapter) => {
+      async (tx, chapter, authority) => {
         const current = await tx.chapterExperienceVersion.findUnique({
           where: { id },
         });

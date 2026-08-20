@@ -24,8 +24,10 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from "@nestjs/common";
 import type {
@@ -35,7 +37,7 @@ import type {
   ChapterExperienceDefinition,
   ChapterExperiencePublicView,
 } from "@psico/types";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { productionGuideRegistry } from "../guide/guide-catalog";
 import { productionGuideDiscoveryCatalog } from "../guide/guide-discovery-catalog";
@@ -45,6 +47,13 @@ import {
   validateExperienceDefinition,
 } from "./experience-catalog";
 import { productionExperienceRepository } from "./experience-production-catalog";
+import {
+  CodeOwnedIdentityError,
+  EXPERIENCE_CODE_OWNED_CLAIMS,
+  EXPERIENCE_CODE_OWNED_UNRESOLVED,
+  productionCodeOwnedClaims,
+  type CodeOwnedClaimResolver,
+} from "./experience-code-owned-identity";
 import { toPublicExperienceView } from "./experience-public-view";
 import {
   ChapterIdentityError,
@@ -152,6 +161,17 @@ function bindingFailure(err: unknown): never {
         "resuelve en la estructura publicada.",
     });
   }
+  if (err instanceof CodeOwnedIdentityError) {
+    // A definition the build ships whose chapter cannot be named. Nothing can
+    // be decided about collisions while that is true, and guessing from its
+    // declared position is the bug this replaced.
+    throw new ConflictException({
+      code: EXPERIENCE_CODE_OWNED_UNRESOLVED,
+      message:
+        "Una experiencia incluida en esta versión de la plataforma no se " +
+        "puede ubicar en un capítulo. No se escribió nada.",
+    });
+  }
   throw err;
 }
 
@@ -196,7 +216,20 @@ function rowOf(
 
 @Injectable()
 export class ExperienceAdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  /**
+   * The shipped-claim resolver is injected, with production as the default.
+   *
+   * `@Optional()` so `new ExperienceAdminService(prisma)` still means the real
+   * catalog — every existing caller keeps working — while a test can say what
+   * the build ships without impersonating the three catalog tables that answer
+   * it.
+   */
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional()
+    @Inject(EXPERIENCE_CODE_OWNED_CLAIMS)
+    private readonly codeOwnedClaims: CodeOwnedClaimResolver = productionCodeOwnedClaims,
+  ) {}
 
   /**
    * Everything an editor needs for one chapter: what code ships, what the
@@ -206,35 +239,60 @@ export class ExperienceAdminService {
     bookSlug: string,
     chapterOrder: number,
   ): Promise<AdminChapterExperiences> {
-    // One snapshot: the authority, the chapter's identity and the rows chosen
-    // by that identity have to describe the same instant, or the list could be
-    // scoped by a unit the rows were not read against.
-    const { chapter, rows } = await this.prisma.$transaction(async (tx) => {
-      const authority = await readReservationAuthority(tx);
-      // `lock: "none"` — a read does not serialise against publishes. A list
-      // built from a manifest that moved a moment ago is stale, not wrong.
-      const resolved = await resolveChapterIdentityQuietly(tx, {
-        bookSlug,
-        chapterOrder,
-      });
-      return {
-        chapter: resolved,
-        rows: await tx.chapterExperienceVersion.findMany({
-          where: chapterRowScope(authority, resolved, bookSlug, chapterOrder),
-          orderBy: [{ experienceKey: "asc" }, { experienceVersion: "asc" }],
-        }),
-      };
-    });
+    // ONE SNAPSHOT, and `RepeatableRead` is what makes that word mean
+    // something.
+    //
+    // The list is built from several reads: which authority the schema
+    // supports, which unit this chapter is, which rows belong to that unit, and
+    // which shipped definitions live in it. Under READ COMMITTED each sees
+    // whatever is committed at the moment it runs, so a publish landing between
+    // them produces an answer that never corresponded to any state of the
+    // database — a chapter that resolves and holds rows while its shipped
+    // definition has already become unplaceable, which surfaces as the list
+    // refusing outright.
+    //
+    // Repeatable read makes them all describe the same instant. The result may
+    // then be the manifest from before the publish or the one from after, and
+    // either is a true answer; what it can no longer be is half of each.
+    //
+    // A read, so no locks: `lock: "none"` and no `FOR UPDATE`. A list built
+    // from a manifest that moved a moment ago is stale, not wrong, and
+    // serialising every admin read against every publish would buy nothing.
+    const { chapter, rows, fromCode } = await this.prisma.$transaction(
+      async (tx) => {
+        const authority = await readReservationAuthority(tx);
+        const resolved = await resolveChapterIdentityQuietly(tx, {
+          bookSlug,
+          chapterOrder,
+        });
+        return {
+          chapter: resolved,
+          rows: await tx.chapterExperienceVersion.findMany({
+            where: chapterRowScope(authority, resolved, bookSlug, chapterOrder),
+            orderBy: [{ experienceKey: "asc" }, { experienceVersion: "asc" }],
+          }),
+          // Resolved on the SAME snapshot, so the two halves of the list cannot
+          // describe two different manifests.
+          fromCode:
+            resolved === null
+              ? []
+              : (await this.codeOwnedClaims(tx, resolved.contentUnitId)).map(
+                  (claim) => claim.definition,
+                ),
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
 
     const experiences: AdminExperienceRow[] = [];
 
     // Code-owned definitions are listed so an editor can SEE them and start a
     // next version from them. They are never copied in automatically.
-    const fromCode =
-      await productionExperienceRepository.listPublishedForChapter({
-        bookSlug,
-        chapterOrder,
-      });
+    //
+    // Selected by IDENTITY (see `codeOwnedClaimsForUnit`). Listing them by
+    // `(bookSlug, chapterOrder)` would show a shipped journey under whichever
+    // unit inherited its number after a reorder — the editor would be reading
+    // one chapter's experiences while looking at another's.
     for (const def of fromCode) {
       experiences.push(
         rowOf(def, {
@@ -424,19 +482,15 @@ export class ExperienceAdminService {
     // Code-owned definitions hold their guide too, and they are not rows. The
     // previous rule counted them; dropping them would move a collision to the
     // day the catalog is replaced.
-    const shipped =
-      await productionExperienceRepository.listPublishedForChapter({
-        bookSlug: definition.bookSlug,
-        chapterOrder: definition.chapterOrder,
-      });
+    //
+    // Placed by IDENTITY, not by `(bookSlug, chapterOrder)`. Listing them by
+    // position while every stored claim is scoped by `contentUnitId` compares
+    // two different chapters the moment an editor reorders the book.
     const view = await readChapterBindings(tx, {
       contentUnitId: chapter.contentUnitId,
       bookSlug: definition.bookSlug,
       chapterOrder: definition.chapterOrder,
-      codeOwned: shipped.map((d) => ({
-        experienceKey: d.experienceKey,
-        guideKey: d.guidePin.guideKey,
-      })),
+      codeOwned: await this.codeOwnedClaims(tx, chapter.contentUnitId),
     });
     assertBindingAvailable(view, {
       experienceKey: definition.experienceKey,
@@ -462,46 +516,66 @@ export class ExperienceAdminService {
     fromVersion: number,
     expectedContentUnitId?: string | null,
   ): Promise<{ id: string }> {
-    const stored = await this.readDatabaseRow(experienceKey, fromVersion);
-    const source =
-      stored?.definition ??
+    // The OUTER read learns one thing only: which chapter to lock. Everything
+    // the write is decided on is read again inside, under it.
+    const locator = await this.readDatabaseRow(experienceKey, fromVersion);
+    const outerSource =
+      locator?.definition ??
       (await productionExperienceRepository.getExact({
         experienceKey,
         experienceVersion: fromVersion,
       }));
-    if (source === null) {
+    if (outerSource === null) {
       throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
     }
 
-    const highest = await this.highestVersion(experienceKey);
-    const nextVersion = Math.max(highest, fromVersion) + 1;
-
-    const pin = productionGuideDiscoveryCatalog.getExactContext(
-      source.bookSlug,
-      source.chapterOrder,
-    );
-    if (pin === null) {
-      throw new BadRequestException({
-        code: "NO_GUIDE_FOR_CHAPTER",
-        message: "No hay una guía base disponible para este capítulo.",
-      });
-    }
-
-    const definition = this.rebuildAsDraft(
-      { ...source, experienceVersion: nextVersion },
-      pin,
-    );
     return this.withBinding(
       {
-        bookSlug: definition.bookSlug,
-        chapterOrder: definition.chapterOrder,
+        bookSlug: outerSource.bookSlug,
+        chapterOrder: outerSource.chapterOrder,
         // The next version lands in the chapter the SOURCE ROW is in, not the
         // one its stale `chapterOrder` points at. A code-owned source has no
         // row, so it resolves by position — which is all it has.
-        contentUnitId: stored?.contentUnitId ?? null,
+        contentUnitId: locator?.contentUnitId ?? null,
         expectedContentUnitId,
       },
       async (tx, chapter) => {
+        // Re-read under the lock. The outer copy told us where to lock; what a
+        // version is CLONED from has to be the state the lock is protecting.
+        const inner = await tx.chapterExperienceVersion.findUnique({
+          where: {
+            experienceKey_experienceVersion: {
+              experienceKey,
+              experienceVersion: fromVersion,
+            },
+          },
+          select: { definitionJson: true },
+        });
+        const source =
+          inner === null
+            ? outerSource
+            : validateExperienceDefinition(inner.definitionJson);
+
+        // The version number is decided under the lock too: computed outside,
+        // two concurrent clones could pick the same one and one of them would
+        // die on the unique index instead of taking the next free number.
+        const highest = await tx.chapterExperienceVersion.findFirst({
+          where: { experienceKey },
+          orderBy: { experienceVersion: "desc" },
+          select: { experienceVersion: true },
+        });
+        const nextVersion =
+          Math.max(highest?.experienceVersion ?? 0, fromVersion) + 1;
+
+        // The SOURCE's exact pin, never the chapter's current one. Looking it
+        // up by `source.chapterOrder` would ask "which guide does this NUMBER
+        // publish today" — and after a reorder that is a different guide, so
+        // cloning a version would silently rebind the lineage.
+        const definition = this.rebuildAsDraft(
+          { ...source, experienceVersion: nextVersion },
+          source.guidePin,
+        );
+
         // The next version of a lineage reuses its reservation rather than
         // taking a new one — which is why `ensureReservation` treats an exact
         // match as a replay instead of a conflict.
@@ -520,74 +594,86 @@ export class ExperienceAdminService {
     input: ChapterExperienceDefinition,
     expectedContentUnitId?: string | null,
   ): Promise<{ id: string }> {
-    const row = await this.prisma.chapterExperienceVersion.findUnique({
+    // The OUTER read learns one thing only: which chapter to lock. Status,
+    // identity and the guide pin are all re-read inside, under it — deciding
+    // any of them from a read taken before the lock is deciding from a moment
+    // that may already be over.
+    const locator = await this.prisma.chapterExperienceVersion.findUnique({
       where: { id },
-      select: {
-        id: true,
-        status: true,
-        experienceKey: true,
-        experienceVersion: true,
-        bookSlug: true,
-        chapterOrder: true,
-        contentUnitId: true,
-      },
+      select: { bookSlug: true, chapterOrder: true, contentUnitId: true },
     });
-    if (!row) throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
-    // Positively DRAFT, never "not PUBLISHED".
-    //
-    // Forward compatibility with the ARCHIVED value C.3C adds: the old test
-    // let anything that was not PUBLISHED through, so an archived row would
-    // have been editable by a binary that had never heard of archiving. A
-    // status this binary does not recognise is inert here, on purpose.
-    if (row.status !== "DRAFT") {
-      throw new ConflictException({
-        code:
-          row.status === "PUBLISHED"
-            ? "EXPERIENCE_PUBLISHED_IMMUTABLE"
-            : "EXPERIENCE_VERSION_NOT_DRAFT",
-        message:
-          row.status === "PUBLISHED"
-            ? "Una versión publicada no se edita. Crea una versión nueva a partir de ella."
-            : "Esta versión no es un borrador editable.",
-      });
-    }
-
-    const pin = productionGuideDiscoveryCatalog.getExactContext(
-      row.bookSlug,
-      row.chapterOrder,
-    );
-    if (pin === null) {
-      throw new BadRequestException({ code: "NO_GUIDE_FOR_CHAPTER" });
-    }
-
-    // Identity is the row's, not the payload's: a save may not move a draft to
-    // another key, version, book or chapter.
-    const definition = this.rebuildAsDraft(
-      {
-        ...input,
-        experienceKey: row.experienceKey,
-        experienceVersion: row.experienceVersion,
-        bookSlug: row.bookSlug,
-        chapterOrder: row.chapterOrder,
-      },
-      pin,
-    );
+    if (!locator) throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
 
     return this.withBinding(
       {
-        bookSlug: row.bookSlug,
-        chapterOrder: row.chapterOrder,
+        bookSlug: locator.bookSlug,
+        chapterOrder: locator.chapterOrder,
         // The row's OWN chapter, when it has one. Resolving by `chapterOrder`
         // instead would follow a stale number onto whichever unit inherited it
         // — a save would quietly move the draft to another chapter.
-        contentUnitId: row.contentUnitId,
+        contentUnitId: locator.contentUnitId,
         expectedContentUnitId,
       },
       async (tx, chapter) => {
-        // A save is not a rebind. `rebuildAsDraft` already overwrote the pin
-        // with the chapter's own, so this cannot move a binding — and the
-        // reservation check runs anyway, because "cannot" is worth verifying
-        // when the alternative is a silent rebind.
+        const row = await tx.chapterExperienceVersion.findUnique({
+          where: { id },
+          select: {
+            status: true,
+            experienceKey: true,
+            experienceVersion: true,
+            bookSlug: true,
+            chapterOrder: true,
+            definitionJson: true,
+          },
+        });
+        if (!row) throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
+        // Positively DRAFT, never "not PUBLISHED".
+        //
+        // Forward compatibility with the ARCHIVED value C.3C adds: the old test
+        // let anything that was not PUBLISHED through, so an archived row would
+        // have been editable by a binary that had never heard of archiving. A
+        // status this binary does not recognise is inert here, on purpose.
+        if (row.status !== "DRAFT") {
+          throw new ConflictException({
+            code:
+              row.status === "PUBLISHED"
+                ? "EXPERIENCE_PUBLISHED_IMMUTABLE"
+                : "EXPERIENCE_VERSION_NOT_DRAFT",
+            message:
+              row.status === "PUBLISHED"
+                ? "Una versión publicada no se edita. Crea una versión nueva a partir de ella."
+                : "Esta versión no es un borrador editable.",
+          });
+        }
+
+        // The pin the row ALREADY holds, read from what is stored.
+        //
+        // This used to ask the discovery catalog which guide
+        // `(bookSlug, chapterOrder)` publishes — and that is a question about a
+        // NUMBER. After a reorder the number belongs to a different unit, so
+        // saving an untouched draft would rebind it to that unit's guide, or
+        // fail with NO_GUIDE_FOR_CHAPTER for a chapter the draft never left.
+        // A save is not a rebind.
+        const storedPin = validateExperienceDefinition(
+          row.definitionJson,
+        ).guidePin;
+
+        // Identity is the row's, not the payload's: a save may not move a draft
+        // to another key, version, book or chapter — nor to another guide. A
+        // `guidePin` in the request is overwritten here and never read.
+        const definition = this.rebuildAsDraft(
+          {
+            ...input,
+            experienceKey: row.experienceKey,
+            experienceVersion: row.experienceVersion,
+            bookSlug: row.bookSlug,
+            chapterOrder: row.chapterOrder,
+          },
+          storedPin,
+        );
+
+        // The reservation check runs anyway, because "this cannot move a
+        // binding" is worth verifying when the alternative is a silent rebind.
         await this.reserveFor(tx, chapter, definition);
         await tx.chapterExperienceVersion.update({
           where: { id },

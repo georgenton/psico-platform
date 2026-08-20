@@ -164,9 +164,30 @@ export async function readChapterBindings(
      * already using — the collision would appear only after a deploy replaced
      * the catalog, which is the worst possible moment to find it.
      *
-     * They are never materialised into reservations: a reservation row nothing
-     * references could never be released, because the foreign key that makes
-     * release safe is the one that would block it forever.
+     * They are never materialised into reservations, and the reason given
+     * before was simply wrong: it claimed the foreign key would make such a row
+     * impossible to delete. It would not — `RESTRICT` only refuses a delete
+     * while a row REFERENCES the reservation, and a reservation nothing
+     * references deletes fine.
+     *
+     * The real reason is ownership. A reservation is the database's record of a
+     * decision an editor made, and the CMS is the only thing that may create or
+     * release one. A code-owned claim is not an editorial decision in that
+     * sense — it is a fact about the build, and it changes when a deploy adds
+     * or removes a definition, not when anybody presses a button. Writing it
+     * into the table would put a row there that no CMS action can account for,
+     * that the C.3B backfill would have to tell apart from a real one, and that
+     * a deploy could invalidate without any transaction noticing.
+     *
+     * So the authority for a code-owned claim stays in the catalog the deploy
+     * ships, and reconciliation is by construction rather than by cleanup:
+     * every read resolves the shipped set fresh (`codeOwnedClaimsForUnit`), so
+     * ADDING a definition makes its guide unavailable from the next request,
+     * and REMOVING one frees the guide from the next request. There is nothing
+     * to migrate either way. The one thing that must not happen — a deploy
+     * adding a definition whose guide a stored row already holds — is caught by
+     * the same collision check, and refuses the CMS write rather than the
+     * deploy.
      */
     codeOwned?: readonly { experienceKey: string; guideKey: string }[];
   },

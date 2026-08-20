@@ -306,6 +306,30 @@ describe("ratchet · the backfill's own guarantees", () => {
     expect(cli).toMatch(/ROWS_IDENTITY_FROM_GUIDE_CONTEXT/);
   });
 
+  it("the guide resolver has no client to escape the transaction TO", () => {
+    // A negative control that dropped the `db` argument from `resolve` did not
+    // discriminate, and the reason is worth writing down rather than papering
+    // over: `contextResolver(db)` constructs `LearningCatalogResolver` WITH the
+    // transaction, so `db ?? this.prisma` is the transaction either way. The
+    // escape is impossible by construction, not by remembering an argument.
+    //
+    // What this ratchet protects is that construction. An ambient client here —
+    // the module's own PrismaClient, an injected service — would reintroduce a
+    // fallback that silently reads outside the caller's snapshot the moment a
+    // call site forgot the argument.
+    const src = code(
+      join(process.cwd(), "src/experience/experience-code-owned-identity.ts"),
+    );
+    const fn = src.slice(src.indexOf("function contextResolver"));
+    const body = fn.slice(0, fn.indexOf("\n}"));
+    expect(body).toMatch(
+      /new LearningCatalogResolver\(\s*db as unknown as PrismaService,?\s*\)/,
+    );
+    // Nothing else may be constructed or imported as a client in this module.
+    expect(src).not.toMatch(/new PrismaClient\(/);
+    expect(src).not.toMatch(/PrismaService\s*\)\s*\{[\s\S]{0,80}this\.prisma/);
+  });
+
   it("legacy identity is never taken from the resolved position", () => {
     const src = code(BACKFILL);
     // The exact assignment that used to place a legacy row on whatever unit

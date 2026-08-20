@@ -1875,7 +1875,46 @@ suite("C.3A · the binding bridge", () => {
       expect(await prisma.experienceGuideReservation.count()).toBe(0);
     });
 
-    it("a materialised row whose stored unit contradicts its guide fails closed", async () => {
+    it("a stored unit in the RIGHT edition that is not the guide's unit fails closed", async () => {
+      // The contradiction the edition check cannot see. A sibling unit inside the
+      // same edition passes every structural test — foreign key, edition, column
+      // pairing — and is still not the chapter this row's guide lives in.
+      await insertPreBridgeRow(1, "PUBLISHED");
+      await applyReservations(prisma);
+
+      const editionA = await prisma.edition.findFirstOrThrow({
+        where: { slug: BOOK_A },
+        select: { id: true },
+      });
+      const sibling = await prisma.contentUnit.create({
+        data: { editionId: editionA.id, unitKey: `sibling-${Date.now()}` },
+      });
+      // Move BOTH the reservation and the row, so the only thing wrong is the
+      // disagreement with the guide.
+      await prisma.$executeRawUnsafe(
+        `UPDATE "ExperienceGuideReservation" SET "contentUnitId" = $1`,
+        sibling.id,
+      );
+      await prisma.$executeRawUnsafe(
+        `UPDATE "ChapterExperienceVersion" SET "contentUnitId" = $1`,
+        sibling.id,
+      );
+
+      const report = await measureReservations(prisma);
+      expect(report.anomalies.map((a) => a.kind)).toEqual([
+        BACKFILL_ANOMALY.guideContextIdentityMismatch,
+      ]);
+      // Not repaired — refused.
+      await expect(applyReservations(prisma)).rejects.toBeInstanceOf(
+        BackfillAbort,
+      );
+      const still = await prisma.experienceGuideReservation.findMany({
+        select: { contentUnitId: true },
+      });
+      expect(still).toEqual([{ contentUnitId: sibling.id }]);
+    });
+
+    it("a materialised row whose stored unit is in another book fails closed", async () => {
       await insertPreBridgeRow(1, "PUBLISHED");
       await applyReservations(prisma);
       expect(await prisma.experienceGuideReservation.count()).toBe(1);

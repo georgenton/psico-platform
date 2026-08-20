@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 /**
  * CMS V1 (#637) — what the chapter offers, and why.
@@ -15,8 +16,12 @@ import { cleanup, render, screen } from "@testing-library/react";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
+const createDraftAction = vi.fn();
+
 vi.mock("@/app/dashboard/admin/experiencias/actions", () => ({
-  createDraftAction: vi.fn(),
+  // A wrapper, not the spy itself: `vi.mock` is hoisted above the `const`, so
+  // naming it directly in the factory reads it before it exists.
+  createDraftAction: (...a: unknown[]) => createDraftAction(...a),
   createNextDraftAction: vi.fn(),
   saveDraftAction: vi.fn(),
   publishDraftAction: vi.fn(),
@@ -33,12 +38,16 @@ function renderButton(overrides: {
     <NewExperienceButton
       bookSlug="emociones-en-construccion"
       chapterOrder={1}
+      contentUnitId="unit_eec_c1"
       {...overrides}
     />,
   );
 }
 
-beforeEach(cleanup);
+beforeEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("NewExperienceButton", () => {
   it("offers a new experience when the chapter has a guide and no lineage yet", () => {
@@ -75,5 +84,18 @@ describe("NewExperienceButton", () => {
     expect(
       screen.getByText(/No hay una guía base disponible/i),
     ).toBeInTheDocument();
+  });
+
+  it("echoes the chapter the page was rendered against", async () => {
+    // C.3A — a hint, never an authority. The server re-derives the identity and
+    // refuses on a mismatch, which is what turns "published from a page opened
+    // before a reorder" into something the editor sees.
+    createDraftAction.mockResolvedValue({ id: "row_1" });
+    renderButton({ guideAvailable: true, lineageExists: false });
+    await userEvent.click(screen.getByTestId("new-experience"));
+    expect(createDraftAction).toHaveBeenCalledWith(
+      expect.objectContaining({ bookSlug: "emociones-en-construccion" }),
+      "unit_eec_c1",
+    );
   });
 });

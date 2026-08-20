@@ -19,6 +19,7 @@ import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./shared";
 import { assertEmotionalMapConfigured } from "./emotional-map/cache-identity";
 import { GUIDE_START_LOCK_PROTOCOL } from "./guide/guide-active-capability";
+import { EXPERIENCE_BINDING_PROTOCOL } from "./experience/experience-binding-lock";
 
 async function bootstrap(): Promise<void> {
   // PR-0.1 — refuse to boot with a missing/malformed epoch, or with a critical
@@ -177,6 +178,15 @@ async function bootstrap(): Promise<void> {
   // as `unknown`/`local` rather than guessed.
   new Logger("Bootstrap").log(
     `GUIDE_START_LOCK_PROTOCOL=${GUIDE_START_LOCK_PROTOCOL} ` +
+      `BUILD_SHA=${process.env.RAILWAY_GIT_COMMIT_SHA ?? "unknown"} ` +
+      `REPLICA=${process.env.RAILWAY_REPLICA_ID ?? "local"}`,
+  );
+  // C.3A — the binding protocol, surfaced the same way and for the same reason:
+  // the C.3B backfill and the C.3C cutover each have a gate that needs the
+  // fleet PROVEN drained, and a commit SHA is not proof of what a live replica
+  // is executing.
+  new Logger("Bootstrap").log(
+    `EXPERIENCE_BINDING_PROTOCOL=${EXPERIENCE_BINDING_PROTOCOL} ` +
       `BUILD_SHA=${process.env.RAILWAY_GIT_COMMIT_SHA ?? "unknown"} ` +
       `REPLICA=${process.env.RAILWAY_REPLICA_ID ?? "local"}`,
   );

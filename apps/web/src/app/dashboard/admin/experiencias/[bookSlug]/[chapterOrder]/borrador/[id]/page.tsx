@@ -76,6 +76,7 @@ export default async function AdminDraftEditorPage({
           initial={draft.definition}
           bookSlug={params.bookSlug}
           chapterOrder={chapterOrder}
+          contentUnitId={draft.contentUnitId}
         />
       )}
     </div>

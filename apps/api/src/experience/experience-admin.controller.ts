@@ -30,6 +30,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import {
+  ApiBody,
   ApiConflictResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -44,6 +45,7 @@ import { CurrentUser, RequiredRole, RolesGuard } from "../shared";
 import type { AuthenticatedUser } from "../auth";
 import { ExperienceAdminService } from "./experience-admin.service";
 import {
+  ExperienceBindingHintDto,
   ListChapterExperiencesQueryDto,
   SaveExperienceDefinitionDto,
 } from "./dto/experience-admin.dto";
@@ -104,6 +106,7 @@ export class ExperienceAdminController {
     return this.admin.createDraft(
       user.userId,
       dto.definition as unknown as ChapterExperienceDefinition,
+      dto.expectedContentUnitId ?? null,
     );
   }
 
@@ -119,15 +122,20 @@ export class ExperienceAdminController {
       "Clona una versión publicada como el siguiente borrador. La original no se toca.",
   })
   @ApiConflictResponse({ type: ErrorEnvelopeDto })
+  // Optional: the chapter comes from the stored row, and the hint only lets a
+  // stale page be REFUSED rather than silently applied.
+  @ApiBody({ type: ExperienceBindingHintDto, required: false })
   createNextDraft(
     @CurrentUser() user: AuthenticatedUser,
     @Param("experienceKey") experienceKey: string,
     @Param("experienceVersion", ParseIntPipe) experienceVersion: number,
+    @Body() dto: ExperienceBindingHintDto,
   ) {
     return this.admin.createNextDraft(
       user.userId,
       experienceKey,
       experienceVersion,
+      dto.expectedContentUnitId ?? null,
     );
   }
 
@@ -147,6 +155,7 @@ export class ExperienceAdminController {
     return this.admin.saveDraft(
       id,
       dto.definition as unknown as ChapterExperienceDefinition,
+      dto.expectedContentUnitId ?? null,
     );
   }
 
@@ -159,7 +168,8 @@ export class ExperienceAdminController {
   })
   @ApiConflictResponse({ type: ErrorEnvelopeDto })
   @ApiUnprocessableEntityResponse({ type: ErrorEnvelopeDto })
-  publish(@Param("id") id: string) {
-    return this.admin.publish(id);
+  @ApiBody({ type: ExperienceBindingHintDto, required: false })
+  publish(@Param("id") id: string, @Body() dto: ExperienceBindingHintDto) {
+    return this.admin.publish(id, dto.expectedContentUnitId ?? null);
   }
 }

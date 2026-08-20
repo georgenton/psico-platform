@@ -349,6 +349,17 @@ export interface ChapterExperienceDiscoveryResponse {
  * `source` is the honest part: a `code` row ships in the build and has no
  * database id, so it can be read and cloned forward but never edited in place.
  */
+/**
+ * The lifecycle of a stored version, as the CMS sees it.
+ *
+ * C.3A recognises `ARCHIVED` before any command can produce it. That order is
+ * deliberate: the bridge binary and the cutover binary run side by side during
+ * a rolling deploy, and a binary that folded an unknown status into `DRAFT`
+ * would present an archived experience as editable. Knowing the word costs
+ * nothing; discovering it at runtime would cost an edit.
+ */
+export type AdminExperienceStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+
 export interface AdminExperienceRow {
   id: string | null;
   experienceKey: string;
@@ -356,7 +367,7 @@ export interface AdminExperienceRow {
   title: string;
   summary: string | null;
   estimatedMinutes: number | null;
-  status: "DRAFT" | "PUBLISHED";
+  status: AdminExperienceStatus;
   sceneCount: number;
   source: "database" | "code";
   publishedAt: string | null;
@@ -367,6 +378,19 @@ export interface AdminExperienceRow {
 export interface AdminChapterExperiences {
   bookSlug: string;
   chapterOrder: number;
+  /**
+   * C.3A — the STABLE chapter this list was scoped by.
+   *
+   * `(bookSlug, chapterOrder)` above is a locator and it moves: a reorder
+   * changes which unit answers to a number. This is the identity the server
+   * resolved from the published manifest, and the client hands it straight back
+   * on the next write so a page rendered before a reorder is refused rather
+   * than silently applied to whichever unit now occupies that position.
+   *
+   * `null` means the chapter resolves to no unit in the published structure —
+   * it cannot host a binding at all, and no write against it will succeed.
+   */
+  contentUnitId: string | null;
   /** The only guide an experience here may pin, or null when none exists. */
   guidePin: { guideKey: string; guideVersion: number } | null;
   experiences: AdminExperienceRow[];
@@ -375,6 +399,14 @@ export interface AdminChapterExperiences {
 /** A stored definition, as the draft editor loads it. */
 export interface AdminExperienceDraft {
   id: string;
-  status: "DRAFT" | "PUBLISHED";
+  status: AdminExperienceStatus;
   definition: ChapterExperienceDefinition;
+  /**
+   * C.3A — the STABLE chapter this row lives in, echoed back on every write.
+   *
+   * `null` for a row the C.3B backfill has not reached yet: it has no identity
+   * to claim, and claiming its `chapterOrder` instead would be claiming a
+   * position.
+   */
+  contentUnitId: string | null;
 }

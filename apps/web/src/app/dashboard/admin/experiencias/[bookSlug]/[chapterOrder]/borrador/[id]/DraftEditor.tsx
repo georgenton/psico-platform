@@ -95,11 +95,21 @@ export function DraftEditor({
   initial,
   bookSlug,
   chapterOrder,
+  contentUnitId,
 }: {
   id: string;
   initial: ChapterExperienceDefinition;
   bookSlug: string;
   chapterOrder: number;
+  /**
+   * C.3A — the chapter this draft was LOADED against, echoed on every write.
+   *
+   * A draft editor is the surface most likely to be open across a reorder:
+   * somebody starts a scene, goes to a meeting, comes back and presses publish.
+   * Sending what the page was rendered with turns that into a refusal rather
+   * than a write against whatever chapter now answers to this number.
+   */
+  contentUnitId: string | null;
 }) {
   const router = useRouter();
   const [definition, setDefinition] =
@@ -177,7 +187,7 @@ export function DraftEditor({
     setError(null);
     setMessage(null);
     try {
-      await saveDraftAction(id, definition);
+      await saveDraftAction(id, definition, contentUnitId);
       setMessage("Guardado.");
     } catch (err) {
       setError(readError(err, "No pudimos guardar el borrador."));
@@ -191,7 +201,7 @@ export function DraftEditor({
     setError(null);
     setMessage(null);
     try {
-      setPreview(await previewDraftAction(id, definition));
+      setPreview(await previewDraftAction(id, definition, contentUnitId));
     } catch (err) {
       setError(readError(err, "No pudimos abrir la vista previa."));
     } finally {
@@ -205,8 +215,8 @@ export function DraftEditor({
     setMessage(null);
     try {
       // Save first: publishing what is on screen, not what was on screen.
-      await saveDraftAction(id, definition);
-      await publishDraftAction(bookSlug, chapterOrder, id);
+      await saveDraftAction(id, definition, contentUnitId);
+      await publishDraftAction(bookSlug, chapterOrder, id, contentUnitId);
       router.push(`/dashboard/admin/experiencias/${bookSlug}/${chapterOrder}`);
     } catch (err) {
       setError(readError(err, "No pudimos publicar esta versión."));

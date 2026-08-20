@@ -24,7 +24,8 @@
     "pg:locks": "node scripts/pg-locks-env.mjs",
     "content:book:bootstrap": "ts-node src/content-core/bootstrap-cli.ts",
     "content:book:activate-learning": "ts-node src/content-core/learning-activation-cli.ts",
-    "smoke:r2": "node --env-file-if-exists=.env scripts/r2-smoke.mjs"
+    "smoke:r2": "node --env-file-if-exists=.env scripts/r2-smoke.mjs",
+    "content:experience:reserve": "ts-node src/experience/reservation-backfill-cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

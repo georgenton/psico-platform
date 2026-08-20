@@ -21,6 +21,10 @@ import { EXPERIENCE_DEFINITION_REPOSITORY } from "./experience-definition.reposi
 import { DatabaseExperienceDefinitionRepository } from "./database-experience-definition.repository";
 import { HybridExperienceDefinitionRepository } from "./hybrid-experience-definition.repository";
 import { productionExperienceRepository } from "./experience-production-catalog";
+import {
+  EXPERIENCE_CODE_OWNED_CLAIMS,
+  productionCodeOwnedClaims,
+} from "./experience-code-owned-identity";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Module({
@@ -28,6 +32,13 @@ import { PrismaService } from "../prisma/prisma.service";
   providers: [
     ExperienceDiscoveryService,
     ExperienceAdminService,
+    // C.3A — where a definition the build SHIPS is placed. The default IS
+    // production; the seam exists so a test can say what the catalog says
+    // without impersonating the three tables that answer it.
+    {
+      provide: EXPERIENCE_CODE_OWNED_CLAIMS,
+      useValue: productionCodeOwnedClaims,
+    },
     {
       provide: EXPERIENCE_DEFINITION_REPOSITORY,
       useFactory: (prisma: PrismaService) =>

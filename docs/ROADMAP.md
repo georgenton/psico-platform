@@ -1004,14 +1004,30 @@ suite fallida.
 
 Es una carrera de ORDEN entre dos specs preexistentes, no un fallo de
 aserción, y cada suite afectada pasa en aislamiento y sobre una base recién
-creada — que es lo que CI da por job. Pero al ser una carrera, cualquier cosa
-que cambie la planificación cambia con qué frecuencia pierde: el tren C.3 añade
-tres suites que corren su propio `migrate deploy` sobre su propia base
-desechable, y medido en tres corridas completas con base nueva cada una, pierde
-**1 de 3** con esas suites y **0 de 3** sin ellas.
+creada. Pero al ser una carrera, cualquier cosa que cambie la planificación
+cambia con qué frecuencia pierde — y el tren C.3 la empeora, medido:
+
+| árbol                                          | corridas completas | fallan por `vector` |
+| ---------------------------------------------- | ------------------ | ------------------- |
+| C.3A+C.3C, ronda anterior                      | 3                  | 1                   |
+| sin las suites de `experience`, ronda anterior | 3                  | 0                   |
+| C.3A+C.3C, **esta ronda**                      | 4                  | **3**               |
+| sin las suites de `experience`, **esta ronda** | 3                  | **1**               |
+
+Dos lecturas, y las dos importan. La carrera existe **sin** este tren — 1 de 3
+también en el brazo de control —, así que no la introduce. Y la frecuencia SUBIÓ
+con él, de 1/3 a 3/4, al añadir la tercera suite de `experience` con su propia
+base desechable y su propio `migrate deploy`. Las dos cosas son ciertas a la vez.
+
+Una corrida verde no es prueba de que desapareció: en esta ronda hubo una, y
+tres perdidas.
+
+CI da una base nueva por job y en ambas PR el job `Test` pasó — eso dice que la
+ventana es estrecha, no que se haya cerrado.
 
 Arreglarlo significa decidir qué acepta ese guard de precondición, y esa
-decisión es de quien lo mantiene. Queda registrada, no absorbida.
+decisión es de quien lo mantiene. Queda registrada, no absorbida, y no se
+corrige dentro de estas PR.
 
 #### Qué falta de #639 después de C.0B3
 

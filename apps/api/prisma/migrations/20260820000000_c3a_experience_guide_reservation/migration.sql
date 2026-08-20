@@ -10,6 +10,30 @@
 --
 -- Nothing here adds ARCHIVED, the final CHECK, guide selection, rebind or
 -- archive. No editorial row is rewritten.
+--
+-- ── Why the explicit transaction ───────────────────────────────────────────
+--
+-- `prisma migrate deploy` does NOT wrap a migration file in a transaction.
+-- Measured with this project's own command against a disposable PostgreSQL
+-- 18.4: a file whose second statement fails leaves the first COMMITTED and the
+-- migration recorded as unfinished.
+--
+-- For a nine-statement file that is not a curiosity, it is an incident shape.
+-- A failure at the composite foreign key would leave two columns, a table, two
+-- unique indexes and a foreign key behind, `_prisma_migrations` unfinished, and
+-- every later deploy blocked on P3009 — the 2026-06-01 recovery, again. The
+-- retry would then fail on objects that already exist, so the only way out
+-- would be `migrate resolve` plus manual cleanup.
+--
+-- "The authority detector fails closed on that shape" is true and is not a
+-- substitute: a halted schema and an unfinished migration are still an
+-- incident. So the file asks for atomicity explicitly, and PostgreSQL grants
+-- it — every object created here is transactional DDL.
+--
+-- Verified the way it was measured: with `BEGIN`/`COMMIT` present, a deliberate
+-- failure before `COMMIT` leaves no table, no column, no index and no
+-- constraint behind, and a clean retry applies.
+BEGIN;
 
 -- ── Stable identity and the reserved lineage, promoted out of JSON ──────────
 --
@@ -85,3 +109,5 @@ ALTER TABLE "ChapterExperienceVersion"
 
 CREATE INDEX "ChapterExperienceVersion_contentUnitId_guideKey_idx"
     ON "ChapterExperienceVersion"("contentUnitId", "guideKey");
+
+COMMIT;

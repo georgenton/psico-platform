@@ -164,13 +164,8 @@ export async function readChapterBindings(
      * already using — the collision would appear only after a deploy replaced
      * the catalog, which is the worst possible moment to find it.
      *
-     * They are never materialised into reservations, and the reason given
-     * before was simply wrong: it claimed the foreign key would make such a row
-     * impossible to delete. It would not — `RESTRICT` only refuses a delete
-     * while a row REFERENCES the reservation, and a reservation nothing
-     * references deletes fine.
-     *
-     * The real reason is ownership. A reservation is the database's record of a
+     * They are never materialised into reservations, and the reason is
+     * ownership. A reservation is the database's record of a
      * decision an editor made, and the CMS is the only thing that may create or
      * release one. A code-owned claim is not an editorial decision in that
      * sense — it is a fact about the build, and it changes when a deploy adds

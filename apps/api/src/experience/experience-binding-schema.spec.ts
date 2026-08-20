@@ -27,9 +27,10 @@ const BRIDGE: BindingSchemaProbe = {
   bindingColumns: true,
   columnTypes: true,
   reservationNotNull: true,
-  noDroppedBindingColumns: true,
   indexMethod: true,
   identityNotNull: false,
+  versionGuideNullable: true,
+  versionExperienceKeyNotNull: true,
   reservationPk: true,
   guideUnique: true,
   tripleUnique: true,
@@ -58,9 +59,11 @@ const LEGACY: BindingSchemaProbe = {
   bindingColumns: false,
   columnTypes: false,
   reservationNotNull: false,
-  noDroppedBindingColumns: true,
   indexMethod: false,
   identityNotNull: false,
+  // No `guideKey` column at all, so the probe reports its nullability as false.
+  versionGuideNullable: false,
+  versionExperienceKeyNotNull: true,
   reservationPk: false,
   guideUnique: false,
   tripleUnique: false,
@@ -103,8 +106,15 @@ describe("decideReservationAuthority — every missing piece fails closed", () =
       "reservationNotNull",
       "a nullable guideKey would leave the bijection a hole the indexes hide",
     ],
-    ["noDroppedBindingColumns", "the table has been rebuilt underneath us"],
     ["indexMethod", "a non-btree unique index is not the contract"],
+    [
+      "versionGuideNullable",
+      "a NOT NULL guideKey would make archiving unreachable",
+    ],
+    [
+      "versionExperienceKeyNotNull",
+      "a row could belong to no lineage and still name a unit and a guide",
+    ],
   ] as const;
 
   for (const [key, why] of required) {
@@ -164,10 +174,15 @@ describe("decideReservationAuthority — the cutover CHECK", () => {
     ).toBe("FAIL_CLOSED");
   });
 
-  it("the NOT NULL without the CHECK is not STRUCTURAL either", () => {
+  it("the NOT NULL without the CHECK is the SAME halfway cutover, read from the other side", () => {
+    // Both halves land in one migration, so this shape is that migration
+    // stopped in the middle. An earlier version answered BRIDGE here, which
+    // would hand a writer a schema whose rules nobody had finished installing —
+    // and it is the more dangerous half to be missing, because the CHECK is
+    // what makes ARCHIVED expressible at all.
     expect(
       decideReservationAuthority({ ...BRIDGE, identityNotNull: true }),
-    ).toBe("BRIDGE");
+    ).toBe("FAIL_CLOSED");
   });
 
   it("the guarantee counts, not the label", () => {
@@ -180,6 +195,65 @@ describe("decideReservationAuthority — the cutover CHECK", () => {
         finalCheckNameIsExact: false,
       }),
     ).toBe("STRUCTURAL");
+  });
+});
+
+describe("decideReservationAuthority — nullability is a per-phase contract", () => {
+  /**
+   * Three columns, and they do not all behave the same way across the cutover.
+   * Collapsing them into one "identity is NOT NULL" flag would state a third of
+   * the contract and imply the rest.
+   *
+   *   contentUnitId   nullable under BRIDGE, NOT NULL under STRUCTURAL
+   *   guideKey        nullable in BOTH — archiving sets it to null
+   *   experienceKey   NOT NULL in BOTH — it is the lineage
+   */
+
+  it("BRIDGE is the exact bridge nullability, and nothing adjacent to it", () => {
+    expect(decideReservationAuthority(BRIDGE)).toBe("BRIDGE");
+    expect(BRIDGE.identityNotNull).toBe(false);
+    expect(BRIDGE.versionGuideNullable).toBe(true);
+    expect(BRIDGE.versionExperienceKeyNotNull).toBe(true);
+  });
+
+  it("STRUCTURAL is the exact final nullability, and nothing adjacent to it", () => {
+    expect(decideReservationAuthority(STRUCTURAL)).toBe("STRUCTURAL");
+    expect(STRUCTURAL.identityNotNull).toBe(true);
+    // Still nullable. This is the one an over-tightening migration would get
+    // wrong, and it would take ARCHIVED with it.
+    expect(STRUCTURAL.versionGuideNullable).toBe(true);
+    expect(STRUCTURAL.versionExperienceKeyNotNull).toBe(true);
+  });
+
+  it("a premature contentUnitId NOT NULL under BRIDGE fails closed", () => {
+    expect(
+      decideReservationAuthority({ ...BRIDGE, identityNotNull: true }),
+    ).toBe("FAIL_CLOSED");
+  });
+
+  it("a NOT NULL guideKey fails closed in BOTH phases", () => {
+    for (const shape of [BRIDGE, STRUCTURAL]) {
+      expect(
+        decideReservationAuthority({ ...shape, versionGuideNullable: false }),
+      ).toBe("FAIL_CLOSED");
+    }
+  });
+
+  it("a nullable experienceKey fails closed on either table", () => {
+    for (const shape of [BRIDGE, STRUCTURAL]) {
+      // The version table has its own predicate…
+      expect(
+        decideReservationAuthority({
+          ...shape,
+          versionExperienceKeyNotNull: false,
+        }),
+      ).toBe("FAIL_CLOSED");
+      // …and the reservation table's three columns are pinned together, since
+      // there the rule is the same for all three.
+      expect(
+        decideReservationAuthority({ ...shape, reservationNotNull: false }),
+      ).toBe("FAIL_CLOSED");
+    }
   });
 });
 

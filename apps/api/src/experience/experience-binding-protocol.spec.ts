@@ -8,6 +8,13 @@ import {
   globalBindingLockKey,
   EXPERIENCE_BINDING_PROTOCOL,
 } from "./experience-binding-lock";
+import {
+  EXPERIENCE_IDENTITY_BARRIER,
+  PUBLIC_READER_ANCHOR_CONSUMER,
+  PUBLIC_READER_ANCHOR_SOURCE,
+  READER_ANCHOR_IDENTITY_TASK,
+} from "./experience-identity-barrier";
+import { BACKFILL_ANOMALY } from "./experience-reservation-backfill";
 
 /**
  * C.3A (#639) — ratchets around the parts of the binding protocol that are
@@ -289,21 +296,66 @@ describe("ratchet · the C.3A migration is atomic", () => {
     "prisma/migrations/20260820000000_c3a_experience_guide_reservation/migration.sql",
   );
 
-  it("asks for a transaction explicitly, because the runner gives none", () => {
-    // Measured: `prisma migrate deploy` does NOT wrap a migration file. Without
-    // `BEGIN`/`COMMIT` a failure part-way through this nine-statement file
-    // leaves columns, a table, indexes and a foreign key behind, with
-    // `_prisma_migrations` unfinished and every later deploy blocked on P3009.
-    const sql = read(MIGRATION).replace(/^\s*--.*$/gm, "");
-    expect([...sql.matchAll(/^\s*BEGIN;\s*$/gm)]).toHaveLength(1);
-    expect([...sql.matchAll(/^\s*COMMIT;\s*$/gm)]).toHaveLength(1);
-    expect(sql.indexOf("BEGIN;")).toBeLessThan(sql.indexOf("COMMIT;"));
-    // And every statement is inside it.
-    const body = sql.slice(sql.indexOf("BEGIN;"), sql.indexOf("COMMIT;"));
+  /**
+   * The file's EFFECTIVE statements: comments stripped, split on `;`, blanks
+   * dropped, whitespace collapsed.
+   *
+   * Position is the whole point. Checking only that `BEGIN;` appears somewhere
+   * would pass a file that ran DDL before it — which is precisely the shape
+   * that leaves residue behind after a failure, and precisely the shape a
+   * careless edit produces.
+   */
+  const statements = (sql: string): string[] =>
+    sql
+      .replace(/^\s*--.*$/gm, "")
+      .split(";")
+      .map((s) => s.replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+
+  it("opens with BEGIN, closes with COMMIT, and has nothing outside them", () => {
+    // Measured with the real runner on PostgreSQL 18.4: `prisma migrate deploy`
+    // does NOT wrap a migration file, and DOES honour an explicit BEGIN/COMMIT.
+    // A deliberate failure before the COMMIT left zero residue; without the
+    // transaction the same failure left columns, a table, indexes and a foreign
+    // key behind, with `_prisma_migrations` unfinished and every later deploy
+    // blocked on P3009.
+    //
+    // That measurement is evidence about THIS revision. What keeps the property
+    // true afterwards is this ratchet, which is a structural assertion about
+    // the file — not a second run of the runner. Re-running `migrate deploy` in
+    // CI to re-prove atomicity would buy nothing the file text does not already
+    // pin, and would add another database to the known infrastructure race.
+    const stmts = statements(read(MIGRATION));
+    expect(stmts.filter((s) => s === "BEGIN")).toHaveLength(1);
+    expect(stmts.filter((s) => s === "COMMIT")).toHaveLength(1);
+    // First and last, by position — not merely present, and not merely ordered.
+    expect(stmts[0]).toBe("BEGIN");
+    expect(stmts[stmts.length - 1]).toBe("COMMIT");
+    // No ROLLBACK, no savepoints, no second transaction hiding in the middle.
+    expect(
+      stmts.filter((s) => /^(ROLLBACK|SAVEPOINT|START TRANSACTION)\b/i.test(s)),
+    ).toHaveLength(0);
+    // And the work really is between them.
+    const body = stmts.slice(1, -1);
+    expect(body.length).toBeGreaterThan(1);
     for (const stmt of ["ALTER TABLE", "CREATE TABLE", "CREATE UNIQUE INDEX"]) {
-      expect(body).toContain(stmt);
+      expect(body.some((s) => s.startsWith(stmt))).toBe(true);
     }
-    expect(sql.slice(sql.indexOf("COMMIT;") + 7).trim()).toBe("");
+  });
+
+  it("the tokeniser it relies on really does catch a statement before BEGIN", () => {
+    // The negative control, run against the tokeniser itself rather than by
+    // editing the file: a `SET` or a stray `ALTER TABLE` ahead of the BEGIN is
+    // outside the transaction, survives a rollback, and would leave exactly the
+    // residue this ratchet exists to forbid.
+    const smuggled = statements(
+      `ALTER TABLE "x" ADD COLUMN "y" TEXT;\nBEGIN;\nCREATE TABLE "z" ();\nCOMMIT;\n`,
+    );
+    expect(smuggled[0]).not.toBe("BEGIN");
+    const trailing = statements(
+      `BEGIN;\nCREATE TABLE "z" ();\nCOMMIT;\nVACUUM;`,
+    );
+    expect(trailing[trailing.length - 1]).not.toBe("COMMIT");
   });
 });
 
@@ -381,5 +433,103 @@ describe("ratchet · a stored pin is never recomputed from a number", () => {
     expect(method("createNextDraft")).not.toMatch(/getExactContext\(/);
     expect(method("saveDraft")).toMatch(/storedPin/);
     expect(method("createNextDraft")).toMatch(/source\.guidePin/);
+  });
+});
+
+describe("ratchet · the reader anchor barrier", () => {
+  /**
+   * The one ordering constraint this train cannot enforce with a constraint.
+   *
+   * After a reorder the CMS binds by identity and the reader gates by position.
+   * C.3A may deploy anyway — it adds no editorial choice, so the disagreement
+   * stays unreachable. C.3C+C.4 may NOT merge before the reader is closed,
+   * because that is where an editor gains the ability to produce a binding the
+   * reader will refuse to open.
+   *
+   * Recorded as assertions rather than as a paragraph, because a paragraph in a
+   * merged pull request stops being read.
+   */
+  const REPO_ROOT = join(process.cwd(), "..", "..");
+
+  it("declares both identities and which phase each one gates", () => {
+    expect(EXPERIENCE_IDENTITY_BARRIER).toEqual({
+      CODE_OWNED_BINDING_IDENTITY:
+        "contentUnitId derivado por GuideTargetContext",
+      PUBLIC_READER_ANCHOR: "bookSlug+chapterOrder todavía posicional",
+      C3A_DEPLOY_BLOCKED_BY_POSITIONAL_READER: false,
+      C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED: true,
+    });
+  });
+
+  it("the reader really is still positional — measured, not asserted from memory", () => {
+    // If this stops being true the barrier has become a lie, and the ratchet
+    // fails until someone flips it deliberately rather than by accident.
+    const anchor = read(join(REPO_ROOT, PUBLIC_READER_ANCHOR_SOURCE));
+    const fn = anchor.slice(anchor.indexOf("export function anchorAppliesTo"));
+    const body = fn.slice(0, fn.indexOf("\n}"));
+    expect(body).toContain("locator.bookSlug");
+    expect(body).toContain("locator.chapterOrder");
+    expect(body).not.toContain("contentUnitId");
+    // And the reader surface consumes exactly that function.
+    expect(read(join(REPO_ROOT, PUBLIC_READER_ANCHOR_CONSUMER))).toContain(
+      "anchorAppliesTo",
+    );
+  });
+
+  it("C.3A adds no editorial choice, which is why it may deploy first", () => {
+    // The claim the `false` above rests on: nothing in this PR lets an editor
+    // pick, move or release a guide. Those arrive with C.4.
+    const service = code(SERVICE);
+    for (const op of ["rebindDraft", "archiveDraft", "listGuideOptions"]) {
+      expect(service).not.toContain(op);
+    }
+  });
+
+  it("names the task that closes it, not a generic debt", () => {
+    expect(READER_ANCHOR_IDENTITY_TASK).toContain("anchorAppliesTo");
+    expect(READER_ANCHOR_IDENTITY_TASK).toContain("contentUnitId");
+  });
+});
+
+describe("ratchet · claims this PR makes in prose are anchored in code", () => {
+  const RESERVATION = join(
+    process.cwd(),
+    "src/experience/experience-binding-reservation.ts",
+  );
+
+  it("the anomaly catalogue is fourteen, and each one is reachable", () => {
+    // The pull request describes this list. Pinning the count here is what
+    // stops the description and the code drifting apart — two of these
+    // (`ROW_IDENTITY_UNKNOWN_UNIT`, `ROW_BOOK_HAS_NO_EDITION`) were added after
+    // the first description was written, and nothing noticed.
+    const kinds = Object.values(BACKFILL_ANOMALY);
+    expect(kinds).toHaveLength(14);
+    expect(new Set(kinds).size).toBe(14);
+    expect(kinds).toContain("ROW_IDENTITY_UNKNOWN_UNIT");
+    expect(kinds).toContain("ROW_BOOK_HAS_NO_EDITION");
+    // Every one of them is actually raised somewhere in the backfill.
+    const backfill = read(BACKFILL);
+    for (const kind of Object.keys(BACKFILL_ANOMALY)) {
+      expect(backfill).toContain(`BACKFILL_ANOMALY.${kind}`);
+    }
+  });
+
+  it("never claims RESTRICT traps an unreferenced code-owned reservation", () => {
+    // It does not: `RESTRICT` refuses a delete only while something REFERENCES
+    // the row, and a reservation nothing references deletes fine. The reason
+    // code-owned claims are not materialised is ownership plus reconciliation
+    // from the shipped set — and that is the ONLY explanation the module gives,
+    // rather than a wrong one followed by a retraction.
+    const doc = read(RESERVATION);
+    const block = doc.slice(
+      doc.indexOf("Definitions this build SHIPS"),
+      doc.indexOf("codeOwned?:"),
+    );
+    expect(block.length).toBeGreaterThan(200);
+    expect(block).not.toMatch(/RESTRICT/);
+    expect(block).not.toMatch(/impossible to delete/i);
+    expect(block).not.toMatch(/was (simply )?wrong/i);
+    expect(block).toMatch(/ownership/);
+    expect(block).toMatch(/codeOwnedClaimsForUnit/);
   });
 });

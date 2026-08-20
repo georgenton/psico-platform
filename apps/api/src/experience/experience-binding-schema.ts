@@ -31,6 +31,30 @@ import type { Prisma } from "@prisma/client";
  * referential actions, validation state, and index soundness. Anything that
  * does not match exactly is not "close enough" — it is `FAIL_CLOSED`.
  *
+ * ── What is deliberately NOT a predicate ────────────────────────────────────
+ *
+ * An earlier version refused any schema where EITHER table carried a dropped
+ * column, on the reasoning that a tombstone means the table was rebuilt. That
+ * was a false positive, and a dangerous one: `ALTER TABLE … DROP COLUMN` leaves
+ * an `attisdropped` tombstone forever, so ONE unrelated column — a `scratch`
+ * added and removed by a migration years before this contract existed — would
+ * have made this detector report `FAIL_CLOSED` over a perfectly correct schema,
+ * with the CMS refusing every write and no predicate naming the reason.
+ *
+ * It also proved nothing it was meant to prove. Every predicate here resolves
+ * columns through `pg_attribute` BY NAME and excludes dropped ones, and a
+ * dropped column's name is mangled to `........pg.dropped.N........`, so a
+ * tombstone cannot masquerade as a governed column. And a governed column that
+ * really had been dropped and re-added would take its constraints and indexes
+ * with it on the way out: the type, the nullability, the primary key, both
+ * uniques, all three foreign keys and the CHECK are re-verified structurally
+ * below, so the recreation is caught by what it changed rather than by a
+ * fossil that records only that something once happened.
+ *
+ * The rule this leaves is narrower and truer: decide from the governed
+ * structure, and from nothing else. Altering any governed column, index or
+ * constraint still fails closed.
+ *
  * ── Measured, not assumed ───────────────────────────────────────────────────
  *
  * The catalog codes (`confmatchtype='s'`, `confupdtype='c'`, `confdeltype='r'`)
@@ -79,8 +103,15 @@ export interface BindingSchemaProbe {
   /** The two promoted columns exist at all. */
   bindingColumns: boolean;
   /**
-   * `contentUnitId`, `experienceKey` and `guideKey` are all `text`, on BOTH
-   * tables — so a foreign key built on them compares what it appears to.
+   * All SIX governed columns are `text` — `contentUnitId`, `experienceKey` and
+   * `guideKey`, on BOTH tables — so a foreign key built on them compares what
+   * it appears to.
+   *
+   * Six, not five. An earlier version counted five and omitted
+   * `ExperienceGuideReservation.experienceKey`, which is half of the primary
+   * key and one of the three columns the composite foreign key resolves
+   * against: the one column of the six whose type a fingerprint had no excuse
+   * to leave unpinned.
    */
   columnTypes: boolean;
   /**
@@ -92,20 +123,33 @@ export interface BindingSchemaProbe {
    * bijection would have a hole the names and the indexes would still hide.
    */
   reservationNotNull: boolean;
-  /**
-   * No DROPPED column is sitting in an attribute slot these constraints name.
-   *
-   * `ALTER TABLE … DROP COLUMN` leaves a tombstone (`attisdropped`) that keeps
-   * its `attnum`. Nothing here reads `attnum` directly, but a catalog carrying
-   * dropped columns among the ones this contract depends on is a table that has
-   * been rebuilt underneath us, and a fingerprint that ignored it would report
-   * STRUCTURAL over a shape nobody reviewed.
-   */
-  noDroppedBindingColumns: boolean;
   /** Every unique index in the contract is a btree. */
   indexMethod: boolean;
-  /** `contentUnitId` is NOT NULL — the cutover's half of the final shape. */
+  /**
+   * `ChapterExperienceVersion.contentUnitId` is NOT NULL.
+   *
+   * Phase-dependent, and in BOTH directions. Under BRIDGE it must be nullable —
+   * legacy rows have no identity yet, and a premature `SET NOT NULL` is half of
+   * C.3C applied without its CHECK. Under STRUCTURAL it must be NOT NULL.
+   */
   identityNotNull: boolean;
+  /**
+   * `ChapterExperienceVersion.guideKey` is NULLABLE, in both phases.
+   *
+   * Not an oversight to be tightened later: archiving RELEASES the guide by
+   * setting this column to null, which is what stops the row holding its
+   * reservation. A `SET NOT NULL` here would make ARCHIVED unreachable — and
+   * would do it silently, at the first archive an editor attempted.
+   */
+  versionGuideNullable: boolean;
+  /**
+   * `ChapterExperienceVersion.experienceKey` is NOT NULL, in both phases.
+   *
+   * It is the lineage. Nullable, a row could exist belonging to no experience
+   * while still naming a unit and a guide, and the composite foreign key —
+   * `MATCH SIMPLE` — would stop being evaluated for exactly that row.
+   */
+  versionExperienceKeyNotNull: boolean;
   reservationPk: boolean;
   guideUnique: boolean;
   tripleUnique: boolean;
@@ -174,26 +218,28 @@ SELECT
   (rel.unit IS NOT NULL) AS "unitTable",
   (EXISTS (SELECT 1 FROM att WHERE rel = rel.ver AND name = 'contentUnitId')
    AND EXISTS (SELECT 1 FROM att WHERE rel = rel.ver AND name = 'guideKey')) AS "bindingColumns",
-  -- Exact types, on both tables. A foreign key over columns of different types
-  -- would need a cast PostgreSQL will not silently supply, but a widened or
-  -- narrowed type on ONE side is a schema nobody designed either way.
-  (SELECT count(*) = 5 FROM att
-    WHERE ((rel = rel.ver AND name IN ('contentUnitId','experienceKey','guideKey'))
-        OR (rel = rel.res AND name IN ('contentUnitId','guideKey')))
+  -- Exact types, on both tables, all SIX of them. A foreign key over columns of
+  -- different types would need a cast PostgreSQL will not silently supply, but
+  -- a widened or narrowed type on ONE side is a schema nobody designed either
+  -- way.
+  (SELECT count(*) = 6 FROM att
+    WHERE rel IN (rel.ver, rel.res)
+      AND name IN ('contentUnitId','experienceKey','guideKey')
       AND typ = 'text') AS "columnTypes",
   (SELECT count(*) = 3 FROM att
     WHERE rel = rel.res
       AND name IN ('contentUnitId','experienceKey','guideKey')
       AND attnotnull) AS "reservationNotNull",
-  NOT EXISTS (SELECT 1 FROM pg_attribute d
-               WHERE d.attrelid IN (rel.ver, rel.res)
-                 AND d.attisdropped) AS "noDroppedBindingColumns",
   (SELECT bool_and(am.amname = 'btree') FROM pg_index i
      JOIN pg_class ic ON ic.oid = i.indexrelid
      JOIN pg_am am ON am.oid = ic.relam
     WHERE i.indrelid = rel.res AND i.indisunique) AS "indexMethod",
   COALESCE((SELECT attnotnull FROM att WHERE rel = rel.ver AND name = 'contentUnitId'), false)
     AS "identityNotNull",
+  COALESCE((SELECT NOT attnotnull FROM att WHERE rel = rel.ver AND name = 'guideKey'), false)
+    AS "versionGuideNullable",
+  COALESCE((SELECT attnotnull FROM att WHERE rel = rel.ver AND name = 'experienceKey'), false)
+    AS "versionExperienceKeyNotNull",
   EXISTS (SELECT 1 FROM co WHERE rel = rel.res AND contype = 'p' AND convalidated
             AND cols = ARRAY['contentUnitId','experienceKey']
             AND EXISTS (SELECT 1 FROM ix WHERE ix.rel = rel.res AND ix.sound
@@ -238,9 +284,10 @@ FROM rel`;
       bindingColumns: false,
       columnTypes: false,
       reservationNotNull: false,
-      noDroppedBindingColumns: false,
       indexMethod: false,
       identityNotNull: false,
+      versionGuideNullable: false,
+      versionExperienceKeyNotNull: false,
       reservationPk: false,
       guideUnique: false,
       tripleUnique: false,
@@ -294,7 +341,6 @@ export function decideReservationAuthority(
     probe.bindingColumns &&
     probe.columnTypes &&
     probe.reservationNotNull &&
-    probe.noDroppedBindingColumns &&
     probe.indexMethod &&
     probe.reservationPk &&
     probe.guideUnique &&
@@ -304,14 +350,29 @@ export function decideReservationAuthority(
     probe.compositeFk;
   if (!bridge) return "FAIL_CLOSED";
 
+  // Nullability that does NOT move between phases. `guideKey` nullable is what
+  // makes archiving expressible; `experienceKey` NOT NULL is what stops a row
+  // belonging to no lineage while still naming a unit and a guide.
+  if (!probe.versionGuideNullable || !probe.versionExperienceKeyNotNull) {
+    return "FAIL_CLOSED";
+  }
+
   // A constraint wearing the cutover's name has to BE the cutover's constraint.
   if (probe.finalCheckNamePresent && !probe.finalCheckNameIsExact) {
     return "FAIL_CLOSED";
   }
-  if (!probe.finalCheckExactPresent) return "BRIDGE";
 
-  // The CHECK and the NOT NULL are one migration and land together. A schema
-  // carrying one without the other is a cutover that stopped halfway, and this
-  // binary will not write into it.
+  // Nullability that DOES move between phases, pinned in both directions.
+  //
+  // Without the CHECK, `contentUnitId` must still be nullable: the cutover's
+  // two halves land in ONE migration, so a schema carrying the `SET NOT NULL`
+  // and not the CHECK is that migration stopped in the middle — the same
+  // half-applied state read from the other side. Reporting BRIDGE there would
+  // hand a writer a schema whose rules nobody had finished installing.
+  if (!probe.finalCheckExactPresent) {
+    return probe.identityNotNull ? "FAIL_CLOSED" : "BRIDGE";
+  }
+
+  // And with the CHECK, the NOT NULL has to be there too.
   return probe.identityNotNull ? "STRUCTURAL" : "FAIL_CLOSED";
 }

@@ -83,19 +83,20 @@ Cada fase necesita su propia autorización. El orden **no** es negociable: lo
 impone qué locks comparten dos binarios que conviven durante un rolling deploy,
 no el esquema.
 
-| Fase         | Qué                                                           | Puerta previa                                   | Estado                    |
-| ------------ | ------------------------------------------------------------- | ----------------------------------------------- | ------------------------- |
-| **C.0A**     | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                               | ✅ desplegada             |
-| **C.0A1**    | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                 | ✅ completa               |
-| **C.0B1**    | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs   | ✅ aplicada               |
-| **C.0B2**    | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)          | ✅ aplicada               |
-| **C.0B3**    | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir | ✅ desplegada             |
-| **C.1**      | Estado por Experience + discovery con pin exacto              | C.0B3 desplegada                                | ✅ desplegada (#675)      |
-| **C.2**      | La web consume estados independientes                         | C.1 en la misma PR                              | ✅ desplegada (#675)      |
-| **C.3A**     | Puente de binding: identidad estable, locks y reserva         | C.2 desplegada                                  | ⬜ PR Draft, sin fusionar |
-| **C.3B**     | Backfill de reservas — **fase operativa, no una PR**          | C.3A desplegada y **V0 extinto**                | ⬜ sin autorizar          |
-| **C.3C+C.4** | Cutover estructural + selección, rebind y archive en el CMS   | C.3B aplicado, sin nulls ni colisiones          | ⬜ PR Draft, sin fusionar |
-| **C.5**      | Verificación en producción (solo lectura)                     | C.3C+C.4 desplegada                             | ⬜ pendiente              |
+| Fase         | Qué                                                           | Puerta previa                                            | Estado                    |
+| ------------ | ------------------------------------------------------------- | -------------------------------------------------------- | ------------------------- |
+| **C.0A**     | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                                        | ✅ desplegada             |
+| **C.0A1**    | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                          | ✅ completa               |
+| **C.0B1**    | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs            | ✅ aplicada               |
+| **C.0B2**    | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)                   | ✅ aplicada               |
+| **C.0B3**    | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir          | ✅ desplegada             |
+| **C.1**      | Estado por Experience + discovery con pin exacto              | C.0B3 desplegada                                         | ✅ desplegada (#675)      |
+| **C.2**      | La web consume estados independientes                         | C.1 en la misma PR                                       | ✅ desplegada (#675)      |
+| **C.3A**     | Puente de binding: identidad estable, locks y reserva         | C.2 desplegada                                           | ⬜ PR Draft, sin fusionar |
+| **C.3B**     | Backfill de reservas — **fase operativa, no una PR**          | C.3A desplegada y **V0 extinto**                         | ⬜ sin autorizar          |
+| **C.3R**     | **Ancla del lector por identidad** — ver abajo                | C.3A desplegada                                          | ⬜ **bloquea C.3C+C.4**   |
+| **C.3C+C.4** | Cutover estructural + selección, rebind y archive en el CMS   | C.3B aplicado, sin nulls ni colisiones, **C.3R cerrada** | ⬜ PR Draft, sin fusionar |
+| **C.5**      | Verificación en producción (solo lectura)                     | C.3C+C.4 desplegada                                      | ⬜ pendiente              |
 
 **Checkpoint de producción — 2026-08-19.** Ambos servicios sirven
 `78d3b58f925979a3c51bdeef40b02262ad78fd8b` y **consumen sus ficheros
@@ -104,6 +105,46 @@ versionados**: API con `/apps/api/railway.api.json` (preDeploy
 preDeploy). **58 migraciones aplicadas, 0 pendientes.** El esquema está en modo
 **LINEAGE**: el índice global está ausente, el de lineage sano, y todas las
 instancias emiten `lineage-v2`.
+
+#### C.3R — el ancla del lector, y por qué bloquea a C.3C+C.4
+
+Después de C.3A conviven **dos** formas de decir «de qué capítulo hablamos», y
+tras un reordenamiento no coinciden:
+
+```
+CODE_OWNED_BINDING_IDENTITY=contentUnitId derivado por GuideTargetContext
+PUBLIC_READER_ANCHOR=bookSlug+chapterOrder todavía posicional
+C3A_DEPLOY_BLOCKED_BY_POSITIONAL_READER=false
+C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED=true
+```
+
+**C.3A puede desplegarse igual.** Es un puente aditivo: añade columnas, tabla y
+constraints, y **ninguna** operación editorial — no hay selector, ni rebind, ni
+archive. Nadie puede crear un enlace que el lector luego rechace abrir, porque
+nadie puede elegir una guía todavía. La discrepancia es latente y desplegar
+C.3A no la vuelve alcanzable.
+
+**C.3C+C.4 no puede fusionarse antes.** Ahí la autoridad nueva pasa a ser la
+única (`STRUCTURAL`) y el CMS gana selección, rebind y archive: justo el punto
+en el que un editor puede dedicar una sesión a enlazar por identidad una guía
+que el lector no abrirá por posición — correcta, completa e inabrible.
+Volverla identitaria **solo en el CMS** sería estrictamente peor que rechazar.
+
+**La tarea concreta (no una deuda genérica):**
+
+1. Añadir `contentUnitId` (o el `unitKey` versionado) al `GuideReaderAnchorLocator`
+   de `packages/types/src/guide-anchor.ts`, junto al par posicional que ya lleva.
+2. Hacer que `anchorAppliesTo` resuelva **por identidad cuando exista** y caiga
+   al par posicional solo mientras haya anclas sin migrar.
+3. Poblar la identidad de las anclas ya publicadas (`GUIDE_READER_ANCHOR`,
+   `PAREJAS_READER_ANCHOR`) resolviéndolas una vez contra el manifiesto.
+4. Retirar la comparación posicional cuando ninguna ancla dependa ya de ella.
+5. Poner `C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED=false` en
+   `apps/api/src/experience/experience-identity-barrier.ts`.
+
+La barrera vive en ese módulo y tiene su propio ratchet: si el lector deja de
+ser posicional el ratchet falla hasta que alguien baje la bandera a propósito,
+y si la barrera se borra el ratchet falla directamente.
 
 **Decisiones de producto aprobadas para C.3/C.4** (2026-08-19):
 

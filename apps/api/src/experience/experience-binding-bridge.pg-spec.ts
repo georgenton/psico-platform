@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -505,12 +505,16 @@ suite("C.3A · the binding bridge", () => {
   const ROLLBACK = Symbol("rollback");
   async function probeWith(
     ddl: readonly string[],
+    also?: (tx: Prisma.TransactionClient) => Promise<void>,
   ): Promise<BindingSchemaProbe> {
     let probe: BindingSchemaProbe | null = null;
     try {
       await prisma.$transaction(async (tx) => {
         for (const stmt of ddl) await tx.$executeRawUnsafe(stmt);
         probe = await probeBindingSchema(tx);
+        // Anything else that has to be observed while the mutation still
+        // exists. Outside the transaction it is gone.
+        await also?.(tx);
         throw ROLLBACK;
       });
     } catch (err) {
@@ -529,11 +533,14 @@ suite("C.3A · the binding bridge", () => {
       bindingColumns: true,
       columnTypes: true,
       reservationNotNull: true,
-      noDroppedBindingColumns: true,
       indexMethod: true,
       // The cutover's half. C.3A deliberately leaves the column nullable: the
       // previous binary is still writing rows without it.
       identityNotNull: false,
+      // Nullable in BOTH phases — archiving releases the guide by nulling it.
+      versionGuideNullable: true,
+      // NOT NULL in both. It is the lineage.
+      versionExperienceKeyNotNull: true,
       reservationPk: true,
       guideUnique: true,
       tripleUnique: true,
@@ -573,12 +580,131 @@ suite("C.3A · the binding bridge", () => {
     expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
   });
 
-  it("a dropped column tombstone means the table was rebuilt underneath us", async () => {
+  it("the SIXTH column's type is pinned too: reservation.experienceKey", async () => {
+    // The one the earlier fingerprint left out. It is half of the primary key
+    // and one of the three columns the composite foreign key resolves against,
+    // so a type change here is a change to the bijection's own key — while
+    // every NAME survives: the primary key, both uniques and all three foreign
+    // keys are still present and still validated.
     const probe = await probeWith([
-      `ALTER TABLE "ExperienceGuideReservation" ADD COLUMN "scratch" TEXT`,
-      `ALTER TABLE "ExperienceGuideReservation" DROP COLUMN "scratch"`,
+      `ALTER TABLE "ExperienceGuideReservation" ALTER COLUMN "experienceKey" TYPE VARCHAR(255)`,
     ]);
-    expect(probe.noDroppedBindingColumns).toBe(false);
+    expect(probe.columnTypes).toBe(false);
+    expect(probe.reservationPk).toBe(true);
+    expect(probe.guideUnique).toBe(true);
+    expect(probe.tripleUnique).toBe(true);
+    expect(probe.compositeFk).toBe(true);
+    expect(probe.reservationUnitFk).toBe(true);
+    expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
+  });
+
+  it("adding and dropping an UNGOVERNED column changes no authority", async () => {
+    // This used to be a failure, and it was a false positive with teeth:
+    // `attisdropped` tombstones are permanent, so ONE unrelated column dropped
+    // by any migration — including ones that predate this contract — would have
+    // made the detector refuse a perfectly correct schema, with the CMS down
+    // and no predicate naming why.
+    //
+    // Nothing governed moved: `scratch` is in no key, no index, no foreign key
+    // and no CHECK, and every predicate here resolves columns by NAME with
+    // dropped ones excluded.
+    //
+    // The tombstone count is read INSIDE the same transaction, before the
+    // rollback — outside it the mutation is gone and the assertion would pass
+    // over a schema that never had a tombstone at all.
+    let tombstones = -1;
+    const probe = await probeWith(
+      [
+        `ALTER TABLE "ExperienceGuideReservation" ADD COLUMN "scratch" TEXT`,
+        `ALTER TABLE "ExperienceGuideReservation" DROP COLUMN "scratch"`,
+        `ALTER TABLE "ChapterExperienceVersion" ADD COLUMN "scratch2" TEXT`,
+        `ALTER TABLE "ChapterExperienceVersion" DROP COLUMN "scratch2"`,
+      ],
+      async (tx) => {
+        const [row] = await tx.$queryRaw<Array<{ count: bigint }>>`
+          SELECT count(*) AS count FROM pg_attribute
+           WHERE attrelid IN (to_regclass('public."ExperienceGuideReservation"'),
+                              to_regclass('public."ChapterExperienceVersion"'))
+             AND attisdropped`;
+        tombstones = Number(row?.count ?? -1);
+      },
+    );
+    expect(tombstones).toBe(2);
+    expect(decideReservationAuthority(probe)).toBe("BRIDGE");
+  });
+
+  it("but dropping a GOVERNED column is caught by what it took with it", async () => {
+    // The case the tombstone rule was reaching for, decided from the governed
+    // structure instead: dropping `guideKey` takes the unique index, the triple
+    // and the composite foreign key with it.
+    const probe = await probeWith([
+      `ALTER TABLE "ExperienceGuideReservation" DROP COLUMN "guideKey" CASCADE`,
+    ]);
+    expect(probe.columnTypes).toBe(false);
+    expect(probe.guideUnique).toBe(false);
+    expect(probe.tripleUnique).toBe(false);
+    expect(probe.compositeFk).toBe(false);
+    expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
+  });
+
+  it("a premature contentUnitId NOT NULL is half of C.3C, not a bridge", async () => {
+    // The cutover's two halves land in ONE migration. This shape is that
+    // migration stopped in the middle, read from the side where the CHECK is
+    // the part still missing — and reporting BRIDGE would hand a writer a
+    // schema whose rules nobody had finished installing.
+    const probe = await probeWith([
+      `DELETE FROM "ChapterExperienceVersion" WHERE "contentUnitId" IS NULL`,
+      `ALTER TABLE "ChapterExperienceVersion" ALTER COLUMN "contentUnitId" SET NOT NULL`,
+    ]);
+    expect(probe.identityNotNull).toBe(true);
+    expect(probe.finalCheckExactPresent).toBe(false);
+    expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
+  });
+
+  it("a NOT NULL version guideKey would make ARCHIVED unreachable", async () => {
+    // Archiving RELEASES the guide by setting this column to null. Tightened,
+    // the release becomes impossible — and it would fail at the first archive
+    // an editor attempted, not at deploy time.
+    const probe = await probeWith([
+      `DELETE FROM "ChapterExperienceVersion" WHERE "guideKey" IS NULL`,
+      `ALTER TABLE "ChapterExperienceVersion" ALTER COLUMN "guideKey" SET NOT NULL`,
+    ]);
+    expect(probe.versionGuideNullable).toBe(false);
+    expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
+  });
+
+  it("a nullable version experienceKey is refused", async () => {
+    // Nullable, a row could belong to no lineage while still naming a unit and
+    // a guide — and MATCH SIMPLE would stop evaluating the composite foreign
+    // key for exactly that row.
+    const probe = await probeWith([
+      `ALTER TABLE "ChapterExperienceVersion" ALTER COLUMN "experienceKey" DROP NOT NULL`,
+    ]);
+    expect(probe.versionExperienceKeyNotNull).toBe(false);
+    expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
+  });
+
+  it("the reservation's key columns cannot go nullable at all, and if the key went first it fails closed", async () => {
+    // A finding worth stating rather than asserting around: PostgreSQL itself
+    // refuses to make `contentUnitId` or `experienceKey` nullable while the
+    // primary key stands. Their NOT NULL is guaranteed twice over, and the one
+    // reservation column that CAN drift is `guideKey` — covered above.
+    for (const col of ["contentUnitId", "experienceKey"]) {
+      await expect(
+        probeWith([
+          `ALTER TABLE "ExperienceGuideReservation" ALTER COLUMN "${col}" DROP NOT NULL`,
+        ]),
+      ).rejects.toThrow(/is in a primary key/);
+    }
+
+    // And the route that WOULD reach it — dropping the key first — is refused
+    // by the detector, with the nullability itself also reported.
+    const probe = await probeWith([
+      `ALTER TABLE "ExperienceGuideReservation" DROP CONSTRAINT "ExperienceGuideReservation_pkey" CASCADE`,
+      `ALTER TABLE "ExperienceGuideReservation" ALTER COLUMN "experienceKey" DROP NOT NULL`,
+    ]);
+    expect(probe.reservationNotNull).toBe(false);
+    expect(probe.reservationPk).toBe(false);
     expect(decideReservationAuthority(probe)).toBe("FAIL_CLOSED");
   });
 

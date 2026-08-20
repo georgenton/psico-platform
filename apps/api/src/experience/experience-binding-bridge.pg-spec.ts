@@ -1371,6 +1371,50 @@ suite("C.3A · the binding bridge", () => {
     ]);
   });
 
+  it("checks the edition even when the position no longer resolves", async () => {
+    // The correction. The edition id used to come from
+    // `resolveChapterIdentity(bookSlug, chapterOrder)`, so whenever that failed
+    // the cross-edition check was SKIPPED — and the rows most worth checking
+    // are exactly the ones whose position stopped resolving.
+    //
+    // This row names a unit of book A while claiming to be in book B, at a
+    // position book B does not have. Both are true at once, and only the second
+    // used to be noticed.
+    await service.createDraft(userId, await eecDraft());
+    // The stored definition moves with the columns — otherwise the row is
+    // caught one check earlier, for disagreeing with itself, and this test
+    // would be measuring that instead.
+    await prisma.$executeRaw`
+      UPDATE "ChapterExperienceVersion"
+         SET "bookSlug" = ${BOOK_B},
+             "chapterOrder" = 97,
+             "definitionJson" = jsonb_set(
+               jsonb_set("definitionJson", '{bookSlug}', to_jsonb(${BOOK_B}::text)),
+               '{chapterOrder}', to_jsonb(97))`;
+
+    const measured = await measureReservations(prisma);
+    expect(measured.anomalies.map((a) => a.kind)).toEqual([
+      "ROW_IDENTITY_CROSS_EDITION",
+    ]);
+    await expect(applyReservations(prisma)).rejects.toBeInstanceOf(
+      BackfillAbort,
+    );
+  });
+
+  it("a row whose book has no edition at all is an anomaly", async () => {
+    await service.createDraft(userId, await eecDraft());
+    await prisma.$executeRaw`
+      UPDATE "ChapterExperienceVersion"
+         SET "bookSlug" = 'libro-inexistente',
+             "definitionJson" = jsonb_set(
+               "definitionJson", '{bookSlug}', to_jsonb('libro-inexistente'::text))`;
+
+    const measured = await measureReservations(prisma);
+    expect(measured.anomalies.map((a) => a.kind)).toEqual([
+      "ROW_BOOK_HAS_NO_EDITION",
+    ]);
+  });
+
   it("a moved unit is COUNTED, not treated as a contradiction", async () => {
     // `chapterOrder` is a locator nothing updates, so a reorder after C.3A
     // leaves a materialised row whose number is stale and whose identity is

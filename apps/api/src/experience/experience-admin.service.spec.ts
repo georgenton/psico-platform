@@ -282,6 +282,84 @@ describe("ExperienceAdminService — published versions are immutable", () => {
     expect(prisma.chapterExperienceVersion.update).not.toHaveBeenCalled();
   });
 
+  it("keeps a stored pin the positional catalog would NOT have produced", async () => {
+    // The discriminating case, and the reason the neighbouring test cannot be
+    // one: with the production catalog `getExactContext(A, 1)` returns exactly
+    // the pin the row already holds, so recomputing and keeping look identical.
+    // Here the stored pin is a lineage the positional catalog does not publish
+    // for this chapter — so a build that recomputed would write EEC's pin over
+    // it, and one that keeps it writes what is stored.
+    //
+    // A lineage of its OWN, so the shipped claim (which holds EEC's guide) is
+    // not what is being measured.
+    const OTHER = {
+      guideKey: "guia-que-el-capitulo-no-publica",
+      guideVersion: 3,
+    };
+    const MINE = "eec-c1-propia";
+    prisma.chapterExperienceVersion.findUnique.mockResolvedValue({
+      id: "row_1",
+      status: "DRAFT",
+      experienceKey: MINE,
+      experienceVersion: 1,
+      bookSlug: "emociones-en-construccion",
+      chapterOrder: 1,
+      contentUnitId: UNIT_ID,
+      definitionJson: definition({ experienceKey: MINE, guidePin: OTHER }),
+    });
+    prisma.chapterExperienceVersion.update.mockResolvedValue({ id: "row_1" });
+
+    await service.saveDraft("row_1", definition());
+
+    const written =
+      prisma.chapterExperienceVersion.update.mock.calls[0]![0].data;
+    expect(written.definitionJson.guidePin).toEqual(OTHER);
+    expect(written.guideKey).toBe(OTHER.guideKey);
+  });
+
+  it("the next version keeps the SOURCE's pin, not the chapter's", async () => {
+    const OTHER = {
+      guideKey: "guia-que-el-capitulo-no-publica",
+      guideVersion: 3,
+    };
+    const MINE = "eec-c1-propia";
+    // The source lookup answers; the clash check for the NEW version must not.
+    let sourceReads = 0;
+    prisma.chapterExperienceVersion.findUnique.mockImplementation(
+      (args: { where: Record<string, unknown> }) => {
+        if (!("experienceKey_experienceVersion" in args.where)) {
+          return Promise.resolve(null);
+        }
+        sourceReads += 1;
+        // Reads 1 and 2 are the source (outer, then re-read under the lock);
+        // the third is `insert` asking whether v2 already exists.
+        return Promise.resolve(
+          sourceReads <= 2
+            ? {
+                definitionJson: definition({
+                  experienceKey: MINE,
+                  guidePin: OTHER,
+                }),
+                contentUnitId: UNIT_ID,
+              }
+            : null,
+        );
+      },
+    );
+    prisma.chapterExperienceVersion.findFirst.mockResolvedValue({
+      experienceVersion: 1,
+    });
+    prisma.chapterExperienceVersion.create.mockResolvedValue({ id: "row_2" });
+
+    await service.createNextDraft("user_1", MINE, 1);
+
+    const created =
+      prisma.chapterExperienceVersion.create.mock.calls[0]![0].data;
+    expect(created.experienceVersion).toBe(2);
+    expect(created.guideKey).toBe(OTHER.guideKey);
+    expect(created.definitionJson.guidePin).toEqual(OTHER);
+  });
+
   it("keeps a draft's identity AND its guide, whatever the payload claims", async () => {
     // The stored definition is now load-bearing rather than decoration: the
     // guide comes from it, so a fixture without one describes a row that

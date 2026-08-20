@@ -282,3 +282,104 @@ describe("ratchet · forward compatibility with ARCHIVED", () => {
     expect(rowOf.slice(0, rowOf.indexOf("\n}"))).not.toMatch(/def\.status/);
   });
 });
+
+describe("ratchet · the C.3A migration is atomic", () => {
+  const MIGRATION = join(
+    process.cwd(),
+    "prisma/migrations/20260820000000_c3a_experience_guide_reservation/migration.sql",
+  );
+
+  it("asks for a transaction explicitly, because the runner gives none", () => {
+    // Measured: `prisma migrate deploy` does NOT wrap a migration file. Without
+    // `BEGIN`/`COMMIT` a failure part-way through this nine-statement file
+    // leaves columns, a table, indexes and a foreign key behind, with
+    // `_prisma_migrations` unfinished and every later deploy blocked on P3009.
+    const sql = read(MIGRATION).replace(/^\s*--.*$/gm, "");
+    expect([...sql.matchAll(/^\s*BEGIN;\s*$/gm)]).toHaveLength(1);
+    expect([...sql.matchAll(/^\s*COMMIT;\s*$/gm)]).toHaveLength(1);
+    expect(sql.indexOf("BEGIN;")).toBeLessThan(sql.indexOf("COMMIT;"));
+    // And every statement is inside it.
+    const body = sql.slice(sql.indexOf("BEGIN;"), sql.indexOf("COMMIT;"));
+    for (const stmt of ["ALTER TABLE", "CREATE TABLE", "CREATE UNIQUE INDEX"]) {
+      expect(body).toContain(stmt);
+    }
+    expect(sql.slice(sql.indexOf("COMMIT;") + 7).trim()).toBe("");
+  });
+});
+
+describe("ratchet · measure and apply are different commands", () => {
+  it("measure is READ ONLY, and it is the first statement", () => {
+    const src = code(BACKFILL);
+    const measure = src.slice(
+      src.indexOf("export async function measureReservations"),
+    );
+    const body = measure.slice(0, measure.indexOf("\n}"));
+    expect(body).toMatch(
+      /SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/,
+    );
+    // First, because PostgreSQL refuses the SET once anything else has run.
+    const setAt = body.indexOf("SET TRANSACTION");
+    const planAt = body.indexOf("planReservations");
+    expect(setAt).toBeGreaterThan(-1);
+    expect(planAt).toBeGreaterThan(setAt);
+    // No advisory key: a report that blocked the writes it describes would be
+    // its own small outage.
+    expect(body).not.toMatch(/acquireBindingLock/);
+  });
+
+  it("apply takes the global key, then every Edition, THEN reads", () => {
+    const src = code(BACKFILL);
+    const apply = src.slice(
+      src.indexOf("export async function applyReservations"),
+    );
+    const global = apply.indexOf("globalBindingLockKey()");
+    const editions = apply.indexOf('FROM "Edition" ORDER BY "id" FOR UPDATE');
+    const plan = apply.indexOf("planReservations(tx)");
+    expect(global).toBeGreaterThan(-1);
+    expect(editions).toBeGreaterThan(global);
+    expect(plan).toBeGreaterThan(editions);
+  });
+
+  it("the plan never takes a row lock of its own", () => {
+    // Under measure the transaction is READ ONLY and PostgreSQL would refuse
+    // it; under apply the editions are already locked, in id order. Acquiring
+    // more as a side effect of resolution would take them in whatever order the
+    // rows arrive in, which is the shape deadlocks come in.
+    const src = code(BACKFILL);
+    const plan = src.slice(src.indexOf("async function planReservations"));
+    const body = plan.slice(0, plan.indexOf("\n}\n"));
+    expect(body).toMatch(/lock: "none"/);
+    expect(body).not.toMatch(/for-update/);
+  });
+});
+
+describe("ratchet · a stored pin is never recomputed from a number", () => {
+  it("save and next-draft do not consult the positional guide catalog", () => {
+    // `getExactContext(bookSlug, chapterOrder)` answers "which guide does this
+    // NUMBER publish". A stored row's number is the position it was CREATED at,
+    // so asking it again on save is asking about a chapter the draft may no
+    // longer be in.
+    const src = code(SERVICE);
+    const method = (name: string): string => {
+      const from = src.indexOf(`async ${name}(`);
+      expect(from).toBeGreaterThan(-1);
+      const rest = src.slice(from);
+      const end = rest.indexOf("\n  /**");
+      return end === -1 ? rest : rest.slice(0, end);
+    };
+
+    // TWO legitimate uses, both about a CHAPTER rather than about a stored row:
+    // `createDraft`, which has no stored pin to keep, and `listForChapter`,
+    // which reports what a NEW experience here would bind to. A third would
+    // have to justify itself.
+    expect([...src.matchAll(/getExactContext\(/g)]).toHaveLength(2);
+    expect(method("createDraft")).toMatch(/getExactContext\(/);
+    expect(method("listForChapter")).toMatch(/getExactContext\(/);
+
+    // And neither command that HAS a stored pin recomputes one.
+    expect(method("saveDraft")).not.toMatch(/getExactContext\(/);
+    expect(method("createNextDraft")).not.toMatch(/getExactContext\(/);
+    expect(method("saveDraft")).toMatch(/storedPin/);
+    expect(method("createNextDraft")).toMatch(/source\.guidePin/);
+  });
+});

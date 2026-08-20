@@ -31,7 +31,12 @@ function render(report: BackfillReport): void {
     `ROWS_LEGACY=${report.rowsLegacy}`,
     `ROWS_ALREADY_MATERIALISED=${report.rowsAlreadyMaterialised}`,
     `ROWS_WITH_POSITION_DRIFT=${report.rowsWithPositionDrift}`,
+    // The number the C.3B gate exists to look at: legacy rows whose chapter is
+    // being INFERRED from the position they carry. Once written it cannot be
+    // told apart from an identity the CMS chose.
+    `ROWS_ADOPTING_CURRENT_POSITION=${report.rowsAdoptingCurrentPosition}`,
     `GROUPS=${report.groups}`,
+    `RESERVATIONS_EXISTING=${report.reservationsExisting}`,
     `RESERVATIONS_TO_CREATE=${report.reservationsToCreate}`,
     `RESERVATIONS_CREATED=${report.reservationsCreated}`,
     `RESERVATIONS_REPLAYED=${report.reservationsReplayed}`,
@@ -44,6 +49,16 @@ function render(report: BackfillReport): void {
       `  ${a.kind} book=${a.bookSlug} chapter=${a.chapterOrder}` +
         (a.experienceKey ? ` experience=${a.experienceKey}` : "") +
         (a.guideKey ? ` guide=${a.guideKey}` : ""),
+    );
+  }
+  if (!report.applied && report.rowsAdoptingCurrentPosition > 0) {
+    // Said out loud, because it is the one thing `--apply` does that cannot be
+    // undone: those rows have no identity, so the command gives them the unit
+    // that sits at their number TODAY, and after the cutover's CHECK that
+    // becomes permanent and indistinguishable from a chosen one.
+    lines.push(
+      `  NOTE: ${report.rowsAdoptingCurrentPosition} legacy row(s) would ADOPT ` +
+        `their current position as identity. That inference is irreversible.`,
     );
   }
   console.log(lines.join("\n"));
@@ -75,7 +90,9 @@ async function main(): Promise<void> {
         rowsLegacy: 0,
         rowsAlreadyMaterialised: 0,
         rowsWithPositionDrift: 0,
+        rowsAdoptingCurrentPosition: 0,
         groups: 0,
+        reservationsExisting: 0,
         reservationsToCreate: 0,
         reservationsCreated: 0,
         reservationsReplayed: 0,

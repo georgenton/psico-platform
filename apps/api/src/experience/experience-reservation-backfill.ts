@@ -6,7 +6,7 @@ import {
 } from "./experience-binding-lock";
 import { resolveChapterIdentity } from "./experience-chapter-identity";
 import { validateExperienceDefinition } from "./experience-catalog";
-import { productionExperienceRepository } from "./experience-production-catalog";
+import { codeOwnedClaimsByUnit } from "./experience-code-owned-identity";
 import { readReservationAuthority } from "./experience-binding-reservation";
 
 /**
@@ -75,6 +75,10 @@ export const BACKFILL_ANOMALY = {
   definitionDisagreesWithRow: "DEFINITION_DISAGREES_WITH_ROW",
   /** `contentUnitId` names a unit belonging to a different edition. */
   identityCrossEdition: "ROW_IDENTITY_CROSS_EDITION",
+  /** `contentUnitId` names a unit that does not exist. */
+  identityUnknownUnit: "ROW_IDENTITY_UNKNOWN_UNIT",
+  /** The row's `bookSlug` matches no edition at all. */
+  bookHasNoEdition: "ROW_BOOK_HAS_NO_EDITION",
   /** A row claims to be materialised and has no reservation behind it. */
   reservationMissing: "RESERVATION_MISSING",
   /** A reservation exists and names a different guide for this lineage. */
@@ -105,14 +109,33 @@ export interface BackfillAnomaly {
 
 export interface BackfillReport {
   rowsConsidered: number;
+  /** Rows with BOTH binding columns null — the only ones `--apply` writes to. */
   rowsLegacy: number;
+  /** Rows that already carry identity and lineage. Verified, never rewritten. */
   rowsAlreadyMaterialised: number;
   /**
    * Materialised rows whose `chapterOrder` no longer matches where their unit
    * sits. Counted, never treated as an anomaly — see `classify`.
    */
   rowsWithPositionDrift: number;
+  /**
+   * Legacy rows whose chapter is being INFERRED from the position they carry.
+   *
+   * This is the number the C.3B gate exists to look at. A legacy row has no
+   * identity, so `--apply` gives it the unit that currently sits at its
+   * `chapterOrder` — and that is an inference, not a fact the row states. Once
+   * written it is indistinguishable from an identity the CMS chose, and the
+   * cutover's CHECK then makes it permanent. If a reorder happened between the
+   * row being written and the backfill running, the inference is wrong and
+   * nothing downstream can tell.
+   *
+   * Irreversible, therefore reported before rather than after.
+   */
+  rowsAdoptingCurrentPosition: number;
   groups: number;
+  /** Lineages whose reservation already exists. */
+  reservationsExisting: number;
+  /** Lineages that would get a NEW reservation row. */
   reservationsToCreate: number;
   reservationsCreated: number;
   reservationsReplayed: number;
@@ -237,8 +260,31 @@ function classify(
       );
     }
     const unitId = row.contentUnitId as string;
+
+    // The edition check runs ALWAYS, and that is the correction.
+    //
+    // It used to be skipped whenever `resolveChapterIdentity(bookSlug,
+    // chapterOrder)` had failed — because the edition id came from that
+    // resolution. So exactly the rows most worth checking went unchecked: one
+    // whose old position no longer exists, one outside the published manifest,
+    // one whose number another unit has taken. Those are not reasons to trust a
+    // `contentUnitId`; they are reasons to look at it.
+    //
+    // The edition now comes from the book directly, so "does this row's unit
+    // belong to this row's book" is answerable whatever happened to its
+    // position.
     const edition = editionOfBook.get(row.bookSlug);
-    if (edition !== undefined && unitEdition.get(unitId) !== edition) {
+    if (edition === undefined) {
+      return anomaly(BACKFILL_ANOMALY.bookHasNoEdition, row, claimed);
+    }
+    const unitsEdition = unitEdition.get(unitId);
+    if (unitsEdition === undefined) {
+      // The direct foreign key makes this unreachable while it exists. Checked
+      // anyway: this command is the last thing to look at the data before the
+      // constraint that assumes it is sound.
+      return anomaly(BACKFILL_ANOMALY.identityUnknownUnit, row, claimed);
+    }
+    if (unitsEdition !== edition) {
       return anomaly(BACKFILL_ANOMALY.identityCrossEdition, row, claimed);
     }
     return {
@@ -271,6 +317,7 @@ interface Plan {
   rowsLegacy: number;
   rowsAlreadyMaterialised: number;
   rowsWithPositionDrift: number;
+  rowsAdoptingCurrentPosition: number;
   reservationsExisting: number;
 }
 
@@ -306,18 +353,49 @@ async function planReservations(db: BackfillDb): Promise<Plan> {
   let legacy = 0;
   let materialised = 0;
   let drifted = 0;
+  let inferred = 0;
+
+  // Editions FIRST, by slug, independent of any position.
+  //
+  // `resolveChapterIdentity` used to be the only source of an edition id, which
+  // meant a row whose position no longer resolved got no edition check at all.
+  // Reading the editions up front separates the two questions: "which book is
+  // this row in" has an answer even when "which chapter" does not.
+  const editionOfBook = new Map<string, string>();
+  for (const edition of await db.edition.findMany({
+    where: { slug: { in: [...new Set(rows.map((r) => r.bookSlug))] } },
+    select: { id: true, slug: true },
+  })) {
+    editionOfBook.set(edition.slug, edition.id);
+  }
+
+  // Every unit any row names, in one read.
+  const unitEdition = new Map<string, string>();
+  const namedUnits = [
+    ...new Set(
+      rows
+        .map((r) => r.contentUnitId)
+        .filter((id): id is string => id !== null),
+    ),
+  ];
+  for (const unit of await db.contentUnit.findMany({
+    where: { id: { in: namedUnits } },
+    select: { id: true, editionId: true },
+  })) {
+    unitEdition.set(unit.id, unit.editionId);
+  }
 
   // Chapter identity is resolved once per `(bookSlug, chapterOrder)`: the
   // lookup is the same for every row of a chapter, and doing it per row would
   // multiply the cost by the number of versions.
   //
-  // `lock: "for-update"` — this command holds the global key, so it already
-  // excludes every bridge writer, but Content Studio takes no advisory key at
-  // all. Without the edition row lock a reorder could land between resolving a
-  // chapter and writing the columns derived from it.
+  // `lock: "none"`, deliberately. Under `--measure` this transaction is READ
+  // ONLY and PostgreSQL would refuse a `FOR UPDATE` outright; under `--apply`
+  // every edition is ALREADY locked, in id order, before this function is
+  // called. Taking row locks here as a side effect of resolution would acquire
+  // them in whatever order the rows happen to arrive in — which is the shape
+  // deadlocks come in.
   const identityCache = new Map<string, string | null>();
-  const editionOfBook = new Map<string, string>();
-  const unitEdition = new Map<string, string>();
 
   for (const row of rows) {
     const cacheKey = `${row.bookSlug}#${row.chapterOrder}`;
@@ -326,20 +404,12 @@ async function planReservations(db: BackfillDb): Promise<Plan> {
         const resolved = await resolveChapterIdentity(db, {
           bookSlug: row.bookSlug,
           chapterOrder: row.chapterOrder,
-          lock: "for-update",
+          lock: "none",
         });
         identityCache.set(cacheKey, resolved.contentUnitId);
-        editionOfBook.set(row.bookSlug, resolved.editionId);
       } catch {
         identityCache.set(cacheKey, null);
       }
-    }
-    if (row.contentUnitId !== null && !unitEdition.has(row.contentUnitId)) {
-      const unit = await db.contentUnit.findUnique({
-        where: { id: row.contentUnitId },
-        select: { editionId: true },
-      });
-      if (unit) unitEdition.set(row.contentUnitId, unit.editionId);
     }
 
     const verdict = classify(
@@ -354,7 +424,12 @@ async function planReservations(db: BackfillDb): Promise<Plan> {
     }
 
     if (verdict.materialised) materialised += 1;
-    else legacy += 1;
+    else {
+      legacy += 1;
+      // Every legacy row adopts the unit currently at its position. Counted
+      // separately because that adoption is an irreversible inference.
+      inferred += 1;
+    }
     if (verdict.positionDrift) drifted += 1;
 
     const guideScope = `${verdict.contentUnitId}#${verdict.guideKey}`;
@@ -401,8 +476,25 @@ async function planReservations(db: BackfillDb): Promise<Plan> {
   }
 
   const groups = [...byGroup.values()];
-  anomalies.push(...(await codeOwnedCollisions(groups)));
+  anomalies.push(...(await codeOwnedCollisions(db, groups)));
   anomalies.push(...(await reservationDisagreements(db, groups)));
+
+  // How many of these lineages already HAVE their reservation. It was reported
+  // as a hard-coded zero, which made `reservationsToCreate` — the number an
+  // operator reads before authorising a write — the count of every lineage
+  // rather than of the ones that need one.
+  const existing = await db.experienceGuideReservation.findMany({
+    where: {
+      contentUnitId: { in: [...new Set(groups.map((g) => g.contentUnitId))] },
+    },
+    select: { contentUnitId: true, experienceKey: true },
+  });
+  const held = new Set(
+    existing.map((r) => `${r.contentUnitId}#${r.experienceKey}`),
+  );
+  const reservationsExisting = groups.filter((g) =>
+    held.has(`${g.contentUnitId}#${g.experienceKey}`),
+  ).length;
 
   return {
     groups,
@@ -411,7 +503,8 @@ async function planReservations(db: BackfillDb): Promise<Plan> {
     rowsLegacy: legacy,
     rowsAlreadyMaterialised: materialised,
     rowsWithPositionDrift: drifted,
-    reservationsExisting: 0,
+    rowsAdoptingCurrentPosition: inferred,
+    reservationsExisting,
   };
 }
 
@@ -425,42 +518,28 @@ async function planReservations(db: BackfillDb): Promise<Plan> {
  * a collision: that is a code-owned definition and its database successor, the
  * intended migration path.
  *
- * They are never MATERIALISED. A reservation row nothing references could never
- * be released again: the composite foreign key that makes releasing safe is the
- * one that would block it forever. So the authority for a code-owned claim
- * stays where it is — in the catalog the deploy ships — and this command only
- * refuses to let a row take a guide out from under one.
+ * They are never MATERIALISED, and not for the reason this comment used to
+ * give: `RESTRICT` refuses a delete only while something REFERENCES the row, so
+ * a reservation nothing references deletes perfectly well. The reason is
+ * ownership — a reservation records an editorial decision, and a shipped
+ * definition is a fact about the build that changes with a deploy rather than
+ * with a button. See `readChapterBindings` for the full reconciliation story.
  */
 async function codeOwnedCollisions(
+  db: BackfillDb,
   groups: readonly Group[],
 ): Promise<BackfillAnomaly[]> {
   const out: BackfillAnomaly[] = [];
-  const chapters = new Map<
-    string,
-    { bookSlug: string; chapterOrder: number }
-  >();
+  // By stable chapter, not by number. The comparison used to key both sides on
+  // `(bookSlug, chapterOrder)` — and for a stored row that number is the
+  // position it was CREATED at, so after a reorder the check compared a shipped
+  // definition placed today against a row placed months ago.
+  const byUnit = await codeOwnedClaimsByUnit(db);
   for (const g of groups) {
-    chapters.set(`${g.bookSlug}#${g.chapterOrder}`, {
-      bookSlug: g.bookSlug,
-      chapterOrder: g.chapterOrder,
-    });
-  }
-  const shipped = new Map<string, string>(); // `${book}#${order}#${guide}` → key
-  for (const chapter of chapters.values()) {
-    const defs = await productionExperienceRepository.listPublishedForChapter({
-      bookSlug: chapter.bookSlug,
-      chapterOrder: chapter.chapterOrder,
-    });
-    for (const def of defs) {
-      shipped.set(
-        `${chapter.bookSlug}#${chapter.chapterOrder}#${def.guidePin.guideKey}`,
-        def.experienceKey,
-      );
-    }
-  }
-  for (const g of groups) {
-    const owner = shipped.get(`${g.bookSlug}#${g.chapterOrder}#${g.guideKey}`);
-    if (owner !== undefined && owner !== g.experienceKey) {
+    const owner = (byUnit.get(g.contentUnitId) ?? []).find(
+      (claim) => claim.guideKey === g.guideKey,
+    );
+    if (owner !== undefined && owner.experienceKey !== g.experienceKey) {
       out.push({
         kind: BACKFILL_ANOMALY.codeOwnedCollision,
         bookSlug: g.bookSlug,
@@ -531,38 +610,91 @@ async function reservationDisagreements(
   return out;
 }
 
-function emptyReport(plan: Plan, applied: boolean): BackfillReport {
+function measuredReport(plan: Plan): BackfillReport {
   return {
     rowsConsidered: plan.rowsConsidered,
     rowsLegacy: plan.rowsLegacy,
     rowsAlreadyMaterialised: plan.rowsAlreadyMaterialised,
     rowsWithPositionDrift: plan.rowsWithPositionDrift,
+    rowsAdoptingCurrentPosition: plan.rowsAdoptingCurrentPosition,
     groups: plan.groups.length,
-    reservationsToCreate: plan.groups.length,
+    reservationsExisting: plan.reservationsExisting,
+    // What a run would CREATE, not how many lineages there are. The two differ
+    // by exactly the reservations that already exist, and an operator reads
+    // this number to decide whether to authorise a write.
+    reservationsToCreate: plan.groups.length - plan.reservationsExisting,
     reservationsCreated: 0,
     reservationsReplayed: 0,
     columnsFilled: 0,
     anomalies: plan.anomalies,
-    applied,
+    applied: false,
   };
 }
 
-/** Read-only. Nothing here writes, and nothing here takes a lock it does not need. */
+/**
+ * Read-only, and the database is what enforces it.
+ *
+ * `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY`, issued as the
+ * FIRST statement so it applies to everything after it — PostgreSQL refuses the
+ * `SET` once any other statement has run in the transaction.
+ *
+ * Both halves earn their place:
+ *
+ *   REPEATABLE READ  every row, manifest, reservation and catalog lookup in the
+ *                    report describes ONE instant. Under READ COMMITTED a
+ *                    reorder mid-scan would produce a report that never
+ *                    corresponded to any state of the database, which is the
+ *                    worst possible thing to hand an operator deciding whether
+ *                    to authorise a write.
+ *   READ ONLY        the guarantee stops being a promise. PostgreSQL rejects
+ *                    every write AND every `SELECT … FOR UPDATE` in such a
+ *                    transaction — measured: `cannot execute SELECT FOR UPDATE
+ *                    in a read-only transaction`. So "measure takes no locks
+ *                    and writes nothing" is not a claim a future edit can
+ *                    quietly break; it fails at the statement.
+ *
+ * No advisory lock either. Measuring is something an operator should be able to
+ * do at any time, including while the CMS is being used, and a report that
+ * blocked editorial writes to describe them would be its own small outage.
+ */
 export async function measureReservations(
   prisma: PrismaClient,
 ): Promise<BackfillReport> {
-  return emptyReport(
-    await prisma.$transaction(async (tx) => planReservations(tx)),
-    false,
+  return measuredReport(
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+      );
+      return planReservations(tx);
+    }),
   );
 }
 
 /**
  * Materialise, or change nothing at all.
  *
- * One transaction. The global lock is taken FIRST — before the read — and the
- * plan is built after holding it, so what gets written describes the state the
- * lock is protecting rather than one observed before it.
+ * ── The order, and why nothing may be read before it finishes ──────────────
+ *
+ *   1. `GLOBAL_COMPAT_BINDING_LOCK`   excludes every C.3A writer.
+ *   2. EVERY `Edition`, `FOR UPDATE`, in id order.
+ *   3. only now: rows, manifests, reservations, catalog.
+ *   4. write; the locks are held to commit or rollback.
+ *
+ * Step 2 is the correction. The global key excludes binding writers and nothing
+ * else — Content Studio takes no advisory key at all, so a publish or a reorder
+ * could land between reading a row and resolving the position it carries, and
+ * the reservation written from that resolution would name the wrong unit
+ * PERMANENTLY. The row has no identity of its own to check it against; that is
+ * what makes it legacy.
+ *
+ * ALL editions rather than the relevant ones, and in id order. Working out
+ * which editions matter means reading the rows, which is the very thing that
+ * must not happen before the locks are held — the narrower version would open
+ * the window it exists to close. Id order gives a total order, so this command
+ * and anything else taking several edition rows cannot build a cycle. This is
+ * an exceptional, offline, once-per-migration command: being correct is worth
+ * more than being narrow, and the cost is one `SELECT … FOR UPDATE` over a
+ * table with as many rows as the platform has books.
  */
 export async function applyReservations(
   prisma: PrismaClient,
@@ -570,6 +702,9 @@ export async function applyReservations(
   try {
     return await prisma.$transaction(async (tx) => {
       await acquireBindingLock(tx, globalBindingLockKey());
+
+      // Every edition, in id order, BEFORE anything is read.
+      await tx.$executeRaw`SELECT "id" FROM "Edition" ORDER BY "id" FOR UPDATE`;
 
       // The schema has to be the bridge or the cutover. Running this against a
       // schema without the reservation table would fail statement by statement;
@@ -579,8 +714,9 @@ export async function applyReservations(
         throw new BackfillFailure("EXPERIENCE_BINDING_AUTHORITY_UNAVAILABLE");
       }
 
-      // Re-read UNDER the lock. A plan built before it could describe rows a
-      // bridge writer has since changed.
+      // Re-read UNDER the locks. A plan built before them could describe rows a
+      // bridge writer has since changed, or a position a reorder has since
+      // moved.
       const plan = await planReservations(tx);
       if (plan.anomalies.length > 0) {
         // Abort whole. A partial materialisation would leave the chapter half
@@ -667,16 +803,10 @@ export async function applyReservations(
       }
 
       return {
-        rowsConsidered: plan.rowsConsidered,
-        rowsLegacy: plan.rowsLegacy,
-        rowsAlreadyMaterialised: plan.rowsAlreadyMaterialised,
-        rowsWithPositionDrift: plan.rowsWithPositionDrift,
-        groups: plan.groups.length,
-        reservationsToCreate: plan.groups.length,
+        ...measuredReport(plan),
         reservationsCreated: created,
         reservationsReplayed: replayed,
         columnsFilled: filled,
-        anomalies: [],
         applied: true,
       };
     });

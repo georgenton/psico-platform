@@ -158,9 +158,17 @@ describe("ratchet · guide public surface", () => {
 
   it("no client-supplied editorial context exists on the public surface", () => {
     // These may never be ACCEPTED keys: the server derives the context.
+    //
+    // C.3R narrows one of them rather than dropping it. `unitKey` is now an
+    // accepted field, in exactly one place: the reader context of the
+    // card-state batch. It is a LOCATOR, not an identity or an assertion — the
+    // server re-resolves it inside the published revision and then requires the
+    // claimed navigation to match, so naming someone else's key describes a
+    // place the caller is not standing in and is refused. The next test pins
+    // that the exception cannot spread: no response may return it, and no other
+    // request may accept it.
     const forbiddenKeys = [
       "editionKey",
-      "unitKey",
       "editionId",
       "unitId",
       "bookId",
@@ -183,6 +191,42 @@ describe("ratchet · guide public surface", () => {
         ).toBe(false);
       }
     }
+  });
+
+  it("`unitKey` is accepted ONLY as the reader's locator, and never returned", () => {
+    // The carve-out above, bounded from both sides.
+    const openapi = readFileSync(
+      join(GUIDE_DIR, "dto", "guide.openapi.ts"),
+      "utf8",
+    );
+    const clean = stripComments(openapi);
+    // Every mention lives inside the reader schema…
+    const readerBlock = clean.slice(
+      clean.indexOf("GUIDE_CARD_STATES_READER"),
+      clean.indexOf("GUIDE_CARD_STATES_BODY"),
+    );
+    expect(readerBlock).toContain("unitKey");
+    expect(clean.split("unitKey").length - 1).toBe(
+      readerBlock.split("unitKey").length - 1,
+    );
+    // …and no RESPONSE schema mentions it, so the browser can never recover an
+    // identity it could decide applicability with.
+    for (const responseName of [
+      "GUIDE_CARD_STATES_RESPONSE",
+      "GUIDE_EXPERIENCE_STATE_RESPONSE",
+      "GUIDE_COMMAND_RESPONSE",
+      "GUIDE_DISCOVERY_RESPONSE",
+    ]) {
+      const start = clean.indexOf(`export const ${responseName}`);
+      if (start === -1) continue;
+      const block = clean.slice(start, clean.indexOf("\n};", start));
+      expect(block.includes("unitKey"), responseName).toBe(false);
+    }
+    // The other four commands still accept nothing of the kind.
+    const parser = stripComments(
+      readFileSync(join(GUIDE_DIR, "guide-command-parser.ts"), "utf8"),
+    );
+    expect(parser.includes("unitKey")).toBe(false);
   });
 
   it("no server-owned verdict or envelope can become a contract field", () => {

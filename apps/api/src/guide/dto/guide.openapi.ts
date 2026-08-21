@@ -2,8 +2,10 @@ import type { SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec
 
 import {
   GUIDE_CARD_STATES_KEY_PATTERN,
+  GUIDE_CARD_STATES_MAX_CHAPTER_ORDER,
   GUIDE_CARD_STATES_MAX_PINS,
   GUIDE_CARD_STATES_MAX_VERSION,
+  GUIDE_CARD_STATES_UNIT_KEY_PATTERN,
 } from "../guide-card-states-params";
 
 /**
@@ -287,12 +289,53 @@ const GUIDE_CARD_PIN: SchemaObject = {
   },
 };
 
+/**
+ * C.3R — where the reader is, as the client can honestly describe it.
+ *
+ * `unitKey` is an ENVIRONMENT-LOCAL locator and never proof of anything: the
+ * server looks the unit up by it inside the published revision and then
+ * requires the claimed navigation to be where that unit actually sits. There is
+ * deliberately no `contentUnitId` here, in either direction — a client that
+ * could name an internal id could also name someone else's.
+ */
+const GUIDE_CARD_STATES_READER: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["bookSlug", "chapterOrder", "unitKey"],
+  properties: {
+    bookSlug: {
+      type: "string",
+      pattern: GUIDE_CARD_STATES_KEY_PATTERN,
+      minLength: 1,
+      maxLength: 200,
+    },
+    chapterOrder: {
+      type: "integer",
+      minimum: 1,
+      maximum: GUIDE_CARD_STATES_MAX_CHAPTER_ORDER,
+      description:
+        "Navegación, no identidad: se contrasta con la del capítulo real y " +
+        "nunca elige la unidad.",
+    },
+    unitKey: {
+      type: "string",
+      pattern: GUIDE_CARD_STATES_UNIT_KEY_PATTERN,
+      minLength: 1,
+      maxLength: 200,
+      description:
+        "Localizador local del entorno. NO es una identidad portable: la " +
+        "misma obra ingerida dos veces produce claves distintas.",
+    },
+  },
+};
+
 /** POST /api/guide/experiences/state */
 export const GUIDE_CARD_STATES_BODY: SchemaObject = {
   type: "object",
   additionalProperties: false,
-  required: ["pins"],
+  required: ["pins", "reader"],
   properties: {
+    reader: GUIDE_CARD_STATES_READER,
     pins: {
       type: "array",
       minItems: 1,
@@ -316,9 +359,29 @@ export const GUIDE_CARD_STATES_RESPONSE: SchemaObject = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["guidePin", "status", "resumePin"],
+        required: [
+          "guidePin",
+          "status",
+          "resumePin",
+          "applicability",
+          "evaluatedPin",
+        ],
         properties: {
           guidePin: GUIDE_CARD_PIN,
+          applicability: {
+            type: "string",
+            enum: ["APPLIES", "UNAVAILABLE"],
+            description:
+              "C.3R — si esta guía es sobre la unidad en la que está el " +
+              "lector, resuelto EN EL SERVIDOR comparando identidades. El " +
+              "cliente no recibe ningún identificador para recalcularlo.",
+          },
+          evaluatedPin: {
+            ...GUIDE_CARD_PIN,
+            description:
+              "El pin sobre el que se emitió el veredicto: el reanudable " +
+              "cuando hay linaje abierto, el publicado en caso contrario.",
+          },
           status: {
             type: "string",
             enum: ["START", "CONTINUE", "COMPLETED"],

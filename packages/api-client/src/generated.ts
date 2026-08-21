@@ -13306,6 +13306,13 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    reader: {
+                        bookSlug: string;
+                        /** @description Navegación, no identidad: se contrasta con la del capítulo real y nunca elige la unidad. */
+                        chapterOrder: number;
+                        /** @description Localizador local del entorno. NO es una identidad portable: la misma obra ingerida dos veces produce claves distintas. */
+                        unitKey: string;
+                    };
                     /** @description Pines publicados, uno por tarjeta. El orden se conserva y un pin repetido recibe la misma respuesta repetida: dos experiencias ligadas a la misma guía comparten linaje de verdad. */
                     pins: {
                         guideKey: string;
@@ -13323,6 +13330,16 @@ export interface operations {
                     "application/json": {
                         items: {
                             guidePin: {
+                                guideKey: string;
+                                guideVersion: number;
+                            };
+                            /**
+                             * @description C.3R — si esta guía es sobre la unidad en la que está el lector, resuelto EN EL SERVIDOR comparando identidades. El cliente no recibe ningún identificador para recalcularlo.
+                             * @enum {string}
+                             */
+                            applicability: PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsApplicability;
+                            /** @description El pin sobre el que se emitió el veredicto: el reanudable cuando hay linaje abierto, el publicado en caso contrario. */
+                            evaluatedPin: {
                                 guideKey: string;
                                 guideVersion: number;
                             };
@@ -18990,6 +19007,10 @@ export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf
 export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf2SummaryRecallsOutcome {
     CORRECT = "CORRECT",
     REVIEW = "REVIEW"
+}
+export enum PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsApplicability {
+    APPLIES = "APPLIES",
+    UNAVAILABLE = "UNAVAILABLE"
 }
 export enum PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsStatus {
     START = "START",

@@ -72,9 +72,12 @@ const SLUG_RE = KEY_RE;
  * pinning a uuid grammar here would refuse a future ingest for no safety gain.
  * What matters is that it is a bounded, non-empty, printable string.
  */
-const UNIT_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/;
+export const GUIDE_CARD_STATES_UNIT_KEY_PATTERN =
+  "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$";
+const UNIT_KEY_RE = new RegExp(GUIDE_CARD_STATES_UNIT_KEY_PATTERN);
 /** Chapter numbering is 1-based and generously bounded. */
-const MAX_CHAPTER_ORDER = 10_000;
+export const GUIDE_CARD_STATES_MAX_CHAPTER_ORDER = 10_000;
+const MAX_CHAPTER_ORDER = GUIDE_CARD_STATES_MAX_CHAPTER_ORDER;
 const PIN_KEYS = ["guideKey", "guideVersion"] as const;
 
 /**

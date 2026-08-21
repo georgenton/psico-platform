@@ -5,6 +5,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import type { AuthenticatedUser } from "../auth";
 import { backfillContentCore } from "../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
 import { ContentAccessService } from "../content-core/access/content-access.service";
@@ -48,7 +49,12 @@ const PQP = "parejas-que-perduran";
 const EEC_CTX = { bookSlug: EEC, chapterOrder: 1 };
 const PQP_CTX = { bookSlug: PQP, chapterOrder: 2 };
 
-const USER = { userId: "u-discovery", plan: "FREE" as const };
+const USER = {
+  userId: "u-discovery",
+  email: "lector@example.com",
+  plan: "FREE",
+  role: "USER",
+} as unknown as AuthenticatedUser;
 
 const withDatabase = (url: string, db: string): string => {
   const u = new URL(url);

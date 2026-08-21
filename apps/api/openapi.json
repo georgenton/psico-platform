@@ -15228,9 +15228,40 @@
                 "type": "object",
                 "additionalProperties": false,
                 "required": [
-                  "pins"
+                  "pins",
+                  "reader"
                 ],
                 "properties": {
+                  "reader": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "bookSlug",
+                      "chapterOrder",
+                      "unitKey"
+                    ],
+                    "properties": {
+                      "bookSlug": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "chapterOrder": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10000,
+                        "description": "Navegación, no identidad: se contrasta con la del capítulo real y nunca elige la unidad."
+                      },
+                      "unitKey": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$",
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "description": "Localizador local del entorno. NO es una identidad portable: la misma obra ingerida dos veces produce claves distintas."
+                      }
+                    }
+                  },
                   "pins": {
                     "type": "array",
                     "minItems": 1,
@@ -15283,7 +15314,9 @@
                         "required": [
                           "guidePin",
                           "status",
-                          "resumePin"
+                          "resumePin",
+                          "applicability",
+                          "evaluatedPin"
                         ],
                         "properties": {
                           "guidePin": {
@@ -15306,6 +15339,36 @@
                                 "maximum": 999999999
                               }
                             }
+                          },
+                          "applicability": {
+                            "type": "string",
+                            "enum": [
+                              "APPLIES",
+                              "UNAVAILABLE"
+                            ],
+                            "description": "C.3R — si esta guía es sobre la unidad en la que está el lector, resuelto EN EL SERVIDOR comparando identidades. El cliente no recibe ningún identificador para recalcularlo."
+                          },
+                          "evaluatedPin": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "guideKey",
+                              "guideVersion"
+                            ],
+                            "properties": {
+                              "guideKey": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "guideVersion": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 999999999
+                              }
+                            },
+                            "description": "El pin sobre el que se emitió el veredicto: el reanudable cuando hay linaje abierto, el publicado en caso contrario."
                           },
                           "status": {
                             "type": "string",

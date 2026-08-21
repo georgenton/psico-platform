@@ -228,8 +228,42 @@ hecho que mide**: ahora afirma que el lector dejó de ser posicional, y falla si
 
 ```
 C3C_C4_MERGE_BARRIER=true
-NEXT_STEP=RETARGET_AND_ADAPT_PR_677_ON_C3R
+NEXT_STEP=FINAL_REVIEW_PR_679_THEN_MERGE_DEPLOY_C3R
 ```
+
+#### C.3C+C.4 reapilada sobre C.3R — qué cambió y qué NO
+
+PR #677 dejó de apuntar a `feat/experience-binding-bridge` y ahora se apila
+sobre la rama de C.3R. Con eso, las dos decisiones posicionales que le quedaban
+al CMS —el filtro del selector y `assertPinBindable`— comparan identidades
+resueltas por la MISMA autoridad que usa el lector, y la revalidación ocurre
+dentro de la transacción, bajo los locks que el write ya sostiene.
+
+```
+C3R_IMPLEMENTED_IN_BASE=true
+C3C_C4_TREE_COMPATIBLE_WITH_C3R=true
+POSITIONAL_BINDING_AUTHORITY=false
+```
+
+**Y la barrera sigue arriba**, que es justo lo que estas tres líneas NO dicen.
+«Compatible en el árbol» y «autorizado para fusionar» son cosas distintas: #679
+no está fusionada ni desplegada, así que el lector de producción sigue
+decidiendo por posición. Consolidar la autoridad nueva antes seguiría
+permitiendo enlazar por identidad lo que el lector vivo rechaza por posición —
+correcto, completo e inabrible.
+
+La condición para bajarla, entera y verificable:
+
+```
+PR_679_MERGED=true
+PR_679_DEPLOYED=true
+SERVER_SIDE_ANCHOR_AUTHORITY_VERIFIED_IN_PRODUCTION=true
+PR_677_RETARGETED_TO_MAIN=true
+PR_677_FULL_MAIN_CHECKS=15/15
+```
+
+Bajarla será un commit posterior y explícito. No forma parte de esta ronda, y
+el ratchet de la barrera falla si alguien la baja sin él.
 
 **Decisiones de producto aprobadas para C.3/C.4** (2026-08-19):
 

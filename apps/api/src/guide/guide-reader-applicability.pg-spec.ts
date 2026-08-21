@@ -8,6 +8,10 @@ import { backfillContentCore } from "../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
 import { productionGuideRegistry } from "./guide-catalog";
 import { GuideTargetContextService } from "./guide-target-context.service";
+import {
+  GuideReaderApplicabilityService,
+  GuideReaderContextStaleError,
+} from "./guide-reader-applicability.service";
 import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 import type { PrismaService } from "../prisma";
 
@@ -335,6 +339,221 @@ suite(
       const eec = await targetUnitOf(A, PINS[0]);
       const pqp = await targetUnitOf(A, PINS[1]);
       expect(eec).not.toBe(pqp);
+    });
+
+    it("the BATCH answer equals the single-pin authority, for every published pin", async () => {
+      // Two implementations of one rule is how they drift. This is the whole
+      // argument that the fast path is honest — and it is complete rather than a
+      // sample: the only pins the service ever evaluates are the ones
+      // `getExact` returns, so enumerating the registry enumerates the input
+      // space.
+      const svc = new GuideReaderApplicabilityService();
+      for (const env of [A, B]) {
+        const batch = await env.prisma.$transaction((tx) =>
+          svc.resolveTargetUnits(
+            tx,
+            PINS.map((p) => ({
+              guideKey: p.guideKey,
+              guideVersion: p.guideVersion,
+            })),
+          ),
+        );
+        for (const pin of PINS) {
+          const authority = await targetUnitOf(env, pin);
+          expect(batch.get(`${pin.guideKey}@${pin.guideVersion}`)).toBe(
+            authority,
+          );
+        }
+      }
+    });
+
+    it("the batch costs a FIXED number of queries, whatever the pin count", async () => {
+      // 25 pins must not be 25 resolutions. Counted by instrumenting the client
+      // rather than by reading the code.
+      const svc = new GuideReaderApplicabilityService();
+      const count = async (n: number): Promise<number> => {
+        let queries = 0;
+        const pins = Array.from({ length: n }, (_, i) => ({
+          guideKey: PINS[i % PINS.length].guideKey,
+          guideVersion: PINS[i % PINS.length].guideVersion,
+        }));
+        await A.prisma.$transaction(async (tx) => {
+          const spy = new Proxy(tx, {
+            get(target, prop, recv) {
+              const v = Reflect.get(target, prop, recv);
+              if (prop === "$queryRaw") {
+                return (...args: unknown[]) => {
+                  queries += 1;
+                  return (v as (...a: unknown[]) => unknown).apply(
+                    target,
+                    args,
+                  );
+                };
+              }
+              if (typeof prop === "string" && !prop.startsWith("$")) {
+                return new Proxy(v as object, {
+                  get(m, mp, mr) {
+                    const fn = Reflect.get(m, mp, mr);
+                    if (typeof fn !== "function") return fn;
+                    return (...args: unknown[]) => {
+                      queries += 1;
+                      return (fn as (...a: unknown[]) => unknown).apply(
+                        m,
+                        args,
+                      );
+                    };
+                  },
+                });
+              }
+              return v;
+            },
+          }) as typeof tx;
+          await svc.resolveTargetUnits(spy, pins);
+        });
+        return queries;
+      };
+      const two = await count(2);
+      const twentyFive = await count(25);
+      expect(twentyFive).toBe(two);
+      // Four: concepts, exercises+items, units, published membership.
+      expect(two).toBeLessThanOrEqual(4);
+    });
+
+    it("a stale reader token fails the batch closed, rather than answering", async () => {
+      const svc = new GuideReaderApplicabilityService();
+      const pins = [
+        { guideKey: PINS[0].guideKey, guideVersion: PINS[0].guideVersion },
+      ];
+      // The honest context first, so the negative below is about the token alone.
+      const real = await A.prisma.$queryRawUnsafe<Array<{ unitKey: string }>>(
+        `SELECT u."unitKey" FROM "ContentUnit" u
+         JOIN "Edition" e ON e."id" = u."editionId"
+         JOIN "RevisionUnit" ru ON ru."unitId" = u."id"
+        WHERE ru."revisionId" = e."publishedRevisionId" AND e."slug" = $1 AND ru."order" = 1`,
+        EEC,
+      );
+      const good = {
+        bookSlug: EEC,
+        chapterOrder: 1,
+        unitKey: real[0]!.unitKey,
+      };
+      await expect(
+        A.prisma.$transaction((tx) => svc.verdicts(tx, good, pins)),
+      ).resolves.toEqual(["APPLIES"]);
+
+      for (const bad of [
+        { ...good, unitKey: "00000000-0000-5000-8000-000000000000" },
+        { ...good, chapterOrder: 99 },
+        { ...good, bookSlug: "no-such-book" },
+      ]) {
+        await expect(
+          A.prisma.$transaction((tx) => svc.verdicts(tx, bad, pins)),
+        ).rejects.toBeInstanceOf(GuideReaderContextStaleError);
+      }
+    });
+
+    it("after a reorder the verdict follows the unit, not the number", async () => {
+      const svc = new GuideReaderApplicabilityService();
+      const pins = [
+        { guideKey: PINS[0].guideKey, guideVersion: PINS[0].guideVersion },
+      ];
+      const unitOf = async (order: number) =>
+        (
+          await A.prisma.$queryRawUnsafe<Array<{ unitKey: string }>>(
+            `SELECT u."unitKey" FROM "ContentUnit" u
+           JOIN "Edition" e ON e."id" = u."editionId"
+           JOIN "RevisionUnit" ru ON ru."unitId" = u."id"
+          WHERE ru."revisionId" = e."publishedRevisionId" AND e."slug" = $1 AND ru."order" = $2`,
+            EEC,
+            order,
+          )
+        )[0]!.unitKey;
+
+      const guideUnitKey = await unitOf(1);
+      await swapOrders(A, EEC, 1, 2);
+      try {
+        // The guide's unit, at its NEW number: applies.
+        await expect(
+          A.prisma.$transaction((tx) =>
+            svc.verdicts(
+              tx,
+              { bookSlug: EEC, chapterOrder: 2, unitKey: guideUnitKey },
+              pins,
+            ),
+          ),
+        ).resolves.toEqual(["APPLIES"]);
+        // The unit that inherited the OLD number: does not.
+        const intruder = await unitOf(1);
+        expect(intruder).not.toBe(guideUnitKey);
+        await expect(
+          A.prisma.$transaction((tx) =>
+            svc.verdicts(
+              tx,
+              { bookSlug: EEC, chapterOrder: 1, unitKey: intruder },
+              pins,
+            ),
+          ),
+        ).resolves.toEqual(["UNAVAILABLE"]);
+      } finally {
+        await swapOrders(A, EEC, 1, 2);
+      }
+    });
+
+    it("the other book's pin is never applicable here, and duplicates keep their place", async () => {
+      const svc = new GuideReaderApplicabilityService();
+      const real = await A.prisma.$queryRawUnsafe<Array<{ unitKey: string }>>(
+        `SELECT u."unitKey" FROM "ContentUnit" u
+         JOIN "Edition" e ON e."id" = u."editionId"
+         JOIN "RevisionUnit" ru ON ru."unitId" = u."id"
+        WHERE ru."revisionId" = e."publishedRevisionId" AND e."slug" = $1 AND ru."order" = 1`,
+        EEC,
+      );
+      const reader = {
+        bookSlug: EEC,
+        chapterOrder: 1,
+        unitKey: real[0]!.unitKey,
+      };
+      const pins = [
+        { guideKey: PINS[1].guideKey, guideVersion: PINS[1].guideVersion },
+        { guideKey: PINS[0].guideKey, guideVersion: PINS[0].guideVersion },
+        { guideKey: PINS[1].guideKey, guideVersion: PINS[1].guideVersion },
+        { guideKey: "no-such-guide", guideVersion: 1 },
+        { guideKey: PINS[0].guideKey, guideVersion: 99 },
+      ];
+      await expect(
+        A.prisma.$transaction((tx) => svc.verdicts(tx, reader, pins)),
+      ).resolves.toEqual([
+        "UNAVAILABLE", // other book
+        "APPLIES", // this unit's guide
+        "UNAVAILABLE", // the duplicate keeps its position
+        "UNAVAILABLE", // unknown pin, inert
+        "UNAVAILABLE", // wrong version, inert
+      ]);
+    });
+
+    it("the read path writes nothing", async () => {
+      const svc = new GuideReaderApplicabilityService();
+      const before = await A.prisma.$queryRawUnsafe<Array<{ n: bigint }>>(
+        `SELECT (SELECT count(*) FROM "ContentUnit") + (SELECT count(*) FROM "RevisionUnit") AS n`,
+      );
+      const real = await A.prisma.$queryRawUnsafe<Array<{ unitKey: string }>>(
+        `SELECT u."unitKey" FROM "ContentUnit" u
+         JOIN "Edition" e ON e."id" = u."editionId"
+         JOIN "RevisionUnit" ru ON ru."unitId" = u."id"
+        WHERE ru."revisionId" = e."publishedRevisionId" AND e."slug" = $1 AND ru."order" = 1`,
+        EEC,
+      );
+      await A.prisma.$transaction((tx) =>
+        svc.verdicts(
+          tx,
+          { bookSlug: EEC, chapterOrder: 1, unitKey: real[0]!.unitKey },
+          [{ guideKey: PINS[0].guideKey, guideVersion: PINS[0].guideVersion }],
+        ),
+      );
+      const after = await A.prisma.$queryRawUnsafe<Array<{ n: bigint }>>(
+        `SELECT (SELECT count(*) FROM "ContentUnit") + (SELECT count(*) FROM "RevisionUnit") AS n`,
+      );
+      expect(String(after[0]!.n)).toBe(String(before[0]!.n));
     });
 
     it("an unknown pin and a wrong version both fail closed", async () => {

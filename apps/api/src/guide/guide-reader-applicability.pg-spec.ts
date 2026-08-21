@@ -418,6 +418,12 @@ suite(
           guideKey: d.guideKey,
           guideVersion: d.guideVersion,
         }));
+        // The seam is on the CONSTRUCTOR now, so the spec builds a service
+        // bound to its own catalog rather than passing one per call.
+        const svcForRegistry = new GuideTargetContextService(
+          new LearningCatalogResolver(A.prisma as unknown as PrismaService),
+          registry,
+        );
         let queries = 0;
         await A.prisma.$transaction(async (tx) => {
           const spy = new Proxy(tx, {
@@ -450,7 +456,7 @@ suite(
               return v;
             },
           }) as typeof tx;
-          await targetContext.resolveMany(pins, spy, registry);
+          await svcForRegistry.resolveMany(pins, spy);
         });
         return queries;
       };
@@ -635,12 +641,18 @@ suite(
           steps,
         }) as unknown as GuideDefinition;
 
+      /** A service bound to a catalog holding exactly this definition. */
+      const serviceFor = (def: GuideDefinition) =>
+        new GuideTargetContextService(
+          new LearningCatalogResolver(A.prisma as unknown as PrismaService),
+          only(def),
+        );
+
       async function outcome(def: GuideDefinition) {
         const [r] = await A.prisma.$transaction((tx) =>
-          targetContext.resolveMany(
+          serviceFor(def).resolveMany(
             [{ guideKey: def.guideKey, guideVersion: def.guideVersion }],
             tx,
-            only(def),
           ),
         );
         return r!;
@@ -700,12 +712,12 @@ suite(
                 itemKey: item[0]!.id,
               },
             ]);
-            [batch] = await targetContext.resolveMany(
+            const svc = serviceFor(def);
+            [batch] = await svc.resolveMany(
               [{ guideKey: def.guideKey, guideVersion: def.guideVersion }],
               tx,
-              only(def),
             );
-            single = await targetContext.resolve(def, tx).catch(() => "THREW");
+            single = await svc.resolve(def, tx).catch(() => "THREW");
             throw ROLLBACK;
           });
         } catch (e) {
@@ -794,6 +806,160 @@ suite(
         expect(r.ok).toBe(false);
         if (!r.ok) expect(r.code).toBe("GUIDE_CONTEXT_MISMATCH");
         expect(await authority(def)).toBe("THREW");
+      });
+
+      it("a concept owned by TWO units is ambiguous, and never picked", async () => {
+        // Reachable, not hypothetical: `ConceptLink` has no unique constraint
+        // tying a concept to one unit, so the ambiguity can be constructed —
+        // and must be refused rather than resolved to a first match.
+        const rows = await A.prisma.$queryRawUnsafe<
+          Array<{ conceptId: string; conceptKey: string }>
+        >(
+          `SELECT c."id" AS "conceptId", c."conceptKey" FROM "Concept" c
+             JOIN "ConceptLink" l ON l."conceptId" = c."id"
+             JOIN "ContentUnit" u ON u."id" = l."unitId"
+             JOIN "Edition" e ON e."id" = u."editionId"
+            WHERE e."slug" = $1 LIMIT 1`,
+          EEC,
+        );
+        const other = await A.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT u."id" FROM "ContentUnit" u
+             JOIN "Edition" e ON e."id" = u."editionId"
+            WHERE e."slug" = $1 LIMIT 1`,
+          PQP,
+        );
+        if (!rows.length || !other.length) return;
+        const def = withSteps([
+          {
+            kind: "CONCEPT_EXPLORATION",
+            stepKey: "c",
+            conceptKey: rows[0]!.conceptKey,
+          },
+        ]);
+        const ROLLBACK = Symbol("rollback");
+        let batch: unknown = null;
+        let single: unknown = null;
+        try {
+          await A.prisma.$transaction(async (tx) => {
+            await tx.$executeRawUnsafe(
+              `INSERT INTO "ConceptLink" ("id","conceptId","unitId","role") VALUES ($1,$2,$3,'PRIMARY')`,
+              `probe-${Date.now()}`,
+              rows[0]!.conceptId,
+              other[0]!.id,
+            );
+            const svc = serviceFor(def);
+            [batch] = await svc.resolveMany(
+              [{ guideKey: def.guideKey, guideVersion: def.guideVersion }],
+              tx,
+            );
+            single = await svc.resolve(def, tx).catch(() => "THREW");
+            throw ROLLBACK;
+          });
+        } catch (e) {
+          if (e !== ROLLBACK) throw e;
+        }
+        expect((batch as { ok: boolean }).ok).toBe(false);
+        expect(single).toBe("THREW");
+      });
+
+      it("a unit outside the published revision is not servable content", async () => {
+        const def = withSteps([
+          {
+            kind: "CATALOG_PRACTICE",
+            stepKey: "p",
+            exerciseKey: (
+              await A.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+                `SELECT e."id" FROM "Exercise" e WHERE e."type" <> 'QUIZ' LIMIT 1`,
+              )
+            )[0]!.id,
+          },
+        ]);
+        // It resolves today…
+        expect((await outcome(def)).ok).toBe(true);
+        // …and stops the moment its unit leaves the published manifest.
+        const ROLLBACK = Symbol("rollback");
+        let batch: unknown = null;
+        try {
+          await A.prisma.$transaction(async (tx) => {
+            await tx.$executeRawUnsafe(
+              `UPDATE "Edition" SET "publishedRevisionId" = NULL WHERE "slug" = $1`,
+              EEC,
+            );
+            [batch] = await serviceFor(def).resolveMany(
+              [{ guideKey: def.guideKey, guideVersion: def.guideVersion }],
+              tx,
+            );
+            throw ROLLBACK;
+          });
+        } catch (e) {
+          if (e !== ROLLBACK) throw e;
+        }
+        expect((batch as { ok: boolean }).ok).toBe(false);
+      });
+
+      it("a target in another book is never this reader's, and stays a target", async () => {
+        // The Parejas pin resolves fine — it simply belongs elsewhere. The
+        // distinction matters: "resolved, other unit" is UNAVAILABLE, while
+        // "unresolvable" is a different fact the report keeps apart.
+        const [r] = await A.prisma.$transaction((tx) =>
+          targetContext.resolveMany(
+            [
+              {
+                guideKey: PINS[1].guideKey,
+                guideVersion: PINS[1].guideVersion,
+              },
+            ],
+            tx,
+          ),
+        );
+        expect(r!.ok).toBe(true);
+        const eecUnit = await targetUnitOf(A, PINS[0]);
+        if (r!.ok) expect(r!.context.unitId).not.toBe(eecUnit);
+      });
+
+      it("a storage failure propagates — it never becomes UNAVAILABLE", async () => {
+        // The distinction the whole verdict rests on: "the catalog says this
+        // guide is not for here" and "the database did not answer" are
+        // different facts. Collapsing them would show a chapter's cards as
+        // inapplicable during an outage.
+        const svc = new GuideReaderApplicabilityService(targetContext);
+        const real = await A.prisma.$queryRawUnsafe<Array<{ unitKey: string }>>(
+          `SELECT u."unitKey" FROM "ContentUnit" u
+             JOIN "Edition" e ON e."id" = u."editionId"
+             JOIN "RevisionUnit" ru ON ru."unitId" = u."id"
+            WHERE ru."revisionId" = e."publishedRevisionId" AND e."slug" = $1 AND ru."order" = 1`,
+          EEC,
+        );
+        const reader = {
+          bookSlug: EEC,
+          chapterOrder: 1,
+          unitKey: real[0]!.unitKey,
+        };
+        const pins = [
+          { guideKey: PINS[0].guideKey, guideVersion: PINS[0].guideVersion },
+        ];
+        const boom = new Error("STORAGE");
+        await expect(
+          A.prisma.$transaction(async (tx) => {
+            let seen = 0;
+            const failing = new Proxy(tx, {
+              get(target, prop, recv) {
+                const v = Reflect.get(target, prop, recv);
+                if (prop === "concept") {
+                  // Fail one query in the middle of the batch.
+                  return {
+                    findMany: () => {
+                      seen += 1;
+                      return Promise.reject(boom);
+                    },
+                  };
+                }
+                return v;
+              },
+            }) as typeof tx;
+            return svc.verdicts(failing, reader, pins);
+          }),
+        ).rejects.toBe(boom);
       });
 
       it("EXPLICIT_CONFIRMATION alone anchors to nothing", async () => {

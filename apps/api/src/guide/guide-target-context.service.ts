@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import type { GuideDefinition, GuidePin } from "@psico/types";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -78,9 +78,38 @@ function sameEditorialIdentity(
   );
 }
 
+/** The catalog a pin is looked up in. Production unless a test binds otherwise. */
+export interface GuidePinRegistry {
+  getExact(guideKey: string, guideVersion: number): GuideDefinition;
+}
+
+export const GUIDE_PIN_REGISTRY = "GUIDE_PIN_REGISTRY";
+
 @Injectable()
 export class GuideTargetContextService {
-  constructor(private readonly resolver: LearningCatalogResolver) {}
+  constructor(
+    private readonly resolver: LearningCatalogResolver,
+    /**
+     * Fixed at construction, deliberately.
+     *
+     * An earlier version took the registry as a per-call argument so a spec
+     * could supply 25 synthetic pins. That is a production bypass wearing a
+     * test's clothes: any caller could have handed this service a catalog of
+     * its own and had the answer computed against it. The seam belongs to
+     * whoever BUILDS the service, not to whoever calls it.
+     */
+    @Optional()
+    @Inject(GUIDE_PIN_REGISTRY)
+    registry?: GuidePinRegistry,
+  ) {
+    // Assigned in the body rather than as a parameter default: a default on a
+    // DECORATED parameter is not emitted identically by every compiler this
+    // repo runs (the pg-specs use a different one from the unit specs), and it
+    // arrived as `undefined` there — which silently made every pin unknown.
+    this.registry = registry ?? productionGuideRegistry;
+  }
+
+  private readonly registry: GuidePinRegistry;
 
   /**
    * Resolve the ONE editorial context of a pinned definition. For the current
@@ -117,20 +146,13 @@ export class GuideTargetContextService {
   async resolveMany(
     pins: readonly GuidePin[],
     db?: LearningCatalogDb,
-    /**
-     * The catalog to look pins up in. Production by default.
-     *
-     * Injectable for ONE honest reason: proving the cost is independent of
-     * cardinality needs many DISTINCT targets, and the build ships two pins.
-     * Repeating those two to reach 25 would measure deduplication, not scaling.
-     */
-    registry: {
-      getExact: (k: string, v: number) => GuideDefinition;
-    } = productionGuideRegistry,
   ): Promise<TargetContextResult[]> {
+    // The catalog is whatever this SERVICE was built with. There is no
+    // per-call override: a caller must not be able to hand the authority a
+    // registry of its own and have the answer computed against it.
     const defs: (GuideDefinition | null)[] = pins.map((p) => {
       try {
-        return registry.getExact(p.guideKey, p.guideVersion);
+        return this.registry.getExact(p.guideKey, p.guideVersion);
       } catch {
         return null;
       }

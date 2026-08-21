@@ -466,6 +466,52 @@ describe("C.3R · position no longer decides, in either direction", () => {
     expect(await screen.findByTestId("reader-mode-guiada")).toBeInTheDocument();
   });
 
+  it("a FRESHER UNAVAILABLE overrides an older `available` from discovery", async () => {
+    // Two server answers about the same pin, and they disagree. The batch is
+    // the newer one and it is decided inside a single snapshot, so it wins —
+    // and it wins by CLOSING the guided surface, not by opening it.
+    //
+    // Without the verdict gate on the passage, the panel would mount on
+    // discovery's word alone and narrate a chapter the batch just said this
+    // guide is not about.
+    getGuideDiscovery.mockResolvedValue({ available: true, ...EEC_PIN });
+    listPublishedForChapter.mockResolvedValue({
+      items: [{ ...EEC_EXPERIENCE, guidePin: EEC_PIN }],
+    });
+    getExperienceCardStates.mockResolvedValue({
+      items: [card("START", "UNAVAILABLE", EEC_PIN)],
+    });
+    renderReader();
+    // The batch is only asked from Chapter Home, so go there first and come
+    // back — which is exactly the sequence a reader performs.
+    await openChapterHome();
+    await settle();
+    fireEvent.click(screen.getByTestId("chapter-home-continue"));
+    await settle();
+
+    expect(screen.queryByTestId("reader-mode-guiada")).toBeNull();
+    expect(screen.queryByTestId("reader-guide-panel")).toBeNull();
+  });
+
+  it("…and the same sequence with APPLIES does open it", async () => {
+    // The twin, so the case above cannot pass because the sequence itself
+    // happens to hide the tab.
+    getGuideDiscovery.mockResolvedValue({ available: true, ...EEC_PIN });
+    listPublishedForChapter.mockResolvedValue({
+      items: [{ ...EEC_EXPERIENCE, guidePin: EEC_PIN }],
+    });
+    getExperienceCardStates.mockResolvedValue({
+      items: [card("START", "APPLIES", EEC_PIN)],
+    });
+    renderReader();
+    await openChapterHome();
+    await settle();
+    fireEvent.click(screen.getByTestId("chapter-home-continue"));
+    await settle();
+
+    expect(await screen.findByTestId("reader-mode-guiada")).toBeInTheDocument();
+  });
+
   it("no verdict for the run pin → no passage to go to", async () => {
     // Discovery says nothing and no card answered, so nobody has said this
     // guide belongs here. The panel must not offer a passage on the strength of

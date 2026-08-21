@@ -468,6 +468,49 @@ describe("guideApi", () => {
         await refuses();
       });
 
+      it("refuses a verdict it does not recognise", async () => {
+        // C.3R — the answer is a CLOSED pair of words. Coercing an unknown one
+        // to UNAVAILABLE would hide a real answer; to APPLIES would invent one.
+        // Both are worse than refusing the chunk, because a card would then act
+        // on a verdict nobody gave.
+        for (const applicability of [
+          "MAYBE",
+          "applies",
+          "",
+          null,
+          1,
+          undefined,
+        ]) {
+          answered([state({ applicability })]);
+          await refuses();
+        }
+      });
+
+      it("refuses a verdict about a pin OTHER than the one it would run", async () => {
+        // `evaluatedPin` is the pin the verdict is about. If it does not match
+        // the pin a click would land on, the answer describes a different
+        // question — and acting on it puts one journey's verdict on another.
+        answered([
+          state({
+            status: "CONTINUE",
+            resumePin: { guideKey: "guia-1", guideVersion: 1 },
+            evaluatedPin: { guideKey: "guia-1", guideVersion: 2 },
+          }),
+        ]);
+        await refuses();
+        // …and a well-formed pin that is simply another lineage.
+        answered([
+          state({ evaluatedPin: { guideKey: "guia-9", guideVersion: 1 } }),
+        ]);
+        await refuses();
+      });
+
+      it("refuses a MISSING evaluatedPin, rather than assuming resumePin", async () => {
+        const { evaluatedPin: _dropped, ...withoutEvaluated } = state();
+        answered([withoutEvaluated]);
+        await refuses();
+      });
+
       it("refuses CONTINUE that resumes ANOTHER lineage", async () => {
         // Another version of the same journey is the point of rule 1; another
         // journey entirely is somebody else's session.

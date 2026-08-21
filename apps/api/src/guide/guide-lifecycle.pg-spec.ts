@@ -900,14 +900,17 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
   // ── Context + entitlement inside the transaction (§3 · §5) ───────────────
 
   it("START resolves the catalog on its OWN transaction client", async () => {
-    const spy = vi.spyOn(resolver, "resolveConcept");
+    // The seam is `catalogClient(db)`: every catalog read in the batch
+    // authority goes through it, so watching it observes the whole resolution
+    // rather than one query of it.
+    const spy = vi.spyOn(resolver, "catalogClient");
     await service.start(userA, {
       idempotencyKey: nextKey(),
       guideKey: GUIDE_KEY,
       guideVersion: 1,
     });
     expect(spy).toHaveBeenCalled();
-    const db = spy.mock.calls[0]?.[1];
+    const db = spy.mock.calls[0]?.[0];
     // A client WAS threaded, and it is the transaction's, not the base one.
     expect(db).toBeDefined();
     expect(db).not.toBe(prisma);
@@ -993,8 +996,14 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
   // ── Error classification (§6) ────────────────────────────────────────────
 
   it("an infrastructure failure is a storage failure, not an editorial verdict", async () => {
-    vi.spyOn(resolver, "resolveConcept").mockRejectedValue(
-      new Error("connection terminated unexpectedly"),
+    // Injected where the catalog actually reads: the client it was handed
+    // fails mid-query, the way a dropped connection does.
+    vi.spyOn(resolver, "catalogClient").mockImplementation(
+      () =>
+        ({
+          $queryRaw: () =>
+            Promise.reject(new Error("connection terminated unexpectedly")),
+        }) as unknown as ReturnType<typeof resolver.catalogClient>,
     );
     await expectCode(
       service.start(userA, {

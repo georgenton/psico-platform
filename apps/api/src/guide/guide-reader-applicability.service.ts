@@ -118,6 +118,36 @@ export class GuideReaderApplicabilityService {
   }
 
   /**
+   * The unit at a navigation position, from the PUBLISHED manifest.
+   *
+   * For surfaces whose request is itself a position — discovery is a
+   * `GET /:bookSlug/:chapterOrder` — and which therefore carry no staleness
+   * token to check. Same source as `content-read.ts`: `RevisionUnit` on the
+   * edition's published revision, never the legacy `Chapter` table.
+   *
+   * `null` when the position names no published unit. That is an editorial
+   * answer, not an error: there is simply nothing there.
+   */
+  async resolveUnitByNavigation(
+    db: Db,
+    where: { bookSlug: string; chapterOrder: number },
+  ): Promise<string | null> {
+    const rows = await db.$queryRaw<Array<{ id: string }>>`
+      SELECT u."id"
+        FROM "ContentUnit" u
+        JOIN "Edition" e ON e."id" = u."editionId"
+        JOIN "RevisionUnit" ru ON ru."unitId" = u."id"
+       WHERE ru."revisionId" = e."publishedRevisionId"
+         AND e."slug" = ${where.bookSlug}
+         AND ru."order" = ${where.chapterOrder}`;
+    // More than one unit at one position is a manifest contradiction; the
+    // manifest's own uniqueness makes it unreachable, and guessing would be
+    // the wrong response if it ever were.
+    if (rows.length !== 1) return null;
+    return (rows[0] as { id: string }).id;
+  }
+
+  /**
    * The verdicts, positionally aligned with `pins`.
    *
    * Duplicates are answered in place, so a caller can zip the answer to its

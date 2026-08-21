@@ -73,29 +73,20 @@ describe("GuideDiscoveryService", () => {
   function makeDeps(opts: {
     rolloutOn?: boolean;
     resolved?: Record<string, unknown> | Error;
-    book?: unknown;
-    chapter?: unknown;
-    unit?: unknown;
-    revisionUnit?: unknown;
+    /**
+     * C.3R — the unit the reader is standing in, as the ONE resolver reports
+     * it. `null` is the editorial answer "that position names no published
+     * unit"; the legacy walk (book → chapter → unit → revisionUnit) that used
+     * to live here was a second notion of "the chapter at position N".
+     */
+    readerUnit?: string | null;
     /** The exact error `assertCanReadUnit` raises, so the test names a TYPE. */
     accessThrows?: unknown;
     txThrows?: Error;
-    /** A model call that blows up mid-transaction (a driver failure). */
-    bookThrows?: Error;
+    /** The reader-unit lookup blows up mid-transaction (a driver failure). */
+    readerUnitThrows?: Error;
   }) {
-    const tx = {
-      book: {
-        findUnique: vi.fn(async () => {
-          if (opts.bookThrows) throw opts.bookThrows;
-          return opts.book ?? null;
-        }),
-      },
-      chapter: { findFirst: vi.fn(async () => opts.chapter ?? null) },
-      contentUnit: { findUnique: vi.fn(async () => opts.unit ?? null) },
-      revisionUnit: {
-        findUnique: vi.fn(async () => opts.revisionUnit ?? null),
-      },
-    };
+    const tx = {};
     const prisma = {
       $transaction: vi.fn(async (fn: (t: unknown) => unknown) => {
         if (opts.txThrows) throw opts.txThrows;
@@ -126,23 +117,33 @@ describe("GuideDiscoveryService", () => {
         if (opts.accessThrows !== undefined) throw opts.accessThrows;
       }),
     };
+    const applicability = {
+      resolveUnitByNavigation: vi.fn(async () => {
+        if (opts.readerUnitThrows) throw opts.readerUnitThrows;
+        return opts.readerUnit === undefined ? "unit-1" : opts.readerUnit;
+      }),
+    };
     const svc = new GuideDiscoveryService(
       prisma as never,
       rollout as never,
       targetContext as never,
       access as never,
+      applicability as never,
     );
-    return { svc, prisma, rollout, targetContext, access, tx };
+    return {
+      svc,
+      prisma,
+      rollout,
+      targetContext,
+      access,
+      applicability,
+      tx,
+    };
   }
 
-  /** The happy shape for Parejas: every relation lines up. */
+  /** The happy shape for Parejas: the reader's unit IS the targets' unit. */
   function coherentParejas() {
-    return {
-      book: { id: "b-1" },
-      chapter: { id: "ch-1" },
-      unit: { id: "unit-1" },
-      revisionUnit: { id: "ru-1" },
-    };
+    return { readerUnit: "unit-1" };
   }
 
   beforeEach(() => vi.clearAllMocks());
@@ -235,11 +236,11 @@ describe("GuideDiscoveryService", () => {
         },
       },
     ],
-    ["the book row is missing", { book: null }],
-    ["the chapter row is missing", { chapter: null }],
-    ["the unit is missing", { unit: null }],
-    ["the unit disagrees with the targets", { unit: { id: "otra-unidad" } }],
-    ["the unit is outside the published revision", { revisionUnit: null }],
+    ["that position names no published unit", { readerUnit: null }],
+    [
+      "the unit at that position is not the targets' unit",
+      { readerUnit: "otra-unidad" },
+    ],
     [
       "the plan does not entitle the unit",
       { accessThrows: new ForbiddenException("PRO_REQUIRED") },
@@ -275,9 +276,9 @@ describe("GuideDiscoveryService", () => {
       { resolved: new TypeError("cannot read properties of undefined") },
     ],
     [
-      "a model call blows up mid-transaction",
+      "the reader-unit lookup blows up mid-transaction",
       {
-        bookThrows: new Error("Invalid `prisma.book.findUnique()` invocation"),
+        readerUnitThrows: new Error("Invalid `prisma.$queryRaw()` invocation"),
       },
     ],
     [

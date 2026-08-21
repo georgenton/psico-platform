@@ -531,25 +531,38 @@ describe("ratchet · the reader anchor barrier", () => {
     expect(EXPERIENCE_IDENTITY_BARRIER).toEqual({
       CODE_OWNED_BINDING_IDENTITY:
         "contentUnitId derivado por GuideTargetContext",
-      PUBLIC_READER_ANCHOR: "bookSlug+chapterOrder todavía posicional",
+      PUBLIC_READER_ANCHOR: "veredicto del servidor por contentUnitId (C.3R)",
       C3A_DEPLOY_BLOCKED_BY_POSITIONAL_READER: false,
+      READER_ANCHOR_IDENTITY_CLOSED_IN_TREE: true,
+      // Closed in the tree is not deployed. The gate stays shut until this
+      // branch ships; lowering it is a decision about a deploy, not a diff.
       C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED: true,
     });
   });
 
-  it("the reader really is still positional — measured, not asserted from memory", () => {
-    // If this stops being true the barrier has become a lie, and the ratchet
-    // fails until someone flips it deliberately rather than by accident.
+  it("the reader really has STOPPED being positional — measured, not remembered", () => {
+    // The inverse of what this ratchet used to assert, and it flipped because
+    // the code did. C.3R deleted the positional decision instead of deprecating
+    // it: a fallback that still worked would keep giving a confident wrong
+    // answer on a reordered book.
     const anchor = read(join(REPO_ROOT, PUBLIC_READER_ANCHOR_SOURCE));
-    const fn = anchor.slice(anchor.indexOf("export function anchorAppliesTo"));
-    const body = fn.slice(0, fn.indexOf("\n}"));
-    expect(body).toContain("locator.bookSlug");
-    expect(body).toContain("locator.chapterOrder");
-    expect(body).not.toContain("contentUnitId");
-    // And the reader surface consumes exactly that function.
-    expect(read(join(REPO_ROOT, PUBLIC_READER_ANCHOR_CONSUMER))).toContain(
+    expect(anchor).not.toContain("export function anchorAppliesTo");
+    // And no surface consumes it, because there is nothing to consume.
+    expect(read(join(REPO_ROOT, PUBLIC_READER_ANCHOR_CONSUMER))).not.toContain(
       "anchorAppliesTo",
     );
+    const shell = read(
+      join(
+        REPO_ROOT,
+        "apps/web/src/components/dashboard/lector/LectorShell.tsx",
+      ),
+    );
+    // The shell may still EXPLAIN what it stopped doing; what it may not do is
+    // call it. A comment is not a decision.
+    expect(shell).not.toMatch(/^\s*(?!\s*\*).*anchorAppliesTo\(/m);
+    // What it does instead: read the server's word for the pin being run.
+    expect(shell).toContain("serverVerdictFor");
+    expect(shell).toContain('"APPLIES"');
   });
 
   it("the barrier is decided by which phase this binary IS", () => {
@@ -579,9 +592,12 @@ describe("ratchet · the reader anchor barrier", () => {
     }
   });
 
-  it("names the task that closes it, not a generic debt", () => {
+  it("names what closed it and what is left, not a generic debt", () => {
     expect(READER_ANCHOR_IDENTITY_TASK).toContain("anchorAppliesTo");
     expect(READER_ANCHOR_IDENTITY_TASK).toContain("contentUnitId");
+    // The remaining step is a deploy, and saying so is what keeps the still-true
+    // merge flag from reading as an oversight.
+    expect(READER_ANCHOR_IDENTITY_TASK).toContain("desplegar");
   });
 });
 

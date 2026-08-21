@@ -86,6 +86,9 @@ const STATES: ExperienceStatesLoad = {
         guidePin: { guideKey: "guide-1", guideVersion: 1 },
         status: "COMPLETED" as const,
         resumePin: { guideKey: "guide-1", guideVersion: 1 },
+        // C.3R — the server says this guide belongs to the unit on screen.
+        applicability: "APPLIES" as const,
+        evaluatedPin: { guideKey: "guide-1", guideVersion: 1 },
       },
     ],
   ]),

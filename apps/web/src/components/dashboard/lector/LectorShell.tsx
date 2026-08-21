@@ -9,9 +9,10 @@ import type {
   ChapterExperiencePublicView,
   ContentUnitMarks,
   ContentUnitRead,
-  HighlightColor,
+  GuideApplicability,
   GuideExperienceCardState,
   GuideSessionView,
+  HighlightColor,
   HighlightSummary,
   LectorChapterResponse,
   LectorCompleteResponse,
@@ -78,7 +79,6 @@ import { useGuideActorScope } from "../guide/guide-actor-scope";
 import { useGuideAvailability } from "../guide/guide-availability";
 import { useGuideDiscovery } from "../guide/use-guide-discovery";
 import {
-  anchorAppliesTo,
   guideAnchorRegistry,
   resolveGuideAnchor,
   type GuideAnchorResolution,
@@ -529,6 +529,232 @@ export function LectorShell({
   );
 
   /**
+   * C.1 — the server's verdict for EACH published experience, in one read.
+   *
+   * This used to ask once, for the chapter's own guide pin, and hand that
+   * single answer to every card. A chapter has one pin and can publish several
+   * journeys, so the cards shared a state: finishing one made the others read
+   * «Completada» without anybody opening them (#639).
+   *
+   * One request for the whole list, not one per card — the reader should not
+   * pay for the catalog's size — and the answer is keyed by published pin, so
+   * two experiences deliberately bound to the same guide DO share a verdict.
+   * That is not a bug to paper over; it is what the binding says.
+   */
+  const experiencePins = useMemo(
+    () => chapterExperiences.items.map((item) => item.guidePin),
+    [chapterExperiences.items],
+  );
+
+  /**
+   * C.3R — where the reader is, as this screen can honestly describe it.
+   *
+   * Built from the unit that was actually SERVED, not from the route: the text
+   * on screen is the thing a verdict has to be about. `unitKey` is an
+   * environment-local locator, never identity — the server re-resolves it
+   * inside the published revision and requires `chapterOrder` to agree, so a
+   * mixed context describes no real place and is refused.
+   *
+   * `null` only when no unit was served, and that branch renders an
+   * unavailable screen with no cards at all — so a request is never made
+   * without a context.
+   */
+  const readerContext = useMemo(
+    () =>
+      unit
+        ? {
+            bookSlug,
+            chapterOrder: chapter.order,
+            unitKey: unit.unitKey,
+          }
+        : null,
+    [unit, bookSlug, chapter.order],
+  );
+
+  /**
+   * The identity of the question currently being asked.
+   *
+   * Two requests can be in flight when the chapter changes or a revalidation
+   * overlaps the first read, and they can land out of order. Without this key
+   * the older answer wins by arriving last, and the cards describe a chapter
+   * the reader already left. Every response is checked against the key that is
+   * current when it arrives, not the one it was sent with.
+   */
+  const experienceRequestKey = useMemo(
+    () =>
+      [
+        bookSlug,
+        chapter.order,
+        // The context is part of the QUESTION: an answer earned under another
+        // unit is not an answer about this screen, even at the same number.
+        readerContext?.unitKey ?? "sin-unidad",
+        ...experiencePins.map((p) => experiencePinKey(p)),
+      ].join("|"),
+    [bookSlug, chapter.order, experiencePins, readerContext],
+  );
+
+  const currentExperienceKeyRef = useRef(experienceRequestKey);
+  currentExperienceKeyRef.current = experienceRequestKey;
+
+  /**
+   * The load, exactly as the last accepted answer left it — TAGGED with the
+   * question and the generation that produced it.
+   *
+   * Nothing reads this directly. Whether it still speaks for the screen is a
+   * separate question, answered below.
+   */
+  const [experienceLoad, setExperienceLoad] = useState<ExperienceStatesLoad>({
+    status: "idle",
+  });
+
+  useEffect(() => {
+    if (surface !== "home") return;
+    const askedFor = experienceRequestKey;
+    const generation = experienceGenerationRef.current;
+    // No context, no question. The screen that lacks one renders no cards, so
+    // this is a guard rather than a state anybody sees.
+    if (!readerContext) return;
+    if (experiencePins.length === 0) {
+      // Nothing to ask about is a complete answer, not a pending one.
+      setExperienceLoad({
+        status: "ready",
+        requestKey: askedFor,
+        generation,
+        states: new Map(),
+      });
+      return;
+    }
+    // Accepted only while BOTH still hold: the same question, and no newer
+    // asking since. The key catches a chapter change; the generation catches
+    // two revalidations of the same list answering out of order.
+    const isCurrent = () =>
+      currentExperienceKeyRef.current === askedFor &&
+      experienceGenerationRef.current === generation;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const answer = await guideApi.getExperienceCardStates(
+          experiencePins,
+          readerContext,
+        );
+        if (cancelled || !isCurrent()) return;
+        const states = new Map<string, GuideExperienceCardState>();
+        for (const state of answer.items) {
+          states.set(experiencePinKey(state.guidePin), state);
+        }
+        setExperienceLoad({
+          status: "ready",
+          requestKey: askedFor,
+          generation,
+          states,
+        });
+      } catch {
+        if (cancelled || !isCurrent()) return;
+        // A failed read is NOT a state. It used to fall back to an empty map,
+        // and an empty map read as «Empezar» on every card — so a network
+        // blip offered a fresh start over a journey already in progress. The
+        // honest answer is «no pudimos saberlo», with a way to ask again.
+        setExperienceLoad({
+          status: "error",
+          requestKey: askedFor,
+          generation,
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    surface,
+    experiencePins,
+    experienceRequestKey,
+    experienceGeneration,
+    readerContext,
+  ]);
+
+  /**
+   * Does the last answer still speak for what is on screen?
+   *
+   * Derived during render, so the moment the question changes — a new chapter,
+   * a new list of pins, or a new asking — the previous `ready` stops being
+   * authoritative in the SAME render that changed it. No effect has to run
+   * first, and there is no frame in which a superseded verdict is clickable.
+   * An answer that has lapsed reads as `loading`, because that is what is
+   * true: we are asking again.
+   */
+  const experienceAuthority: ExperienceStatesLoad = useMemo(() => {
+    if (experienceLoad.status === "idle") return experienceLoad;
+    if (experienceLoad.status === "loading") return experienceLoad;
+    const current =
+      experienceLoad.requestKey === experienceRequestKey &&
+      experienceLoad.generation === experienceGeneration;
+    return current ? experienceLoad : { status: "loading" };
+  }, [experienceLoad, experienceRequestKey, experienceGeneration]);
+
+  /**
+   * Ask again when the reader comes back to the tab or the window.
+   *
+   * A card's verdict is decided by a session that can change elsewhere: on the
+   * phone, in another tab, or by finishing the journey and returning. A state
+   * read once at mount goes stale silently, and a stale «Empezar» over a
+   * running session is exactly the confusion this endpoint exists to remove.
+   */
+  useEffect(() => {
+    if (surface !== "home") return;
+    const onFocus = () => revalidateExperienceStates();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") revalidateExperienceStates();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [surface, revalidateExperienceStates]);
+
+  /**
+   * C.3R — the SERVER's verdict about one pin, or `null` if nobody answered.
+   *
+   * Two sources, both server-decided and neither positional:
+   *
+   *   - the card batch, whose items carry `applicability` bound to the exact
+   *     `evaluatedPin` the verdict is about — matched on that pin, never on
+   *     the published one, because a CONTINUE card runs the session's version;
+   *   - chapter discovery, which since C.3R compares the same identities
+   *     server-side and whose `available` IS the verdict for its own pin.
+   *
+   * `null` is not `UNAVAILABLE`. "Nobody told us" and "this guide is not for
+   * here" are different facts, and callers treat the first as «no podemos
+   * saberlo» rather than as a denial.
+   */
+  const serverVerdictFor = useCallback(
+    (pin: GuidePin): GuideApplicability | null => {
+      if (experienceAuthority.status === "ready") {
+        for (const state of experienceAuthority.states.values()) {
+          if (
+            state.evaluatedPin?.guideKey === pin.guideKey &&
+            state.evaluatedPin.guideVersion === pin.guideVersion
+          ) {
+            return state.applicability ?? null;
+          }
+        }
+      }
+      if (
+        discoveredPin &&
+        discoveredPin.guideKey === pin.guideKey &&
+        discoveredPin.guideVersion === pin.guideVersion
+      ) {
+        // Discovery answered `available` for this exact pin, and since C.3R
+        // that answer is an identity comparison made inside one snapshot.
+        return "APPLIES";
+      }
+      return null;
+    },
+    [experienceAuthority, discoveredPin],
+  );
+
+  /**
    * C.2 — can THIS pin actually be run, on this screen, by this build?
    *
    * The same four authorities the guided surface itself consults, asked one
@@ -545,16 +771,26 @@ export function LectorShell({
    *
    * A fallback to another guide's bundle or anchor is exactly what must never
    * happen here, so nothing is resolved except by exact pin.
+   *
+   * C.3R — what this NO LONGER asks is whether the guide belongs to this
+   * chapter. That was `anchorAppliesTo(bookSlug, chapter.order, locator)`:
+   * placement compared against placement, so an editorial reorder moved the
+   * guide to whichever unit inherited the number and took it away from the one
+   * it is about. The server answers that now, by comparing identities it can
+   * see and the browser cannot, and its verdict is applied where the two facts
+   * are combined (`experienceCardView`) rather than folded into this one.
+   *
+   * Two facts, kept apart on purpose: «does this guide belong here» is the
+   * server's, «can this build run it» is ours.
    */
   const canRunPin = useCallback(
     (pin: GuidePin): boolean => {
       if (!resolveGuideWebBundle(pin)) return false;
       const locator = guideAnchorRegistry.getExact(pin);
       if (!locator) return false;
-      if (!anchorAppliesTo(bookSlug, chapter.order, locator)) return false;
       return resolveGuideAnchor(blocks, locator).status === "RESOLVED";
     },
-    [blocks, bookSlug, chapter.order],
+    [blocks],
   );
 
   /**
@@ -564,21 +800,24 @@ export function LectorShell({
    * Parejas guide can never be handed the Emociones passage — and it is
    * resolved against the blocks the reader was actually served, never from a
    * stored key, because Content Core derives block identity per environment
-   * (CC-1). `anchorAppliesTo` is the last guard: an anchor whose own book and
-   * chapter are not the screen we are on does not apply here.
+   * (CC-1). The last guard is the server's verdict (C.3R): a guide whose
+   * editorial target is not the unit on screen has no passage here.
    */
   const guideAnchor: GuideAnchorResolution = useMemo(() => {
     // Keyed by the pin being RUN: a picked card may run a different journey
     // than chapter discovery named, and handing it another guide's passage is
     // the failure this registry exists to make impossible.
     if (!runPin) return { status: "UNRESOLVED" };
+    // C.3R — the last guard is the SERVER's verdict about this pin, not a
+    // comparison of the anchor's own book and chapter with the screen. The
+    // resolution below would usually fail on the wrong chapter anyway, since
+    // the passage is not in those blocks — "usually" being exactly the word
+    // that does not belong in a guard.
+    if (serverVerdictFor(runPin) !== "APPLIES") return { status: "UNRESOLVED" };
     const locator = guideAnchorRegistry.getExact(runPin);
     if (!locator) return { status: "UNRESOLVED" };
-    if (!anchorAppliesTo(bookSlug, chapter.order, locator)) {
-      return { status: "UNRESOLVED" };
-    }
     return resolveGuideAnchor(blocks, locator);
-  }, [blocks, bookSlug, chapter.order, runPin]);
+  }, [blocks, runPin, serverVerdictFor]);
 
   /**
    * Scroll the anchored paragraph into view and focus it. Deliberately does
@@ -664,151 +903,6 @@ export function LectorShell({
       }),
     [guideRuntimeReady, discovery.status],
   );
-
-  /**
-   * C.1 — the server's verdict for EACH published experience, in one read.
-   *
-   * This used to ask once, for the chapter's own guide pin, and hand that
-   * single answer to every card. A chapter has one pin and can publish several
-   * journeys, so the cards shared a state: finishing one made the others read
-   * «Completada» without anybody opening them (#639).
-   *
-   * One request for the whole list, not one per card — the reader should not
-   * pay for the catalog's size — and the answer is keyed by published pin, so
-   * two experiences deliberately bound to the same guide DO share a verdict.
-   * That is not a bug to paper over; it is what the binding says.
-   */
-  const experiencePins = useMemo(
-    () => chapterExperiences.items.map((item) => item.guidePin),
-    [chapterExperiences.items],
-  );
-
-  /**
-   * The identity of the question currently being asked.
-   *
-   * Two requests can be in flight when the chapter changes or a revalidation
-   * overlaps the first read, and they can land out of order. Without this key
-   * the older answer wins by arriving last, and the cards describe a chapter
-   * the reader already left. Every response is checked against the key that is
-   * current when it arrives, not the one it was sent with.
-   */
-  const experienceRequestKey = useMemo(
-    () =>
-      [
-        bookSlug,
-        chapter.order,
-        ...experiencePins.map((p) => experiencePinKey(p)),
-      ].join("|"),
-    [bookSlug, chapter.order, experiencePins],
-  );
-
-  const currentExperienceKeyRef = useRef(experienceRequestKey);
-  currentExperienceKeyRef.current = experienceRequestKey;
-
-  /**
-   * The load, exactly as the last accepted answer left it — TAGGED with the
-   * question and the generation that produced it.
-   *
-   * Nothing reads this directly. Whether it still speaks for the screen is a
-   * separate question, answered below.
-   */
-  const [experienceLoad, setExperienceLoad] = useState<ExperienceStatesLoad>({
-    status: "idle",
-  });
-
-  useEffect(() => {
-    if (surface !== "home") return;
-    const askedFor = experienceRequestKey;
-    const generation = experienceGenerationRef.current;
-    if (experiencePins.length === 0) {
-      // Nothing to ask about is a complete answer, not a pending one.
-      setExperienceLoad({
-        status: "ready",
-        requestKey: askedFor,
-        generation,
-        states: new Map(),
-      });
-      return;
-    }
-    // Accepted only while BOTH still hold: the same question, and no newer
-    // asking since. The key catches a chapter change; the generation catches
-    // two revalidations of the same list answering out of order.
-    const isCurrent = () =>
-      currentExperienceKeyRef.current === askedFor &&
-      experienceGenerationRef.current === generation;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const answer = await guideApi.getExperienceCardStates(experiencePins);
-        if (cancelled || !isCurrent()) return;
-        const states = new Map<string, GuideExperienceCardState>();
-        for (const state of answer.items) {
-          states.set(experiencePinKey(state.guidePin), state);
-        }
-        setExperienceLoad({
-          status: "ready",
-          requestKey: askedFor,
-          generation,
-          states,
-        });
-      } catch {
-        if (cancelled || !isCurrent()) return;
-        // A failed read is NOT a state. It used to fall back to an empty map,
-        // and an empty map read as «Empezar» on every card — so a network
-        // blip offered a fresh start over a journey already in progress. The
-        // honest answer is «no pudimos saberlo», with a way to ask again.
-        setExperienceLoad({
-          status: "error",
-          requestKey: askedFor,
-          generation,
-        });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [surface, experiencePins, experienceRequestKey, experienceGeneration]);
-
-  /**
-   * Does the last answer still speak for what is on screen?
-   *
-   * Derived during render, so the moment the question changes — a new chapter,
-   * a new list of pins, or a new asking — the previous `ready` stops being
-   * authoritative in the SAME render that changed it. No effect has to run
-   * first, and there is no frame in which a superseded verdict is clickable.
-   * An answer that has lapsed reads as `loading`, because that is what is
-   * true: we are asking again.
-   */
-  const experienceAuthority: ExperienceStatesLoad = useMemo(() => {
-    if (experienceLoad.status === "idle") return experienceLoad;
-    if (experienceLoad.status === "loading") return experienceLoad;
-    const current =
-      experienceLoad.requestKey === experienceRequestKey &&
-      experienceLoad.generation === experienceGeneration;
-    return current ? experienceLoad : { status: "loading" };
-  }, [experienceLoad, experienceRequestKey, experienceGeneration]);
-
-  /**
-   * Ask again when the reader comes back to the tab or the window.
-   *
-   * A card's verdict is decided by a session that can change elsewhere: on the
-   * phone, in another tab, or by finishing the journey and returning. A state
-   * read once at mount goes stale silently, and a stale «Empezar» over a
-   * running session is exactly the confusion this endpoint exists to remove.
-   */
-  useEffect(() => {
-    if (surface !== "home") return;
-    const onFocus = () => revalidateExperienceStates();
-    const onVisible = () => {
-      if (document.visibilityState === "visible") revalidateExperienceStates();
-    };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [surface, revalidateExperienceStates]);
 
   /**
    * What the reader ASKED for and what the chapter can actually give them.

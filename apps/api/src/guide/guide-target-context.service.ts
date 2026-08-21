@@ -9,7 +9,7 @@ import {
   type ResolvedUnitContext,
 } from "../learning/learning-catalog.resolver";
 import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
-import { productionGuideRegistry } from "./guide-catalog";
+import { GuideCatalogError, productionGuideRegistry } from "./guide-catalog";
 import { classifyCatalogError, guideFail } from "./guide-errors";
 
 /**
@@ -153,8 +153,14 @@ export class GuideTargetContextService {
     const defs: (GuideDefinition | null)[] = pins.map((p) => {
       try {
         return this.registry.getExact(p.guideKey, p.guideVersion);
-      } catch {
-        return null;
+      } catch (error) {
+        // ONLY "that exact definition does not exist" is an inert pin. A
+        // `TypeError` from a broken registry, a malformed definition, a
+        // duplicate — any of those means the catalog itself is wrong, and
+        // reading them as "unknown pin" would show a chapter's cards as
+        // inapplicable because the BUILD is broken. They propagate.
+        if (isExactDefinitionNotFound(error)) return null;
+        throw error;
       }
     });
     const known = defs.filter((d): d is GuideDefinition => d !== null);
@@ -569,6 +575,20 @@ export type GuideContextFailure =
   | "GUIDE_CONTEXT_UNRESOLVED"
   | "GUIDE_CONTEXT_MISMATCH"
   | "GUIDE_CATALOG_UNKNOWN_DEFINITION";
+
+/**
+ * Is this the ONE error that means "no such exact definition"?
+ *
+ * Matched by class and canonical code. Never by message or regex: a message is
+ * prose, and a predicate that reads prose turns any rewording into a silent
+ * behaviour change.
+ */
+function isExactDefinitionNotFound(error: unknown): boolean {
+  return (
+    error instanceof GuideCatalogError &&
+    error.code === "GUIDE_CATALOG_UNKNOWN_DEFINITION"
+  );
+}
 
 const pinKeyOf = (p: { guideKey: string; guideVersion: number }): string =>
   `${p.guideKey}@${p.guideVersion}`;

@@ -8,6 +8,7 @@ import { backfillContentCore } from "../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
 import { productionGuideRegistry } from "./guide-catalog";
 import type { GuideDefinition } from "@psico/types";
+import type { GuideContextFailure } from "./guide-target-context.service";
 import { GuideTargetContextService } from "./guide-target-context.service";
 import {
   GuideReaderApplicabilityService,
@@ -231,6 +232,17 @@ suite(
     afterAll(async () => {
       if (A) await dropEnv(A);
       if (B) await dropEnv(B);
+    });
+
+    it("the production registry default holds under THIS config too", () => {
+      // The same assertion `guide-registry-boundary.spec.ts` makes under the
+      // unit config. Both matter: the parameter-default version passed there
+      // and arrived `undefined` here, and nothing noticed until a code-level
+      // assertion did.
+      const svc = new GuideTargetContextService({} as never);
+      expect((svc as unknown as { registry: unknown }).registry).toBe(
+        productionGuideRegistry,
+      );
     });
 
     it("both published pins resolve to a unit, in both environments", async () => {
@@ -658,6 +670,21 @@ suite(
         return r!;
       }
 
+      /**
+       * Assert an outcome by its EXACT reason.
+       *
+       * `ok === false` is not a finding — each of these definitions is wrong in
+       * a DIFFERENT way, and a test that only says "it failed" passes when they
+       * all fail for one unrelated reason. That is not hypothetical: four of
+       * these were passing on GUIDE_CATALOG_UNKNOWN_DEFINITION while asserting
+       * nothing about it.
+       */
+      const expectRefusal = (r: unknown, code: GuideContextFailure): void => {
+        const v = r as { ok: boolean; code?: string };
+        expect(v.ok).toBe(false);
+        expect(v.code).toBe(code);
+      };
+
       /** What the SINGLE-pin authority does with the same definition. */
       async function authority(
         def: GuideDefinition,
@@ -723,7 +750,7 @@ suite(
         } catch (e) {
           if (e !== ROLLBACK) throw e;
         }
-        expect((batch as { ok: boolean }).ok).toBe(false);
+        expectRefusal(batch, "GUIDE_CONTEXT_UNRESOLVED");
         expect(single).toBe("THREW");
       });
 
@@ -740,7 +767,7 @@ suite(
             itemKey: ex[0]!.id,
           },
         ]);
-        expect((await outcome(def)).ok).toBe(false);
+        expectRefusal(await outcome(def), "GUIDE_CONTEXT_UNRESOLVED");
         expect(await authority(def)).toBe("THREW");
       });
 
@@ -752,7 +779,7 @@ suite(
         const def = withSteps([
           { kind: "CATALOG_PRACTICE", stepKey: "p", exerciseKey: quiz[0]!.id },
         ]);
-        expect((await outcome(def)).ok).toBe(false);
+        expectRefusal(await outcome(def), "GUIDE_CONTEXT_UNRESOLVED");
         expect(await authority(def)).toBe("THREW");
       });
 
@@ -764,7 +791,7 @@ suite(
             conceptKey: "no-such-concept",
           },
         ]);
-        expect((await outcome(def)).ok).toBe(false);
+        expectRefusal(await outcome(def), "GUIDE_CONTEXT_UNRESOLVED");
         expect(await authority(def)).toBe("THREW");
       });
 
@@ -802,9 +829,7 @@ suite(
             conceptKey: pqpConcept[0]!.conceptKey,
           },
         ]);
-        const r = await outcome(def);
-        expect(r.ok).toBe(false);
-        if (!r.ok) expect(r.code).toBe("GUIDE_CONTEXT_MISMATCH");
+        expectRefusal(await outcome(def), "GUIDE_CONTEXT_MISMATCH");
         expect(await authority(def)).toBe("THREW");
       });
 
@@ -858,7 +883,7 @@ suite(
         } catch (e) {
           if (e !== ROLLBACK) throw e;
         }
-        expect((batch as { ok: boolean }).ok).toBe(false);
+        expectRefusal(batch, "GUIDE_CONTEXT_UNRESOLVED");
         expect(single).toBe("THREW");
       });
 
@@ -894,7 +919,7 @@ suite(
         } catch (e) {
           if (e !== ROLLBACK) throw e;
         }
-        expect((batch as { ok: boolean }).ok).toBe(false);
+        expectRefusal(batch, "GUIDE_CONTEXT_UNRESOLVED");
       });
 
       it("a target in another book is never this reader's, and stays a target", async () => {
@@ -966,9 +991,7 @@ suite(
         const def = withSteps([
           { kind: "EXPLICIT_CONFIRMATION", stepKey: "x", prompt: "¿Seguimos?" },
         ]);
-        const r = await outcome(def);
-        expect(r.ok).toBe(false);
-        if (!r.ok) expect(r.code).toBe("GUIDE_CONTEXT_UNRESOLVED");
+        expectRefusal(await outcome(def), "GUIDE_CONTEXT_UNRESOLVED");
         expect(await authority(def)).toBe("THREW");
       });
     });

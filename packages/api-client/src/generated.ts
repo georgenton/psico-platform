@@ -13306,6 +13306,14 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** @description Dónde está el lector. Obligatorio para todo cliente C.3R; su ausencia solo se tolera durante la ventana de despliegue y se responde SIN veredicto. */
+                    reader?: {
+                        bookSlug: string;
+                        /** @description Navegación, no identidad: se contrasta con la del capítulo real y nunca elige la unidad. */
+                        chapterOrder: number;
+                        /** @description Localizador local del entorno. NO es una identidad portable: la misma obra ingerida dos veces produce claves distintas. */
+                        unitKey: string;
+                    };
                     /** @description Pines publicados, uno por tarjeta. El orden se conserva y un pin repetido recibe la misma respuesta repetida: dos experiencias ligadas a la misma guía comparten linaje de verdad. */
                     pins: {
                         guideKey: string;
@@ -13321,7 +13329,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        items: {
+                        items: ({
                             guidePin: {
                                 guideKey: string;
                                 guideVersion: number;
@@ -13330,13 +13338,38 @@ export interface operations {
                              * @description CONTINUE si hay una sesión ACTIVE del mismo guideKey, sea cual sea su versión; COMPLETED solo si el pin EXACTO está completado; START en cualquier otro caso.
                              * @enum {string}
                              */
-                            status: PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsStatus;
+                            status: PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsOneOf0Status;
                             /** @description El pin que debe ejecutarse al pulsar: el de la sesión abierta cuando la hay, el publicado en caso contrario. */
                             resumePin: {
                                 guideKey: string;
                                 guideVersion: number;
                             };
-                        }[];
+                            /**
+                             * @description C.3R — si esta guía es sobre la unidad en la que está el lector, resuelto EN EL SERVIDOR comparando identidades. El cliente no recibe ningún identificador para recalcularlo.
+                             * @enum {string}
+                             */
+                            applicability: PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsOneOf0Applicability;
+                            /** @description El pin sobre el que se emitió el veredicto: el reanudable cuando hay linaje abierto, el publicado en caso contrario. */
+                            evaluatedPin: {
+                                guideKey: string;
+                                guideVersion: number;
+                            };
+                        } | {
+                            guidePin: {
+                                guideKey: string;
+                                guideVersion: number;
+                            };
+                            /**
+                             * @description CONTINUE si hay una sesión ACTIVE del mismo guideKey, sea cual sea su versión; COMPLETED solo si el pin EXACTO está completado; START en cualquier otro caso.
+                             * @enum {string}
+                             */
+                            status: PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsOneOf1Status;
+                            /** @description El pin que debe ejecutarse al pulsar: el de la sesión abierta cuando la hay, el publicado en caso contrario. */
+                            resumePin: {
+                                guideKey: string;
+                                guideVersion: number;
+                            };
+                        })[];
                     };
                 };
             };
@@ -18991,7 +19024,16 @@ export enum PathsApiGuideSessionsStateGetResponses200ContentApplicationJsonOneOf
     CORRECT = "CORRECT",
     REVIEW = "REVIEW"
 }
-export enum PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsStatus {
+export enum PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsOneOf0Status {
+    START = "START",
+    CONTINUE = "CONTINUE",
+    COMPLETED = "COMPLETED"
+}
+export enum PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsOneOf0Applicability {
+    APPLIES = "APPLIES",
+    UNAVAILABLE = "UNAVAILABLE"
+}
+export enum PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsOneOf1Status {
     START = "START",
     CONTINUE = "CONTINUE",
     COMPLETED = "COMPLETED"

@@ -163,7 +163,24 @@ export function experienceCardView(
           ? "start"
           : null;
   if (verdict === null) return unknown;
-  return { verdict, runnable: canRun(state.resumePin) };
+  // C.3R — TWO facts, and the card needs both to be true before it opens.
+  //
+  //   1. does this guide belong to the unit the reader is on? Answered by the
+  //      SERVER, which compares editorial identities it can see; the browser
+  //      used to answer it by comparing chapter NUMBERS, which is how an
+  //      editorial reorder moved a guide onto the wrong chapter (#639);
+  //   2. can this build run it here? Ours: does the bundle ship, and is the
+  //      passage locatable in the blocks actually served.
+  //
+  // Kept apart on purpose. Neither rewrites the VERDICT WORD: an experience
+  // that does not belong here is still «En curso» if a run is open, because
+  // that run exists whatever this screen can do about it.
+  //
+  // A missing `applicability` is the rolling deploy window (an older server
+  // that answered without one). Fail closed: not runnable, since the alternative
+  // is opening a journey nobody said belongs here.
+  const applies = state.applicability === "APPLIES";
+  return { verdict, runnable: applies && canRun(state.resumePin) };
 }
 
 function minutesLabel(minutes: number | undefined): string | null {

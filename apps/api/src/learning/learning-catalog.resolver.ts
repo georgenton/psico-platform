@@ -159,6 +159,19 @@ export type LearningCatalogDb = Pick<
 export class LearningCatalogResolver {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * The client a caller's query should run on: the caller's transaction when
+   * there is one, this resolver's own otherwise.
+   *
+   * Public because the batch path in `GuideTargetContextService` issues its own
+   * queries and must observe the SAME snapshot — reaching into a private field
+   * to get it would be the kind of shortcut that quietly reads outside the
+   * transaction the day someone forgets to pass `db`.
+   */
+  catalogClient(db?: LearningCatalogDb): LearningCatalogDb {
+    return db ?? (this.prisma as unknown as LearningCatalogDb);
+  }
+
   /** `unitKey → ContentUnit → published RevisionUnit → Edition → Book`. */
   async resolveUnit(
     unitKey: string,

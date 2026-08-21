@@ -112,7 +112,18 @@ const FOREIGN_EXPERIENCE: ChapterExperiencePublicView = {
 const card = (
   pin: { guideKey: string; guideVersion: number },
   status: GuideExperienceCardState["status"] = "START",
-): GuideExperienceCardState => ({ guidePin: pin, status, resumePin: pin });
+  resumePin: { guideKey: string; guideVersion: number } = pin,
+  applicability: GuideExperienceCardState["applicability"] = "APPLIES",
+): GuideExperienceCardState => ({
+  guidePin: pin,
+  status,
+  resumePin,
+  // C.3R — the server's verdict travels with the card. `APPLIES` by default
+  // because these cases are about status, pick and handler guards; the ones
+  // that are about applicability say so explicitly.
+  applicability,
+  evaluatedPin: resumePin,
+});
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

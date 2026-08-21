@@ -98,7 +98,18 @@ const FOREIGN_EXPERIENCE: ChapterExperiencePublicView = {
 const card = (
   pin: { guideKey: string; guideVersion: number },
   status: GuideExperienceCardState["status"] = "START",
-): GuideExperienceCardState => ({ guidePin: pin, status, resumePin: pin });
+  resumePin: { guideKey: string; guideVersion: number } = pin,
+  applicability: GuideExperienceCardState["applicability"] = "APPLIES",
+): GuideExperienceCardState => ({
+  guidePin: pin,
+  status,
+  resumePin,
+  // C.3R — the server's verdict travels with the card. `APPLIES` by default
+  // because these cases are about status, pick and handler guards; the ones
+  // that are about applicability say so explicitly.
+  applicability,
+  evaluatedPin: resumePin,
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -271,7 +282,10 @@ describe("the pin that runs", () => {
       items: [{ ...EEC_EXPERIENCE, guidePin: published }],
     });
     getExperienceCardStates.mockResolvedValue({
-      items: [{ guidePin: published, status: "CONTINUE", resumePin: EEC_PIN }],
+      // Through the builder: the verdict is part of every answer now, and a
+      // hand-written item would disable the card for a reason this case is not
+      // about.
+      items: [card(published, "CONTINUE", EEC_PIN)],
     });
     renderReader();
     await openChapterHome();

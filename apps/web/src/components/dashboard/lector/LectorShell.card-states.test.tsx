@@ -91,7 +91,18 @@ const OTHER_EXPERIENCE: ChapterExperiencePublicView = {
 const card = (
   pin: { guideKey: string; guideVersion: number },
   status: GuideExperienceCardState["status"],
-): GuideExperienceCardState => ({ guidePin: pin, status, resumePin: pin });
+  resumePin: { guideKey: string; guideVersion: number } = pin,
+  applicability: GuideExperienceCardState["applicability"] = "APPLIES",
+): GuideExperienceCardState => ({
+  guidePin: pin,
+  status,
+  resumePin,
+  // C.3R — the server's verdict travels with the card. `APPLIES` by default
+  // because these cases are about status, pick and handler guards; the ones
+  // that are about applicability say so explicitly.
+  applicability,
+  evaluatedPin: resumePin,
+});
 
 /** A deferred promise, so a test decides WHEN a request answers. */
 function deferred<T>() {
@@ -242,10 +253,16 @@ describe("Chapter Home · an unknown card is inert (fail closed)", () => {
     await waitFor(() =>
       expect(getExperienceCardStates).toHaveBeenCalledTimes(1),
     );
-    expect(getExperienceCardStates).toHaveBeenCalledWith([
-      EEC_EXPERIENCE.guidePin,
-      OTHER_EXPERIENCE.guidePin,
-    ]);
+    // C.3R — the context travels WITH the pins, built from the unit that was
+    // actually served rather than from the route.
+    expect(getExperienceCardStates).toHaveBeenCalledWith(
+      [EEC_EXPERIENCE.guidePin, OTHER_EXPERIENCE.guidePin],
+      {
+        bookSlug: GUIDE_READER_ANCHOR.bookSlug,
+        chapterOrder: GUIDE_READER_ANCHOR.chapterOrder,
+        unitKey: `unit-${GUIDE_READER_ANCHOR.chapterOrder}`,
+      },
+    );
 
     // Two questions composing: the server's verdict, and whether this build
     // can act on it. The chapter's own journey is finished; the one this
@@ -555,9 +572,12 @@ describe("Chapter Home · the answer is matched to the question", () => {
     renderReader();
     await openChapterHome();
     await settle();
-    expect(getExperienceCardStates).toHaveBeenCalledWith([
-      EEC_EXPERIENCE.guidePin,
-    ]);
+    expect(getExperienceCardStates).toHaveBeenCalledWith(
+      [EEC_EXPERIENCE.guidePin],
+      expect.objectContaining({
+        unitKey: `unit-${GUIDE_READER_ANCHOR.chapterOrder}`,
+      }),
+    );
 
     // Leave, the catalog retires the journey, come back: a different question.
     fireEvent.click(screen.getByTestId("reader-open-chapter-home"));
@@ -676,7 +696,9 @@ describe("C.1 · a picked journey runs on its OWN pin", () => {
       items: [{ ...EEC_EXPERIENCE, guidePin: published }],
     });
     getExperienceCardStates.mockResolvedValue({
-      items: [{ guidePin: published, status: "CONTINUE", resumePin: EEC_PIN }],
+      // Through the builder, so the verdict is present and this case fails on
+      // the pin it is about rather than on a field it predates.
+      items: [card(published, "CONTINUE", EEC_PIN)],
     });
     renderReader();
     await openChapterHome();

@@ -1,6 +1,21 @@
 /**
- * C.3A (#639) — the two identities this train runs on, and which phase each one
- * is allowed to block.
+ * C.3A → C.3R (#639) — the two identities this train runs on, and which phase
+ * each one is allowed to block.
+ *
+ * ── What C.3R changed, and what it did NOT ──────────────────────────────────
+ *
+ * The reader's anchor is no longer positional. `anchorAppliesTo` is deleted,
+ * and the browser asks the server, which resolves the guide's editorial target
+ * and the reader's unit to internal ids inside one snapshot and compares those.
+ * `READER_ANCHOR_IDENTITY_CLOSED_IN_TREE` records that, measured against the
+ * code rather than believed.
+ *
+ * The merge gate stays SHUT anyway, and the distinction matters: closed in this
+ * tree is not deployed. Production still runs a positional reader until this
+ * branch ships, so consolidating the new authority — C.3C+C.4, where the CMS
+ * gains selection and rebind — would still let an editor bind by identity what
+ * the deployed reader refuses by position. Lowering the flag is a decision
+ * about a deploy, not about a diff, and it is not this module's to take.
  *
  * ── The situation, stated without euphemism ─────────────────────────────────
  *
@@ -51,29 +66,42 @@
 export const EXPERIENCE_IDENTITY_BARRIER = {
   /** How a shipped definition is placed. Resolved, never inferred from a number. */
   CODE_OWNED_BINDING_IDENTITY: "contentUnitId derivado por GuideTargetContext",
-  /** How the public reader still decides whether a guide belongs to a chapter. */
-  PUBLIC_READER_ANCHOR: "bookSlug+chapterOrder todavía posicional",
+  /** How the public reader decides it now: the server compares identities (C.3R). */
+  PUBLIC_READER_ANCHOR: "veredicto del servidor por contentUnitId (C.3R)",
   /** C.3A is additive and exposes no editorial choice, so it may deploy. */
   C3A_DEPLOY_BLOCKED_BY_POSITIONAL_READER: false,
-  /** C.3C+C.4 consolidates the new authority, so it may not merge before this closes. */
+  /** C.3R deleted the positional decision from the reader — in THIS tree. */
+  READER_ANCHOR_IDENTITY_CLOSED_IN_TREE: true,
+  /**
+   * Still shut. Closed in the tree is not deployed: production's reader is
+   * positional until this branch ships, and C.3C+C.4 consolidating the new
+   * authority before then would let an editor bind by identity what the live
+   * reader refuses by position.
+   */
   C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED: true,
 } as const;
 
 /**
- * Where the positional decision actually lives.
+ * Where the reader's anchor module lives.
  *
- * The web reader re-exports `anchorAppliesTo`; the implementation is in
- * `@psico/types`, which is what the ratchet reads. Named as a path rather than
- * imported for the assertion, so that MOVING the file fails the ratchet instead
- * of silently satisfying it — someone then has to decide what the move meant.
+ * It used to hold the positional decision; after C.3R it holds only "where in
+ * these blocks is the passage". Named as a path rather than imported for the
+ * assertion, so that MOVING the file fails the ratchet instead of silently
+ * satisfying it — someone then has to decide what the move meant.
  */
 export const PUBLIC_READER_ANCHOR_SOURCE = "packages/types/src/guide-anchor.ts";
 
-/** The web surface that consumes it, and therefore inherits the gate. */
+/** The web surface that consumes it — and that must consume no positional gate. */
 export const PUBLIC_READER_ANCHOR_CONSUMER =
   "apps/web/src/components/dashboard/guide/guide-anchor.ts";
 
-/** The one task that closes the barrier. Prose belongs in the ROADMAP; this is the gate. */
+/**
+ * The task that closed the identity question, and the one that is left.
+ *
+ * The first is done in this tree (C.3R). The second is a DEPLOY, which is why
+ * the merge flag above is still true.
+ */
 export const READER_ANCHOR_IDENTITY_TASK =
-  "Dar al lector un ancla por identidad (contentUnitId) además del par posicional, " +
-  "y hacer que anchorAppliesTo resuelva por identidad cuando exista.";
+  "Hecho en árbol (C.3R): el lector pregunta al servidor, que compara " +
+  "contentUnitId resuelto desde los targets contra la unidad del lector; " +
+  "anchorAppliesTo fue eliminado. Falta desplegarlo antes de bajar la barrera.";

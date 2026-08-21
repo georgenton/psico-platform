@@ -3,11 +3,12 @@ import type {
   CompleteGuideSessionRequestBody,
   CompleteGuideSessionStepRequestBody,
   GuideAvailabilityResponse,
-  GuideDiscoveryResponse,
   GuideCommandResponse,
+  GuideDiscoveryResponse,
   GuideExperienceCardState,
   GuideExperienceCardStatesResponse,
   GuideExperienceStateResponse,
+  GuideReaderContext,
   RecoverableGuideSessionResponse,
   StartGuideSessionRequestBody,
   SubmitGuideStepRecallRequestBody,
@@ -43,6 +44,16 @@ export const GUIDE_CARD_STATES_MAX_VERSION = 999_999_999;
  * shape `parseGuideRecoveryQuery` enforces on the server.
  */
 const GUIDE_KEY_RE = /^[a-z0-9][a-z0-9._:-]{0,199}$/;
+/**
+ * C.3R — the reader locator, bounded by SHAPE.
+ *
+ * A `unitKey` is a uuidv5 in this build, but it is an environment-local token
+ * the server re-resolves, so pinning a uuid grammar here would refuse a future
+ * ingest for no safety gain. Mirrors the server parser character for
+ * character; a ratchet compares them.
+ */
+const GUIDE_UNIT_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/;
+export const GUIDE_CARD_STATES_MAX_CHAPTER_ORDER = 10_000;
 
 /**
  * The SAME canonical grammar the server applies to the path segment: trim,
@@ -110,11 +121,22 @@ function validateCardStatesAnswer(
   (items as unknown[]).forEach((raw, i) => {
     if (!isPlainObject(raw)) bad();
     const item = raw as Record<string, unknown>;
-    if (!onlyKeys(item, ["guidePin", "status", "resumePin"])) bad();
+    if (
+      !onlyKeys(item, [
+        "guidePin",
+        "status",
+        "resumePin",
+        "applicability",
+        "evaluatedPin",
+      ])
+    ) {
+      bad();
+    }
 
     const guidePin = readPin(item.guidePin);
     const resumePin = readPin(item.resumePin);
-    if (!guidePin || !resumePin) bad();
+    const evaluatedPin = readPin(item.evaluatedPin);
+    if (!guidePin || !resumePin || !evaluatedPin) bad();
 
     const question = asked[i]!;
     if (
@@ -138,10 +160,27 @@ function validateCardStatesAnswer(
       bad();
     }
 
+    const applicability = item.applicability;
+    // A verdict this client does not understand is NOT a verdict. Coercing an
+    // unknown word to "UNAVAILABLE" would hide a real answer, and to "APPLIES"
+    // would invent one; both are worse than refusing the chunk.
+    if (applicability !== "APPLIES" && applicability !== "UNAVAILABLE") bad();
+    // The verdict is about the pin that would actually run. When a lineage is
+    // open that is the resume pin, and the server says so by echoing it here;
+    // anything else means the answer describes a different question.
+    if (
+      evaluatedPin!.guideKey !== resumePin!.guideKey ||
+      evaluatedPin!.guideVersion !== resumePin!.guideVersion
+    ) {
+      bad();
+    }
+
     validated.push({
       guidePin: guidePin!,
       status: status as GuideExperienceCardState["status"],
       resumePin: resumePin!,
+      applicability: applicability as GuideExperienceCardState["applicability"],
+      evaluatedPin: evaluatedPin!,
     });
   });
   return validated;
@@ -267,7 +306,31 @@ export const guideApi = {
    */
   getExperienceCardStates: async (
     pins: ReadonlyArray<{ guideKey: string; guideVersion: number }>,
+    reader: GuideReaderContext,
   ): Promise<GuideExperienceCardStatesResponse> => {
+    // The reader is validated with the same severity as the pins: a malformed
+    // context would come back as a stale-context refusal for the whole
+    // chapter, and spending a round trip to learn that is worse than saying so
+    // here.
+    if (
+      !isPlainObject(reader) ||
+      !onlyKeys(reader as unknown as Record<string, unknown>, [
+        "bookSlug",
+        "chapterOrder",
+        "unitKey",
+      ]) ||
+      typeof reader.bookSlug !== "string" ||
+      !GUIDE_KEY_RE.test(reader.bookSlug) ||
+      typeof reader.unitKey !== "string" ||
+      !GUIDE_UNIT_KEY_RE.test(reader.unitKey) ||
+      typeof reader.chapterOrder !== "number" ||
+      !Number.isInteger(reader.chapterOrder) ||
+      reader.chapterOrder <= 0 ||
+      reader.chapterOrder > GUIDE_CARD_STATES_MAX_CHAPTER_ORDER
+    ) {
+      throw new Error(GUIDE_CARD_STATES_PARAMS_INVALID);
+    }
+
     const invalid =
       pins.length === 0 ||
       pins.some(
@@ -303,11 +366,20 @@ export const guideApi = {
     // failed chunk rejects the whole call and the caller shows an error — and
     // each chunk is VALIDATED before any of them is combined, so a malformed
     // second chunk cannot publish a well-formed first one.
+    // Copied per chunk for the same reason `pins` is: every chunk states the
+    // context it was answered under, and no chunk can be answered under a
+    // context the caller changed after it was sent.
+    const sentReader = {
+      bookSlug: reader.bookSlug,
+      chapterOrder: reader.chapterOrder,
+      unitKey: reader.unitKey,
+    };
     const answers = await Promise.all(
       chunks.map(async (chunk) =>
         validateCardStatesAnswer(
           await apiClient.post<unknown>("/guide/experiences/state", {
             pins: chunk,
+            reader: sentReader,
           }),
           chunk,
         ),

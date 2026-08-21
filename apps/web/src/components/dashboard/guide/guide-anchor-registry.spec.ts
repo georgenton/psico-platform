@@ -1,9 +1,9 @@
+import * as anchorModule from "./guide-anchor";
 import { describe, expect, it } from "vitest";
 import {
   GUIDE_READER_ANCHOR,
   GuideAnchorRegistry,
   PAREJAS_READER_ANCHOR,
-  anchorAppliesTo,
   guideAnchorRegistry,
   resolveGuideAnchor,
   type AnchorCandidateBlock,
@@ -157,19 +157,22 @@ describe("the Parejas locator", () => {
     ).toBe("UNRESOLVED");
   });
 
-  it("applies only to its own book and chapter", () => {
+  it("offers NO way to decide applicability from a position", () => {
+    // C.3R — `anchorAppliesTo(bookSlug, chapterOrder, locator)` used to answer
+    // "is this anchor's screen the one we are on?" by comparing NUMBERS, which
+    // is how a reordered chapter took a guide with it. It is deleted, not
+    // deprecated: a positional fallback that still worked would keep giving a
+    // confident wrong answer, and a server verdict is no defence if the
+    // browser can decide without it.
+    const anchors = anchorModule as Record<string, unknown>;
+    expect(anchors.anchorAppliesTo).toBeUndefined();
+    expect(Object.keys(anchors)).not.toContain("anchorAppliesTo");
+    // What remains answers a different question — WHERE the passage is in the
+    // blocks served — and it still refuses another book's chapter, because the
+    // text simply is not there.
     expect(
-      anchorAppliesTo("parejas-que-perduran", 2, PAREJAS_READER_ANCHOR),
-    ).toBe(true);
-    // The preface (order 1) and any later chapter are not this anchor's screen.
-    expect(
-      anchorAppliesTo("parejas-que-perduran", 1, PAREJAS_READER_ANCHOR),
-    ).toBe(false);
-    expect(
-      anchorAppliesTo("parejas-que-perduran", 3, PAREJAS_READER_ANCHOR),
-    ).toBe(false);
-    expect(
-      anchorAppliesTo("emociones-en-construccion", 2, PAREJAS_READER_ANCHOR),
-    ).toBe(false);
+      resolveGuideAnchor(chapterFor(GUIDE_READER_ANCHOR), PAREJAS_READER_ANCHOR)
+        .status,
+    ).toBe("UNRESOLVED");
   });
 });

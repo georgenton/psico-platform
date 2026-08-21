@@ -4,14 +4,24 @@ import { describe, expect, it } from "vitest";
 
 import {
   GUIDE_CARD_STATES_KEY_PATTERN,
+  GUIDE_CARD_STATES_MAX_CHAPTER_ORDER,
   GUIDE_CARD_STATES_MAX_PINS,
   GUIDE_CARD_STATES_MAX_VERSION,
+  GUIDE_CARD_STATES_UNIT_KEY_PATTERN,
   parseGuideCardStatesBody,
 } from "./guide-card-states-params";
 import {
   GUIDE_CARD_STATES_BODY,
   GUIDE_CARD_STATES_RESPONSE,
+  GUIDE_CARD_STATES_RESPONSE_ITEM,
 } from "./dto/guide.openapi";
+
+/** The C.3R arm of the answer — the one this client ever receives. */
+const responseItem = () =>
+  GUIDE_CARD_STATES_RESPONSE_ITEM as unknown as {
+    required: string[];
+    properties: Record<string, Record<string, unknown>>;
+  };
 
 /**
  * C.1 — the batch contract has THREE statements of the same rules, and this is
@@ -78,21 +88,148 @@ describe("ratchet · parser ↔ OpenAPI", () => {
   });
 
   it("documents the answer the service actually returns — no session", () => {
-    const item = (
-      GUIDE_CARD_STATES_RESPONSE.properties?.items as {
-        items: Record<string, any>;
-      }
-    ).items;
-    expect(item.required.sort()).toEqual(["guidePin", "resumePin", "status"]);
-    expect(Object.keys(item.properties).sort()).toEqual([
+    const item = responseItem();
+    // C.3R adds the verdict and the pin it was passed on; nothing else.
+    const closed = [
+      "applicability",
+      "evaluatedPin",
       "guidePin",
       "resumePin",
       "status",
-    ]);
+    ];
+    expect(item.required.slice().sort()).toEqual(closed);
+    expect(Object.keys(item.properties).sort()).toEqual(closed);
     // The field the review removed must not come back through the document.
     expect(JSON.stringify(GUIDE_CARD_STATES_RESPONSE)).not.toMatch(
       /"session"|sessionId|stepsCompleted/,
     );
+  });
+});
+
+/**
+ * C.3R — the reader context and the verdict, across the same three surfaces.
+ *
+ * This is the pair that matters most for #639: the client sends a context it
+ * cannot verify and receives a verdict it cannot recompute, so the only thing
+ * keeping the two ends honest is that all three statements of the shape agree.
+ */
+describe("ratchet · reader context and verdict", () => {
+  const reader = () =>
+    GUIDE_CARD_STATES_BODY.properties?.reader as {
+      type: string;
+      additionalProperties: boolean;
+      required: string[];
+      properties: Record<string, Record<string, unknown>>;
+    };
+
+  it("publishes the reader, optional for ONE window and never omitted", () => {
+    // Optional on paper: a browser built before C.3R does not know the field
+    // exists, and refusing it would break the deploy window for no gain — it
+    // is answered without a verdict, which is the shape it already renders.
+    expect(GUIDE_CARD_STATES_BODY.required).toEqual(["pins"]);
+    expect(GUIDE_CARD_STATES_BODY.properties?.reader).toBeDefined();
+    // Required in practice: this client always sends it, and the ratchet
+    // below fails if the call ever stops.
+    expect(client()).toMatch(/reader: sentReader/);
+    expect(client()).toMatch(/reader: GuideReaderContext/);
+  });
+
+  it("publishes the parser's reader grammar, character for character", () => {
+    const r = reader();
+    expect(r.additionalProperties).toBe(false);
+    expect(r.required.slice().sort()).toEqual([
+      "bookSlug",
+      "chapterOrder",
+      "unitKey",
+    ]);
+    expect(r.properties.bookSlug!.pattern).toBe(GUIDE_CARD_STATES_KEY_PATTERN);
+    expect(r.properties.unitKey!.pattern).toBe(
+      GUIDE_CARD_STATES_UNIT_KEY_PATTERN,
+    );
+    expect(r.properties.chapterOrder!.minimum).toBe(1);
+    expect(r.properties.chapterOrder!.maximum).toBe(
+      GUIDE_CARD_STATES_MAX_CHAPTER_ORDER,
+    );
+  });
+
+  it("never lets a client name an internal id, in either direction", () => {
+    const document = JSON.stringify({
+      body: GUIDE_CARD_STATES_BODY,
+      response: GUIDE_CARD_STATES_RESPONSE,
+    });
+    // `contentUnitId` is the server's own identifier for the unit. A contract
+    // that accepted it would let a caller name someone else's unit; one that
+    // returned it would let the browser go back to deciding applicability.
+    expect(document).not.toContain("contentUnitId");
+    expect(document).not.toContain("revisionId");
+    expect(document).not.toContain("editionId");
+  });
+
+  it("publishes the verdict as a CLOSED pair of words", () => {
+    const item = responseItem();
+    expect(item.required.slice().sort()).toEqual([
+      "applicability",
+      "evaluatedPin",
+      "guidePin",
+      "resumePin",
+      "status",
+    ]);
+    expect(item.properties.applicability!.enum).toEqual([
+      "APPLIES",
+      "UNAVAILABLE",
+    ]);
+    // The client refuses any word outside that pair, and refuses to guess one.
+    for (const word of ["APPLIES", "UNAVAILABLE"]) {
+      expect(client()).toContain(`"${word}"`);
+    }
+    expect(client()).toContain('applicability !== "APPLIES"');
+  });
+
+  it("the client bounds the reader exactly as the parser does", () => {
+    expect(clientNumber("GUIDE_CARD_STATES_MAX_CHAPTER_ORDER")).toBe(
+      GUIDE_CARD_STATES_MAX_CHAPTER_ORDER,
+    );
+    // The unit-key grammar is a literal regex in the client; compare the
+    // SOURCE, not a description of it.
+    const match = client().match(/const GUIDE_UNIT_KEY_RE = \/(.+?)\/;/);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe(GUIDE_CARD_STATES_UNIT_KEY_PATTERN);
+  });
+
+  it("the parser refuses what the client refuses — same cases", () => {
+    const pins = [{ guideKey: "guia-1", guideVersion: 1 }];
+    const bad: unknown[] = [
+      undefined,
+      "libro",
+      [],
+      { bookSlug: "libro", chapterOrder: 1 },
+      { bookSlug: "Libro", chapterOrder: 1, unitKey: "uk" },
+      { bookSlug: "libro", chapterOrder: 0, unitKey: "uk" },
+      { bookSlug: "libro", chapterOrder: 1.5, unitKey: "uk" },
+      {
+        bookSlug: "libro",
+        chapterOrder: GUIDE_CARD_STATES_MAX_CHAPTER_ORDER + 1,
+        unitKey: "uk",
+      },
+      { bookSlug: "libro", chapterOrder: 1, unitKey: "no válido" },
+      { bookSlug: "libro", chapterOrder: 1, unitKey: "" },
+      {
+        bookSlug: "libro",
+        chapterOrder: 1,
+        unitKey: "uk",
+        contentUnitId: "cu_1",
+      },
+    ];
+    for (const reader of bad) {
+      expect(() => parseGuideCardStatesBody({ pins, reader })).toThrow();
+    }
+    // …and accepts the one shape both ends call well-formed.
+    expect(() =>
+      parseGuideCardStatesBody({
+        pins,
+        reader: { bookSlug: "libro", chapterOrder: 1, unitKey: "uk-1" },
+      }),
+    ).not.toThrow();
   });
 });
 
@@ -126,8 +263,11 @@ describe("ratchet · parser ↔ client", () => {
       { guideKey: "eec", guideVersion: 1.5 },
       { guideKey: "eec", guideVersion: GUIDE_CARD_STATES_MAX_VERSION + 1 },
     ];
+    // A well-formed context, so each case below fails for the PIN under test
+    // and not for a reader it forgot to send.
+    const reader = { bookSlug: "libro", chapterOrder: 1, unitKey: "uk-1" };
     for (const pin of bad) {
-      expect(() => parseGuideCardStatesBody({ pins: [pin] })).toThrow();
+      expect(() => parseGuideCardStatesBody({ pins: [pin], reader })).toThrow();
     }
     // And accepts the boundary both sides call valid.
     expect(
@@ -135,6 +275,7 @@ describe("ratchet · parser ↔ client", () => {
         pins: [
           { guideKey: "eec", guideVersion: GUIDE_CARD_STATES_MAX_VERSION },
         ],
+        reader,
       }).pins,
     ).toHaveLength(1);
   });
@@ -165,11 +306,20 @@ describe("ratchet · parser ↔ client", () => {
     expect(body).toMatch(
       /onlyKeys\(answer as Record<string, unknown>, \["items"\]\)/,
     );
-    expect(body).toMatch(
-      /onlyKeys\(item, \["guidePin", "status", "resumePin"\]\)/,
-    );
+    for (const field of [
+      "guidePin",
+      "status",
+      "resumePin",
+      "applicability",
+      "evaluatedPin",
+    ]) {
+      expect(body).toMatch(
+        new RegExp(`onlyKeys\\(item, \\[[\\s\\S]*?"${field}"`),
+      );
+    }
     expect(body).toMatch(/readPin\(item\.guidePin\)/);
     expect(body).toMatch(/readPin\(item\.resumePin\)/);
+    expect(body).toMatch(/readPin\(item\.evaluatedPin\)/);
     // Positional alignment against the question actually asked.
     expect(body).toMatch(/guidePin!\.guideKey !== question\.guideKey/);
     // And the resumePin rules, which are semantics rather than shape.
@@ -182,12 +332,8 @@ describe("ratchet · parser ↔ client", () => {
   });
 
   it("agrees with OpenAPI on the three words a status may be", () => {
-    const item = (
-      GUIDE_CARD_STATES_RESPONSE.properties?.items as {
-        items: Record<string, any>;
-      }
-    ).items;
-    const published: string[] = item.properties.status.enum;
+    const item = responseItem();
+    const published = item.properties.status!.enum as string[];
     const inClient = [...client().matchAll(/status !== "([A-Z]+)"/g)].map(
       (m) => m[1]!,
     );
@@ -203,14 +349,33 @@ describe("ratchet · parser ↔ client", () => {
   });
 
   it("publishes the response as CLOSED, pins included", () => {
-    const item = (
+    // BOTH arms of the window, not just the one this client receives: a legacy
+    // arm left open would be a hole in the same endpoint's contract.
+    const arms = (
       GUIDE_CARD_STATES_RESPONSE.properties?.items as {
-        items: Record<string, any>;
+        items: { oneOf: Record<string, any>[] };
       }
-    ).items;
-    expect(item.additionalProperties).toBe(false);
-    for (const key of ["guidePin", "resumePin"]) {
-      const pin = item.properties[key];
+    ).items.oneOf;
+    expect(arms).toHaveLength(2);
+    for (const arm of arms) expect(arm.additionalProperties).toBe(false);
+    // The legacy arm carries the three core fields and NOTHING of C.3R: an
+    // answer without a verdict must not pretend to have one.
+    const legacy = arms[1]!;
+    expect(legacy.required.slice().sort()).toEqual([
+      "guidePin",
+      "resumePin",
+      "status",
+    ]);
+    expect(Object.keys(legacy.properties).sort()).toEqual([
+      "guidePin",
+      "resumePin",
+      "status",
+    ]);
+
+    const item = responseItem();
+    expect(item.additionalProperties as unknown).toBe(false);
+    for (const key of ["guidePin", "resumePin", "evaluatedPin"]) {
+      const pin = item.properties[key] as Record<string, any>;
       expect(pin.additionalProperties).toBe(false);
       expect(pin.required.slice().sort()).toEqual(["guideKey", "guideVersion"]);
       expect(pin.properties.guideKey.pattern).toBe(

@@ -1,10 +1,10 @@
+import * as anchorModule from "./guide-anchor";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
   GUIDE_READER_ANCHOR,
-  anchorAppliesTo,
   resolveGuideAnchor,
   type AnchorCandidateBlock,
 } from "./guide-anchor";
@@ -131,10 +131,15 @@ describe("resolveGuideAnchor", () => {
     expect(resolveGuideAnchor(noVersion).status).toBe("UNRESOLVED");
   });
 
-  it("only applies to the chapter the anchor belongs to", () => {
-    expect(anchorAppliesTo("emociones-en-construccion", 1)).toBe(true);
-    expect(anchorAppliesTo("emociones-en-construccion", 2)).toBe(false);
-    expect(anchorAppliesTo("familias-ensambladas", 1)).toBe(false);
+  it("exports no positional applicability decision at all", () => {
+    // C.3R — the browser no longer decides which chapter a guide belongs to.
+    // The server does, by comparing editorial identities it can see; this
+    // module keeps only "where in these blocks is the passage".
+    const anchors = anchorModule as Record<string, unknown>;
+    expect(anchors.anchorAppliesTo).toBeUndefined();
+    for (const key of Object.keys(anchors)) {
+      expect(key.toLowerCase()).not.toContain("appliesto");
+    }
   });
 
   it("hardcodes NO block key — the identity is per environment", () => {

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type {
   ChapterExperienceDefinition,
   ChapterExperiencePublicView,
+  SelectableGuideOption,
 } from "@psico/types";
 
 import { serverFetch } from "@/lib/api.server";
@@ -57,6 +58,70 @@ export async function createDraftAction(
   );
   revalidatePath(chapterPath(definition.bookSlug, definition.chapterOrder));
   return created;
+}
+
+/**
+ * C.4 — the guides this chapter may bind, with availability from the SERVER.
+ *
+ * Not filtered in the browser. A list narrowed here would be a suggestion the
+ * server has to re-derive anyway, and the two could disagree for exactly as
+ * long as it takes a colleague to reserve the same guide.
+ */
+export async function listSelectableGuidesAction(
+  bookSlug: string,
+  chapterOrder: number,
+  experienceKey: string | null,
+): Promise<SelectableGuideOption[]> {
+  const query = new URLSearchParams({
+    bookSlug,
+    chapterOrder: String(chapterOrder),
+  });
+  if (experienceKey) query.set("experienceKey", experienceKey);
+  return serverFetch<SelectableGuideOption[]>(
+    `/pulso/experiences/guides?${query.toString()}`,
+  );
+}
+
+/** C.4 — move a draft to another guide. Refused once anything was published. */
+export async function rebindDraftAction(
+  bookSlug: string,
+  chapterOrder: number,
+  id: string,
+  guidePin: { guideKey: string; guideVersion: number },
+  expectedContentUnitId?: string | null,
+): Promise<{ id: string }> {
+  const result = await serverFetch<{ id: string }>(
+    `/pulso/experiences/drafts/${encodeURIComponent(id)}/binding`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ guidePin, ...hint(expectedContentUnitId) }),
+    },
+  );
+  revalidatePath(chapterPath(bookSlug, chapterOrder));
+  // The draft editor renders the binding, so its own route has to be
+  // invalidated too — otherwise the card keeps showing the guide it just left.
+  revalidatePath(`${chapterPath(bookSlug, chapterOrder)}/borrador/${id}`);
+  return result;
+}
+
+/**
+ * C.4 — archive a draft: terminal, and not a delete.
+ *
+ * The row stays, its version number is never reused, and its definition keeps
+ * the guide it was bound to. What the chapter gets back is the guide itself.
+ */
+export async function archiveDraftAction(
+  bookSlug: string,
+  chapterOrder: number,
+  id: string,
+  expectedContentUnitId?: string | null,
+): Promise<{ id: string }> {
+  const result = await serverFetch<{ id: string }>(
+    `/pulso/experiences/drafts/${encodeURIComponent(id)}/archive`,
+    { method: "POST", body: JSON.stringify(hint(expectedContentUnitId)) },
+  );
+  revalidatePath(chapterPath(bookSlug, chapterOrder));
+  return result;
 }
 
 /** Clone a published version — database or code-owned — forward as a draft. */

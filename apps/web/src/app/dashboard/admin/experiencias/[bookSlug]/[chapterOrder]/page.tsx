@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import type {
   AdminChapterExperiences,
   ChapterMediaManifestResponse,
+  SelectableGuideOption,
 } from "@psico/types";
 
 import { getSessionUser, isNextThrow, serverFetch } from "@/lib/api.server";
@@ -35,18 +36,37 @@ export default async function AdminChapterExperiencesPage({
 
   let admin: AdminChapterExperiences | null = null;
   let media: ChapterMediaManifestResponse | null = null;
+  /**
+   * C.4 — read the guide options HERE, not only inside the form.
+   *
+   * Without them the page can only offer «Nueva experiencia» and discover
+   * afterwards that every guide this chapter has is already spoken for — which
+   * with the current catalog is a real state, not a hypothetical: a chapter can
+   * have exactly one guide and a definition the build ships already holding it.
+   * A button that opens a form in which nothing can be chosen is a promise the
+   * page had no business making.
+   */
+  let guides: SelectableGuideOption[] = [];
   try {
-    [admin, media] = await Promise.all([
+    [admin, media, guides] = await Promise.all([
       serverFetch<AdminChapterExperiences>(
         `/pulso/experiences?bookSlug=${encodeURIComponent(params.bookSlug)}&chapterOrder=${chapterOrder}`,
       ),
       serverFetch<ChapterMediaManifestResponse>(
         `/lector/${encodeURIComponent(params.bookSlug)}/${chapterOrder}/media`,
       ).catch(() => null),
+      serverFetch<SelectableGuideOption[]>(
+        `/pulso/experiences/guides?bookSlug=${encodeURIComponent(params.bookSlug)}&chapterOrder=${chapterOrder}`,
+        // A failure here must not blank the page: the form asks again anyway,
+        // and an empty list only ever makes the offer MORE conservative.
+      ).catch(() => []),
     ]);
   } catch (err) {
     if (isNextThrow(err)) throw err;
   }
+  const bindableGuides = guides.filter(
+    (g) => g.availability !== "RESERVED_BY_ANOTHER_EXPERIENCE",
+  ).length;
 
   const experiences = admin?.experiences ?? [];
   const published = experiences.filter((e) => e.status === "PUBLISHED");
@@ -124,12 +144,14 @@ export default async function AdminChapterExperiencesPage({
           >
             Experiencias
           </h2>
+          {/* C.4 — the button no longer decides availability. Which guides are
+              free is the selector's question, answered by the server, and a
+              chapter may hold as many experiences as it has guides. */}
           <NewExperienceButton
             bookSlug={params.bookSlug}
             chapterOrder={chapterOrder}
-            guideAvailable={admin?.guidePin != null}
-            lineageExists={experiences.length > 0}
             contentUnitId={admin?.contentUnitId ?? null}
+            bindableGuides={bindableGuides}
           />
         </div>
 

@@ -2695,15 +2695,18 @@ model ChapterExperienceVersion {
   updatedAt         DateTime                @updatedAt
   publishedAt       DateTime?
 
-  /// C.3A — the STABLE chapter this version belongs to.
+  /// C.3A/C.3C — the STABLE chapter this version belongs to.
   ///
   /// `(bookSlug, chapterOrder)` above is a locator: `chapterOrder` is placement
   /// and placement moves (ADR 0022 §10). This is identity, resolved server-side
-  /// from the manifest and never taken from a browser. Nullable through the
-  /// bridge because rows written by the previous binary have none, and because
-  /// ARCHIVED will later keep it — identity survives archiving; the binding
-  /// does not.
-  contentUnitId     String?
+  /// from the manifest and never taken from a browser.
+  ///
+  /// NOT NULL as of the cutover. It was nullable through the bridge because the
+  /// previous binary wrote rows without it; the C.3B backfill filled them, and
+  /// the migration that adds this constraint FAILS if any is left — which is
+  /// the gate, not an accident. ARCHIVED keeps it: identity survives archiving,
+  /// the binding does not.
+  contentUnitId     String
   /// C.3A — the reserved guide LINEAGE, promoted out of `definitionJson`.
   ///
   /// A constraint cannot be built on a value buried in JSON, so the lineage
@@ -2730,9 +2733,11 @@ model ChapterExperienceVersion {
   /// released while a version still depends on it — "archive releases" becomes
   /// a fact the database keeps rather than a promise the service makes.
   ///
-  /// MATCH SIMPLE (the default): with either column null the constraint is not
-  /// evaluated, which is exactly what makes a bridge row and an archived row
-  /// legal without weakening the rule for rows that do reserve.
+  /// MATCH SIMPLE (the default): with `guideKey` null the constraint is not
+  /// evaluated, which is exactly what makes an archived row legal without
+  /// weakening the rule for rows that do reserve. It is also why the direct
+  /// relation to `ContentUnit` above cannot be folded into this one — that is
+  /// the constraint still standing when this one stops applying.
   reservation ExperienceGuideReservation? @relation(fields: [contentUnitId, experienceKey, guideKey], references: [contentUnitId, experienceKey, guideKey], onDelete: Restrict)
 
   /// The pin is the identity. Two rows can never claim the same version.
@@ -2821,4 +2826,8 @@ enum ChapterMediaEditorialStatus {
 enum ExperienceVersionStatus {
   DRAFT
   PUBLISHED
+  /// C.3C — terminal, and never restorable. The row stays, its version number
+  /// is never reused, and its `contentUnitId` is kept: identity is history.
+  /// What archiving gives back is the guide.
+  ARCHIVED
 }

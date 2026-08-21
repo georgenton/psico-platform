@@ -1,8 +1,11 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { EXPERIENCE_BINDING_SHAPE } from "./experience-binding-schema";
 import {
+  bindingLockKeys,
+  preIdentityLockKeys,
   bridgeBindingLockKeys,
   chapterBindingLockKey,
   globalBindingLockKey,
@@ -57,7 +60,29 @@ const code = (p: string) =>
 
 describe("ratchet · the lock protocol", () => {
   it("names the protocol this binary speaks", () => {
-    expect(EXPERIENCE_BINDING_PROTOCOL).toBe("experience-binding-bridge-v1");
+    expect(EXPERIENCE_BINDING_PROTOCOL).toBe("experience-binding-v2");
+  });
+
+  it("V2 drops the global key and keeps the chapter one", () => {
+    // The same narrowing C.0B3 did to the start lock, for the same reason: the
+    // global key existed so the backfill could exclude every writer, and once
+    // that has run it only serialises unrelated chapters against each other.
+    expect(bindingLockKeys("unit_1")).toEqual([
+      "experience:binding:chapter:unit_1",
+    ]);
+  });
+
+  it("V1's sequence is RETAINED so a mixed fleet can be modelled", () => {
+    // Not dead code: the mixed-fleet spec must model the binary being replaced
+    // with the derivation it actually used, and the chapter key must be
+    // byte-identical in both — that shared key is what makes V1+V2 safe.
+    expect(bridgeBindingLockKeys("unit_1")).toEqual([
+      "experience:binding:global",
+      "experience:binding:chapter:unit_1",
+    ]);
+    expect(bridgeBindingLockKeys("unit_1")[1]).toBe(
+      bindingLockKeys("unit_1")[0],
+    );
   });
 
   it("derives keys byte for byte, so two binaries can share them", () => {
@@ -65,15 +90,6 @@ describe("ratchet · the lock protocol", () => {
     expect(chapterBindingLockKey("unit_1")).toBe(
       "experience:binding:chapter:unit_1",
     );
-  });
-
-  it("the bridge sequence is global THEN chapter", () => {
-    // Order is the deadlock argument. A pair acquiring them the other way round
-    // could build a cycle with a pair acquiring them this way.
-    expect(bridgeBindingLockKeys("unit_1")).toEqual([
-      "experience:binding:global",
-      "experience:binding:chapter:unit_1",
-    ]);
   });
 
   it("the chapter key is derived from the STABLE unit, never from placement", () => {
@@ -224,10 +240,16 @@ describe("ratchet · the backfill's own guarantees", () => {
     // materialised between planning and writing must not be overwritten, and
     // the count check turns "matched nothing" into an abort rather than a
     // silently smaller result.
-    expect(src).toMatch(
-      /id: \{ in: group\.legacyRowIds \},[\s\S]{0,200}contentUnitId: null,[\s\S]{0,40}guideKey: null,/,
-    );
-    expect(src).toMatch(/updated\.count !== group\.legacyRowIds\.length/);
+    // Raw SQL now: this binary's client may be generated from the cutover
+    // schema, where `contentUnitId` is NOT NULL and `contentUnitId: null` is
+    // not a filter it will send. The guard is the point of the statement.
+    // One UPDATE in the whole file, so these three are statements about it.
+    expect([
+      ...src.matchAll(/UPDATE "ChapterExperienceVersion"/g),
+    ]).toHaveLength(1);
+    expect(src).toMatch(/AND "contentUnitId" IS NULL\s*AND "guideKey" IS NULL/);
+    expect(src).toMatch(/id" = ANY\(\$\{group\.legacyRowIds\}::text\[\]\)/);
+    expect(src).toMatch(/updated !== group\.legacyRowIds\.length/);
     // Materialised rows are verified and left alone.
     expect(src).not.toMatch(/materialisedRowIds[\s\S]{0,120}updateMany/);
   });
@@ -512,6 +534,124 @@ describe("ratchet · a stored pin is never recomputed from a number", () => {
   });
 });
 
+describe("ratchet · the rebind is a MOVE, not an acquire", () => {
+  it("never asks `reserveFor` for permission to change its own binding", () => {
+    // The bug this pins. `reserveFor` asserts BOTH halves of the bijection, and
+    // the second half — "this lineage already holds another guide" — is exactly
+    // what a rebind is asking to change. Calling it made the whole operation
+    // unreachable: the lineage's own claim refused the lineage's own move.
+    const src = code(SERVICE);
+    const body = src.slice(src.indexOf("async rebindDraft("));
+    const rebind = body.slice(0, body.indexOf("\n  async "));
+    expect(rebind).not.toMatch(/this\.reserveFor\(/);
+    expect(rebind).toMatch(/moveReservation\(tx, \{/);
+  });
+
+  it("moves ONE row rather than deleting and recreating", () => {
+    const src = code(
+      join(process.cwd(), "src/experience/experience-binding-reservation.ts"),
+    );
+    const move = src.slice(
+      src.indexOf("export async function moveReservation"),
+    );
+    const body = move.slice(0, move.indexOf("\n}"));
+    // A delete would be refused by RESTRICT while a version references it, and
+    // two reservations cannot coexist under the primary key. An update is the
+    // only shape with no window.
+    expect(body).not.toMatch(/\.delete\(|\.deleteMany\(/);
+    expect(body).toMatch(/experienceGuideReservation\.update\(/);
+    // Same pin is a replay, not a conflict and not a write.
+    expect(body).toMatch(/existing\.guideKey === input\.toGuideKey/);
+  });
+
+  it("rewrites every unpublished version, and no archived one", () => {
+    const src = code(SERVICE);
+    const body = src.slice(src.indexOf("async rebindDraft("));
+    const rebind = body.slice(0, body.indexOf("\n  async "));
+    // `ON UPDATE CASCADE` moves the columns of every referencing row; a
+    // definition left naming the old pin would be the divergence it cannot fix.
+    expect(rebind).toMatch(/status: "DRAFT",/);
+    expect(rebind).toMatch(/for \(const sibling of siblings\)/);
+  });
+});
+
+describe("ratchet · the CMS can actually perform what the server offers", () => {
+  const WEB = join(
+    process.cwd(),
+    "../web/src/app/dashboard/admin/experiencias",
+  );
+
+  it("rebind has a visual consumer", () => {
+    // `rebindDraftAction` shipped with no component calling it, which meant the
+    // one operation C.4 adds to the CMS could not be performed by an editor.
+    const card = read(
+      join(WEB, "[bookSlug]/[chapterOrder]/borrador/[id]/GuideBindingCard.tsx"),
+    );
+    expect(card).toMatch(/rebindDraftAction\(/);
+    const page = read(
+      join(WEB, "[bookSlug]/[chapterOrder]/borrador/[id]/page.tsx"),
+    );
+    expect(page).toMatch(/<GuideBindingCard/);
+  });
+
+  it("archive keeps its explicit confirmation", () => {
+    const actions = read(
+      join(WEB, "[bookSlug]/[chapterOrder]/ExperienceRowActions.tsx"),
+    );
+    expect(actions).toMatch(/confirmingArchive/);
+    expect(actions).toMatch(/archiveDraftAction\(/);
+  });
+
+  it("the chapter page says so when no guide could be chosen", () => {
+    // With the current catalog a chapter can have exactly one guide and a
+    // definition the build ships already holding it. Offering «Nueva
+    // experiencia» there promises an operation that cannot complete.
+    const button = read(
+      join(WEB, "[bookSlug]/[chapterOrder]/NewExperienceButton.tsx"),
+    );
+    expect(button).toMatch(/bindableGuides === 0/);
+    expect(button).toMatch(/new-experience-no-guide/);
+    const page = read(join(WEB, "[bookSlug]/[chapterOrder]/page.tsx"));
+    expect(page).toMatch(/bindableGuides=\{bindableGuides\}/);
+  });
+});
+
+describe("ratchet · the published contract describes what comes back", () => {
+  const CONTROLLER = join(
+    process.cwd(),
+    "src/experience/experience-admin.controller.ts",
+  );
+
+  it("the C.4 endpoints declare response schemas and deliberate statuses", () => {
+    // Nest infers request bodies and infers NOTHING about responses. An
+    // endpoint that returns JSON with no declared schema reaches
+    // `openapi-typescript` as `content?: never` — a generated client that types
+    // the answer as "no body", which is not thin, it is wrong.
+    const src = read(CONTROLLER);
+    expect(src).toMatch(/type: SelectableGuideOptionDto,\s*\n\s*isArray: true/);
+    expect(src).toMatch(
+      /@ApiOkResponse\(\{ type: RebindExperienceDraftResultDto \}\)/,
+    );
+    expect(src).toMatch(
+      /@ApiOkResponse\(\{ type: ArchiveExperienceDraftResultDto \}\)/,
+    );
+    // `@Post` defaults to 201 Created, and archiving creates nothing.
+    const archive = src.slice(src.indexOf('@Post("drafts/:id/archive")'));
+    expect(archive.slice(0, archive.indexOf("archiveDraft("))).toMatch(
+      /@HttpCode\(200\)/,
+    );
+  });
+
+  it("the generated client types those responses", () => {
+    const generated = read(
+      join(process.cwd(), "../../packages/api-client/src/generated.ts"),
+    );
+    expect(generated).toMatch(/SelectableGuideOptionDto/);
+    expect(generated).toMatch(/RebindExperienceDraftResultDto/);
+    expect(generated).toMatch(/ArchiveExperienceDraftResultDto/);
+  });
+});
+
 describe("ratchet · the reader anchor barrier", () => {
   /**
    * The one ordering constraint this train cannot enforce with a constraint.
@@ -646,5 +786,174 @@ describe("ratchet · claims this PR makes in prose are anchored in code", () => 
     expect(block).not.toMatch(/was (simply )?wrong/i);
     expect(block).toMatch(/ownership/);
     expect(block).toMatch(/codeOwnedClaimsForUnit/);
+  });
+});
+
+describe("ratchet · there is no lock ORDER left to get wrong", () => {
+  it("V2 takes exactly ONE advisory key, and it is the chapter's", () => {
+    // Worth pinning precisely because it makes a whole class of control
+    // inexpressible: "invert the lock order" cannot change anything when the
+    // sequence has one element. That is a property of the code, not an
+    // omission in the tests — and it stops being true the moment V2 takes a
+    // second key, which is what this catches.
+    //
+    // C.3B is why: once every legacy row carried its identity there was
+    // nothing left that needed every chapter serialised behind a global key.
+    expect(preIdentityLockKeys()).toEqual([]);
+    const keys = bindingLockKeys("unit_x");
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).toBe(chapterBindingLockKey("unit_x"));
+    // And the helper walks the sequence as given — no sort, no reverse.
+    const lock = code(
+      join(process.cwd(), "src/experience/experience-binding-lock.ts"),
+    );
+    expect(lock).toMatch(/for \(const key of keys\) await acquireBindingLock/);
+    expect(lock).not.toMatch(/keys\.(reverse|sort)\(/);
+  });
+});
+
+describe("ratchet · the CMS asks the authority on the RIGHT client", () => {
+  const ADMIN = join(
+    process.cwd(),
+    "src/experience/experience-admin.service.ts",
+  );
+
+  it("every call to the target authority threads the transaction client", () => {
+    // Stated at the source, and worth saying why that is the instrument here.
+    //
+    // Under READ COMMITTED the ambient client and the transaction's client
+    // return the same rows for almost any interleaving, so a behavioural test
+    // for "it used the wrong client" would pass for the wrong reason nearly
+    // always and fail on a timing accident. What the ambient client really
+    // loses is the transaction: the answer stops being covered by the lock
+    // this write already holds, and a republish committing in between is read
+    // by one and not protected by the other.
+    //
+    // So this is a source ratchet, deliberately — a weaker instrument than a
+    // failing assertion about behaviour, and named as such rather than dressed
+    // up as one.
+    const src = code(ADMIN);
+    const calls = [...src.matchAll(/resolveMany\(([^)]*)\)/g)].map(
+      (m) => m[1] as string,
+    );
+    expect(calls.length).toBeGreaterThan(0);
+    for (const args of calls) {
+      expect(args).toMatch(/,\s*tx\s*$/);
+    }
+  });
+});
+
+describe("ratchet · the cutover migrations say what they do", () => {
+  const MIGRATIONS = join(process.cwd(), "prisma/migrations");
+
+  it("this branch adds exactly TWO migrations, and names both", () => {
+    // Two facts, and the second is what makes the first mean anything.
+    //
+    // The COUNT stops a third migration arriving unnoticed — including one
+    // restacked in from the base branch, which is the specific accident this
+    // PR is exposed to: it now sits on C.3R, and a migration reappearing from
+    // there would deploy a schema change nobody reviewed as part of C.3C+C.4.
+    //
+    // The NAMES stop the count being satisfied by a different pair.
+    const dirs = readdirSync(MIGRATIONS, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
+    const own = dirs.filter((d) => d.includes("_c3c_"));
+    expect(own).toEqual([
+      "20260820010000_c3c_experience_archived_status",
+      "20260820020000_c3c_experience_binding_shape",
+    ]);
+    // 59 on `main` (C.3A's included), plus these two. C.3R adds none at all.
+    expect(dirs).toHaveLength(61);
+    expect(dirs.filter((d) => d.includes("c3r"))).toEqual([]);
+  });
+
+  /**
+   * The migration with its `--` comments removed.
+   *
+   * Same reason `code()` exists: these files EXPLAIN why `IF NOT EXISTS` and
+   * `NOT VALID` are absent, and a prose block naming them must not be mistaken
+   * for using them. An absence check is worth exactly as much as its ability to
+   * mean what it says.
+   */
+  const sql = (p: string) => read(p).replace(/^\s*--.*$/gm, "");
+
+  it("the ARCHIVED value is added without IF NOT EXISTS", () => {
+    // `IF NOT EXISTS` would absorb a drift silently: if something other than
+    // this migration put the value there — a hand-applied hotfix, a restored
+    // dump, a branch deployed and rolled back — the deploy would succeed and
+    // leave a schema nobody can account for looking exactly like a migrated
+    // one. The cutover inherits whatever the deploy hides.
+    const statements = sql(
+      join(
+        MIGRATIONS,
+        "20260820010000_c3c_experience_archived_status/migration.sql",
+      ),
+    );
+    expect(statements).toMatch(
+      /ALTER TYPE "ExperienceVersionStatus" ADD VALUE 'ARCHIVED';/,
+    );
+    expect(statements).not.toMatch(/IF NOT EXISTS/);
+    // ONE statement, so no transaction to ask for: there is nothing it could
+    // be atomic with. Wrapping a single statement would only add a way for the
+    // file to be wrong.
+    expect(statements).not.toMatch(/BEGIN;|COMMIT;/);
+    expect(
+      statements.split(";").filter((part) => part.trim().length > 0),
+    ).toHaveLength(1);
+  });
+
+  it("NOT NULL and the CHECK land in ONE migration", () => {
+    // The detector calls the half-applied shape FAIL_CLOSED. Splitting them
+    // would make that state observable by a live replica rather than only
+    // inside a failed migration.
+    const statements = sql(
+      join(
+        MIGRATIONS,
+        "20260820020000_c3c_experience_binding_shape/migration.sql",
+      ),
+    );
+    expect(statements).toMatch(/ALTER COLUMN "contentUnitId" SET NOT NULL/);
+    expect(statements).toMatch(
+      /ADD CONSTRAINT "ChapterExperienceVersion_binding_shape_check"/,
+    );
+    // Validated, not NOT VALID: a constraint that proves nothing about the rows
+    // already stored is the ambiguity the whole gate exists to remove.
+    expect(statements).not.toMatch(/NOT VALID/);
+    // And in ONE transaction. The runner gives none, so the likely failure here
+    // — the CHECK rejecting a row the backfill missed — would otherwise leave
+    // the column already NOT NULL and the constraint absent: the half-applied
+    // shape the detector calls FAIL_CLOSED, needing a hand-written
+    // `DROP NOT NULL` before anything could be retried.
+    expect([...statements.matchAll(/^\s*BEGIN;\s*$/gm)]).toHaveLength(1);
+    expect([...statements.matchAll(/^\s*COMMIT;\s*$/gm)]).toHaveLength(1);
+    const inside = statements.slice(
+      statements.indexOf("BEGIN;"),
+      statements.indexOf("COMMIT;"),
+    );
+    expect(inside).toMatch(/SET NOT NULL/);
+    expect(inside).toMatch(/ADD CONSTRAINT/);
+  });
+
+  it("the CHECK the migration writes is the one the detector recognises", () => {
+    // Two independent statements of the same rule would drift. The detector
+    // pins the RENDERED expression; this pins that the migration's source
+    // mentions both halves it renders from.
+    const statements = sql(
+      join(
+        MIGRATIONS,
+        "20260820020000_c3c_experience_binding_shape/migration.sql",
+      ),
+    );
+    expect(statements).toMatch(
+      /"status" = 'ARCHIVED'[\s\S]{0,80}"guideKey" IS NULL/,
+    );
+    expect(statements).toMatch(
+      /"status" <> 'ARCHIVED'[\s\S]{0,80}"guideKey" IS NOT NULL/,
+    );
+    expect(EXPERIENCE_BINDING_SHAPE.finalCheckDefinition).toContain(
+      `("guideKey" IS NOT NULL)`,
+    );
   });
 });

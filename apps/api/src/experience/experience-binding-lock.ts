@@ -64,7 +64,7 @@ import {
 
 /** The protocol this binary speaks, surfaced at boot so a fleet can be PROVEN
  * drained rather than inferred from a commit SHA. */
-export const EXPERIENCE_BINDING_PROTOCOL = "experience-binding-bridge-v1";
+export const EXPERIENCE_BINDING_PROTOCOL = "experience-binding-v2";
 
 /**
  * The compatibility key, shared with the C.3B backfill.
@@ -85,35 +85,61 @@ export const chapterBindingLockKey = (contentUnitId: string): string =>
   `experience:binding:chapter:${contentUnitId}`;
 
 /**
- * Advisory keys taken BEFORE the chapter is known — so, before the edition row
- * lock that makes resolving it safe.
+ * The V1 (`experience-binding-bridge-v1`) sequence — RETAINED, no longer taken.
  *
- * The compatibility key is the only one that can be taken here, because it is
- * the only one whose name does not depend on the answer.
+ * V2 stops taking the global key, exactly as C.0B3 narrowed the start lock. V1
+ * has not stopped existing: the two coexist for the whole rollout, and the
+ * mixed-fleet pg-spec has to model the binary being replaced with the SAME
+ * derivation it actually used. Deleting this would leave that spec hand-copying
+ * V1's keys, which proves that a hand-copied list behaves rather than that the
+ * two versions share a lock.
+ *
+ * The C.3B backfill still takes `globalBindingLockKey()` on its own, which is
+ * why that derivation stays exported rather than folding into this list.
  */
-export const preIdentityLockKeys = (): readonly string[] => [
+export const bridgeBindingLockKeys = (
+  contentUnitId: string,
+): readonly string[] => [
   globalBindingLockKey(),
+  chapterBindingLockKey(contentUnitId),
 ];
 
-/** Advisory keys taken once identity is known, and therefore last. */
+/**
+ * Advisory keys taken BEFORE the chapter is known — none, in V2.
+ *
+ * V1 took the compatibility key here so the C.3B backfill could exclude every
+ * writer while it read the whole table. Once that has run, holding it
+ * serialises unrelated chapters against each other for no remaining reason.
+ *
+ * Empty is not the same as absent: the step still exists in
+ * `enterBindingProtocol`, so the ORDER is still expressed in one place and a
+ * future key that must precede identity has somewhere to go.
+ */
+export const preIdentityLockKeys = (): readonly string[] => [];
+
+/**
+ * Advisory keys taken once identity is known, and therefore last.
+ *
+ * Byte-identical to V1's chapter key, which is the entire reason a mixed V1/V2
+ * fleet is safe: both take it for the same chapter, so neither can decide a
+ * binding while the other is deciding one.
+ */
 export const postIdentityLockKeys = (
   contentUnitId: string,
 ): readonly string[] => [chapterBindingLockKey(contentUnitId)];
 
 /**
- * THE bridge sequence of ADVISORY keys, in acquisition order.
+ * THE V2 sequence of ADVISORY keys, in acquisition order.
  *
  * Single authority: `enterBindingProtocol` composes it from its two halves, the
  * pg-specs model the protocol with this, and the negative controls mutate THIS
- * — so emptying it, dropping the global key or swapping the order breaks the
- * guarantee everywhere at once instead of in one forgotten caller.
+ * — so emptying it or reordering it breaks the guarantee everywhere at once
+ * instead of in one forgotten caller.
  *
  * The edition row lock is deliberately not in this list: it is not an advisory
  * key and it belongs to Content Core's protocol, not this one.
  */
-export const bridgeBindingLockKeys = (
-  contentUnitId: string,
-): readonly string[] => [
+export const bindingLockKeys = (contentUnitId: string): readonly string[] => [
   ...preIdentityLockKeys(),
   ...postIdentityLockKeys(contentUnitId),
 ];

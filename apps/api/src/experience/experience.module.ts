@@ -25,13 +25,27 @@ import {
   EXPERIENCE_CODE_OWNED_CLAIMS,
   productionCodeOwnedClaims,
 } from "./experience-code-owned-identity";
+import {
+  EXPERIENCE_BINDING_CATALOG,
+  productionBindingCatalog,
+} from "./experience-guide-options";
 import { PrismaService } from "../prisma/prisma.service";
+// C.3R — the CMS decides «may this chapter host this guide» with the SAME
+// authority the reader uses, on internal ids. Provided here rather than
+// imported from GuideModule so this module keeps its own narrow surface: what
+// it needs is the resolver, not the guide command stack.
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { GuideTargetContextService } from "../guide/guide-target-context.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 
 @Module({
   controllers: [ExperienceController, ExperienceAdminController],
   providers: [
     ExperienceDiscoveryService,
     ExperienceAdminService,
+    LearningCatalogResolver,
+    GuideTargetContextService,
     // C.3A — where a definition the build SHIPS is placed. The default IS
     // production; the seam exists so a test can say what the catalog says
     // without impersonating the three tables that answer it.
@@ -39,6 +53,10 @@ import { PrismaService } from "../prisma/prisma.service";
       provide: EXPERIENCE_CODE_OWNED_CLAIMS,
       useValue: productionCodeOwnedClaims,
     },
+    // C.4 — the guides the CMS may offer, as a binding rather than an import.
+    // The default IS production; the seam exists so a test can describe a
+    // chapter with two bindable guides without inventing editorial content.
+    { provide: EXPERIENCE_BINDING_CATALOG, useValue: productionBindingCatalog },
     {
       provide: EXPERIENCE_DEFINITION_REPOSITORY,
       useFactory: (prisma: PrismaService) =>

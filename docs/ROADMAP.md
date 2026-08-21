@@ -228,8 +228,42 @@ hecho que mide**: ahora afirma que el lector dejó de ser posicional, y falla si
 
 ```
 C3C_C4_MERGE_BARRIER=true
-NEXT_STEP=RETARGET_AND_ADAPT_PR_677_ON_C3R
+NEXT_STEP=FINAL_REVIEW_PR_679_THEN_MERGE_DEPLOY_C3R
 ```
+
+#### C.3C+C.4 reapilada sobre C.3R — qué cambió y qué NO
+
+PR #677 dejó de apuntar a `feat/experience-binding-bridge` y ahora se apila
+sobre la rama de C.3R. Con eso, las dos decisiones posicionales que le quedaban
+al CMS —el filtro del selector y `assertPinBindable`— comparan identidades
+resueltas por la MISMA autoridad que usa el lector, y la revalidación ocurre
+dentro de la transacción, bajo los locks que el write ya sostiene.
+
+```
+C3R_IMPLEMENTED_IN_BASE=true
+C3C_C4_TREE_COMPATIBLE_WITH_C3R=true
+POSITIONAL_BINDING_AUTHORITY=false
+```
+
+**Y la barrera sigue arriba**, que es justo lo que estas tres líneas NO dicen.
+«Compatible en el árbol» y «autorizado para fusionar» son cosas distintas: #679
+no está fusionada ni desplegada, así que el lector de producción sigue
+decidiendo por posición. Consolidar la autoridad nueva antes seguiría
+permitiendo enlazar por identidad lo que el lector vivo rechaza por posición —
+correcto, completo e inabrible.
+
+La condición para bajarla, entera y verificable:
+
+```
+PR_679_MERGED=true
+PR_679_DEPLOYED=true
+SERVER_SIDE_ANCHOR_AUTHORITY_VERIFIED_IN_PRODUCTION=true
+PR_677_RETARGETED_TO_MAIN=true
+PR_677_FULL_MAIN_CHECKS=15/15
+```
+
+Bajarla será un commit posterior y explícito. No forma parte de esta ronda, y
+el ratchet de la barrera falla si alguien la baja sin él.
 
 **Decisiones de producto aprobadas para C.3/C.4** (2026-08-19):
 
@@ -988,6 +1022,46 @@ DRAFT, así que habría editado una fila archivada. C.3A corrige ambas cosas por
 anticipado —exige DRAFT en positivo y lee el estado de la columna, no del
 JSON— y la acción de archivar solo aparece en C.3C, tras probar por marcador
 que ninguna instancia anterior atiende el CMS.
+
+#### Deuda conocida de la suite PG (no se repara aquí)
+
+`mood-normalization-migration.pg-spec.ts` corre el `prisma migrate deploy` real
+dentro de un **esquema** (`pr2a_migrate`) de la base **base** de
+`TEST_DATABASE_URL`. Esa migración incluye `CREATE EXTENSION vector`, y las
+extensiones son **de base de datos**, no de esquema — así que mientras ese spec
+corre, la base tiene la extensión. Su `afterAll` borra el esquema y se la lleva.
+
+`privacy-barrier.pg-spec.ts` exige en su `beforeAll` que la base esté limpia. Si
+las dos ventanas se solapan, la suite del barrier se niega con
+«TEST_DATABASE_URL contains the vector extension» y sus 5 tests se reportan como
+suite fallida.
+
+Es una carrera de ORDEN entre dos specs preexistentes, no un fallo de
+aserción, y cada suite afectada pasa en aislamiento y sobre una base recién
+creada. Pero al ser una carrera, cualquier cosa que cambie la planificación
+cambia con qué frecuencia pierde — y el tren C.3 la empeora, medido:
+
+| árbol                                          | corridas completas | fallan por `vector` |
+| ---------------------------------------------- | ------------------ | ------------------- |
+| C.3A+C.3C, ronda anterior                      | 3                  | 1                   |
+| sin las suites de `experience`, ronda anterior | 3                  | 0                   |
+| C.3A+C.3C, **esta ronda**                      | 4                  | **3**               |
+| sin las suites de `experience`, **esta ronda** | 3                  | **1**               |
+
+Dos lecturas, y las dos importan. La carrera existe **sin** este tren — 1 de 3
+también en el brazo de control —, así que no la introduce. Y la frecuencia SUBIÓ
+con él, de 1/3 a 3/4, al añadir la tercera suite de `experience` con su propia
+base desechable y su propio `migrate deploy`. Las dos cosas son ciertas a la vez.
+
+Una corrida verde no es prueba de que desapareció: en esta ronda hubo una, y
+tres perdidas.
+
+CI da una base nueva por job y en ambas PR el job `Test` pasó — eso dice que la
+ventana es estrecha, no que se haya cerrado.
+
+Arreglarlo significa decidir qué acepta ese guard de precondición, y esa
+decisión es de quien lo mantiene. Queda registrada, no absorbida, y no se
+corrige dentro de estas PR.
 
 #### Qué falta de #639 después de C.0B3
 

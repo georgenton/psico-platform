@@ -17648,6 +17648,62 @@
         ]
       }
     },
+    "/api/pulso/experiences/guides": {
+      "get": {
+        "operationId": "listSelectableGuidesForChapter",
+        "parameters": [
+          {
+            "name": "bookSlug",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "emociones-en-construccion",
+              "type": "string"
+            }
+          },
+          {
+            "name": "chapterOrder",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10000,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "experienceKey",
+            "required": false,
+            "in": "query",
+            "description": "Whose point of view. With it, the guide this lineage already holds reads\n`OWNED_BY_THIS_EXPERIENCE` instead of \"taken by somebody\".",
+            "schema": {
+              "example": "eec-c1-cuerpo-antes-que-mente",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Opciones de guía para el capítulo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SelectableGuideOptionDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Las guías que este capítulo puede vincular, con su disponibilidad decidida en el servidor.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
     "/api/pulso/experiences/drafts/{id}": {
       "get": {
         "operationId": "getExperienceDraftForAdmin",
@@ -17857,6 +17913,118 @@
           }
         },
         "summary": "Clona una versión publicada como el siguiente borrador. La original no se toca.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/experiences/drafts/{id}/binding": {
+      "patch": {
+        "operationId": "rebindExperienceDraft",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RebindExperienceDraftDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RebindExperienceDraftResultDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya hay una versión publicada, o la guía está reservada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Cambia la guía de un borrador. Solo si la experiencia nunca se publicó.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/experiences/drafts/{id}/archive": {
+      "post": {
+        "operationId": "archiveExperienceDraft",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExperienceBindingHintDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveExperienceDraftResultDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Archiva el borrador. La fila no se borra, su versión no se reutiliza y la guía queda libre.",
         "tags": [
           "Pulso"
         ]
@@ -24868,6 +25036,38 @@
           "totalCount"
         ]
       },
+      "SelectableGuideOptionDto": {
+        "type": "object",
+        "properties": {
+          "guideKey": {
+            "type": "string",
+            "example": "eec-c1-cuerpo-antes-que-mente"
+          },
+          "guideVersion": {
+            "type": "number",
+            "example": 1
+          },
+          "stepCount": {
+            "type": "number",
+            "description": "Pasos de la guía, para dimensionar el trabajo."
+          },
+          "availability": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "OWNED_BY_THIS_EXPERIENCE",
+              "RESERVED_BY_ANOTHER_EXPERIENCE"
+            ],
+            "description": "Decidida en el servidor bajo el lock del capítulo. Una guía reservada se lista como reservada, nunca se oculta — y no se revela quién la tiene."
+          }
+        },
+        "required": [
+          "guideKey",
+          "guideVersion",
+          "stepCount",
+          "availability"
+        ]
+      },
       "SaveExperienceDefinitionDto": {
         "type": "object",
         "properties": {
@@ -24900,6 +25100,68 @@
             "example": "clx0000000000000000000000"
           }
         }
+      },
+      "GuidePinDto": {
+        "type": "object",
+        "properties": {
+          "guideKey": {
+            "type": "string",
+            "example": "eec-c1-cuerpo-antes-que-mente"
+          },
+          "guideVersion": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 999999999,
+            "example": 1
+          }
+        },
+        "required": [
+          "guideKey",
+          "guideVersion"
+        ]
+      },
+      "RebindExperienceDraftDto": {
+        "type": "object",
+        "properties": {
+          "guidePin": {
+            "$ref": "#/components/schemas/GuidePinDto"
+          },
+          "expectedContentUnitId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "/^[a-z0-9]+$/",
+            "description": "El ContentUnit que el cliente cree estar editando. Pista, no autoridad.",
+            "example": "clx0000000000000000000000"
+          }
+        },
+        "required": [
+          "guidePin"
+        ]
+      },
+      "RebindExperienceDraftResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "El borrador que cambió de guía."
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "ArchiveExperienceDraftResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "El borrador archivado. La fila no se borra."
+          }
+        },
+        "required": [
+          "id"
+        ]
       },
       "ContentStudioBookSummaryDto": {
         "type": "object",

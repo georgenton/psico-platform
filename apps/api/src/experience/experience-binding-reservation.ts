@@ -83,6 +83,83 @@ export async function readReservationAuthority(
   return decideReservationAuthority(await probeBindingSchema(tx));
 }
 
+/**
+ * Which stored rows belong to this chapter, given what the schema can prove.
+ *
+ * `where: { bookSlug, chapterOrder }` was the old answer and it is wrong for
+ * the same reason the lock key is not built from those two values: they are a
+ * POSITION. Move a unit from chapter 3 to chapter 5 and its experiences would
+ * appear under whatever unit took over position 3 — an editor would be looking
+ * at one chapter's experiences while reading another's.
+ *
+ *   STRUCTURAL   identity, and only identity. Every row has a `contentUnitId`
+ *                by then (the CHECK guarantees it), so position is not needed
+ *                and must not be consulted.
+ *   BRIDGE       both, kept apart: materialised rows by identity, legacy rows
+ *                by position AND `contentUnitId IS NULL`. That last clause is
+ *                what makes the mixture controlled rather than a union of two
+ *                overlapping guesses — a row that HAS an identity is never
+ *                matched positionally, so a moved unit's rows cannot surface
+ *                under its old number.
+ *   otherwise    position alone. Under LEGACY_SCAN the columns do not exist to
+ *                be queried, and under FAIL_CLOSED nothing may be written
+ *                anyway; showing the editor what is there beats showing
+ *                nothing, and `contentUnitId: null` in the response says the
+ *                chapter cannot host a binding.
+ */
+export function chapterRowScope(
+  authority: ReservationAuthority,
+  chapter: { contentUnitId: string } | null,
+  bookSlug: string,
+  chapterOrder: number,
+): Prisma.ChapterExperienceVersionWhereInput {
+  if (authority === "STRUCTURAL") {
+    // A chapter that does not resolve has no rows, by definition: under the
+    // cutover every row names a unit, and we cannot name this one.
+    return chapter === null
+      ? { id: { in: [] } }
+      : { contentUnitId: chapter.contentUnitId };
+  }
+  if (authority === "BRIDGE") {
+    // Position is a SUPERSET here — it can also match rows belonging to a unit
+    // that has since moved away — so `keepsChapterRow` narrows it afterwards.
+    // The narrowing cannot be expressed in the query: this binary's Prisma
+    // client is generated from the cutover schema, where `contentUnitId` is NOT
+    // NULL, so `contentUnitId: null` is neither a legal filter for it nor a
+    // shape it will send.
+    return chapter === null
+      ? { bookSlug, chapterOrder }
+      : {
+          OR: [
+            { contentUnitId: chapter.contentUnitId },
+            { bookSlug, chapterOrder },
+          ],
+        };
+  }
+  return { bookSlug, chapterOrder };
+}
+
+/**
+ * Does this row really belong to the chapter that was asked for?
+ *
+ * Only BRIDGE needs it, and only because the query above is a superset there. A
+ * row with NO identity is legacy and position is all it has; a row WITH one
+ * belongs to that unit and to no other, whatever number it was created under.
+ *
+ * `contentUnitId` is typed non-null by a client built for the cutover schema,
+ * and under BRIDGE it genuinely can be null — so the read is widened here,
+ * deliberately and in one place, rather than the schema being made to lie.
+ */
+export function keepsChapterRow(
+  authority: ReservationAuthority,
+  chapter: { contentUnitId: string } | null,
+  row: { contentUnitId: string },
+): boolean {
+  if (authority !== "BRIDGE") return true;
+  const identity = (row as { contentUnitId: string | null }).contentUnitId;
+  return identity === null || identity === chapter?.contentUnitId;
+}
+
 /** A row as the binding logic needs to see it. */
 export interface BindingRow {
   id: string;
@@ -156,6 +233,18 @@ export async function readChapterBindings(
     bookSlug: string;
     chapterOrder: number;
     /**
+     * What the schema can prove, so the scan uses the same rule the listing
+     * does.
+     *
+     * It used to scan `identity OR position` unconditionally, and under
+     * STRUCTURAL that is wrong in a way that fails LOUDLY: a row whose unit
+     * moved still carries its old `chapterOrder`, so it surfaces while deciding
+     * about the unit that inherited that number — and is then judged a
+     * contradiction, because its identity is not the one being asked about.
+     * Every binding decision in that chapter refuses, including the selector.
+     */
+    authority: ReservationAuthority;
+    /**
      * Definitions this build SHIPS for the chapter.
      *
      * They have no row and no reservation, and they still hold their guide:
@@ -195,10 +284,12 @@ export async function readChapterBindings(
     db.chapterExperienceVersion.findMany({
       where: {
         status: { in: [...RESERVING_STATUSES] },
-        OR: [
+        ...chapterRowScope(
+          where.authority,
           { contentUnitId: where.contentUnitId },
-          { bookSlug: where.bookSlug, chapterOrder: where.chapterOrder },
-        ],
+          where.bookSlug,
+          where.chapterOrder,
+        ),
       },
       select: {
         id: true,
@@ -239,6 +330,20 @@ export async function readChapterBindings(
   }
 
   for (const row of rows) {
+    // Under BRIDGE the scope above is a superset — position also matches rows
+    // belonging to a unit that has since moved away. Narrowed here, for the
+    // same reason and in the same way the listing narrows it.
+    if (
+      !keepsChapterRow(
+        where.authority,
+        { contentUnitId: where.contentUnitId },
+        {
+          contentUnitId: row.contentUnitId as string,
+        },
+      )
+    ) {
+      continue;
+    }
     const claimed = guideKeyFromDefinition(row.definitionJson);
     if (claimed === null) {
       // A stored row whose definition no longer validates cannot be reasoned
@@ -303,6 +408,108 @@ export function assertBindingAvailable(
   if (held !== undefined && held !== input.guideKey) {
     throw new ExperienceBindingError(EXPERIENCE_BINDING_CODES.lineageBound);
   }
+}
+
+/**
+ * May `experienceKey` take `guideKey`, ALLOWING it to let go of its own?
+ *
+ * `assertBindingAvailable` checks both halves of the bijection, and the second
+ * half — "this lineage already holds another guide" — is exactly what a rebind
+ * is asking permission to change. Calling it from a rebind makes the operation
+ * unreachable: the lineage's own claim refuses the lineage's own move.
+ *
+ * So this checks the half that still applies. The target must be free or
+ * already ours; what we currently hold is not an obstacle to us.
+ */
+export function assertGuideFreeForLineage(
+  view: ChapterBindingView,
+  input: { experienceKey: string; guideKey: string },
+): void {
+  const owner =
+    view.reservedBy.get(input.guideKey) ?? view.scannedBy.get(input.guideKey);
+  if (owner !== undefined && owner !== input.experienceKey) {
+    throw new ExperienceBindingError(EXPERIENCE_BINDING_CODES.guideReserved);
+  }
+}
+
+/** What a move turned out to be, so a caller can tell a replay from a change. */
+export type ReservationMove = "created" | "moved" | "replayed";
+
+/**
+ * Move a lineage's reservation from whatever it holds to `toGuideKey`.
+ *
+ * ── One row, updated in place ───────────────────────────────────────────────
+ *
+ * Not "take the new one, then release the old one". The primary key is
+ * `(contentUnitId, experienceKey)`, so a lineage has exactly ONE reservation
+ * row and two cannot coexist — there is no state in which it holds both. And it
+ * is not delete-then-insert either: the composite foreign key is `RESTRICT`, so
+ * deleting the row while a version still references it is refused by the
+ * database. That refusal is the guarantee, not an obstacle to work around.
+ *
+ * What is left is an UPDATE of the single row, which has no window at all:
+ * before it the lineage holds the old guide, after it the new one, and nothing
+ * observes an in-between.
+ *
+ * ── The columns come along by themselves ────────────────────────────────────
+ *
+ * The composite key is `ON UPDATE CASCADE`, so updating the reservation's
+ * `guideKey` updates the `guideKey` of every version row that references it, in
+ * the same statement. The columns cannot drift from the reservation because
+ * nothing separate maintains them — which is stronger than writing both and
+ * hoping they agree.
+ *
+ * The caller still owns `definitionJson`: the cascade moves structure, not
+ * editorial content, and a definition that still named the old pin would be the
+ * remaining divergence.
+ */
+export async function moveReservation(
+  db: BindingDb,
+  input: {
+    contentUnitId: string;
+    experienceKey: string;
+    toGuideKey: string;
+    view: ChapterBindingView;
+  },
+): Promise<ReservationMove> {
+  assertGuideFreeForLineage(input.view, {
+    experienceKey: input.experienceKey,
+    guideKey: input.toGuideKey,
+  });
+
+  const where = {
+    contentUnitId_experienceKey: {
+      contentUnitId: input.contentUnitId,
+      experienceKey: input.experienceKey,
+    },
+  };
+  const existing = await db.experienceGuideReservation.findUnique({
+    where,
+    select: { guideKey: true },
+  });
+
+  if (!existing) {
+    // No reservation yet — a legacy row the backfill has not reached, or a
+    // lineage whose only rows are archived. Creating one is the same operation
+    // with a shorter history.
+    await db.experienceGuideReservation.create({
+      data: {
+        contentUnitId: input.contentUnitId,
+        experienceKey: input.experienceKey,
+        guideKey: input.toGuideKey,
+      },
+    });
+    return "created";
+  }
+  // Same pin twice — a double submit, a retried request. Writing nothing is the
+  // honest answer, and it must not look like a conflict.
+  if (existing.guideKey === input.toGuideKey) return "replayed";
+
+  await db.experienceGuideReservation.update({
+    where,
+    data: { guideKey: input.toGuideKey },
+  });
+  return "moved";
 }
 
 /**

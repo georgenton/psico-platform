@@ -255,6 +255,27 @@ suite(
       }
     });
 
+    /** The reader context for `(slug, order)`, read from the published manifest. */
+    async function readerContextFor(
+      env: Env,
+      bookSlug: string,
+      chapterOrder: number,
+    ): Promise<{ bookSlug: string; chapterOrder: number; unitKey: string }> {
+      const rows = await env.prisma.$queryRawUnsafe<Array<{ unitKey: string }>>(
+        `SELECT u."unitKey" FROM "ContentUnit" u
+           JOIN "Edition" e ON e."id" = u."editionId"
+           JOIN "RevisionUnit" ru ON ru."unitId" = u."id"
+          WHERE ru."revisionId" = e."publishedRevisionId"
+            AND e."slug" = $1 AND ru."order" = $2`,
+        bookSlug,
+        chapterOrder,
+      );
+      const row = rows[0];
+      if (!row)
+        throw new Error(`fixture: no unit at ${bookSlug}#${chapterOrder}`);
+      return { bookSlug, chapterOrder, unitKey: row.unitKey };
+    }
+
     it("unitKey is NOT portable across ingestions — which is why nothing ships it", async () => {
       // The measurement that rules out putting an identity in the package. Both
       // databases hold the same canonical books; their unit keys differ.
@@ -481,6 +502,12 @@ suite(
       // concepts, units, published membership, contexts. Unreached lookups are
       // skipped, so a concept-only batch costs fewer.
       expect(two).toBeLessThanOrEqual(5);
+      // Emitted so the figure quoted anywhere else is this measurement rather
+      // than a reading of the code.
+      // eslint-disable-next-line no-console
+      console.log(`TARGET_CONTEXT_RESOLVE_MANY_QUERIES_2=${two}`);
+      // eslint-disable-next-line no-console
+      console.log(`TARGET_CONTEXT_RESOLVE_MANY_QUERIES_25=${twentyFive}`);
     });
 
     it("a stale reader token fails the batch closed, rather than answering", async () => {
@@ -997,12 +1024,40 @@ suite(
     });
 
     it("an unknown pin and a wrong version both fail closed", async () => {
-      expect(() =>
-        productionGuideRegistry.getExact("no-such-guide", 1),
-      ).toThrow();
-      expect(() =>
-        productionGuideRegistry.getExact(PINS[0].guideKey, 99),
-      ).toThrow();
+      // This used to assert only that the REGISTRY throws for those inputs —
+      // a precondition of the helper, not the behaviour the name promises. A
+      // reader does not care whether a lookup throws; it cares what the batch
+      // answers, and that is what is asserted now.
+      const unknown = { guideKey: "no-such-guide", guideVersion: 1 };
+      const wrongVersion = { guideKey: PINS[0].guideKey, guideVersion: 99 };
+      const known = {
+        guideKey: PINS[0].guideKey,
+        guideVersion: PINS[0].guideVersion,
+      };
+      const asked = [unknown, wrongVersion, known];
+      const results = await A.prisma.$transaction((tx) =>
+        targetContext.resolveMany(asked, tx),
+      );
+      // Positionally aligned, and each unknown pin is an EDITORIAL "no" with
+      // its exact code — never a thrown error, and never a placement.
+      const refusal = (i: number, code: string) => {
+        const r = results[i] as { ok: boolean; code?: string };
+        expect(r.ok).toBe(false);
+        expect(r.code).toBe(code);
+      };
+      refusal(0, "GUIDE_CATALOG_UNKNOWN_DEFINITION");
+      refusal(1, "GUIDE_CATALOG_UNKNOWN_DEFINITION");
+      expect(results[2]!.ok).toBe(true);
+
+      // And the verdict a reader would see for them is UNAVAILABLE, in the
+      // same positions — the batch survives its unknown neighbours instead of
+      // failing whole, which is what "fails closed" has to mean here.
+      const svc = new GuideReaderApplicabilityService(targetContext);
+      const reader = await readerContextFor(A, EEC, 1);
+      const verdicts = await A.prisma.$transaction((tx) =>
+        svc.verdicts(tx, reader, asked),
+      );
+      expect(verdicts).toEqual(["UNAVAILABLE", "UNAVAILABLE", "APPLIES"]);
     });
   },
 );

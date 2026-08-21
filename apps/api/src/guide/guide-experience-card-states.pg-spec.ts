@@ -23,6 +23,7 @@ import { LearningEventRepository } from "../learning/learning-event.repository";
 import { GuideCommandReceiptRepository } from "./guide-command-receipt.repository";
 import { GuideSessionRepository } from "./guide-session.repository";
 import { GuideSessionStepRepository } from "./guide-session-step.repository";
+import { productionGuideRegistry } from "./guide-catalog";
 import { GuideTargetContextService } from "./guide-target-context.service";
 import { GuideReaderApplicabilityService } from "./guide-reader-applicability.service";
 import { GuideLifecycleService } from "./guide-lifecycle.service";
@@ -872,12 +873,31 @@ suite("C.1 · one card state per experience", () => {
         },
       }) as unknown as PrismaService;
 
+      // DISTINCT pins, and every one of them RESOLVABLE.
+      //
+      // This used to fill the list with `absent-i` keys. Those are answered
+      // from the registry BEFORE a single query is issued, so the batch really
+      // resolved one pin whether it was asked about 2 or 25 — and "the cost
+      // does not grow" was true of a batch that never grew. Each pin here is
+      // the real definition under its own key, through the registry seam, so
+      // all n are placed for real and the measurement means what it says.
+      const menu = {
+        getExact: (guideKey: string, guideVersion: number) => ({
+          ...productionGuideRegistry.getExact(
+            PIN_A.guideKey,
+            PIN_A.guideVersion,
+          ),
+          guideKey,
+          guideVersion,
+        }),
+      };
       const counted = new GuideLifecycleService(
         countingClient,
         new LearningCatalogResolver(countingClient),
         new ContentAccessService(countingClient),
         new GuideTargetContextService(
           new LearningCatalogResolver(countingClient),
+          menu,
         ),
         new GuideSessionRepository(countingClient as never),
         new GuideSessionStepRepository(countingClient as never),
@@ -886,13 +906,13 @@ suite("C.1 · one card state per experience", () => {
         new GuideReaderApplicabilityService(
           new GuideTargetContextService(
             new LearningCatalogResolver(countingClient),
+            menu,
           ),
         ),
       );
 
-      // DISTINCT pins: repeating one would measure deduplication.
       const pins = Array.from({ length: n }, (_, i) => ({
-        guideKey: i === 0 ? PIN_A.guideKey : `absent-${i}`,
+        guideKey: i === 0 ? PIN_A.guideKey : `${PIN_A.guideKey}-c${i}`,
         guideVersion: 1,
       }));
       await counted.resolveExperienceCardStates(user.userId, pins, readerA);
@@ -903,7 +923,9 @@ suite("C.1 · one card state per experience", () => {
     const twentyFive = await count(25);
     expect(twentyFive).toBe(two);
     // eslint-disable-next-line no-console
-    console.log(`CARD_STATE_CHUNK_QUERIES=${two}`);
+    console.log(`CARD_STATE_CHUNK_QUERIES_2_DISTINCT=${two}`);
+    // eslint-disable-next-line no-console
+    console.log(`CARD_STATE_CHUNK_QUERIES_25_DISTINCT=${twentyFive}`);
   });
 
   it("carries no user id, no idempotency key and no editorial context", async () => {

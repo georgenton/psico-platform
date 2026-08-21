@@ -922,10 +922,14 @@ suite("C.1 · one card state per experience", () => {
     const two = await count(2);
     const twentyFive = await count(25);
     expect(twentyFive).toBe(two);
+    // Scoped in the NAME: these pins carry the shipped definition's targets,
+    // which walk every family, so this is the mixed composition. The
+    // composition matrix — concept-only, exercise-only, recall-only, mixed —
+    // is measured in `guide-target-cost.pg-spec.ts`.
     // eslint-disable-next-line no-console
-    console.log(`CARD_STATE_CHUNK_QUERIES_2_DISTINCT=${two}`);
+    console.log(`CARD_STATE_QUERIES_MIXED_2_DISTINCT=${two}`);
     // eslint-disable-next-line no-console
-    console.log(`CARD_STATE_CHUNK_QUERIES_25_DISTINCT=${twentyFive}`);
+    console.log(`CARD_STATE_QUERIES_MIXED_25_DISTINCT=${twentyFive}`);
   });
 
   it("carries no user id, no idempotency key and no editorial context", async () => {

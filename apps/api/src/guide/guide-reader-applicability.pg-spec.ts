@@ -502,12 +502,16 @@ suite(
       // concepts, units, published membership, contexts. Unreached lookups are
       // skipped, so a concept-only batch costs fewer.
       expect(two).toBeLessThanOrEqual(5);
-      // Emitted so the figure quoted anywhere else is this measurement rather
-      // than a reading of the code.
+      // Named with its SCOPE, because the number is small for a reason: these
+      // synthetic concepts are not in the catalog, so the batch issues its
+      // concept lookup, finds nothing, and stops. That is a real measurement of
+      // cardinality-independence for an unreachable batch — and nothing more.
+      // The reachable matrix, by composition, lives in
+      // `guide-target-cost.pg-spec.ts`.
       // eslint-disable-next-line no-console
-      console.log(`TARGET_CONTEXT_RESOLVE_MANY_QUERIES_2=${two}`);
+      console.log(`TARGET_QUERIES_CONCEPT_UNREACHABLE_2=${two}`);
       // eslint-disable-next-line no-console
-      console.log(`TARGET_CONTEXT_RESOLVE_MANY_QUERIES_25=${twentyFive}`);
+      console.log(`TARGET_QUERIES_CONCEPT_UNREACHABLE_25=${twentyFive}`);
     });
 
     it("a stale reader token fails the batch closed, rather than answering", async () => {

@@ -6,6 +6,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { PrismaService } from "../prisma";
 import type { ChapterExperienceDefinition } from "@psico/types";
+import { GuideTargetContextService } from "../guide/guide-target-context.service";
+import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 import { backfillContentCore } from "../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
 import { productionExperienceRepository } from "./experience-production-catalog";
@@ -139,6 +141,18 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
       // it answers. Only the guide MENU is substituted.
       productionCodeOwnedClaims,
       twoGuideCatalog,
+      // C.3R — the REAL target authority, over the same substituted menu.
+      //
+      // Not a stub: this is `GuideTargetContextService` itself, issuing its own
+      // SQL against this fixture's ingested catalog. Only the registry seam is
+      // swapped, so `ALT` (the real definition under a second key) is placed by
+      // resolving its actual targets — the same rules, the same queries, the
+      // same failure modes as production. A stub here would have made every
+      // identity assertion below a statement about the stub.
+      new GuideTargetContextService(
+        new LearningCatalogResolver(prisma as unknown as PrismaService),
+        twoGuideCatalog,
+      ),
     );
 
     const edition = await prisma.edition.findFirstOrThrow({
@@ -750,31 +764,33 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
       });
       expect(reservations).toEqual([{ contentUnitId: unitA }]);
 
-      // ── And here is the residual, asserted rather than hidden ────────────
+      // ── The residual this test used to record is CLOSED ─────────────────
       //
-      // The selector answers a question the CMS cannot make identity-based on
-      // its own: "does this guide's approved passage live in this chapter". The
-      // answer comes from the shipped ANCHOR, which names `(bookSlug,
-      // chapterOrder)` — and the READER gates on the same positional anchor
-      // (`anchorAppliesTo`, used by the web Player to render «No disponible
-      // aquí»). Making only the CMS resolve it by identity would let an editor
-      // bind a guide no reader could open, which is strictly worse than
-      // refusing.
+      // It read: "the selector answers a question the CMS cannot make
+      // identity-based on its own", because the shipped anchor named
+      // `(bookSlug, chapterOrder)` and the READER gated on that same positional
+      // anchor. Making only the CMS identity-based would have let an editor
+      // bind a guide no reader could open — strictly worse than refusing.
       //
-      // So after a reorder the offer follows the NUMBER the anchor names, not
-      // the unit the passage is in:
+      // C.3R made the reader identity-based and deleted `anchorAppliesTo`, so
+      // both halves now ask the same question. The assertions below are the
+      // previous ones INVERTED, and that inversion is the whole point of
+      // restacking this branch on it.
+      //
+      // Order 1001 is where the guide's own unit now sits: the offer followed
+      // the UNIT.
       const atMoved = await twoGuides.listSelectableGuides(BOOK_A, 1001, null);
-      expect(atMoved.map((o) => o.guideKey)).toEqual([]);
-      const atOne = await twoGuides.listSelectableGuides(BOOK_A, 1, null);
-      expect(atOne.map((o) => o.guideKey).sort()).toEqual(
+      expect(atMoved.map((o) => o.guideKey).sort()).toEqual(
         [ALT_PIN.guideKey, EEC_PIN.guideKey].sort(),
       );
+      // Order 1 is a brand-new unit that no guide targets. Under the old rule
+      // it was offered both guides, purely because it inherited the number.
+      const atOne = await twoGuides.listSelectableGuides(BOOK_A, 1, null);
+      expect(atOne.map((o) => o.guideKey)).toEqual([]);
 
-      // What C.3A and C.4 DO guarantee is the half that is theirs: the
-      // reservation stayed with the unit, so the moved draft still holds its
-      // guide and nothing was silently reassigned. Fixing the other half means
-      // making the anchor identity-based on the READER too, which is not this
-      // PR's to change.
+      // And the half that was always C.3A/C.4's: the reservation stayed with
+      // the unit, so the moved draft still holds its guide and nothing was
+      // silently reassigned.
       expect(
         await prisma.experienceGuideReservation.findMany({
           select: { contentUnitId: true, guideKey: true },

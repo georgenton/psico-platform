@@ -10,7 +10,8 @@ import {
   productionGuideRegistry,
 } from "../guide/guide-catalog";
 import {
-  guideAnchorAppliesToChapter,
+  guideOptionPinKey,
+  guidePinTargetsUnit,
   selectableGuidesForChapter,
 } from "./experience-guide-options";
 import type { ChapterBindingView } from "./experience-binding-reservation";
@@ -35,6 +36,21 @@ const ANCHORS: readonly GuideReaderAnchorLocator[] = [
   GUIDE_READER_ANCHOR,
   PAREJAS_READER_ANCHOR,
 ];
+
+/**
+ * C.3R — where each anchor's guide targets, stated.
+ *
+ * The unit id is invented here, and that is the point: the CMS decides by
+ * comparing ids it was given, so a test can describe "this guide belongs to
+ * that unit" without impersonating the three catalog tables the real authority
+ * reads. The authority itself is exercised against PostgreSQL.
+ */
+const UNIT_OF = (anchor: GuideReaderAnchorLocator): string =>
+  `unit_${anchor.bookSlug}_${anchor.chapterOrder}`;
+
+const TARGETS: ReadonlyMap<string, string | null> = new Map(
+  ANCHORS.map((a) => [guideOptionPinKey(a), UNIT_OF(a)]),
+);
 
 /** No reservations and no code-owned claims: availability is not the subject. */
 const EMPTY_VIEW: ChapterBindingView = {
@@ -72,11 +88,11 @@ describe("ratchet · every anchor resolves an exact guide", () => {
     }
   });
 
-  it("every anchor points at a chapter the CMS can actually offer it in", () => {
+  it("every anchor's guide is offered in the unit it targets", () => {
     for (const anchor of ANCHORS) {
       const options = selectableGuidesForChapter({
-        bookSlug: anchor.bookSlug,
-        chapterOrder: anchor.chapterOrder,
+        contentUnitId: UNIT_OF(anchor),
+        targets: TARGETS,
         experienceKey: null,
         view: EMPTY_VIEW,
       });
@@ -84,26 +100,42 @@ describe("ratchet · every anchor resolves an exact guide", () => {
     }
   });
 
-  it("a guide is offered ONLY in the chapter its anchor names", () => {
+  it("a guide is offered ONLY in the unit it targets — never by position", () => {
     for (const anchor of ANCHORS) {
-      // One chapter over. The passage does not live there, so a card bound
-      // here would publish cleanly and open for nobody.
-      expect(
-        guideAnchorAppliesToChapter(anchor, {
-          bookSlug: anchor.bookSlug,
-          chapterOrder: anchor.chapterOrder + 1,
-        }),
-      ).toBe(false);
-      // And the other book at the same position.
-      const otherBook = ANCHORS.find((a) => a.bookSlug !== anchor.bookSlug);
-      if (otherBook) {
-        expect(
-          guideAnchorAppliesToChapter(anchor, {
-            bookSlug: otherBook.bookSlug,
-            chapterOrder: anchor.chapterOrder,
-          }),
-        ).toBe(false);
+      // Another unit entirely. Position is not in this call at all: there is
+      // no `chapterOrder` to compare, which is what makes the old failure
+      // inexpressible rather than merely unlikely.
+      expect(guidePinTargetsUnit(anchor, "unit_ajena", TARGETS)).toBe(false);
+      // And the other anchor's unit, which is a real unit — just not this
+      // guide's.
+      const other = ANCHORS.find((a) => a.guideKey !== anchor.guideKey);
+      if (other) {
+        expect(guidePinTargetsUnit(anchor, UNIT_OF(other), TARGETS)).toBe(
+          false,
+        );
       }
+      expect(guidePinTargetsUnit(anchor, UNIT_OF(anchor), TARGETS)).toBe(true);
+    }
+  });
+
+  it("a pin the authority could not place is NOT offered", () => {
+    // `null` is the editorial answer «no pude ubicarla»: an unknown definition,
+    // or targets that contradict each other. Neither is permission to bind.
+    const unresolved = new Map(TARGETS);
+    for (const a of ANCHORS) unresolved.set(guideOptionPinKey(a), null);
+    for (const anchor of ANCHORS) {
+      expect(
+        selectableGuidesForChapter({
+          contentUnitId: UNIT_OF(anchor),
+          targets: unresolved,
+          experienceKey: null,
+          view: EMPTY_VIEW,
+        }),
+      ).toEqual([]);
+      // A key that is absent altogether is the same answer: nobody said so.
+      expect(guidePinTargetsUnit(anchor, UNIT_OF(anchor), new Map())).toBe(
+        false,
+      );
     }
   });
 });

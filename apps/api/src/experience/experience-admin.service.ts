@@ -40,6 +40,9 @@ import type {
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { productionGuideRegistry } from "../guide/guide-catalog";
+// C.3R — the single authority on what a pin targets, shared with the reader.
+import { GuideTargetContextService } from "../guide/guide-target-context.service";
+import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 import { productionGuideDiscoveryCatalog } from "../guide/guide-discovery-catalog";
 import {
   ExperienceCatalogError,
@@ -67,7 +70,7 @@ import {
 import type { ReservationAuthority } from "./experience-binding-schema";
 import {
   EXPERIENCE_BINDING_CATALOG,
-  guideAnchorAppliesToChapter,
+  guideOptionPinKey,
   productionBindingCatalog,
   selectableGuidesForChapter,
   type ExperienceBindingCatalog,
@@ -205,6 +208,19 @@ export class ExperienceAdminService {
     @Optional()
     @Inject(EXPERIENCE_BINDING_CATALOG)
     private readonly catalog: ExperienceBindingCatalog = productionBindingCatalog,
+    /**
+     * C.3R — the ONE authority on what a pin targets.
+     *
+     * The CMS asks the same service the reader asks, with the same batch call,
+     * and compares the same internal ids. It deliberately does NOT reuse the
+     * reader's HTTP contract: that surface takes an environment-local locator
+     * from a browser and re-resolves it, which is the right shape for an
+     * untrusted caller and the wrong one for a server that already holds the
+     * unit under a lock.
+     */
+    private readonly targetContext: GuideTargetContextService = new GuideTargetContextService(
+      new LearningCatalogResolver(prisma),
+    ),
   ) {}
 
   /**
@@ -419,8 +435,6 @@ export class ExperienceAdminService {
         message: "No hay una guía base disponible para este capítulo.",
       });
     }
-    this.assertPinBindable(pin, input);
-
     const definition = this.rebuildAsDraft(input, pin);
     return this.withBinding(
       {
@@ -429,6 +443,10 @@ export class ExperienceAdminService {
         expectedContentUnitId,
       },
       async (tx, chapter, authority) => {
+        // What the UI offered is not authorisation. The pin is re-placed here,
+        // against the unit this transaction resolved under the lock, before a
+        // single row is written.
+        await this.assertPinBindable(tx, pin, chapter.contentUnitId);
         await this.reserveFor(tx, chapter, definition, authority);
         return this.insert(tx, userId, definition, chapter);
       },
@@ -444,10 +462,11 @@ export class ExperienceAdminService {
    * that publishes cleanly and opens for nobody
    * (CROSS_CHAPTER_GUIDE_BINDING=forbidden).
    */
-  private assertPinBindable(
+  private async assertPinBindable(
+    tx: Prisma.TransactionClient,
     pin: { guideKey: string; guideVersion: number },
-    where: { bookSlug: string; chapterOrder: number },
-  ): void {
+    contentUnitId: string,
+  ): Promise<void> {
     try {
       this.catalog.getExact(pin.guideKey, pin.guideVersion);
     } catch {
@@ -456,7 +475,15 @@ export class ExperienceAdminService {
         message: "Esa guía no existe en esta versión de la plataforma.",
       });
     }
-    if (!guideAnchorAppliesToChapter(pin, where, this.catalog)) {
+    // C.3R — the pin is placed by the authority, on THIS transaction's client,
+    // and compared against the unit this write already holds under the lock. A
+    // storage failure is NOT caught: "the database could not tell us" and "that
+    // guide belongs elsewhere" are different facts, and answering the second
+    // when the first happened would refuse an editor's correct choice.
+    const [resolved] = await this.targetContext.resolveMany([pin], tx);
+    const targets =
+      resolved !== undefined && resolved.ok ? resolved.context.unitId : null;
+    if (targets !== contentUnitId) {
       throw new UnprocessableEntityException({
         code: "EXPERIENCE_GUIDE_PIN_NOT_RUNNABLE_HERE",
         message:
@@ -489,14 +516,39 @@ export class ExperienceAdminService {
           codeOwned: await this.codeOwnedClaims(tx, chapter.contentUnitId),
         });
         return selectableGuidesForChapter({
-          bookSlug,
-          chapterOrder,
+          contentUnitId: chapter.contentUnitId,
+          targets: await this.targetUnitIndex(tx),
           experienceKey,
           view,
           catalog: this.catalog,
         });
       },
     );
+  }
+
+  /**
+   * Where every candidate pin's targets live, in ONE batch.
+   *
+   * `resolveMany` costs a fixed number of reads whatever the list's length, so
+   * a catalog of 25 guides is the same query count as a catalog of 2 — the
+   * editor never pays for the catalog's size. Resolving one pin at a time here
+   * would be the N+1 this authority exists to avoid.
+   */
+  private async targetUnitIndex(
+    tx: Prisma.TransactionClient,
+  ): Promise<Map<string, string | null>> {
+    const pins = this.catalog.anchors.map((a) => ({
+      guideKey: a.guideKey,
+      guideVersion: a.guideVersion,
+    }));
+    const index = new Map<string, string | null>();
+    if (pins.length === 0) return index;
+    const results = await this.targetContext.resolveMany(pins, tx);
+    results.forEach((r: (typeof results)[number], i: number) => {
+      const pin = pins[i] as { guideKey: string; guideVersion: number };
+      index.set(guideOptionPinKey(pin), r.ok ? r.context.unitId : null);
+    });
+    return index;
   }
 
   /**
@@ -888,7 +940,6 @@ export class ExperienceAdminService {
       select: { bookSlug: true, chapterOrder: true, contentUnitId: true },
     });
     if (!row) throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
-    this.assertPinBindable(pin, row);
 
     return this.withBinding(
       {
@@ -898,6 +949,9 @@ export class ExperienceAdminService {
         expectedContentUnitId,
       },
       async (tx, chapter, authority) => {
+        // Re-placed under the lock, exactly like create. The row read outside
+        // told us which chapter to lock and nothing else.
+        await this.assertPinBindable(tx, pin, chapter.contentUnitId);
         const current = await tx.chapterExperienceVersion.findUnique({
           where: { id },
         });

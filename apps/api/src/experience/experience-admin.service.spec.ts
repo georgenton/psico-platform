@@ -182,6 +182,32 @@ beforeEach(() => {
         definition: definition(),
       },
     ],
+    undefined,
+    // C.3R — where each pin's targets live, STATED for the same reason the
+    // code-owned claims above are stated: the real authority walks the guide
+    // registry and three catalog tables, and impersonating those here would
+    // make this a test about Content Core instead of about lifecycle rules.
+    // Its real behaviour is exercised against PostgreSQL in
+    // `experience-binding-bridge.pg-spec.ts`.
+    //
+    // The EEC guide targets THIS chapter's unit; the Parejas guide targets
+    // another one; anything else does not resolve at all.
+    {
+      resolveMany: async (
+        pins: readonly { guideKey: string; guideVersion: number }[],
+      ) =>
+        pins.map((pin) => {
+          const unitId =
+            pin.guideKey === EEC_PIN.guideKey
+              ? UNIT_ID
+              : pin.guideKey === "pqp-c1-contacto-sostenido"
+                ? "unit_pqp_c1"
+                : null;
+          return unitId === null
+            ? { ok: false as const, pin, code: "GUIDE_CONTEXT_UNRESOLVED" }
+            : { ok: true as const, pin, context: { unitId } };
+        }),
+    } as unknown as ConstructorParameters<typeof ExperienceAdminService>[3],
   );
 });
 

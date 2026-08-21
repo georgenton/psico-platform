@@ -15228,8 +15228,7 @@
                 "type": "object",
                 "additionalProperties": false,
                 "required": [
-                  "pins",
-                  "reader"
+                  "pins"
                 ],
                 "properties": {
                   "reader": {
@@ -15260,7 +15259,8 @@
                         "maxLength": 200,
                         "description": "Localizador local del entorno. NO es una identidad portable: la misma obra ingerida dos veces produce claves distintas."
                       }
-                    }
+                    },
+                    "description": "Dónde está el lector. Obligatorio para todo cliente C.3R; su ausencia solo se tolera durante la ventana de despliegue y se responde SIN veredicto."
                   },
                   "pins": {
                     "type": "array",
@@ -15309,99 +15309,166 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": [
-                          "guidePin",
-                          "status",
-                          "resumePin",
-                          "applicability",
-                          "evaluatedPin"
-                        ],
-                        "properties": {
-                          "guidePin": {
+                        "oneOf": [
+                          {
                             "type": "object",
                             "additionalProperties": false,
                             "required": [
-                              "guideKey",
-                              "guideVersion"
+                              "guidePin",
+                              "status",
+                              "resumePin",
+                              "applicability",
+                              "evaluatedPin"
                             ],
                             "properties": {
-                              "guideKey": {
-                                "type": "string",
-                                "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
-                                "minLength": 1,
-                                "maxLength": 200
+                              "guidePin": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "guideKey",
+                                  "guideVersion"
+                                ],
+                                "properties": {
+                                  "guideKey": {
+                                    "type": "string",
+                                    "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "guideVersion": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 999999999
+                                  }
+                                }
                               },
-                              "guideVersion": {
-                                "type": "integer",
-                                "minimum": 1,
-                                "maximum": 999999999
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "START",
+                                  "CONTINUE",
+                                  "COMPLETED"
+                                ],
+                                "description": "CONTINUE si hay una sesión ACTIVE del mismo guideKey, sea cual sea su versión; COMPLETED solo si el pin EXACTO está completado; START en cualquier otro caso."
+                              },
+                              "resumePin": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "guideKey",
+                                  "guideVersion"
+                                ],
+                                "properties": {
+                                  "guideKey": {
+                                    "type": "string",
+                                    "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "guideVersion": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 999999999
+                                  }
+                                },
+                                "description": "El pin que debe ejecutarse al pulsar: el de la sesión abierta cuando la hay, el publicado en caso contrario."
+                              },
+                              "applicability": {
+                                "type": "string",
+                                "enum": [
+                                  "APPLIES",
+                                  "UNAVAILABLE"
+                                ],
+                                "description": "C.3R — si esta guía es sobre la unidad en la que está el lector, resuelto EN EL SERVIDOR comparando identidades. El cliente no recibe ningún identificador para recalcularlo."
+                              },
+                              "evaluatedPin": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "guideKey",
+                                  "guideVersion"
+                                ],
+                                "properties": {
+                                  "guideKey": {
+                                    "type": "string",
+                                    "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "guideVersion": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 999999999
+                                  }
+                                },
+                                "description": "El pin sobre el que se emitió el veredicto: el reanudable cuando hay linaje abierto, el publicado en caso contrario."
                               }
                             }
                           },
-                          "applicability": {
-                            "type": "string",
-                            "enum": [
-                              "APPLIES",
-                              "UNAVAILABLE"
-                            ],
-                            "description": "C.3R — si esta guía es sobre la unidad en la que está el lector, resuelto EN EL SERVIDOR comparando identidades. El cliente no recibe ningún identificador para recalcularlo."
-                          },
-                          "evaluatedPin": {
+                          {
                             "type": "object",
                             "additionalProperties": false,
                             "required": [
-                              "guideKey",
-                              "guideVersion"
+                              "guidePin",
+                              "status",
+                              "resumePin"
                             ],
                             "properties": {
-                              "guideKey": {
-                                "type": "string",
-                                "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
-                                "minLength": 1,
-                                "maxLength": 200
+                              "guidePin": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "guideKey",
+                                  "guideVersion"
+                                ],
+                                "properties": {
+                                  "guideKey": {
+                                    "type": "string",
+                                    "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "guideVersion": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 999999999
+                                  }
+                                }
                               },
-                              "guideVersion": {
-                                "type": "integer",
-                                "minimum": 1,
-                                "maximum": 999999999
-                              }
-                            },
-                            "description": "El pin sobre el que se emitió el veredicto: el reanudable cuando hay linaje abierto, el publicado en caso contrario."
-                          },
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "START",
-                              "CONTINUE",
-                              "COMPLETED"
-                            ],
-                            "description": "CONTINUE si hay una sesión ACTIVE del mismo guideKey, sea cual sea su versión; COMPLETED solo si el pin EXACTO está completado; START en cualquier otro caso."
-                          },
-                          "resumePin": {
-                            "type": "object",
-                            "additionalProperties": false,
-                            "required": [
-                              "guideKey",
-                              "guideVersion"
-                            ],
-                            "properties": {
-                              "guideKey": {
+                              "status": {
                                 "type": "string",
-                                "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
-                                "minLength": 1,
-                                "maxLength": 200
+                                "enum": [
+                                  "START",
+                                  "CONTINUE",
+                                  "COMPLETED"
+                                ],
+                                "description": "CONTINUE si hay una sesión ACTIVE del mismo guideKey, sea cual sea su versión; COMPLETED solo si el pin EXACTO está completado; START en cualquier otro caso."
                               },
-                              "guideVersion": {
-                                "type": "integer",
-                                "minimum": 1,
-                                "maximum": 999999999
+                              "resumePin": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "guideKey",
+                                  "guideVersion"
+                                ],
+                                "properties": {
+                                  "guideKey": {
+                                    "type": "string",
+                                    "pattern": "^[a-z0-9][a-z0-9._:-]{0,199}$",
+                                    "minLength": 1,
+                                    "maxLength": 200
+                                  },
+                                  "guideVersion": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 999999999
+                                  }
+                                },
+                                "description": "El pin que debe ejecutarse al pulsar: el de la sesión abierta cuando la hay, el publicado en caso contrario."
                               }
-                            },
-                            "description": "El pin que debe ejecutarse al pulsar: el de la sesión abierta cuando la hay, el publicado en caso contrario."
+                            }
                           }
-                        }
+                        ]
                       }
                     }
                   }

@@ -12,6 +12,7 @@ import {
   vi,
 } from "vitest";
 
+import type { GuideExperienceCardState } from "@psico/types";
 import type { PrismaService } from "../prisma";
 import type { AuthenticatedUser } from "../auth";
 import { backfillContentCore } from "../content-core/backfill";
@@ -688,6 +689,136 @@ suite("C.1 · one card state per experience", () => {
     }).toEqual(before);
   });
 
+  /**
+   * C.3R · the rolling deploy window, exercised in BOTH directions.
+   *
+   * Only one deploy order works — API first, then Web — and the reason is
+   * asymmetric. A new server can answer an old client, because the older shape
+   * is a subset of the newer one. An old server cannot answer a new client: its
+   * parser refuses unknown root fields, so `reader` would fail the whole
+   * chapter. These tests hold the half that is ours to keep working.
+   */
+  describe("the rolling deploy window", () => {
+    it("answers a request without a context in the OLDER shape", async () => {
+      const items = await service.resolveExperienceCardStates(
+        user.userId,
+        [PIN_A],
+        null,
+      );
+      const card = items[0];
+      // Exactly the three fields the pre-C.3R browser renders. Nothing is
+      // invented to fill the two it does not know: a verdict about "wherever
+      // you are" is the guess this whole change removes.
+      expect(Object.keys(card ?? {}).sort()).toEqual([
+        "guidePin",
+        "resumePin",
+        "status",
+      ]);
+      expect(JSON.stringify(card)).not.toMatch(
+        /applicability|evaluatedPin|unitKey|contentUnitId/,
+      );
+    });
+
+    it("still answers the same STATUS it always did", async () => {
+      // The window changes what is added, never what was already there.
+      const [withContext] = await service.resolveExperienceCardStates(
+        user.userId,
+        [PIN_A],
+        readerA,
+      );
+      const [without] = await service.resolveExperienceCardStates(
+        user.userId,
+        [PIN_A],
+        null,
+      );
+      expect(without!.status).toBe(withContext!.status);
+      expect(without!.resumePin).toEqual(withContext!.resumePin);
+      expect(without!.guidePin).toEqual(withContext!.guidePin);
+    });
+
+    it("costs the older client LESS, not more", async () => {
+      // No context, no verdict, and no read to produce one. Measured, because
+      // "it should not query" is exactly the kind of claim that rots.
+      const count = async (reader: typeof readerA | null): Promise<number> => {
+        let queries = 0;
+        const countingTx = (tx: object): object =>
+          new Proxy(tx, {
+            get(target, prop, recv) {
+              const v = Reflect.get(target, prop, recv);
+              if (prop === "$queryRaw" || prop === "$queryRawUnsafe") {
+                return (...args: unknown[]) => {
+                  queries += 1;
+                  return (v as (...a: unknown[]) => unknown).apply(
+                    target,
+                    args,
+                  );
+                };
+              }
+              if (typeof prop === "string" && prop.startsWith("$")) return v;
+              if (typeof v !== "object" || v === null) return v;
+              return new Proxy(v, {
+                get(m, mp, mr) {
+                  const fn = Reflect.get(m, mp, mr);
+                  if (typeof fn !== "function") return fn;
+                  return (...args: unknown[]) => {
+                    queries += 1;
+                    return (fn as (...a: unknown[]) => unknown).apply(m, args);
+                  };
+                },
+              });
+            },
+          });
+        const countingClient = new Proxy(prisma, {
+          get(target, prop, recv) {
+            const v = Reflect.get(target, prop, recv);
+            if (prop === "$transaction" && typeof v === "function") {
+              return (fn: unknown, opts: unknown) =>
+                (v as (...a: unknown[]) => unknown).call(
+                  target,
+                  typeof fn === "function"
+                    ? (tx: object) =>
+                        (fn as (t: unknown) => unknown)(countingTx(tx))
+                    : fn,
+                  opts,
+                );
+            }
+            return typeof v === "function" ? v.bind(target) : v;
+          },
+        }) as unknown as PrismaService;
+
+        const counted = new GuideLifecycleService(
+          countingClient,
+          new LearningCatalogResolver(countingClient),
+          new ContentAccessService(countingClient),
+          new GuideTargetContextService(
+            new LearningCatalogResolver(countingClient),
+          ),
+          new GuideSessionRepository(countingClient as never),
+          new GuideSessionStepRepository(countingClient as never),
+          new GuideCommandReceiptRepository(countingClient as never),
+          new LearningEventRepository(countingClient as never),
+          new GuideReaderApplicabilityService(
+            new GuideTargetContextService(
+              new LearningCatalogResolver(countingClient),
+            ),
+          ),
+        );
+        await counted.resolveExperienceCardStates(
+          user.userId,
+          [PIN_A, PIN_B],
+          reader,
+        );
+        return queries;
+      };
+
+      const withContext = await count(readerA);
+      const without = await count(null);
+      expect(without).toBeLessThan(withContext);
+      // eslint-disable-next-line no-console
+      console.log(`CARD_STATE_WINDOW_QUERIES=${without} (C.3R=${withContext})`);
+    });
+  });
+
   it("the whole chunk costs a fixed number of reads, 2 pins or 25", async () => {
     // Measured end to end inside the real transaction — not 2 + 5 asserted
     // from two separate counts. Everything the snapshot issues is counted: the
@@ -793,8 +924,9 @@ suite("C.1 · one card state per experience", () => {
       "resumePin",
       "status",
     ]);
-    expect(["APPLIES", "UNAVAILABLE"]).toContain(card?.applicability);
-    expect(Object.keys(card?.evaluatedPin ?? {}).sort()).toEqual([
+    const verdict = card as GuideExperienceCardState;
+    expect(["APPLIES", "UNAVAILABLE"]).toContain(verdict.applicability);
+    expect(Object.keys(verdict.evaluatedPin ?? {}).sort()).toEqual([
       "guideKey",
       "guideVersion",
     ]);

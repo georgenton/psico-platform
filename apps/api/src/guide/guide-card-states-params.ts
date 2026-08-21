@@ -40,8 +40,14 @@ export interface GuideCardStatesQuery {
   /**
    * Where the reader is. Navigation plus an environment-local token — never
    * `contentUnitId`, which this endpoint refuses to accept from a client.
+   *
+   * `null` when the caller sent none. That is the ROLLING WINDOW, and it is
+   * distinguished from a malformed context on purpose: a browser built before
+   * C.3R does not know the field exists, while a browser that sends a broken
+   * one is making a claim that cannot be checked. The first is answered
+   * without a verdict; the second is refused.
    */
-  reader: { bookSlug: string; chapterOrder: number; unitKey: string };
+  reader: { bookSlug: string; chapterOrder: number; unitKey: string } | null;
 }
 
 /**
@@ -137,6 +143,11 @@ export function parseGuideCardStatesBody(body: unknown): GuideCardStatesQuery {
   });
 
   const readerRaw = (body as { reader?: unknown }).reader;
+  // Absent — the pre-C.3R shape. `null` is NOT absent: sending it is a claim
+  // that there is no place, which no client should make.
+  if (!("reader" in (body as object))) {
+    return { pins, reader: null };
+  }
   if (
     typeof readerRaw !== "object" ||
     readerRaw === null ||

@@ -7,14 +7,15 @@ import {
 import type {
   GuideApplicability,
   GuideDefinition,
+  GuideExperienceCardState,
+  GuideExperienceCardStateLegacy,
+  GuideExperienceCardStatus,
+  GuideExperienceStateResponse,
   GuideRecallOutcome,
   GuideSessionProjection,
-  GuideSessionView,
   GuideSessionStatus,
+  GuideSessionView,
   GuideStepDefinition,
-  GuideExperienceStateResponse,
-  GuideExperienceCardState,
-  GuideExperienceCardStatus,
 } from "@psico/types";
 // Value import, not `import type`: `Prisma.TransactionIsolationLevel` is read
 // at runtime to state the isolation level of both Guide command transactions.
@@ -509,8 +510,8 @@ export class GuideLifecycleService {
      * verdict read a moment later could describe a chapter the state reads did
      * not.
      */
-    reader: ReaderUnitContext,
-  ): Promise<GuideExperienceCardState[]> {
+    reader: ReaderUnitContext | null,
+  ): Promise<GuideExperienceCardState[] | GuideExperienceCardStateLegacy[]> {
     if (pins.length === 0) return [];
 
     // TWO reads, whatever the list's length. A card shows a word and a
@@ -569,11 +570,11 @@ export class GuideLifecycleService {
               ? { guideKey: open.guideKey, guideVersion: open.guideVersion }
               : { guideKey: pin.guideKey, guideVersion: pin.guideVersion };
           });
-          const verdicts = await this.applicability.verdicts(
-            tx,
-            reader,
-            evaluated,
-          );
+          // No context, no verdict — and no read to produce one. The window
+          // costs the older client nothing, and the newer path is unchanged.
+          const verdicts = reader
+            ? await this.applicability.verdicts(tx, reader, evaluated)
+            : null;
           return {
             activeRows,
             exactRows,
@@ -608,7 +609,12 @@ export class GuideLifecycleService {
         guideKey: string;
         guideVersion: number;
       };
-      const verdict = applicability.verdicts[i] as GuideApplicability;
+      const verdicts = applicability.verdicts;
+      // The rolling window: the three fields the pre-C.3R client knows, and
+      // nothing invented to fill the two it does not.
+      const verdict = verdicts
+        ? { applicability: verdicts[i] as GuideApplicability, evaluatedPin }
+        : null;
 
       // 1. An ACTIVE run of this lineage wins, on its OWN pin. The registry is
       //    deliberately not consulted: a run pinned to a version this build no
@@ -622,8 +628,7 @@ export class GuideLifecycleService {
             guideKey: active.guideKey,
             guideVersion: active.guideVersion,
           },
-          applicability: verdict,
-          evaluatedPin,
+          ...verdict,
         };
       }
 
@@ -635,8 +640,7 @@ export class GuideLifecycleService {
           guidePin: published,
           status: "COMPLETED" as GuideExperienceCardStatus,
           resumePin: published,
-          applicability: verdict,
-          evaluatedPin,
+          ...verdict,
         };
       }
 
@@ -646,8 +650,7 @@ export class GuideLifecycleService {
         guidePin: published,
         status: "START" as GuideExperienceCardStatus,
         resumePin: published,
-        applicability: verdict,
-        evaluatedPin,
+        ...verdict,
       };
     });
   }

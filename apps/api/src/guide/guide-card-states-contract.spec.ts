@@ -13,7 +13,15 @@ import {
 import {
   GUIDE_CARD_STATES_BODY,
   GUIDE_CARD_STATES_RESPONSE,
+  GUIDE_CARD_STATES_RESPONSE_ITEM,
 } from "./dto/guide.openapi";
+
+/** The C.3R arm of the answer — the one this client ever receives. */
+const responseItem = () =>
+  GUIDE_CARD_STATES_RESPONSE_ITEM as unknown as {
+    required: string[];
+    properties: Record<string, Record<string, unknown>>;
+  };
 
 /**
  * C.1 — the batch contract has THREE statements of the same rules, and this is
@@ -80,11 +88,7 @@ describe("ratchet · parser ↔ OpenAPI", () => {
   });
 
   it("documents the answer the service actually returns — no session", () => {
-    const item = (
-      GUIDE_CARD_STATES_RESPONSE.properties?.items as {
-        items: Record<string, any>;
-      }
-    ).items;
+    const item = responseItem();
     // C.3R adds the verdict and the pin it was passed on; nothing else.
     const closed = [
       "applicability",
@@ -118,8 +122,16 @@ describe("ratchet · reader context and verdict", () => {
       properties: Record<string, Record<string, unknown>>;
     };
 
-  it("publishes the reader as REQUIRED — a verdict needs a stated place", () => {
-    expect(GUIDE_CARD_STATES_BODY.required).toEqual(["pins", "reader"]);
+  it("publishes the reader, optional for ONE window and never omitted", () => {
+    // Optional on paper: a browser built before C.3R does not know the field
+    // exists, and refusing it would break the deploy window for no gain — it
+    // is answered without a verdict, which is the shape it already renders.
+    expect(GUIDE_CARD_STATES_BODY.required).toEqual(["pins"]);
+    expect(GUIDE_CARD_STATES_BODY.properties?.reader).toBeDefined();
+    // Required in practice: this client always sends it, and the ratchet
+    // below fails if the call ever stops.
+    expect(client()).toMatch(/reader: sentReader/);
+    expect(client()).toMatch(/reader: GuideReaderContext/);
   });
 
   it("publishes the parser's reader grammar, character for character", () => {
@@ -154,14 +166,7 @@ describe("ratchet · reader context and verdict", () => {
   });
 
   it("publishes the verdict as a CLOSED pair of words", () => {
-    const item = (
-      GUIDE_CARD_STATES_RESPONSE.properties?.items as {
-        items: {
-          required: string[];
-          properties: Record<string, Record<string, unknown>>;
-        };
-      }
-    ).items;
+    const item = responseItem();
     expect(item.required.slice().sort()).toEqual([
       "applicability",
       "evaluatedPin",
@@ -327,12 +332,8 @@ describe("ratchet · parser ↔ client", () => {
   });
 
   it("agrees with OpenAPI on the three words a status may be", () => {
-    const item = (
-      GUIDE_CARD_STATES_RESPONSE.properties?.items as {
-        items: Record<string, any>;
-      }
-    ).items;
-    const published: string[] = item.properties.status.enum;
+    const item = responseItem();
+    const published = item.properties.status!.enum as string[];
     const inClient = [...client().matchAll(/status !== "([A-Z]+)"/g)].map(
       (m) => m[1]!,
     );
@@ -348,14 +349,33 @@ describe("ratchet · parser ↔ client", () => {
   });
 
   it("publishes the response as CLOSED, pins included", () => {
-    const item = (
+    // BOTH arms of the window, not just the one this client receives: a legacy
+    // arm left open would be a hole in the same endpoint's contract.
+    const arms = (
       GUIDE_CARD_STATES_RESPONSE.properties?.items as {
-        items: Record<string, any>;
+        items: { oneOf: Record<string, any>[] };
       }
-    ).items;
-    expect(item.additionalProperties).toBe(false);
-    for (const key of ["guidePin", "resumePin"]) {
-      const pin = item.properties[key];
+    ).items.oneOf;
+    expect(arms).toHaveLength(2);
+    for (const arm of arms) expect(arm.additionalProperties).toBe(false);
+    // The legacy arm carries the three core fields and NOTHING of C.3R: an
+    // answer without a verdict must not pretend to have one.
+    const legacy = arms[1]!;
+    expect(legacy.required.slice().sort()).toEqual([
+      "guidePin",
+      "resumePin",
+      "status",
+    ]);
+    expect(Object.keys(legacy.properties).sort()).toEqual([
+      "guidePin",
+      "resumePin",
+      "status",
+    ]);
+
+    const item = responseItem();
+    expect(item.additionalProperties as unknown).toBe(false);
+    for (const key of ["guidePin", "resumePin", "evaluatedPin"]) {
+      const pin = item.properties[key] as Record<string, any>;
       expect(pin.additionalProperties).toBe(false);
       expect(pin.required.slice().sort()).toEqual(["guideKey", "guideVersion"]);
       expect(pin.properties.guideKey.pattern).toBe(

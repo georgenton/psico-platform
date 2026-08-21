@@ -142,9 +142,11 @@ describe("ratchet · guide OpenAPI surface", () => {
       properties?: { pins?: { maxItems?: number; minItems?: number } };
     };
     expect(schema?.additionalProperties).toBe(false);
-    // C.3R — the reader context joins the pins, and is required: a verdict
-    // about applicability is only meaningful about a stated place.
-    expect(schema?.required).toEqual(["pins", "reader"]);
+    // C.3R — the reader context joins the pins. Optional on paper for ONE
+    // deploy window: a browser built before C.3R does not know the field, and
+    // is answered without a verdict rather than refused. The client always
+    // sends it (see `guide-card-states-contract.spec.ts`).
+    expect(schema?.required).toEqual(["pins"]);
     const reader = (
       schema as unknown as {
         properties: { reader: { additionalProperties: boolean } };

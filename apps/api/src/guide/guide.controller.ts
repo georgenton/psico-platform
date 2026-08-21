@@ -43,7 +43,7 @@ import type { AuthenticatedUser } from "../auth";
 import { CurrentUser } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import type {
-  GuideExperienceCardStatesResponse,
+  GuideExperienceCardStatesServerResponse,
   GuideExperienceStateResponse,
   RecoverableGuideSessionResponse,
 } from "@psico/types";
@@ -262,7 +262,7 @@ export class GuideController {
   async getGuideExperienceCardStates(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: unknown,
-  ): Promise<GuideExperienceCardStatesResponse> {
+  ): Promise<GuideExperienceCardStatesServerResponse> {
     let parsed: ReturnType<typeof parseGuideCardStatesBody>;
     try {
       parsed = parseGuideCardStatesBody(body);

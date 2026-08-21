@@ -257,7 +257,20 @@ export type GuideExperienceStateResponse =
  */
 export type GuideExperienceCardStatus = "START" | "CONTINUE" | "COMPLETED";
 
-export interface GuideExperienceCardState {
+/**
+ * The pre-C.3R item, kept ONLY for the rolling deploy window.
+ *
+ * A browser built before C.3R sends no reader context, and the server cannot
+ * invent one: a verdict about "wherever you are" is the guess #639 is about.
+ * So a request without a context is answered without a verdict — exactly the
+ * shape that browser already knows how to render, with its own positional
+ * check, which is the status quo rather than a regression.
+ *
+ * It is a WINDOW, not a mode. Once the Web deploy lands, every request carries
+ * a context and this arm stops being reached; the ratchet in
+ * `guide-card-states-contract.spec.ts` pins that the client never omits it.
+ */
+export interface GuideExperienceCardStateLegacy {
   /** The PUBLISHED pin this answer is about — echoed so a batch can be keyed. */
   guidePin: { guideKey: string; guideVersion: number };
   status: GuideExperienceCardStatus;
@@ -274,6 +287,9 @@ export interface GuideExperienceCardState {
    * open.
    */
   resumePin: { guideKey: string; guideVersion: number };
+}
+
+export interface GuideExperienceCardState extends GuideExperienceCardStateLegacy {
   /**
    * Does the pin a click would RUN belong to the chapter the reader is on?
    *
@@ -335,12 +351,28 @@ export interface GuideReaderContext {
  */
 export interface GuideExperienceCardStatesRequest {
   pins: Array<{ guideKey: string; guideVersion: number }>;
-  /** Where the reader is. See `GuideReaderContext` — navigation and a token. */
+  /**
+   * Where the reader is. See `GuideReaderContext` — navigation and a token.
+   *
+   * Optional on the WIRE for one deploy window only, and never omitted by this
+   * client: a request without it is answered with
+   * `GuideExperienceCardStateLegacy` items, which carry no verdict.
+   */
   reader: GuideReaderContext;
 }
 
 export interface GuideExperienceCardStatesResponse {
   items: GuideExperienceCardState[];
+}
+
+/**
+ * What the SERVER may answer during the rolling window: verdicts when a reader
+ * context was sent, the pre-C.3R items when it was not. The client-facing
+ * `GuideExperienceCardStatesResponse` stays the strict one — this client always
+ * sends a context, so it always receives verdicts and refuses anything else.
+ */
+export interface GuideExperienceCardStatesServerResponse {
+  items: GuideExperienceCardState[] | GuideExperienceCardStateLegacy[];
 }
 
 /**

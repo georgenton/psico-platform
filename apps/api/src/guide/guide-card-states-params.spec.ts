@@ -184,11 +184,16 @@ describe("parseGuideCardStatesBody · what it refuses", () => {
     );
   });
 
-  it("refuses a missing or malformed reader context", () => {
-    // The context is what makes a verdict about somewhere. Without it the
-    // server would have to guess where the reader is, which is the guess #639
-    // is about.
-    refuses({ pins: [pin()] });
+  it("refuses a MALFORMED reader context, and answers an absent one", () => {
+    // Two different facts. A browser built before C.3R does not know the field
+    // exists — it is answered without a verdict, which is the shape it already
+    // renders (the rolling window). A browser that sends a broken context is
+    // making a claim that cannot be checked, and gets refused.
+    const legacy = parseGuideCardStatesBody({ pins: [pin()] });
+    expect(legacy.reader).toBeNull();
+    expect(legacy.pins).toHaveLength(1);
+    // `null` is not absence: sending it asserts there is no place, which no
+    // client should say.
     refuses(body({ reader: null }));
     refuses(body({ reader: "emociones-en-construccion" }));
     refuses(body({ reader: [] }));

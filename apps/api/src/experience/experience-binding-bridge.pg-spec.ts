@@ -1040,13 +1040,29 @@ suite("C.3A · the binding bridge", () => {
       b.open();
       const { newUnitId, previousRevisionId } = await republish;
       restore = previousRevisionId;
-      await create;
+
+      // C.3R changed the OUTCOME of this race, and for the better.
+      //
+      // The unit that is really at that position is a NEW one, and this guide's
+      // passage is not in it. Under the old positional rule the binder compared
+      // `(bookSlug, chapterOrder)`, found them equal, and wrote a row on the new
+      // unit — published, correct-looking, and unopenable, because the reader
+      // resolves the passage from the unit's own blocks.
+      //
+      // Now the pin is re-placed inside the transaction, under the lock this
+      // test proves it took, and the answer is a refusal.
+      await expect(create).rejects.toMatchObject({
+        response: { code: "EXPERIENCE_GUIDE_PIN_NOT_RUNNABLE_HERE" },
+      });
 
       const { rows, reservations } = await state();
-      // It bound to the unit the manifest names NOW — never to the old one.
-      expect(rows[0]!.contentUnitId).toBe(newUnitId);
-      expect(rows[0]!.contentUnitId).not.toBe(unitA);
-      expect(reservations[0]!.contentUnitId).toBe(newUnitId);
+      // The property this test exists for is unchanged: the binder waited on
+      // the edition row instead of reading a manifest nobody was holding. What
+      // changed is that it then refused rather than binding the wrong unit —
+      // and it wrote nothing at all.
+      expect(rows).toEqual([]);
+      expect(reservations).toEqual([]);
+      expect(newUnitId).not.toBe(unitA);
     } finally {
       if (restore) await restorePublishedRevision(BOOK_A, restore);
     }

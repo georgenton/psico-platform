@@ -1,10 +1,11 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { EXPERIENCE_BINDING_SHAPE } from "./experience-binding-schema";
 import {
   bindingLockKeys,
+  preIdentityLockKeys,
   bridgeBindingLockKeys,
   chapterBindingLockKey,
   globalBindingLockKey,
@@ -788,8 +789,85 @@ describe("ratchet · claims this PR makes in prose are anchored in code", () => 
   });
 });
 
+describe("ratchet · there is no lock ORDER left to get wrong", () => {
+  it("V2 takes exactly ONE advisory key, and it is the chapter's", () => {
+    // Worth pinning precisely because it makes a whole class of control
+    // inexpressible: "invert the lock order" cannot change anything when the
+    // sequence has one element. That is a property of the code, not an
+    // omission in the tests — and it stops being true the moment V2 takes a
+    // second key, which is what this catches.
+    //
+    // C.3B is why: once every legacy row carried its identity there was
+    // nothing left that needed every chapter serialised behind a global key.
+    expect(preIdentityLockKeys()).toEqual([]);
+    const keys = bindingLockKeys("unit_x");
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).toBe(chapterBindingLockKey("unit_x"));
+    // And the helper walks the sequence as given — no sort, no reverse.
+    const lock = code(
+      join(process.cwd(), "src/experience/experience-binding-lock.ts"),
+    );
+    expect(lock).toMatch(/for \(const key of keys\) await acquireBindingLock/);
+    expect(lock).not.toMatch(/keys\.(reverse|sort)\(/);
+  });
+});
+
+describe("ratchet · the CMS asks the authority on the RIGHT client", () => {
+  const ADMIN = join(
+    process.cwd(),
+    "src/experience/experience-admin.service.ts",
+  );
+
+  it("every call to the target authority threads the transaction client", () => {
+    // Stated at the source, and worth saying why that is the instrument here.
+    //
+    // Under READ COMMITTED the ambient client and the transaction's client
+    // return the same rows for almost any interleaving, so a behavioural test
+    // for "it used the wrong client" would pass for the wrong reason nearly
+    // always and fail on a timing accident. What the ambient client really
+    // loses is the transaction: the answer stops being covered by the lock
+    // this write already holds, and a republish committing in between is read
+    // by one and not protected by the other.
+    //
+    // So this is a source ratchet, deliberately — a weaker instrument than a
+    // failing assertion about behaviour, and named as such rather than dressed
+    // up as one.
+    const src = code(ADMIN);
+    const calls = [...src.matchAll(/resolveMany\(([^)]*)\)/g)].map(
+      (m) => m[1] as string,
+    );
+    expect(calls.length).toBeGreaterThan(0);
+    for (const args of calls) {
+      expect(args).toMatch(/,\s*tx\s*$/);
+    }
+  });
+});
+
 describe("ratchet · the cutover migrations say what they do", () => {
   const MIGRATIONS = join(process.cwd(), "prisma/migrations");
+
+  it("this branch adds exactly TWO migrations, and names both", () => {
+    // Two facts, and the second is what makes the first mean anything.
+    //
+    // The COUNT stops a third migration arriving unnoticed — including one
+    // restacked in from the base branch, which is the specific accident this
+    // PR is exposed to: it now sits on C.3R, and a migration reappearing from
+    // there would deploy a schema change nobody reviewed as part of C.3C+C.4.
+    //
+    // The NAMES stop the count being satisfied by a different pair.
+    const dirs = readdirSync(MIGRATIONS, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
+    const own = dirs.filter((d) => d.includes("_c3c_"));
+    expect(own).toEqual([
+      "20260820010000_c3c_experience_archived_status",
+      "20260820020000_c3c_experience_binding_shape",
+    ]);
+    // 59 on `main` (C.3A's included), plus these two. C.3R adds none at all.
+    expect(dirs).toHaveLength(61);
+    expect(dirs.filter((d) => d.includes("c3r"))).toEqual([]);
+  });
 
   /**
    * The migration with its `--` comments removed.

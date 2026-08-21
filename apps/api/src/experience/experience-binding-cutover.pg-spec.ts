@@ -880,6 +880,21 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
 
   // ── A fleet with both binaries in it ─────────────────────────────────────
 
+  /** Is somebody actually WAITING on an advisory lock right now? */
+  async function waitForAdvisoryWaiter(timeoutMs = 5_000): Promise<boolean> {
+    const started = process.hrtime.bigint();
+    const limit = BigInt(timeoutMs) * 1_000_000n;
+    while (process.hrtime.bigint() - started < limit) {
+      const rows = await prisma.$queryRaw<{ n: bigint }[]>`
+        SELECT count(*)::bigint AS n
+          FROM pg_locks
+         WHERE locktype = 'advisory' AND NOT granted`;
+      if (Number((rows[0] as { n: bigint }).n) > 0) return true;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    return false;
+  }
+
   it("V1 and V2 serialise on the SAME chapter key", async () => {
     /**
      * The mixed fleet, modelled honestly: V1's sequence is taken from the
@@ -910,8 +925,12 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
       },
     );
 
-    await Promise.resolve();
-    await Promise.resolve();
+    // Wait for V2 to be OBSERVABLY blocked on an advisory lock before
+    // concluding anything. Draining the event loop is not enough on its own: a
+    // build that took NO lock would still be mid-flight after two microtasks,
+    // so `v2Settled === false` would hold for a reason that has nothing to do
+    // with serialisation — and the test would pass while the lock was gone.
+    expect(await waitForAdvisoryWaiter()).toBe(true);
     // V2 takes only the chapter key — and that is the key V1 is holding.
     expect(v2Settled).toBe(false);
 
@@ -938,5 +957,248 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
 
     b.open();
     await holder;
+  });
+  // ── C.3R · the CMS asks by identity, and pays a fixed price for it ────────
+
+  describe("the selector decides by identity", () => {
+    it("a pin from the OTHER book never appears", async () => {
+      // Parejas' guide targets a unit in Parejas. Offering it here would let an
+      // editor bind a passage that lives in another book entirely.
+      const options = await service.listSelectableGuides(BOOK_A, 1, null);
+      expect(options.map((o) => o.guideKey)).not.toContain(
+        "pqp-c1-contacto-sostenido",
+      );
+      // And the reverse, so this cannot pass because the list is empty.
+      const there = await service.listSelectableGuides(BOOK_B, 2, null);
+      expect(there.map((o) => o.guideKey)).toContain(
+        "pqp-c1-contacto-sostenido",
+      );
+    });
+
+    it("a version the registry does not have never appears", async () => {
+      // A catalog whose anchor names `v9` of a real guide. The authority
+      // answers UNKNOWN_DEFINITION, which is an editorial "no", not an option.
+      const ghost = new ExperienceAdminService(
+        prisma as unknown as PrismaService,
+        productionCodeOwnedClaims,
+        {
+          anchors: [{ ...GUIDE_READER_ANCHOR, guideVersion: 9 }],
+          getExact: (k, v) => productionGuideRegistry.getExact(k, v),
+        },
+        new GuideTargetContextService(
+          new LearningCatalogResolver(prisma as unknown as PrismaService),
+        ),
+      );
+      expect(await ghost.listSelectableGuides(BOOK_A, 1, null)).toEqual([]);
+    });
+
+    it("a catalog that is broken — not merely incomplete — fails CLOSED", async () => {
+      // A registry that throws something other than "no such definition" means
+      // the BUILD is wrong. Reading that as "no guides here" would present an
+      // empty menu as an editorial fact; it propagates instead.
+      const broken = new ExperienceAdminService(
+        prisma as unknown as PrismaService,
+        productionCodeOwnedClaims,
+        {
+          anchors: [GUIDE_READER_ANCHOR],
+          getExact: () => {
+            throw new TypeError("catalog is broken");
+          },
+        },
+        new GuideTargetContextService(
+          new LearningCatalogResolver(prisma as unknown as PrismaService),
+          {
+            getExact: () => {
+              throw new TypeError("catalog is broken");
+            },
+          },
+        ),
+      );
+      await expect(
+        broken.listSelectableGuides(BOOK_A, 1, null),
+      ).rejects.toThrow();
+    });
+
+    it("the response carries pins, never an internal identifier", async () => {
+      const options = await service.listSelectableGuides(BOOK_A, 1, null);
+      expect(options.length).toBeGreaterThan(0);
+      const wire = JSON.stringify(options);
+      expect(wire).not.toContain("contentUnitId");
+      expect(wire).not.toContain(unitA);
+      expect(wire).not.toContain("unitKey");
+      expect(wire).not.toContain("revisionId");
+      for (const o of options) {
+        expect(Object.keys(o).sort()).toEqual([
+          "availability",
+          "guideKey",
+          "guideVersion",
+          "stepCount",
+        ]);
+      }
+    });
+
+    it("2 and 25 distinct candidates cost the same number of reads", async () => {
+      // Measured end to end inside the real transaction. The editor must not
+      // pay for the catalog's size, and "it batches" is exactly the kind of
+      // claim that rots into an N+1 the first time somebody adds a loop.
+      const count = async (n: number): Promise<number> => {
+        let queries = 0;
+        const countingTx = (tx: object): object =>
+          new Proxy(tx, {
+            get(target, prop, recv) {
+              const v = Reflect.get(target, prop, recv);
+              if (prop === "$queryRaw" || prop === "$queryRawUnsafe") {
+                return (...args: unknown[]) => {
+                  queries += 1;
+                  return (v as (...a: unknown[]) => unknown).apply(
+                    target,
+                    args,
+                  );
+                };
+              }
+              if (typeof prop === "string" && prop.startsWith("$")) return v;
+              if (typeof v !== "object" || v === null) return v;
+              return new Proxy(v, {
+                get(m, mp, mr) {
+                  const fn = Reflect.get(m, mp, mr);
+                  if (typeof fn !== "function") return fn;
+                  return (...args: unknown[]) => {
+                    queries += 1;
+                    return (fn as (...a: unknown[]) => unknown).apply(m, args);
+                  };
+                },
+              });
+            },
+          });
+        const countingClient = new Proxy(prisma, {
+          get(target, prop, recv) {
+            const v = Reflect.get(target, prop, recv);
+            if (prop === "$transaction" && typeof v === "function") {
+              return (fn: unknown, opts: unknown) =>
+                (v as (...a: unknown[]) => unknown).call(
+                  target,
+                  typeof fn === "function"
+                    ? (tx: object) =>
+                        (fn as (t: unknown) => unknown)(countingTx(tx))
+                    : fn,
+                  opts,
+                );
+            }
+            return typeof v === "function" ? v.bind(target) : v;
+          },
+        }) as unknown as PrismaService;
+
+        // DISTINCT pins, and every one of them RESOLVABLE. Synthetic keys the
+        // registry does not know would be answered before a single query is
+        // issued, and the measurement would say "batched" about a batch that
+        // never touched the catalog. Each is the real definition under its own
+        // key, so all n are placed for real.
+        const anchors = Array.from({ length: n }, (_, i) =>
+          i === 0
+            ? GUIDE_READER_ANCHOR
+            : { ...GUIDE_READER_ANCHOR, guideKey: `${EEC_PIN.guideKey}-c${i}` },
+        );
+        const menu = {
+          anchors,
+          getExact: (guideKey: string, guideVersion: number) => ({
+            ...productionGuideRegistry.getExact(
+              EEC_PIN.guideKey,
+              EEC_PIN.guideVersion,
+            ),
+            guideKey,
+            guideVersion,
+          }),
+        };
+        const svc = new ExperienceAdminService(
+          countingClient,
+          productionCodeOwnedClaims,
+          menu,
+          new GuideTargetContextService(
+            new LearningCatalogResolver(countingClient),
+            menu,
+          ),
+        );
+        await svc.listSelectableGuides(BOOK_A, 1, null);
+        return queries;
+      };
+
+      const two = await count(2);
+      const twentyFive = await count(25);
+      expect(twentyFive).toBe(two);
+      // eslint-disable-next-line no-console
+      console.log(`GUIDE_OPTIONS_QUERIES_2_DISTINCT=${two}`);
+      // eslint-disable-next-line no-console
+      console.log(`GUIDE_OPTIONS_QUERIES_25_DISTINCT=${twentyFive}`);
+    });
+  });
+
+  describe("the write path re-decides for itself", () => {
+    it("a request naming a pin from another book is refused at CREATE", async () => {
+      // The UI never offered it; this is a hand-made request. What the browser
+      // was shown is not authorisation, so the refusal comes from the server
+      // re-placing the pin, not from the menu it happened to render.
+      await expect(
+        service.createDraft(
+          userId,
+          await eecDraft({
+            guidePin: {
+              guideKey: "pqp-c1-contacto-sostenido",
+              guideVersion: 1,
+            },
+          }),
+        ),
+      ).rejects.toMatchObject({
+        response: { code: "EXPERIENCE_GUIDE_PIN_NOT_RUNNABLE_HERE" },
+      });
+      expect(
+        await prisma.chapterExperienceVersion.count({
+          where: { guideKey: "pqp-c1-contacto-sostenido" },
+        }),
+      ).toBe(0);
+    });
+
+    it("ownership follows the unit when the position moves under the write", async () => {
+      // The outer read learns which chapter to lock and nothing else. Here the
+      // guide's unit is renumbered between that read and the write: the binding
+      // still lands on the unit the guide targets, at whatever number it now
+      // holds.
+      const edition = await prisma.edition.findFirstOrThrow({
+        where: { slug: BOOK_A },
+        select: { id: true, publishedRevisionId: true },
+      });
+      const previous = edition.publishedRevisionId as string;
+      const before = await prisma.revisionUnit.findFirstOrThrow({
+        where: { revisionId: previous, unitId: unitA },
+        select: { order: true },
+      });
+      try {
+        await prisma.revisionUnit.update({
+          where: {
+            revisionId_unitId: { revisionId: previous, unitId: unitA },
+          },
+          data: { order: before.order + 500 },
+        });
+        const created = await service.createDraft(
+          userId,
+          await eecDraft({ chapterOrder: before.order + 500 }),
+        );
+        const row = await prisma.chapterExperienceVersion.findUniqueOrThrow({
+          where: { id: created.id },
+          select: { contentUnitId: true },
+        });
+        expect(row.contentUnitId).toBe(unitA);
+        await prisma.chapterExperienceVersion.delete({
+          where: { id: created.id },
+        });
+        await prisma.experienceGuideReservation.deleteMany({
+          where: { contentUnitId: unitA },
+        });
+      } finally {
+        await prisma.revisionUnit.update({
+          where: { revisionId_unitId: { revisionId: previous, unitId: unitA } },
+          data: { order: before.order },
+        });
+      }
+    });
   });
 });

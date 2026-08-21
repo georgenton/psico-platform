@@ -118,6 +118,64 @@ describe("ratchet · every anchor resolves an exact guide", () => {
     }
   });
 
+  it("the same pin listed twice is ONE option, in catalog order", () => {
+    // A catalog can grow a duplicate — two anchors for the same lineage, or a
+    // list assembled from two sources. Offering it twice would show an editor
+    // two rows that are the same guide and whose availability must always
+    // agree; picking either does the same thing, and one of them looks like a
+    // second choice that does not exist.
+    const anchor = ANCHORS[0] as GuideReaderAnchorLocator;
+    const other = ANCHORS[1] as GuideReaderAnchorLocator;
+    const options = selectableGuidesForChapter({
+      contentUnitId: UNIT_OF(anchor),
+      targets: new Map([
+        [guideOptionPinKey(anchor), UNIT_OF(anchor)],
+        [guideOptionPinKey(other), UNIT_OF(anchor)],
+      ]),
+      experienceKey: null,
+      view: EMPTY_VIEW,
+      catalog: {
+        // The same pin three times, with another one between them, so the test
+        // pins BOTH facts: duplicates collapse, and order follows the catalog
+        // rather than whatever a Set happened to preserve.
+        anchors: [anchor, other, anchor, anchor],
+        getExact: (k, v) => productionGuideRegistry.getExact(k, v),
+      },
+    });
+    expect(options.map((o) => o.guideKey)).toEqual([
+      anchor.guideKey,
+      other.guideKey,
+    ]);
+  });
+
+  it("two VERSIONS of one guide are two pins, placed separately", () => {
+    // The index is keyed by the exact pin. A version-blind key would let `v2`
+    // read `v1`'s placement — so a guide whose new version targets another unit
+    // would still be offered here, and an editor could bind a version whose
+    // passage is somewhere else entirely.
+    const anchor = ANCHORS[0] as GuideReaderAnchorLocator;
+    const v2 = { ...anchor, guideVersion: anchor.guideVersion + 1 };
+    const options = selectableGuidesForChapter({
+      contentUnitId: UNIT_OF(anchor),
+      targets: new Map([
+        [guideOptionPinKey(anchor), UNIT_OF(anchor)],
+        // The next version moved: its passage is in another unit.
+        [guideOptionPinKey(v2), "unit_otra"],
+      ]),
+      experienceKey: null,
+      view: EMPTY_VIEW,
+      catalog: {
+        anchors: [anchor, v2],
+        getExact: () =>
+          productionGuideRegistry.getExact(
+            anchor.guideKey,
+            anchor.guideVersion,
+          ),
+      },
+    });
+    expect(options.map((o) => o.guideVersion)).toEqual([anchor.guideVersion]);
+  });
+
   it("a pin the authority could not place is NOT offered", () => {
     // `null` is the editorial answer «no pude ubicarla»: an unknown definition,
     // or targets that contradict each other. Neither is permission to bind.

@@ -37,6 +37,11 @@ export class GuideCardStatesBodyError extends Error {
 
 export interface GuideCardStatesQuery {
   pins: Array<{ guideKey: string; guideVersion: number }>;
+  /**
+   * Where the reader is. Navigation plus an environment-local token — never
+   * `contentUnitId`, which this endpoint refuses to accept from a client.
+   */
+  reader: { bookSlug: string; chapterOrder: number; unitKey: string };
 }
 
 /**
@@ -56,7 +61,20 @@ export const GUIDE_CARD_STATES_MAX_PINS = 25;
 /** The largest version a pin may name — a version, not an identifier. */
 export const GUIDE_CARD_STATES_MAX_VERSION = 999_999_999;
 
-const ROOT_KEYS = ["pins"] as const;
+const ROOT_KEYS = ["pins", "reader"] as const;
+const READER_KEYS = ["bookSlug", "chapterOrder", "unitKey"] as const;
+
+/** A book slug: the same key grammar, since it is one. */
+const SLUG_RE = KEY_RE;
+/**
+ * A `unitKey` is a uuidv5 in this build, but the parser bounds SHAPE rather
+ * than format: it is an environment-local token the server re-resolves, so
+ * pinning a uuid grammar here would refuse a future ingest for no safety gain.
+ * What matters is that it is a bounded, non-empty, printable string.
+ */
+const UNIT_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/;
+/** Chapter numbering is 1-based and generously bounded. */
+const MAX_CHAPTER_ORDER = 10_000;
 const PIN_KEYS = ["guideKey", "guideVersion"] as const;
 
 /**
@@ -115,5 +133,34 @@ export function parseGuideCardStatesBody(body: unknown): GuideCardStatesQuery {
     return { guideKey, guideVersion };
   });
 
-  return { pins };
+  const readerRaw = (body as { reader?: unknown }).reader;
+  if (
+    typeof readerRaw !== "object" ||
+    readerRaw === null ||
+    Array.isArray(readerRaw)
+  ) {
+    throw new GuideCardStatesBodyError();
+  }
+  onlyKeys(readerRaw, READER_KEYS);
+  const { bookSlug, chapterOrder, unitKey } = readerRaw as {
+    bookSlug?: unknown;
+    chapterOrder?: unknown;
+    unitKey?: unknown;
+  };
+  if (typeof bookSlug !== "string" || !SLUG_RE.test(bookSlug)) {
+    throw new GuideCardStatesBodyError();
+  }
+  if (typeof unitKey !== "string" || !UNIT_KEY_RE.test(unitKey)) {
+    throw new GuideCardStatesBodyError();
+  }
+  if (
+    typeof chapterOrder !== "number" ||
+    !Number.isInteger(chapterOrder) ||
+    chapterOrder <= 0 ||
+    chapterOrder > MAX_CHAPTER_ORDER
+  ) {
+    throw new GuideCardStatesBodyError();
+  }
+
+  return { pins, reader: { bookSlug, chapterOrder, unitKey } };
 }

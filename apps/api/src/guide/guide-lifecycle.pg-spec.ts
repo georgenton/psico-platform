@@ -27,6 +27,7 @@ import {
   GuideStepConflictError,
 } from "./guide-session-step.repository";
 import { GuideTargetContextService } from "./guide-target-context.service";
+import { GuideReaderApplicabilityService } from "./guide-reader-applicability.service";
 import { GuideLifecycleService } from "./guide-lifecycle.service";
 import { GuideLifecycleError } from "./guide-errors";
 
@@ -202,6 +203,9 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
       stepRepo,
       new GuideCommandReceiptRepository(prisma),
       new LearningEventRepository(prisma),
+      new GuideReaderApplicabilityService(
+        new GuideTargetContextService(resolver),
+      ),
     );
   }, 180_000);
 

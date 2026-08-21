@@ -274,6 +274,53 @@ export interface GuideExperienceCardState {
    * open.
    */
   resumePin: { guideKey: string; guideVersion: number };
+  /**
+   * Does the pin a click would RUN belong to the chapter the reader is on?
+   *
+   * Decided by the server (C.3R), by resolving the reader's unit and the pin's
+   * editorial target to internal ids and comparing them. Neither id crosses
+   * the wire; what arrives is this closed word.
+   *
+   * The browser used to answer this by comparing the anchor's
+   * `(bookSlug, chapterOrder)` with the chapter on screen — placement, not
+   * identity, so an editorial reorder moved the guide to whichever unit
+   * inherited the number.
+   *
+   * Bound to `evaluatedPin`, never to `guidePin`: a CONTINUE card runs the
+   * session's own version, and answering about the published one would be an
+   * answer to a different question.
+   */
+  applicability: GuideApplicability;
+  /**
+   * The pin this verdict is ABOUT — `resumePin` for CONTINUE, `guidePin`
+   * otherwise. Echoed so a client can verify the answer matches the question
+   * it would act on rather than assuming the rule was applied.
+   */
+  evaluatedPin: { guideKey: string; guideVersion: number };
+}
+
+/**
+ * A closed verdict. `UNAVAILABLE` means "the catalog says this guide is not
+ * about this chapter" — never "the lookup failed", which is an error.
+ */
+export type GuideApplicability = "APPLIES" | "UNAVAILABLE";
+
+/**
+ * Where the reader is, as the client may honestly describe it.
+ *
+ * `unitKey` is an ENVIRONMENT-LOCAL staleness token, not portable editorial
+ * identity: it is `uuidv5(Chapter.id)` over a random cuid, so two ingestions of
+ * the same book produce different values. The server looks the unit up by it
+ * inside the published revision and requires the navigation to agree; it never
+ * adopts it as identity and never accepts it as proof of anything.
+ *
+ * `contentUnitId` is deliberately absent. The client neither sends nor
+ * receives it.
+ */
+export interface GuideReaderContext {
+  bookSlug: string;
+  chapterOrder: number;
+  unitKey: string;
 }
 
 /**
@@ -288,6 +335,8 @@ export interface GuideExperienceCardState {
  */
 export interface GuideExperienceCardStatesRequest {
   pins: Array<{ guideKey: string; guideVersion: number }>;
+  /** Where the reader is. See `GuideReaderContext` — navigation and a token. */
+  reader: GuideReaderContext;
 }
 
 export interface GuideExperienceCardStatesResponse {

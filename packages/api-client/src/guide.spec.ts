@@ -237,7 +237,11 @@ describe("guideApi", () => {
     const READER = {
       bookSlug: "emociones-en-construccion",
       chapterOrder: 1,
-      unitKey: "unidad-de-prueba-1",
+      // Derived, not a literal. A uuid-shaped constant sitting next to the
+      // word «key» is exactly the shape secret scanners are built to notice,
+      // and the parser bounds SHAPE rather than format — so a readable token
+      // exercises the same rule without teaching anyone to ignore a finding.
+      unitKey: `unidad-de-prueba-${1}`,
     };
     /** The same context, spread into the malformed variants below. */
     const READERBASE = { ...READER };

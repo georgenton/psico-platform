@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { backfillContentCore } from "../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
 import { productionGuideRegistry } from "./guide-catalog";
+import type { GuideDefinition } from "@psico/types";
 import { GuideTargetContextService } from "./guide-target-context.service";
 import {
   GuideReaderApplicabilityService,
@@ -212,12 +213,19 @@ suite(
   () => {
     let A: Env;
     let B: Env;
+    /** The ONE authority, built per transaction by the helper below. */
+    let targetContext: GuideTargetContextService;
 
     beforeAll(async () => {
       // Two independent environments, and DIFFERENT chapter numbering in each, so
       // nothing can accidentally line up by position.
       A = await makeEnv("c3r_env_a", { [EEC]: 1, [PQP]: 2 });
       B = await makeEnv("c3r_env_b", { [EEC]: 1, [PQP]: 2 });
+      // Constructed once; every call threads the caller's transaction, so the
+      // instance holds no snapshot of its own.
+      targetContext = new GuideTargetContextService(
+        new LearningCatalogResolver(A.prisma as unknown as PrismaService),
+      );
     }, 600_000);
 
     afterAll(async () => {
@@ -341,47 +349,81 @@ suite(
       expect(eec).not.toBe(pqp);
     });
 
-    it("the BATCH answer equals the single-pin authority, for every published pin", async () => {
-      // Two implementations of one rule is how they drift. This is the whole
-      // argument that the fast path is honest — and it is complete rather than a
-      // sample: the only pins the service ever evaluates are the ones
-      // `getExact` returns, so enumerating the registry enumerates the input
-      // space.
-      const svc = new GuideReaderApplicabilityService();
+    it("resolve() and resolveMany([pin]) give byte-identical answers", async () => {
+      // After the refactor these SHARE a core, so this is a delegation ratchet
+      // rather than independent evidence: it fails the moment someone gives
+      // the single-pin path an implementation of its own again. The evidence
+      // that the rules are RIGHT lives in the adversarial cases below.
       for (const env of [A, B]) {
-        const batch = await env.prisma.$transaction((tx) =>
-          svc.resolveTargetUnits(
-            tx,
-            PINS.map((p) => ({
-              guideKey: p.guideKey,
-              guideVersion: p.guideVersion,
-            })),
-          ),
+        const pins = PINS.map((p) => ({
+          guideKey: p.guideKey,
+          guideVersion: p.guideVersion,
+        }));
+        const many = await env.prisma.$transaction((tx) =>
+          targetContext.resolveMany(pins, tx),
         );
-        for (const pin of PINS) {
-          const authority = await targetUnitOf(env, pin);
-          expect(batch.get(`${pin.guideKey}@${pin.guideVersion}`)).toBe(
-            authority,
-          );
+        for (const [i, pin] of PINS.entries()) {
+          const one = await targetUnitOf(env, pin);
+          const r = many[i]!;
+          expect(r.ok).toBe(true);
+          if (r.ok) expect(r.context.unitId).toBe(one);
         }
       }
     });
 
-    it("the batch costs a FIXED number of queries, whatever the pin count", async () => {
-      // 25 pins must not be 25 resolutions. Counted by instrumenting the client
-      // rather than by reading the code.
-      const svc = new GuideReaderApplicabilityService();
+    it("every pin the registry can return resolves — the enumeration ratchet", async () => {
+      // Kept as a ratchet: a definition added to the build whose targets are
+      // not ingested would surface here rather than as an inert card.
+      const pins = PINS.map((p) => ({
+        guideKey: p.guideKey,
+        guideVersion: p.guideVersion,
+      }));
+      const results = await A.prisma.$transaction((tx) =>
+        targetContext.resolveMany(pins, tx),
+      );
+      expect(results.every((r) => r.ok)).toBe(true);
+    });
+
+    it("the batch cost is independent of cardinality — 25 DISTINCT pins", async () => {
+      // Repeating two pins to reach 25 would measure deduplication, not
+      // scaling. These are 25 distinct definitions over 25 distinct target
+      // sets, supplied through the registry seam.
+      const synthetic = (n: number): GuideDefinition[] =>
+        Array.from({ length: n }, (_, i) => ({
+          ...productionGuideRegistry.getExact(
+            PINS[0].guideKey,
+            PINS[0].guideVersion,
+          ),
+          guideKey: `synthetic-${i}`,
+          guideVersion: 1,
+          steps: [
+            {
+              kind: "CONCEPT_EXPLORATION",
+              stepKey: `s-${i}`,
+              conceptKey: `synthetic-concept-${i}`,
+            },
+          ],
+        })) as unknown as GuideDefinition[];
+
       const count = async (n: number): Promise<number> => {
-        let queries = 0;
-        const pins = Array.from({ length: n }, (_, i) => ({
-          guideKey: PINS[i % PINS.length].guideKey,
-          guideVersion: PINS[i % PINS.length].guideVersion,
+        const defs = synthetic(n);
+        const registry = {
+          getExact: (k: string): GuideDefinition => {
+            const d = defs.find((x) => x.guideKey === k);
+            if (!d) throw new Error("unknown");
+            return d;
+          },
+        };
+        const pins = defs.map((d) => ({
+          guideKey: d.guideKey,
+          guideVersion: d.guideVersion,
         }));
+        let queries = 0;
         await A.prisma.$transaction(async (tx) => {
           const spy = new Proxy(tx, {
             get(target, prop, recv) {
               const v = Reflect.get(target, prop, recv);
-              if (prop === "$queryRaw") {
+              if (prop === "$queryRaw" || prop === "$queryRawUnsafe") {
                 return (...args: unknown[]) => {
                   queries += 1;
                   return (v as (...a: unknown[]) => unknown).apply(
@@ -408,19 +450,23 @@ suite(
               return v;
             },
           }) as typeof tx;
-          await svc.resolveTargetUnits(spy, pins);
+          await targetContext.resolveMany(pins, spy, registry);
         });
         return queries;
       };
+
       const two = await count(2);
       const twentyFive = await count(25);
+      // The requirement: the cost does not grow with the number of pins.
       expect(twentyFive).toBe(two);
-      // Four: concepts, exercises+items, units, published membership.
-      expect(two).toBeLessThanOrEqual(4);
+      // The honest number, named rather than rounded to a target: exercises,
+      // concepts, units, published membership, contexts. Unreached lookups are
+      // skipped, so a concept-only batch costs fewer.
+      expect(two).toBeLessThanOrEqual(5);
     });
 
     it("a stale reader token fails the batch closed, rather than answering", async () => {
-      const svc = new GuideReaderApplicabilityService();
+      const svc = new GuideReaderApplicabilityService(targetContext);
       const pins = [
         { guideKey: PINS[0].guideKey, guideVersion: PINS[0].guideVersion },
       ];
@@ -453,7 +499,7 @@ suite(
     });
 
     it("after a reorder the verdict follows the unit, not the number", async () => {
-      const svc = new GuideReaderApplicabilityService();
+      const svc = new GuideReaderApplicabilityService(targetContext);
       const pins = [
         { guideKey: PINS[0].guideKey, guideVersion: PINS[0].guideVersion },
       ];
@@ -500,7 +546,7 @@ suite(
     });
 
     it("the other book's pin is never applicable here, and duplicates keep their place", async () => {
-      const svc = new GuideReaderApplicabilityService();
+      const svc = new GuideReaderApplicabilityService(targetContext);
       const real = await A.prisma.$queryRawUnsafe<Array<{ unitKey: string }>>(
         `SELECT u."unitKey" FROM "ContentUnit" u
          JOIN "Edition" e ON e."id" = u."editionId"
@@ -532,7 +578,7 @@ suite(
     });
 
     it("the read path writes nothing", async () => {
-      const svc = new GuideReaderApplicabilityService();
+      const svc = new GuideReaderApplicabilityService(targetContext);
       const before = await A.prisma.$queryRawUnsafe<Array<{ n: bigint }>>(
         `SELECT (SELECT count(*) FROM "ContentUnit") + (SELECT count(*) FROM "RevisionUnit") AS n`,
       );
@@ -554,6 +600,211 @@ suite(
         `SELECT (SELECT count(*) FROM "ContentUnit") + (SELECT count(*) FROM "RevisionUnit") AS n`,
       );
       expect(String(after[0]!.n)).toBe(String(before[0]!.n));
+    });
+
+    /**
+     * The adversarial cases — the ones that actually discriminate.
+     *
+     * Enumerating the two published pins proves the batch works on data that
+     * is already correct. These construct data that is WRONG in each specific
+     * way the rules exist to catch, and require the batch to refuse exactly
+     * where the single-pin authority refuses.
+     */
+    describe("adversarial targets", () => {
+      const base = () =>
+        productionGuideRegistry.getExact(
+          PINS[0].guideKey,
+          PINS[0].guideVersion,
+        );
+
+      /** A registry serving exactly one synthetic definition. */
+      const only = (def: GuideDefinition) => ({
+        getExact: (k: string, v: number): GuideDefinition => {
+          if (k !== def.guideKey || v !== def.guideVersion) {
+            throw new Error("unknown");
+          }
+          return def;
+        },
+      });
+
+      const withSteps = (steps: unknown[]): GuideDefinition =>
+        ({
+          ...base(),
+          guideKey: "adversarial",
+          guideVersion: 1,
+          steps,
+        }) as unknown as GuideDefinition;
+
+      async function outcome(def: GuideDefinition) {
+        const [r] = await A.prisma.$transaction((tx) =>
+          targetContext.resolveMany(
+            [{ guideKey: def.guideKey, guideVersion: def.guideVersion }],
+            tx,
+            only(def),
+          ),
+        );
+        return r!;
+      }
+
+      /** What the SINGLE-pin authority does with the same definition. */
+      async function authority(
+        def: GuideDefinition,
+      ): Promise<string | "THREW"> {
+        try {
+          return (
+            await A.prisma.$transaction((tx) => targetContext.resolve(def, tx))
+          ).unitId;
+        } catch {
+          return "THREW";
+        }
+      }
+
+      it("a recall item whose declared concept lives elsewhere is refused", async () => {
+        // The exact rule the first batch dropped. The item resolves, its unit
+        // resolves — and its OWN catalog names a concept owned by a different
+        // unit, which makes the item's editorial claim incoherent.
+        const other = await A.prisma.$queryRawUnsafe<
+          Array<{ conceptKey: string }>
+        >(
+          `SELECT c."conceptKey" FROM "Concept" c
+             JOIN "ConceptLink" l ON l."conceptId" = c."id"
+             JOIN "ContentUnit" u ON u."id" = l."unitId"
+             JOIN "Edition" e ON e."id" = u."editionId"
+            WHERE e."slug" = $1 LIMIT 1`,
+          PQP,
+        );
+        if (other.length === 0) return; // nothing to contradict WITH
+        const item = await A.prisma.$queryRawUnsafe<
+          Array<{ id: string; content: unknown }>
+        >(
+          `SELECT e."id", e."content" FROM "Exercise" e WHERE e."type" = 'QUIZ' LIMIT 1`,
+        );
+        if (item.length === 0) return;
+        const ROLLBACK = Symbol("rollback");
+        let batch: unknown = null;
+        let single: unknown = null;
+        try {
+          await A.prisma.$transaction(async (tx) => {
+            // Point the item's INTERNAL catalog at the other book's concept.
+            await tx.$executeRawUnsafe(
+              `UPDATE "Exercise" SET "content" = jsonb_set("content"::jsonb, '{conceptKey}', to_jsonb($2::text))
+                 WHERE "id" = $1`,
+              item[0]!.id,
+              other[0]!.conceptKey,
+            );
+            const def = withSteps([
+              {
+                kind: "ACTIVE_RECALL",
+                stepKey: "r",
+                completionPolicy: "objective_recall",
+                itemKey: item[0]!.id,
+              },
+            ]);
+            [batch] = await targetContext.resolveMany(
+              [{ guideKey: def.guideKey, guideVersion: def.guideVersion }],
+              tx,
+              only(def),
+            );
+            single = await targetContext.resolve(def, tx).catch(() => "THREW");
+            throw ROLLBACK;
+          });
+        } catch (e) {
+          if (e !== ROLLBACK) throw e;
+        }
+        expect((batch as { ok: boolean }).ok).toBe(false);
+        expect(single).toBe("THREW");
+      });
+
+      it("an ACTIVE_RECALL step pointing at a non-QUIZ is refused", async () => {
+        const ex = await A.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT "id" FROM "Exercise" WHERE "type" <> 'QUIZ' LIMIT 1`,
+        );
+        if (ex.length === 0) return;
+        const def = withSteps([
+          {
+            kind: "ACTIVE_RECALL",
+            stepKey: "r",
+            completionPolicy: "objective_recall",
+            itemKey: ex[0]!.id,
+          },
+        ]);
+        expect((await outcome(def)).ok).toBe(false);
+        expect(await authority(def)).toBe("THREW");
+      });
+
+      it("a CATALOG_PRACTICE step pointing at a QUIZ is refused", async () => {
+        const quiz = await A.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT "id" FROM "Exercise" WHERE "type" = 'QUIZ' LIMIT 1`,
+        );
+        if (quiz.length === 0) return;
+        const def = withSteps([
+          { kind: "CATALOG_PRACTICE", stepKey: "p", exerciseKey: quiz[0]!.id },
+        ]);
+        expect((await outcome(def)).ok).toBe(false);
+        expect(await authority(def)).toBe("THREW");
+      });
+
+      it("a concept with no owning unit is refused", async () => {
+        const def = withSteps([
+          {
+            kind: "CONCEPT_EXPLORATION",
+            stepKey: "c",
+            conceptKey: "no-such-concept",
+          },
+        ]);
+        expect((await outcome(def)).ok).toBe(false);
+        expect(await authority(def)).toBe("THREW");
+      });
+
+      it("targets that disagree about the unit are a MISMATCH, not a pick", async () => {
+        const eecConcept = await A.prisma.$queryRawUnsafe<
+          Array<{ conceptKey: string }>
+        >(
+          `SELECT c."conceptKey" FROM "Concept" c
+             JOIN "ConceptLink" l ON l."conceptId" = c."id"
+             JOIN "ContentUnit" u ON u."id" = l."unitId"
+             JOIN "Edition" e ON e."id" = u."editionId"
+            WHERE e."slug" = $1 LIMIT 1`,
+          EEC,
+        );
+        const pqpConcept = await A.prisma.$queryRawUnsafe<
+          Array<{ conceptKey: string }>
+        >(
+          `SELECT c."conceptKey" FROM "Concept" c
+             JOIN "ConceptLink" l ON l."conceptId" = c."id"
+             JOIN "ContentUnit" u ON u."id" = l."unitId"
+             JOIN "Edition" e ON e."id" = u."editionId"
+            WHERE e."slug" = $1 LIMIT 1`,
+          PQP,
+        );
+        if (!eecConcept.length || !pqpConcept.length) return;
+        const def = withSteps([
+          {
+            kind: "CONCEPT_EXPLORATION",
+            stepKey: "a",
+            conceptKey: eecConcept[0]!.conceptKey,
+          },
+          {
+            kind: "CONCEPT_EXPLORATION",
+            stepKey: "b",
+            conceptKey: pqpConcept[0]!.conceptKey,
+          },
+        ]);
+        const r = await outcome(def);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.code).toBe("GUIDE_CONTEXT_MISMATCH");
+        expect(await authority(def)).toBe("THREW");
+      });
+
+      it("EXPLICIT_CONFIRMATION alone anchors to nothing", async () => {
+        const def = withSteps([
+          { kind: "EXPLICIT_CONFIRMATION", stepKey: "x", prompt: "¿Seguimos?" },
+        ]);
+        const r = await outcome(def);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.code).toBe("GUIDE_CONTEXT_UNRESOLVED");
+        expect(await authority(def)).toBe("THREW");
+      });
     });
 
     it("an unknown pin and a wrong version both fail closed", async () => {

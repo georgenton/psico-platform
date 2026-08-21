@@ -17,6 +17,7 @@ import { GuideRolloutService } from "./guide-rollout.service";
 import { GuideSessionRepository } from "./guide-session.repository";
 import { GuideSessionStepRepository } from "./guide-session-step.repository";
 import { GuideTargetContextService } from "./guide-target-context.service";
+import { GuideReaderApplicabilityService } from "./guide-reader-applicability.service";
 import { GuideController } from "./guide.controller";
 
 /**
@@ -40,6 +41,7 @@ import { GuideController } from "./guide.controller";
   providers: [
     LearningCatalogResolver,
     GuideTargetContextService,
+    GuideReaderApplicabilityService,
     GuideLifecycleService,
     // GR-4 — read-only contextual discovery. Shares the SAME collaborators the
     // lifecycle uses, so "is it offered" and "start it" cannot disagree.
